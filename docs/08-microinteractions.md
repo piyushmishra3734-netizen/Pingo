@@ -381,4 +381,4 @@ For any new interaction:
 
 ---
 
-*Previous: [07 — Offline & Sync](./07-offline-sync.md) · Back to [index](./README.md)*
+*Previous: [07 — Offline & Sync](./07-offline-sync.md) · Next: [09 — Notifications & Presence](./09-notifications-presence.md)*

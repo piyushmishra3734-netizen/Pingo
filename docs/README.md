@@ -25,8 +25,10 @@ blueprint names a value, it names the token.
 | 06 | [Accessibility & Inclusive Design](./06-accessibility.md) | Screen readers, dynamic type, reduced motion, contrast, targets, keyboard, cognitive and situational access |
 | 07 | [Offline & Sync](./07-offline-sync.md) | Connection states, send queue, upload retry, conflict resolution, multi-device sync, first sync |
 | 08 | [Microinteractions & Haptics](./08-microinteractions.md) | Per-interaction motion table, haptic vocabulary, optional sound, loading/success/error feedback |
+| 09 | [Notifications & Presence](./09-notifications-presence.md) | All presence, activity, delivery and connection states; typing anti-flicker; receipts; privacy and reciprocity; push categories; quiet hours; badges; presence sync |
+| 10 | [Media System](./10-media-system.md) | Upload and download pipelines, images, video, voice notes, documents, gallery, camera, compression by network, cache, viewer, future-ready constraints |
 
-Documents 06–08 are **part of the design system, not appendices.** Every screen built
+Documents 06–10 are **part of the design system, not appendices.** Every screen built
 from 01–05 must also satisfy them.
 
 ---
@@ -38,8 +40,12 @@ from 01–05 must also satisfy them.
 is a blocker.
 
 **If you are about to build a screen** — find it in 01–04 for behaviour, 05 for its
-components, then check it against 06, 07 and 08. Components marked ✅ already exist in
+components, then check it against 06–10. Components marked ✅ already exist in
 `packages/ui`.
+
+**If you are building anything with state indicators** — 09 is the authority. It splits
+the twenty "presence states" into four families with different scopes, owners and privacy
+rules, because treating them as one flat set is what makes presence systems leak.
 
 **If you are reviewing** — the "Rules" and "Fails review" lines are the checklist.
 They are written as things that can *fail*, because a principle that cannot fail a
