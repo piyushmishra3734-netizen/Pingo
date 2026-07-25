@@ -1,0 +1,168 @@
+import {
+  formatConversationTimestamp,
+  formatTypingLabel,
+  messagePreview,
+  useChat,
+  type Conversation,
+} from '@pingo/core';
+import {
+  Avatar,
+  Badge,
+  CheckDoubleIcon,
+  CheckIcon,
+  MuteIcon,
+  PinIcon,
+  PingoDot,
+  cn,
+} from '@pingo/ui';
+import { Link } from 'react-router-dom';
+
+/**
+ * One row in the conversation list.
+ *
+ * The information hierarchy is doing real work here. A row has to answer three
+ * questions at a glance — who, what, and does it need me — so:
+ *
+ *   - Unread rows set the title to medium weight and the preview to full-strength
+ *     ink. Read rows drop the preview to secondary. Weight carries the state, not
+ *     a coloured background, which would make a busy list look alarming.
+ *   - A typing indicator *replaces* the preview. It is strictly newer information,
+ *     and showing both would be two truths competing.
+ *   - Read receipts appear on the preview only when the last message is ours,
+ *     because that is the only case where they mean anything.
+ */
+
+export interface ConversationRowProps {
+  conversation: Conversation;
+  active?: boolean;
+}
+
+export function ConversationRow({ conversation, active = false }: ConversationRowProps) {
+  const { currentUser, users } = useChat();
+
+  const isTyping = conversation.typingUserIds.length > 0;
+  const hasUnread = conversation.unreadCount > 0;
+  const lastMessage = conversation.lastMessage;
+  const lastMessageIsMine = lastMessage?.authorId === currentUser?.id;
+
+  // Only direct chats have a single "other person" whose presence we can show.
+  const partner =
+    conversation.kind === 'direct'
+      ? users.find((u) => conversation.participantIds.includes(u.id) && u.id !== currentUser?.id)
+      : undefined;
+
+  const preview = messagePreview(lastMessage, {
+    conversation,
+    currentUserId: currentUser?.id ?? '',
+    users,
+  });
+
+  return (
+    <Link
+      to={`/chats/${conversation.id}`}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'group flex items-center gap-3 rounded-lg px-3 py-3',
+        'focus-ring transition-colors duration-instant ease-standard',
+        active ? 'bg-selected' : 'hover:bg-hover active:bg-pressed',
+      )}
+    >
+      {/*
+        Groups get a single avatar, not a stack. A stack is wider than one circle,
+        which would push the title and preview of group rows right and break the
+        alignment of the whole column. Member faces belong on the Communities
+        cards, where horizontal space is free.
+      */}
+      <Avatar
+        name={conversation.title}
+        id={partner?.id ?? conversation.id}
+        size="md"
+        // Presence only. Typing is already carried by the preview line below, and
+        // saying it twice in one row is two signals competing for the same glance.
+        presence={
+          conversation.kind === 'direct' && partner?.presence.state === 'online'
+            ? 'online'
+            : undefined
+        }
+      />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-body',
+              hasUnread ? 'font-medium text-ink' : 'text-ink',
+            )}
+          >
+            {conversation.title}
+          </span>
+
+          {conversation.pinned && (
+            <PinIcon size={13} className="shrink-0 text-text-tertiary" title="Pinned" />
+          )}
+          {conversation.muted && (
+            <MuteIcon size={13} className="shrink-0 text-text-tertiary" title="Muted" />
+          )}
+
+          <span
+            className={cn(
+              'shrink-0 text-caption',
+              hasUnread ? 'font-medium text-brand' : 'text-text-tertiary',
+            )}
+          >
+            {formatConversationTimestamp(conversation.updatedAt)}
+          </span>
+        </div>
+
+        <div className="mt-1 flex items-center gap-1.5">
+          {isTyping ? (
+            <span className="flex items-center gap-2 text-caption text-brand">
+              <PingoDot state="typing" size={5} />
+              {formatTypingLabel(conversation.typingUserIds, users)}
+            </span>
+          ) : (
+            <>
+              {/*
+                Delivery state for our own last message. Read is brand-coloured;
+                everything earlier stays grey, so "they've seen it" is the only
+                state that draws the eye.
+              */}
+              {lastMessageIsMine &&
+                lastMessage &&
+                (lastMessage.status === 'read' ? (
+                  <CheckDoubleIcon size={14} className="shrink-0 text-brand" title="Read" />
+                ) : lastMessage.status === 'delivered' ? (
+                  <CheckDoubleIcon
+                    size={14}
+                    className="shrink-0 text-text-tertiary"
+                    title="Delivered"
+                  />
+                ) : (
+                  <CheckIcon size={14} className="shrink-0 text-text-tertiary" title="Sent" />
+                ))}
+
+              <span
+                className={cn(
+                  'min-w-0 flex-1 truncate text-caption',
+                  hasUnread ? 'text-ink' : 'text-text-secondary',
+                )}
+              >
+                {preview}
+              </span>
+            </>
+          )}
+
+          {hasUnread && (
+            <Badge
+              count={conversation.unreadCount}
+              // Muted threads still count, but quietly — that is what mute means.
+              tone={conversation.muted ? 'neutral' : 'brand'}
+              className="shrink-0"
+              srSuffix="unread messages"
+            />
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}

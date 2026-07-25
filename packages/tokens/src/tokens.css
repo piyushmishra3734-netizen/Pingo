@@ -1,0 +1,267 @@
+/**
+ * PINGO — Tailwind v4 theme.
+ *
+ * This file is the CSS face of `@pingo/tokens`. Every value here mirrors a
+ * value in the TypeScript token modules; the TS side exists so React Native can
+ * consume the same design system without CSS.
+ *
+ * Because Tailwind v4 reads `@theme`, declaring a token here does two things at
+ * once: it emits a CSS custom property, and it generates the matching utility
+ * class. So `--color-brand` gives us both `var(--color-brand)` and `bg-brand`.
+ *
+ * Rule: components use these utilities. Nobody writes a raw hex value anywhere
+ * else in the codebase.
+ */
+
+@theme {
+  /* ---- Palette (branding board, verbatim) ------------------------------- */
+  --color-primary-blue: #5c6cff;
+  --color-primary-purple: #8b5dff;
+  --color-soft-white: #f8f9fd;
+  --color-page: #fbfbfe;
+  --color-ink: #101114;
+  --color-muted: #6f7282;
+
+  /* ---- Semantic surfaces ------------------------------------------------ */
+  --color-surface: #ffffff;
+  --color-sunken: #f8f9fd;
+
+  /* ---- Semantic text ---------------------------------------------------- */
+  --color-text: #101114;
+  --color-text-secondary: #6f7282;
+  --color-text-tertiary: rgba(16, 17, 20, 0.38);
+  --color-on-brand: #ffffff;
+
+  /* ---- Brand ------------------------------------------------------------ */
+  --color-brand: #5c6cff;
+  --color-brand-alt: #8b5dff;
+  /* The purple dot: PINGO's heart. */
+  --color-dot: #8b5dff;
+
+  /* ---- Lines ------------------------------------------------------------ */
+  --color-line: rgba(16, 17, 20, 0.07);
+  --color-line-strong: rgba(16, 17, 20, 0.12);
+  --color-divider: rgba(16, 17, 20, 0.05);
+
+  /* ---- Interaction ------------------------------------------------------ */
+  --color-hover: rgba(92, 108, 255, 0.06);
+  --color-pressed: rgba(92, 108, 255, 0.11);
+  --color-selected: rgba(92, 108, 255, 0.09);
+  --color-focus-ring: rgba(92, 108, 255, 0.45);
+
+  /* ---- Status ----------------------------------------------------------- */
+  --color-online: #34c77b;
+  --color-away: #f0b252;
+  --color-danger: #e5544b;
+  --color-danger-soft: rgba(229, 84, 75, 0.1);
+
+  /* ---- Glass ------------------------------------------------------------ */
+  --color-glass: rgba(255, 255, 255, 0.72);
+  --color-glass-line: rgba(255, 255, 255, 0.55);
+  --color-scrim: rgba(16, 17, 20, 0.32);
+
+  /* ---- Typeface --------------------------------------------------------- */
+  --font-sans:
+    'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Space Grotesk', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ---- Type scale (board: 56 / 32 / 20 / 16 / 12) ----------------------- */
+  --text-display: 3.5rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 700;
+
+  --text-h1: 2rem;
+  --text-h1--line-height: 1.18;
+  --text-h1--letter-spacing: -0.015em;
+  --text-h1--font-weight: 600;
+
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.3;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h2--font-weight: 500;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.35;
+  --text-caption--letter-spacing: 0.005em;
+
+  /* ---- Radii (nothing sharper than 8px, ever) --------------------------- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.25rem;
+
+  /* ---- Elevation (brand-tinted, never neutral black) -------------------- */
+  --shadow-sm: 0 1px 2px rgba(16, 17, 20, 0.04), 0 1px 3px rgba(92, 108, 255, 0.04);
+  --shadow-md: 0 2px 6px rgba(16, 17, 20, 0.04), 0 6px 16px rgba(92, 108, 255, 0.06);
+  --shadow-lg: 0 4px 12px rgba(16, 17, 20, 0.05), 0 16px 40px rgba(92, 108, 255, 0.1);
+  --shadow-xl: 0 8px 24px rgba(16, 17, 20, 0.06), 0 32px 72px rgba(92, 108, 255, 0.14);
+  --shadow-brand: 0 4px 14px rgba(109, 124, 255, 0.32);
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-ambient: cubic-bezier(0.4, 0, 0.6, 1);
+
+  --duration-instant: 120ms;
+  --duration-quick: 180ms;
+  --duration-base: 240ms;
+  --duration-slow: 320ms;
+
+  /* ---- Named animations ------------------------------------------------- */
+  --animate-dot-pulse: dot-pulse 1400ms var(--ease-ambient) infinite;
+  --animate-dot-typing: dot-typing 1200ms var(--ease-ambient) infinite;
+  --animate-dot-orbit: dot-orbit 1600ms linear infinite;
+  --animate-rise: rise var(--duration-base) var(--ease-standard) both;
+  --animate-fade-in: fade-in var(--duration-base) var(--ease-standard) both;
+  --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) both;
+
+  /* ---- Layout ----------------------------------------------------------- */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  --blur-glass: 24px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Keyframes                                                                  */
+/*                                                                            */
+/* All brand motion lives on the purple dot. These four keyframes cover every  */
+/* dot state on the board (idle, online, typing, recording, loading) plus the   */
+/* two entrance animations used for content.                                   */
+/* -------------------------------------------------------------------------- */
+
+/** Online / live: a slow breath. Never a blink — blinking demands attention. */
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.86);
+  }
+}
+
+/** Typing: three dots lifting in sequence. Offsets are applied per-child. */
+@keyframes dot-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/** Loading: the dot travels around the P's bowl rather than spinning a ring. */
+@keyframes dot-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/** Content entering: a short lift, no fade-from-scale, no overshoot. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/** New message bubbles: rise slightly less far, so a busy thread stays calm. */
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* System utilities                                                           */
+/*                                                                            */
+/* Three recipes recur often enough, and are specific enough to the brand,     */
+/* that they belong in the design system rather than being retyped per         */
+/* component: the brand gradient, the liquid-glass surface, and the focus ring. */
+/* -------------------------------------------------------------------------- */
+
+/** The board's #6D7CFF → #A16EFF at 135°. Primary actions and outgoing bubbles. */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, #6d7cff 0%, #a16eff 100%);
+}
+
+/** A softened wash of the same gradient, for large calm surfaces like splash. */
+@utility bg-brand-wash {
+  background-image:
+    radial-gradient(120% 80% at 15% 10%, rgba(109, 124, 255, 0.16) 0%, transparent 60%),
+    radial-gradient(100% 90% at 85% 75%, rgba(161, 110, 255, 0.2) 0%, transparent 62%),
+    linear-gradient(160deg, #fbfbfe 0%, #f2f1fd 100%);
+}
+
+/**
+ * Liquid glass. `backdrop-filter` needs a translucent background to blur, and
+ * the saturation boost is what keeps colour behind the panel from going flat.
+ */
+@utility glass-surface {
+  background-color: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+/**
+ * Keyboard focus only. `:focus-visible` means pointer users never see a ring,
+ * while keyboard users always do — the outline is offset so it reads as a halo
+ * around the control rather than a border on it.
+ */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Accessibility                                                              */
+/*                                                                            */
+/* A product built on calm must honour a user's request for less motion. This  */
+/* stops the ambient loops outright and collapses transitions to near-zero.    */
+/* -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

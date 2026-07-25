@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <title>PINGO — Connect. Privately.</title>
+    <meta name="description" content="Private messaging, redefined for you." />
+
+    <!-- Tints browser chrome to the page colour so the app has no visible seam. -->
+    <meta name="theme-color" content="#FBFBFE" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!--
+      Space Grotesk is the brand face. Preconnecting to both Google Fonts hosts
+      shaves a round-trip off first paint; `display=swap` means text is never
+      invisible while the font loads.
+
+      Production note: self-host these files to remove the third-party request
+      entirely — a messaging product built on privacy should not leak a font
+      fetch on every cold load.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
