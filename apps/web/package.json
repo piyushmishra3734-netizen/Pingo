@@ -13,6 +13,7 @@
     "@pingo/core": "workspace:*",
     "@pingo/tokens": "workspace:*",
     "@pingo/ui": "workspace:*",
+    "@supabase/supabase-js": "^2.110.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.3"
