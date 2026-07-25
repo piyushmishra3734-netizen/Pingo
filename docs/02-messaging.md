@@ -307,7 +307,7 @@ from three taps to one.
 
 ### 3.4 Per-type behaviour
 
-**Camera** — opens in-app capture (§ [05](./05-settings.md#camera) for settings).
+**Camera** — opens in-app capture ([04 § 6](./04-settings.md#6-camera) for settings).
 Photo/video toggle, flip, flash, and a shutter that is the only gradient element on
 screen. Captured media goes to a review screen with `Send` / `Retake` and an
 optional caption — never sends straight from the shutter.

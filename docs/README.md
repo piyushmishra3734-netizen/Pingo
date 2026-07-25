@@ -17,11 +17,17 @@ blueprint names a value, it names the token.
 | # | Document | Covers |
 | --- | --- | --- |
 | 00 | [Principles & Motion Language](./00-principles.md) | The five laws, water/glass/air motion, spacing rhythm, density budget, the calm test, what PINGO deliberately lacks |
-| 01 | [Onboarding & Authentication](./01-onboarding-auth.md) | Splash, Welcome, Login, three-way recovery, Emergency Password, Contact Owner, ten-step registration, sessions |
+| 01 | [Onboarding & Authentication](./01-onboarding-auth.md) | Security model, Splash, Welcome, Login, three-way recovery, Emergency Password, Contact Support, ten-step registration, sessions, the E2EE upgrade path |
 | 02 | [Messaging](./02-messaging.md) | Home, conversation list, empty states, chat thread, bubbles, the full composer |
 | 03 | [Profile, Communities, Calls](./03-social-and-calls.md) | Profile with gallery/posts/moments/friends, communities and channels, voice/video/group calls, notifications, universal search |
 | 04 | [Settings](./04-settings.md) | All thirteen sections, every setting with state, interaction and animation |
 | 05 | [Components & Responsive](./05-components-responsive.md) | 24 components with anatomy/states/motion/rules; phone, tablet and desktop layout |
+| 06 | [Accessibility & Inclusive Design](./06-accessibility.md) | Screen readers, dynamic type, reduced motion, contrast, targets, keyboard, cognitive and situational access |
+| 07 | [Offline & Sync](./07-offline-sync.md) | Connection states, send queue, upload retry, conflict resolution, multi-device sync, first sync |
+| 08 | [Microinteractions & Haptics](./08-microinteractions.md) | Per-interaction motion table, haptic vocabulary, optional sound, loading/success/error feedback |
+
+Documents 06–08 are **part of the design system, not appendices.** Every screen built
+from 01–05 must also satisfy them.
 
 ---
 
@@ -31,8 +37,9 @@ blueprint names a value, it names the token.
 [00 § 6, the calm test](./00-principles.md#6-the-calm-test). Six questions; any "no"
 is a blocker.
 
-**If you are about to build a screen** — find it in 01–04 for behaviour, then 05 for
-the components it needs. Components marked ✅ already exist in `packages/ui`.
+**If you are about to build a screen** — find it in 01–04 for behaviour, 05 for its
+components, then check it against 06, 07 and 08. Components marked ✅ already exist in
+`packages/ui`.
 
 **If you are reviewing** — the "Rules" and "Fails review" lines are the checklist.
 They are written as things that can *fail*, because a principle that cannot fail a
@@ -40,30 +47,39 @@ design is decoration.
 
 ---
 
-## Three decisions that shape everything downstream
+## Security posture: no E2EE before the initial release
 
-These came out of specifying the auth model, and they are consequences rather than
-preferences. Full reasoning in
-[01 — Read first](./01-onboarding-auth.md#-read-first-three-consequences-of-the-chosen-auth-model).
+**PINGO does not use end-to-end encryption in Phase 1, Phase 2, or the initial public
+release.** Messages use TLS in transit and an authenticated backend with encryption at
+rest. Full detail in
+[01 § Security model](./01-onboarding-auth.md#security-model-for-phase-1--initial-release).
 
-1. **A password reset cannot recover message history.** Under end-to-end encryption
-   the server has no keys, so resetting a password restores the *account*, not the
-   *messages*. This is correct behaviour for a privacy-first product, but it must be
-   disclosed before the reset completes — hence the Recovery Key step in registration
-   and the mandatory disclosure screen in recovery.
+Three things follow.
 
-2. **The Emergency Password is a generated code, not a typed password.** The offline
-   recovery goal is right, and refusing SMS OTP as the primary path is right — SIM-swap
-   is a real attack. But a second user-chosen static secret tends to be weak or
-   identical to the first, doubling the attack surface for nothing. A generated code
-   keeps the intent and removes the failure mode. A "set my own" escape hatch exists,
-   with strength enforcement.
+1. **Password reset loses nothing, so nothing is disclosed.** The server holds the
+   messages. Reset, sign in, and the history is there. There are no Recovery Keys, no
+   key-backup step, no message-loss warnings, and no disclosure screen anywhere in the
+   product — inventing a risk that does not exist trains users to ignore real warnings.
 
-3. **"Contact Owner" recovery is gated by a 72-hour hold, not by an operator's
-   judgement.** Human-mediated recovery is the most exploited path in account
-   security. The hold — during which any signed-in session can veto with one tap — is
-   the control. It cannot be expedited, because an operator who can waive the delay is
-   an operator an attacker can persuade.
+2. **The account is now the entire security perimeter.** Under E2EE, a takeover on a
+   new device yielded an *empty* account. Without it, a takeover yields the complete
+   history server-side. So account recovery stops being a convenience feature and
+   becomes the primary control protecting message content — which is why the 72-hour
+   hold and one-tap veto on Contact Support recovery are not negotiable for support
+   throughput.
+
+3. **No surface may imply encryption we do not have.** No "end-to-end", no per-chat
+   padlock, no "not even we can read this", no safety numbers or contact verification.
+   Instead, Settings → Security carries a
+   [Security overview](./04-settings.md#security-overview--the-page-content) that states
+   plainly what is true — including the one uncomfortable line, because a security page
+   listing only reassurances is marketing.
+
+**The upgrade path stays open by design.** The product and architectural seams that keep
+adding E2EE a backend project rather than a redesign are listed in
+[01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open) — including a
+list of server-side features to *avoid building*, because each would become a feature
+regression the day E2EE ships.
 
 ---
 
@@ -81,3 +97,27 @@ channels, and all call surfaces.
 The existing screens were built before this blueprint and **will not fully match it**
 — notably the settings tree is a subset, and the onboarding is three panels rather
 than the ten-step flow. Reconciling them is Phase 2 work, not a defect to file.
+
+### Already satisfied from 06–08
+
+The token layer and existing components were built with these concerns in mind, so
+some requirements are already met:
+
+| Requirement | Where |
+| --- | --- |
+| `prefers-reduced-motion` stops all loops, collapses transitions | `tokens.css` |
+| `:focus-visible` only, never on pointer | `focus-ring` utility |
+| No spring or bounce easing exists | `motion.ts` — only three curves, all monotonic |
+| Only `transform`/`opacity` animated | All keyframes in `tokens.css` |
+| Icon-only buttons require a label | `IconButton` type signature |
+| Rows are buttons only when actionable | `ListRow` |
+| Filter chips are a real `radiogroup` | `Chip` / `ChipGroup` |
+| Voice notes are keyboard-operable sliders | `VoiceNote` |
+| Skeletons pulse, never shimmer | `Skeleton` |
+| The monogram is the only indeterminate indicator | `PingoMarkState` |
+| Connection state already modelled | `ChatService.connectionState()` |
+| Delivery states already distinguish `sending`/`sent`/`delivered`/`read`/`failed` | `types.ts` |
+
+**Not yet satisfied, and needed early in Phase 2:** the `queued` message state and its
+clock glyph ([07 § 2.2](./07-offline-sync.md#22-state-machine)), the connection strip,
+dynamic-type scaling of the root, the haptics layer, and the audited dark theme.

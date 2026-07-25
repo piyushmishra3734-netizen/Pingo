@@ -1,74 +1,84 @@
 # 01 — Onboarding & Authentication
 
 Covers the first second of the product through to Home: Splash, Welcome, Login,
-the three-way password recovery, the Emergency Password, Contact Owner recovery,
+the three-way password recovery, the Emergency Password, Contact Support recovery,
 and the ten-step registration.
 
 ---
 
-## ⚠️ Read first: three consequences of the chosen auth model
+## Security model for Phase 1 → initial release
 
-The specified model is **phone + password, with a second static "Emergency
-Password" for recovery, and human-mediated "Contact Owner" as the last resort.**
-It is designed and specified in full below. Three consequences follow from it that
-change the *design*, not just the implementation — so they belong here, before the
-screens.
+**PINGO does not use end-to-end encryption in Phase 1, Phase 2, or the initial
+public release.** Messages are protected by TLS in transit and stored in an
+authenticated backend with encryption at rest. E2EE is a future upgrade, and the
+architecture keeps its seams open ([§ 10](#10-keeping-the-e2ee-upgrade-path-open)).
 
-### Consequence 1 — A password reset cannot recover message history
+This simplifies the product in four places, and complicates it in one.
 
-This is the important one.
+### Four things that get simpler
 
-"Connect. Privately." implies end-to-end encryption. Under E2E, messages are
-readable only by keys held on the user's devices. The server does not have them,
-which is the entire point.
+| | |
+| --- | --- |
+| **Password reset loses nothing** | The server holds the messages, so resetting a password and signing in on a new device restores the full history. No warnings, no disclosure screen, no "start fresh" fallback |
+| **Message search covers everything** | Server-side search spans the entire history, not just what is cached on the device ([03 § 5.3](./03-social-and-calls.md#53-search-scope)) |
+| **New devices are instant** | Sign in and the history is there. No device-to-device pairing, no QR transfer required for basic use |
+| **Backup is not the user's problem** | Their messages are on their account. Backup becomes an export convenience, not a safety net they must configure |
 
-So a server-side password reset restores **access to the account**, not **access to
-the history**. A user who resets on a new device with no old device available gets
-an empty, working account.
+Every one of these removes a decision from the user. That is a real gain, and the
+screens below take it.
 
-This is not a flaw — it is the correct behaviour, and it is exactly what a
-privacy-first product should do. But it *must* be designed, or it becomes the worst
-support experience in the product: a user recovers their account, feels relief, and
-then discovers years of conversation are gone with no warning.
+### The one thing that gets harder — and it is the important one
 
-**Design requirements:**
-- Registration includes a **Recovery Key** step (see step 4a), stated plainly:
-  this is what restores your messages; your password only restores your account.
-- The reset flow states the consequence **before** the reset completes, not after.
-- The post-reset Home shows a persistent, dismissible banner: *"Your messages stay
-  on your other devices. Sign in there to restore them."*
-- If the user has another active device, the reset flow offers device-to-device
-  restore **first**, and treats "start fresh" as the fallback.
+**The account is now the entire security perimeter.**
 
-### Consequence 2 — Two passwords is a usability risk before it is a security win
+Under E2EE, an attacker who took over an account on a new device got an *empty*
+account — the messages stayed on the real owner's devices. Without E2EE, an
+attacker who takes over an account gets **the complete history, immediately,
+server-side.**
 
-A second user-chosen static secret tends to be weak, similar to the first, or
-written on the same piece of paper — at which point it has doubled the attack
-surface and added no recovery capability.
+The consequence is a direct inversion: **account recovery is no longer a
+convenience feature, it is the primary control protecting message content.** The
+72-hour hold and one-tap veto on Contact Support recovery
+([§ 6.4](#64-the-waiting-period-is-the-control)) are not prudence — they are now the
+thing standing between a persuasive attacker and a user's entire conversation
+history.
 
-The offline-recovery goal is genuinely good: it avoids SMS OTP, and **SIM-swap is a
-real, common account-takeover attack** that OTP-based recovery is defenceless
-against. Refusing OTP as the primary path is the right call.
+Nothing in the recovery design changes as a result. What changes is that none of it
+is negotiable later for the sake of support throughput.
 
-**Recommendation, adopted in the spec below:** keep the Emergency Password as the
-user-facing concept and name, but make it a **system-generated recovery code**
-(step 4a) rather than a user-typed password — with a "set my own" escape hatch that
-enforces genuine strength and rejects any similarity to the login password. This
-preserves the intent exactly, and removes the failure mode where both secrets are
-the same weak string.
+### ⚠️ Copy integrity — non-negotiable
 
-### Consequence 3 — "Contact Owner" is the product's largest attack surface
+The tagline is "Connect. Privately." That remains true and defensible: no ads, no
+data sold, no third-party trackers, strong per-user privacy controls, TLS
+everywhere, encryption at rest.
 
-Human-mediated recovery is the single most exploited path in account security.
-An attacker who cannot break cryptography will simply ask a support agent nicely,
-with a convincing story.
+It is **not** a claim of end-to-end encryption, and the product must never imply one
+before it ships. Prohibited until E2EE actually exists:
 
-It is specified below with the controls that make it survivable: mandatory delay,
-veto window on existing sessions, two-person authorisation, and an audit trail. The
-delay is not friction to be optimised away later — **it is the control.** A recovery
-that completes in minutes is a takeover that completes in minutes.
+- The phrase "end-to-end encrypted", anywhere in product, store listing, or marketing
+- A padlock glyph beside a conversation, or any per-chat "encrypted" indicator
+- Copy of the form "only you and X can read this" / "not even we can read this"
+- A "verify contact" or safety-number surface, which is meaningless without E2EE
 
-None of this blocks the design. It shapes it, and the shaping is below.
+Instead, Settings → Security carries a **Security overview** that states plainly
+what is and is not true ([04 § 9](./04-settings.md#9-security)). Overclaiming here
+would be the single fastest way to destroy the trust the rest of the product is
+built to earn — and it is the kind of claim users and journalists check.
+
+### Emergency Password remains a generated code
+
+Independent of encryption. A second *user-chosen* static secret tends to be weak,
+similar to the login password, or written on the same piece of paper — doubling the
+attack surface for no recovery gain.
+
+Refusing SMS OTP as the primary recovery path is also still right: **SIM-swap is a
+real, common account-takeover attack** and OTP-based recovery is defenceless against
+it.
+
+So the Emergency Password keeps its name and its role, and is a
+**system-generated code** ([§ 7 step 4](#step-4--emergency-password)), with a
+"set my own" escape hatch that enforces strength and rejects similarity to the login
+password. Given the perimeter inversion above, this matters more now, not less.
 
 ---
 
@@ -251,7 +261,7 @@ throttled assumes the app is broken.
 │  │    this up when you     │  │
 │  │    joined.              │  │
 │  ├────────────────────────┤  │
-│  │ 💬 Contact Owner      ›│  │
+│  │ 💬 Contact Support    ›│  │
 │  │    Takes up to 3 days.  │  │
 │  │    Use if you've lost   │  │
 │  │    both passwords.      │  │
@@ -295,7 +305,7 @@ Law 1 holds because there is no single thing the user is here to do.
 │  │       Continue         │  │
 │  └────────────────────────┘  │
 │                              │
-│    Lost it? Contact Owner    │
+│   Lost it? Contact Support   │
 └──────────────────────────────┘
 ```
 
@@ -304,62 +314,59 @@ Law 1 holds because there is no single thing the user is here to do.
 | Format | Three groups of four, auto-hyphenated, case-insensitive, monospace |
 | Paste | Accepted and normalised — strips spaces, hyphens, casing |
 | Attempts | **3 total, then this path is locked permanently** for this account |
-| On lock | Routes to Contact Owner with an explanation. The code is not re-issuable without full recovery |
+| On lock | Routes to Contact Support with an explanation. The code is not re-issuable without full recovery |
 | Custom passwords | If the user chose their own at registration, this becomes a standard password field with the same 3-attempt limit |
 
 Three attempts is deliberately harsh. A recovery code is high-entropy and either
 possessed or not — brute-force tolerance buys an attacker far more than it buys a
 legitimate user.
 
-### 5.2 Set a new password
-
-On success, straight to a new-password screen with the strength meter from
-registration (step 3). Then:
-
-### 5.3 The history disclosure — mandatory, before completion
+### 5.2 Create a new password
 
 ```
 ┌──────────────────────────────┐
 │                              │
-│    One thing to know         │
-│                              │
-│    Your messages are         │
-│    encrypted on your         │
-│    devices — not on our      │
-│    servers.                  │
-│                              │
-│    Resetting your password    │
-│    signs you in, but won't    │
-│    bring your history to     │
-│    this device.              │
+│    Create a new password     │
 │                              │
 │  ┌────────────────────────┐  │
-│  │ Restore from a device  │  │  ← gradient, if any active
+│  │ ••••••••••         👁  │  │
 │  └────────────────────────┘  │
+│                              │
+│  ▬▬▬▬▬▬▬▬▬▬▬▬░░░░░░  Good    │
+│                              │
+│  ✓ At least 10 characters    │
+│  ✓ Not a common password     │
+│  ○ Different from your last  │
+│                              │
 │  ┌────────────────────────┐  │
-│  │  Continue without it   │  │
+│  │    Save & Log In       │  │
 │  └────────────────────────┘  │
 │                              │
 └──────────────────────────────┘
 ```
 
-This screen is **not skippable and not dismissible.** It is the difference between
-a user who understands their own privacy guarantees and a user who feels robbed.
+Identical to registration's password step ([§ 7 step 2](#step-2--create-password)) —
+same meter, same live checklist, same rules — plus one additional requirement: the
+new password may not match the previous one.
 
-If no other device is active, the primary action becomes `I understand` and the
-copy drops the restore offer rather than offering something impossible.
+The primary action reads `Save & Log In`, not `Save`, because the user's goal is to
+get back in, not to manage a credential. On success they land on **Home, signed in,
+with their full history present.** No intermediate confirmation screen: a success
+screen between the user and the thing they were locked out of is a screen that exists
+for us, not them.
 
-### 5.4 On completion
+### 5.3 On completion
 
-- All other sessions are **notified**, not terminated. A legitimate reset should
-  not lock the user out of their working device — that device is how they restore.
+- All other sessions are **notified**, not terminated. A legitimate reset should not
+  sign the user out of a device they are actively using.
 - A security event is written to Settings → Security → Recent activity.
-- The Emergency code is **consumed**. A new one is generated and the user is
-  required to save it before reaching Home.
+- The Emergency code is **consumed**. A new one is generated and the user must save
+  it before reaching Home — the same save-confirmation gate as registration.
+- Home shows no banner and no warning. Nothing was lost, so nothing is disclosed.
 
 ---
 
-## 6. Contact Owner recovery
+## 6. Contact Support recovery
 
 The last resort. Four stages, and the design's job is to make the wait feel
 *deliberate* rather than broken.
@@ -441,13 +448,18 @@ During the hold:
 - The hold cannot be shortened by support. There is no expedite. If an operator can
   waive the delay, an attacker can talk an operator into waiving the delay.
 
-This is the whole security model of Contact Owner: *the real owner has a device,
+This is the whole security model of Contact Support: *the real owner has a device,
 and gets a veto.*
 
 **Product cost, stated plainly:** a user who has genuinely lost every device waits
-three days. That is the correct trade. The alternative — fast human recovery — is
-how accounts get stolen, and a messaging app that loses accounts to social
-engineering has failed at "Privately."
+three days. That is the correct trade. The alternative — fast human recovery — is how
+accounts get stolen, and a messaging app that loses accounts to social engineering
+has failed at "Privately."
+
+**And without E2EE the stakes are higher, not lower.** A successful takeover here
+hands over the complete server-side history, not an empty account on a new device.
+This hold is the control that protects message content, so it is not a support-metric
+problem to be optimised away in a later release.
 
 ---
 
@@ -563,40 +575,9 @@ SMS where the OS supports it. Resend has a visible cooldown.
 | Checkbox | Continue stays disabled until checked. Deliberate friction — this is the only moment this code exists |
 | Escape hatch | `Set my own instead` → a password field that enforces strength **and rejects anything similar to the login password** |
 
-### Step 4a — Recovery Key *(new, required by Consequence 1)*
-
-Immediately after, because the two are easily confused and the difference matters:
-
-```
-┌──────────────────────────────┐
-│    One more key              │
-│                              │
-│    Your recovery code gets    │
-│    you into your account.     │
-│                              │
-│    This key restores your     │
-│    messages. They're          │
-│    encrypted, so only you     │
-│    can unlock them.           │
-│                              │
-│  ┌────────────────────────┐  │
-│  │  Back up automatically │  │  ← gradient
-│  │  to iCloud / Drive     │  │
-│  └────────────────────────┘  │
-│  ┌────────────────────────┐  │
-│  │   Save it myself       │  │
-│  └────────────────────────┘  │
-│                              │
-│    Skip — I'll risk it       │
-└──────────────────────────────┘
-```
-
-The wording distinguishes the two keys by **what they get you back**, not by their
-names. "Recovery code" vs "recovery key" is indistinguishable to a user; "gets you
-into your account" vs "restores your messages" is not.
-
-Skipping is allowed — it is the user's data and the user's call — but the skip is
-worded so the trade is unmistakable.
+**There is exactly one code in this flow.** No recovery key, no second secret, no
+key-backup step. A user leaves registration holding one password they chose and one
+code they saved — and nothing else to lose.
 
 ### Step 5 — Name
 
@@ -746,8 +727,45 @@ product.
 | Number already registered (during signup) | Route to Login with the number prefilled: *"Looks like you're already with us."* |
 | Username taken at submit (race) | Inline, keeps the input, offers the three alternatives |
 | App killed mid-registration | Resume at the last completed step. Phone verification persists; nothing before Name is re-asked |
-| Emergency path locked | Route to Contact Owner with a plain explanation of why |
+| Emergency path locked | Route to Contact Support with a plain explanation of why |
 | Reset requested while a hold is active | Show the existing case, do not open a second one |
+| Signing in on a new device | History loads from the server with a progress state, not a blank list. See [07 § 6](./07-offline-sync.md#6-first-sync-on-a-new-device) |
+
+---
+
+## 10. Keeping the E2EE upgrade path open
+
+E2EE is deferred, not abandoned. Adding it later should be a backend and key-management
+project — **not a product redesign.** These are the seams that keep that true. They
+cost nothing now.
+
+### Product seams
+
+| Seam | Why it matters later |
+| --- | --- |
+| **No copy claims E2EE** | Nothing to retract, and the eventual launch is a real announcement rather than a correction |
+| **Security overview is a screen, not a static string** | Already a surface that describes the current posture; E2EE changes its content, not its existence |
+| **Per-conversation settings already exist** | A future per-chat "encrypted" state has a home. Disappearing messages already live there |
+| **Backup is framed as export, not as a safety net** | When E2EE lands and backup gains a key, the framing shifts from "convenience" to "required" without contradicting earlier copy |
+| **Device list already exists** | Multi-device key management needs a device surface. It is already built and already familiar |
+| **Search scope is stated in the UI** | A caption already tells the user what search covers. When it narrows to on-device, the caption changes — the pattern does not |
+
+### Architectural seams in `packages/core`
+
+| Seam | Requirement |
+| --- | --- |
+| `ChatService` is the only data boundary | An `EncryptedChatService` decorator can wrap any implementation. No screen imports a concrete service |
+| `Message.body` is opaque to the UI | No component parses, indexes or transforms message content. Bodies arrive ready to render |
+| Search is behind `service.search()` | Swapping server-side search for a local index is one implementation change, not a UI change |
+| Attachments are referenced by `url` | Content addressing and per-blob keys slot in behind the same field |
+| Events are the single source of state change | Key exchange and re-keying become new `ChatEvent` variants; no reducer is rewritten |
+| No message content in analytics or logs | Non-negotiable now, and impossible to retrofit once the habit exists |
+
+**One thing to avoid deliberately:** do not build server-side features that E2EE would
+have to remove — server-composed notification text, server-side message translation,
+cloud media transcoding on our infrastructure, or link previews resolved server-side.
+Each would work today and become a feature regression the day E2EE ships. Where a
+choice exists, prefer the client-side implementation now even if it is slightly harder.
 
 ---
 

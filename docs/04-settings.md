@@ -123,15 +123,20 @@ relationships the type scale exists to hold.
 | Archive muted chats | Move muted conversations out of your list | `Toggle(off)` | On: muted chats move to Archive and stay there | Rows animate out 240ms. Water |
 | Keep archived chats archived | Don't unarchive on new messages | `Toggle(on)` | — | — |
 | Read receipts | *(mirrored from Privacy)* | `Toggle(on)` | Same setting, surfaced in both places because users look for it in both | — |
-| Chat backup | Back up your messages so you can restore them | `Choice[Off\|Daily\|Weekly]` = Off | Push → destination (iCloud/Drive), frequency, include-video toggle, and the **encryption key state**. Shows last backup time and size | Progress ring while backing up. Air |
+| Export a copy of your chats | Save your messages to a file you keep | `Choice[Off\|Daily\|Weekly]` = Off | Push → destination (iCloud/Drive), frequency, include-media toggle. Shows last export time and size | Progress ring while exporting. Air |
 | Transfer chats to a new phone | Move your history directly, device to device | `Action` | Push → QR pairing flow, local-network transfer, progress with item counts | Determinate progress. Air |
 | Export chat | Save one conversation as a file | `Action` | Per-conversation from the thread menu; here it opens a chooser. With or without media | — |
 | Clear all chats | Empty every conversation but keep them in your list | `Action` danger | Dialog naming the count. Requires re-auth | Dialog = glass |
 | Delete all chats | Remove every conversation | `Action` danger | Dialog + typed confirmation | Dialog = glass |
 
-**Chat backup surfaces its key state.** A backup the user cannot decrypt is not a
-backup, and this is the row where that becomes visible rather than a surprise during
-recovery (see [Consequence 1](./01-onboarding-auth.md#consequence-1--a-password-reset-cannot-recover-message-history)).
+**Export is a convenience, not a safety net.** Messages live on the user's account,
+so signing in on any device restores them — the export exists for users who want their
+own copy, and the row's title says exactly that. Framing it as "backup" would imply a
+risk that does not exist today, and would then have to be un-implied.
+
+**Transfer to a new phone stays** even though sign-in already restores history: a
+local transfer is faster than a large download and works without a good connection.
+It is an optimisation, and the copy presents it as one.
 
 ---
 
@@ -261,17 +266,67 @@ turning something off also costs the user something says so in the row.
 | --- | --- | --- | --- | --- |
 | Change password | Update your login password | `Action` | Requires current password or biometric. Strength meter, breached-password check | Meter fills. Air |
 | Emergency password | Your recovery code | `Info` "Set" + `Action` | Regenerate requires re-auth. Shows the new code once, with the same save-confirmation gate as registration | Code card `rise`. Water |
-| Recovery key | The key that restores your messages | `Info` state + `Action` | Shows backed-up / not backed-up. Offers cloud backup or manual save | — |
 | Two-step verification | Ask for a second factor when signing in on a new device | `Toggle(off)` | On → authenticator app or hardware key. **Not SMS** — SIM-swap makes SMS the weakest factor | Enrolment = push, water |
 | Biometric unlock | Use Face ID or fingerprint | `Toggle(off)` | Falls back to password, never locks the user out | — |
 | Active sessions | Devices signed into your account | `Value` "3" | Push → per-device rows: name, platform, last active, approximate location. `Sign out` per row, plus `Sign out all others` | Row collapses on sign-out. Water |
 | Recent activity | Security events on your account | `Action` | Push → timeline: sign-ins, password changes, recovery attempts, session terminations. Read-only, 90 days | Rows `rise` staggered 40ms |
 | Login alerts | Tell me when someone signs in | `Toggle(on)` | Cannot be turned off while Two-step is off — the alert is the fallback protection | Dimmed with a caption when locked on |
-| Encryption | How your messages are protected | `Info` + `Action` | Push → a plain-language explanation, then per-contact **safety numbers** with a QR compare | QR = glass |
-| Verify a contact | Confirm you're talking to the right person | `Action` | Push → contact picker → QR / 60-digit compare, with a clear verified state | Verified badge scales in. Air |
-| Alert on safety number change | Warn me if a contact's keys change | `Toggle(on)` | On by default. This is the setting that makes E2E meaningful in practice | — |
+| Security overview | How your messages are protected | `Info` + `Action` | Push → a plain-language page stating exactly what is true today (see below) | Content `rise` |
 | Auto-lock timeout | Lock PINGO after inactivity | `Choice[Immediately\|1 min\|5 min\|1 hour]` = 5 min | Dimmed unless App lock is on | Air |
 | Clear all sessions | Sign out everywhere, including here | `Action` danger | Dialog naming the device count. Signs this device out too | Dialog = glass |
+
+### Security overview — the page content
+
+This page is the product's honest answer to *"can you read my messages?"* It exists
+because the alternative is a padlock icon that implies an answer we cannot give
+([01 § Copy integrity](./01-onboarding-auth.md#-copy-integrity--non-negotiable)).
+
+```
+┌──────────────────────────────┐
+│ ‹    Security overview       │
+│                              │
+│  IN TRANSIT                  │
+│  ✓ Everything you send is    │
+│    encrypted between your    │
+│    device and PINGO.         │
+│                              │
+│  ON OUR SERVERS              │
+│  ✓ Your messages are stored  │
+│    encrypted.                │
+│  ⚠ PINGO can technically     │
+│    access them. We restrict  │
+│    this to a small team, log │
+│    every access, and only do │
+│    it for safety and legal   │
+│    reasons.                  │
+│                              │
+│  WHAT WE NEVER DO            │
+│  ✓ Sell your data            │
+│  ✓ Show you ads              │
+│  ✓ Use third-party trackers  │
+│  ✓ Read messages to profile  │
+│    you                       │
+│                              │
+│  COMING                      │
+│  End-to-end encryption,      │
+│  where not even we can read  │
+│  your messages. We'll tell   │
+│  you when it's here.         │
+│                              │
+│         Read the full policy │
+└──────────────────────────────┘
+```
+
+| | |
+| --- | --- |
+| The ⚠ row | **Mandatory.** A security page that lists only reassurances is marketing. The one uncomfortable fact is what makes the rest credible |
+| Tone | Declarative, no hedging, no jargon. Every line is a sentence a user can repeat |
+| Icons | `✓` brand, `⚠` `away` amber. The only place amber appears in the product |
+| "Coming" | Stated as intent without a date. When E2EE ships, this section becomes the top section and the ⚠ row is deleted |
+
+**Deliberately absent from Security:** safety numbers, contact verification, key-change
+alerts. All three are E2EE surfaces, and shipping them without E2EE would imply a
+guarantee that does not exist. They arrive with the feature.
 
 ---
 
@@ -313,7 +368,7 @@ turning something off also costs the user something says so in the row.
 | Terms of Service | The agreement | `Action` | In-app document | — |
 | Privacy Policy | What we collect and why | `Action` | In-app. Opens with a plain-language summary before the legal text | — |
 | Open source licences | Software PINGO is built on | `Action` | Push → list, each expandable | — |
-| Encryption whitepaper | How our encryption works | `Action` | In-app document | — |
+| Security overview | How your messages are protected | `Action` | Same page as Settings → Security, reachable from both | — |
 | Rate PINGO | Leave a review | `Action` | Store link. **Never prompted** — this row is the only place it is ever mentioned | — |
 
 ---
@@ -347,8 +402,14 @@ above by 32px.
 | Checkbox | Unchecked by default. Checking it turns `Log Out` into `Log Out & Delete` and re-styles it `danger` |
 | Confirm | `danger` filled, **not the gradient.** The gradient means "the thing to do," and logging out is not it |
 
-If a chat backup is not configured, the dialog adds one line above the checkbox:
-*"You haven't set up a backup. Your messages won't be recoverable on a new device."*
+When the checkbox is ticked, one reassuring line appears beneath it: *"They'll be back
+when you sign in again."* Because messages live on the account, deleting the local copy
+is genuinely safe — and saying so is what stops a user cancelling out of a dialog they
+were right to complete.
+
+**No warning about lost messages, ever.** Nothing is lost on logout under this
+architecture, and inventing a risk to seem careful trains users to ignore real
+warnings later.
 
 ---
 

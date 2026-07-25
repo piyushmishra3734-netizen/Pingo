@@ -468,4 +468,4 @@ action is inaccessible on desktop; a hover-only action is invisible on touch.
 
 ---
 
-*Previous: [04 — Settings](./04-settings.md) · Back to [index](./README.md)*
+*Previous: [04 — Settings](./04-settings.md) · Next: [06 — Accessibility](./06-accessibility.md)*

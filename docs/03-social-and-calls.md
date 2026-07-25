@@ -334,14 +334,23 @@ From the thread's `⋯` menu. The header becomes a search field; matches are
 highlighted in place with `↑ ↓` navigation and an `n of m` counter. Exiting restores
 the previous scroll position.
 
-### 5.3 Encryption consequence
+### 5.3 Search scope
 
-Message search is **local-only**, because the server cannot read message content.
-This means:
-- Results cover messages present on **this device**.
-- A caption states it once, plainly, at the bottom of message results: *"Searching
-  messages on this device."*
-- It is a feature, not a limitation, and the copy treats it that way.
+Message search runs **server-side across the full history**, not just what is cached
+on the device. A conversation from two years ago on a phone bought last week is
+findable.
+
+| | |
+| --- | --- |
+| Scope | Every message on the account, all conversations, all devices |
+| Local first | On-device matches appear instantly; server results merge in behind them without reordering what is already on screen (Law 5) |
+| Offline | Falls back to on-device results, with a caption: *"Showing results from this device. Reconnect to search everything."* |
+| Media & files | Matched by filename, sender and date. Not by content |
+
+**Keep the scope caption pattern even though it is not needed today.** The offline
+caption already teaches users that search has a scope. When E2EE ships and search
+narrows to on-device, the caption's text changes and the pattern does not —
+[01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open).
 
 ---
 
