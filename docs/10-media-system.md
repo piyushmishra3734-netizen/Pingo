@@ -569,4 +569,4 @@ than being safe forever.
 
 ---
 
-*Previous: [09 — Notifications & Presence](./09-notifications-presence.md) · Back to [index](./README.md)*
+*Previous: [09 — Notifications & Presence](./09-notifications-presence.md) · Next: [11 — Performance Budget](./11-performance-budget.md)*

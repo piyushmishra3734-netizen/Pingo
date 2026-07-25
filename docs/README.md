@@ -27,8 +27,11 @@ blueprint names a value, it names the token.
 | 08 | [Microinteractions & Haptics](./08-microinteractions.md) | Per-interaction motion table, haptic vocabulary, optional sound, loading/success/error feedback |
 | 09 | [Notifications & Presence](./09-notifications-presence.md) | All presence, activity, delivery and connection states; typing anti-flicker; receipts; privacy and reciprocity; push categories; quiet hours; badges; presence sync |
 | 10 | [Media System](./10-media-system.md) | Upload and download pipelines, images, video, voice notes, documents, gallery, camera, compression by network, cache, viewer, future-ready constraints |
+| 11 | [Performance Budget](./11-performance-budget.md) | Reference devices, startup / interaction / frame budgets at p95, memory, battery, bundle, network, and where each budget fails a build |
+| 12 | [Design Governance](./12-design-governance.md) | The three tiers, the decision tree, RFC process, component lifecycle, dependency rules, and mechanical lint enforcement |
+| 13 | [Analytics & Telemetry](./13-analytics-telemetry.md) | What we measure, what we never collect, the event allowlist, crash scrubbing, identifiers, retention, user controls |
 
-Documents 06–10 are **part of the design system, not appendices.** Every screen built
+Documents 06–13 are **part of the design system, not appendices.** Every screen built
 from 01–05 must also satisfy them.
 
 ---
@@ -40,12 +43,21 @@ from 01–05 must also satisfy them.
 is a blocker.
 
 **If you are about to build a screen** — find it in 01–04 for behaviour, 05 for its
-components, then check it against 06–10. Components marked ✅ already exist in
+components, then check it against 06–11. Components marked ✅ already exist in
 `packages/ui`.
+
+**If you are about to add a component, token or dependency** — start at
+[12 § 2, the decision tree](./12-design-governance.md#2-the-decision-tree). Most new UI
+belongs in `features/` and needs no ceremony; the RFC path is for the small fraction that
+becomes shared vocabulary.
 
 **If you are building anything with state indicators** — 09 is the authority. It splits
 the twenty "presence states" into four families with different scopes, owners and privacy
 rules, because treating them as one flat set is what makes presence systems leak.
+
+**If you are about to add an analytics event** — it must be registered in the allowlist
+first ([13 § 4](./13-analytics-telemetry.md#4-the-allowlist)). An unregistered event is
+dropped at runtime and fails at compile time.
 
 **If you are reviewing** — the "Rules" and "Fails review" lines are the checklist.
 They are written as things that can *fail*, because a principle that cannot fail a
