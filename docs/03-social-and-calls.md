@@ -13,22 +13,22 @@ page; only the action row and the edit affordances differ.
 ┌──────────────────────────────┐
 │ ‹  Anaya Sharma           ⋯  │
 │ ┌──────────────────────────┐ │
-│ │▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨│ │  ← brand wash
+│ │▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨│ │  ← brand wash
 │ │          ┌────┐          │ │
-│ │          │ AS │⬤        │ │  ← avatar straddles the edge
+│ │          │ AS │*         │ │  ← avatar straddles the edge
 │ │          └────┘          │ │
 │ │      Anaya Sharma        │ │
 │ │        @anaya            │ │
 │ │  Product designer. Tea,  │ │
 │ │  typography, long walks. │ │
 │ │                          │ │
-│ │  ┌─────────┐ ╭─╮ ╭─╮    │ │
-│ │  │ Message │ │☎│ │▣│    │ │
-│ │  └─────────┘ ╰─╯ ╰─╯    │ │
+│ │  ┌─────────┐ ╭─╮ ╭─╮     │ │
+│ │  │ Message │ │T│ │▣│     │ │
+│ │  └─────────┘ ╰─╯ ╰─╯     │ │
 │ └──────────────────────────┘ │
 │                              │
-│  Gallery  Posts  Moments  Friends │  ← segmented
-│  ─────────                   │
+│Gallery Posts Moments Friends │  ← segmented
+│───────                       │
 │  ┌────┐ ┌────┐ ┌────┐        │
 │  │ ▨  │ │ ▨  │ │ ▨  │        │
 │  └────┘ └────┘ └────┘        │
@@ -101,7 +101,7 @@ It still lives in the same conversation list — one surface, not a second inbox
 │ │     248 members          │ │
 │ └──────────────────────────┘ │
 │                              │
-│  📢 Announcements            │
+│  ! Announcements             │
 │  ┌──────────────────────────┐│
 │  │ Alex · 2h                ││
 │  │ Design review moved to   ││
@@ -109,13 +109,13 @@ It still lives in the same conversation list — one surface, not a second inbox
 │  └──────────────────────────┘│
 │                              │
 │  CHANNELS                    │
-│  # general              ②   │
+│  # general              2    │
 │  # critique                  │
 │  # resources                 │
-│  🔒 leads                    │
+│  · leads                     │
 │                              │
 │  MEMBERS                     │
-│  ⬤⬤⬤⬤  +244          ›     │
+│  ****  +244          ›       │
 └──────────────────────────────┘
 ```
 
@@ -195,10 +195,10 @@ The Calls tab is a **log, not a dialler.** What a user wants here is almost alwa
 │                              │
 │                              │
 │      ╭───╮ ╭───╮ ╭───╮       │
-│      │ 🔇│ │ 📹│ │ 🔊│       │
+│      │ m│ │ V│ │ s│          │
 │      ╰───╯ ╰───╯ ╰───╯       │
 │           ╭─────╮            │
-│           │  ✕  │            │  ← end, danger
+│           │  X  │            │  ← end, danger
 │           ╰─────╯            │
 └──────────────────────────────┘
 ```
@@ -219,7 +219,7 @@ to a **pill** docked below the header of whatever screen you navigate to:
 ```
 ┌──────────────────────────────┐
 │ ╭──────────────────────────╮ │
-│ │ ⬤ Anaya · 04:12      ✕  │ │  ← tap to return
+│ │ * Anaya · 04:12      X   │ │  ← tap to return
 │ ╰──────────────────────────╯ │
 ```
 
@@ -303,19 +303,19 @@ One field, five result types. Opening from Home focuses the field and shows rece
 ```
 ┌──────────────────────────────┐
 │ ┌──────────────────────────┐ │
-│ │ ⌕ anaya              ✕  │ │
+│ │ ⌕ anaya              X   │ │
 │ └──────────────────────────┘ │
 │ (All) People Messages Media ⋯│
 │                              │
 │  PEOPLE                      │
-│  ⬤ Anaya Sharma  @anaya      │
+│  * Anaya Sharma  @anaya      │
 │                              │
 │  MESSAGES                4 › │
-│  ⬤ Anaya Sharma      11:30   │
+│  * Anaya Sharma      11:30   │
 │    …where are we **meeting**?│
 │                              │
 │  MEDIA                   6 › │
-│  ▨ ▨ ▨ ▨ ▨ ▨                │
+│  ▨ ▨ ▨ ▨ ▨ ▨                 │
 └──────────────────────────────┘
 ```
 
@@ -350,7 +350,7 @@ findable.
 **Keep the scope caption pattern even though it is not needed today.** The offline
 caption already teaches users that search has a scope. When E2EE ships and search
 narrows to on-device, the caption's text changes and the pattern does not —
-[01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open).
+[01 § 10](./01-onboarding-auth.md#20-keeping-the-e2ee-upgrade-path-open).
 
 ---
 

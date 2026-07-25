@@ -47,7 +47,7 @@ the same reason: held-on-purpose and needs-your-help must never look alike.
 
 **`Encrypting` is specified but not built.** It is a pipeline stage with a reserved slot,
 so adding E2EE later inserts a state rather than restructuring the pipeline —
-[01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open).
+[01 § 10](./01-onboarding-auth.md#20-keeping-the-e2ee-upgrade-path-open).
 
 ### 1.2 Policy
 
@@ -261,7 +261,7 @@ chat without listening, so conflating them would misreport.
 
 **Transcription must be on-device when it ships.** A server-side transcription service
 would have to be removed the day E2EE lands, making it a feature regression — exactly the
-trap listed in [01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open).
+trap listed in [01 § 10](./01-onboarding-auth.md#20-keeping-the-e2ee-upgrade-path-open).
 
 ---
 
@@ -272,7 +272,7 @@ trap listed in [01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-pa
 ```
 ┌────────────────────────────────┐
 │  ┌────┐  pingo-motion-spec.pdf │
-│  │ 📄 │  2.4 MB · PDF          │
+│  │ F │  2.4 MB · PDF           │
 │  └────┘                        │
 └────────────────────────────────┘
 ```
@@ -453,14 +453,14 @@ happened, name what to do, never blame the user, never lead with a code.
 
 ```
 ┌──────────────────────────────┐
-│  ✕                        ⋯  │  ← auto-hiding chrome
+│  X                        ⋯  │  ← auto-hiding chrome
 │                              │
 │                              │
 │         [ media ]            │
 │                              │
 │                              │
 │  Anaya · Today 11:31         │
-│  ⤓  ↗  ⇄  🗑                 │
+│  ⤓  ↗  ⇄  X                  │
 └──────────────────────────────┘
 ```
 
@@ -529,7 +529,7 @@ blur, smart albums and cloud optimisation without redesign.
 **Every one of these must be implemented on-device, not server-side.**
 
 Not for ideological reasons. Because
-[01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open) records the trap:
+[01 § 10](./01-onboarding-auth.md#20-keeping-the-e2ee-upgrade-path-open) records the trap:
 *do not build server-side features that E2EE would have to remove.* A server that performs
 OCR on a photo must be able to read the photo. Ship server-side OCR now, and the day E2EE
 lands it becomes a **feature regression** — users lose search they had grown to rely on,

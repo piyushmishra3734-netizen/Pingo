@@ -389,7 +389,7 @@ where "calm" and "accessible" are the same requirement.
 
 | Principle | Applied |
 | --- | --- |
-| One decision per screen | Registration is ten steps, not one long form ([01 § 7](./01-onboarding-auth.md#7-registration--ten-steps)) |
+| One decision per screen | Registration is ten steps, not one long form ([01 § 7](./01-onboarding-auth.md#2-the-complete-journey)) |
 | No time pressure | Nothing expires while the user reads |
 | Plain language | No jargon. Settings descriptions are sentences, not labels. Reading level target: 12-year-old |
 | Consistent placement | The primary action is always bottom-right or full-width-bottom. Back is always top-left. Never moves |

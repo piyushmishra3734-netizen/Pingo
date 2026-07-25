@@ -275,7 +275,7 @@ machine-checked, so the common violations fail before a human looks.
 | Touch target below 44×44 in a component | **warn** | Needs layout context to judge |
 | Import from a deprecated component | **warn** → **error** on removal | |
 | Cross-package import that inverts layering | **error** | `ui` must never import `core` |
-| Direct import of a concrete `ChatService` outside the provider | **error** | Protects the E2EE seam ([01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open)) |
+| Direct import of a concrete `ChatService` outside the provider | **error** | Protects the E2EE seam ([01 § 10](./01-onboarding-auth.md#20-keeping-the-e2ee-upgrade-path-open)) |
 | New dependency without an RFC label | **error** in CI | |
 | Bundle over budget | **error** in CI | [11 § 8](./11-performance-budget.md#8-enforcement) |
 

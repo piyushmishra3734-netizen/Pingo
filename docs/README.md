@@ -65,6 +65,53 @@ design is decoration.
 
 ---
 
+## Wireframe conventions
+
+Wireframes in these documents are **specifications, not sketches** — the copy in them is
+the shipping copy, and every frame is a verified rectangle. They are ASCII-only on purpose:
+emoji render at one or two columns depending on the renderer, so a frame containing one
+cannot be guaranteed to align anywhere.
+
+| Glyph | Means |
+| --- | --- |
+| `*` | The brand purple dot — presence, active state, unread marker |
+| `<` `>` | Back · forward / chevron |
+| `+` | Add / new |
+| `[ Label ]` | Button. Which variant it is, is stated in the table beneath the frame |
+| `[/]` | Checkmark — met requirement, selected option |
+| `[ ]` | Unchecked box |
+| `[x]` | Checked box |
+| `( )` `(o)` | Empty slot · toggle or reveal control |
+| `(2)` `2` | Badge count |
+| `▬▬░░` | Progress — filled and unfilled, always a 36-cell track |
+| `▢▢▢▢` | Code entry cell |
+| `▨▨▨` | Media or brand-wash fill |
+| `•••••` | Masked value |
+| `·` | Generic icon slot; the real icon is named in the table beneath |
+| `←` *(outside the frame)* | Annotation, not part of the layout |
+
+Icons are never *specified* by these glyphs — they are placeholders. The actual icon for
+every row is named in the table that follows each frame, drawn from the set in
+[05](./05-components-responsive.md).
+
+### Verifying the docs
+
+```bash
+pnpm check:docs
+```
+
+Two checks, both of which must pass:
+
+| Script | Enforces |
+| --- | --- |
+| `.check-wireframes.mjs` | Every frame line matches its top border's width, and no frame contains an ambiguous-width character |
+| `.check-links.mjs` | Every cross-document link resolves, and every `#anchor` matches a real heading under GitHub's slug rules |
+
+A misaligned frame is invisible in a diff and obvious on the page, which is exactly the
+kind of defect that has to be caught mechanically.
+
+---
+
 ## Security posture: no E2EE before the initial release
 
 **PINGO does not use end-to-end encryption in Phase 1, Phase 2, or the initial public
@@ -95,7 +142,7 @@ Three things follow.
 
 **The upgrade path stays open by design.** The product and architectural seams that keep
 adding E2EE a backend project rather than a redesign are listed in
-[01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open) — including a
+[01 § 10](./01-onboarding-auth.md#20-keeping-the-e2ee-upgrade-path-open) — including a
 list of server-side features to *avoid building*, because each would become a feature
 regression the day E2EE ships.
 

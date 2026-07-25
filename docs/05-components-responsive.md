@@ -372,7 +372,7 @@ values only.
 │    Screen      │
 │                │
 │   ╭────────╮   │
-│   │💬 ☎ 👥 👤│  │  ← floating dock
+│   │C T G U│    │  ← floating dock
 │   ╰────────╯   │
 └────────────────┘
 ```

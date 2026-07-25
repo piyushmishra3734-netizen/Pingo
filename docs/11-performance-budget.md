@@ -39,7 +39,7 @@ measuring the reverse proves nothing.
 | **Cold start, first ever** | < 3000ms | Includes first sync stage 1 ([07 § 6.1](./07-offline-sync.md#61-staged-loading)) |
 | **Warm start** | **< 800ms** | Process alive, activity recreated → interactive |
 | **Hot resume** | < 200ms | Back from background, nothing recreated |
-| Splash dwell | **exactly 1400ms** | Fixed by design ([01 § 1](./01-onboarding-auth.md#1-splash)) |
+| Splash dwell | **exactly 1400ms** | Fixed by design ([01 § 1](./01-onboarding-auth.md#3-splash)) |
 | First paint | < 600ms | Something branded on screen |
 | Time to interactive | < 2000ms | Taps do something |
 

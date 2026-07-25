@@ -34,7 +34,7 @@ scrubbing.** Those are what make the commitment real. Everything else is intent.
 
 ### 0.2 It also protects the E2EE upgrade
 
-[01 § 10](./01-onboarding-auth.md#10-keeping-the-e2ee-upgrade-path-open) records: *no
+[01 § 10](./01-onboarding-auth.md#20-keeping-the-e2ee-upgrade-path-open) records: *no
 message content in analytics or logs — non-negotiable now, and impossible to retrofit once
 the habit exists.* If content ever reaches a log, adding E2EE later means auditing and
 unpicking every pipeline that touched it. Never starting is the only cheap path.
@@ -274,7 +274,7 @@ nobody enforces is a retention period of forever.
 
 | Rule | |
 | --- | --- |
-| **No third-party analytics SDK** | Onboarding promises "no third-party trackers" ([01 § 7 step 9](./01-onboarding-auth.md#step-9--notifications)). An SDK would break it |
+| **No third-party analytics SDK** | Onboarding promises "no third-party trackers" ([01 § 7 step 9](./01-onboarding-auth.md#11-notifications)). An SDK would break it |
 | **No advertising SDKs** | Ever. There are no ads |
 | **No attribution or install-referrer SDKs** | |
 | Crash reporting | **Self-hosted** (Sentry self-managed or equivalent). If a hosted service is ever used, it is a data processor under contract, named in the Privacy Policy, with variable capture off |

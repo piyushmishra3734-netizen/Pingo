@@ -16,15 +16,15 @@ The core loop. Everything else in PINGO is in service of these three surfaces.
 │ └──────────────────────────┘ │
 │ (All) Unread 2  Groups 1  ⋯  │  ← chips, horizontal scroll
 ├──────────────────────────────┤
-│ ⬤  Anaya Sharma    📌 11:31  │
+│ *  Anaya Sharma    ^ 11:31   │
 │    Voice message             │
-│ ⬤  Rohit Verma        10:45  │
-│    Where are we meeting?  ②  │
-│ ⬤  Design Team         9:15  │
-│    Alex: Shared a file    ①  │
+│ *  Rohit Verma        10:45  │
+│    Where are we meeting?  2  │
+│ *  Design Team         9:15  │
+│    Alex: Shared a file    1  │
 ├──────────────────────────────┤
 │         ╭─────────────╮      │
-│         │ 💬 ☎ 👥 👤 │      │  ← floating glass dock
+│         │ C T G U │          │  ← floating glass dock
 │         ╰─────────────╯      │
 └──────────────────────────────┘
 ```
@@ -145,7 +145,7 @@ the query only ran against titles.
 
 ```
 ┌──────────────────────────────┐
-│ ‹  ⬤ Anaya Sharma   ☎ ▣ ⋯   │  ← glass, sticky
+│ ‹  * Anaya Sharma   T ▣ ⋯    │  ← glass, sticky
 │      online                  │
 ├──────────────────────────────┤
 │                              │
@@ -159,10 +159,10 @@ the query only ran against titles.
 │        ╭──────────────────╮  │
 │        │ See you there!   │  │  ← gradient
 │        ╰──────────────────╯  │
-│                  11:30 AM ✓✓ │
+│                  11:30 AM vv │
 ├──────────────────────────────┤
 │ ┌──────────────────────┐ ╭─╮ │
-│ │ + Type a message… ☺ │ │▶│ │
+│ │ + Type a message… :) │ │▶│ │
 │ └──────────────────────┘ ╰─╯ │
 └──────────────────────────────┘
 ```
@@ -249,7 +249,7 @@ while scrolling through a long day.
 ```
 ┌──────────────────────────────┐
 │ ┌──────────────────────┐ ╭─╮ │
-│ │ + Type a message… ☺ │ │🎤│ │
+│ │ + Type a message… :) │ │M│ │
 │ └──────────────────────┘ ╰─╯ │
 └──────────────────────────────┘
 ```
@@ -282,11 +282,11 @@ cannot be learned.
 │           ────               │  ← grabber
 │                              │
 │  ┌────┐ ┌────┐ ┌────┐        │
-│  │ 📷 │ │ 🖼 │ │ 🎬 │        │
+│  │ P │ │ I │ │ V │           │
 │  │Cam │ │Photo│ │Video│      │
 │  └────┘ └────┘ └────┘        │
 │  ┌────┐ ┌────┐ ┌────┐        │
-│  │ 📄 │ │ GIF│ │ 📍 │        │
+│  │ F │ │ GIF│ │ L │          │
 │  │File│ │ GIF│ │Place│       │
 │  └────┘ └────┘ └────┘        │
 │                              │
@@ -320,7 +320,7 @@ caption per batch.
 
 ```
 ┌──────────────────────────────┐
-│  🗑        ▂▄▆█▆▄▂     0:04  │
+│  X        ▂▄▆█▆▄▂     0:04   │
 │           ← slide to cancel  │
 └──────────────────────────────┘
 ```

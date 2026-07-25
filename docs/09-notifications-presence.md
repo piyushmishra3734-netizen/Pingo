@@ -282,7 +282,7 @@ ambiguous — did it reconnect, or did the strip break?
 | Uploads complete | Off | |
 | Security | **On, and not disableable** | New sign-ins, password changes, recovery attempts |
 | Updates | Off | |
-| **Marketing / re-engagement** | **Does not exist** | A commitment made in onboarding ([01 § 7 step 9](./01-onboarding-auth.md#step-9--notifications)) |
+| **Marketing / re-engagement** | **Does not exist** | A commitment made in onboarding ([01 § 7 step 9](./01-onboarding-auth.md#11-notifications)) |
 
 **Security notifications cannot be turned off.** They are the fallback that makes account
 takeover survivable, and a user who disabled them would not learn they had been
@@ -314,7 +314,7 @@ self-composed digest is a step toward the "importance" ranking we refuse to buil
 
 ```
 ┌──────────────────────────────┐
-│ ⬤ PINGO                 now  │
+│ * PINGO                 now  │
 │ Anaya Sharma                 │
 │ Hey! Where are we meeting?   │
 │                              │

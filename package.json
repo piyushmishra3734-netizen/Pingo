@@ -7,7 +7,9 @@
     "dev": "pnpm --filter @pingo/web dev",
     "build": "pnpm --filter @pingo/web build",
     "preview": "pnpm --filter @pingo/web preview",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "check:docs": "node docs/.check-wireframes.mjs && node docs/.check-links.mjs",
+    "check": "pnpm typecheck && pnpm check:docs"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

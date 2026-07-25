@@ -40,8 +40,8 @@ Below the header, glass, full width, `caption`.
 ┌──────────────────────────────┐
 │ PINGO                     +  │
 ├──────────────────────────────┤
-│ ⬤ Offline · Messages will    │  ← strip
-│   send when you reconnect     │
+│ * Offline · Messages will    │  ← strip
+│   send when you reconnect    │
 ├──────────────────────────────┤
 ```
 
@@ -142,9 +142,9 @@ If more than 3 messages are queued, the composer gains a caption:
 
 ```
 ┌──────────────────────────────┐
-│ ⬤ 5 messages waiting to send │
+│ * 5 messages waiting to send │
 │ ┌──────────────────────┐ ╭─╮ │
-│ │ + Type a message… ☺ │ │🎤│ │
+│ │ + Type a message… :) │ │M│ │
 │ └──────────────────────┘ ╰─╯ │
 └──────────────────────────────┘
 ```
@@ -293,7 +293,7 @@ state**, not a blank list that slowly fills.
 │                              │
 │    Getting your messages     │
 │                              │
-│  ▬▬▬▬▬▬▬▬▬▬▬▬░░░░░░░░       │
+│  ▬▬▬▬▬▬▬▬▬▬▬▬░░░░░░░░        │
 │    Recent conversations      │
 │                              │
 └──────────────────────────────┘

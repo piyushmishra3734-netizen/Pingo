@@ -42,17 +42,17 @@ Thirteen sections, every setting specified. No placeholders.
 │ │ └──┘                     │ │
 │ └──────────────────────────┘ │
 │                              │
-│  👤 Account               ›  │
-│  🎨 Appearance            ›  │
-│  💬 Chats                 ›  │
-│  🔔 Notifications         ›  │
-│  ☎  Calls                 ›  │
-│  📷 Camera                ›  │
-│  💾 Storage               ›  │
-│  🛡  Privacy               ›  │
-│  🔒 Security              ›  │
-│  🌐 Language              ›  │
-│  ❓ Help                  ›  │
+│  U Account               ›   │
+│  · Appearance            ›   │
+│  C Chats                 ›   │
+│  · Notifications         ›   │
+│  T  Calls                 ›  │
+│  P Camera                ›   │
+│  · Storage               ›   │
+│  ·  Privacy               ›  │
+│  · Security              ›   │
+│  · Language              ›   │
+│  · Help                  ›   │
 │  ℹ  About                 ›  │
 │                              │
 │  ⏏  Log Out                  │
@@ -286,14 +286,14 @@ because the alternative is a padlock icon that implies an answer we cannot give
 │ ‹    Security overview       │
 │                              │
 │  IN TRANSIT                  │
-│  ✓ Everything you send is    │
+│  v Everything you send is    │
 │    encrypted between your    │
 │    device and PINGO.         │
 │                              │
 │  ON OUR SERVERS              │
-│  ✓ Your messages are stored  │
+│  v Your messages are stored  │
 │    encrypted.                │
-│  ⚠ PINGO can technically     │
+│  ! PINGO can technically     │
 │    access them. We restrict  │
 │    this to a small team, log │
 │    every access, and only do │
@@ -301,10 +301,10 @@ because the alternative is a padlock icon that implies an answer we cannot give
 │    reasons.                  │
 │                              │
 │  WHAT WE NEVER DO            │
-│  ✓ Sell your data            │
-│  ✓ Show you ads              │
-│  ✓ Use third-party trackers  │
-│  ✓ Read messages to profile  │
+│  v Sell your data            │
+│  v Show you ads              │
+│  v Use third-party trackers  │
+│  v Read messages to profile  │
 │    you                       │
 │                              │
 │  COMING                      │
@@ -352,7 +352,7 @@ guarantee that does not exist. They arrive with the feature.
 | Contact support | Talk to a person | `Action` | Push → category, description, optional diagnostics attachment (shown before sending, itemised). Returns a case reference | Submit → success state, glass |
 | Report a problem | Something's broken | `Action` | Same form, pre-categorised as a bug. Log attachment is **opt-in and inspectable** | — |
 | Report a user | Report abuse or spam | `Action` | Push → user picker, reason, optional message selection. Explains exactly what is shared with moderators | — |
-| Recovery help | Locked out of your account | `Action` | Push → the recovery paths from [§ 01.4](./01-onboarding-auth.md#4-forgot-password--the-triage-screen), reachable while signed in so a user can prepare before they need it |  — |
+| Recovery help | Locked out of your account | `Action` | Push → the recovery paths from [§ 01.4](./01-onboarding-auth.md#14-forgot-password--triage), reachable while signed in so a user can prepare before they need it |  — |
 | Community guidelines | What's allowed on PINGO | `Action` | In-app document | — |
 | Status | Is PINGO working? | `Info` + `Action` | Live service status with a coloured dot — the one permitted non-brand status colour, because service health is not a brand statement | Dot is air |
 
@@ -386,7 +386,7 @@ above by 32px.
 │  device unless you remove    │
 │  them.                       │
 │                              │
-│  ☐ Also delete my messages   │
+│  [ ] Also delete my messages │
 │    from this device          │
 │                              │
 │  ┌──────────┐ ┌───────────┐  │
