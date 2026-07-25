@@ -27,6 +27,17 @@ pnpm dev          # http://localhost:5173
 
 ---
 
+## Design specification
+
+**[docs/](./docs/README.md) is the product & UX blueprint** — the five laws, the
+water/glass/air motion language, every screen's behaviour, all thirteen settings
+sections, and 24 components. Read it before designing or building a screen.
+
+The branding board is the source of truth for identity; the blueprint is the source
+of truth for behaviour.
+
+---
+
 ## Structure
 
 ```
