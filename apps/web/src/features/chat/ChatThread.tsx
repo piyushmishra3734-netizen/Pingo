@@ -20,7 +20,7 @@ import {
   cn,
 } from '@pingo/ui';
 import { CloseIcon } from '@pingo/ui';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useCall } from '../calls/CallProvider.js';
@@ -29,6 +29,7 @@ import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
+import { SwipeableMessage } from './SwipeableMessage.js';
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -54,13 +55,17 @@ export interface ChatThreadProps {
 /** How close to the bottom counts as "following the conversation", in px. */
 const FOLLOW_THRESHOLD = 120;
 
+/** How close to the top starts fetching the page before, in px. */
+const OLDER_THRESHOLD = 200;
+
 export function ChatThread({
   conversation,
   showBack = false,
   className,
 }: ChatThreadProps) {
   const { currentUser, users, service } = useChat();
-  const { messages, groups, loading, send, sendSticker } = useMessages(conversation.id);
+  const { messages, groups, loading, loadingOlder, hasOlder, loadOlder, send, sendSticker } =
+    useMessages(conversation.id);
   const { startCall } = useCall();
   const mutuals = useMutuals();
 
@@ -127,12 +132,40 @@ export function ChatThread({
     const onScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       followingRef.current = distanceFromBottom < FOLLOW_THRESHOLD;
+
+      /*
+       * Reaching the top asks for the page before.
+       *
+       * `loadOlder` is a no-op while one is in flight or once history has run
+       * out, so this can fire on every scroll frame without being guarded here.
+       */
+      if (el.scrollTop < OLDER_THRESHOLD) void loadOlder();
     };
 
     onScroll();
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [loadOlder]);
+
+  /*
+   * Keep the reader where they were when older messages arrive.
+   *
+   * Prepending content pushes everything down by its height, so without this
+   * the thread jumps and the message being read shoots off the bottom. The
+   * anchor is the distance from the *bottom*, which prepending does not change.
+   */
+  const anchorRef = useRef<number | undefined>(undefined);
+  if (loadingOlder && anchorRef.current === undefined && scrollRef.current) {
+    anchorRef.current = scrollRef.current.scrollHeight - scrollRef.current.scrollTop;
+  }
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const anchor = anchorRef.current;
+    if (!el || anchor === undefined || loadingOlder) return;
+    el.scrollTop = el.scrollHeight - anchor;
+    anchorRef.current = undefined;
+  }, [loadingOlder, messages.length]);
 
   /*
    * Reading a thread is what clears its unread count, and nothing called this —
@@ -295,6 +328,23 @@ export function ChatThread({
               'min-h-full justify-end',
             )}
           >
+            {/*
+              Says which of the two silences this is: more history being
+              fetched, or the actual beginning of the conversation. Without it,
+              a thread that stops scrolling looks identical to one that ran out.
+            */}
+            {hasOlder ? (
+              <div className="flex justify-center py-3">
+                {loadingOlder && <PingoDot state="loading" size={5} label="Loading earlier messages" />}
+              </div>
+            ) : (
+              messages.length > 0 && (
+                <p className="py-3 text-center text-caption text-text-tertiary">
+                  This is the beginning of your conversation
+                </p>
+              )
+            )}
+
             {clustersWithDividers.map(({ cluster, divider }) => (
               <div key={cluster[0]!.id} className="flex flex-col gap-0.5">
                 {divider && (
@@ -314,8 +364,14 @@ export function ChatThread({
                           : ('middle' as const);
 
                   return (
-                    <MessageMenu
+                    <SwipeableMessage
                       key={message.id}
+                      mine={message.authorId === currentUser?.id}
+                      // Nothing to answer on a tombstone, so the track stays inert.
+                      enabled={!message.deleted}
+                      onReply={() => setReplyTo(message)}
+                    >
+                    <MessageMenu
                       message={message}
                       mine={message.authorId === currentUser?.id}
                       onReply={setReplyTo}
@@ -375,6 +431,7 @@ export function ChatThread({
                         />
                       )}
                     />
+                    </SwipeableMessage>
                   );
                 })}
               </div>
