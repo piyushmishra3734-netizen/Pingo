@@ -166,6 +166,25 @@ export class SupabaseChatService implements ChatService {
   /** Cached so message mapping and conversation titles do not refetch people. */
   #people = new Map<UserId, User>();
 
+  /**
+   * The backing store for `Message.reactions`. docs/13 § 8.1.
+   *
+   * Not a second model — every `Message.reactions` handed to the UI is derived
+   * from here, so there is one authoritative client state rather than two that
+   * can disagree.
+   */
+  #reactions = new Map<MessageId, Reaction[]>();
+
+  /**
+   * Optimistic toggles awaiting their echo. docs/13 § 8.2.
+   *
+   * Keyed by message, holding the newest intent and its revision. Without this
+   * a stale confirmation overwrites newer intent: tap ❤️ then 👍, and the ❤️
+   * echo arrives last and wins.
+   */
+  #pending = new Map<MessageId, { revision: number; emoji: string | undefined }>();
+  #revision = 0;
+
   #authWatcher: { unsubscribe: () => void } | undefined;
 
   /**
@@ -344,12 +363,24 @@ export class SupabaseChatService implements ChatService {
        * after a reload reads as the tap not having worked. RLS filters this to
        * conversations the user is in, so no client-side check is needed.
        */
+      /*
+       * Reactions, live — applied as a delta rather than triggering a re-read.
+       * docs/13 § 8.3: the payload carries the row, not the operation, so a
+       * confirmation of our own change is matched on the user id and compared
+       * against the newest pending intent.
+       */
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'message_reactions' },
         (payload) => {
-          const row = (payload.new ?? payload.old) as { message_id?: string } | null;
-          if (row?.message_id) void this.#reloadMessage(row.message_id).catch(() => undefined);
+          const row = (payload.new ?? payload.old) as
+            | { message_id?: string; user_id?: string; emoji?: string }
+            | null;
+          if (!row?.message_id || !row.user_id) return;
+
+          // DELETE arrives as `old`, and means this person now has nothing.
+          const emoji = payload.eventType === 'DELETE' ? undefined : row.emoji;
+          void this.#onReactionChange(row.message_id, row.user_id, emoji);
         },
       )
       .subscribe((status) => {
@@ -549,13 +580,82 @@ export class SupabaseChatService implements ChatService {
      * from `userIds.length`, and "mine" from whether my id is in there.
      */
     const reactions = await this.#reactionsFor(rows.map((row) => row.id));
+    // The cache is filled here and mutated from then on. docs/13 § 8.1.
+    for (const row of rows) this.#reactions.set(row.id, reactions.get(row.id) ?? []);
 
     // Fetched newest-first for the limit; returned newest-last so the UI can
     // append without re-sorting.
     return rows.map((row) => ({
       ...toMessage(row, row.sender_id === me ? theirReadAt : undefined),
-      reactions: reactions.get(row.id) ?? [],
+      reactions: this.#reactions.get(row.id) ?? [],
     }));
+  }
+
+  /**
+   * Reconciles one incoming reaction change. docs/13 § 8.2–8.3.
+   *
+   * For somebody else's change there is nothing to reconcile — apply it. For
+   * our own, it is a confirmation, and the three cases are: it matches the
+   * newest intent (clear pending), it does not but something newer is still in
+   * flight (ignore — that echo is still coming), or nothing is pending (the
+   * server has the truth and we do not).
+   */
+  async #onReactionChange(
+    messageId: MessageId,
+    userId: UserId,
+    emoji: string | undefined,
+  ): Promise<void> {
+    const me = await this.#userId().catch(() => undefined);
+    const pending = this.#pending.get(messageId);
+
+    if (userId === me && pending) {
+      if (pending.emoji === emoji) this.#pending.delete(messageId);
+      // Newer intent outstanding: its own echo decides, not this one.
+      else return;
+    }
+
+    this.#applyLocal(messageId, userId, emoji);
+    this.#emitFromCache(messageId, await this.#messageRow(messageId));
+  }
+
+  /** Applies one person's choice to a message's grouped reactions. */
+  #applyLocal(messageId: MessageId, userId: UserId, emoji: string | undefined): void {
+    const list = (this.#reactions.get(messageId) ?? []).map((r) => ({
+      emoji: r.emoji,
+      userIds: r.userIds.filter((id) => id !== userId),
+    }));
+
+    if (emoji) {
+      const group = list.find((r) => r.emoji === emoji);
+      if (group) group.userIds.push(userId);
+      else list.push({ emoji, userIds: [userId] });
+    }
+
+    // Emptied groups are dropped here; the UI animates them out before this
+    // lands, which is why removal is not visible as a jump.
+    this.#reactions.set(
+      messageId,
+      list.filter((r) => r.userIds.length > 0),
+    );
+  }
+
+  /** What this user currently has on a message, per the cache. */
+  #mine(messageId: MessageId, userId: UserId): string | undefined {
+    return this.#reactions.get(messageId)?.find((r) => r.userIds.includes(userId))?.emoji;
+  }
+
+  /**
+   * Re-emits a message from the cache, without reading it back.
+   *
+   * docs/13 § 8.1: no reads after a successful toggle. The row itself has not
+   * changed — only its reactions have — so re-fetching it would be asking the
+   * server to repeat something we already know.
+   */
+  #emitFromCache(messageId: MessageId, base: Message): void {
+    this.#emit({
+      type: 'message:updated',
+      message: { ...base, reactions: this.#reactions.get(messageId) ?? [] },
+    });
   }
 
   /** Grouped by emoji, in the shape `Message.reactions` already expects. */
@@ -707,18 +807,50 @@ export class SupabaseChatService implements ChatService {
   }
 
   /**
-   * Add, swap or remove — the database decides which, in one statement.
+   * Optimistic, then confirmed. docs/13 § 8.
    *
-   * Read-then-write here would let two quick taps race and leave the wrong
-   * emoji standing, which on a control people tap repeatedly is not a rare case.
+   * The client already knows whether the tap is an add, a swap or a remove, so
+   * the cache is updated and emitted before the request leaves. The realtime
+   * echo confirms rather than informs, and no read follows either one.
+   *
+   * On failure the cache is restored to what it was and the error is rethrown,
+   * so the bar can put back the previous state rather than showing one the
+   * server never accepted.
    */
   async toggleReaction(messageId: MessageId, emoji: string): Promise<Message> {
-    await this.#client.rpc('toggle_reaction', { target: messageId, symbol: emoji });
-    return this.#reloadMessage(messageId);
+    const me = await this.#userId();
+    const base = await this.#messageRow(messageId);
+
+    const before = this.#mine(messageId, me);
+    // Tapping what you already have removes it; anything else replaces it.
+    const after = before === emoji ? undefined : emoji;
+
+    const revision = ++this.#revision;
+    this.#pending.set(messageId, { revision, emoji: after });
+
+    this.#applyLocal(messageId, me, after);
+    this.#emitFromCache(messageId, base);
+
+    const { error } = await this.#client.rpc('toggle_reaction', {
+      target: messageId,
+      symbol: emoji,
+    });
+
+    if (error) {
+      // Only roll back if nothing newer has been asked for since.
+      if (this.#pending.get(messageId)?.revision === revision) {
+        this.#pending.delete(messageId);
+        this.#applyLocal(messageId, me, before);
+        this.#emitFromCache(messageId, base);
+      }
+      throw error;
+    }
+
+    return { ...base, reactions: this.#reactions.get(messageId) ?? [] };
   }
 
-  /** Re-reads one message with its reactions, and tells everyone. */
-  async #reloadMessage(messageId: MessageId): Promise<Message> {
+  /** The row only — reactions come from the cache, never from a re-read. */
+  async #messageRow(messageId: MessageId): Promise<Message> {
     const { data, error } = await this.#client
       .from('messages')
       .select('*')
@@ -727,12 +859,7 @@ export class SupabaseChatService implements ChatService {
 
     if (error) throw error;
     if (!data) throw new Error(`No message ${messageId}`);
-
-    const reactions = await this.#reactionsFor([messageId]);
-    const message = { ...toMessage(data, undefined), reactions: reactions.get(messageId) ?? [] };
-
-    this.#emit({ type: 'message:updated', message });
-    return message;
+    return toMessage(data, undefined);
   }
 
   // -- people --------------------------------------------------------------
