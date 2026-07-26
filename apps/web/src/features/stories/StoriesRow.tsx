@@ -53,7 +53,10 @@ export function StoriesRow({
         <button
           type="button"
           onClick={() => (mine ? onOpen(mine) : navigate('/camera'))}
-          className="flex w-16 shrink-0 flex-col items-center gap-1.5 focus-ring rounded-lg py-1"
+          className={cn(
+            'flex w-[4.5rem] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+            'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
+          )}
         >
           <span className="relative">
             <StoryRing seen={mine?.allSeen ?? true} hasStory={Boolean(mine)}>
@@ -86,7 +89,10 @@ export function StoriesRow({
             key={group.authorId}
             type="button"
             onClick={() => onOpen(group)}
-            className="flex w-16 shrink-0 flex-col items-center gap-1.5 focus-ring rounded-lg py-1"
+            className={cn(
+            'flex w-[4.5rem] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+            'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
+          )}
           >
             <StoryRing seen={group.allSeen} hasStory>
               <Avatar
@@ -124,7 +130,9 @@ function StoryRing({
   return (
     <span
       className={cn(
-        'grid place-items-center rounded-full p-[2.5px]',
+        // 65px across: a 56px avatar, plus 4px of inner gap and 5px of gradient.
+        // `shrink-0` keeps it that size inside a narrower row.
+        'grid shrink-0 place-items-center rounded-full p-[2.5px]',
         !hasStory
           ? 'bg-transparent'
           : seen
@@ -132,8 +140,17 @@ function StoryRing({
             : 'bg-brand-gradient',
       )}
     >
-      {/* The inner ring separates the avatar from the gradient. */}
-      <span className="rounded-full bg-page p-[2px]">{children}</span>
+      {/*
+        The inner ring separates the avatar from the gradient.
+
+        `grid`, and it has to be. As a plain inline span this box formed a line
+        box around the avatar, and the avatar is `inline-flex` — so it sat on the
+        text baseline with descender space beneath it. That made the ring 65
+        wide and 72 tall: a visible ellipse, and the bug behind "oval ring".
+        `block` does not fix it, because a block still lays its inline child out
+        on a baseline. `grid` removes the line box altogether.
+      */}
+      <span className="grid rounded-full bg-page p-[2px]">{children}</span>
     </span>
   );
 }
