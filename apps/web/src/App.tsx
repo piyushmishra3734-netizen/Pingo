@@ -27,6 +27,7 @@ import { ChatsScreen } from './screens/ChatsScreen.js';
 import { CommunitiesScreen } from './screens/CommunitiesScreen.js';
 import { FollowRequestsScreen } from './screens/FollowRequestsScreen.js';
 import { NewChatScreen } from './screens/NewChatScreen.js';
+import { NotificationsScreen as NotificationsFeedScreen } from './screens/NotificationsScreen.js';
 import { ProfileScreen } from './screens/ProfileScreen.js';
 import { SettingsScreen } from './screens/SettingsScreen.js';
 import { AccountScreen } from './screens/settings/AccountScreen.js';
@@ -238,6 +239,7 @@ export function App() {
                   <Route path="/calls" element={<CallsScreen />} />
                   <Route path="/camera" element={<CameraScreen />} />
                   <Route path="/communities" element={<CommunitiesScreen />} />
+                  <Route path="/notifications" element={<NotificationsFeedScreen />} />
                   <Route path="/requests" element={<FollowRequestsScreen />} />
                   <Route path="/profile" element={<ProfileScreen />} />
                   <Route path="/profile/:handle" element={<ProfileScreen />} />

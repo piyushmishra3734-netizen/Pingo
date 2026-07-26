@@ -144,6 +144,15 @@ const SNAP_URL_TTL_SECONDS = 60;
  */
 const SNAP_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
+/** What each kind says. Titles come from the actor's live name, not the row. */
+const NOTIFICATION_COPY: Record<string, { body: string }> = {
+  follow_request: { body: 'wants to follow you' },
+  follow_accepted: { body: 'accepted your follow request' },
+  message: { body: 'sent you a message' },
+  snap: { body: 'sent you a snap' },
+  story: { body: 'posted a story' },
+};
+
 export class SupabaseChatService implements ChatService {
   readonly #client: PingoSupabaseClient;
 
@@ -611,12 +620,68 @@ export class SupabaseChatService implements ChatService {
   }
 
   /** No notifications table — push is delivered, not stored, for now. */
+  /**
+   * The feed, with actor names resolved.
+   *
+   * Titles are built here rather than stored, so a renamed user is not stuck
+   * with their old name in every notification they ever caused. The row keeps
+   * ids; the words are assembled at read time.
+   */
   async listNotifications(): Promise<AppNotification[]> {
-    return [];
+    const { data, error } = await this.#client
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) return [];
+
+    const rows = data ?? [];
+    const actorIds = [...new Set(rows.map((r) => r.actor_id).filter(Boolean))] as string[];
+
+    // One lookup for every actor in the page, not one per row.
+    const names = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const { data: people } = await this.#client
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', actorIds);
+      for (const person of people ?? []) names.set(person.id, person.display_name);
+    }
+
+    return rows.map((row) => {
+      const who = (row.actor_id && names.get(row.actor_id)) || 'Someone';
+      const copy = NOTIFICATION_COPY[row.kind] ?? { title: who, body: 'Something happened.' };
+
+      return {
+        id: row.id,
+        kind: row.kind,
+        title: who,
+        body: copy.body,
+        createdAt: Date.parse(row.created_at),
+        read: row.read_at !== null,
+        ...(row.subject_id ? { conversationId: row.subject_id } : {}),
+        ...(row.actor_id ? { actorId: row.actor_id } : {}),
+      } satisfies AppNotification;
+    });
   }
 
-  async markNotificationRead(): Promise<void> {
-    return;
+  async markNotificationRead(id: string): Promise<void> {
+    await this.#client
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id);
+  }
+
+  async unreadNotifications(): Promise<number> {
+    const { data, error } = await this.#client.rpc('unread_notifications');
+    // Zero on failure: a badge that shows a number it cannot justify is worse
+    // than no badge, and this runs on every app load.
+    return error ? 0 : (data ?? 0);
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    await this.#client.rpc('mark_notifications_read');
   }
 
   // -- search --------------------------------------------------------------

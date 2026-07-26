@@ -419,6 +419,14 @@ export class MockChatService implements ChatService {
     if (notification) notification.read = true;
   }
 
+  async unreadNotifications(): Promise<number> {
+    return this.#notifications.filter((n) => !n.read).length;
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    for (const n of this.#notifications) n.read = true;
+  }
+
   // -- search --------------------------------------------------------------
 
   async search(query: string): Promise<SearchResult[]> {

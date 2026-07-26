@@ -133,6 +133,12 @@ export interface ChatService {
   listNotifications(): Promise<AppNotification[]>;
   markNotificationRead(id: string): Promise<void>;
 
+  /** Unread count for the badge. One number, not a list to be counted. */
+  unreadNotifications(): Promise<number>;
+
+  /** Marks the whole feed read — one statement, not a write per row. */
+  markAllNotificationsRead(): Promise<void>;
+
   // -- Search --------------------------------------------------------------
   search(query: string): Promise<SearchResult[]>;
 

@@ -112,6 +112,20 @@ export type Database = {
         };
         Relationships: [];
       };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          actor_id: string | null;
+          kind: 'follow_request' | 'follow_accepted' | 'message' | 'snap' | 'story';
+          subject_id: string | null;
+          created_at: string;
+          read_at: string | null;
+        };
+        Insert: { user_id: string; kind: string };
+        Update: { read_at?: string | null };
+        Relationships: [];
+      };
       follows: {
         Row: {
           follower_id: string;
@@ -193,6 +207,8 @@ export type Database = {
         Returns: string;
       };
       /** Streak days per direct conversation, for the signed-in user only. */
+      unread_notifications: { Args: Record<string, never>; Returns: number };
+      mark_notifications_read: { Args: Record<string, never>; Returns: undefined };
       my_streaks: {
         Args: Record<string, never>;
         Returns: { conversation_id: string; streak: number }[];

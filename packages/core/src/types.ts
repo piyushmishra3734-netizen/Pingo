@@ -286,12 +286,14 @@ export interface Moment {
 
 export interface AppNotification {
   id: string;
-  kind: 'message' | 'call' | 'mention' | 'system';
+  kind: 'message' | 'snap' | 'call' | 'follow_request' | 'follow_accepted' | 'story' | 'mention' | 'system';
   title: string;
   body: string;
   createdAt: number;
   read: boolean;
   conversationId?: ConversationId;
+  /** Who caused it, when there is a person behind it. */
+  actorId?: UserId;
 }
 
 export interface UserSettings {
