@@ -25,6 +25,15 @@ refresh_token_reuse_interval = 10
 enable_signup = true
 enable_anonymous_sign_ins = false
 
+# Password rules are enforced in `packages/core/password-policy.ts` (10 chars,
+# not common, letters and numbers). This is the backend's floor, kept lower so
+# the product's rule is the one users actually meet.
+minimum_password_length = 8
+
+# Lives under [auth], not [auth.email]: the CLI moved it, and in the wrong
+# section the whole config fails to parse and every db push stops before it
+# starts.
+
 [auth.email]
 enable_signup = true
 
@@ -33,11 +42,6 @@ enable_signup = true
 # user would be stranded one step from Home. `SupabaseAuthService.assertSession`
 # turns that state into an explicit error rather than a silent hang.
 enable_confirmations = false
-
-# Password rules are enforced in `packages/core/password-policy.ts` (10 chars,
-# not common, letters and numbers). This is the backend's floor, kept lower so
-# the product's rule is the one users actually meet.
-minimum_password_length = 8
 
 # Re-authentication before sensitive changes uses a password, never an OTP
 # (docs/01 § 18).
