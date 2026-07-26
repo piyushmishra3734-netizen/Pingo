@@ -17,8 +17,15 @@ import { useCallback, useRef } from 'react';
  * `onContextMenu` is part of the returned handlers rather than an afterthought.
  */
 
-/** docs/13 § 6. */
-const PRESS_MS = 120;
+/**
+ * How long a finger must rest. docs/13 § 6.
+ *
+ * 500ms, matching iMessage and Instagram. The doc originally said 120ms, which
+ * was the *recognition latency* budget rather than the hold — at 120ms every
+ * ordinary tap opens the menu. Past about a second users assume the gesture
+ * failed and lift off, so the window is narrower than it looks.
+ */
+const PRESS_MS = 500;
 
 /**
  * How far a finger may drift and still count as a press.
@@ -63,6 +70,12 @@ export function useLongPress(
 
       timer.current = setTimeout(() => {
         timer.current = undefined;
+        /*
+         * Soft impact on recognition. docs/13 § 5 — the hand should know the
+         * press landed before the eyes do, which is most of why a long press
+         * feels responsive rather than slow.
+         */
+        navigator.vibrate?.(8);
         onLongPress(point);
       }, PRESS_MS);
     },

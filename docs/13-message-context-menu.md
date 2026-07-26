@@ -121,6 +121,24 @@ The group has **no header and no fixed position** — present when it applies,
 absent otherwise. Without this rule "contextual AI" becomes four permanent extra
 rows, which is the AI tab again, scattered.
 
+## § 4.5 One menu, several ways in
+
+The component is one. Only the trigger differs by platform, and no behaviour is
+allowed to differ with it — a second implementation is a second set of bugs.
+
+| Platform | Trigger |
+| --- | --- |
+| Touch | long press |
+| Pointer | a `⋯` that appears on hover, aligned to the bubble |
+| Pointer | right-click, anchored at the cursor |
+| Keyboard | `Shift+F10` or the Context Menu key on the focused message |
+
+`Esc` closes, everywhere.
+
+Right-click anchors to the cursor rather than the bubble because that is where a
+desktop user is already looking, and § 1.1 asks the menu to come from where the
+input was — which on a mouse is the pointer, not the finger.
+
 ## § 5 Haptics
 
 Different actions must not feel the same. The hand should be able to tell what
@@ -140,13 +158,18 @@ happened without the eyes.
 
 | Step | Duration |
 | --- | --- |
-| Long press detect | 120 ms |
+| Long press hold | 500 ms |
 | Message lift | 180 ms |
 | Reaction bar in | 140 ms |
 | Menu fade + scale | 160 ms |
 | Dismiss | 140 ms |
 
-Fast enough to feel instant, slow enough to read as deliberate. Dismiss is
+The hold is 500 ms, matching iMessage and Instagram. An earlier draft said
+120 ms; that is a recognition *latency* budget, not a hold — at 120 ms every
+ordinary tap opens the menu. Past roughly a second users decide the gesture
+failed and lift off, so the usable window is narrow in both directions.
+
+The rest are fast enough to feel instant, slow enough to read as deliberate. Dismiss is
 quicker than entry, because leaving should never feel like waiting.
 
 All of it scales with the motion setting — these are duration tokens, not inline
