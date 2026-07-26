@@ -71,12 +71,28 @@ function nextMessageId(): MessageId {
   return `m-local-${Date.now().toString(36)}-${messageCounter}`;
 }
 
+export interface MockChatServiceOptions {
+  /**
+   * Whether to start with the demo conversations.
+   *
+   * `false` gives a genuinely empty account, which is what a real person sees
+   * the moment they finish signing up. That state has its own design — Home's
+   * welcome ([docs/01 § 10](../../../docs/01-onboarding-auth.md)) — and it is
+   * unreachable while the mock hands every new user four seeded threads with
+   * strangers in them.
+   *
+   * Defaults to seeded, because the styleguide and every screenshot of the
+   * product depend on there being conversations to look at.
+   */
+  seeded?: boolean;
+}
+
 export class MockChatService implements ChatService {
   /** Mutable working copies, so a session's sends and reads persist in memory. */
   #currentUser: CurrentUser = clone(seedCurrentUser);
   #users: User[] = clone(seedUsers);
-  #conversations: Conversation[] = clone(seedConversations);
-  #messages: Record<string, Message[]> = clone(seedMessages);
+  #conversations: Conversation[];
+  #messages: Record<string, Message[]>;
   #notifications: AppNotification[] = clone(seedNotifications);
 
   #listeners = new Set<(event: ChatEvent) => void>();
@@ -84,7 +100,10 @@ export class MockChatService implements ChatService {
   /** Tracked so `dispose` can clear anything still pending. */
   #timers = new Set<ReturnType<typeof setTimeout>>();
 
-  constructor() {
+  constructor({ seeded = true }: MockChatServiceOptions = {}) {
+    this.#conversations = seeded ? clone(seedConversations) : [];
+    this.#messages = seeded ? clone(seedMessages) : {};
+
     // Mirror a real client: briefly connecting, then connected.
     this.#after(400, () => {
       this.#connection = 'connected';

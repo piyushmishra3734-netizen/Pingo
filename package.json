@@ -9,9 +9,11 @@
     "preview": "pnpm --filter @pingo/web preview",
     "typecheck": "pnpm -r typecheck",
     "check:docs": "node docs/.check-wireframes.mjs && node docs/.check-links.mjs",
+    "functions:deploy": "supabase functions deploy turn-credentials --project-ref lppzoqgvshhmxqsvggug",
     "check": "pnpm typecheck && pnpm check:docs"
   },
   "devDependencies": {
+    "supabase": "^2.109.1",
     "typescript": "^5.7.3"
   },
   "packageManager": "pnpm@9.15.0",

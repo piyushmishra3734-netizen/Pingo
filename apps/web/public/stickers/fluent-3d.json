@@ -1,0 +1,229 @@
+{
+  "id": "fluent-3d",
+  "name": "Fluent 3D",
+  "coverUrl": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Grinning%20face/3D/grinning_face_3d.png",
+  "attribution": {
+    "source": "Microsoft Fluent Emoji",
+    "url": "https://github.com/microsoft/fluentui-emoji",
+    "licence": "MIT",
+    "credit": "Fluent Emoji by Microsoft, MIT licence"
+  },
+  "stickers": [
+    {
+      "id": "fluent-grinning",
+      "name": "Grinning",
+      "category": "smileys",
+      "emoji": "😀",
+      "keywords": ["grin", "happy", "smile", "joy"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Grinning%20face/3D/grinning_face_3d.png"
+    },
+    {
+      "id": "fluent-joy",
+      "name": "Tears of joy",
+      "category": "smileys",
+      "emoji": "😂",
+      "keywords": ["lol", "laugh", "funny", "haha", "crying"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Face%20with%20tears%20of%20joy/3D/face_with_tears_of_joy_3d.png"
+    },
+    {
+      "id": "fluent-rofl",
+      "name": "Rolling on the floor laughing",
+      "category": "meme",
+      "emoji": "🤣",
+      "keywords": ["rofl", "lmao", "laugh", "funny"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Rolling%20on%20the%20floor%20laughing/3D/rolling_on_the_floor_laughing_3d.png"
+    },
+    {
+      "id": "fluent-sunglasses",
+      "name": "Cool",
+      "category": "reactions",
+      "emoji": "😎",
+      "keywords": ["cool", "sunglasses", "swag"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Smiling%20face%20with%20sunglasses/3D/smiling_face_with_sunglasses_3d.png"
+    },
+    {
+      "id": "fluent-thinking",
+      "name": "Thinking",
+      "category": "reactions",
+      "emoji": "🤔",
+      "keywords": ["think", "hmm", "wonder"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Thinking%20face/3D/thinking_face_3d.png"
+    },
+    {
+      "id": "fluent-heart",
+      "name": "Red heart",
+      "category": "love",
+      "emoji": "❤️",
+      "keywords": ["heart", "love", "like"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Red%20heart/3D/red_heart_3d.png"
+    },
+    {
+      "id": "fluent-heart-eyes",
+      "name": "Heart eyes",
+      "category": "love",
+      "emoji": "😍",
+      "keywords": ["love", "crush", "adore", "heart"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Smiling%20face%20with%20heart-eyes/3D/smiling_face_with_heart-eyes_3d.png"
+    },
+    {
+      "id": "fluent-fire",
+      "name": "Fire",
+      "category": "reactions",
+      "emoji": "🔥",
+      "keywords": ["fire", "lit", "hot", "streak"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Fire/3D/fire_3d.png"
+    },
+    {
+      "id": "fluent-party",
+      "name": "Party popper",
+      "category": "reactions",
+      "emoji": "🎉",
+      "keywords": ["party", "celebrate", "congrats", "tada"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Party%20popper/3D/party_popper_3d.png"
+    },
+    {
+      "id": "fluent-thumbs-up",
+      "name": "Thumbs up",
+      "category": "gestures",
+      "emoji": "👍",
+      "keywords": ["yes", "ok", "good", "like", "approve"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Thumbs%20up/Default/3D/thumbs_up_3d_default.png"
+    },
+    {
+      "id": "fluent-clap",
+      "name": "Clapping",
+      "category": "gestures",
+      "emoji": "👏",
+      "keywords": ["clap", "applause", "bravo", "well done"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Clapping%20hands/Default/3D/clapping_hands_3d_default.png"
+    },
+    {
+      "id": "fluent-folded-hands",
+      "name": "Please",
+      "category": "gestures",
+      "emoji": "🙏",
+      "keywords": ["please", "thanks", "pray", "namaste"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Folded%20hands/Default/3D/folded_hands_3d_default.png"
+    },
+    {
+      "id": "fluent-rocket",
+      "name": "Rocket",
+      "category": "objects",
+      "emoji": "🚀",
+      "keywords": ["rocket", "launch", "ship", "fast"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Rocket/3D/rocket_3d.png"
+    },
+    {
+      "id": "fluent-video-game",
+      "name": "Video game",
+      "category": "gaming",
+      "emoji": "🎮",
+      "keywords": ["game", "gaming", "controller", "play"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Video%20game/3D/video_game_3d.png"
+    },
+    {
+      "id": "fluent-trophy",
+      "name": "Trophy",
+      "category": "gaming",
+      "emoji": "🏆",
+      "keywords": ["trophy", "win", "winner", "champion"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Trophy/3D/trophy_3d.png"
+    },
+    {
+      "id": "fluent-dog",
+      "name": "Dog",
+      "category": "animals",
+      "emoji": "🐶",
+      "keywords": ["dog", "puppy", "pet"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Dog%20face/3D/dog_face_3d.png"
+    },
+    {
+      "id": "fluent-cat",
+      "name": "Cat",
+      "category": "animals",
+      "emoji": "🐱",
+      "keywords": ["cat", "kitten", "pet", "meow"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Cat%20face/3D/cat_face_3d.png"
+    },
+    {
+      "id": "fluent-pizza",
+      "name": "Pizza",
+      "category": "food",
+      "emoji": "🍕",
+      "keywords": ["pizza", "food", "hungry", "slice"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Pizza/3D/pizza_3d.png"
+    },
+    {
+      "id": "fluent-birthday-cake",
+      "name": "Birthday cake",
+      "category": "food",
+      "emoji": "🎂",
+      "keywords": ["cake", "birthday", "party", "celebrate"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Birthday%20cake/3D/birthday_cake_3d.png"
+    },
+    {
+      "id": "fluent-skull",
+      "name": "Skull",
+      "category": "meme",
+      "emoji": "💀",
+      "keywords": ["skull", "dead", "dying", "lmao"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Skull/3D/skull_3d.png"
+    },
+    {
+      "id": "fluent-eyes",
+      "name": "Eyes",
+      "category": "meme",
+      "emoji": "👀",
+      "keywords": ["eyes", "looking", "watching", "sus"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Eyes/3D/eyes_3d.png"
+    },
+    {
+      "id": "fluent-crying",
+      "name": "Crying",
+      "category": "smileys",
+      "emoji": "😭",
+      "keywords": ["cry", "sad", "sob", "tears"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Loudly%20crying%20face/3D/loudly_crying_face_3d.png"
+    },
+    {
+      "id": "fluent-100",
+      "name": "Hundred points",
+      "category": "reactions",
+      "emoji": "💯",
+      "keywords": ["100", "hundred", "perfect", "agree"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Hundred%20points/3D/hundred_points_3d.png"
+    },
+    {
+      "id": "fluent-sparkles",
+      "name": "Sparkles",
+      "category": "objects",
+      "emoji": "✨",
+      "keywords": ["sparkle", "shine", "magic", "new"],
+      "format": "png",
+      "url": "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Sparkles/3D/sparkles_3d.png"
+    }
+  ]
+}

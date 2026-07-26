@@ -65,6 +65,42 @@ export function MessageBubble({ message, mine, position, showMeta }: MessageBubb
     );
   }
 
+  /*
+   * A sticker gets no bubble.
+   *
+   * The bubble exists to group text and mark who said it; a sticker is already
+   * a distinct object with its own silhouette, and wrapping it in a coloured
+   * rectangle makes it look like a pasted image rather than a sticker. Every
+   * messaging product that ships stickers arrives at the same answer.
+   */
+  if (message.sticker) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div className="animate-bubble-in">
+          <img
+            src={message.sticker.url}
+            // `body` is the emoji fallback, which makes a real alt text.
+            alt={message.body}
+            draggable={false}
+            className="size-32 select-none object-contain"
+            onError={(event) => {
+              // Pack gone, or offline. The emoji is a better fallback than a
+              // broken-image icon, and it is already in `body`.
+              const image = event.currentTarget;
+              const text = document.createElement('span');
+              text.className = 'text-[4rem] leading-none';
+              text.textContent = message.body;
+              image.replaceWith(text);
+            }}
+          />
+          <span className="mt-0.5 block text-caption text-text-tertiary">
+            {formatTime(message.createdAt)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
       <div

@@ -33,8 +33,11 @@ import type {
 /** A draft outgoing message, before the service assigns it an id and timestamp. */
 export interface OutgoingMessage {
   conversationId: ConversationId;
+  /** For a sticker this is its emoji or name — the text fallback. */
   body: string;
   replyToId?: MessageId;
+  /** Makes this a sticker message rather than a text one. */
+  sticker?: { id: string; url: string };
 }
 
 /**

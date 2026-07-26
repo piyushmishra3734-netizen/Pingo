@@ -104,6 +104,29 @@
   }
 }
 
+/**
+ * The settings-row ripple.
+ *
+ * Grows from where the finger landed and fades as it goes, so the row
+ * acknowledges the touch before the page has begun to change. Deliberately
+ * slower than a press state and deliberately soft-edged — a hard circle reads
+ * as Material, and this is meant to read as glass.
+ */
+@keyframes settings-ripple {
+  from {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@utility animate-settings-ripple {
+  animation: settings-ripple 560ms var(--ease-standard) forwards;
+}
+
 @utility scrollbar-none {
   scrollbar-width: none;
 

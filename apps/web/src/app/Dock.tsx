@@ -1,6 +1,7 @@
 import { useChat } from '@pingo/core';
 import {
   Badge,
+  CameraIcon,
   ChatIcon,
   GlassPanel,
   PhoneIcon,
@@ -13,9 +14,13 @@ import { NavLink } from 'react-router-dom';
 /**
  * The floating navigation dock — "Glass effect. Floating. Always accessible."
  *
- * Four destinations, no more. A fifth would turn a glance into a decision, and
- * the board is explicit that this is a dock, not a tab bar crammed with features.
- * Settings lives inside Profile for the same reason.
+ * Five destinations: Chats, Calls, Camera, Communities, Profile. Camera sits in
+ * the middle because it is the one *creating* action among four browsing ones —
+ * the same reason it is centred in every camera-first product.
+ *
+ * Five is the ceiling. Settings is reached from the Chats header and from
+ * Profile, not from here, because a dock that grows by one every time a feature
+ * ships stops being glanceable.
  *
  * The active item is marked by a purple dot beneath the icon rather than a filled
  * pill: the brand element already means "here, now" everywhere else in the
@@ -36,6 +41,7 @@ interface DockItem {
 const ITEMS: DockItem[] = [
   { to: '/chats', label: 'Chats', Icon: ChatIcon, matchPrefix: '/chats' },
   { to: '/calls', label: 'Calls', Icon: PhoneIcon },
+  { to: '/camera', label: 'Camera', Icon: CameraIcon },
   { to: '/communities', label: 'Communities', Icon: UsersIcon },
   { to: '/profile', label: 'Profile', Icon: UserIcon, matchPrefix: '/profile' },
 ];

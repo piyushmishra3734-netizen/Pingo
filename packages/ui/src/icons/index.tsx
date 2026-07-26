@@ -37,6 +37,27 @@ export const VideoIcon = (props: IconProps) => (
   </IconBase>
 );
 
+/** Camera off. Same slash treatment as `MicOffIcon`, so the in-call row reads as a set. */
+export const VideoOffIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M10.5 6.5h1.8a3.2 3.2 0 0 1 3.2 3.2v1.6" />
+    <path d="M15.5 15.2a3.2 3.2 0 0 1-3.2 2.3H6.2A3.2 3.2 0 0 1 3 14.3V9.7a3.2 3.2 0 0 1 2.4-3.1" />
+    <path d="M15.5 12.6l3.9 2.7a1 1 0 0 0 1.6-.8V9.5a1 1 0 0 0-1.6-.8l-2 1.4" />
+    <path d="m4 4 16 16" />
+  </IconBase>
+);
+
+/** Flip between front and rear camera: a camera with a rotation arrow around it. */
+export const CameraFlipIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M4.6 8.5a8 8 0 0 1 13-2.2" />
+    <path d="M19.4 15.5a8 8 0 0 1-13 2.2" />
+    <path d="M17.8 2.9v3.6h-3.6" />
+    <path d="M6.2 21.1v-3.6h3.6" />
+    <circle cx="12" cy="12" r="2.6" />
+  </IconBase>
+);
+
 export const UsersIcon = (props: IconProps) => (
   <IconBase {...props}>
     <circle cx="9.5" cy="8.5" r="3.5" />
@@ -98,6 +119,18 @@ export const MicIcon = (props: IconProps) => (
     <rect x="9" y="3" width="6" height="10.5" rx="3" />
     <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" />
     <path d="M12 18v3" />
+  </IconBase>
+);
+
+/** Muted microphone. Same slash treatment as `EyeOffIcon`, so the pair reads as a pair. */
+export const MicOffIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M15 5a3 3 0 0 0-6 0v4" />
+    <path d="M9 12.2a3 3 0 0 0 5.1 1.9" />
+    <path d="M18.5 11.5a6.5 6.5 0 0 1-1 3.4" />
+    <path d="M5.5 11.5a6.5 6.5 0 0 0 9.6 5.7" />
+    <path d="M12 18v3" />
+    <path d="m4 4 16 16" />
   </IconBase>
 );
 
@@ -183,6 +216,26 @@ export const MoreIcon = (props: IconProps) => (
 // ---------------------------------------------------------------------------
 
 export const AccountIcon = UserIcon;
+
+/**
+ * The gear, for the Chats header's settings control.
+ *
+ * Not on the branding board — its icon panel shows six glyphs and none of them
+ * is a gear. Drawn to the board's stated rules instead (rounded, 2px stroke,
+ * minimal).
+ *
+ * Three rings, not two: hole, body, teeth. A first attempt drew only the hole
+ * and eight long spokes, and at 21px it read as a **sun** — without the body
+ * ring there is nothing for the teeth to be attached to, so the eye sees rays.
+ * The body circle is what makes it a gear.
+ */
+export const SettingsIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="2.6" />
+    <circle cx="12" cy="12" r="6.6" />
+    <path d="M12 3.2v1.8M12 19v1.8M20.8 12H19M5 12H3.2M18.2 5.8l-1.3 1.3M7.1 16.9l-1.3 1.3M18.2 18.2l-1.3-1.3M7.1 7.1 5.8 5.8" />
+  </IconBase>
+);
 
 export const ShieldIcon = (props: IconProps) => (
   <IconBase {...props}>
@@ -277,5 +330,44 @@ export const GridIcon = (props: IconProps) => (
     <rect x="13" y="4" width="7" height="7" rx="2.2" />
     <rect x="4" y="13" width="7" height="7" rx="2.2" />
     <rect x="13" y="13" width="7" height="7" rx="2.2" />
+  </IconBase>
+);
+
+// ---------------------------------------------------------------------------
+// Authentication
+// ---------------------------------------------------------------------------
+
+/**
+ * The Email sign-in method's glyph — docs/01 § 4.2.
+ *
+ * Drawn rather than typed as the character `@`, so it carries the set's stroke
+ * weight and sits on the same optical grid as the row icons beside it.
+ */
+export const AtIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="3.4" />
+    <path d="M15.4 8.6v4.6a2.4 2.4 0 0 0 4.8 0V12a8.2 8.2 0 1 0-3.2 6.5" />
+  </IconBase>
+);
+
+/**
+ * The password reveal toggle — docs/01 § 8.
+ *
+ * `EyeIcon` shows the *action* (reveal), not the state, which is why the crossed
+ * variant appears only while the password is visible.
+ */
+export const EyeIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M2.6 12S6 5.9 12 5.9 21.4 12 21.4 12 18 18.1 12 18.1 2.6 12 2.6 12Z" />
+    <circle cx="12" cy="12" r="2.9" />
+  </IconBase>
+);
+
+export const EyeOffIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M9.9 6.2A8.5 8.5 0 0 1 12 5.9c6 0 9.4 6.1 9.4 6.1a16.4 16.4 0 0 1-2.7 3.4" />
+    <path d="M6.4 8A16.5 16.5 0 0 0 2.6 12S6 18.1 12 18.1a8.9 8.9 0 0 0 3.5-.7" />
+    <path d="M10 10a2.9 2.9 0 0 0 4 4" />
+    <path d="m4 4 16 16" />
   </IconBase>
 );

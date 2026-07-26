@@ -1,58 +1,91 @@
-import { PingoMark, Tagline, Wordmark } from '@pingo/ui';
-import { useEffect } from 'react';
+import { useAuth } from '@pingo/core';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import { ONBOARDED_KEY, hasOnboarded } from '../features/auth/onboarded.js';
 
 /**
  * Splash.
  *
- * A brand moment, not a loading screen — so it shows no progress indicator and
- * makes no promise about what it is waiting for. It holds for a beat and moves on.
+ * The supplied artwork, shown full screen. Nothing is drawn on top of it and
+ * nothing is reconstructed — `public/pingo-splash.jpg` is the screen.
  *
- * The 1.4s dwell is deliberate: long enough for the mark to register, short
- * enough that a returning user never feels held up. Onboarding is only shown
- * once; after that the splash goes straight to the conversation list.
+ * ## Why the image is contained, not cropped
+ *
+ * The artwork is 16:9 with the wordmark running across its middle third. Under
+ * `object-fit: cover` a portrait phone would keep only a narrow vertical band —
+ * about 500px of the 1600px width — which slices the wordmark down to "NG".
+ * So it is `contain`, on a ground sampled from the artwork's own edges, and the
+ * mark survives at every aspect ratio.
+ *
+ * ## The dwell is a ceiling
+ *
+ * It never waits for the session check. If auth has not resolved by the time
+ * the timer fires, this routes to Home and lets Home show its own loading
+ * state — a splash that waits for the network is a splash that hangs on a bad
+ * connection ([11 § 1.1](../../../../docs/11-performance-budget.md#11-the-splash-is-a-ceiling-not-a-spinner)).
+ *
+ * | Condition | Destination |
+ * | --- | --- |
+ * | Valid session | Home |
+ * | Onboarded, no session | Log In |
+ * | Never onboarded | Welcome |
  */
 
-const DWELL_MS = 1400;
+/** Comfortably inside the 2s ceiling, and long enough for the mark to register. */
+const DWELL_MS = 1800;
 
-/** Set after onboarding completes, so it is never shown twice. */
-const ONBOARDED_KEY = 'pingo:onboarded';
+/** Sampled from the artwork's edges, so the letterbox bands are seamless. */
+const SPLASH_GROUND = '#EDECFB';
 
 export function SplashScreen() {
   const navigate = useNavigate();
+  const { status } = useAuth();
+
+  /*
+   * Read through a ref so the timer sees the latest status without restarting
+   * every time it changes — a `status` dependency would reset the dwell on each
+   * transition and make the splash outstay its ceiling.
+   */
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   useEffect(() => {
-    const onboarded = localStorage.getItem(ONBOARDED_KEY) === 'true';
     const timer = setTimeout(() => {
-      navigate(onboarded ? '/chats' : '/welcome', { replace: true });
+      const current = statusRef.current;
+
+      if (current === 'anonymous') {
+        navigate(hasOnboarded() ? '/login' : '/welcome', { replace: true });
+        return;
+      }
+
+      // Authenticated, or still resolving. Either way Home is correct: the
+      // route guard finishes the check and redirects if it has to.
+      navigate('/chats', { replace: true });
     }, DWELL_MS);
 
     return () => clearTimeout(timer);
   }, [navigate]);
 
   return (
-    <div className="relative grid h-full place-items-center overflow-hidden bg-brand-wash">
-      {/*
-        A single soft orb, echoing the branding board's background. One shape,
-        heavily blurred — a calm surface, not a gradient mesh competing with the
-        logo it exists to frame.
-      */}
-      <div
-        className="pointer-events-none absolute -right-24 top-1/3 size-[28rem] rounded-full bg-brand-alt/12 blur-3xl"
-        aria-hidden
+    <div
+      className="grid h-full w-full place-items-center overflow-hidden"
+      style={{ backgroundColor: SPLASH_GROUND }}
+    >
+      <img
+        src="/pingo-splash.jpg"
+        alt="PINGO — Connect. Privately."
+        draggable={false}
+        className="h-full w-full select-none object-contain animate-fade-in"
       />
-
-      <div className="relative flex flex-col items-center gap-7 animate-fade-in">
-        <PingoMark size={96} strokeClassName="text-ink" title="PINGO" />
-
-        <div className="flex flex-col items-center gap-3">
-          <Wordmark size={22} />
-          <Tagline />
-        </div>
-      </div>
     </div>
   );
 }
 
-/** Exported so onboarding can record completion against the same key. */
+/**
+ * Re-exported from its new home in `features/auth/onboarded.ts`.
+ *
+ * The flag outgrew this screen — the guards and the auth provider both need it —
+ * but it is still exported here so nothing that imported it has to change.
+ */
 export { ONBOARDED_KEY };

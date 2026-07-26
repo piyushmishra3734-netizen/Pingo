@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { useCall } from '../features/calls/CallProvider.js';
 
 /**
  * Call history.
@@ -25,6 +26,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
  */
 export function CallsScreen() {
   const { service, users } = useChat();
+  const { startCall } = useCall();
   const [calls, setCalls] = useState<CallRecord[] | undefined>();
 
   useEffect(() => {
@@ -112,9 +114,16 @@ export function CallsScreen() {
                     </p>
                   </div>
 
+                  {/*
+                    Calling back needs someone to call — a group entry has no
+                    single peer, so its button stays inert until group calls do.
+                    The kind mirrors the logged call: you get back what you had.
+                  */}
                   <IconButton
                     label={`${call.kind === 'video' ? 'Video' : 'Voice'} call ${title}`}
                     variant="ghost"
+                    disabled={!other}
+                    onClick={() => other && void startCall(other.id, other.name, call.kind)}
                   >
                     {call.kind === 'video' ? <VideoIcon size={20} /> : <PhoneIcon size={20} />}
                   </IconButton>

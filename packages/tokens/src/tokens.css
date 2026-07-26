@@ -212,9 +212,19 @@
 /* component: the brand gradient, the liquid-glass surface, and the focus ring. */
 /* -------------------------------------------------------------------------- */
 
-/** The board's #6D7CFF → #A16EFF at 135°. Primary actions and outgoing bubbles. */
+/**
+ * The board's #6D7CFF → #A16EFF at 135°. Primary actions and outgoing bubbles.
+ *
+ * Drawn from variables rather than literals so the accent setting can retint the
+ * whole product. The defaults below are the board's values exactly — changing
+ * accent overrides the two stops, nothing else.
+ */
 @utility bg-brand-gradient {
-  background-image: linear-gradient(135deg, #6d7cff 0%, #a16eff 100%);
+  background-image: linear-gradient(
+    135deg,
+    var(--gradient-from, #6d7cff) 0%,
+    var(--gradient-to, #a16eff) 100%
+  );
 }
 
 /** A softened wash of the same gradient, for large calm surfaces like splash. */
@@ -230,10 +240,10 @@
  * the saturation boost is what keeps colour behind the panel from going flat.
  */
 @utility glass-surface {
-  background-color: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  background-color: var(--color-glass);
+  backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
+  border: 1px solid var(--color-glass-line);
 }
 
 /**
@@ -264,4 +274,185 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Appearance                                                                 */
+/*                                                                            */
+/* Four user-facing choices — theme, accent, motion, glass — each expressed as */
+/* a data attribute on <html> and each doing its work by overriding the same   */
+/* tokens every component already reads. Nothing below is a new colour system; */
+/* it is the existing one, repointed.                                          */
+/*                                                                            */
+/* Applied to the root element rather than a React context on purpose: the     */
+/* attribute is set before first paint, so a dark-mode user never sees a white */
+/* flash while the app boots.                                                  */
+/* -------------------------------------------------------------------------- */
+
+/* ---- Theme --------------------------------------------------------------- */
+
+:root[data-theme='dark'] {
+  --color-page: #0c0d11;
+  --color-ink: #f4f5f9;
+  --color-muted: #9a9dab;
+
+  --color-surface: #16171d;
+  --color-sunken: #1c1e25;
+
+  --color-text: #f4f5f9;
+  --color-text-secondary: #9a9dab;
+  --color-text-tertiary: rgba(244, 245, 249, 0.4);
+
+  /* Lines invert: light hairlines on dark, not dark ones made transparent. */
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-line-strong: rgba(255, 255, 255, 0.14);
+  --color-divider: rgba(255, 255, 255, 0.06);
+
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-pressed: rgba(255, 255, 255, 0.1);
+  --color-selected: rgba(122, 136, 255, 0.16);
+
+  /*
+   * Glass goes dark and *more* opaque. A light translucent panel over a dark
+   * page reads as fog rather than glass, and thin white borders glow.
+   */
+  --color-glass: rgba(22, 23, 29, 0.72);
+  --color-glass-line: rgba(255, 255, 255, 0.08);
+  --color-scrim: rgba(0, 0, 0, 0.5);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* The calm wash behind splash and onboarding, rebuilt for a dark ground. */
+:root[data-theme='dark'] .bg-brand-wash,
+:root[data-theme='dark'] [class*='bg-brand-wash'] {
+  background-image:
+    radial-gradient(120% 80% at 15% 10%, rgba(109, 124, 255, 0.18) 0%, transparent 60%),
+    radial-gradient(100% 90% at 85% 75%, rgba(161, 110, 255, 0.22) 0%, transparent 62%),
+    linear-gradient(160deg, #0c0d11 0%, #14131f 100%);
+}
+
+/* ---- Accent -------------------------------------------------------------- */
+/*                                                                            */
+/* Each set repoints the brand pair, the dot, the gradient stops and the four  */
+/* interaction tints. Because every component reads these, an accent change    */
+/* reaches buttons, rings, bubbles, chips and focus outlines at once.          */
+
+:root[data-accent='purple'] {
+  --color-brand: #8b5dff;
+  --color-brand-alt: #a16eff;
+  --color-dot: #a16eff;
+  --gradient-from: #8b5dff;
+  --gradient-to: #c07dff;
+  --color-hover: rgba(139, 93, 255, 0.07);
+  --color-pressed: rgba(139, 93, 255, 0.12);
+  --color-selected: rgba(139, 93, 255, 0.1);
+  --color-focus-ring: rgba(139, 93, 255, 0.45);
+}
+
+:root[data-accent='green'] {
+  --color-brand: #17a67a;
+  --color-brand-alt: #34c77b;
+  --color-dot: #34c77b;
+  --gradient-from: #14a377;
+  --gradient-to: #3ecf8e;
+  --color-hover: rgba(23, 166, 122, 0.07);
+  --color-pressed: rgba(23, 166, 122, 0.12);
+  --color-selected: rgba(23, 166, 122, 0.1);
+  --color-focus-ring: rgba(23, 166, 122, 0.45);
+}
+
+:root[data-accent='pink'] {
+  --color-brand: #e0559b;
+  --color-brand-alt: #ff7ab8;
+  --color-dot: #ff7ab8;
+  --gradient-from: #e0559b;
+  --gradient-to: #ff86c2;
+  --color-hover: rgba(224, 85, 155, 0.07);
+  --color-pressed: rgba(224, 85, 155, 0.12);
+  --color-selected: rgba(224, 85, 155, 0.1);
+  --color-focus-ring: rgba(224, 85, 155, 0.45);
+}
+
+/*
+ * Custom is driven from two inline properties the picker sets, with the board's
+ * blue as the fallback so a half-configured custom accent is never invisible.
+ */
+:root[data-accent='custom'] {
+  --color-brand: var(--custom-accent, #5c6cff);
+  --color-brand-alt: var(--custom-accent-alt, var(--custom-accent, #8b5dff));
+  --color-dot: var(--custom-accent-alt, var(--custom-accent, #8b5dff));
+  --gradient-from: var(--custom-accent, #6d7cff);
+  --gradient-to: var(--custom-accent-alt, var(--custom-accent, #a16eff));
+}
+
+/* ---- Motion -------------------------------------------------------------- */
+/*                                                                            */
+/* Scales the four duration tokens rather than disabling animation. "Minimal"  */
+/* is not "none": transitions still happen, fast enough to feel instant but    */
+/* slow enough that a state change is still visible rather than a jump-cut.    */
+/*                                                                            */
+/* `prefers-reduced-motion` still wins over all three — an OS-level request is */
+/* not a preference this menu gets to override.                                */
+
+:root[data-motion='smooth'] {
+  --duration-instant: 140ms;
+  --duration-quick: 220ms;
+  --duration-base: 300ms;
+  --duration-slow: 420ms;
+}
+
+:root[data-motion='minimal'] {
+  --duration-instant: 60ms;
+  --duration-quick: 80ms;
+  --duration-base: 100ms;
+  --duration-slow: 120ms;
+}
+
+/* ---- Glass --------------------------------------------------------------- */
+/*                                                                            */
+/* Blur and panel opacity move together. At 0% the panel becomes a plain solid */
+/* surface — `backdrop-filter` is switched off entirely rather than set to 0,  */
+/* because a live filter that blurs by nothing still costs a compositor layer  */
+/* on every scroll.                                                            */
+
+:root[data-glass='0'] {
+  --glass-blur: 0px;
+  --color-glass: var(--color-surface);
+}
+
+:root[data-glass='0'] .glass-surface,
+:root[data-glass='0'] [class*='glass-surface'] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-glass='25'] {
+  --glass-blur: 8px;
+  --color-glass: rgba(255, 255, 255, 0.88);
+}
+
+:root[data-glass='75'] {
+  --glass-blur: 36px;
+  --color-glass: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-glass='100'] {
+  --glass-blur: 48px;
+  --color-glass: rgba(255, 255, 255, 0.45);
+}
+
+:root[data-theme='dark'][data-glass='25'] {
+  --color-glass: rgba(22, 23, 29, 0.9);
+}
+
+:root[data-theme='dark'][data-glass='75'] {
+  --color-glass: rgba(22, 23, 29, 0.6);
+}
+
+:root[data-theme='dark'][data-glass='100'] {
+  --color-glass: rgba(22, 23, 29, 0.45);
 }

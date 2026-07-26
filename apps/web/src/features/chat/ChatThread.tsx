@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
+import { useCall } from '../calls/CallProvider.js';
 import { Composer } from './Composer.js';
 import { MessageBubble } from './MessageBubble.js';
 
@@ -54,7 +55,8 @@ export function ChatThread({
   className,
 }: ChatThreadProps) {
   const { currentUser, users } = useChat();
-  const { groups, loading, send } = useMessages(conversation.id);
+  const { groups, loading, send, sendSticker } = useMessages(conversation.id);
+  const { startCall } = useCall();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -195,10 +197,25 @@ export function ChatThread({
         </Link>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          <IconButton label="Voice call" size="sm">
+          {/*
+            Disabled in groups rather than hidden: the affordance is real and
+            coming, and a button that vanishes on some threads is worse to learn
+            than one that is visibly not available yet.
+          */}
+          <IconButton
+            label="Voice call"
+            size="sm"
+            disabled={!partner}
+            onClick={() => partner && void startCall(partner.id, partner.name, 'voice')}
+          >
             <PhoneIcon size={20} />
           </IconButton>
-          <IconButton label="Video call" size="sm">
+          <IconButton
+            label="Video call"
+            size="sm"
+            disabled={!partner}
+            onClick={() => partner && void startCall(partner.id, partner.name, 'video')}
+          >
             <VideoIcon size={20} />
           </IconButton>
           <IconButton label="Conversation options" size="sm">
@@ -279,6 +296,9 @@ export function ChatThread({
         <div className="mx-auto w-full max-w-3xl">
           <Composer
             onSend={send}
+            onSendSticker={(sticker) =>
+              sendSticker({ id: sticker.id, url: sticker.url, body: sticker.emoji ?? sticker.name })
+            }
             ariaLabel={`Message ${conversation.title}`}
           />
         </div>

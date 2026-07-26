@@ -18,6 +18,8 @@ interface UseMessagesResult {
   groups: Message[][];
   loading: boolean;
   send: (body: string) => Promise<void>;
+  /** Posts a sticker. `body` carries its emoji as the text fallback. */
+  sendSticker: (sticker: { id: string; url: string; body: string }) => Promise<void>;
 }
 
 export function useMessages(conversationId: ConversationId | undefined): UseMessagesResult {
@@ -90,7 +92,19 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
     [service, conversationId],
   );
 
+  const sendSticker = useCallback(
+    async (sticker: { id: string; url: string; body: string }) => {
+      if (!conversationId) return;
+      await service.sendMessage({
+        conversationId,
+        body: sticker.body,
+        sticker: { id: sticker.id, url: sticker.url },
+      });
+    },
+    [service, conversationId],
+  );
+
   const groups = useMemo(() => groupMessages(messages), [messages]);
 
-  return { messages, groups, loading, send };
+  return { messages, groups, loading, send, sendSticker };
 }

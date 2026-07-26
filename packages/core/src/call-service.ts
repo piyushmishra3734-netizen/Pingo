@@ -1,0 +1,141 @@
+/**
+ * The CallService boundary.
+ *
+ * WebRTC on the web is the **browser's own API** — `RTCPeerConnection` — so
+ * there is nothing to install. `webrtc-sdk/webrtc` is a fork of native
+ * libwebrtc for iOS, Android and desktop; it has no place in a web build.
+ *
+ * What a browser does *not* provide is signalling: the two peers still have to
+ * exchange an offer, an answer and ICE candidates through some channel of their
+ * own. PINGO uses Supabase Realtime for that, which means no new server.
+ *
+ * ## What this interface deliberately hides
+ *
+ * Everything about SDP, ICE and media tracks. A screen asks to call someone and
+ * is told what state the call is in. That is what lets the same UI sit on top of
+ * a native implementation later, where the peer connection is Swift.
+ */
+
+export type CallState =
+  /** Local user is dialling; the other side has not responded. */
+  | 'dialling'
+  /** Incoming, not yet answered. */
+  | 'ringing'
+  /** Negotiating after an answer — media not flowing yet. */
+  | 'connecting'
+  | 'connected'
+  /** Was connected, lost the network, trying to recover. */
+  | 'reconnecting'
+  | 'ended';
+
+export type CallEndReason =
+  | 'hung-up'
+  | 'declined'
+  | 'unanswered'
+  | 'busy'
+  | 'failed'
+  | 'cancelled';
+
+export interface CallPeer {
+  userId: string;
+  name: string;
+  avatarUrl?: string;
+}
+
+export type CallKind = 'voice' | 'video';
+
+export interface Call {
+  id: string;
+  peer: CallPeer;
+  direction: 'incoming' | 'outgoing';
+  /**
+   * Chosen when the call is placed, and fixed for its lifetime.
+   *
+   * Upgrading a voice call to video mid-conversation means renegotiating SDP
+   * while media is flowing; it is a real feature, not a variation on this one,
+   * and it is deliberately not built. A `video` call whose camera is switched
+   * off is still a video call — see `cameraOff`.
+   */
+  kind: CallKind;
+  state: CallState;
+  /** Epoch ms the call connected. Absent until it does — this is the timer's zero. */
+  connectedAt?: number;
+  endReason?: CallEndReason;
+  /** True while the local microphone is muted. */
+  muted: boolean;
+  /** True while the local camera is off. Always true on a voice call. */
+  cameraOff: boolean;
+}
+
+export type CallEvent =
+  | { type: 'call:incoming'; call: Call }
+  | { type: 'call:updated'; call: Call }
+  | { type: 'call:ended'; call: Call }
+  /** The peer's media, ready to attach to an output element. */
+  | { type: 'call:remote-stream'; stream: MediaStream }
+  /**
+   * This device's own camera, for the self-preview.
+   *
+   * Emitted separately because it is never played back — feeding your own
+   * microphone to a speaker is how you get feedback howl. The UI must attach
+   * this to a *muted* video element and nothing else.
+   */
+  | { type: 'call:local-stream'; stream: MediaStream };
+
+export interface CallServiceOptions {
+  /**
+   * RNNoise on top of the browser's own suppression.
+   *
+   * Off by default: `getUserMedia` already applies noise suppression and echo
+   * cancellation, and RNNoise costs a 1.9 MB module plus per-frame CPU. It earns
+   * that on a noisy line, not on every call.
+   */
+  noiseSuppression?: boolean;
+
+  /**
+   * Voice or video. Ignored by `answer`, which always matches what was offered —
+   * answering a video call with audio only would leave the caller staring at a
+   * frame that never arrives.
+   */
+  kind?: CallKind;
+
+  /**
+   * Ask for 720p instead of the browser's default.
+   *
+   * A *request*, not a guarantee: `getUserMedia` gives the closest mode the
+   * camera actually has, and WebRTC will scale down anyway when the connection
+   * cannot carry it.
+   */
+  hdVideo?: boolean;
+
+  /** Start a video call with the camera already off. */
+  cameraOff?: boolean;
+}
+
+export interface CallService {
+  /** Starts listening for incoming calls. Safe to call more than once. */
+  connect(): Promise<void>;
+  disconnect(): void;
+
+  call(peerUserId: string, options?: CallServiceOptions): Promise<Call>;
+  answer(callId: string, options?: CallServiceOptions): Promise<void>;
+  decline(callId: string): Promise<void>;
+  hangUp(callId: string): Promise<void>;
+
+  setMuted(callId: string, muted: boolean): void;
+
+  /** No-op on a voice call, which has no camera track to disable. */
+  setCameraOff(callId: string, cameraOff: boolean): void;
+
+  /**
+   * Flips between the front and rear camera.
+   *
+   * Resolves to the facing mode actually in use — a device with one camera
+   * stays where it is rather than failing.
+   */
+  switchCamera(callId: string): Promise<'user' | 'environment'>;
+
+  subscribe(listener: (event: CallEvent) => void): () => void;
+
+  readonly current: Call | undefined;
+}

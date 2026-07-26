@@ -4,24 +4,23 @@
  * Import from `@/lib/supabase`, never from the files inside it, so the internal
  * layout can change without touching consumers.
  *
- * ## Status: wired, not used
+ * ## Status: auth is live; data is not
  *
- * The client is configured and ready. Nothing calls it yet, and no screen or
- * component may import it — Supabase belongs behind a `ChatService`
- * implementation in `packages/core`. See the boundary note in `client.ts`.
+ * `SupabaseAuthService` implements `@pingo/core`'s `AuthService` and is injected
+ * once in `App.tsx`. No screen or component may import from this directory —
+ * see the boundary note in `client.ts`.
  *
- * Not implemented yet, by design:
- *
- * | Area | Where it will live |
+ * | Area | Status |
  * | --- | --- |
- * | Auth (Google · Email · Phone) | `packages/core` session service, per docs/01 |
- * | Database access | `SupabaseChatService implements ChatService` |
- * | Storage (media) | Behind the attachment pipeline, per docs/10 |
- * | Realtime | Mapped onto `ChatEvent`, per docs/07 § 5 |
+ * | Auth — Email | **Implemented**, `auth-service.ts`, per docs/01 § 6 · § 8 · § 13 |
+ * | Auth — Google · Phone | Not yet. A `google` / `phone` member beside `email` |
+ * | Database access | Not yet. `SupabaseChatService implements ChatService` |
+ * | Storage (media) | Not yet. Behind the attachment pipeline, per docs/10 |
+ * | Realtime | Not yet. Mapped onto `ChatEvent`, per docs/07 § 5 |
  *
- * The client's auth and realtime options are already set up for all four
- * (PKCE, URL session detection, session persistence, an events-per-second cap),
- * so enabling each is new code rather than reconfiguration.
+ * The client's options were already set up for all of these (PKCE, URL session
+ * detection, session persistence, an events-per-second cap), so each remaining
+ * row is new code rather than reconfiguration.
  */
 
 export {
@@ -30,5 +29,11 @@ export {
   resetSupabaseClient,
   type PingoSupabaseClient,
 } from './client.js';
+
+export { SupabaseAuthService } from './auth-service.js';
+export { SupabaseProfileService } from './profile-service.js';
+export { SupabaseChatService } from './chat-service.js';
+export { SupabaseStoryService } from './story-service.js';
+export { SupabaseCallService } from './call-service.js';
 
 export type { Database, Enums, Tables } from './types.js';

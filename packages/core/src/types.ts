@@ -135,6 +135,21 @@ export interface Message {
    * System notices ("Kabir joined") render as centred captions, not bubbles.
    */
   system?: boolean;
+  /**
+   * Set when the message *is* a sticker.
+   *
+   * Not an attachment: a sticker has no caption and renders without a bubble,
+   * so treating it as one would mean every bubble carrying a "but not if it is
+   * a sticker" branch. `body` still holds the sticker's emoji or name, which is
+   * what a notification, the conversation list and a screen reader read.
+   */
+  sticker?: StickerRef;
+}
+
+/** Enough to render a sticker without loading the pack it came from. */
+export interface StickerRef {
+  id: string;
+  url: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +181,14 @@ export interface Conversation {
   /** User IDs currently typing. Drives the typing dots in the list and header. */
   typingUserIds: UserId[];
   updatedAt: number;
+  /**
+   * Consecutive days both people have sent a message, direct chats only.
+   *
+   * **Absent means no streak, and the UI shows nothing at all** — not a zero,
+   * not an empty badge. A streak is a reward; rendering "🔥0" would turn it
+   * into a scoreboard nobody asked to be on.
+   */
+  streak?: number;
 }
 
 /** The chip row on the home screen: All · Unread · Groups · Favorites. */

@@ -10,10 +10,18 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@emoji-mart/data": "1.2.1",
+    "@emoji-mart/react": "1.1.1",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@ffmpeg/util": "0.12.2",
+    "@jitsi/rnnoise-wasm": "0.2.1",
+    "@mediapipe/tasks-vision": "0.10.35",
     "@pingo/core": "workspace:*",
     "@pingo/tokens": "workspace:*",
     "@pingo/ui": "workspace:*",
     "@supabase/supabase-js": "^2.110.8",
+    "@twemoji/api": "17.0.3",
+    "emoji-mart": "5.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.3"

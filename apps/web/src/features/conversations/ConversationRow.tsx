@@ -97,6 +97,25 @@ export function ConversationRow({ conversation, active = false }: ConversationRo
             {conversation.title}
           </span>
 
+          {/*
+            The streak sits beside the name, so who you are keeping one with is
+            answered in the same glance as who the row is.
+
+            Rendered only when there is one. `streak` is absent rather than 0
+            when there is no streak, so this is a presence check and there is no
+            empty badge to design around.
+          */}
+          {conversation.streak !== undefined && (
+            <span
+              className="flex shrink-0 items-center gap-0.5 text-caption font-medium text-ink tabular-nums"
+              title={`${conversation.streak}-day streak`}
+            >
+              <span aria-hidden>🔥</span>
+              {conversation.streak}
+              <span className="sr-only">day streak</span>
+            </span>
+          )}
+
           {conversation.pinned && (
             <PinIcon size={13} className="shrink-0 text-text-tertiary" title="Pinned" />
           )}

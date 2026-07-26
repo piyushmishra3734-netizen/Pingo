@@ -1,122 +1,77 @@
-import { AppIcon, Button, cn } from '@pingo/ui';
-import { useState } from 'react';
+import { Button } from '@pingo/ui';
 import { useNavigate } from 'react-router-dom';
 
-import { ONBOARDED_KEY } from './SplashScreen.js';
+import { AppLogo } from '../components/AppLogo.js';
 
 /**
- * Onboarding.
+ * Welcome — the first screen a new user sees, after the splash.
  *
- * Three panels, and both actions are available on every one of them. Nothing is
- * gated behind swiping to the end — a user who already knows what PINGO is can
- * leave immediately, which is the respectful default.
+ * One screen, one action. The three-panel carousel that used to live here is
+ * gone: this replaces it, per the flow spec.
  *
- * The board shows page dots, so the panels are a carousel; but the copy carries
- * the message and the illustration is the app icon itself. No stock artwork, no
- * feature grid, no permission requests before the user has seen the product.
+ *   Welcome to PINGO
+ *
+ *   Private.
+ *   Fast.
+ *   Beautiful.
+ *
+ *   [ Get Started ]
+ *
+ *   By continuing you agree to…
+ *
+ * ## Two things worth knowing
+ *
+ * **There is no Log In button.** The spec ends at Get Started, so nothing else
+ * is here. A returning user who signs out still reaches Log In — the splash
+ * routes them there directly once the device has onboarded
+ * ([§ 3](../../../../docs/01-onboarding-auth.md#3-splash)) — but on a *fresh*
+ * device there is no visible way back to an existing account. Worth revisiting
+ * the day someone reinstalls.
+ *
+ * **The legal line has no destinations yet.** It is deliberately plain text
+ * rather than links: Terms and Privacy pages do not exist, and a link that goes
+ * nowhere is worse than a sentence that does not pretend to.
  */
-
-interface Panel {
-  title: string;
-  body: string;
-}
-
-const PANELS: Panel[] = [
-  {
-    title: 'Welcome to PINGO',
-    body: 'Private messaging, redefined for you.',
-  },
-  {
-    title: 'Calm by design',
-    body: 'No noise, no endless feeds. Just the conversations that matter to you.',
-  },
-  {
-    title: 'Yours alone',
-    body: 'Your messages stay between you and the people you send them to.',
-  },
-];
-
 export function OnboardingScreen() {
   const navigate = useNavigate();
-  const [index, setIndex] = useState(0);
-  const panel = PANELS[index] ?? PANELS[0]!;
-  const isLast = index === PANELS.length - 1;
-
-  const finish = () => {
-    localStorage.setItem(ONBOARDED_KEY, 'true');
-    navigate('/chats', { replace: true });
-  };
-
-  const advance = () => {
-    if (isLast) finish();
-    else setIndex((i) => i + 1);
-  };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-brand-wash">
+    <div className="relative flex h-full flex-col overflow-y-auto bg-brand-wash">
       <div
         className="pointer-events-none absolute -left-32 -top-20 size-[26rem] rounded-full bg-brand/10 blur-3xl"
         aria-hidden
       />
 
-      {/* The card holds everything, so its height never changes as copy changes. */}
-      <div className="relative flex flex-1 items-center justify-center px-6 py-10">
-        <div
-          className={cn(
-            'w-full max-w-sm rounded-2xl bg-surface/85 p-8 shadow-lg',
-            'backdrop-blur-glass',
-            'flex flex-col items-center text-center',
-          )}
-        >
-          <AppIcon size={72} variant="light" />
+      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col px-6 pb-8 pt-10">
+        <div className="flex flex-1 flex-col items-center justify-center text-center">
+          <AppLogo size={88} alt="" />
+
+          <h1 className="mt-9 text-h1 text-ink animate-rise">Welcome to PINGO</h1>
+
+          <p
+            className="mt-6 text-h2 leading-relaxed text-text-secondary animate-rise"
+            style={{ animationDelay: '60ms' }}
+          >
+            Private.
+            <br />
+            Fast.
+            <br />
+            Beautiful.
+          </p>
+        </div>
+
+        <div className="animate-rise" style={{ animationDelay: '120ms' }}>
+          <Button variant="primary" size="lg" block onClick={() => navigate('/signup')}>
+            Get Started
+          </Button>
 
           {/*
-            Fixed minimum height across panels: without it, the buttons would
-            shift up and down as the copy length changes between steps.
+            Sits under the action it qualifies, so the agreement is read in the
+            same glance as the button that constitutes it.
           */}
-          <div className="mt-8 flex min-h-32 flex-col items-center">
-            {/* `key` restarts the entrance animation on each panel change. */}
-            <h1 key={`t-${index}`} className="text-h1 text-ink animate-rise">
-              {panel.title}
-            </h1>
-            <p
-              key={`b-${index}`}
-              className="mt-3 max-w-[19rem] text-body text-text-secondary animate-rise"
-            >
-              {panel.body}
-            </p>
-          </div>
-
-          <div className="mt-2 flex w-full flex-col gap-3">
-            <Button variant="primary" size="lg" block onClick={advance}>
-              {isLast ? 'Get Started' : 'Continue'}
-            </Button>
-            <Button variant="secondary" size="lg" block onClick={finish}>
-              Log In
-            </Button>
-          </div>
-
-          {/* Page dots — tappable, so they are navigation and not just decoration. */}
-          <div className="mt-7 flex items-center gap-2" role="tablist" aria-label="Onboarding">
-            {PANELS.map((p, i) => (
-              <button
-                key={p.title}
-                type="button"
-                role="tab"
-                aria-selected={i === index}
-                aria-label={`Step ${i + 1}: ${p.title}`}
-                onClick={() => setIndex(i)}
-                className={cn(
-                  'focus-ring rounded-full transition-all duration-quick ease-standard',
-                  // The active dot elongates rather than growing, which keeps the
-                  // row's vertical rhythm steady.
-                  i === index
-                    ? 'h-1.5 w-5 bg-dot'
-                    : 'size-1.5 bg-line-strong hover:bg-text-tertiary',
-                )}
-              />
-            ))}
-          </div>
+          <p className="mt-5 text-center text-caption text-text-tertiary">
+            By continuing you agree to our Terms and Privacy Policy.
+          </p>
         </div>
       </div>
     </div>
