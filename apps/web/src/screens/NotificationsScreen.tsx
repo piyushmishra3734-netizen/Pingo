@@ -11,6 +11,8 @@ import {
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useNotifications } from '../features/notifications/NotificationContext.js';
+
 /**
  * Everything that happened to you, newest first.
  *
@@ -29,6 +31,7 @@ import { useNavigate } from 'react-router-dom';
 export function NotificationsScreen() {
   const navigate = useNavigate();
   const { service } = useChat();
+  const { clear } = useNotifications();
 
   const [items, setItems] = useState<AppNotification[]>();
   const { users } = useChat();
@@ -43,6 +46,9 @@ export function NotificationsScreen() {
         // After the list is in hand, so the tint below reflects what arrived
         // rather than what the server now says.
         void service.markAllNotificationsRead();
+        // The badge is shared, so clearing it here is what makes it disappear
+        // from the dock as well.
+        clear();
       })
       .catch(() => {
         if (active) setItems([]);

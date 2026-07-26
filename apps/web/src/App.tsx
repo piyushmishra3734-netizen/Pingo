@@ -9,6 +9,7 @@ import { RequireAuth, RequireGuest } from './features/auth/guards.js';
 import { markOnboarded } from './features/auth/onboarded.js';
 import { CallOverlay } from './features/calls/CallOverlay.js';
 import { CallProvider } from './features/calls/CallProvider.js';
+import { NotificationProvider } from './features/notifications/NotificationContext.js';
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
@@ -163,6 +164,7 @@ export function App() {
           Calls sit above the router, not inside it: a call is not a place you
           navigate to, and answering one must not lose the screen you were on.
         */}
+        <NotificationProvider>
         <CallProvider service={services.call}>
         <BrowserRouter>
           <Routes>
@@ -269,6 +271,7 @@ export function App() {
         </BrowserRouter>
         <CallOverlay />
         </CallProvider>
+        </NotificationProvider>
         </ChatProvider>
         </StoryProvider>
         </StickerProvider>

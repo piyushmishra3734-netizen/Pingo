@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProfile, type StoryGroup } from '@pingo/core';
 
 import { AppWordmark } from '../../components/AppWordmark.js';
+import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
 import { useStories } from '../stories/StoryContext.js';
@@ -58,35 +59,7 @@ export function ConversationList({
 
   const searchRef = useRef<HTMLInputElement>(null);
 
-  /*
-   * Fetched once per mount rather than kept live. A badge that counts down as
-   * you read is a distraction; one that is right when you arrive is enough.
-   */
-  const { service: chatService } = useChat();
-  const [unread, setUnread] = useState(0);
-  useEffect(() => {
-    let active = true;
-    void chatService
-      .unreadNotifications()
-      .then((n) => {
-        if (active) setUnread(n);
-      })
-      .catch(() => undefined);
-
-    /*
-     * Then keep it live. Fetching once per mount meant the badge only ever
-     * showed what was true when the app opened — a notification arriving while
-     * you sat on the chat list was invisible until a reload.
-     */
-    const unsubscribe = chatService.subscribe((event) => {
-      if (event.type === 'notification:new') setUnread((n) => n + 1);
-    });
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [chatService]);
+  const { unread } = useNotifications();
   /*
    * The origin travels with the group so the viewer can grow out of the exact
    * circle that was tapped. Measured at tap time, because the row scrolls.

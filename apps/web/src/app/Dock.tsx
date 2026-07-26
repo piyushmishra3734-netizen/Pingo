@@ -9,7 +9,10 @@ import {
   UsersIcon,
   cn,
 } from '@pingo/ui';
+
 import { NavLink } from 'react-router-dom';
+
+import { useNotifications } from '../features/notifications/NotificationContext.js';
 
 /**
  * The floating navigation dock — "Glass effect. Floating. Always accessible."
@@ -48,6 +51,7 @@ const ITEMS: DockItem[] = [
 
 export function Dock() {
   const { totalUnread } = useChat();
+  const { unread: unreadNotifications } = useNotifications();
 
   return (
     <nav
@@ -91,6 +95,19 @@ export function Dock() {
                   )}
                   aria-hidden
                 />
+
+                {/*
+                  Notifications hang off Profile, and the dock is the one thing
+                  on screen everywhere — which is the point. A dot rather than a
+                  count: the number is on the screen it leads to, and two
+                  numbers side by side on one bar is a scoreboard.
+                */}
+                {to === '/profile' && unreadNotifications > 0 && (
+                  <span
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand ring-2 ring-glass"
+                    aria-label={`${unreadNotifications} unread notifications`}
+                  />
+                )}
 
                 {/*
                   Unread lives on Chats only. A count on a nav item the user is
