@@ -132,6 +132,17 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
   };
 }
 
+/**
+ * How many times one `listMessages` call may read to fill its page.
+ *
+ * A ceiling rather than a target: the loop exists to absorb messages hidden
+ * after the database limit, and hiding a whole page of them is not a case worth
+ * an unbounded read. Reaching this returns a short page, which the caller reads
+ * as the end of history — wrong, but bounded, and better than a loop that can
+ * run forever against a thread somebody has emptied for themselves.
+ */
+const MAX_PAGE_READS = 5;
+
 /** Snaps live in a private bucket; the `snaps` migration explains why. */
 const SNAP_BUCKET = 'snaps';
 
@@ -584,31 +595,13 @@ export class SupabaseChatService implements ChatService {
       .map((m) => Date.parse(m.last_read_at))
       .sort((a, b) => b - a)[0];
 
-    let query = this.#client
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(options?.limit ?? 50);
-
-    if (options?.before) {
-      const { data: anchor } = await this.#client
-        .from('messages')
-        .select('created_at')
-        .eq('id', options.before)
-        .maybeSingle();
-      if (anchor) query = query.lt('created_at', anchor.created_at);
-    }
-
-    const { data } = await query;
-
     /*
      * What I deleted for myself.
      *
      * RLS cannot filter this — the row is still legitimately mine to read, and
      * the other people in the thread must keep seeing it. So the hiding is a
-     * join the client does, and the cache below keeps a live removal from
-     * reappearing when the thread is reopened.
+     * join the client does, and the cache keeps a live removal from reappearing
+     * when the thread is reopened.
      */
     const { data: hiddenRows } = await this.#client
       .from('hidden_messages')
@@ -616,7 +609,54 @@ export class SupabaseChatService implements ChatService {
       .eq('user_id', me);
     for (const row of hiddenRows ?? []) this.#hidden.add(row.message_id);
 
-    const rows = (data ?? []).slice().reverse().filter((row) => !this.#hidden.has(row.id));
+    const limit = options?.limit ?? 50;
+
+    /** Newest-first while paging; reversed once the page is complete. */
+    const collected: MessageRow[] = [];
+    let cursor: string | undefined;
+
+    if (options?.before) {
+      const { data: anchor } = await this.#client
+        .from('messages')
+        .select('created_at')
+        .eq('id', options.before)
+        .maybeSingle();
+      // No anchor means the cursor names a message this reader cannot see, and
+      // paging from the newest end would silently hand back the wrong page.
+      if (!anchor) return [];
+      cursor = anchor.created_at;
+    }
+
+    /*
+     * Keep reading until the page is full, or the thread runs out.
+     *
+     * The hidden filter runs after the database limit, so a raw page of 50
+     * containing two of my own deletions yields 48 — and a caller deciding
+     * "fewer than asked for means there is no more history" would stop early
+     * and lose everything before it. Filling the page here keeps that test
+     * true, which is what the whole pagination contract rests on.
+     */
+    for (let attempt = 0; collected.length < limit && attempt < MAX_PAGE_READS; attempt++) {
+      let query = this.#client
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (cursor) query = query.lt('created_at', cursor);
+
+      const { data } = await query;
+      const batch = data ?? [];
+      // A short read from the database itself is the real end of the thread.
+      if (batch.length === 0) break;
+
+      collected.push(...batch.filter((row) => !this.#hidden.has(row.id)));
+      cursor = batch[batch.length - 1]!.created_at;
+      if (batch.length < limit) break;
+    }
+
+    const rows = collected.slice(0, limit).reverse();
 
     /*
      * Reactions for the whole page in one query.
