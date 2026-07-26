@@ -62,6 +62,8 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
   const pipelineRef = useRef<GLPipeline | undefined>(undefined);
   const streamRef = useRef<MediaStream | undefined>(undefined);
   const pendingCapture = useRef<((blob: Blob | undefined) => void)[]>([]);
+  /** Which canvas the pipeline is currently bound to. See the loop below. */
+  const attachedCanvas = useRef<HTMLCanvasElement | undefined>(undefined);
 
   /*
    * The chain is read by the render loop, which is started once and must not be
@@ -124,18 +126,34 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
         await open('user');
         if (cancelled) return;
 
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        pipelineRef.current = new GLPipeline(canvas);
         setStatus('ready');
 
         const loop = () => {
           frame = requestAnimationFrame(loop);
 
           const video = videoRef.current;
+          const canvas = canvasRef.current;
+          if (!video || !canvas || video.readyState < 2) return;
+
+          /*
+           * Rebuild when the canvas element changes.
+           *
+           * Leaving the live stage unmounts this canvas, and returning to it
+           * mounts a *new* element — but the pipeline still holds a WebGL
+           * context bound to the old, detached one. Rendering then goes
+           * somewhere invisible while `capture()` still reads the old canvas,
+           * so the preview is blank and the photo comes out fine. That is
+           * exactly what "retake" did, and it is not a state the loop can
+           * detect any other way than by identity.
+           */
+          if (attachedCanvas.current !== canvas) {
+            pipelineRef.current?.dispose();
+            pipelineRef.current = new GLPipeline(canvas);
+            attachedCanvas.current = canvas;
+          }
+
           const pipeline = pipelineRef.current;
-          if (!video || !pipeline || video.readyState < 2) return;
+          if (!pipeline) return;
 
           pipeline.setSource(video, video.videoWidth, video.videoHeight);
           pipeline.render(chainRef.current, getFilter);
@@ -163,6 +181,7 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
       cancelAnimationFrame(frame);
       pipelineRef.current?.dispose();
       pipelineRef.current = undefined;
+      attachedCanvas.current = undefined;
       // Without this the camera light stays on after navigating away, which
       // reads as spyware however innocent the cause.
       for (const track of streamRef.current?.getTracks() ?? []) track.stop();
