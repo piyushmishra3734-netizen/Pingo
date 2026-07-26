@@ -1,4 +1,7 @@
 # 13 · The message context menu
+>
+> **Status: frozen.** Build against this. Revisit only when real use shows a
+> problem — theoretical optimisation past this point costs more than it returns.
 
 Decided 2026-07-27. This is the spec for long-pressing a message, and the two
 principles under it govern more than this one screen.
@@ -59,7 +62,25 @@ Reply · Copy · Forward · More — most-used nearest the bubble. Never reorder
 frequency: a menu that rearranges itself destroys the muscle memory it was
 trying to reward.
 
-### 2.2 The awkward cases
+### 2.2 Adaptive reach
+
+On a 6.7–6.9" phone the top third is out of thumb range. A message up there
+would put its menu somewhere the hand cannot go.
+
+So the menu's **resting position may slide toward the thumb** while its
+**animation origin stays the message**. It still grows out of the bubble that
+was touched; it simply comes to rest lower than strict adjacency would put it.
+
+That is what keeps the two goals from fighting. Spatial connection is carried by
+where the motion *starts*, not by where the menu ends up — which is also why
+this does not weaken § 1.1. The eye follows the growth; the thumb gets a
+reachable target.
+
+The slide is capped: the menu never detaches so far that the bubble it belongs
+to is off screen. Past that point the thread scrolls instead, bringing the
+message into reach rather than sending the menu away from it.
+
+### 2.3 The awkward cases
 
 - **Message taller than the viewport** (long text, tall image): the menu anchors
   to the *touch point* rather than the bubble's edge, and the bubble does not
