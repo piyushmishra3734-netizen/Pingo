@@ -1,4 +1,9 @@
-import { formatConversationTimestamp, useChat, type AppNotification } from '@pingo/core';
+import {
+  formatConversationTimestamp,
+  useChat,
+  useProfile,
+  type AppNotification,
+} from '@pingo/core';
 import {
   Avatar,
   BellIcon,
@@ -32,6 +37,31 @@ export function NotificationsScreen() {
   const navigate = useNavigate();
   const { service } = useChat();
   const { clear } = useNotifications();
+  const { service: profiles } = useProfile();
+  const [acting, setActing] = useState<string>();
+
+  /*
+   * Answering happens here rather than on a separate screen.
+   *
+   * A notification that only tells you to go somewhere else to act on it is a
+   * signpost, not a notification — and the request screen still exists for
+   * anyone who wants the full list.
+   */
+  const respond = async (item: AppNotification, accept: boolean) => {
+    if (!item.actorId || acting) return;
+    setActing(item.id);
+    try {
+      await (accept
+        ? profiles.acceptFollow(item.actorId)
+        : profiles.removeFollow(item.actorId));
+      // The row stays, but its decision is spent, so it stops offering one.
+      setItems((all) =>
+        all?.map((n) => (n.id === item.id ? { ...n, kind: 'follow_accepted' as const } : n)),
+      );
+    } finally {
+      setActing(undefined);
+    }
+  };
 
   const [items, setItems] = useState<AppNotification[]>();
   const { users } = useChat();
@@ -121,6 +151,37 @@ export function NotificationsScreen() {
                         {formatConversationTimestamp(item.createdAt)}
                       </span>
                     </span>
+
+                    {item.kind === 'follow_request' && item.actorId && (
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void respond(item, true);
+                          }}
+                          className={cn(
+                            'focus-ring rounded-full bg-brand-gradient px-3.5 py-1.5',
+                            'text-caption font-medium text-white',
+                            acting === item.id && 'opacity-60',
+                          )}
+                        >
+                          Accept
+                        </span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void respond(item, false);
+                          }}
+                          className="focus-ring rounded-full px-2.5 py-1.5 text-caption text-text-secondary"
+                        >
+                          Ignore
+                        </span>
+                      </span>
+                    )}
                   </button>
                 </li>
               );

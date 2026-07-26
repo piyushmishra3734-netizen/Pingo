@@ -25,6 +25,8 @@ export interface ComposerProps {
   /** Absent means the surface cannot take stickers, and the button is hidden. */
   onSendSticker?: (sticker: Sticker) => void | Promise<void>;
   placeholder?: string;
+  /** Called as the field fills and empties, so the other side sees the dots. */
+  onTyping?: (typing: boolean) => void | Promise<void>;
   /** Announced to screen readers, e.g. "Message Anaya Sharma". */
   ariaLabel?: string;
   className?: string;
@@ -36,6 +38,7 @@ const MAX_HEIGHT = 140;
 export function Composer({
   onSend,
   onSendSticker,
+  onTyping,
   placeholder = 'Type a message...',
   ariaLabel = 'Message',
   className,
@@ -103,7 +106,15 @@ export function Composer({
           ref={textareaRef}
           rows={1}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            setValue(event.target.value);
+            /*
+              Reported on every keystroke; the service throttles. Stopping is
+              sent the moment the field empties, because a late "still typing"
+              is harmless and a late "stopped" leaves the dots up.
+            */
+            void onTyping?.(event.target.value.length > 0);
+          }}
           onKeyDown={(event) => {
             const touch = window.matchMedia('(pointer: coarse)').matches;
             if (event.key === 'Enter' && !event.shiftKey && !touch) {

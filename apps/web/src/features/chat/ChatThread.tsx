@@ -55,7 +55,7 @@ export function ChatThread({
   showBack = false,
   className,
 }: ChatThreadProps) {
-  const { currentUser, users } = useChat();
+  const { currentUser, users, service } = useChat();
   const { groups, loading, send, sendSticker } = useMessages(conversation.id);
   const { startCall } = useCall();
   const mutuals = useMutuals();
@@ -310,6 +310,7 @@ export function ChatThread({
             onSendSticker={(sticker) =>
               sendSticker({ id: sticker.id, url: sticker.url, body: sticker.emoji ?? sticker.name })
             }
+            onTyping={(typing) => void service.setTyping(conversation.id, typing)}
             ariaLabel={`Message ${conversation.title}`}
           />
         </div>

@@ -478,6 +478,13 @@ export class SupabaseChatService implements ChatService {
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId },
   ): Promise<Message[]> {
+    /*
+     * Opening a thread is what subscribes to its typing channel. Doing it here
+     * rather than in the UI means every screen that shows a conversation gets
+     * it, and none of them has to remember to.
+     */
+    this.#presenceHub.watchTyping(conversationId);
+
     const me = await this.#userId();
 
     // The other side's read cursor is what lets an outgoing message show as
