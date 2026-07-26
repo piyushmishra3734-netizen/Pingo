@@ -351,6 +351,45 @@ export class MockChatService implements ChatService {
     return clone(this.#users);
   }
 
+  /**
+   * Finds the existing direct thread, or makes one in memory.
+   *
+   * The same idempotence the real service gets from a unique index, done here
+   * by search — so the styleguide behaves like the app rather than piling up a
+   * new empty conversation on every tap.
+   */
+  async startDirectConversation(otherUserId: UserId): Promise<ConversationId> {
+    await delay(READ_LATENCY_MS);
+
+    const existing = this.#conversations.find(
+      (conversation) =>
+        conversation.kind === 'direct' &&
+        conversation.participantIds.includes(otherUserId) &&
+        conversation.participantIds.includes(this.#currentUser.id),
+    );
+    if (existing) return existing.id;
+
+    const other = this.#users.find((user) => user.id === otherUserId);
+    const conversation: Conversation = {
+      id: `conversation-${otherUserId}`,
+      kind: 'direct',
+      title: other?.name ?? 'New chat',
+      participantIds: [this.#currentUser.id, otherUserId],
+      unreadCount: 0,
+      updatedAt: Date.now(),
+      typingUserIds: [],
+      muted: false,
+      pinned: false,
+      favorite: false,
+    };
+
+    this.#conversations = [conversation, ...this.#conversations];
+    this.#messages[conversation.id] = [];
+    this.#emit({ type: 'conversation:updated', conversation: clone(conversation) });
+
+    return conversation.id;
+  }
+
   // -- calls, gallery, moments --------------------------------------------
 
   async listCalls(): Promise<CallRecord[]> {

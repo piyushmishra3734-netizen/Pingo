@@ -12,6 +12,7 @@ import {
   EmptyState,
   IconButton,
   SearchField,
+  PlusIcon,
   SearchIcon,
   SettingsIcon,
   cn,
@@ -90,6 +91,19 @@ export function ConversationList({
               onClick={() => searchRef.current?.focus()}
             >
               <SearchIcon size={21} />
+            </IconButton>
+
+            {/*
+              The only way into a conversation with someone new. Without it the
+              app can only continue threads that already exist — which is what
+              it did, because `startDirectConversation` had no caller.
+            */}
+            <IconButton
+              label="New chat"
+              variant="ghost"
+              onClick={() => navigate('/chats/new')}
+            >
+              <PlusIcon size={21} />
             </IconButton>
 
             <IconButton label="Settings" variant="ghost" onClick={() => navigate('/settings')}>

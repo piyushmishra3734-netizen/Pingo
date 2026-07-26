@@ -25,6 +25,7 @@ import { CallsScreen } from './screens/CallsScreen.js';
 import { CameraScreen } from './screens/CameraScreen.js';
 import { ChatsScreen } from './screens/ChatsScreen.js';
 import { CommunitiesScreen } from './screens/CommunitiesScreen.js';
+import { NewChatScreen } from './screens/NewChatScreen.js';
 import { ProfileScreen } from './screens/ProfileScreen.js';
 import { SettingsScreen } from './screens/SettingsScreen.js';
 import { AccountScreen } from './screens/settings/AccountScreen.js';
@@ -226,6 +227,12 @@ export function App() {
               <Route element={<RequireProfile />}>
                 <Route element={<AppShell />}>
                   <Route path="/chats" element={<ChatsScreen />} />
+                  {/*
+                    Before the dynamic segment. React Router ranks static paths
+                    higher anyway, but relying on that leaves "new" one careless
+                    reorder away from being read as a conversation id.
+                  */}
+                  <Route path="/chats/new" element={<NewChatScreen />} />
                   <Route path="/chats/:conversationId" element={<ChatsScreen />} />
                   <Route path="/calls" element={<CallsScreen />} />
                   <Route path="/camera" element={<CameraScreen />} />

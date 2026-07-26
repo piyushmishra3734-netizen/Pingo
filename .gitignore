@@ -9,3 +9,6 @@ build/
 *.tsbuildinfo
 .vite/
 coverage/
+
+# Claude Code local settings — personal, never shared.
+.claude/settings.local.json

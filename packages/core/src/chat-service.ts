@@ -114,6 +114,16 @@ export interface ChatService {
   getUser(id: UserId): Promise<User | undefined>;
   listContacts(): Promise<User[]>;
 
+  /**
+   * The conversation with this person, creating it only if there is not one.
+   *
+   * Idempotent, and that is the whole point: "message Anaya" must reach the
+   * same thread every time, not make a second empty one beside the first. The
+   * uniqueness check belongs in the database — two taps racing each other
+   * cannot both win there, whereas a client-side "does one exist?" can.
+   */
+  startDirectConversation(otherUserId: UserId): Promise<ConversationId>;
+
   // -- Calls, gallery, moments --------------------------------------------
   listCalls(): Promise<CallRecord[]>;
   listGallery(userId: UserId): Promise<GalleryItem[]>;
