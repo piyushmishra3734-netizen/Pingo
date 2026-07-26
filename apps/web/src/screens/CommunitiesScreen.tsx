@@ -5,6 +5,7 @@ import {
   Badge,
   Card,
   EmptyState,
+  LoadingState,
   SearchField,
   UsersIcon,
   cn,
@@ -38,6 +39,7 @@ export function CommunitiesScreen() {
    * reads `profiles`, so everyone on PINGO is findable.
    */
   const [directory, setDirectory] = useState<User[]>();
+  const [directoryError, setDirectoryError] = useState<string>();
 
   useEffect(() => {
     let active = true;
@@ -46,8 +48,19 @@ export function CommunitiesScreen() {
       .then((list) => {
         if (active) setDirectory(list);
       })
-      // Falls back to the cached roster below rather than emptying the screen.
-      .catch(() => undefined);
+      .catch((cause: unknown) => {
+        /*
+         * Reported, not swallowed.
+         *
+         * This used to fall back to the cached roster silently. When the fetch
+         * failed the Contacts section simply did not render, which looks
+         * exactly like "there is nobody here" and exactly like "search is
+         * broken" — three different causes, one indistinguishable screen.
+         */
+        if (active) {
+          setDirectoryError(cause instanceof Error ? cause.message : 'Could not load people.');
+        }
+      });
     return () => {
       active = false;
     };
@@ -108,7 +121,8 @@ export function CommunitiesScreen() {
     [people, currentUser, q],
   );
 
-  const nothingFound = groups.length === 0 && contacts.length === 0;
+  const loadingPeople = directory === undefined && !directoryError && users.length === 0;
+  const nothingFound = !loadingPeople && groups.length === 0 && contacts.length === 0;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -122,13 +136,21 @@ export function CommunitiesScreen() {
           aria-label="Search people and groups"
         />
 
+        {directoryError && (
+          <p role="alert" className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-caption text-danger">
+            Could not load people: {directoryError}
+          </p>
+        )}
+
         {openError && (
           <p role="alert" className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-caption text-danger">
             {openError}
           </p>
         )}
 
-        {nothingFound ? (
+        {loadingPeople ? (
+          <LoadingState label="Loading people" />
+        ) : nothingFound ? (
           <EmptyState
             title={q ? 'No matches' : 'Nothing here yet'}
             description={
