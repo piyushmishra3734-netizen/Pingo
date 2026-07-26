@@ -110,6 +110,30 @@ export interface ChatService {
   setTyping(conversationId: ConversationId, typing: boolean): Promise<void>;
   toggleReaction(messageId: MessageId, emoji: string): Promise<Message>;
 
+  // -- message actions -----------------------------------------------------
+
+  /** Within the edit window only; the server decides, not the caller. */
+  editMessage(messageId: MessageId, body: string): Promise<void>;
+
+  /**
+   * `forEveryone` is a request, not an instruction — the server refuses it
+   * outside the window or on someone else's message, and hides it for you
+   * instead of failing.
+   */
+  deleteMessage(messageId: MessageId, forEveryone: boolean): Promise<void>;
+
+  /** Per person. Returns the new state so the menu can label itself. */
+  toggleStar(messageId: MessageId): Promise<boolean>;
+
+  /** Per conversation — a pin is a statement to the room, not a private note. */
+  togglePin(messageId: MessageId): Promise<boolean>;
+
+  /** Stored; delivery needs a scheduler. See the migration. */
+  remindAboutMessage(messageId: MessageId, at: number): Promise<void>;
+
+  /** Write-only by design: a reporter cannot read reports back. */
+  reportMessage(messageId: MessageId): Promise<void>;
+
   // -- People --------------------------------------------------------------
   getUser(id: UserId): Promise<User | undefined>;
   listContacts(): Promise<User[]>;

@@ -137,8 +137,18 @@ export function MessageBubble({
   return (
     <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
       <div
+        /*
+          Jump-to-original scrolls to this. Without it that action silently does
+          nothing, which is the failure mode hardest to notice.
+        */
+        id={`message-${message.id}`}
+        // Every way of opening the menu lands here: press, right-click, keyboard.
+        {...trigger}
         className={cn(
           'group relative max-w-[68%] min-w-0 animate-bubble-in',
+          // Focusable for the keyboard openers, never outlined by a press —
+          // the menu appearing is the feedback.
+          'outline-none',
           // Media-bearing bubbles need more room than a line of text.
           (voiceNote || file) && 'max-w-[85%] sm:max-w-[22rem]',
         )}

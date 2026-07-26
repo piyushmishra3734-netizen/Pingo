@@ -74,6 +74,8 @@ export type MessageRow = {
   snap_expires_at: string | null;
   /** Set when the media is gone for good; the row itself stays in the thread. */
   snap_consumed_at: string | null;
+  /** Soft delete. The row stays so replies that quote it keep their anchor. */
+  deleted_at: string | null;
 };
 
 /** The `public` schema. */
@@ -135,6 +137,52 @@ export type Database = {
         };
         Insert: { message_id: string; user_id: string; emoji: string };
         Update: { emoji?: string };
+        Relationships: [];
+      };
+      hidden_messages: {
+        Row: { message_id: string; user_id: string };
+        Insert: { message_id: string; user_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      starred_messages: {
+        Row: { message_id: string; user_id: string; created_at: string };
+        Insert: { message_id: string; user_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      pinned_messages: {
+        Row: {
+          message_id: string;
+          conversation_id: string;
+          pinned_by: string;
+          created_at: string;
+        };
+        Insert: { message_id: string; conversation_id: string; pinned_by: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      message_reminders: {
+        Row: {
+          id: string;
+          message_id: string;
+          user_id: string;
+          remind_at: string;
+          delivered_at: string | null;
+        };
+        Insert: { message_id: string; user_id: string; remind_at: string };
+        Update: { delivered_at?: string | null };
+        Relationships: [];
+      };
+      message_reports: {
+        Row: {
+          id: string;
+          message_id: string;
+          reporter_id: string;
+          created_at: string;
+        };
+        Insert: { message_id: string; reporter_id: string };
+        Update: Record<string, never>;
         Relationships: [];
       };
       follows: {
@@ -222,6 +270,9 @@ export type Database = {
       mark_notifications_read: { Args: Record<string, never>; Returns: undefined };
       /** Add, swap or remove in one statement — see the reactions migration. */
       toggle_reaction: { Args: { target: string; symbol: string }; Returns: undefined };
+      /** Both enforce the 15-minute window server-side. */
+      edit_message: { Args: { target: string; new_body: string }; Returns: undefined };
+      delete_message: { Args: { target: string; for_everyone: boolean }; Returns: undefined };
       my_streaks: {
         Args: Record<string, never>;
         Returns: { conversation_id: string; streak: number }[];

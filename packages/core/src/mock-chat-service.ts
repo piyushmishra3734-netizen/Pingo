@@ -419,6 +419,48 @@ export class MockChatService implements ChatService {
     if (notification) notification.read = true;
   }
 
+  /*
+   * The mock keeps these in memory so the styleguide behaves, but nothing here
+   * enforces a window — that rule lives in the database, where it cannot be
+   * talked out of.
+   */
+  async editMessage(messageId: MessageId, body: string): Promise<void> {
+    const message = this.#findMessage(messageId);
+    if (!message) return;
+    message.body = body;
+    message.editedAt = Date.now();
+    this.#emit({ type: 'message:updated', message: clone(message) });
+  }
+
+  async deleteMessage(messageId: MessageId): Promise<void> {
+    for (const [id, thread] of Object.entries(this.#messages)) {
+      this.#messages[id] = thread.filter((m) => m.id !== messageId);
+    }
+  }
+
+  #starred = new Set<MessageId>();
+  #pinned = new Set<MessageId>();
+
+  async toggleStar(messageId: MessageId): Promise<boolean> {
+    if (this.#starred.has(messageId)) { this.#starred.delete(messageId); return false; }
+    this.#starred.add(messageId);
+    return true;
+  }
+
+  async togglePin(messageId: MessageId): Promise<boolean> {
+    if (this.#pinned.has(messageId)) { this.#pinned.delete(messageId); return false; }
+    this.#pinned.add(messageId);
+    return true;
+  }
+
+  async remindAboutMessage(): Promise<void> {
+    return;
+  }
+
+  async reportMessage(): Promise<void> {
+    return;
+  }
+
   async unreadNotifications(): Promise<number> {
     return this.#notifications.filter((n) => !n.read).length;
   }

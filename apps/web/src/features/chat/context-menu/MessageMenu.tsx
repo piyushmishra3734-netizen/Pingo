@@ -73,6 +73,11 @@ export function MessageMenu({
 
   const menu = useMessageMenu((emoji) => void react(emoji));
 
+  const level2 = useLevel2(message, service, (why) => {
+    setError(why);
+    window.setTimeout(() => setError(undefined), 2200);
+  });
+
   const close = useCallback(() => {
     menu.close();
     // Reset so the next open starts at Level 1 rather than wherever it ended.
@@ -125,7 +130,7 @@ export function MessageMenu({
                 mine={mine}
                 onBack={() => setLevel('actions')}
                 onDone={close}
-                actions={stubbed(message)}
+                actions={level2}
               />
             )
           }
@@ -138,33 +143,95 @@ export function MessageMenu({
 }
 
 /**
- * Level 2 actions that have no service behind them yet.
+ * Level 2's handlers.
  *
- * Named honestly rather than dressed up: pin, star and the rest need schema
- * that does not exist. They log and close instead of silently doing nothing,
- * so a tap during testing is distinguishable from a broken handler.
+ * Split by where the work happens, because that is the only distinction that
+ * matters here: the server owns anything with a rule attached — the edit
+ * window, who may delete for everyone — and the platform owns the rest.
  *
- * This is the one place in the menu that is not finished, and it is marked so
- * that it cannot be mistaken for finished.
+ * Nothing is optimistic. These are deliberate, one-off actions, and a star that
+ * appears and then un-appears is worse than one that takes a moment.
  */
-function stubbed(message: Message) {
-  const note = (what: string) => () =>
-    console.info(`[pingo] ${what} is not implemented yet`, message.id);
+function useLevel2(
+  message: Message,
+  service: ReturnType<typeof useChat>['service'],
+  onFail: (why: string) => void,
+) {
+  const guard = (what: string, run: () => Promise<unknown>) => () => {
+    void run().catch(() => onFail(`${what} failed`));
+  };
 
   return {
-    pin: note('Pin'),
-    star: note('Star'),
-    remind: note('Remind me'),
-    edit: note('Edit'),
-    deleteForMe: note('Delete for me'),
-    deleteForEveryone: note('Delete for everyone'),
-    forward: note('Forward from More'),
-    share: note('Share'),
-    save: note('Save'),
-    info: note('Info'),
-    jumpToOriginal: note('Jump to original'),
-    report: note('Report'),
-    translate: note('Translate'),
-    speak: note('Speak'),
+    pin: guard('Pin', () => service.togglePin(message.id)),
+    star: guard('Star', () => service.toggleStar(message.id)),
+    // An hour is the only interval worth offering without a picker; anything
+    // else is a date field, and that is a screen rather than a menu row.
+    remind: guard('Reminder', () =>
+      service.remindAboutMessage(message.id, Date.now() + 60 * 60 * 1000),
+    ),
+
+    edit: () => {
+      const next = window.prompt('Edit message', message.body);
+      if (next === null || next.trim() === message.body.trim()) return;
+      void service.editMessage(message.id, next.trim()).catch(() => onFail('Edit failed'));
+    },
+
+    deleteForMe: guard('Delete', () => service.deleteMessage(message.id, false)),
+    deleteForEveryone: guard('Delete', () => service.deleteMessage(message.id, true)),
+
+    /*
+     * Share and Save hand off to the platform. Both fall back to the clipboard
+     * rather than failing, because a device without a share sheet still has
+     * somewhere to put text.
+     */
+    forward: () => undefined,
+    share: () => {
+      const text = message.body;
+      if (navigator.share) void navigator.share({ text }).catch(() => undefined);
+      else void navigator.clipboard.writeText(text).catch(() => onFail('Share failed'));
+    },
+    save: () => {
+      const url = message.sticker?.url;
+      if (!url) return;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pingo-${message.id}.png`;
+      link.click();
+    },
+
+    info: () => {
+      const sent = new Date(message.createdAt).toLocaleString();
+      const edited = message.editedAt
+        ? `
+Edited ${new Date(message.editedAt).toLocaleString()}`
+        : '';
+      window.alert(`Sent ${sent}${edited}
+Status: ${message.status}`);
+    },
+
+    jumpToOriginal: () => {
+      if (!message.replyToId) return;
+      const target = document.getElementById(`message-${message.replyToId}`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    },
+
+    report: guard('Report', () => service.reportMessage(message.id)),
+
+    /*
+     * Translate has no provider wired, so it opens the platform's own rather
+     * than pretending. Speak is the Web Speech API, which every browser has.
+     */
+    translate: () => {
+      window.open(
+        `https://translate.google.com/?sl=auto&tl=${navigator.language.slice(0, 2)}&text=${encodeURIComponent(message.body)}&op=translate`,
+        '_blank',
+        'noopener',
+      );
+    },
+    speak: () => {
+      const utterance = new SpeechSynthesisUtterance(message.body);
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    },
   };
 }

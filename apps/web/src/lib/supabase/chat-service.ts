@@ -862,6 +862,99 @@ export class SupabaseChatService implements ChatService {
     return toMessage(data, undefined);
   }
 
+  // -- message actions ------------------------------------------------------
+
+  /*
+   * Every one of these delegates the *rule* to the database. The edit window,
+   * who may delete for everyone, who may pin — all of it is enforced there, so
+   * a client that gets it wrong is refused rather than obeyed.
+   */
+
+  async editMessage(messageId: MessageId, body: string): Promise<void> {
+    await this.#client.rpc('edit_message', { target: messageId, new_body: body });
+    this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
+  }
+
+  async deleteMessage(messageId: MessageId, forEveryone: boolean): Promise<void> {
+    await this.#client.rpc('delete_message', {
+      target: messageId,
+      for_everyone: forEveryone,
+    });
+    this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
+  }
+
+  async toggleStar(messageId: MessageId): Promise<boolean> {
+    const me = await this.#userId();
+    const { data } = await this.#client
+      .from('starred_messages')
+      .select('message_id')
+      .eq('message_id', messageId)
+      .eq('user_id', me)
+      .maybeSingle();
+
+    if (data) {
+      await this.#client
+        .from('starred_messages')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', me);
+      return false;
+    }
+
+    await this.#client
+      .from('starred_messages')
+      .insert({ message_id: messageId, user_id: me });
+    return true;
+  }
+
+  async togglePin(messageId: MessageId): Promise<boolean> {
+    const me = await this.#userId();
+    const { data: existing } = await this.#client
+      .from('pinned_messages')
+      .select('message_id')
+      .eq('message_id', messageId)
+      .maybeSingle();
+
+    if (existing) {
+      await this.#client.from('pinned_messages').delete().eq('message_id', messageId);
+      return false;
+    }
+
+    // The conversation comes from the message rather than the caller, so a pin
+    // cannot be filed against a thread the message is not in.
+    const { data: row } = await this.#client
+      .from('messages')
+      .select('conversation_id')
+      .eq('id', messageId)
+      .maybeSingle();
+    if (!row) return false;
+
+    await this.#client.from('pinned_messages').insert({
+      message_id: messageId,
+      conversation_id: row.conversation_id,
+      pinned_by: me,
+    });
+    return true;
+  }
+
+  async remindAboutMessage(messageId: MessageId, at: number): Promise<void> {
+    const me = await this.#userId();
+    await this.#client.from('message_reminders').insert({
+      message_id: messageId,
+      user_id: me,
+      remind_at: new Date(at).toISOString(),
+    });
+  }
+
+  async reportMessage(messageId: MessageId): Promise<void> {
+    const me = await this.#userId();
+    // Duplicates are a unique-constraint violation, and re-reporting is not an
+    // error worth showing anyone — it means the same thing as reporting once.
+    await this.#client
+      .from('message_reports')
+      .insert({ message_id: messageId, reporter_id: me });
+  }
+
   // -- people --------------------------------------------------------------
 
   async getUser(id: UserId): Promise<User | undefined> {
