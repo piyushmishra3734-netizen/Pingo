@@ -29,6 +29,16 @@ export function AppShell() {
   const threadIsFullscreen =
     !isDesktop && /^\/chats\/[^/]+$/.test(location.pathname);
 
+  /*
+   * The camera takes the whole screen everywhere, phone and desktop alike.
+   *
+   * A viewfinder with a navigation bar across it is a viewfinder you are
+   * composing around. It also has its own way out, so the dock would be a
+   * second exit competing with the one already on screen.
+   */
+  const cameraIsFullscreen = location.pathname === '/camera';
+  const fullscreen = threadIsFullscreen || cameraIsFullscreen;
+
   if (!ready) {
     return (
       <div className="grid h-full place-items-center bg-page">
@@ -43,13 +53,13 @@ export function AppShell() {
         className={cn(
           'min-h-0 flex-1',
           // Clears the floating dock: its height plus the gap it leaves below.
-          !threadIsFullscreen && 'pb-[6.5rem]',
+          !fullscreen && 'pb-[6.5rem]',
         )}
       >
         <Outlet />
       </main>
 
-      {!threadIsFullscreen && <Dock />}
+      {!fullscreen && <Dock />}
     </div>
   );
 }

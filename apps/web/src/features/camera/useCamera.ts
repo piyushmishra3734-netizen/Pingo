@@ -56,7 +56,14 @@ export interface UseCamera {
   focusAt: (x: number, y: number) => void;
 }
 
-export function useCamera(chain: FilterInstance[]): UseCamera {
+/**
+ * @param enabled Opens the camera only once this is true.
+ *
+ * The permission prompt is the most intrusive thing this app does, so it
+ * waits for a deliberate action rather than firing the moment a route
+ * renders. A user who arrived by tapping the wrong tab never sees it.
+ */
+export function useCamera(chain: FilterInstance[], enabled = true): UseCamera {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement | undefined>(undefined);
   const pipelineRef = useRef<GLPipeline | undefined>(undefined);
@@ -118,6 +125,8 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
+
     let cancelled = false;
     let frame = 0;
 
@@ -187,7 +196,7 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
       for (const track of streamRef.current?.getTracks() ?? []) track.stop();
       streamRef.current = undefined;
     };
-  }, [open]);
+  }, [open, enabled]);
 
   const flip = useCallback(async () => {
     const next = facing === 'user' ? 'environment' : 'user';

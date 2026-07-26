@@ -35,7 +35,7 @@ import { useStories } from '../features/stories/StoryContext.js';
  * nothing is worse than no slider.
  */
 
-type Stage = 'live' | 'filter' | 'edit' | 'send';
+type Stage = 'gate' | 'live' | 'filter' | 'edit' | 'send';
 
 const TIMERS = [0, 3, 5, 10] as const;
 
@@ -48,7 +48,7 @@ export function CameraScreen() {
   const frameRef = useRef<HTMLDivElement>(null);
 
   const [filterId, setFilterId] = useState('none');
-  const [stage, setStage] = useState<Stage>('live');
+  const [stage, setStage] = useState<Stage>('gate');
   const [original, setOriginal] = useState<Blob>();
   const [shot, setShot] = useState<{ blob: Blob; url: string } | undefined>();
   const [busy, setBusy] = useState(false);
@@ -62,7 +62,10 @@ export function CameraScreen() {
   const [focusRing, setFocusRing] = useState<{ x: number; y: number } | undefined>();
 
   const chain = useMemo<FilterInstance[]>(() => [{ filterId, intensity: 1 }], [filterId]);
-  const camera = useCamera(chain);
+
+  // Nothing is opened until the gate is passed, so arriving here by a mis-tap
+  // never triggers the permission prompt.
+  const camera = useCamera(chain, stage !== 'gate');
 
   useEffect(() => {
     if (!shot) return;
@@ -179,6 +182,76 @@ export function CameraScreen() {
   };
 
   // ---- stages -------------------------------------------------------------
+
+  /*
+   * The gate.
+   *
+   * The camera is the one place in PINGO that takes over the screen and asks
+   * the operating system for something. Opening it the instant a tab is tapped
+   * makes a mis-tap cost a permission prompt and a lit camera light, so it
+   * waits here for a deliberate "yes". Nothing is requested until then.
+   */
+  if (stage === 'gate') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-ink px-8">
+        <div className="animate-fade-in flex flex-col items-center text-center">
+          <span className="grid size-20 place-items-center rounded-3xl bg-white/10 text-white">
+            <CameraIcon size={34} />
+          </span>
+
+          <h1 className="mt-7 text-h1 text-white">Open the camera?</h1>
+          <p className="mt-2 max-w-xs text-body text-white/60">
+            PINGO will ask for camera access. Nothing is captured or sent until
+            you take a snap.
+          </p>
+
+          <div className="mt-9 flex w-full max-w-xs flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setStage('live')}
+              className={cn(
+                'focus-ring rounded-full bg-white py-3.5 text-body font-medium text-ink',
+                'transition-transform duration-instant ease-standard active:scale-[0.98]',
+              )}
+            >
+              Open camera
+            </button>
+
+            {/*
+              The gallery route needs no permission at all, so it is offered
+              beside the camera rather than hidden behind refusing it.
+            */}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="focus-ring rounded-full bg-white/12 py-3.5 text-body text-white"
+            >
+              Choose a photo instead
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/chats')}
+              className="focus-ring rounded-full py-2.5 text-body text-white/60"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) beginFilter(file, false);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (stage === 'filter' && shot) {
     return (
