@@ -171,7 +171,7 @@ export class SupabaseChatService implements ChatService {
    * Presence and typing, both over Realtime rather than the database.
    *
    * A row saying "online" outlives the tab that wrote it; a socket does not.
-   * See  for why neither is persisted.
+   * See `presence.ts` for why neither is persisted.
    */
   #presenceHub: PresenceHub;
 
@@ -216,6 +216,13 @@ export class SupabaseChatService implements ChatService {
       if (current.session) {
         this.#openChannel();
         this.#presenceHub.start(current.session.user.id);
+        /*
+         * Reclaims storage for snaps nobody opened. The migration documents
+         * this as the client's job when pg_cron is not scheduled — and until
+         * now nothing did it, so expired images stayed on the server forever.
+         * Fire and forget: it is housekeeping, not part of signing in.
+         */
+        void this.#client.rpc('purge_expired_snaps');
       }
     });
   }

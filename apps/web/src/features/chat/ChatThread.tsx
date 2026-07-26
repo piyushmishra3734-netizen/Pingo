@@ -98,6 +98,16 @@ export function ChatThread({
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
+  /*
+   * Reading a thread is what clears its unread count, and nothing called this —
+   * so the badge only ever grew, on the list and on the dock. Fires on open and
+   * again as messages land while the thread is in front of you.
+   */
+  useEffect(() => {
+    if (loading) return;
+    void service.markConversationRead(conversation.id);
+  }, [service, conversation.id, loading, groups.length]);
+
   // Jump to the newest message when the thread opens, then follow smoothly.
   const openedRef = useRef(false);
   useEffect(() => {
