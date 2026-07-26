@@ -28,6 +28,12 @@ export interface MenuOpen {
   touch: { x: number; y: number };
 }
 
+/** docs/13 § 3: double tap is the shortcut past the menu. */
+const DEFAULT_REACTION = '❤️';
+
+/** Two taps closer together than this are one gesture. */
+const DOUBLE_TAP_MS = 280;
+
 export interface MenuTriggers {
   /** Present while the menu is open; the geometry it needs. */
   open: MenuOpen | undefined;
@@ -47,7 +53,11 @@ export interface MenuTriggers {
   openFromButton: () => void;
 }
 
-export function useMessageMenu(): MenuTriggers {
+/**
+ * @param onQuickReact Double tap applies ❤️ without opening anything. The menu
+ * is for deciding; a double tap is for when you already have.
+ */
+export function useMessageMenu(onQuickReact?: (emoji: string) => void): MenuTriggers {
   const [open, setOpen] = useState<MenuOpen | undefined>();
   const element = useRef<HTMLElement | null>(null);
 
@@ -70,6 +80,7 @@ export function useMessageMenu(): MenuTriggers {
   }, []);
 
   const longPress = useLongPress(openAt);
+  const lastTap = useRef(0);
 
   return {
     open,
@@ -80,6 +91,22 @@ export function useMessageMenu(): MenuTriggers {
         element.current = node;
       },
       ...longPress,
+      onPointerUp: () => {
+        longPress.onPointerUp();
+
+        /*
+         * Double tap, measured here rather than with `onDoubleClick`, which
+         * does not fire reliably on touch and would miss the gesture this is
+         * mostly for.
+         */
+        const now = Date.now();
+        if (onQuickReact && now - lastTap.current < DOUBLE_TAP_MS) {
+          lastTap.current = 0;
+          onQuickReact(DEFAULT_REACTION);
+          return;
+        }
+        lastTap.current = now;
+      },
       onContextMenu: (event: React.MouseEvent) => {
         // Replaces the browser menu on desktop and the callout on touch.
         event.preventDefault();
