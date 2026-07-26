@@ -32,6 +32,35 @@ export function formatTime(ms: number): string {
 }
 
 /**
+ * When something *happened to* a message — an edit, a deletion.
+ *
+ * Not `formatTime`, because these are the one timestamp in a thread that can
+ * disagree with its position. A message sits under the day divider it was sent
+ * on, but it can be edited a week later, and "Edited 1:24 AM" beneath
+ * yesterday's divider reads as a message out of sequence rather than as an
+ * event with its own date. Same day as the reader's today, the clock is enough;
+ * beyond that the date has to come with it.
+ */
+export function formatEventTime(ms: number, now = Date.now()): string {
+  const then = new Date(ms);
+  const today = new Date(now);
+
+  const sameDay =
+    then.getFullYear() === today.getFullYear() &&
+    then.getMonth() === today.getMonth() &&
+    then.getDate() === today.getDate();
+
+  if (sameDay) return formatTime(ms);
+
+  return then.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+/**
  * Timestamps in the conversation list, per the board: today shows a clock time,
  * yesterday says so in words, this week shows a weekday, older shows a date.
  * Words beat numbers when a human can read them at a glance.

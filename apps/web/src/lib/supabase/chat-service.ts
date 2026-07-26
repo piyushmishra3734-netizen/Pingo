@@ -107,8 +107,11 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     ...(row.edited_at ? { editedAt: Date.parse(row.edited_at) } : {}),
     ...(row.reply_to_id ? { replyToId: row.reply_to_id } : {}),
     // The row survives deletion so replies quoting it keep an anchor. The
-    // server already emptied the body; this flag is what draws the tombstone.
-    ...(row.deleted_at ? { deleted: true } : {}),
+    // server already emptied the body; this is what draws the tombstone, and
+    // the timestamp is the deletion's own — see `Message.deletedAt`.
+    ...(row.deleted_at
+      ? { deleted: true, deletedAt: Date.parse(row.deleted_at) }
+      : {}),
     // `media_url` is the sticker's image; `body` stays its emoji, so a client
     // that cannot render one still shows something meaningful.
     ...(row.kind === 'sticker' && row.media_url

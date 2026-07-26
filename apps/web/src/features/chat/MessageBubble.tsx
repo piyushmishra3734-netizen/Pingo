@@ -1,4 +1,4 @@
-import { formatFileSize, formatTime, type Message } from '@pingo/core';
+import { formatEventTime, formatFileSize, formatTime, type Message } from '@pingo/core';
 import {
   CheckDoubleIcon,
   CheckIcon,
@@ -122,11 +122,18 @@ export function MessageBubble({
           <p className="text-body italic text-text-tertiary">
             {mine ? 'You deleted this message' : 'This message was deleted'}
           </p>
-          {showMeta && (
-            <span className="mt-1 block text-caption text-text-tertiary">
-              {formatTime(message.createdAt)}
-            </span>
-          )}
+          {/*
+            The deletion's own time, not the send time, and labelled.
+            The tombstone keeps its original place in the thread, so an
+            unlabelled later time would read as a message out of sequence —
+            "Deleted" is what makes it a different kind of fact.
+          */}
+          <span
+            className="mt-1 block text-caption text-text-tertiary"
+            title={`Sent ${formatTime(message.createdAt)}`}
+          >
+            Deleted {formatEventTime(message.deletedAt ?? message.createdAt)}
+          </span>
         </div>
       </div>
     );
@@ -304,14 +311,20 @@ export function MessageBubble({
                  * leave three of four edited messages unmarked. Trailing the
                  * text is WhatsApp's placement and the reason it works: you
                  * read the change and the marker in one movement.
+                 *
+                 * It carries the edit's own time, so the bubble states both
+                 * moments: the meta line below is when it was sent, this is
+                 * when it changed. Neither is inferable from the other, and
+                 * the second is the one that just happened.
                  */
                 <span
+                  title={`Sent ${formatTime(message.createdAt)}`}
                   className={cn(
-                    'ml-1.5 align-baseline text-caption',
+                    'ml-1.5 align-baseline text-caption whitespace-nowrap',
                     mine ? 'text-white/70' : 'text-text-tertiary',
                   )}
                 >
-                  Edited
+                  Edited {formatEventTime(message.editedAt)}
                 </span>
               )}
             </p>

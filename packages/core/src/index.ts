@@ -135,6 +135,7 @@ export {
 // Formatting (product rules, not styling)
 export {
   formatTime,
+  formatEventTime,
   formatConversationTimestamp,
   formatDayDivider,
   formatDuration,

@@ -141,6 +141,14 @@ export interface Message {
    */
   deleted?: boolean;
   /**
+   * When it was removed, which is not when it was sent.
+   *
+   * A tombstone keeps its place in the thread but its interesting moment is the
+   * deletion — "this was taken back, just now" is a different fact from "this
+   * was sent at 8pm", and the thread shows the one that changed.
+   */
+  deletedAt?: number;
+  /**
    * System notices ("Kabir joined") render as centred captions, not bubbles.
    */
   system?: boolean;

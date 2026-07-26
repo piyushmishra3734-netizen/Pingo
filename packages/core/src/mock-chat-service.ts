@@ -450,6 +450,7 @@ export class MockChatService implements ChatService {
     if (!message) return;
     message.body = '';
     message.deleted = true;
+    message.deletedAt = Date.now();
     this.#emit({ type: 'message:updated', message: clone(message) });
   }
 
