@@ -184,3 +184,55 @@ when you look for it, invisible when you are not.
 **Screenshot alerts are off in normal chats and available in secret chats.** In
 a normal chat it is surveillance; in a secret chat both people accepted the
 rules on the way in.
+
+## § 8 Reaction state
+
+Decided 2026-07-27, before the bar was built, because the first implementation
+re-read the message after every toggle and again on every realtime echo — three
+round trips for one tap, which defeats the point of a hydrated model.
+
+### 8.1 The cache is not a second model
+
+It is the backing store for `Message.reactions`, and nothing else.
+
+- `listMessages()` fills it once.
+- Every `Message.reactions` handed to the UI is derived from it.
+- `toggleReaction()` mutates it optimistically, emits, *then* fires the RPC.
+- Realtime deltas mutate the same instance.
+- On disagreement, reconcile to the server and emit one final update.
+
+There must be no path where one component reads `Message.reactions` and another
+reads the cache. One authoritative client state, not two.
+
+**No reads after a successful toggle.** The client already knows whether the tap
+was an add, a swap or a remove; the realtime event confirms rather than informs.
+
+### 8.2 Version every mutation
+
+Each optimistic toggle takes a monotonic revision. When confirmation arrives:
+
+| Case | Action |
+| --- | --- |
+| Confirms the newest pending op | clear pending |
+| Belongs to an older op | ignore |
+| Disagrees | reconcile to server, emit once |
+
+Without this, rapid taps let a stale confirmation overwrite newer local intent —
+the user taps ❤️ then 👍, and the ❤️ echo arrives last and wins.
+
+### 8.3 Matching a confirmation to an operation
+
+The non-obvious part. Realtime carries the *row*, not your operation id — it
+gives `message_id`, `user_id`, `emoji` and nothing about who asked.
+
+So a confirmation is matched by **(message_id, user_id === me)**, and the check
+is whether the arriving emoji equals the newest pending intent for that message:
+
+- equal → that intent is confirmed, clear it
+- different, and a newer intent is still pending → ignore; the newer one's echo
+  is still in flight
+- different, with nothing pending → someone else's device changed it, or ours
+  failed; take the server's value
+
+A `DELETE` payload carries `old` rather than `new`, and means the emoji is gone
+for that user — the same three cases apply with "no reaction" as the value.
