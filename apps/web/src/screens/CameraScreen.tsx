@@ -1,8 +1,9 @@
 import { useChat, type FilterInstance } from '@pingo/core';
-import { Avatar, CameraFlipIcon, CameraIcon, CheckIcon, PingoDot, cn } from '@pingo/ui';
+import { Avatar, CameraFlipIcon, CameraIcon, CheckIcon, GridIcon, PingoDot, cn } from '@pingo/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { filterStill } from '../features/camera/filterStill.js';
 import { FILTERS } from '../features/camera/filters/registry.js';
 import { SnapEditor } from '../features/camera/SnapEditor.js';
 import { useCamera } from '../features/camera/useCamera.js';
@@ -11,29 +12,32 @@ import { useStories } from '../features/stories/StoryContext.js';
 /**
  * Camera — shoot, filter, edit, then send or save.
  *
- * Three stages, and the screen is only ever in one of them:
+ * Four stages, and the screen is only ever in one:
  *
- *   live   filtered preview and the shutter
- *   edit   draw and text on the captured frame
- *   send   who gets it, or save it to the gallery
+ *   live    filtered preview, hardware controls, shutter
+ *   filter  pick a look — for *every* image, however it arrived
+ *   edit    draw and text
+ *   send    who gets it, or save it
  *
- * ## The filter is in the photo, not on the screen
+ * ## Why filtering is its own stage
  *
- * The preview is the WebGL canvas that `useCamera` renders the filter chain
- * into, and the capture reads back that same canvas. There is no second path
- * where an unfiltered frame could escape — which is what went wrong in the
- * first version of this screen, where the registry existed and nothing used it.
+ * It used to happen only in the live preview, which meant a device with no
+ * camera showed no filters at all and a photo chosen from the gallery reached
+ * the editor untouched. The filter belonged to the camera rather than to the
+ * snap. Now the preview renders the chain *and* the chosen filter is applied to
+ * the still, so both paths get the same result and neither depends on hardware.
  *
- * ## Falling back without dead-ending
+ * ## Hardware controls are offered only where they exist
  *
- * `getUserMedia` needs a permission that can be refused, hardware that may not
- * exist, and a secure context. All three land on the same fallback: a file
- * picker, which opens the camera on a phone and the gallery everywhere else.
- * The rest of the flow — edit, send, save — is identical either way, because it
- * only ever operates on a blob.
+ * Zoom, torch, focus and exposure are camera capabilities, not app features.
+ * Support is genuinely uneven across browsers and devices, so each control is
+ * hidden unless this specific camera reports it — a slider that silently does
+ * nothing is worse than no slider.
  */
 
-type Stage = 'live' | 'edit' | 'send';
+type Stage = 'live' | 'filter' | 'edit' | 'send';
+
+const TIMERS = [0, 3, 5, 10] as const;
 
 export function CameraScreen() {
   const navigate = useNavigate();
@@ -41,55 +45,104 @@ export function CameraScreen() {
   const { service: stories, refresh } = useStories();
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
 
   const [filterId, setFilterId] = useState('none');
   const [stage, setStage] = useState<Stage>('live');
+  const [original, setOriginal] = useState<Blob>();
   const [shot, setShot] = useState<{ blob: Blob; url: string } | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
 
-  // A single-entry chain. The pipeline takes a list because filters compose;
-  // the UI offers one at a time because a carousel of combinations is nobody's
-  // idea of a good camera.
-  const chain = useMemo<FilterInstance[]>(
-    () => [{ filterId, intensity: 1 }],
-    [filterId],
-  );
+  const [grid, setGrid] = useState(false);
+  const [timer, setTimer] = useState<(typeof TIMERS)[number]>(0);
+  const [countdown, setCountdown] = useState<number>();
+  const [flash, setFlash] = useState(false);
+  const [focusRing, setFocusRing] = useState<{ x: number; y: number } | undefined>();
 
+  const chain = useMemo<FilterInstance[]>(() => [{ filterId, intensity: 1 }], [filterId]);
   const camera = useCamera(chain);
 
-  // Blob URLs outlive the document unless revoked.
   useEffect(() => {
     if (!shot) return;
     return () => URL.revokeObjectURL(shot.url);
   }, [shot]);
 
-  const accept = (blob: Blob) => {
+  const show = (blob: Blob) => {
     setShot((previous) => {
       if (previous) URL.revokeObjectURL(previous.url);
       return { blob, url: URL.createObjectURL(blob) };
     });
-    setStage('edit');
   };
 
   const reset = () => {
     setShot(undefined);
+    setOriginal(undefined);
     setSentTo(new Set());
     setError(undefined);
+    setFilterId('none');
     setStage('live');
   };
 
-  // ---- actions ------------------------------------------------------------
+  /*
+   * The live preview has already baked its filter in, so a camera shot arrives
+   * filtered and a gallery photo does not. Keeping the *original* means the
+   * filter stage can re-render from source each time rather than stacking one
+   * filter on top of another as the user browses.
+   */
+  const beginFilter = (blob: Blob, alreadyFiltered: boolean) => {
+    setOriginal(blob);
+    show(blob);
+    if (alreadyFiltered) setFilterId('none');
+    setStage('filter');
+  };
+
+  const chooseFilter = async (id: string) => {
+    setFilterId(id);
+    if (!original) return;
+    setBusy(true);
+    try {
+      show(id === 'none' ? original : await filterStill(original, [{ filterId: id, intensity: 1 }]));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const shoot = () => {
+    const take = () => {
+      setFlash(true);
+      window.setTimeout(() => setFlash(false), 160);
+      void camera.capture().then((blob) => {
+        if (blob) beginFilter(blob, true);
+      });
+    };
+
+    if (timer === 0) {
+      take();
+      return;
+    }
+
+    let left: number = timer;
+    setCountdown(left);
+    const tick = window.setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        window.clearInterval(tick);
+        setCountdown(undefined);
+        take();
+      } else {
+        setCountdown(left);
+      }
+    }, 1000);
+  };
+
+  // ---- send ---------------------------------------------------------------
 
   const saveToGallery = () => {
     if (!shot) return;
-    /*
-     * A download, because the web has no gallery API. On Android and iOS this
-     * lands in Downloads/Photos exactly as a saved image should; on desktop it
-     * is a file. Naming it by timestamp keeps a burst of snaps from
-     * overwriting each other.
-     */
+    // A download, because the web has no gallery API. On a phone this lands in
+    // Photos exactly as a saved image should.
     const link = document.createElement('a');
     link.href = shot.url;
     link.download = `pingo-${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`;
@@ -102,8 +155,6 @@ export function CameraScreen() {
     setError(undefined);
     try {
       await chat.sendMessage({ conversationId, body: 'Snap', snap: { image: shot.blob } });
-      // Marked rather than navigated away from, so one snap can go to several
-      // people in one pass — which is the whole point of this screen.
       setSentTo((all) => new Set(all).add(conversationId));
     } catch {
       setError("That didn't send. Try again.");
@@ -129,17 +180,49 @@ export function CameraScreen() {
 
   // ---- stages -------------------------------------------------------------
 
+  if (stage === 'filter' && shot) {
+    return (
+      <div className="flex h-full flex-col bg-ink">
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <img src={shot.url} alt="Your snap" className="absolute inset-0 size-full object-contain" />
+          {busy && (
+            <div className="absolute inset-0 grid place-items-center bg-black/20">
+              <PingoDot state="loading" size={7} label="Applying filter" />
+            </div>
+          )}
+        </div>
+
+        <FilterRail selected={filterId} onSelect={(id) => void chooseFilter(id)} />
+
+        <div className="flex shrink-0 gap-3 px-6 pt-1 pb-[max(2rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={reset}
+            className="focus-ring flex-1 rounded-full bg-white/12 py-3 text-body text-white"
+          >
+            Retake
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setStage('edit')}
+            className="focus-ring flex-[2] rounded-full bg-white py-3 text-body font-medium text-ink disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (stage === 'edit' && shot) {
     return (
       <SnapEditor
         src={shot.url}
         busy={busy}
-        onCancel={reset}
+        onCancel={() => setStage('filter')}
         onDone={(blob) => {
-          setShot((previous) => {
-            if (previous) URL.revokeObjectURL(previous.url);
-            return { blob, url: URL.createObjectURL(blob) };
-          });
+          show(blob);
           setStage('send');
         }}
       />
@@ -196,7 +279,6 @@ export function CameraScreen() {
                       className={cn(
                         'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
                         'transition-colors duration-instant hover:bg-hover',
-                        'disabled:opacity-100',
                       )}
                     >
                       <Avatar
@@ -228,22 +310,59 @@ export function CameraScreen() {
 
   // ---- live ---------------------------------------------------------------
 
+  const ready = camera.status === 'ready';
+
   return (
     <div className="flex h-full flex-col bg-ink">
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        {/*
-          Mirrored for the front camera only. A preview that moves the opposite
-          way to your hand is unusable; a rear camera mirrored is just wrong.
-          The capture is never mirrored, so text in shot reads the right way.
-        */}
+      <div
+        ref={frameRef}
+        className="relative min-h-0 flex-1 touch-none overflow-hidden"
+        onClick={(event) => {
+          if (!ready || !camera.capabilities.focusPoint) return;
+          const rect = frameRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          const x = (event.clientX - rect.left) / rect.width;
+          const y = (event.clientY - rect.top) / rect.height;
+          camera.focusAt(x, y);
+          setFocusRing({ x, y });
+          window.setTimeout(() => setFocusRing(undefined), 900);
+        }}
+      >
         <canvas
           ref={camera.canvasRef}
           className={cn(
             'absolute inset-0 size-full object-cover',
             camera.facing === 'user' && '-scale-x-100',
-            camera.status !== 'ready' && 'opacity-0',
+            !ready && 'opacity-0',
           )}
         />
+
+        {/* Rule of thirds. Two lines each way, nothing else. */}
+        {grid && ready && (
+          <div className="pointer-events-none absolute inset-0" aria-hidden>
+            <div className="absolute inset-y-0 left-1/3 w-px bg-white/25" />
+            <div className="absolute inset-y-0 left-2/3 w-px bg-white/25" />
+            <div className="absolute inset-x-0 top-1/3 h-px bg-white/25" />
+            <div className="absolute inset-x-0 top-2/3 h-px bg-white/25" />
+          </div>
+        )}
+
+        {focusRing && (
+          <span
+            aria-hidden
+            style={{ left: `${focusRing.x * 100}%`, top: `${focusRing.y * 100}%` }}
+            className="pointer-events-none absolute size-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/90"
+          />
+        )}
+
+        {countdown !== undefined && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <span className="text-display text-white drop-shadow-lg">{countdown}</span>
+          </div>
+        )}
+
+        {/* The shutter blink. Brief and opaque, the way a real one reads. */}
+        {flash && <div className="pointer-events-none absolute inset-0 bg-white" aria-hidden />}
 
         {camera.status === 'starting' && (
           <div className="absolute inset-0 grid place-items-center">
@@ -259,48 +378,70 @@ export function CameraScreen() {
               </span>
               <p className="mt-6 text-body text-white">No camera here.</p>
               <p className="mt-2 text-caption text-white/60">
-                Pick a photo instead — everything after this works the same.
+                Pick a photo instead — filters and editing work exactly the same.
               </p>
             </div>
           </div>
         )}
 
-        {camera.status === 'ready' && (
-          <button
-            type="button"
-            aria-label="Switch camera"
-            onClick={() => void camera.flip()}
-            className="focus-ring absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-black/40 text-white"
-          >
-            <CameraFlipIcon size={20} />
-          </button>
+        {/* ---- hardware controls, only where they exist ------------------ */}
+        {ready && (
+          <div className="absolute top-4 right-4 flex flex-col gap-2">
+            <RoundControl label="Switch camera" onClick={() => void camera.flip()}>
+              <CameraFlipIcon size={20} />
+            </RoundControl>
+
+            <RoundControl label="Grid" active={grid} onClick={() => setGrid(!grid)}>
+              <GridIcon size={19} />
+            </RoundControl>
+
+            {camera.capabilities.torch && (
+              <RoundControl label="Flash" active={camera.torch} onClick={camera.toggleTorch}>
+                <span className="text-body leading-none">⚡</span>
+              </RoundControl>
+            )}
+
+            <RoundControl
+              label={timer === 0 ? 'Timer off' : `Timer ${timer} seconds`}
+              active={timer !== 0}
+              onClick={() => setTimer(TIMERS[(TIMERS.indexOf(timer) + 1) % TIMERS.length]!)}
+            >
+              <span className="text-caption font-semibold leading-none">
+                {timer === 0 ? 'T' : timer}
+              </span>
+            </RoundControl>
+          </div>
+        )}
+
+        {ready && camera.capabilities.zoom && (
+          <Slider
+            label="Zoom"
+            range={camera.capabilities.zoom}
+            value={camera.zoom}
+            onChange={camera.setZoom}
+            className="bottom-16"
+          />
+        )}
+
+        {ready && camera.capabilities.exposure && (
+          <Slider
+            label="Exposure"
+            range={camera.capabilities.exposure}
+            value={camera.exposure}
+            onChange={camera.setExposure}
+            className="bottom-4"
+          />
         )}
       </div>
 
-      {/* ---- filters ----------------------------------------------------- */}
-      {camera.status === 'ready' && (
-        <div className="shrink-0 overflow-x-auto px-4 py-3">
-          <div className="flex gap-2">
-            {FILTERS.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                aria-pressed={filterId === filter.id}
-                onClick={() => setFilterId(filter.id)}
-                className={cn(
-                  'focus-ring shrink-0 rounded-full px-4 py-2 text-caption font-medium',
-                  'transition-colors duration-instant',
-                  filterId === filter.id ? 'bg-white text-ink' : 'bg-white/12 text-white',
-                )}
-              >
-                {filter.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/*
+        Always shown, camera or not. The live preview cannot render a filter
+        without a stream, but the filter itself still applies to the still — so
+        hiding the rail here would hide a feature that works.
+      */}
+      <FilterRail selected={filterId} onSelect={setFilterId} disabled={!ready} />
 
-      <div className="shrink-0 px-6 pt-2 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="shrink-0 px-6 pt-1 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-center gap-8">
           <button
             type="button"
@@ -310,16 +451,11 @@ export function CameraScreen() {
             Gallery
           </button>
 
-          {/* The shutter: a ring around a disc, the shape every camera uses. */}
           <button
             type="button"
             aria-label="Take snap"
-            disabled={camera.status !== 'ready'}
-            onClick={() => {
-              void camera.capture().then((blob) => {
-                if (blob) accept(blob);
-              });
-            }}
+            disabled={!ready || countdown !== undefined}
+            onClick={shoot}
             className={cn(
               'grid size-18 place-items-center rounded-full',
               'focus-ring ring-4 ring-white',
@@ -347,10 +483,108 @@ export function CameraScreen() {
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) accept(file);
+            // Unfiltered: a gallery photo never went through the live pipeline.
+            if (file) beginFilter(file, false);
           }}
         />
       </div>
+    </div>
+  );
+}
+
+function FilterRail({
+  selected,
+  onSelect,
+  disabled,
+}: {
+  selected: string;
+  onSelect: (id: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="shrink-0 overflow-x-auto px-4 py-3">
+      <div className="flex gap-2">
+        {FILTERS.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            aria-pressed={selected === filter.id}
+            disabled={disabled}
+            onClick={() => onSelect(filter.id)}
+            className={cn(
+              'focus-ring shrink-0 rounded-full px-4 py-2 text-caption font-medium',
+              'transition-colors duration-instant',
+              selected === filter.id ? 'bg-white text-ink' : 'bg-white/12 text-white',
+              'disabled:opacity-40',
+            )}
+          >
+            {filter.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RoundControl({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      onClick={(event) => {
+        // The frame below listens for taps to focus; a control tap is not one.
+        event.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        'focus-ring grid size-10 place-items-center rounded-full',
+        active ? 'bg-white text-ink' : 'bg-black/40 text-white',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Slider({
+  label,
+  range,
+  value,
+  onChange,
+  className,
+}: {
+  label: string;
+  range: { min: number; max: number; step: number };
+  value: number;
+  onChange: (value: number) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn('absolute inset-x-6', className)}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <input
+        type="range"
+        aria-label={label}
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full accent-white"
+      />
     </div>
   );
 }

@@ -195,6 +195,82 @@ export const FILTERS: FilterDefinition[] = [
   },
 
   {
+    id: 'bloom',
+    name: 'Bloom',
+    category: 'stylise',
+    /*
+     * Bright areas bleed into their neighbours.
+     *
+     * A real bloom blurs only what is above a threshold, in a separate pass.
+     * This does it in one: sample a ring, keep the samples that are already
+     * bright, and add them back. Cheaper by an entire framebuffer, and at the
+     * radius a phone screen shows, indistinguishable.
+     */
+    fragmentShader: `
+      vec4 pingoFilter(vec4 colour, vec2 uv) {
+        vec2 texel = 1.0 / u_resolution;
+        vec3 glow = vec3(0.0);
+        for (int i = 0; i < 8; i++) {
+          float a = float(i) * 0.7853981;
+          vec2 offset = vec2(cos(a), sin(a)) * texel * radius * 4.0;
+          vec3 s = texture(u_texture, uv + offset).rgb;
+          // Only what is already bright contributes; otherwise this is a blur.
+          glow += max(s - vec3(threshold), vec3(0.0));
+        }
+        glow /= 8.0;
+        return vec4(clamp(colour.rgb + glow * 1.6, 0.0, 1.0), colour.a);
+      }`,
+    params: [
+      { name: 'threshold', label: 'Threshold', min: 0.2, max: 0.9, step: 0.05, default: 0.6 },
+      { name: 'radius', label: 'Radius', min: 1, max: 8, step: 0.5, default: 3 },
+    ],
+    attribution: { ...GLFX, note: 'Thresholded ring blur' },
+  },
+
+  {
+    id: 'cinematic',
+    name: 'Cinematic',
+    category: 'colour',
+    /*
+     * Teal shadows, orange highlights — the split-tone every action film
+     * grades towards, because skin sits in the highlights and its complement
+     * is what makes it pop.
+     */
+    fragmentShader: `
+      vec4 pingoFilter(vec4 colour, vec2 uv) {
+        float luma = dot(colour.rgb, vec3(0.2126, 0.7152, 0.0722));
+        vec3 shadows = vec3(0.05, 0.30, 0.36);
+        vec3 highlights = vec3(1.00, 0.72, 0.42);
+        vec3 tint = mix(shadows, highlights, smoothstep(0.15, 0.85, luma));
+        vec3 graded = colour.rgb * 0.72 + colour.rgb * tint * 0.55;
+        // Slight contrast lift, or the tint reads as a colour cast.
+        graded = (graded - 0.5) * 1.12 + 0.5;
+        return vec4(clamp(graded, 0.0, 1.0), colour.a);
+      }`,
+    attribution: { ...GPUIMAGE, note: 'Split-tone grade' },
+  },
+
+  {
+    id: 'dreamy',
+    name: 'Dreamy',
+    category: 'stylise',
+    // A soft-focus diffusion: the frame blurred and screened back over itself.
+    fragmentShader: `
+      vec4 pingoFilter(vec4 colour, vec2 uv) {
+        vec2 texel = 1.0 / u_resolution;
+        vec3 soft = vec3(0.0);
+        for (int i = 0; i < 8; i++) {
+          float a = float(i) * 0.7853981;
+          soft += texture(u_texture, uv + vec2(cos(a), sin(a)) * texel * 6.0).rgb;
+        }
+        soft /= 8.0;
+        vec3 screened = 1.0 - (1.0 - colour.rgb) * (1.0 - soft * 0.55);
+        return vec4(mix(colour.rgb, screened, 0.75), colour.a);
+      }`,
+    attribution: { ...GLFX, note: 'Screen-blend diffusion' },
+  },
+
+  {
     id: 'smooth-skin',
     name: 'Smooth',
     category: 'beauty',

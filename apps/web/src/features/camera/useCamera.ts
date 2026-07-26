@@ -1,6 +1,14 @@
 import type { FilterInstance } from '@pingo/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  readCapabilities,
+  setExposure,
+  setFocusPoint,
+  setTorch,
+  setZoom,
+  type CameraCapabilities,
+} from './controls.js';
 import { GLPipeline } from './engine/GLPipeline.js';
 import { getFilter } from './filters/registry.js';
 
@@ -35,6 +43,17 @@ export interface UseCamera {
   flip: () => Promise<void>;
   /** Resolves with the filtered frame, or undefined if the pipeline is not up. */
   capture: () => Promise<Blob | undefined>;
+
+  /** What this particular camera can actually do. Controls hide when absent. */
+  capabilities: CameraCapabilities;
+  zoom: number;
+  setZoom: (value: number) => void;
+  exposure: number;
+  setExposure: (value: number) => void;
+  torch: boolean;
+  toggleTorch: () => void;
+  /** Normalised to the *preview*; mirroring is undone here. */
+  focusAt: (x: number, y: number) => void;
 }
 
 export function useCamera(chain: FilterInstance[]): UseCamera {
@@ -55,6 +74,15 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
 
   const [status, setStatus] = useState<CameraStatus>('starting');
   const [facing, setFacing] = useState<'user' | 'environment'>('user');
+  const [capabilities, setCapabilities] = useState<CameraCapabilities>({
+    torch: false,
+    focusPoint: false,
+  });
+  const [zoom, setZoomState] = useState(1);
+  const [exposure, setExposureState] = useState(0);
+  const [torch, setTorchState] = useState(false);
+
+  const track = () => streamRef.current?.getVideoTracks()[0];
 
   const open = useCallback(async (mode: 'user' | 'environment') => {
     for (const track of streamRef.current?.getTracks() ?? []) track.stop();
@@ -65,6 +93,17 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
     });
 
     streamRef.current = stream;
+
+    /*
+     * Re-read on every open, never cached across a flip. Front and rear cameras
+     * are different hardware: the rear one usually has zoom and a torch, the
+     * front one usually has neither, and offering a control that does nothing
+     * is worse than not offering it.
+     */
+    setCapabilities(readCapabilities(stream.getVideoTracks()[0]));
+    setZoomState(1);
+    setExposureState(0);
+    setTorchState(false);
 
     const video = videoRef.current ?? document.createElement('video');
     video.playsInline = true;
@@ -148,5 +187,41 @@ export function useCamera(chain: FilterInstance[]): UseCamera {
     });
   }, [status]);
 
-  return { canvasRef, status, facing, flip, capture };
+  return {
+    canvasRef,
+    status,
+    facing,
+    flip,
+    capture,
+    capabilities,
+    zoom,
+    exposure,
+    torch,
+
+    /*
+     * State is set optimistically and the hardware is asked in the background.
+     *
+     * A slider that waits for `applyConstraints` to resolve before moving feels
+     * broken — the round trip is tens of milliseconds and the user is dragging.
+     * If the camera declines, the next `readCapabilities` corrects it.
+     */
+    setZoom: (value: number) => {
+      setZoomState(value);
+      void setZoom(track(), value);
+    },
+    setExposure: (value: number) => {
+      setExposureState(value);
+      void setExposure(track(), value);
+    },
+    toggleTorch: () => {
+      const next = !torch;
+      setTorchState(next);
+      void setTorch(track(), next);
+    },
+    focusAt: (x: number, y: number) => {
+      // The preview is mirrored for the front camera; the sensor is not. Without
+      // this the tap focuses on the opposite side of the frame.
+      void setFocusPoint(track(), facing === 'user' ? 1 - x : x, y);
+    },
+  };
 }
