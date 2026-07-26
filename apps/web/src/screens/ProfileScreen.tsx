@@ -1,8 +1,9 @@
-import { useChat, type FollowState, type GalleryItem, type User } from '@pingo/core';
+import { useChat, useProfile, type FollowState, type GalleryItem, type User } from '@pingo/core';
 import {
   Avatar,
   Button,
   ChatIcon,
+  ChevronRightIcon,
   GridIcon,
   IconButton,
   ImageIcon,
@@ -10,6 +11,7 @@ import {
   PhoneIcon,
   PlayIcon,
   Skeleton,
+  UsersIcon,
   VideoIcon,
   cn,
 } from '@pingo/ui';
@@ -45,6 +47,19 @@ export function ProfileScreen() {
 
   const [gallery, setGallery] = useState<GalleryItem[] | undefined>();
   const [follow, setFollow] = useState<FollowState>();
+  const [pendingCount, setPendingCount] = useState(0);
+  const { service: profileService } = useProfile();
+
+  // Only for your own profile; nobody else's requests are yours to see.
+  useEffect(() => {
+    if (!isSelf) return;
+    let active = true;
+    void profileService
+      .listFollowRequests()
+      .then((list) => { if (active) setPendingCount(list.length); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [profileService, isSelf]);
 
   useEffect(() => {
     if (!user) return;
@@ -174,6 +189,33 @@ export function ProfileScreen() {
             </div>
           )}
         </section>
+
+        {/*
+          Only on your own profile, and only when there is something waiting.
+          An always-present "0 requests" row is a permanent reminder of nothing.
+        */}
+        {isSelf && pendingCount > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate('/requests')}
+            className={cn(
+              'focus-ring mt-8 flex w-full items-center gap-3 rounded-lg',
+              'bg-surface px-4 py-3.5 shadow-sm',
+              'transition-transform duration-instant active:scale-[0.99]',
+            )}
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-gradient text-white">
+              <UsersIcon size={18} />
+            </span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block text-body text-ink">Follow requests</span>
+              <span className="block text-caption text-text-secondary">
+                {pendingCount} waiting on you
+              </span>
+            </span>
+            <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
+          </button>
+        )}
 
         {isSelf && (
           <p className="mt-8 text-center text-caption text-text-tertiary">
