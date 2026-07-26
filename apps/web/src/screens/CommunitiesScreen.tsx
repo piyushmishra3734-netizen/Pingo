@@ -57,16 +57,32 @@ export function CommunitiesScreen() {
   const q = query.trim().toLowerCase();
 
   const [opening, setOpening] = useState<string>();
+  const [openError, setOpenError] = useState<string>();
   const navigate = useNavigate();
 
   const messageUser = async (user: User) => {
     if (opening) return;
     setOpening(user.id);
+    setOpenError(undefined);
     try {
       // Idempotent in the database, so this lands in the existing thread when
       // there is one rather than making a second empty one beside it.
       const conversationId = await service.startDirectConversation(user.id);
       navigate(`/chats/${conversationId}`);
+    } catch (cause) {
+      /*
+       * Shown, not swallowed.
+       *
+       * This had only a `finally`, so a failing RPC cleared the spinner and
+       * left the screen exactly as it was — indistinguishable from the button
+       * doing nothing at all, which is how it was reported. The reason is
+       * surfaced because it is the difference between "not signed in",
+       * "function missing" and "network", and guessing between those from a
+       * blank screen is impossible.
+       */
+      setOpenError(
+        cause instanceof Error ? cause.message : `Couldn't open a chat with ${user.name}.`,
+      );
     } finally {
       setOpening(undefined);
     }
@@ -105,6 +121,12 @@ export function CommunitiesScreen() {
           placeholder="Search people and groups"
           aria-label="Search people and groups"
         />
+
+        {openError && (
+          <p role="alert" className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-caption text-danger">
+            {openError}
+          </p>
+        )}
 
         {nothingFound ? (
           <EmptyState
