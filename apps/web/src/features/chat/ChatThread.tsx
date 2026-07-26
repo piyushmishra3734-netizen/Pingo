@@ -23,6 +23,8 @@ import { Link } from 'react-router-dom';
 
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
+import { MessageMenu } from './context-menu/MessageMenu.js';
+import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
 import { MessageBubble } from './MessageBubble.js';
 
@@ -74,7 +76,7 @@ export function ChatThread({
       : undefined;
 
   /*
-   * Calls need a mutual follow.  is undefined while loading, so the
+   * Calls need a mutual follow. `mutuals` is undefined while loading, so the
    * buttons are not briefly disabled on first render — a control that flickers
    * to disabled reads as broken rather than as loading.
    */
@@ -267,24 +269,59 @@ export function ChatThread({
                   </div>
                 )}
 
-                {cluster.map((message, index) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    mine={message.authorId === currentUser?.id}
-                    position={
-                      cluster.length === 1
-                        ? 'single'
-                        : index === 0
-                          ? 'first'
-                          : index === cluster.length - 1
-                            ? 'last'
-                            : 'middle'
-                    }
-                    // One timestamp per cluster, on its final message.
-                    showMeta={index === cluster.length - 1}
-                  />
-                ))}
+                {cluster.map((message, index) => {
+                  const position =
+                    cluster.length === 1
+                      ? ('single' as const)
+                      : index === 0
+                        ? ('first' as const)
+                        : index === cluster.length - 1
+                          ? ('last' as const)
+                          : ('middle' as const);
+
+                  return (
+                    <MessageMenu
+                      key={message.id}
+                      message={message}
+                      mine={message.authorId === currentUser?.id}
+                      onReply={() => undefined}
+                      onForward={() => undefined}
+                      children={
+                        <MessageBubble
+                          message={message}
+                          mine={message.authorId === currentUser?.id}
+                          position={position}
+                          showMeta={index === cluster.length - 1}
+                        />
+                      }
+                      render={({ hidden, ...trigger }) => (
+                        <MessageBubble
+                          message={message}
+                          mine={message.authorId === currentUser?.id}
+                          position={position}
+                          // One timestamp per cluster, on its final message.
+                          showMeta={index === cluster.length - 1}
+                          trigger={{
+                            ...trigger,
+                            // Hidden, not unmounted: the menu holds a copy at
+                            // the same coordinates, and removing this one would
+                            // collapse the thread underneath it.
+                            style: hidden ? { opacity: 0 } : undefined,
+                          }}
+                          reactions={
+                            <ReactionPills
+                              reactions={message.reactions}
+                              me={currentUser?.id}
+                              onToggle={(emoji) =>
+                                void service.toggleReaction(message.id, emoji).catch(() => undefined)
+                              }
+                            />
+                          }
+                        />
+                      )}
+                    />
+                  );
+                })}
               </div>
             ))}
 

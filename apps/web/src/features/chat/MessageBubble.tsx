@@ -31,6 +31,13 @@ export interface MessageBubbleProps {
   position: 'single' | 'first' | 'middle' | 'last';
   /** Shown on the cluster's final bubble only. */
   showMeta: boolean;
+  /**
+   * Spread onto the bubble. Supplied by `MessageMenu`, which owns every way of
+   * opening the context menu — docs/13 § 4.5.
+   */
+  trigger?: Record<string, unknown>;
+  /** Reactions, rendered beneath. Passed in so the bubble stays presentational. */
+  reactions?: React.ReactNode;
 }
 
 /**
@@ -52,7 +59,14 @@ const SHAPE = {
   },
 } as const;
 
-export function MessageBubble({ message, mine, position, showMeta }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  mine,
+  position,
+  showMeta,
+  trigger,
+  reactions,
+}: MessageBubbleProps) {
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
   const hasBody = message.body.trim().length > 0;
@@ -215,6 +229,8 @@ export function MessageBubble({ message, mine, position, showMeta }: MessageBubb
             ))}
           </div>
         )}
+
+        {reactions}
 
         {showMeta && (
           <div
