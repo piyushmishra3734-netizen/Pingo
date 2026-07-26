@@ -38,6 +38,13 @@ export interface OutgoingMessage {
   replyToId?: MessageId;
   /** Makes this a sticker message rather than a text one. */
   sticker?: { id: string; url: string };
+  /**
+   * Makes this a snap: a photo taken in the camera, already flattened.
+   *
+   * The blob is uploaded by the service, not the caller, so a screen never
+   * needs to know which bucket snaps live in or how their paths are shaped.
+   */
+  snap?: { image: Blob };
 }
 
 /**

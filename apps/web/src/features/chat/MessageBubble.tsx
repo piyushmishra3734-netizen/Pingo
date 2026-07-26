@@ -66,6 +66,29 @@ export function MessageBubble({ message, mine, position, showMeta }: MessageBubb
   }
 
   /*
+   * A snap gets no bubble either, for the same reason: the picture *is* the
+   * message. It is rounded and capped in height so a portrait shot cannot push
+   * the rest of the thread off screen.
+   */
+  if (message.snap) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div className="animate-bubble-in">
+          <img
+            src={message.snap.url}
+            alt="Snap"
+            draggable={false}
+            className="max-h-80 w-auto max-w-[70vw] rounded-lg object-contain select-none"
+          />
+          <span className="mt-0.5 block text-caption text-text-tertiary">
+            {formatTime(message.createdAt)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  /*
    * A sticker gets no bubble.
    *
    * The bubble exists to group text and mark who said it; a sticker is already

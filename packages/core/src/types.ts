@@ -144,6 +144,15 @@ export interface Message {
    * what a notification, the conversation list and a screen reader read.
    */
   sticker?: StickerRef;
+
+  /**
+   * A photo taken in the camera, already flattened with its filter and edits.
+   *
+   * Like a sticker, this replaces the bubble rather than decorating it — the
+   * picture is the message. `body` stays a short label so notifications and the
+   * conversation list have something to say without loading the image.
+   */
+  snap?: { url: string };
 }
 
 /** Enough to render a sticker without loading the pack it came from. */

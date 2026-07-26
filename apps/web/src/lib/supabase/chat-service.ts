@@ -107,8 +107,20 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     ...(row.kind === 'sticker' && row.media_url
       ? { sticker: { id: row.id, url: row.media_url } }
       : {}),
+    // A snap *is* the picture. `body` stays a short label so the conversation
+    // list has something to preview without fetching the image.
+    ...(row.kind === 'snap' && row.media_url ? { snap: { url: row.media_url } } : {}),
   };
 }
+
+/** Snaps live in a private bucket; the `snaps` migration explains why. */
+const SNAP_BUCKET = 'snaps';
+
+/**
+ * A week. Long enough that scrolling back to last weekend still shows the
+ * image, short enough that a link which escapes the app stops working.
+ */
+const SNAP_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 export class SupabaseChatService implements ChatService {
   readonly #client: PingoSupabaseClient;
@@ -386,8 +398,41 @@ export class SupabaseChatService implements ChatService {
 
   // -- sending -------------------------------------------------------------
 
+  /**
+   * Puts a snap in the private bucket and returns a URL that can be rendered.
+   *
+   * Signed, not public. The `snaps` bucket is private because a snap is sent to
+   * particular people; a public URL would be fetchable by anyone who came
+   * across it. A week is long enough that a thread scrolled back to next
+   * weekend still shows the image, and short enough that a leaked link dies.
+   */
+  async #uploadSnap(image: Blob): Promise<string> {
+    const me = await this.#userId();
+    const path = `${me}/${crypto.randomUUID()}.jpg`;
+
+    const { error: uploadError } = await this.#client.storage
+      .from(SNAP_BUCKET)
+      .upload(path, image, { contentType: image.type || 'image/jpeg' });
+
+    if (uploadError) throw uploadError;
+
+    const { data, error } = await this.#client.storage
+      .from(SNAP_BUCKET)
+      .createSignedUrl(path, SNAP_URL_TTL_SECONDS);
+
+    if (error || !data) throw error ?? new Error('Could not sign the snap URL.');
+    return data.signedUrl;
+  }
+
   async sendMessage(draft: OutgoingMessage): Promise<Message> {
     const me = await this.#userId();
+
+    /*
+     * Uploaded before the row is inserted, deliberately. A message row whose
+     * media never arrived is a permanently broken bubble in someone's thread;
+     * a failed upload that inserts nothing is a retry.
+     */
+    const snapUrl = draft.snap ? await this.#uploadSnap(draft.snap.image) : undefined;
 
     const { data, error } = await this.#client
       .from('messages')
@@ -396,6 +441,7 @@ export class SupabaseChatService implements ChatService {
         sender_id: me,
         body: draft.body,
         ...(draft.sticker ? { kind: 'sticker', media_url: draft.sticker.url } : {}),
+        ...(snapUrl ? { kind: 'snap', media_url: snapUrl } : {}),
       })
       .select('*')
       .single();

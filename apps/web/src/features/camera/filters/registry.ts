@@ -132,6 +132,69 @@ export const FILTERS: FilterDefinition[] = [
   },
 
   {
+    id: 'mono',
+    name: 'B&W',
+    category: 'colour',
+    /*
+     * Rec. 709 luma, not a flat average of the channels.
+     *
+     * An average makes a pure red and a pure green the same shade of grey,
+     * which is not how eyes work — green carries most of perceived brightness.
+     * These are the weights every broadcast standard uses, and they are why
+     * this looks like black-and-white film rather than a washed-out photo.
+     */
+    fragmentShader: `
+      vec4 pingoFilter(vec4 colour, vec2 uv) {
+        float luma = dot(colour.rgb, vec3(0.2126, 0.7152, 0.0722));
+        return vec4(vec3(luma), colour.a);
+      }`,
+    attribution: { ...GPUIMAGE, note: 'Luminance, Rec. 709 weights' },
+  },
+
+  {
+    id: 'cool',
+    name: 'Cool',
+    category: 'colour',
+    // A white-balance shift towards blue: lift blue, drop red, leave green.
+    fragmentShader: `
+      vec4 pingoFilter(vec4 colour, vec2 uv) {
+        vec3 c = colour.rgb * vec3(0.92, 1.0, 1.12);
+        return vec4(clamp(c, 0.0, 1.0), colour.a);
+      }`,
+    attribution: { ...GPUIMAGE, note: 'White balance, cooled' },
+  },
+
+  {
+    id: 'warm',
+    name: 'Warm',
+    category: 'colour',
+    fragmentShader: `
+      vec4 pingoFilter(vec4 colour, vec2 uv) {
+        vec3 c = colour.rgb * vec3(1.12, 1.02, 0.88);
+        return vec4(clamp(c, 0.0, 1.0), colour.a);
+      }`,
+    attribution: { ...GPUIMAGE, note: 'White balance, warmed' },
+  },
+
+  {
+    id: 'fade',
+    name: 'Fade',
+    category: 'stylise',
+    /*
+     * Lifted blacks. Film never reaches true black once it has aged, so raising
+     * the floor and compressing the range reads as "old photo" far more than
+     * desaturation does.
+     */
+    fragmentShader: `
+      vec4 pingoFilter(vec4 colour, vec2 uv) {
+        vec3 c = colour.rgb * 0.82 + 0.14;
+        float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        return vec4(mix(vec3(luma), c, 0.78), colour.a);
+      }`,
+    attribution: { ...GLFX, note: 'Lifted-black curve' },
+  },
+
+  {
     id: 'smooth-skin',
     name: 'Smooth',
     category: 'beauty',
