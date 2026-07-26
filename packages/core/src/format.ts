@@ -111,6 +111,17 @@ export function messagePreview(
 
   const { conversation, currentUserId, users } = options;
 
+  /*
+   * A deleted message has an empty body, so without this it fell through to the
+   * generic "Message" — the list saying nothing about the one thing that just
+   * happened to the thread.
+   */
+  if (message.deleted) {
+    return message.authorId === currentUserId
+      ? 'You deleted this message'
+      : 'This message was deleted';
+  }
+
   let text = message.body.trim();
   if (!text) {
     const attachment = message.attachments[0];

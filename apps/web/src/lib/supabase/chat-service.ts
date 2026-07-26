@@ -321,6 +321,12 @@ export class SupabaseChatService implements ChatService {
             type: 'message:updated',
             message: { ...toMessage(row, undefined), reactions: this.#reactions.get(row.id) ?? [] },
           });
+
+          // The list shows this message when it is the newest one, so an edit
+          // or a deletion has to reach the preview as well as the thread.
+          void this.getConversation(row.conversation_id).then((conversation) => {
+            if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+          });
         },
       )
       /*
