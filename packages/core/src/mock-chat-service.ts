@@ -288,6 +288,20 @@ export class MockChatService implements ChatService {
     return clone(message);
   }
 
+  /*
+   * Snaps are not simulated. The whole point of the feature is a server that
+   * forgets on a schedule, and there is no honest way to fake that in memory —
+   * a mock that always returned an image would make the two-view limit look
+   * broken, and one that never did would make every snap look expired.
+   */
+  async openSnap(): Promise<undefined> {
+    return undefined;
+  }
+
+  async downloadSnap(): Promise<undefined> {
+    return undefined;
+  }
+
   async markConversationRead(conversationId: ConversationId): Promise<void> {
     const conversation = this.#conversation(conversationId);
     if (!conversation || conversation.unreadCount === 0) return;

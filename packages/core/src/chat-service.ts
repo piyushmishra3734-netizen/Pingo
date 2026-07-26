@@ -25,6 +25,7 @@ import type {
   MessageId,
   Moment,
   SearchResult,
+  SnapView,
   User,
   UserId,
   UserSettings,
@@ -87,6 +88,24 @@ export interface ChatService {
   // -- Sending -------------------------------------------------------------
   /** Resolves with the optimistic message; watch events for delivery status. */
   sendMessage(draft: OutgoingMessage): Promise<Message>;
+
+  /**
+   * Spends one view and returns a short-lived URL for the image.
+   *
+   * Calling this **is** the view — there is no separate "confirm" step, because
+   * a client that could decline to confirm could watch a snap forever. Returns
+   * undefined once the snap is gone, which is the same answer for exhausted,
+   * downloaded and expired.
+   */
+  openSnap(messageId: MessageId): Promise<SnapView | undefined>;
+
+  /**
+   * Fetches the bytes so the receiver can keep them, then destroys the copy.
+   *
+   * The order matters: the blob is returned first and the server copy is only
+   * dropped once it is in hand, so a failed download does not lose the snap.
+   */
+  downloadSnap(messageId: MessageId): Promise<Blob | undefined>;
   markConversationRead(conversationId: ConversationId): Promise<void>;
   setTyping(conversationId: ConversationId, typing: boolean): Promise<void>;
   toggleReaction(messageId: MessageId, emoji: string): Promise<Message>;

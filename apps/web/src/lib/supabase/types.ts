@@ -69,6 +69,11 @@ export type MessageRow = {
   kind: 'text' | 'sticker' | 'snap';
   /** The sticker image. Null for text messages. */
   media_url: string | null;
+  /** Storage path of a snap's image. Nulled out when the snap is destroyed. */
+  snap_path: string | null;
+  snap_expires_at: string | null;
+  /** Set when the media is gone for good; the row itself stays in the thread. */
+  snap_consumed_at: string | null;
 };
 
 /** The `public` schema. */
@@ -116,6 +121,8 @@ export type Database = {
           body: string;
           kind?: 'text' | 'sticker' | 'snap';
           media_url?: string | null;
+          snap_path?: string | null;
+          snap_expires_at?: string | null;
         };
         Update: {
           body?: string;
@@ -170,6 +177,24 @@ export type Database = {
       my_streaks: {
         Args: Record<string, never>;
         Returns: { conversation_id: string; streak: number }[];
+      };
+      /**
+       * Spends one of the viewer's two views. Returns nothing once they are
+       * used up, the snap was downloaded, or it expired.
+       */
+      open_snap: {
+        Args: { snap_id: string };
+        Returns: { path: string; views_left: number }[];
+      };
+      /** Records the download and destroys the server copy. */
+      download_snap: {
+        Args: { snap_id: string };
+        Returns: undefined;
+      };
+      /** Deletes every expired snap. Returns how many went. */
+      purge_expired_snaps: {
+        Args: Record<string, never>;
+        Returns: number;
       };
     };
     Enums: { [_ in never]: never };

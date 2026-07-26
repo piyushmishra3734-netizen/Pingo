@@ -41,6 +41,7 @@ import type {
   Moment,
   OutgoingMessage,
   SearchResult,
+  SnapView,
   Unsubscribe,
   User,
   UserId,
@@ -107,9 +108,21 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     ...(row.kind === 'sticker' && row.media_url
       ? { sticker: { id: row.id, url: row.media_url } }
       : {}),
-    // A snap *is* the picture. `body` stays a short label so the conversation
-    // list has something to preview without fetching the image.
-    ...(row.kind === 'snap' && row.media_url ? { snap: { url: row.media_url } } : {}),
+    /*
+     * A snap carries no URL — see `SnapRef`. `gone` folds together exhausted,
+     * downloaded and expired, because the thread should not tell you which.
+     */
+    ...(row.kind === 'snap'
+      ? {
+          snap: {
+            expiresAt: row.snap_expires_at ? Date.parse(row.snap_expires_at) : 0,
+            gone:
+              row.snap_path === null ||
+              row.snap_consumed_at !== null ||
+              (row.snap_expires_at !== null && Date.parse(row.snap_expires_at) < Date.now()),
+          },
+        }
+      : {}),
   };
 }
 
@@ -117,10 +130,19 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
 const SNAP_BUCKET = 'snaps';
 
 /**
- * A week. Long enough that scrolling back to last weekend still shows the
- * image, short enough that a link which escapes the app stops working.
+ * A minute. The URL only has to outlive the fetch that immediately follows it;
+ * anything longer is a window where a shared link outlives the snap.
  */
-const SNAP_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
+const SNAP_URL_TTL_SECONDS = 60;
+
+/**
+ * How long an unopened snap survives on the server.
+ *
+ * 24 hours, matching how long a story lasts. The server enforces this in
+ * `open_snap` regardless of whether the cleanup job has run, so an expired snap
+ * is unreadable the moment it expires even if its bytes linger a few minutes.
+ */
+const SNAP_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
 export class SupabaseChatService implements ChatService {
   readonly #client: PingoSupabaseClient;
@@ -399,29 +421,56 @@ export class SupabaseChatService implements ChatService {
   // -- sending -------------------------------------------------------------
 
   /**
-   * Puts a snap in the private bucket and returns a URL that can be rendered.
+   * Puts a snap in the private bucket and returns its **path**, not a URL.
    *
-   * Signed, not public. The `snaps` bucket is private because a snap is sent to
-   * particular people; a public URL would be fetchable by anyone who came
-   * across it. A week is long enough that a thread scrolled back to next
-   * weekend still shows the image, and short enough that a leaked link dies.
+   * A signed URL stored on the message would be a copy the viewer keeps, and
+   * the two-view limit would mean nothing. The path is useless on its own — a
+   * URL is minted per view by `openSnap`, and minting it is what spends one.
    */
   async #uploadSnap(image: Blob): Promise<string> {
     const me = await this.#userId();
     const path = `${me}/${crypto.randomUUID()}.jpg`;
 
-    const { error: uploadError } = await this.#client.storage
+    const { error } = await this.#client.storage
       .from(SNAP_BUCKET)
       .upload(path, image, { contentType: image.type || 'image/jpeg' });
 
-    if (uploadError) throw uploadError;
+    if (error) throw error;
+    return path;
+  }
 
-    const { data, error } = await this.#client.storage
+  async openSnap(messageId: MessageId): Promise<SnapView | undefined> {
+    const { data, error } = await this.#client.rpc('open_snap', { snap_id: messageId });
+    const row = data?.[0];
+    if (error || !row?.path) return undefined;
+
+    /*
+     * A minute. The URL only has to survive the fetch that follows it — anything
+     * longer is a window in which a shared link still works after the snap is
+     * supposed to be gone.
+     */
+    const signed = await this.#client.storage
       .from(SNAP_BUCKET)
-      .createSignedUrl(path, SNAP_URL_TTL_SECONDS);
+      .createSignedUrl(row.path, SNAP_URL_TTL_SECONDS);
 
-    if (error || !data) throw error ?? new Error('Could not sign the snap URL.');
-    return data.signedUrl;
+    if (signed.error || !signed.data) return undefined;
+    return { url: signed.data.signedUrl, viewsLeft: row.views_left };
+  }
+
+  async downloadSnap(messageId: MessageId): Promise<Blob | undefined> {
+    const opened = await this.openSnap(messageId);
+    if (!opened) return undefined;
+
+    const response = await fetch(opened.url);
+    if (!response.ok) return undefined;
+    const blob = await response.blob();
+
+    /*
+     * Destroyed only once the bytes are in hand. Marking it downloaded first
+     * would mean a dropped connection costs the receiver the snap entirely.
+     */
+    await this.#client.rpc('download_snap', { snap_id: messageId });
+    return blob;
   }
 
   async sendMessage(draft: OutgoingMessage): Promise<Message> {
@@ -432,7 +481,10 @@ export class SupabaseChatService implements ChatService {
      * media never arrived is a permanently broken bubble in someone's thread;
      * a failed upload that inserts nothing is a retry.
      */
-    const snapUrl = draft.snap ? await this.#uploadSnap(draft.snap.image) : undefined;
+    const snapPath = draft.snap ? await this.#uploadSnap(draft.snap.image) : undefined;
+    const snapExpiry = snapPath
+      ? new Date(Date.now() + SNAP_EXPIRY_MS).toISOString()
+      : undefined;
 
     const { data, error } = await this.#client
       .from('messages')
@@ -441,7 +493,16 @@ export class SupabaseChatService implements ChatService {
         sender_id: me,
         body: draft.body,
         ...(draft.sticker ? { kind: 'sticker', media_url: draft.sticker.url } : {}),
-        ...(snapUrl ? { kind: 'snap', media_url: snapUrl } : {}),
+        ...(snapPath
+          ? {
+              kind: 'snap',
+              // `media_url` stays populated to satisfy the not-null constraint
+              // on snap rows; the path is what `open_snap` actually reads.
+              media_url: snapPath,
+              snap_path: snapPath,
+              snap_expires_at: snapExpiry,
+            }
+          : {}),
       })
       .select('*')
       .single();

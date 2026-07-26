@@ -7,6 +7,7 @@ import {
   cn,
 } from '@pingo/ui';
 
+import { SnapBubble } from './SnapBubble.js';
 import { VoiceNote } from './VoiceNote.js';
 
 /**
@@ -74,12 +75,7 @@ export function MessageBubble({ message, mine, position, showMeta }: MessageBubb
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
         <div className="animate-bubble-in">
-          <img
-            src={message.snap.url}
-            alt="Snap"
-            draggable={false}
-            className="max-h-80 w-auto max-w-[70vw] rounded-lg object-contain select-none"
-          />
+          <SnapBubble message={message} snap={message.snap} mine={mine} />
           <span className="mt-0.5 block text-caption text-text-tertiary">
             {formatTime(message.createdAt)}
           </span>

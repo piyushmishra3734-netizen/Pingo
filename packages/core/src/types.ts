@@ -151,8 +151,34 @@ export interface Message {
    * Like a sticker, this replaces the bubble rather than decorating it — the
    * picture is the message. `body` stays a short label so notifications and the
    * conversation list have something to say without loading the image.
+   *
+   * Deliberately carries **no URL**. A snap can be opened twice and then never
+   * again, and a URL sitting in the message would be a copy the viewer keeps —
+   * which would make the limit decorative. The bytes are fetched through
+   * `ChatService.openSnap`, and asking is what spends the view.
    */
-  snap?: { url: string };
+  snap?: SnapRef;
+}
+
+/**
+ * What a client may know about a snap without having opened it.
+ *
+ * `gone` covers every way a snap ends — two views spent, downloaded, or
+ * expired — because from the thread's point of view they are the same state and
+ * distinguishing them would only tell the viewer things about the other person.
+ */
+export interface SnapRef {
+  /** Epoch ms. After this the server will not hand out the image. */
+  expiresAt: number;
+  /** True once the media is unrecoverable. The bubble stays; the picture does not. */
+  gone: boolean;
+}
+
+/** The result of spending a view: the image, and how many are left after it. */
+export interface SnapView {
+  url: string;
+  /** 0 means this was the last look. */
+  viewsLeft: number;
 }
 
 /** Enough to render a sticker without loading the pack it came from. */
