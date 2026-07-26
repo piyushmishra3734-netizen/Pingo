@@ -7,6 +7,7 @@ import { filterStill } from '../features/camera/filterStill.js';
 import { FILTERS } from '../features/camera/filters/registry.js';
 import { SnapEditor } from '../features/camera/SnapEditor.js';
 import { useCamera } from '../features/camera/useCamera.js';
+import { useMutuals } from '../features/profile/useMutuals.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
 /**
@@ -66,6 +67,7 @@ export function CameraScreen() {
   // Nothing is opened until the gate is passed, so arriving here by a mis-tap
   // never triggers the permission prompt.
   const camera = useCamera(chain, stage !== 'gate');
+  const mutuals = useMutuals();
 
   useEffect(() => {
     if (!shot) return;
@@ -303,7 +305,17 @@ export function CameraScreen() {
   }
 
   if (stage === 'send' && shot) {
-    const direct = conversations.filter((conversation) => conversation.kind === 'direct');
+    /*
+     * Snaps need a mutual follow, so a thread you can message is not
+     * necessarily one you can snap. Filtered rather than disabled: a list of
+     * greyed-out names would be a roster of people who have not followed you
+     * back, which is not something to put on screen.
+     */
+    const direct = conversations.filter((conversation) => {
+      if (conversation.kind !== 'direct') return false;
+      const other = conversation.participantIds.find((id) => id !== currentUser?.id);
+      return Boolean(other && mutuals?.has(other));
+    });
 
     return (
       <div className="flex h-full flex-col bg-ink">
@@ -332,7 +344,8 @@ export function CameraScreen() {
 
           {direct.length === 0 ? (
             <p className="py-6 text-center text-caption text-text-tertiary">
-              No chats yet. Your snap can still go to your story.
+              No one to snap yet. Snaps need you and the other person to follow
+              each other — your story is still open to everyone you are mutual with.
             </p>
           ) : (
             <ul className="space-y-0.5">

@@ -114,6 +114,15 @@ export interface ProfileService {
 
   /** Requests waiting on the signed-in user, newest first. */
   listFollowRequests(): Promise<Profile[]>;
+
+  /**
+   * Everyone the signed-in user is mutual with, as ids.
+   *
+   * A set rather than one `followState` call per person: the camera's send list
+   * and the chat header both need to gate several people at once, and asking
+   * per row would be a request per contact on every render.
+   */
+  listMutualIds(): Promise<string[]>;
 }
 
 /**

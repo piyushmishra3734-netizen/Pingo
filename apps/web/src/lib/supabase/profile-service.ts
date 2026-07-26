@@ -308,6 +308,34 @@ export class SupabaseProfileService implements ProfileService {
     return this.followState(userId);
   }
 
+  /**
+   * Both directions once, intersected here.
+   *
+   * Postgres could answer this with a self-join, but that would need another
+   * `security definer` function to see past RLS on the other person's row —
+   * and RLS already returns every row that involves me, which is exactly the
+   * input this needs. Two lists and a set beat a new database surface.
+   */
+  async listMutualIds(): Promise<string[]> {
+    const me = await this.requireUserId();
+
+    const { data, error } = await this.client
+      .from('follows')
+      .select('follower_id, followee_id')
+      .eq('status', 'accepted');
+
+    if (error) rethrow(error);
+
+    const iFollow = new Set<string>();
+    const followsMe = new Set<string>();
+    for (const row of data ?? []) {
+      if (row.follower_id === me) iFollow.add(row.followee_id);
+      if (row.followee_id === me) followsMe.add(row.follower_id);
+    }
+
+    return [...iFollow].filter((id) => followsMe.has(id));
+  }
+
   async listFollowRequests(): Promise<Profile[]> {
     const me = await this.requireUserId();
 

@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useCall } from '../calls/CallProvider.js';
+import { useMutuals } from '../profile/useMutuals.js';
 import { Composer } from './Composer.js';
 import { MessageBubble } from './MessageBubble.js';
 
@@ -57,6 +58,8 @@ export function ChatThread({
   const { currentUser, users } = useChat();
   const { groups, loading, send, sendSticker } = useMessages(conversation.id);
   const { startCall } = useCall();
+  const mutuals = useMutuals();
+
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -69,6 +72,13 @@ export function ChatThread({
           (u) => conversation.participantIds.includes(u.id) && u.id !== currentUser?.id,
         )
       : undefined;
+
+  /*
+   * Calls need a mutual follow.  is undefined while loading, so the
+   * buttons are not briefly disabled on first render — a control that flickers
+   * to disabled reads as broken rather than as loading.
+   */
+  const canCall = Boolean(partner && mutuals?.has(partner.id));
 
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
@@ -205,7 +215,7 @@ export function ChatThread({
           <IconButton
             label="Voice call"
             size="sm"
-            disabled={!partner}
+            disabled={!canCall}
             onClick={() => partner && void startCall(partner.id, partner.name, 'voice')}
           >
             <PhoneIcon size={20} />
@@ -213,7 +223,7 @@ export function ChatThread({
           <IconButton
             label="Video call"
             size="sm"
-            disabled={!partner}
+            disabled={!canCall}
             onClick={() => partner && void startCall(partner.id, partner.name, 'video')}
           >
             <VideoIcon size={20} />
