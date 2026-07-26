@@ -40,6 +40,7 @@ import type {
   MessageId,
   Moment,
   OutgoingMessage,
+  Reaction,
   SearchResult,
   SnapView,
   Unsubscribe,
@@ -338,6 +339,19 @@ export class SupabaseChatService implements ChatService {
           });
         },
       )
+      /*
+       * Reactions, live. A reaction is immediate enough that seeing it only
+       * after a reload reads as the tap not having worked. RLS filters this to
+       * conversations the user is in, so no client-side check is needed.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'message_reactions' },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as { message_id?: string } | null;
+          if (row?.message_id) void this.#reloadMessage(row.message_id).catch(() => undefined);
+        },
+      )
       .subscribe((status) => {
         const next: ConnectionState =
           status === 'SUBSCRIBED' ? 'connected' : status === 'CLOSED' ? 'offline' : 'connecting';
@@ -524,12 +538,45 @@ export class SupabaseChatService implements ChatService {
 
     const { data } = await query;
 
+    const rows = (data ?? []).slice().reverse();
+
+    /*
+     * Reactions for the whole page in one query.
+     *
+     * `Message.reactions` is the single source of truth, so the bar renders
+     * from the model and never asks the server what the current state is — the
+     * shape already carries all three things it needs: grouped by emoji, count
+     * from `userIds.length`, and "mine" from whether my id is in there.
+     */
+    const reactions = await this.#reactionsFor(rows.map((row) => row.id));
+
     // Fetched newest-first for the limit; returned newest-last so the UI can
     // append without re-sorting.
-    return (data ?? [])
-      .slice()
-      .reverse()
-      .map((row) => toMessage(row, row.sender_id === me ? theirReadAt : undefined));
+    return rows.map((row) => ({
+      ...toMessage(row, row.sender_id === me ? theirReadAt : undefined),
+      reactions: reactions.get(row.id) ?? [],
+    }));
+  }
+
+  /** Grouped by emoji, in the shape `Message.reactions` already expects. */
+  async #reactionsFor(messageIds: MessageId[]): Promise<Map<MessageId, Reaction[]>> {
+    const grouped = new Map<MessageId, Reaction[]>();
+    if (messageIds.length === 0) return grouped;
+
+    const { data } = await this.#client
+      .from('message_reactions')
+      .select('message_id, user_id, emoji')
+      .in('message_id', messageIds);
+
+    for (const row of data ?? []) {
+      const list = grouped.get(row.message_id) ?? [];
+      const existing = list.find((r) => r.emoji === row.emoji);
+      if (existing) existing.userIds.push(row.user_id);
+      else list.push({ emoji: row.emoji, userIds: [row.user_id] });
+      grouped.set(row.message_id, list);
+    }
+
+    return grouped;
   }
 
   // -- sending -------------------------------------------------------------
@@ -660,12 +707,18 @@ export class SupabaseChatService implements ChatService {
   }
 
   /**
-   * Not persisted — there is no reactions table yet.
+   * Add, swap or remove — the database decides which, in one statement.
    *
-   * Returns the message unchanged rather than pretending. The caller sees no
-   * reaction appear, which is the truth: nothing was stored.
+   * Read-then-write here would let two quick taps race and leave the wrong
+   * emoji standing, which on a control people tap repeatedly is not a rare case.
    */
-  async toggleReaction(messageId: MessageId): Promise<Message> {
+  async toggleReaction(messageId: MessageId, emoji: string): Promise<Message> {
+    await this.#client.rpc('toggle_reaction', { target: messageId, symbol: emoji });
+    return this.#reloadMessage(messageId);
+  }
+
+  /** Re-reads one message with its reactions, and tells everyone. */
+  async #reloadMessage(messageId: MessageId): Promise<Message> {
     const { data, error } = await this.#client
       .from('messages')
       .select('*')
@@ -675,7 +728,11 @@ export class SupabaseChatService implements ChatService {
     if (error) throw error;
     if (!data) throw new Error(`No message ${messageId}`);
 
-    return toMessage(data, undefined);
+    const reactions = await this.#reactionsFor([messageId]);
+    const message = { ...toMessage(data, undefined), reactions: reactions.get(messageId) ?? [] };
+
+    this.#emit({ type: 'message:updated', message });
+    return message;
   }
 
   // -- people --------------------------------------------------------------

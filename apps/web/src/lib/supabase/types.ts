@@ -126,6 +126,17 @@ export type Database = {
         Update: { read_at?: string | null };
         Relationships: [];
       };
+      message_reactions: {
+        Row: {
+          message_id: string;
+          user_id: string;
+          emoji: string;
+          created_at: string;
+        };
+        Insert: { message_id: string; user_id: string; emoji: string };
+        Update: { emoji?: string };
+        Relationships: [];
+      };
       follows: {
         Row: {
           follower_id: string;
@@ -209,6 +220,8 @@ export type Database = {
       /** Streak days per direct conversation, for the signed-in user only. */
       unread_notifications: { Args: Record<string, never>; Returns: number };
       mark_notifications_read: { Args: Record<string, never>; Returns: undefined };
+      /** Add, swap or remove in one statement — see the reactions migration. */
+      toggle_reaction: { Args: { target: string; symbol: string }; Returns: undefined };
       my_streaks: {
         Args: Record<string, never>;
         Returns: { conversation_id: string; streak: number }[];
