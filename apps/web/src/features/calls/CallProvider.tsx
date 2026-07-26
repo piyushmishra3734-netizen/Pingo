@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { usePreferences } from '../settings/SettingsContext.js';
+import { startRinging, type Ringer } from './audio/ringtone.js';
 
 /**
  * Call state, and the one audio element the whole app shares.
@@ -196,6 +197,28 @@ export function CallProvider({
       remoteStream.removeEventListener('removetrack', bump);
     };
   }, [remoteStream]);
+
+  /*
+   * Ringing, driven by call state rather than by the actions around it.
+   *
+   * Starting the tone inside `startCall` and stopping it inside `answer` and
+   * `hangUp` would mean every future way a call can end — declined, busy,
+   * unanswered, network failure — is a new place that has to remember to stop
+   * the sound. Derived from state, there is exactly one rule: it rings while
+   * the call is waiting to connect, and never otherwise.
+   */
+  const ringer = useRef<Ringer | undefined>(undefined);
+  const ringing = call?.state === 'dialling' || call?.state === 'ringing';
+  const ringKind = call?.direction === 'incoming' ? 'ringtone' : 'ringback';
+
+  useEffect(() => {
+    if (!ringing) return;
+    ringer.current = startRinging(ringKind);
+    return () => {
+      ringer.current?.stop();
+      ringer.current = undefined;
+    };
+  }, [ringing, ringKind]);
 
   const dismissError = useCallback(() => setError(undefined), []);
 
