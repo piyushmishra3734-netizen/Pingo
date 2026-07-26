@@ -59,9 +59,9 @@ export function StoriesRow({
               : navigate("/camera")
           }
           className={cn(
-            // px, not rem: the ring is a fixed 97px, and the app scales its root
+            // px, not rem: the ring is a fixed 67px, and the app scales its root
             // font size for accessibility — a rem width would clip it at small scales.
-            'flex w-[97px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+            'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
             'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
           )}
         >
@@ -71,7 +71,7 @@ export function StoriesRow({
                 name={currentUserName}
                 id={currentUserId}
                 src={mine?.stories[0]?.mediaUrl ?? currentUserAvatarUrl}
-                size="xl"
+                size="lg"
               />
             </StoryRing>
 
@@ -97,7 +97,7 @@ export function StoriesRow({
             type="button"
             onClick={(event) => onOpen(group, event.currentTarget.getBoundingClientRect())}
             className={cn(
-            'flex w-[97px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+            'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
             'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
           )}
           >
@@ -106,7 +106,7 @@ export function StoriesRow({
                 name={group.authorName}
                 id={group.authorId}
                 src={group.stories[0]?.mediaUrl ?? group.authorAvatarUrl}
-                size="xl"
+                size="lg"
               />
             </StoryRing>
             <span className="w-full truncate text-caption text-text-secondary">
@@ -137,14 +137,23 @@ function StoryRing({
   return (
     <span
       className={cn(
-        // 97px across: an 88px avatar, plus 4px of inner gap and 5px of gradient.
-        // `shrink-0` keeps it that size inside a narrower row.
-        'grid shrink-0 place-items-center rounded-full p-[2.5px]',
+        /*
+          67px across: a 56px avatar, 5px of inner gap, 6px of gradient.
+
+          The gradient band is what says "there is a story here", so it is the
+          part that got thicker — 3px rather than 2.5px. Growing the avatar
+          instead made the whole rail shout; the ring is the signal, and the
+          face is just what it surrounds.
+        */
+        'grid shrink-0 place-items-center rounded-full p-[3px]',
         !hasStory
           ? 'bg-transparent'
           : seen
             ? 'bg-line-strong'
-            : 'bg-brand-gradient',
+            // Unseen gets a brand-tinted glow as well as the gradient. Colour
+            // alone is easy to miss on a bright screen; the halo is what makes
+            // the circle read as lit from across the room.
+            : 'bg-brand-gradient shadow-brand',
       )}
     >
       {/*
@@ -157,7 +166,7 @@ function StoryRing({
         `block` does not fix it, because a block still lays its inline child out
         on a baseline. `grid` removes the line box altogether.
       */}
-      <span className="grid rounded-full bg-page p-[2px]">{children}</span>
+      <span className="grid rounded-full bg-page p-[2.5px]">{children}</span>
     </span>
   );
 }
