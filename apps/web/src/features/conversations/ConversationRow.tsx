@@ -76,6 +76,12 @@ export function ConversationRow({ conversation, active = false }: ConversationRo
       <Avatar
         name={conversation.title}
         id={partner?.id ?? conversation.id}
+        /*
+          The partner's photo for a direct chat, the conversation's own for a
+          group. Without this every row rendered a monogram even for people who
+          had set a picture — the avatar was there, its source was not.
+        */
+        src={partner?.avatarUrl ?? conversation.avatarUrl}
         size="md"
         // Presence only. Typing is already carried by the preview line below, and
         // saying it twice in one row is two signals competing for the same glance.

@@ -181,7 +181,7 @@ export function CommunitiesScreen() {
                         <Card interactive elevation="sm" className="h-full">
                           <div className="flex items-start justify-between gap-3">
                             <AvatarStack
-                              people={members.map((m) => ({ id: m.id, name: m.name }))}
+                              people={members.map((m) => ({ id: m.id, name: m.name, src: m.avatarUrl }))}
                               size="sm"
                               max={3}
                             />

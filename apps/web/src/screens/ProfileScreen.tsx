@@ -106,6 +106,7 @@ export function ProfileScreen() {
               <Avatar
                 name={user.name}
                 id={user.id}
+                src={user.avatarUrl}
                 size="xl"
                 presence={user.presence.state === 'online' ? 'online' : undefined}
               />

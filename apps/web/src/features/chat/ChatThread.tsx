@@ -174,12 +174,13 @@ export function ChatThread({
             <Avatar
               name={conversation.title}
               id={partner?.id ?? conversation.id}
+              src={partner?.avatarUrl ?? conversation.avatarUrl}
               size="sm"
               presence={partner?.presence.state === 'online' ? 'online' : undefined}
             />
           ) : (
             <AvatarStack
-              people={members.map((m) => ({ id: m.id, name: m.name }))}
+              people={members.map((m) => ({ id: m.id, name: m.name, src: m.avatarUrl }))}
               size="sm"
               max={2}
             />
