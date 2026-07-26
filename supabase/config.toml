@@ -1,0 +1,59 @@
+# Supabase configuration for PINGO.
+#
+# Source of truth for `supabase start` (local development) and for
+# `supabase config push` on a linked project. The hosted project's dashboard
+# must match; `README.md` in this directory lists the settings that matter and
+# why each one is load-bearing.
+#
+# Three doors, all password- or provider-based (docs/01 § 1). **No OTP
+# anywhere** — the verification step in § 6.3 was removed, along with its
+# screens, so any setting that would make Supabase send a code or a link is
+# switched off here on purpose.
+
+project_id = "pingo"
+
+[auth]
+# Where the app runs in development. OAuth redirects are resolved against this.
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173", "http://localhost:5173/auth/google"]
+
+# Sessions persist indefinitely while the device is trusted (docs/01 § 18).
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+
+# ⚠️ Load-bearing. On, Supabase returns `session: null` from `signUp` and waits
+# for a confirmation link — and this product has no screen to wait on, so the
+# user would be stranded one step from Home. `SupabaseAuthService.assertSession`
+# turns that state into an explicit error rather than a silent hang.
+enable_confirmations = false
+
+# Password rules are enforced in `packages/core/password-policy.ts` (10 chars,
+# not common, letters and numbers). This is the backend's floor, kept lower so
+# the product's rule is the one users actually meet.
+minimum_password_length = 8
+
+# Re-authentication before sensitive changes uses a password, never an OTP
+# (docs/01 § 18).
+secure_password_change = true
+
+# Left off deliberately. Phone sign-in runs on a derived address through the
+# email provider, because Supabase will not enable this one without paid SMS
+# credentials it would never use. See README.md → "Phone sign-in does not use
+# Supabase's phone provider".
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+# Where Google returns the browser. `GoogleConnectingScreen` serves both legs.
+redirect_uri = "http://localhost:5173/auth/google"
