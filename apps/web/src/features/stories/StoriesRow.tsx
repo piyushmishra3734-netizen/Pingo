@@ -25,7 +25,8 @@ export interface StoriesRowProps {
   currentUserId: string | undefined;
   currentUserName: string;
   currentUserAvatarUrl?: string;
-  onOpen: (group: StoryGroup) => void;
+  /** The second argument is where the circle was, so the viewer can grow from it. */
+  onOpen: (group: StoryGroup, origin: DOMRect) => void;
 }
 
 export function StoriesRow({
@@ -52,9 +53,15 @@ export function StoriesRow({
         {/* You — either your own stories, or the way to post one. */}
         <button
           type="button"
-          onClick={() => (mine ? onOpen(mine) : navigate('/camera'))}
+          onClick={(event) =>
+            mine
+              ? onOpen(mine, event.currentTarget.getBoundingClientRect())
+              : navigate("/camera")
+          }
           className={cn(
-            'flex w-[4.5rem] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+            // px, not rem: the ring is a fixed 97px, and the app scales its root
+            // font size for accessibility — a rem width would clip it at small scales.
+            'flex w-[97px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
             'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
           )}
         >
@@ -64,7 +71,7 @@ export function StoriesRow({
                 name={currentUserName}
                 id={currentUserId}
                 src={mine?.stories[0]?.mediaUrl ?? currentUserAvatarUrl}
-                size="lg"
+                size="xl"
               />
             </StoryRing>
 
@@ -88,9 +95,9 @@ export function StoriesRow({
           <button
             key={group.authorId}
             type="button"
-            onClick={() => onOpen(group)}
+            onClick={(event) => onOpen(group, event.currentTarget.getBoundingClientRect())}
             className={cn(
-            'flex w-[4.5rem] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+            'flex w-[97px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
             'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
           )}
           >
@@ -99,7 +106,7 @@ export function StoriesRow({
                 name={group.authorName}
                 id={group.authorId}
                 src={group.stories[0]?.mediaUrl ?? group.authorAvatarUrl}
-                size="lg"
+                size="xl"
               />
             </StoryRing>
             <span className="w-full truncate text-caption text-text-secondary">
@@ -130,7 +137,7 @@ function StoryRing({
   return (
     <span
       className={cn(
-        // 65px across: a 56px avatar, plus 4px of inner gap and 5px of gradient.
+        // 97px across: an 88px avatar, plus 4px of inner gap and 5px of gradient.
         // `shrink-0` keeps it that size inside a narrower row.
         'grid shrink-0 place-items-center rounded-full p-[2.5px]',
         !hasStory

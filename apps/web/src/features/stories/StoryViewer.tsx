@@ -1,6 +1,6 @@
 import type { StoryGroup } from '@pingo/core';
 import { Avatar, CloseIcon, IconButton, cn } from '@pingo/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Fullscreen story playback.
@@ -25,11 +25,58 @@ export interface StoryViewerProps {
   onClose: () => void;
   /** Called for each story as it is shown, so the ring can go quiet. */
   onSeen: (storyId: string) => void;
+  /**
+   * Where the tapped circle was on screen, so the viewer can grow out of it.
+   *
+   * Optional: opened from anywhere without an origin, it simply fades in.
+   */
+  origin?: DOMRect;
 }
 
-export function StoryViewer({ group, onClose, onSeen }: StoryViewerProps) {
+export function StoryViewer({ group, onClose, onSeen, origin }: StoryViewerProps) {
   const [index, setIndex] = useState(0);
   const story = group.stories[index];
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * FLIP: the viewer is already full-screen, and we animate *back* from where
+   * the circle was to where it now is.
+   *
+   * Animating width and height instead would relayout every frame and drop the
+   * whole thing to single figures on a phone. A transform is composited, so it
+   * stays smooth, and morphing `border-radius` alongside it is what sells the
+   * circle becoming a rectangle rather than a card sliding up.
+   */
+  useEffect(() => {
+    const element = rootRef.current;
+    if (!element || !origin) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const target = element.getBoundingClientRect();
+    if (target.width === 0 || target.height === 0) return;
+
+    const scaleX = origin.width / target.width;
+    const scaleY = origin.height / target.height;
+    const dx = origin.left + origin.width / 2 - (target.left + target.width / 2);
+    const dy = origin.top + origin.height / 2 - (target.top + target.height / 2);
+
+    element.animate(
+      [
+        {
+          transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
+          borderRadius: '9999px',
+          opacity: 0,
+        },
+        { transform: 'none', borderRadius: '0px', opacity: 1 },
+      ],
+      {
+        duration: 340,
+        // The app's standard curve: quick to leave, slow to settle.
+        easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+        fill: 'both',
+      },
+    );
+  }, [origin]);
 
   // Marked on display rather than on close, so leaving halfway still records
   // exactly what was actually looked at.
@@ -58,7 +105,8 @@ export function StoryViewer({ group, onClose, onSeen }: StoryViewerProps) {
 
   return (
     <div
-      className="fixed inset-0 z-300 flex flex-col bg-ink"
+      ref={rootRef}
+      className="fixed inset-0 z-300 flex flex-col overflow-hidden bg-ink"
       role="dialog"
       aria-modal="true"
       aria-label={`${group.authorName}'s story`}

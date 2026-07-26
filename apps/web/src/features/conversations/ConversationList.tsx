@@ -56,7 +56,13 @@ export function ConversationList({
   const navigate = useNavigate();
 
   const searchRef = useRef<HTMLInputElement>(null);
-  const [openGroup, setOpenGroup] = useState<StoryGroup | undefined>();
+  /*
+   * The origin travels with the group so the viewer can grow out of the exact
+   * circle that was tapped. Measured at tap time, because the row scrolls.
+   */
+  const [openStory, setOpenStory] = useState<
+    { group: StoryGroup; origin: DOMRect } | undefined
+  >();
   const [query, setQuery] = useState('');
   const { filter, setFilter, filtered, counts } = useConversationFilter(
     conversations,
@@ -154,7 +160,7 @@ export function ConversationList({
               currentUserId={profile?.id}
               currentUserName={profile?.displayName ?? 'You'}
               {...(profile?.avatarUrl ? { currentUserAvatarUrl: profile.avatarUrl } : {})}
-              onOpen={setOpenGroup}
+              onOpen={(group, origin) => setOpenStory({ group, origin })}
             />
           </div>
         )}
@@ -209,10 +215,11 @@ export function ConversationList({
         )}
       </div>
 
-      {openGroup && (
+      {openStory && (
         <StoryViewer
-          group={openGroup}
-          onClose={() => setOpenGroup(undefined)}
+          group={openStory.group}
+          origin={openStory.origin}
+          onClose={() => setOpenStory(undefined)}
           onSeen={(storyId) => void markStorySeen(storyId)}
         />
       )}
