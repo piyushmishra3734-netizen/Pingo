@@ -451,19 +451,19 @@ export class SupabaseChatService implements ChatService {
     if (rows.length === 0) return [];
     const ids = rows.map((row) => row.id);
 
-    const [{ data: members }, { data: recent }, { data: streaks }] = await Promise.all([
+    const [{ data: members }, { data: previews }, { data: streaks }] = await Promise.all([
       this.#client.from('conversation_members').select('*').in('conversation_id', ids),
       /*
-       * Newest 200 across all of the user's conversations. Enough to give every
-       * row its preview without a query per conversation; a thread's full
-       * history comes from `listMessages` when it is opened.
+       * One preview and one unread count per conversation, from the database.
+       *
+       * This used to be "the newest 200 messages across everything", filtered
+       * per conversation in JavaScript — which holds only while the total stays
+       * under two hundred. Past that the 200 all belong to the busiest one or
+       * two threads, every other conversation matches nothing, and the list
+       * says "No messages yet" about a conversation full of messages. The
+       * unread count came from the same truncated set and went to zero with it.
        */
-      this.#client
-        .from('messages')
-        .select('*')
-        .in('conversation_id', ids)
-        .order('created_at', { ascending: false })
-        .limit(200),
+      this.#client.rpc('conversation_previews'),
       /*
        * One call for every conversation's streak, not one per row. The function
        * computes them from `messages`, so the number can never drift from the
@@ -476,16 +476,39 @@ export class SupabaseChatService implements ChatService {
       (streaks ?? []).map((row) => [row.conversation_id, row.streak]),
     );
 
+    const previewByConversation = new Map(
+      (previews ?? []).map((row) => [row.conversation_id, row]),
+    );
+
+    /*
+     * The preview rows name the newest message; this fetches those rows. One
+     * query for the whole list, and bounded by the number of conversations
+     * rather than by how much anyone has been talking.
+     */
+    const lastMessageIds = (previews ?? [])
+      .map((row) => row.last_message_id)
+      .filter((id): id is string => Boolean(id));
+
+    const lastById = new Map<string, MessageRow>();
+    if (lastMessageIds.length > 0) {
+      const { data: lastRows } = await this.#client
+        .from('messages')
+        .select('*')
+        .in('id', lastMessageIds);
+      for (const row of lastRows ?? []) lastById.set(row.id, row);
+    }
+
     await this.#loadPeople((members ?? []).map((m) => m.user_id));
 
     return rows
       .map((row) => {
         const roster = (members ?? []).filter((m) => m.conversation_id === row.id);
         const mine = roster.find((m) => m.user_id === me);
-        const readAt = mine ? Date.parse(mine.last_read_at) : 0;
 
-        const threadMessages = (recent ?? []).filter((m) => m.conversation_id === row.id);
-        const last = threadMessages[0];
+        const preview = previewByConversation.get(row.id);
+        const last = preview?.last_message_id
+          ? lastById.get(preview.last_message_id)
+          : undefined;
 
         const others = roster.filter((m) => m.user_id !== me);
         const otherUser = others[0] ? this.#people.get(others[0].user_id) : undefined;
@@ -498,10 +521,9 @@ export class SupabaseChatService implements ChatService {
           ...(otherUser?.avatarUrl ? { avatarUrl: otherUser.avatarUrl } : {}),
           participantIds: roster.map((m) => m.user_id),
           ...(last ? { lastMessage: toMessage(last, undefined) } : {}),
-          // Only other people's messages can be unread. Your own never are.
-          unreadCount: threadMessages.filter(
-            (m) => m.sender_id !== me && Date.parse(m.created_at) > readAt,
-          ).length,
+          // Counted in SQL over the real rows, not over whatever this client
+          // happened to have fetched.
+          unreadCount: preview?.unread_count ?? 0,
           pinned: mine?.pinned ?? false,
           muted: mine?.muted ?? false,
           favorite: mine?.favorite ?? false,

@@ -103,30 +103,19 @@ export function MessageContextMenu({
    * into placement, and switching level re-places.
    */
   const actionsRef = useRef<HTMLDivElement>(null);
+  const reactionsRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>(ESTIMATE);
+  const [reactionsSize, setReactionsSize] = useState<Size>(REACTIONS_ESTIMATE);
 
   useLayoutEffect(() => {
-    const element = actionsRef.current;
-    if (!element) return;
+    const cleanups = [
+      watch(actionsRef.current, setSize),
+      watch(reactionsRef.current, setReactionsSize),
+    ];
+    return () => cleanups.forEach((stop) => stop());
+  }, [actions, reactions]);
 
-    const measure = () => {
-      const box = element.getBoundingClientRect();
-      // Rounded, so sub-pixel jitter cannot loop the observer forever.
-      setSize((previous) => {
-        const next = { height: Math.round(box.height), width: Math.round(box.width) };
-        return next.height === previous.height && next.width === previous.width
-          ? previous
-          : next;
-      });
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [actions]);
-
-  const layout = place(anchor, touch, size);
+  const layout = place(anchor, touch, size, reactionsSize.width);
 
   return (
     <div
@@ -150,9 +139,10 @@ export function MessageContextMenu({
         className="pointer-events-none absolute inset-0"
       >
         <div
+          ref={reactionsRef}
           className="pointer-events-auto absolute origin-bottom animate-panel-in"
           style={{
-            left: layout.left,
+            left: layout.reactionsLeft,
             top: layout.reactionsTop,
             animationDuration: `${ENTER_MS}ms`,
           }}
@@ -197,14 +187,44 @@ export function MessageContextMenu({
 
 interface Layout {
   left: number;
+  reactionsLeft: number;
   reactionsTop: number;
   actionsTop: number;
 }
 
-/** The measured action panel. */
+/** A measured panel. */
 interface Size {
   height: number;
   width: number;
+}
+
+/**
+ * Keeps a panel's measured size current. Returns a stop function.
+ *
+ * Rounded, so sub-pixel jitter cannot loop the observer forever, and identical
+ * measurements return the previous object so a resize that changes nothing does
+ * not re-render.
+ */
+function watch(
+  element: HTMLElement | null,
+  set: React.Dispatch<React.SetStateAction<Size>>,
+): () => void {
+  if (!element) return () => undefined;
+
+  const measure = () => {
+    const box = element.getBoundingClientRect();
+    set((previous) => {
+      const next = { height: Math.round(box.height), width: Math.round(box.width) };
+      return next.height === previous.height && next.width === previous.width
+        ? previous
+        : next;
+    });
+  };
+
+  measure();
+  const observer = new ResizeObserver(measure);
+  observer.observe(element);
+  return () => observer.disconnect();
 }
 
 /**
@@ -215,8 +235,17 @@ interface Size {
  */
 const ESTIMATE: Size = { height: 190, width: 176 };
 
-/** The reaction bar is one fixed row, so this one really is a constant. */
+/** The reaction bar is one fixed row, so its height really is a constant. */
 const REACTIONS_HEIGHT = 48;
+
+/**
+ * Six 40px targets plus gaps and padding.
+ *
+ * Its width is measured all the same, because it is the panel most likely to be
+ * wider than the phone it is on — six touch targets in a row against a 360px
+ * screen leaves very little margin, and this is the one that was overhanging.
+ */
+const REACTIONS_ESTIMATE: Size = { height: REACTIONS_HEIGHT, width: 268 };
 
 /**
  * Decides where the two groups sit.
@@ -232,8 +261,24 @@ const REACTIONS_HEIGHT = 48;
  * A message taller than the viewport has no useful edge, so both groups
  * anchor to the touch point instead.
  */
-function place(anchor: DOMRect, touch: { x: number; y: number }, size: Size): Layout {
-  const viewport = window.innerHeight;
+function place(
+  anchor: DOMRect,
+  touch: { x: number; y: number },
+  size: Size,
+  reactionsWidth: number,
+): Layout {
+  /*
+   * The *visual* viewport, where the browser reports one.
+   *
+   * On a phone `window.innerHeight` includes the strip under a collapsing URL
+   * bar and ignores the keyboard entirely, so placing against it puts the
+   * bottom of the menu underneath browser chrome — which is the "off screen on
+   * mobile" case. `visualViewport` is what is actually visible.
+   */
+  const visual = window.visualViewport;
+  const viewport = visual?.height ?? window.innerHeight;
+  const viewportWidth = visual?.width ?? window.innerWidth;
+
   const oversized = anchor.height > viewport * 0.6;
 
   const top = oversized ? touch.y : anchor.top;
@@ -267,20 +312,24 @@ function place(anchor: DOMRect, touch: { x: number; y: number }, size: Size): La
   }
 
   /*
-   * Horizontal clamp.
+   * Horizontal clamp, per panel.
    *
-   * The panel starts at the bubble's left edge, and an outgoing bubble sits
-   * against the right side of the thread — so a panel wider than the bubble
-   * hangs off the screen. Sliding it back keeps the tie to the message without
-   * putting half the rows past the edge.
+   * Each starts at the bubble's left edge, and an outgoing bubble sits against
+   * the right side of the thread — so anything wider than the bubble hangs off
+   * the screen. This is why the menu ran off the edge on a phone: the two
+   * panels are different widths, and clamping both by the action panel's width
+   * left the reaction bar free to overhang.
+   *
+   * `Math.max(GAP_PX, …)` is last so it wins: on a screen narrower than the
+   * panel the left edge stays visible and the panel's own overflow handles the
+   * rest, rather than the panel being pushed off the left to fit its right.
    */
-  const left = Math.max(
-    GAP_PX,
-    Math.min(anchor.left, window.innerWidth - size.width - GAP_PX),
-  );
+  const clamp = (width: number) =>
+    Math.max(GAP_PX, Math.min(anchor.left, viewportWidth - width - GAP_PX));
 
   return {
-    left,
+    left: clamp(size.width),
+    reactionsLeft: clamp(reactionsWidth),
     reactionsTop: Math.max(GAP_PX, reactionsTop),
     // Both ends, and in this order: pinning the bottom on screen must not push
     // the top off it when the panel is tall.

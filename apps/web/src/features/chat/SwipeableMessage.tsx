@@ -32,7 +32,17 @@ export function SwipeableMessage({
   enabled = true,
   children,
 }: SwipeableMessageProps) {
-  const { handlers, offset, armed, dragging } = useSwipeToReply(onReply, enabled);
+  /*
+   * Your own messages sit against the right edge and swipe left; theirs sit
+   * against the left and swipe right. Both travel inward, away from the edge
+   * they are already pressed against.
+   */
+  const direction = mine ? -1 : 1;
+  const { handlers, offset, armed, dragging } = useSwipeToReply(
+    onReply,
+    enabled,
+    direction,
+  );
 
   /** 0 → 1 across the travel, so the icon arrives as the gesture does. */
   const progress = Math.min(offset / COMMIT_PX, 1);
@@ -41,14 +51,16 @@ export function SwipeableMessage({
     <div className="relative" {...handlers}>
       {/*
         The icon is revealed from underneath rather than pushed along in front:
-        it belongs to the track the message slides over, not to the message.
+        it belongs to the track the message slides over, not to the message. It
+        sits on the side the message is travelling away from, so it is uncovered
+        by the movement instead of being run over by it.
       */}
       {offset > 0 && (
         <div
           aria-hidden
           className={cn(
             'pointer-events-none absolute inset-y-0 flex items-center',
-            mine ? 'left-2' : 'left-0',
+            mine ? 'right-0' : 'left-0',
           )}
           style={{
             opacity: progress,
@@ -70,7 +82,9 @@ export function SwipeableMessage({
       )}
 
       <div
-        style={{ transform: offset ? `translateX(${offset}px)` : undefined }}
+        style={{
+          transform: offset ? `translateX(${offset * direction}px)` : undefined,
+        }}
         className={cn(
           // Animated only on release: transitioning during the drag would put
           // the message behind the finger, which reads as lag.

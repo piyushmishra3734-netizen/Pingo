@@ -65,7 +65,19 @@ export interface SwipeToReply {
  * @param enabled Off for messages there is nothing to reply to, such as a
  * tombstone — the affordance should not appear where the action does not exist.
  */
-export function useSwipeToReply(onReply: () => void, enabled = true): SwipeToReply {
+export function useSwipeToReply(
+  onReply: () => void,
+  enabled = true,
+  /**
+   * Which way the message travels: `1` for right, `-1` for left.
+   *
+   * Your own messages sit against the right edge of the thread and swipe left;
+   * theirs sit against the left and swipe right. Both move *inward*, away from
+   * the edge they are already pressed against — a bubble dragged further into
+   * the margin it is already touching has nowhere to go and reads as stuck.
+   */
+  direction: 1 | -1 = 1,
+): SwipeToReply {
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
 
@@ -89,41 +101,50 @@ export function useSwipeToReply(onReply: () => void, enabled = true): SwipeToRep
     [enabled],
   );
 
-  const onPointerMove = useCallback((event: React.PointerEvent) => {
-    const origin = start.current;
-    if (!origin) return;
+  const onPointerMove = useCallback(
+    (event: React.PointerEvent) => {
+      const origin = start.current;
+      if (!origin) return;
 
-    const dx = event.clientX - origin.x;
-    const dy = event.clientY - origin.y;
+      // Measured along the allowed direction, so everything below is a plain
+      // "how far has it come" regardless of which way that is on screen.
+      const travelled = (event.clientX - origin.x) * direction;
+      const dy = event.clientY - origin.y;
 
-    if (!engaged.current) {
-      // Not far enough to mean anything yet.
-      if (Math.abs(dx) < ENGAGE_PX && Math.abs(dy) < ENGAGE_PX) return;
+      if (!engaged.current) {
+        // Not far enough to mean anything yet.
+        if (Math.abs(travelled) < ENGAGE_PX && Math.abs(dy) < ENGAGE_PX) return;
 
-      /*
-       * Direction decides who owns this pointer, and the decision is made once.
-       * A drag that started vertically stays the scroller's for its whole life,
-       * even if it curves — otherwise a diagonal flick would hand the thread
-       * over mid-scroll.
-       */
-      if (Math.abs(dx) <= Math.abs(dy) || dx <= 0) {
-        start.current = undefined;
-        return;
+        /*
+         * Direction decides who owns this pointer, and the decision is made
+         * once. A drag that started vertically stays the scroller's for its
+         * whole life, even if it curves — otherwise a diagonal flick would hand
+         * the thread over mid-scroll. A drag the wrong way is not this gesture
+         * either, and is dropped rather than clamped to zero, so it cannot
+         * become a swipe by curving back.
+         */
+        if (Math.abs(travelled) <= Math.abs(dy) || travelled <= 0) {
+          start.current = undefined;
+          return;
+        }
+
+        engaged.current = true;
+        setDragging(true);
+        // The bubble keeps the pointer from here on, so a flick that leaves the
+        // element does not strand it mid-swipe with no release to reset it.
+        (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
       }
 
-      engaged.current = true;
-      setDragging(true);
-      // The bubble keeps the pointer from here on, so a flick that leaves the
-      // element does not strand it mid-swipe with no release to reset it.
-      (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-    }
-
-    // Free travel up to the commit point, then heavy resistance: the message
-    // still answers the finger, but says it has gone far enough.
-    const travel =
-      dx <= COMMIT_PX ? dx : COMMIT_PX + (dx - COMMIT_PX) * RESISTANCE;
-    setOffset(Math.min(travel, MAX_PX));
-  }, []);
+      // Free travel up to the commit point, then heavy resistance: the message
+      // still answers the finger, but says it has gone far enough.
+      const eased =
+        travelled <= COMMIT_PX
+          ? travelled
+          : COMMIT_PX + (travelled - COMMIT_PX) * RESISTANCE;
+      setOffset(Math.min(eased, MAX_PX));
+    },
+    [direction],
+  );
 
   const onPointerUp = useCallback(
     (event: React.PointerEvent) => {

@@ -143,14 +143,37 @@ rows, which is the AI tab again, scattered.
 The component is one. Only the trigger differs by platform, and no behaviour is
 allowed to differ with it — a second implementation is a second set of bugs.
 
-| Platform | Trigger |
-| --- | --- |
-| Touch | long press |
-| Pointer | a `⋯` that appears on hover, aligned to the bubble |
-| Pointer | right-click, anchored at the cursor |
-| Keyboard | `Shift+F10` or the Context Menu key on the focused message |
+| Platform | Trigger | Opens |
+| --- | --- | --- |
+| Touch | tap | the reaction bar only |
+| Touch | long press | the bar and the actions |
+| Pointer | a `⋯` that appears on hover, aligned to the bubble | everything |
+| Pointer | right-click, anchored at the cursor | everything |
+| Keyboard | `Shift+F10` or the Context Menu key on the focused message | everything |
 
 `Esc` closes, everywhere.
+
+### Two depths, one menu
+
+Amended after build. A tap offers reactions and nothing else; a hold offers the
+actions as well. Reacting is by far the most common thing anyone does to a
+message and also the most reversible, so it gets the cheapest gesture, and the
+half-second hold is kept for the actions that change something.
+
+This replaced double-tap-to-❤️, which cannot coexist with it: once a single tap
+opens the bar, the second tap of a double tap lands on the bar rather than on
+the message. Choosing an emoji is barely slower than committing to ❤️, and it is
+one rule instead of two.
+
+The `➕` on a tap-opened bar reveals the actions rather than dead-ending, so
+realising mid-gesture that you wanted Reply does not cost a dismiss and a hold —
+otherwise people learn to hold every time and the cheap gesture earns nothing.
+
+Tap-to-react is touch only. A click is how you interact with everything on a
+desktop, so binding it to a reaction bar would fire constantly by accident, and
+the hover `⋯` is already the cheap opener there. This is a difference in
+*trigger*, which the table above exists to hold — the menu and its behaviour do
+not change with it.
 
 Right-click anchors to the cursor rather than the bubble because that is where a
 desktop user is already looking, and § 1.1 asks the menu to come from where the

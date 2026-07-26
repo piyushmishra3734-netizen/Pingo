@@ -267,6 +267,15 @@ export type Database = {
         Args: { other_user: string };
         Returns: string;
       };
+      /** Newest message and unread count per conversation, for this user only. */
+      conversation_previews: {
+        Args: Record<string, never>;
+        Returns: {
+          conversation_id: string;
+          last_message_id: string | null;
+          unread_count: number;
+        }[];
+      };
       /** Streak days per direct conversation, for the signed-in user only. */
       unread_notifications: { Args: Record<string, never>; Returns: number };
       mark_notifications_read: { Args: Record<string, never>; Returns: undefined };

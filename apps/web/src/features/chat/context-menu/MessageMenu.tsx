@@ -1,6 +1,7 @@
 import { useChat, type Message } from '@pingo/core';
 import { useCallback, useState } from 'react';
 
+import { EditMessageSheet } from './EditMessageSheet.js';
 import { MessageActions } from './MessageActions.js';
 import { MessageContextMenu } from './MessageContextMenu.js';
 import { MoreSheet } from './MoreSheet.js';
@@ -47,6 +48,8 @@ export function MessageMenu({
   const [level, setLevel] = useState<'actions' | 'more'>('actions');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  /** The in-app editor, which replaced `window.prompt`. */
+  const [editing, setEditing] = useState(false);
 
   const react = useCallback(
     async (emoji: string) => {
@@ -71,17 +74,42 @@ export function MessageMenu({
     [busy, service, message.id],
   );
 
-  const menu = useMessageMenu((emoji) => void react(emoji));
+  const menu = useMessageMenu();
 
-  const level2 = useLevel2(message, service, (why) => {
-    setError(why);
-    window.setTimeout(() => setError(undefined), 2200);
-  });
+  /**
+   * Set when a tap-opened bar has been asked for more.
+   *
+   * Without this the `➕` on a reactions-only bar leads nowhere, and a tap
+   * would be a dead end for anyone who realises mid-gesture that they wanted an
+   * action after all — which would teach people to hold every time and undo the
+   * point of the cheap gesture.
+   */
+  const [promoted, setPromoted] = useState(false);
+
+  /*
+   * A tap asked for reactions only. The actions are not hidden from it so much
+   * as never requested — holding is what asks for them, and offering them
+   * anyway would make the two gestures identical.
+   */
+  const reactionsOnly = menu.open?.mode === 'reactions' && !promoted;
+
+  const level2 = useLevel2(
+    message,
+    service,
+    (why) => {
+      setError(why);
+      window.setTimeout(() => setError(undefined), 2200);
+    },
+    // Opening the editor is the menu's job, not Level 2's — Level 2 only knows
+    // which row was pressed.
+    () => setEditing(true),
+  );
 
   const close = useCallback(() => {
     menu.close();
     // Reset so the next open starts at Level 1 rather than wherever it ended.
     setLevel('actions');
+    setPromoted(false);
   }, [menu]);
 
   const myReaction = currentUser
@@ -111,12 +139,18 @@ export function MessageMenu({
                   void react(emoji);
                   close();
                 }}
-                onOpenPicker={() => setLevel('more')}
+                onOpenPicker={() => {
+                  // From a tap, `➕` reveals the actions the tap did not ask
+                  // for; from a hold they are already there, so it goes on to
+                  // Level 2.
+                  if (reactionsOnly) setPromoted(true);
+                  else setLevel('more');
+                }}
               />
             ) : null
           }
           actions={
-            level === 'actions' ? (
+            reactionsOnly ? null : level === 'actions' ? (
               <MessageActions
                 message={message}
                 onReply={onReply}
@@ -138,6 +172,22 @@ export function MessageMenu({
           {children}
         </MessageContextMenu>
       )}
+
+      {editing && (
+        <EditMessageSheet
+          body={message.body}
+          onCancel={() => setEditing(false)}
+          onSave={(next) => {
+            setEditing(false);
+            void service
+              .editMessage(message.id, next)
+              .catch(() => {
+                setError('Edit failed');
+                window.setTimeout(() => setError(undefined), 2200);
+              });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -156,12 +206,14 @@ function useLevel2(
   message: Message,
   service: ReturnType<typeof useChat>['service'],
   onFail: (why: string) => void,
+  onEdit: () => void,
 ) {
   const guard = (what: string, run: () => Promise<unknown>) => () => {
     void run().catch(() => onFail(`${what} failed`));
   };
 
   return {
+    edit: onEdit,
     pin: guard('Pin', () => service.togglePin(message.id)),
     star: guard('Star', () => service.toggleStar(message.id)),
     // An hour is the only interval worth offering without a picker; anything
@@ -170,11 +222,6 @@ function useLevel2(
       service.remindAboutMessage(message.id, Date.now() + 60 * 60 * 1000),
     ),
 
-    edit: () => {
-      const next = window.prompt('Edit message', message.body);
-      if (next === null || next.trim() === message.body.trim()) return;
-      void service.editMessage(message.id, next.trim()).catch(() => onFail('Edit failed'));
-    },
 
     deleteForMe: guard('Delete', () => service.deleteMessage(message.id, false)),
     deleteForEveryone: guard('Delete', () => service.deleteMessage(message.id, true)),
