@@ -112,6 +112,25 @@ export type Database = {
         };
         Relationships: [];
       };
+      follows: {
+        Row: {
+          follower_id: string;
+          followee_id: string;
+          status: 'pending' | 'accepted';
+          created_at: string;
+          responded_at: string | null;
+        };
+        Insert: {
+          follower_id: string;
+          followee_id: string;
+          status?: 'pending' | 'accepted';
+        };
+        Update: {
+          status?: 'pending' | 'accepted';
+          responded_at?: string | null;
+        };
+        Relationships: [];
+      };
       messages: {
         Row: MessageRow;
         Insert: {

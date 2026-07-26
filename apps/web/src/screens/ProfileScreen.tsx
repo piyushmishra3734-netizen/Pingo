@@ -1,4 +1,4 @@
-import { useChat, type GalleryItem, type User } from '@pingo/core';
+import { useChat, type FollowState, type GalleryItem, type User } from '@pingo/core';
 import {
   Avatar,
   Button,
@@ -15,6 +15,8 @@ import {
 } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+
+import { FollowButton } from '../features/profile/FollowButton.js';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
 
@@ -42,6 +44,7 @@ export function ProfileScreen() {
     : users.find((u) => u.handle === handle);
 
   const [gallery, setGallery] = useState<GalleryItem[] | undefined>();
+  const [follow, setFollow] = useState<FollowState>();
 
   useEffect(() => {
     if (!user) return;
@@ -95,6 +98,24 @@ export function ProfileScreen() {
 
             <h1 className="mt-4 text-h1 text-ink">{user.name}</h1>
             <p className="mt-1 text-body text-brand">@{user.handle}</p>
+
+            {/*
+              Only on other people. The button is also where the mutual state
+              is discovered, so the note below it reads from the same fetch
+              rather than asking again.
+            */}
+            {!isSelf && (
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <FollowButton userId={user.id} onChange={setFollow} />
+
+                {follow && follow !== 'mutual' && (
+                  <p className="max-w-xs text-center text-caption text-text-tertiary">
+                    Calls, snaps and stories open up once you both follow each other.
+                    You can still message.
+                  </p>
+                )}
+              </div>
+            )}
 
             {user.bio && (
               <p className="mt-3 max-w-sm text-center text-body text-text-secondary">

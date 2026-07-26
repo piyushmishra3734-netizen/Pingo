@@ -90,6 +90,62 @@ export interface ProfileService {
    * already here.
    */
   listRecentPeople(limit?: number): Promise<Profile[]>;
+
+  // -- follows -------------------------------------------------------------
+
+  /** Where this person stands with the signed-in user. */
+  followState(userId: string): Promise<FollowState>;
+
+  /** Sends a follow request. Idempotent — asking twice does not queue two. */
+  requestFollow(userId: string): Promise<FollowState>;
+
+  /**
+   * Accepts a request this person sent you.
+   *
+   * Accepting does **not** follow them back. Mutual access needs both
+   * directions, so the UI still offers "follow back" afterwards — otherwise
+   * accepting would silently grant them your stories and calls while giving you
+   * nothing, which is not what the person tapping "Accept" is agreeing to.
+   */
+  acceptFollow(userId: string): Promise<FollowState>;
+
+  /** Unfollow, withdraw a request, or reject one. All the same row. */
+  removeFollow(userId: string): Promise<FollowState>;
+
+  /** Requests waiting on the signed-in user, newest first. */
+  listFollowRequests(): Promise<Profile[]>;
+}
+
+/**
+ * The relationship between the signed-in user and someone else.
+ *
+ * Deliberately one value rather than a pair of booleans. Every screen asks the
+ * same question — "what button do I show?" — and a `{ following, followedBy,
+ * pending }` triple makes each of them re-derive the answer, differently.
+ */
+export type FollowState =
+  /** Nothing between them. */
+  | 'none'
+  /** You asked; they have not answered. */
+  | 'requested'
+  /** They asked you. This is the one that needs a decision. */
+  | 'incoming'
+  /** You follow them; they do not follow you. No calls, snaps or stories yet. */
+  | 'following'
+  /** They follow you; you do not follow them. */
+  | 'follower'
+  /** Both accepted. Calls, snaps and stories are open. */
+  | 'mutual';
+
+/**
+ * What a mutual follow unlocks.
+ *
+ * Messaging is absent on purpose: anyone can message anyone. A request you
+ * cannot send is a product nobody can start using, so the open door is the
+ * text box, and everything with a camera or microphone waits for both sides.
+ */
+export function canShareMedia(state: FollowState): boolean {
+  return state === 'mutual';
 }
 
 /** Trims, lowercases and strips what the handle rules forbid. */

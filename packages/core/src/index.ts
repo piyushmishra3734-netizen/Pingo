@@ -36,12 +36,14 @@ export type {
   Profile,
   ProfileDraft,
   ProfileErrorCode,
+  FollowState,
 } from './profile-service.js';
 export {
   ProfileError,
   normaliseUsername,
   isValidUsername,
   suggestUsernameFromName,
+  canShareMedia,
 } from './profile-service.js';
 
 // Service boundary — ephemeral posts

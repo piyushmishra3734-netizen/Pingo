@@ -19,6 +19,7 @@ import {
   ProfileError,
   isValidUsername,
   normaliseUsername,
+  type FollowState,
   type Profile,
   type ProfileDraft,
   type ProfileService,
@@ -221,5 +222,107 @@ export class SupabaseProfileService implements ProfileService {
 
     if (error) rethrow(error);
     return (data ?? []).map(toProfile);
+  }
+
+  // -- follows -------------------------------------------------------------
+
+  /**
+   * Both directions in one query.
+   *
+   * `or(...)` fetches the row I own and the row they own together, because the
+   * answer depends on both and two round trips could see them in different
+   * states — accept arriving between them would report `following` for a pair
+   * that is already mutual.
+   */
+  async followState(userId: string): Promise<FollowState> {
+    const me = await this.requireUserId();
+    if (me === userId) return 'none';
+
+    const { data, error } = await this.client
+      .from('follows')
+      .select('follower_id, followee_id, status')
+      .or(
+        `and(follower_id.eq.${me},followee_id.eq.${userId}),` +
+          `and(follower_id.eq.${userId},followee_id.eq.${me})`,
+      );
+
+    if (error) rethrow(error);
+
+    const outgoing = (data ?? []).find((row) => row.follower_id === me);
+    const incoming = (data ?? []).find((row) => row.follower_id === userId);
+
+    if (outgoing?.status === 'accepted' && incoming?.status === 'accepted') return 'mutual';
+    // An unanswered request I received outranks one I sent: it is the only
+    // state with something for this user to actually do.
+    if (incoming?.status === 'pending') return 'incoming';
+    if (outgoing?.status === 'pending') return 'requested';
+    if (outgoing?.status === 'accepted') return 'following';
+    if (incoming?.status === 'accepted') return 'follower';
+    return 'none';
+  }
+
+  async requestFollow(userId: string): Promise<FollowState> {
+    const me = await this.requireUserId();
+
+    // `upsert` rather than `insert`: re-requesting after a withdrawal is normal,
+    // and a duplicate-key error is not something a user should ever be shown.
+    const { error } = await this.client
+      .from('follows')
+      .upsert(
+        { follower_id: me, followee_id: userId, status: 'pending' },
+        { onConflict: 'follower_id,followee_id', ignoreDuplicates: true },
+      );
+
+    if (error) rethrow(error);
+    return this.followState(userId);
+  }
+
+  async acceptFollow(userId: string): Promise<FollowState> {
+    const me = await this.requireUserId();
+
+    // Their row, not mine. RLS also enforces this — the policy only lets the
+    // followee update — so a mistake here fails rather than granting access.
+    const { error } = await this.client
+      .from('follows')
+      .update({ status: 'accepted', responded_at: new Date().toISOString() })
+      .eq('follower_id', userId)
+      .eq('followee_id', me);
+
+    if (error) rethrow(error);
+    return this.followState(userId);
+  }
+
+  /** Unfollow, withdraw, or reject — all of them delete a row. */
+  async removeFollow(userId: string): Promise<FollowState> {
+    const me = await this.requireUserId();
+
+    const { error } = await this.client
+      .from('follows')
+      .delete()
+      .or(
+        `and(follower_id.eq.${me},followee_id.eq.${userId}),` +
+          `and(follower_id.eq.${userId},followee_id.eq.${me})`,
+      );
+
+    if (error) rethrow(error);
+    return this.followState(userId);
+  }
+
+  async listFollowRequests(): Promise<Profile[]> {
+    const me = await this.requireUserId();
+
+    const { data, error } = await this.client
+      .from('follows')
+      .select('follower_id, created_at, profiles!follows_follower_id_fkey(*)')
+      .eq('followee_id', me)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) rethrow(error);
+
+    return (data ?? [])
+      .map((row) => (row as unknown as { profiles: ProfileRow | null }).profiles)
+      .filter((profile): profile is ProfileRow => profile !== null)
+      .map(toProfile);
   }
 }
