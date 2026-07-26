@@ -102,7 +102,19 @@ export class PresenceHub {
     if (this.#typing.has(conversationId)) return;
 
     const channel = this.#client
-      .channel(`typing:${conversationId}`)
+      .channel(`typing:${conversationId}`, {
+        /*
+         * `self: true` is load-bearing, and the reason typing did not work.
+         *
+         * A keystroke usually arrives before the channel has finished joining,
+         * so `send()` falls back to Realtime's HTTP broadcast endpoint — and
+         * with `self` at its default the client discards what arrives that way.
+         * The call signalling channel hit exactly this; the fix is the same.
+         * Echoing our own typing back is harmless, because the handler below
+         * ignores anything from this user.
+         */
+        config: { broadcast: { self: true } },
+      })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
         const { userId, typing } = payload as { userId: UserId; typing: boolean };
         if (userId === this.#userId) return;
