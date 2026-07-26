@@ -848,6 +848,21 @@ export class SupabaseChatService implements ChatService {
     });
 
     if (error) throw error;
+
+    /*
+     * Announce it before returning.
+     *
+     * The RPC creates the conversation server-side, but the client's list is
+     * whatever it last fetched — so navigating straight to `/chats/{id}` found
+     * no conversation and rendered nothing. The caller had done everything
+     * right and landed on an empty screen.
+     *
+     * Realtime does not cover this: it carries message inserts, not
+     * conversation ones, and there is no message yet.
+     */
+    const conversation = await this.getConversation(data);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+
     return data;
   }
 }
