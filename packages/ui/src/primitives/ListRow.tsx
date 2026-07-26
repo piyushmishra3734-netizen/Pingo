@@ -83,7 +83,7 @@ export function ListRow({
 
   const shared = cn(
     'flex w-full items-center gap-3 rounded-md px-3 py-3',
-    'transition-colors duration-instant ease-standard',
+    'transition-[background-color,transform] duration-instant ease-standard active:scale-[0.99]',
     className,
   );
 

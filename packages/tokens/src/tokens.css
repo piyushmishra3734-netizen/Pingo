@@ -120,6 +120,13 @@
   --animate-fade-in: fade-in var(--duration-base) var(--ease-standard) both;
   --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) both;
 
+  /* A screen arriving. Short and shallow — navigation should feel instant and
+     still be legible as a change, so this reads as settling rather than sliding. */
+  --animate-screen-in: screen-in var(--duration-quick) var(--ease-standard) both;
+
+  /* A row appearing in a list. Used with a per-item delay for a stagger. */
+  --animate-row-in: row-in var(--duration-quick) var(--ease-standard) both;
+
   /* ---- Layout ----------------------------------------------------------- */
   --breakpoint-sm: 480px;
   --breakpoint-md: 768px;
@@ -193,6 +200,30 @@
 }
 
 /** New message bubbles: rise slightly less far, so a busy thread stays calm. */
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    /* 6px, not 20. A big offset on every navigation is a page that never
+       settles; this is enough to see and not enough to wait for. */
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes bubble-in {
   from {
     opacity: 0;

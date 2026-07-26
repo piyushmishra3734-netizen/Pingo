@@ -56,7 +56,18 @@ export function AppShell() {
           !fullscreen && 'pb-[6.5rem]',
         )}
       >
-        <Outlet />
+        {/*
+          Keyed on the path, so React remounts the subtree and the animation
+          replays on every navigation. Without the key it would run once, on
+          first mount, and never again — which is what "no animation anywhere"
+          actually looks like.
+
+          The dock is deliberately outside: a navigation bar that fades on every
+          tap draws attention to itself rather than to what changed.
+        */}
+        <div key={location.pathname} className="h-full animate-screen-in">
+          <Outlet />
+        </div>
       </main>
 
       {!fullscreen && <Dock />}
