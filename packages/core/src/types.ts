@@ -132,6 +132,15 @@ export interface Message {
   replyToId?: MessageId;
   editedAt?: number;
   /**
+   * Removed for everyone.
+   *
+   * The row survives so the thread keeps its shape and replies quoting it keep
+   * an anchor; `body` is empty and the tombstone is what a reader sees. Not a
+   * system message — it stays on its author's side of the thread, because who
+   * deleted it is part of what happened.
+   */
+  deleted?: boolean;
+  /**
    * System notices ("Kabir joined") render as centred captions, not bubbles.
    */
   system?: boolean;

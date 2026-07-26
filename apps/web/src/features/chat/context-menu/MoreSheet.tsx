@@ -14,9 +14,10 @@ import { useMemo } from 'react';
  * docs/13 § 3: hide what was never yours, explain what expired.
  *
  * Delete-for-everyone on someone else's message is hidden — you never had it,
- * so you will not look for it. Edit past its window is shown and disabled with
- * the reason, because you *did* have it a minute ago and silence sends you
- * hunting through a menu that no longer contains it.
+ * so you will not look for it. Nothing here expires any more: editing and
+ * deleting your own message have no time limit, because what protects a reader
+ * is knowing the message changed, and both changes are marked. `disabledReason`
+ * stays because the *rule* still holds for whatever expires next.
  *
  * ## Contextual AI
  *
@@ -24,9 +25,6 @@ import { useMemo } from 'react';
  * That is what keeps it invisible rather than merely optional: four permanent
  * extra rows would be the AI tab again, scattered.
  */
-
-/** How long a message stays editable. Matches the copy shown when it lapses. */
-const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 interface Item {
   label: string;
@@ -67,8 +65,6 @@ export interface MoreSheetProps {
 
 export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetProps) {
   const categories = useMemo<Category[]>(() => {
-    const age = Date.now() - message.createdAt;
-    const editable = mine && age < EDIT_WINDOW_MS;
     const hasMedia = Boolean(message.snap ?? message.sticker);
 
     const run = (fn: () => void) => () => {
@@ -78,21 +74,16 @@ export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetP
 
     const edit: Item[] = [];
     if (mine) {
-      edit.push({
-        label: 'Edit',
-        // Shown even when lapsed: it *was* available, so silence would send the
-        // user hunting. docs/13 § 3.
-        ...(editable ? {} : { disabledReason: 'Editing time has passed' }),
-        onSelect: run(actions.edit),
-      });
+      /*
+       * No time limit. The window was removed because the thing that protects a
+       * reader is knowing a message changed, not the change becoming impossible
+       * — and every edit is marked, every delete leaves a tombstone.
+       */
+      edit.push({ label: 'Edit', onSelect: run(actions.edit) });
     }
     edit.push({ label: 'Delete for me', onSelect: run(actions.deleteForMe) });
     if (mine) {
-      edit.push({
-        label: 'Delete for everyone',
-        ...(age < EDIT_WINDOW_MS ? {} : { disabledReason: 'Too long ago' }),
-        onSelect: run(actions.deleteForEveryone),
-      });
+      edit.push({ label: 'Delete for everyone', onSelect: run(actions.deleteForEveryone) });
     }
 
     const share: Item[] = [
@@ -143,7 +134,7 @@ export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetP
     <div
       role="menu"
       aria-label="More actions"
-      className="glass-surface max-h-[60vh] w-60 overflow-y-auto rounded-xl py-1 shadow-lg"
+      className="bg-surface border border-line max-h-[60vh] w-60 overflow-y-auto rounded-xl py-1 shadow-lg"
     >
       <button
         type="button"

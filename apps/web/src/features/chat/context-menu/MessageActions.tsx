@@ -69,7 +69,7 @@ export function MessageActions({
       role="menu"
       aria-label="Message actions"
       onKeyDown={onKeyDown}
-      className="glass-surface w-44 overflow-hidden rounded-xl py-1 shadow-lg"
+      className="bg-surface border border-line w-44 overflow-hidden rounded-xl py-1 shadow-lg"
     >
       <Action
         label="Reply"

@@ -38,6 +38,32 @@ export interface MessageBubbleProps {
   trigger?: Record<string, unknown>;
   /** Reactions, rendered beneath. Passed in so the bubble stays presentational. */
   reactions?: React.ReactNode;
+  /**
+   * The message this one answers, already resolved by the thread.
+   *
+   * Absent when this is not a reply, or when the original is not in the loaded
+   * page — the quote is then simply not drawn, because a placeholder saying
+   * "message unavailable" is noise for something the reader can scroll to.
+   */
+  replyTo?: Message;
+  /** Who wrote the quoted message. The bubble has no roster of its own. */
+  replyToAuthor?: string;
+  /** Tapping the quote goes to the original. Absent means the quote is inert. */
+  onJumpToReply?: () => void;
+}
+
+/**
+ * What a quoted message reads as in one line.
+ *
+ * A snap or sticker has no text worth quoting, so it is named rather than shown
+ * — quoting a sticker's emoji fallback would look like the person typed it.
+ */
+export function quoteText(message: Message): string {
+  if (message.deleted) return 'This message was deleted';
+  if (message.snap) return 'Snap';
+  if (message.sticker) return 'Sticker';
+  if (message.attachments.some((a) => a.kind === 'audio')) return 'Voice message';
+  return message.body.trim() || 'Attachment';
 }
 
 /**
@@ -66,10 +92,45 @@ export function MessageBubble({
   showMeta,
   trigger,
   reactions,
+  replyTo,
+  replyToAuthor,
+  onJumpToReply,
 }: MessageBubbleProps) {
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
   const hasBody = message.body.trim().length > 0;
+
+  /*
+   * Deleted, and said so.
+   *
+   * WhatsApp's answer, and the right one: the bubble stays on its author's side
+   * at its place in time, because "something was here and is gone" is itself
+   * information — silently removing the message would edit the past instead.
+   * Italic and muted so it never reads as text somebody wrote.
+   */
+  if (message.deleted) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div
+          id={`message-${message.id}`}
+          className={cn(
+            'max-w-[68%] animate-bubble-in px-4 py-2.5',
+            SHAPE[mine ? 'mine' : 'theirs'][position],
+            'border border-line bg-surface',
+          )}
+        >
+          <p className="text-body italic text-text-tertiary">
+            {mine ? 'You deleted this message' : 'This message was deleted'}
+          </p>
+          {showMeta && (
+            <span className="mt-1 block text-caption text-text-tertiary">
+              {formatTime(message.createdAt)}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // System notices are not bubbles at all — they are centred captions.
   if (message.system) {
@@ -167,6 +228,36 @@ export function MessageBubble({
             message.status === 'failed' && 'opacity-60 ring-1 ring-danger/40',
           )}
         >
+          {replyTo && (
+            /*
+             * The quote sits inside the bubble, tinted against it rather than
+             * given its own colour: it is part of this message, not a second
+             * one stacked above it. A left rule carries the "quoted" reading
+             * without needing a label to say so.
+             */
+            <button
+              type="button"
+              onClick={onJumpToReply}
+              disabled={!onJumpToReply}
+              className={cn(
+                'mb-1.5 flex w-full flex-col items-start gap-0.5 rounded-md',
+                'border-l-2 px-2 py-1 text-left',
+                'transition-opacity duration-instant',
+                onJumpToReply && 'hover:opacity-80',
+                mine
+                  ? 'border-white/60 bg-white/15 text-white/85'
+                  : 'border-brand bg-hover text-text-secondary',
+              )}
+            >
+              {replyToAuthor && (
+                <span className="text-caption font-medium">{replyToAuthor}</span>
+              )}
+              <span className="line-clamp-2 text-caption break-words opacity-90">
+                {quoteText(replyTo)}
+              </span>
+            </button>
+          )}
+
           {voiceNote && (
             <VoiceNote
               attachment={voiceNote}
@@ -204,7 +295,26 @@ export function MessageBubble({
 
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
-            <p className="text-body break-words whitespace-pre-wrap">{message.body}</p>
+            <p className="text-body break-words whitespace-pre-wrap">
+              {message.body}
+              {message.editedAt && (
+                /*
+                 * Inside the bubble, on the edited message itself — not with
+                 * the cluster timestamp, which appears once per run and would
+                 * leave three of four edited messages unmarked. Trailing the
+                 * text is WhatsApp's placement and the reason it works: you
+                 * read the change and the marker in one movement.
+                 */
+                <span
+                  className={cn(
+                    'ml-1.5 align-baseline text-caption',
+                    mine ? 'text-white/70' : 'text-text-tertiary',
+                  )}
+                >
+                  Edited
+                </span>
+              )}
+            </p>
           )}
         </div>
 
@@ -253,10 +363,7 @@ export function MessageBubble({
               {formatTime(message.createdAt)}
             </span>
 
-            {message.editedAt && (
-              <span className="text-caption text-text-tertiary">· edited</span>
-            )}
-
+            {/* "Edited" lives in the bubble now — see above. */}
             {mine && <DeliveryIndicator status={message.status} />}
           </div>
         )}

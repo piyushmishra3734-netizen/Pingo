@@ -98,13 +98,30 @@ message into reach rather than sending the menu away from it.
 | Case | Treatment |
 | --- | --- |
 | Delete for everyone, on someone else's message | **Hide.** Never available; never looked for. |
-| Edit, past its window | **Disabled, with the reason.** It *was* available, so silence makes the user hunt. |
-| Delete for everyone, past its window | **Disabled, with the reason.** Same argument. |
+| A capability that expires | **Disabled, with the reason.** It *was* available, so silence makes the user hunt. |
 | Everything else unavailable | **Hide.** |
 
 Greyed-out rows are visual noise, and most of them are. The exception is narrow
 and specific: a capability the user has already seen and could reasonably expect
 to still be there.
+
+### Editing and deleting do not expire
+
+There is no time limit on either, and the rows are never disabled for age.
+Amended after build, on the reasoning that what protects a reader is *knowing a
+message changed*, not the change becoming impossible after fifteen minutes — a
+window mostly punishes the person who spots their own typo late. Both changes
+are therefore permanent record:
+
+- An edited message carries **Edited** inside the bubble, on the message itself
+  rather than with the cluster timestamp, so an edit three messages back is
+  still marked.
+- Deleting for everyone leaves a **tombstone** in place — same side, same point
+  in time, italic and muted. Removing the bubble outright would edit the past;
+  "something was here" is itself what the reader needs.
+- Deleting for yourself removes it from your thread only, and is a `hidden`
+  row rather than a state on the message, because the other people in the
+  conversation must keep seeing it.
 
 ## § 4 AI appears only when the message earns it
 

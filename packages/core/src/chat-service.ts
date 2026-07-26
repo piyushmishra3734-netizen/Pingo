@@ -57,6 +57,11 @@ export interface OutgoingMessage {
 export type ChatEvent =
   | { type: 'message:new'; message: Message }
   | { type: 'message:updated'; message: Message }
+  /**
+   * Gone from *this* reader's thread only — "delete for me". Deleting for
+   * everyone is an update, not this, because the row survives as a tombstone.
+   */
+  | { type: 'message:removed'; messageId: MessageId }
   | { type: 'conversation:updated'; conversation: Conversation }
   | { type: 'typing:changed'; conversationId: ConversationId; userIds: UserId[] }
   | { type: 'presence:changed'; userId: UserId; presence: User['presence'] }

@@ -420,9 +420,9 @@ export class MockChatService implements ChatService {
   }
 
   /*
-   * The mock keeps these in memory so the styleguide behaves, but nothing here
-   * enforces a window — that rule lives in the database, where it cannot be
-   * talked out of.
+   * The mock keeps these in memory so the styleguide behaves. Ownership is the
+   * only rule either one has, and it lives in the database where it cannot be
+   * talked out of — there is no time limit on editing or deleting.
    */
   async editMessage(messageId: MessageId, body: string): Promise<void> {
     const message = this.#findMessage(messageId);
@@ -432,10 +432,25 @@ export class MockChatService implements ChatService {
     this.#emit({ type: 'message:updated', message: clone(message) });
   }
 
-  async deleteMessage(messageId: MessageId): Promise<void> {
-    for (const [id, thread] of Object.entries(this.#messages)) {
-      this.#messages[id] = thread.filter((m) => m.id !== messageId);
+  /*
+   * The two deletes are genuinely different outcomes, so the mock keeps them
+   * different too — a mock that collapses them would let a screen look correct
+   * here and be wrong against Supabase.
+   */
+  async deleteMessage(messageId: MessageId, forEveryone = false): Promise<void> {
+    if (!forEveryone) {
+      for (const [id, thread] of Object.entries(this.#messages)) {
+        this.#messages[id] = thread.filter((m) => m.id !== messageId);
+      }
+      this.#emit({ type: 'message:removed', messageId });
+      return;
     }
+
+    const message = this.#findMessage(messageId);
+    if (!message) return;
+    message.body = '';
+    message.deleted = true;
+    this.#emit({ type: 'message:updated', message: clone(message) });
   }
 
   #starred = new Set<MessageId>();

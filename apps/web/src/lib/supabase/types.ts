@@ -76,6 +76,7 @@ export type MessageRow = {
   snap_consumed_at: string | null;
   /** Soft delete. The row stays so replies that quote it keep their anchor. */
   deleted_at: string | null;
+  reply_to_id: string | null;
 };
 
 /** The `public` schema. */
@@ -215,6 +216,7 @@ export type Database = {
           media_url?: string | null;
           snap_path?: string | null;
           snap_expires_at?: string | null;
+          reply_to_id?: string | null;
         };
         Update: {
           body?: string;

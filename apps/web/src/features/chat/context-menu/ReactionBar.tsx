@@ -67,7 +67,7 @@ export function ReactionBar({ mine, onReact, onOpenPicker }: ReactionBarProps) {
       aria-label="Quick reactions"
       onKeyDown={onKeyDown}
       className={cn(
-        'glass-surface flex items-center gap-1 rounded-full p-1.5 shadow-lg',
+        'bg-surface border border-line flex items-center gap-1 rounded-full p-1.5 shadow-lg',
       )}
     >
       {QUICK.map(({ emoji, label }) => (

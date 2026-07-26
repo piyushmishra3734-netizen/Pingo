@@ -105,6 +105,10 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     attachments: [],
     reactions: [],
     ...(row.edited_at ? { editedAt: Date.parse(row.edited_at) } : {}),
+    ...(row.reply_to_id ? { replyToId: row.reply_to_id } : {}),
+    // The row survives deletion so replies quoting it keep an anchor. The
+    // server already emptied the body; this flag is what draws the tombstone.
+    ...(row.deleted_at ? { deleted: true } : {}),
     // `media_url` is the sticker's image; `body` stays its emoji, so a client
     // that cannot render one still shows something meaningful.
     ...(row.kind === 'sticker' && row.media_url
@@ -184,6 +188,9 @@ export class SupabaseChatService implements ChatService {
    */
   #pending = new Map<MessageId, { revision: number; emoji: string | undefined }>();
   #revision = 0;
+
+  /** Messages this user deleted for themselves. Filtered out of every read. */
+  #hidden = new Set<MessageId>();
 
   #authWatcher: { unsubscribe: () => void } | undefined;
 
@@ -293,6 +300,26 @@ export class SupabaseChatService implements ChatService {
           // refetch can produce a correctly-shaped `Conversation`.
           void this.getConversation(row.conversation_id).then((conversation) => {
             if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+          });
+        },
+      )
+      /*
+       * Edits and deletions, live.
+       *
+       * Both are `update`s on an existing row rather than inserts, so without
+       * this the other side of the conversation keeps reading the old text
+       * until it reloads — which is precisely the case an "Edited" marker
+       * exists to prevent. The row carries no reactions, so they come from the
+       * cache rather than being wiped by the update.
+       */
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const row = payload.new as MessageRow;
+          this.#emit({
+            type: 'message:updated',
+            message: { ...toMessage(row, undefined), reactions: this.#reactions.get(row.id) ?? [] },
           });
         },
       )
@@ -569,7 +596,21 @@ export class SupabaseChatService implements ChatService {
 
     const { data } = await query;
 
-    const rows = (data ?? []).slice().reverse();
+    /*
+     * What I deleted for myself.
+     *
+     * RLS cannot filter this — the row is still legitimately mine to read, and
+     * the other people in the thread must keep seeing it. So the hiding is a
+     * join the client does, and the cache below keeps a live removal from
+     * reappearing when the thread is reopened.
+     */
+    const { data: hiddenRows } = await this.#client
+      .from('hidden_messages')
+      .select('message_id')
+      .eq('user_id', me);
+    for (const row of hiddenRows ?? []) this.#hidden.add(row.message_id);
+
+    const rows = (data ?? []).slice().reverse().filter((row) => !this.#hidden.has(row.id));
 
     /*
      * Reactions for the whole page in one query.
@@ -753,6 +794,7 @@ export class SupabaseChatService implements ChatService {
         conversation_id: draft.conversationId,
         sender_id: me,
         body: draft.body,
+        ...(draft.replyToId ? { reply_to_id: draft.replyToId } : {}),
         ...(draft.sticker ? { kind: 'sticker', media_url: draft.sticker.url } : {}),
         ...(snapPath
           ? {
@@ -865,9 +907,9 @@ export class SupabaseChatService implements ChatService {
   // -- message actions ------------------------------------------------------
 
   /*
-   * Every one of these delegates the *rule* to the database. The edit window,
-   * who may delete for everyone, who may pin — all of it is enforced there, so
-   * a client that gets it wrong is refused rather than obeyed.
+   * Every one of these delegates the *rule* to the database. Who may edit, who
+   * may delete for everyone, who may pin — all of it is enforced there, so a
+   * client that gets it wrong is refused rather than obeyed.
    */
 
   async editMessage(messageId: MessageId, body: string): Promise<void> {
@@ -880,7 +922,22 @@ export class SupabaseChatService implements ChatService {
       target: messageId,
       for_everyone: forEveryone,
     });
-    this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
+
+    /*
+     * Two different outcomes, so two different events.
+     *
+     * For everyone, the row is still there with an empty body and a
+     * `deleted_at`, which every reader renders as a tombstone. For me, the row
+     * is untouched and a `hidden_messages` entry says I should not see it — a
+     * `message:updated` carrying the unchanged row would leave it on screen,
+     * which is how this quietly did nothing before.
+     */
+    if (forEveryone) {
+      this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
+    } else {
+      this.#hidden.add(messageId);
+      this.#emit({ type: 'message:removed', messageId });
+    }
   }
 
   async toggleStar(messageId: MessageId): Promise<boolean> {

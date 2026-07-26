@@ -17,7 +17,7 @@ interface UseMessagesResult {
   /** Messages pre-clustered by author and time, ready to render. */
   groups: Message[][];
   loading: boolean;
-  send: (body: string) => Promise<void>;
+  send: (body: string, replyToId?: string) => Promise<void>;
   /** Posts a sticker. `body` carries its emoji as the text fallback. */
   sendSticker: (sticker: { id: string; url: string; body: string }) => Promise<void>;
 }
@@ -79,15 +79,25 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
           previous.map((m) => (m.id === event.message.id ? event.message : m)),
         );
       }
+
+      // "Delete for me" leaves the row alone for everyone else, so this is a
+      // local removal rather than a state the message itself carries.
+      if (event.type === 'message:removed') {
+        setMessages((previous) => previous.filter((m) => m.id !== event.messageId));
+      }
     });
   }, [service, conversationId]);
 
   const send = useCallback(
-    async (body: string) => {
+    async (body: string, replyToId?: string) => {
       const trimmed = body.trim();
       if (!trimmed || !conversationId) return;
       // State updates arrive via the message:new event, so nothing to set here.
-      await service.sendMessage({ conversationId, body: trimmed });
+      await service.sendMessage({
+        conversationId,
+        body: trimmed,
+        ...(replyToId ? { replyToId } : {}),
+      });
     },
     [service, conversationId],
   );

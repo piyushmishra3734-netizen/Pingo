@@ -5,6 +5,7 @@ import {
   useChat,
   useMessages,
   type Conversation,
+  type Message,
 } from '@pingo/core';
 import {
   Avatar,
@@ -18,7 +19,8 @@ import {
   VideoIcon,
   cn,
 } from '@pingo/ui';
-import { useEffect, useMemo, useRef } from 'react';
+import { CloseIcon } from '@pingo/ui';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useCall } from '../calls/CallProvider.js';
@@ -26,7 +28,7 @@ import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
-import { MessageBubble } from './MessageBubble.js';
+import { MessageBubble, quoteText } from './MessageBubble.js';
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -58,9 +60,41 @@ export function ChatThread({
   className,
 }: ChatThreadProps) {
   const { currentUser, users, service } = useChat();
-  const { groups, loading, send, sendSticker } = useMessages(conversation.id);
+  const { messages, groups, loading, send, sendSticker } = useMessages(conversation.id);
   const { startCall } = useCall();
   const mutuals = useMutuals();
+
+  /**
+   * What the next send answers, if anything.
+   *
+   * Held here rather than in the composer because Reply is chosen from a menu
+   * over the thread, and the composer would otherwise need to be told about a
+   * gesture that happens nowhere near it.
+   */
+  const [replyTo, setReplyTo] = useState<Message>();
+
+  // Cleared when the thread changes: a reply aimed at another conversation
+  // would attach to whatever is open now.
+  useEffect(() => setReplyTo(undefined), [conversation.id]);
+
+  /** Resolves a quoted message against the loaded page. */
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+
+  const nameOf = (userId: string) =>
+    userId === currentUser?.id ? 'You' : users.find((u) => u.id === userId)?.name;
+
+  /** Scrolls the original into view and marks it, for a beat. */
+  const jumpTo = (messageId: string) => {
+    const target = document.getElementById(`message-${messageId}`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // A flash rather than a lasting highlight: it answers "which one" and then
+    // gets out of the way.
+    target.animate(
+      [{ opacity: 1 }, { opacity: 0.45 }, { opacity: 1 }],
+      { duration: 600, easing: 'ease-in-out' },
+    );
+  };
 
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -284,7 +318,7 @@ export function ChatThread({
                       key={message.id}
                       message={message}
                       mine={message.authorId === currentUser?.id}
-                      onReply={() => undefined}
+                      onReply={setReplyTo}
                       onForward={() => undefined}
                       children={
                         <MessageBubble
@@ -292,6 +326,14 @@ export function ChatThread({
                           mine={message.authorId === currentUser?.id}
                           position={position}
                           showMeta={index === cluster.length - 1}
+                          replyTo={
+                            message.replyToId ? byId.get(message.replyToId) : undefined
+                          }
+                          replyToAuthor={
+                            message.replyToId
+                              ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
+                              : undefined
+                          }
                         />
                       }
                       render={({ hidden, ...trigger }) => (
@@ -301,6 +343,19 @@ export function ChatThread({
                           position={position}
                           // One timestamp per cluster, on its final message.
                           showMeta={index === cluster.length - 1}
+                          replyTo={
+                            message.replyToId ? byId.get(message.replyToId) : undefined
+                          }
+                          replyToAuthor={
+                            message.replyToId
+                              ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
+                              : undefined
+                          }
+                          onJumpToReply={
+                            message.replyToId && byId.has(message.replyToId)
+                              ? () => jumpTo(message.replyToId!)
+                              : undefined
+                          }
                           trigger={{
                             ...trigger,
                             // Hidden, not unmounted: the menu holds a copy at
@@ -352,8 +407,48 @@ export function ChatThread({
         )}
       >
         <div className="mx-auto w-full max-w-3xl">
+          {replyTo && (
+            /*
+             * Sits directly on the composer, not floating over the thread: what
+             * you are answering has to be visible while you type it, and a
+             * banner that scrolls away with the messages is not.
+             */
+            <div
+              className={cn(
+                'animate-panel-in mb-2 flex items-start gap-2 rounded-lg',
+                'border-l-2 border-brand bg-surface py-2 pr-1 pl-2.5 shadow-sm',
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => jumpTo(replyTo.id)}
+                className="focus-ring min-w-0 flex-1 rounded-md text-left"
+              >
+                <span className="block text-caption font-medium text-brand">
+                  Replying to {nameOf(replyTo.authorId) ?? 'message'}
+                </span>
+                <span className="mt-0.5 line-clamp-2 block text-caption text-text-secondary">
+                  {quoteText(replyTo)}
+                </span>
+              </button>
+              <IconButton
+                label="Cancel reply"
+                variant="ghost"
+                onClick={() => setReplyTo(undefined)}
+              >
+                <CloseIcon size={16} />
+              </IconButton>
+            </div>
+          )}
+
           <Composer
-            onSend={send}
+            onSend={async (body) => {
+              // Captured before the await: a reply cleared mid-flight must not
+              // turn this into a plain message.
+              const target = replyTo?.id;
+              setReplyTo(undefined);
+              await send(body, target);
+            }}
             onSendSticker={(sticker) =>
               sendSticker({ id: sticker.id, url: sticker.url, body: sticker.emoji ?? sticker.name })
             }
