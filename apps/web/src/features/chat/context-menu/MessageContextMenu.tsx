@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
  * The context menu shell: dim, lift, and where things sit.
@@ -63,12 +63,24 @@ export function MessageContextMenu({
    * user has to aim at.
    */
   useEffect(() => {
-    const dismiss = () => onDismiss();
-    window.addEventListener('scroll', dismiss, { passive: true, capture: true });
-    window.addEventListener('resize', dismiss);
+    const onScroll = (event: Event) => {
+      /*
+       * Scrolling the menu is not scrolling away from it.
+       *
+       * Level 2 is a scrolling sheet, and capture-phase listening sees its
+       * scroll too — so without this, reaching the bottom of the sheet closes
+       * the thing you were reaching into.
+       */
+      const target = event.target;
+      if (target instanceof Node && scrimRef.current?.contains(target)) return;
+      onDismiss();
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    window.addEventListener('resize', onDismiss);
     return () => {
-      window.removeEventListener('scroll', dismiss, { capture: true });
-      window.removeEventListener('resize', dismiss);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onDismiss);
     };
   }, [onDismiss]);
 
@@ -80,7 +92,41 @@ export function MessageContextMenu({
     return () => window.removeEventListener('keydown', onKey);
   }, [onDismiss]);
 
-  const layout = place(anchor, touch);
+  /*
+   * The action panel is measured, not assumed.
+   *
+   * Level 1 is four rows; Level 2 is a scrolling sheet several times taller,
+   * and it replaces Level 1 in place. Placing both from one estimate put the
+   * bottom of Level 2 past the bottom of the screen, where Edit and Delete
+   * could not be reached at all — the panel scrolls internally, but nothing
+   * inside the viewport was scrollable to bring them up. So the size feeds back
+   * into placement, and switching level re-places.
+   */
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<Size>(ESTIMATE);
+
+  useLayoutEffect(() => {
+    const element = actionsRef.current;
+    if (!element) return;
+
+    const measure = () => {
+      const box = element.getBoundingClientRect();
+      // Rounded, so sub-pixel jitter cannot loop the observer forever.
+      setSize((previous) => {
+        const next = { height: Math.round(box.height), width: Math.round(box.width) };
+        return next.height === previous.height && next.width === previous.width
+          ? previous
+          : next;
+      });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [actions]);
+
+  const layout = place(anchor, touch, size);
 
   return (
     <div
@@ -134,6 +180,7 @@ export function MessageContextMenu({
         </div>
 
         <div
+          ref={actionsRef}
           className="pointer-events-auto absolute origin-top animate-panel-in"
           style={{
             left: layout.left,
@@ -154,6 +201,23 @@ interface Layout {
   actionsTop: number;
 }
 
+/** The measured action panel. */
+interface Size {
+  height: number;
+  width: number;
+}
+
+/**
+ * What Level 1 comes out at.
+ *
+ * Used for the first frame only, so the common case is placed correctly before
+ * anything is measured and does not visibly settle afterwards.
+ */
+const ESTIMATE: Size = { height: 190, width: 176 };
+
+/** The reaction bar is one fixed row, so this one really is a constant. */
+const REACTIONS_HEIGHT = 48;
+
 /**
  * Decides where the two groups sit.
  *
@@ -168,16 +232,20 @@ interface Layout {
  * A message taller than the viewport has no useful edge, so both groups
  * anchor to the touch point instead.
  */
-function place(anchor: DOMRect, touch: { x: number; y: number }): Layout {
+function place(anchor: DOMRect, touch: { x: number; y: number }, size: Size): Layout {
   const viewport = window.innerHeight;
   const oversized = anchor.height > viewport * 0.6;
 
   const top = oversized ? touch.y : anchor.top;
   const bottom = oversized ? touch.y : anchor.bottom;
 
-  // Estimates, refined once the groups have measured themselves.
-  const reactionsHeight = 48;
-  const actionsHeight = 190;
+  const reactionsHeight = REACTIONS_HEIGHT;
+  /*
+   * A panel taller than the screen is capped rather than placed, so the clamp
+   * below cannot push its top off the top edge trying to fit the bottom on.
+   * The panel scrolls internally past this point, which is what `max-h` is for.
+   */
+  const actionsHeight = Math.min(size.height, viewport - GAP_PX * 2);
 
   let reactionsTop = top - reactionsHeight - GAP_PX;
   let actionsTop = bottom + GAP_PX;
@@ -198,9 +266,27 @@ function place(anchor: DOMRect, touch: { x: number; y: number }): Layout {
     actionsTop += slide;
   }
 
+  /*
+   * Horizontal clamp.
+   *
+   * The panel starts at the bubble's left edge, and an outgoing bubble sits
+   * against the right side of the thread — so a panel wider than the bubble
+   * hangs off the screen. Sliding it back keeps the tie to the message without
+   * putting half the rows past the edge.
+   */
+  const left = Math.max(
+    GAP_PX,
+    Math.min(anchor.left, window.innerWidth - size.width - GAP_PX),
+  );
+
   return {
-    left: anchor.left,
+    left,
     reactionsTop: Math.max(GAP_PX, reactionsTop),
-    actionsTop: Math.min(viewport - actionsHeight - GAP_PX, actionsTop),
+    // Both ends, and in this order: pinning the bottom on screen must not push
+    // the top off it when the panel is tall.
+    actionsTop: Math.max(
+      GAP_PX,
+      Math.min(viewport - actionsHeight - GAP_PX, actionsTop),
+    ),
   };
 }
