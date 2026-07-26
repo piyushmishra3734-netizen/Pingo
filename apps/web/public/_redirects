@@ -1,0 +1,11 @@
+# SPA fallback.
+#
+# PINGO routes on the client with react-router: /chats, /settings/privacy and
+# the rest exist only in JavaScript, not as files on disk. Cloudflare Pages
+# serves static files, so without this rule a visitor who opens a link directly,
+# refreshes a page, or is returned to /auth/google by the OAuth redirect gets a
+# 404 -- even though the app itself is fine.
+#
+# 200, not 301: the URL must stay what the user asked for so the router can read
+# it. A redirect would rewrite the address bar to / and lose the route.
+/*  /index.html  200
