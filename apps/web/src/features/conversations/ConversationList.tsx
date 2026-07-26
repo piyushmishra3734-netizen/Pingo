@@ -66,8 +66,26 @@ export function ConversationList({
   const [unread, setUnread] = useState(0);
   useEffect(() => {
     let active = true;
-    void chatService.unreadNotifications().then((n) => { if (active) setUnread(n); }).catch(() => undefined);
-    return () => { active = false; };
+    void chatService
+      .unreadNotifications()
+      .then((n) => {
+        if (active) setUnread(n);
+      })
+      .catch(() => undefined);
+
+    /*
+     * Then keep it live. Fetching once per mount meant the badge only ever
+     * showed what was true when the app opened — a notification arriving while
+     * you sat on the chat list was invisible until a reload.
+     */
+    const unsubscribe = chatService.subscribe((event) => {
+      if (event.type === 'notification:new') setUnread((n) => n + 1);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [chatService]);
   /*
    * The origin travels with the group so the viewer can grow out of the exact

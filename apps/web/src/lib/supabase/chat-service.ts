@@ -49,6 +49,7 @@ import type {
 } from '@pingo/core';
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
+import { PresenceHub } from './presence.js';
 import type { ConversationRow, MessageRow, ProfileRow } from './types.js';
 
 /** Until a settings table exists, these are what every session starts from. */
@@ -166,8 +167,28 @@ export class SupabaseChatService implements ChatService {
 
   #authWatcher: { unsubscribe: () => void } | undefined;
 
+  /**
+   * Presence and typing, both over Realtime rather than the database.
+   *
+   * A row saying "online" outlives the tab that wrote it; a socket does not.
+   * See  for why neither is persisted.
+   */
+  #presenceHub: PresenceHub;
+
   constructor(client: PingoSupabaseClient = getSupabaseClient()) {
     this.#client = client;
+
+    this.#presenceHub = new PresenceHub(client, {
+      onPresence: (userId, state) => {
+        const cached = this.#people.get(userId);
+        const presence = { state, lastSeenAt: Date.now() };
+        if (cached) this.#people.set(userId, { ...cached, presence });
+        this.#emit({ type: 'presence:changed', userId, presence });
+      },
+      onTyping: (conversationId, userIds) => {
+        this.#emit({ type: 'typing:changed', conversationId, userIds });
+      },
+    });
 
     /*
      * The channel is (re)opened when a session exists, never in the constructor.
@@ -180,14 +201,22 @@ export class SupabaseChatService implements ChatService {
      * bug to notice.
      */
     const { data } = this.#client.auth.onAuthStateChange((_event, session) => {
-      if (session) this.#openChannel();
-      else this.#closeChannel();
+      if (session) {
+        this.#openChannel();
+        this.#presenceHub.start(session.user.id);
+      } else {
+        this.#closeChannel();
+        this.#presenceHub.stop();
+      }
     });
     this.#authWatcher = data.subscription;
 
     // Covers the already-signed-in case, where the listener above fires late.
     void this.#client.auth.getSession().then(({ data: current }) => {
-      if (current.session) this.#openChannel();
+      if (current.session) {
+        this.#openChannel();
+        this.#presenceHub.start(current.session.user.id);
+      }
     });
   }
 
@@ -237,6 +266,68 @@ export class SupabaseChatService implements ChatService {
           // refetch can produce a correctly-shaped `Conversation`.
           void this.getConversation(row.conversation_id).then((conversation) => {
             if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+          });
+        },
+      )
+      /*
+       * Notifications, live.
+       *
+       * RLS filters this stream to rows whose  is mine, so no client
+       * filter is needed and no other user's feed can be observed. Without
+       * this the badge only ever reflected what was true when the app loaded.
+       */
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        (payload) => {
+          const row = payload.new as { id: string; kind: string; actor_id: string | null; subject_id: string | null; created_at: string };
+          const actor = row.actor_id ? this.#people.get(row.actor_id) : undefined;
+          this.#emit({
+            type: 'notification:new',
+            notification: {
+              id: row.id,
+              kind: row.kind as AppNotification['kind'],
+              title: actor?.name ?? 'Someone',
+              body: NOTIFICATION_COPY[row.kind]?.body ?? 'Something happened.',
+              createdAt: Date.parse(row.created_at),
+              read: false,
+              ...(row.subject_id ? { conversationId: row.subject_id } : {}),
+              ...(row.actor_id ? { actorId: row.actor_id } : {}),
+            },
+          });
+        },
+      )
+      /*
+       * Notifications, live.
+       *
+       * RLS filters this stream to rows whose user_id is mine, so there is no
+       * client-side filter to get wrong and no other feed to observe. Without
+       * it the badge only ever showed what was true when the app loaded.
+       */
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        (payload) => {
+          const row = payload.new as {
+            id: string;
+            kind: string;
+            actor_id: string | null;
+            subject_id: string | null;
+            created_at: string;
+          };
+          const actor = row.actor_id ? this.#people.get(row.actor_id) : undefined;
+          this.#emit({
+            type: 'notification:new',
+            notification: {
+              id: row.id,
+              kind: row.kind as AppNotification['kind'],
+              title: actor?.name ?? 'Someone',
+              body: NOTIFICATION_COPY[row.kind]?.body ?? 'Something happened.',
+              createdAt: Date.parse(row.created_at),
+              read: false,
+              ...(row.subject_id ? { conversationId: row.subject_id } : {}),
+              ...(row.actor_id ? { actorId: row.actor_id } : {}),
+            },
           });
         },
       )
@@ -550,8 +641,8 @@ export class SupabaseChatService implements ChatService {
   }
 
   /** Not persisted — typing needs a realtime presence channel, not a table. */
-  async setTyping(): Promise<void> {
-    return;
+  async setTyping(conversationId: ConversationId, typing: boolean): Promise<void> {
+    await this.#presenceHub.setTyping(conversationId, typing);
   }
 
   /**
