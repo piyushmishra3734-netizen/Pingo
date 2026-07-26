@@ -1,4 +1,4 @@
-import { formatPresence, useChat } from '@pingo/core';
+import { formatPresence, useChat, type User } from '@pingo/core';
 import {
   Avatar,
   AvatarStack,
@@ -9,8 +9,8 @@ import {
   UsersIcon,
   cn,
 } from '@pingo/ui';
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
 
@@ -26,10 +26,51 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
  * missing out on a place they are not in.
  */
 export function CommunitiesScreen() {
-  const { conversations, users, currentUser } = useChat();
+  const { service, conversations, users, currentUser } = useChat();
   const [query, setQuery] = useState('');
 
+  /*
+   * The whole directory, not just people already in a conversation.
+   *
+   * `useChat().users` is a cache built from threads that exist, so searching it
+   * could only ever find someone you had already messaged — which made the
+   * search field look broken for exactly the case it is for. `listContacts()`
+   * reads `profiles`, so everyone on PINGO is findable.
+   */
+  const [directory, setDirectory] = useState<User[]>();
+
+  useEffect(() => {
+    let active = true;
+    void service
+      .listContacts()
+      .then((list) => {
+        if (active) setDirectory(list);
+      })
+      // Falls back to the cached roster below rather than emptying the screen.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [service]);
+
+  const people = directory ?? users;
   const q = query.trim().toLowerCase();
+
+  const [opening, setOpening] = useState<string>();
+  const navigate = useNavigate();
+
+  const messageUser = async (user: User) => {
+    if (opening) return;
+    setOpening(user.id);
+    try {
+      // Idempotent in the database, so this lands in the existing thread when
+      // there is one rather than making a second empty one beside it.
+      const conversationId = await service.startDirectConversation(user.id);
+      navigate(`/chats/${conversationId}`);
+    } finally {
+      setOpening(undefined);
+    }
+  };
 
   const groups = useMemo(
     () =>
@@ -43,12 +84,12 @@ export function CommunitiesScreen() {
 
   const contacts = useMemo(
     () =>
-      users.filter(
+      people.filter(
         (u) =>
           u.id !== currentUser?.id &&
           (!q || u.name.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q)),
       ),
-    [users, currentUser, q],
+    [people, currentUser, q],
   );
 
   const nothingFound = groups.length === 0 && contacts.length === 0;
@@ -131,28 +172,50 @@ export function CommunitiesScreen() {
 
                 <div className="space-y-0.5">
                   {contacts.map((user) => (
-                    <Link
+                    <div
                       key={user.id}
-                      to={`/profile/${user.handle}`}
                       className={cn(
-                        'flex items-center gap-3 rounded-lg px-2 py-2.5',
-                        'focus-ring transition-colors duration-instant ease-standard',
-                        'hover:bg-hover active:bg-pressed',
+                        'flex items-center gap-3 rounded-lg px-2',
+                        'transition-colors duration-instant ease-standard hover:bg-hover',
                       )}
                     >
-                      <Avatar
-                        name={user.name}
-                        id={user.id}
-                        size="md"
-                        presence={user.presence.state === 'online' ? 'online' : undefined}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-body text-ink">{user.name}</p>
-                        <p className="mt-0.5 truncate text-caption text-text-secondary">
-                          {formatPresence(user)}
-                        </p>
-                      </div>
-                    </Link>
+                      <Link
+                        to={`/profile/${user.handle}`}
+                        className="focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-lg py-2.5"
+                      >
+                        <Avatar
+                          name={user.name}
+                          id={user.id}
+                          src={user.avatarUrl}
+                          size="md"
+                          presence={user.presence.state === 'online' ? 'online' : undefined}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-body text-ink">{user.name}</p>
+                          <p className="mt-0.5 truncate text-caption text-text-secondary">
+                            {formatPresence(user)}
+                          </p>
+                        </div>
+                      </Link>
+
+                      {/*
+                        Finding someone and then having no way to reach them is
+                        the whole reason this screen felt broken. The row still
+                        opens their profile; this is the shortcut past it.
+                      */}
+                      <button
+                        type="button"
+                        onClick={() => void messageUser(user)}
+                        disabled={Boolean(opening)}
+                        className={cn(
+                          'focus-ring shrink-0 rounded-full px-3 py-1.5',
+                          'text-caption font-medium text-brand',
+                          'hover:bg-selected disabled:opacity-50',
+                        )}
+                      >
+                        {opening === user.id ? 'Opening…' : 'Message'}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </section>
