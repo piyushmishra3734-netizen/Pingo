@@ -132,8 +132,12 @@ export function NewChatScreen() {
           />
         ) : (
           <ul className="space-y-0.5">
-            {matches.map((person) => (
-              <li key={person.id}>
+            {matches.map((person, index) => (
+              <li
+                key={person.id}
+                className="animate-row-in"
+                style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
+              >
                 <button
                   type="button"
                   onClick={() => void open(person)}

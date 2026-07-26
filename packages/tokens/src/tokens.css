@@ -127,6 +127,10 @@
   /* A row appearing in a list. Used with a per-item delay for a stagger. */
   --animate-row-in: row-in var(--duration-quick) var(--ease-standard) both;
 
+  /* A panel or sheet opening. Grows from its own lower edge rather than the
+     centre, because that is the edge it is anchored to. */
+  --animate-panel-in: panel-in var(--duration-quick) var(--ease-standard) both;
+
   /* ---- Layout ----------------------------------------------------------- */
   --breakpoint-sm: 480px;
   --breakpoint-md: 768px;
@@ -217,6 +221,17 @@
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
   }
   to {
     opacity: 1;

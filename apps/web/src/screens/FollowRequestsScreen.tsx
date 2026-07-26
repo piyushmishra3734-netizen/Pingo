@@ -101,10 +101,12 @@ export function FollowRequestsScreen() {
           />
         ) : (
           <ul className="space-y-0.5">
-            {requests.map((person) => (
+            {requests.map((person, index) => (
               <li
                 key={person.id}
+                style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
                 className={cn(
+                  'animate-row-in',
                   'flex items-center gap-3 rounded-lg px-2 py-2.5',
                   'transition-opacity duration-instant',
                   busy === person.id && 'opacity-50',

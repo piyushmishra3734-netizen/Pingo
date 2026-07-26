@@ -71,7 +71,13 @@ export function Composer({
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       {panel && (
-        <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-lg">
+        <div
+          className={cn(
+            'overflow-hidden rounded-xl border border-line bg-surface shadow-lg',
+            // Anchored to the composer, so it grows from its bottom edge.
+            'origin-bottom animate-panel-in',
+          )}
+        >
           {panel === 'emoji' ? (
             <EmojiPicker
               onSelect={(emoji) => {

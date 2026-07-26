@@ -106,7 +106,12 @@ export function StoryViewer({ group, onClose, onSeen, origin }: StoryViewerProps
   return (
     <div
       ref={rootRef}
-      className="fixed inset-0 z-300 flex flex-col overflow-hidden bg-ink"
+      className={cn(
+        'fixed inset-0 z-300 flex flex-col overflow-hidden bg-ink',
+        // Only when there is no circle to grow out of; the FLIP below owns the
+        // motion whenever there is one, and two would fight.
+        !origin && 'animate-panel-in',
+      )}
       role="dialog"
       aria-modal="true"
       aria-label={`${group.authorName}'s story`}

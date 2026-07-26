@@ -122,10 +122,14 @@ export function NotificationsScreen() {
           />
         ) : (
           <ul className="space-y-0.5">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const actor = users.find((u) => u.id === item.actorId);
               return (
-                <li key={item.id}>
+                <li
+                  key={item.id}
+                  className="animate-row-in"
+                  style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
+                >
                   <button
                     type="button"
                     onClick={() => open(item)}

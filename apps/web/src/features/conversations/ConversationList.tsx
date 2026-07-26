@@ -222,12 +222,22 @@ export function ConversationList({
           )
         ) : (
           <div className="space-y-0.5">
-            {filtered.map((conversation) => (
-              <ConversationRow
+            {filtered.map((conversation, index) => (
+              <div
                 key={conversation.id}
-                conversation={conversation}
-                active={conversation.id === activeConversationId}
-              />
+                className="animate-row-in"
+                /*
+                  Staggered, and capped at eight. Past that the delay is longer
+                  than anyone waits and the last rows would arrive after the
+                  user has already started scrolling.
+                */
+                style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
+              >
+                <ConversationRow
+                  conversation={conversation}
+                  active={conversation.id === activeConversationId}
+                />
+              </div>
             ))}
           </div>
         )}
