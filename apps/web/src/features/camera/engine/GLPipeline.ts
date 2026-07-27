@@ -1,4 +1,4 @@
-import type { FilterDefinition, FilterInstance } from '@pingo/core';
+import type { FilterDefinition, FilterInstance, FilterParam } from '@pingo/core';
 
 /**
  * The filter chain, in WebGL2.
@@ -41,7 +41,20 @@ void main() {
  * A filter supplies only the body of `pingoFilter`, so it cannot get the
  * boilerplate wrong and every filter automatically gains intensity blending.
  */
-function buildFragmentShader(body: string): string {
+function buildFragmentShader(body: string, params: FilterParam[] = []): string {
+  /*
+   * The filter's own parameters, declared for it.
+   *
+   * They were not, and that silently broke every filter that had any. A shader
+   * body referring to `radius` compiled against no such identifier, the program
+   * failed to link, and `filterStill` caught the error and handed back the
+   * unfiltered original — so Bloom looked like the one filter that did not
+   * corrupt the picture, when in fact it was the one filter doing nothing at
+   * all. `render` was already setting these uniforms; there was simply nothing
+   * to set them on.
+   */
+  const declarations = params.map((param) => `uniform float ${param.name};`).join('\n');
+
   return `#version 300 es
 precision highp float;
 
@@ -53,6 +66,7 @@ uniform sampler2D u_mask;
 uniform vec2 u_resolution;
 uniform float u_intensity;
 uniform float u_time;
+${declarations}
 
 ${body}
 
@@ -128,7 +142,7 @@ export class GLPipeline {
     const program = gl.createProgram();
 
     const vertex = this.#shader(gl.VERTEX_SHADER, VERTEX_SHADER);
-    const fragment = this.#shader(gl.FRAGMENT_SHADER, buildFragmentShader(filter.fragmentShader));
+    const fragment = this.#shader(gl.FRAGMENT_SHADER, buildFragmentShader(filter.fragmentShader, filter.params));
 
     gl.attachShader(program, vertex);
     gl.attachShader(program, fragment);

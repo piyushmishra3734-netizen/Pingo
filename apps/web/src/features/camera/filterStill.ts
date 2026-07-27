@@ -28,7 +28,22 @@ export async function filterStill(
   source: Blob,
   chain: FilterInstance[],
 ): Promise<Blob> {
-  const bitmap = await createImageBitmap(source);
+  /*
+   * `flipY` here, and it has to be here.
+   *
+   * The pipeline's vertex shader maps uv (0,0) to the *bottom* of the frame,
+   * which is GL's convention, and `setSource` corrects for it with
+   * `UNPACK_FLIP_Y_WEBGL`. That flag works for a `<video>` — which is what the
+   * live preview feeds it — and is **ignored for an `ImageBitmap`**, which is
+   * what this path feeds it. So every still came out vertically mirrored while
+   * the preview looked fine, and the two disagreed about which way up a picture
+   * was.
+   *
+   * Measured rather than reasoned: uploading the same bitmap with the flag on
+   * and off produced byte-identical, upside-down output, and asking for the
+   * flip at bitmap-creation time produced the right one.
+   */
+  const bitmap = await createImageBitmap(source, { imageOrientation: 'flipY' });
 
   try {
     const canvas = document.createElement('canvas');
