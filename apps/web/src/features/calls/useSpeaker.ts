@@ -1,102 +1,132 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * Routing call audio to the loudspeaker.
+ * Speaker mode: making the other person louder.
  *
- * ## What the web can and cannot do here
+ * ## Why this boosts gain rather than switching device
  *
- * A native app asks the OS to switch the audio route. The web has no such call.
- * The nearest thing is `HTMLMediaElement.setSinkId`, which picks an *output
- * device* — so on a laptop this genuinely moves audio between speakers and a
- * headset, and on a phone browser it usually does not exist at all, because the
- * handset earpiece and loudspeaker are not exposed as separate devices.
+ * The first attempt used `setSinkId`, which picks an output *device*. That is
+ * the closest thing the web has to a native "switch audio route", and on a
+ * phone it is useless: browsers do not expose the earpiece and the loudspeaker
+ * as separate devices, so the control never appeared on the one platform that
+ * wanted it.
  *
- * That leaves two honest options: pretend, or say nothing. This returns
- * `undefined` where routing is impossible, so the toggle is absent rather than
- * present and inert — the rule this codebase keeps arriving at.
+ * What someone means by "speaker" is almost always *louder* — the button exists
+ * so a call can be heard at arm's length. That is a gain problem, not a routing
+ * one, and gain works in every browser.
  *
- * ## Why the device list is only read once a call is up
+ * ## Why the audio element is silenced rather than removed
  *
- * `enumerateDevices` returns unlabelled entries until microphone permission has
- * been granted, and a call has granted it by definition. Asking earlier would
- * produce a list of anonymous ids nobody could choose between.
+ * The remote stream stays attached to the `<audio>` element with its volume at
+ * zero. Several browsers only keep a `MediaStream` flowing while it is attached
+ * to a media element, so detaching it to play through Web Audio instead can
+ * silence the call entirely. Element for the plumbing, Web Audio for the sound.
+ *
+ * If Web Audio cannot start at all, the element's volume is restored and the
+ * call is audible at normal loudness with no toggle offered — quieter than
+ * intended beats silent.
  */
+
+/** Roughly three times louder. Past this the limiter is working constantly. */
+const BOOST = 3.2;
 
 export interface Speaker {
   on: boolean;
   toggle: () => void;
 }
 
-/** Elements only gained `setSinkId` recently, and not everywhere. */
-type SinkCapable = HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
-
 export function useSpeaker(
   audio: React.RefObject<HTMLAudioElement | null>,
+  stream: MediaStream | undefined,
+  /** A call is up. The control is offered from this moment, not from connect. */
   active: boolean,
 ): Speaker | undefined {
-  const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([]);
+  /*
+   * The choice outlives the audio.
+   *
+   * The button is offered the moment a call starts, which is before there is
+   * any remote sound to amplify — pressing it then means "be loud when we
+   * connect", and this is what remembers that so the gain can be applied the
+   * instant the stream arrives.
+   */
   const [on, setOn] = useState(false);
 
-  const supported =
-    typeof window !== 'undefined' &&
-    typeof HTMLMediaElement !== 'undefined' &&
-    'setSinkId' in HTMLMediaElement.prototype &&
-    Boolean(navigator.mediaDevices?.enumerateDevices);
+  const context = useRef<AudioContext | undefined>(undefined);
+  const gain = useRef<GainNode | undefined>(undefined);
 
   useEffect(() => {
-    if (!supported || !active) return;
+    const element = audio.current;
+    if (!stream || !element) return;
 
-    let cancelled = false;
-    const read = () => {
-      void navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => {
-          if (cancelled) return;
-          setOutputs(devices.filter((device) => device.kind === 'audiooutput'));
-        })
-        .catch(() => undefined);
-    };
+    try {
+      const ctx = new AudioContext();
+      void ctx.resume().catch(() => undefined);
 
-    read();
-    // Plugging in headphones mid-call changes what "speaker" means.
-    navigator.mediaDevices.addEventListener('devicechange', read);
+      const source = ctx.createMediaStreamSource(stream);
+      const volume = ctx.createGain();
+      volume.gain.value = 1;
+
+      /*
+       * The same limiter the ringtone uses, and for the same reason: a voice
+       * amplified past 1.0 clips, and clipped speech is harder to understand
+       * than quiet speech. This keeps the peaks in check so the boost adds
+       * loudness rather than distortion.
+       */
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -10;
+      limiter.ratio.value = 12;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.15;
+
+      source.connect(volume).connect(limiter).connect(ctx.destination);
+
+      context.current = ctx;
+      gain.current = volume;
+
+      // Whatever was chosen before the stream existed applies now.
+      volume.gain.value = on ? BOOST : 1;
+
+      // Silenced only once Web Audio is definitely carrying the sound.
+      element.volume = 0;
+    } catch {
+      /*
+       * No Web Audio. The element keeps playing at its normal volume, so the
+       * call is still audible — just not boostable. The control stays visible
+       * because the call is still live, and pressing it simply does nothing
+       * this once, which is better than a button that vanishes mid-call.
+       */
+      element.volume = 1;
+    }
+
     return () => {
-      cancelled = true;
-      navigator.mediaDevices.removeEventListener('devicechange', read);
+      gain.current = undefined;
+      void context.current?.close().catch(() => undefined);
+      context.current = undefined;
+      // Handed back to the element for whatever plays next.
+      if (element) element.volume = 1;
     };
-  }, [supported, active]);
-
-  /*
-   * The loudspeaker is whichever output is not the default.
-   *
-   * Browsers do not label devices by role, so there is no "is this the
-   * earpiece" to ask. With exactly one output there is nothing to switch
-   * between and the control should not appear at all.
-   */
-  const alternate = outputs.find((device) => device.deviceId !== 'default');
-  const routable = supported && outputs.length > 1 && Boolean(alternate);
+  }, [audio, stream]);
 
   const toggle = useCallback(() => {
-    const element = audio.current as SinkCapable | null;
-    if (!element?.setSinkId || !alternate) return;
-
     const next = !on;
-    void element
-      .setSinkId(next ? alternate.deviceId : 'default')
-      .then(() => setOn(next))
-      .catch(() => {
-        /*
-         * Refused — the device disappeared, or the browser declined. The state
-         * is left alone rather than flipped, so the button keeps describing
-         * where the audio actually is.
-         */
-      });
-  }, [audio, alternate, on]);
+    setOn(next);
 
-  // A new call starts on the default route, whatever the last one ended on.
+    const volume = gain.current;
+    // Pressed before the call connected. The state is kept and applied by the
+    // effect above the moment the remote stream arrives.
+    if (!volume || !context.current) return;
+
+    /*
+     * Ramped rather than set. A gain that jumps produces a step in the
+     * waveform, heard as a click in the middle of somebody's sentence.
+     */
+    volume.gain.setTargetAtTime(next ? BOOST : 1, context.current.currentTime, 0.02);
+  }, [on]);
+
+  // Reset between calls: each one starts from the earpiece.
   useEffect(() => {
     if (!active) setOn(false);
   }, [active]);
 
-  return routable ? { on, toggle } : undefined;
+  return active ? { on, toggle } : undefined;
 }

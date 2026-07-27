@@ -196,10 +196,10 @@ export function CallOverlay() {
           ) : null}
 
           {/*
-            Absent, not disabled, where the browser cannot route audio. Most
-            phone browsers do not expose the earpiece and the loudspeaker as
-            separate outputs, and a toggle that cannot move the sound is worse
-            than no toggle at all.
+            Offered from the moment a call starts rather than from when it
+            connects. Reaching for the speaker before the other person picks up
+            is the normal way round, and the choice is applied as soon as there
+            is sound to apply it to.
           */}
           {speaker && (
             <CallAction

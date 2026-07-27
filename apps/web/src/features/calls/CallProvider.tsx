@@ -51,10 +51,11 @@ interface CallContextValue {
   error: string | undefined;
   dismissError: () => void;
   /**
-   * Whether remote audio is routed to the loudspeaker.
+   * Speaker mode: the other person, amplified.
    *
-   * Absent when the browser cannot route audio at all — see `useSpeaker`. The
-   * control hides itself in that case rather than sitting there doing nothing.
+   * On means the other person is amplified — see `useSpeaker`. Absent only
+   * where Web Audio will not start, in which case the call still plays at
+   * normal volume and no dead toggle is offered.
    */
   speaker: { on: boolean; toggle: () => void } | undefined;
   /**
@@ -228,8 +229,8 @@ export function CallProvider({
   // Every finished call is written into its conversation. See `useCallLog`.
   useCallLog(call);
 
-  // Absent where the browser cannot route audio at all. See `useSpeaker`.
-  const speaker = useSpeaker(audioRef, Boolean(call));
+  // Boosts the remote voice rather than switching device. See `useSpeaker`.
+  const speaker = useSpeaker(audioRef, remoteStream, Boolean(call));
 
   /**
    * The failure tone and spoken line, after a call that never connected.
