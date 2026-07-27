@@ -29,6 +29,7 @@
 import type {
   AppNotification,
   Attachment,
+  CallOutcome,
   CallRecord,
   ChatEvent,
   ChatList,
@@ -210,6 +211,9 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
       : {}),
     ...(row.kind === 'event' && row.meta
       ? { event: row.meta as unknown as Message['event'] }
+      : {}),
+    ...(row.kind === 'call' && row.meta
+      ? { call: row.meta as unknown as Message['call'] }
       : {}),
   };
 }
@@ -1399,6 +1403,7 @@ export class SupabaseChatService implements ChatService {
         ...(draft.location ? { kind: 'location' as const, meta: draft.location } : {}),
         ...(draft.contact ? { kind: 'contact' as const, meta: draft.contact } : {}),
         ...(draft.event ? { kind: 'event' as const, meta: draft.event } : {}),
+        ...(draft.call ? { kind: 'call' as const, meta: draft.call } : {}),
         ...(voicePath && draft.voice
           ? {
               kind: 'voice' as const,
@@ -1664,9 +1669,66 @@ export class SupabaseChatService implements ChatService {
 
   // -- not yet backed by schema -------------------------------------------
 
-  /** No calls table. Empty rather than fabricated history. */
+  /**
+   * Every call, newest first, across every conversation this user is in.
+   *
+   * Reads the same rows the threads render. RLS on  already limits
+   * this to conversations they belong to, so there is no second visibility rule
+   * to keep in step with the first.
+   */
   async listCalls(): Promise<CallRecord[]> {
-    return [];
+    const me = await this.#userId();
+
+    const { data } = await this.#client
+      .from('messages')
+      .select('*')
+      .eq('kind', 'call')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    return (data ?? []).flatMap((row) => {
+      const meta = row.meta as unknown as Message['call'];
+      if (!meta) return [];
+
+      // The author rang; everyone else was rung.
+      const outgoing = row.sender_id === me;
+      return [
+        {
+          id: row.id,
+          kind: meta.callKind,
+          direction: outgoing ? ('outgoing' as const) : ('incoming' as const),
+          outcome: meta.outcome,
+          withUserId: outgoing ? meta.calleeId : row.sender_id,
+          conversationId: row.conversation_id,
+          startedAt: Date.parse(row.created_at),
+          duration: meta.durationSeconds,
+        },
+      ];
+    });
+  }
+
+  async logCall(entry: {
+    conversationId: string;
+    calleeId: string;
+    callKind: 'voice' | 'video';
+    outcome: CallOutcome;
+    durationSeconds: number;
+  }): Promise<void> {
+    /*
+     * Sent as an ordinary message, so it lands in the thread, reaches the other
+     * end over realtime, and updates the conversation list — all the machinery
+     * a call log needs already exists for messages.
+     */
+    await this.sendMessage({
+      conversationId: entry.conversationId,
+      body: '',
+      call: {
+        callKind: entry.callKind,
+        outcome: entry.outcome,
+        durationSeconds: entry.durationSeconds,
+        calleeId: entry.calleeId,
+      },
+    });
   }
 
   /** No gallery table. */

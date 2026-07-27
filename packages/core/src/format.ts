@@ -157,6 +157,13 @@ export function messagePreview(
   if (!text && message.location) text = message.location.label ?? 'Location';
   if (!text && message.contact) text = message.contact.name;
   if (!text && message.event) text = message.event.title;
+  if (!text && message.call) {
+    const kind = message.call.callKind === 'video' ? 'Video' : 'Voice';
+    text =
+      message.call.outcome === 'answered'
+        ? `${kind} call`
+        : `Missed ${kind.toLowerCase()} call`;
+  }
   if (!text) {
     const attachment = message.attachments[0];
     switch (attachment?.kind) {

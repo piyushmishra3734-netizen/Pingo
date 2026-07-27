@@ -28,12 +28,25 @@ export interface AvatarProps {
   className?: string;
 }
 
+/**
+ * Circle diameters, in px.
+ *
+ * Raised about 10% across the board. The originals were sized for density, and
+ * on a phone that read as cramped next to the products people compare this to —
+ * a chat row's face is the thing the eye lands on first and it was losing to
+ * the text beside it.
+ *
+ * Deliberately proportional rather than a redesign: every step keeps its
+ * relationship to the others, so nothing below has to be re-tuned. `2xl` is
+ * unchanged — a profile header is already as large as it should be, and growing
+ * it would push the name off a short screen.
+ */
 const PX: Record<AvatarSize, number> = {
-  xs: 28,
-  sm: 36,
-  md: 44,
-  lg: 56,
-  xl: 88,
+  xs: 30,
+  sm: 40,
+  md: 48,
+  lg: 62,
+  xl: 96,
   '2xl': 128,
 };
 

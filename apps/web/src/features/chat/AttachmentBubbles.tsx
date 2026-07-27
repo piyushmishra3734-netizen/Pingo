@@ -1,10 +1,12 @@
 import {
+  formatDuration,
   formatEventTime,
   type ContactRef,
   type EventRef,
+  type CallLogRef,
   type LocationRef,
 } from '@pingo/core';
-import { Avatar, ChevronRightIcon, cn } from '@pingo/ui';
+import { Avatar, ChevronRightIcon, PhoneIcon, VideoIcon, cn } from '@pingo/ui';
 import { Link } from 'react-router-dom';
 
 /**
@@ -195,5 +197,72 @@ export function EventBubble({ event, mine }: { event: EventRef; mine: boolean })
       </span>
       <ChevronRightIcon size={16} className={mine ? 'text-white/60' : 'text-text-tertiary'} />
     </Card>
+  );
+}
+
+/**
+ * A finished call, in the thread where it happened.
+ *
+ * Reads as a record rather than as an action: it says what occurred and when,
+ * and does not offer to call back. The header already has call buttons two
+ * inches away, and a log entry that redials on a stray tap is the one thing a
+ * call log must never do.
+ *
+ * The arrow points the way the call went, so direction is legible without
+ * reading — which is what makes a column of these scannable.
+ */
+export function CallBubble({
+  call,
+  mine,
+  outgoing,
+}: {
+  call: CallLogRef;
+  mine: boolean;
+  outgoing: boolean;
+}) {
+  const missed = call.outcome !== 'answered';
+
+  const label =
+    call.outcome === 'answered'
+      ? formatDuration(call.durationSeconds)
+      : call.outcome === 'declined'
+        ? 'Declined'
+        : call.outcome === 'unreachable'
+          ? 'Not reachable'
+          : outgoing
+            ? 'No answer'
+            : 'Missed';
+
+  return (
+    <div
+      className={cn(
+        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
+        mine ? 'bg-brand-gradient text-white shadow-brand' : 'bg-surface text-ink shadow-sm',
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'grid size-9 shrink-0 place-items-center rounded-full',
+          mine ? 'bg-white/20' : missed ? 'bg-danger-soft text-danger' : 'bg-hover text-brand',
+        )}
+      >
+        {call.callKind === 'video' ? <VideoIcon size={17} /> : <PhoneIcon size={17} />}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-body">
+          {outgoing ? 'Outgoing' : 'Incoming'} {call.callKind} call
+        </span>
+        <span
+          className={cn(
+            'block truncate text-caption',
+            mine ? 'text-white/70' : missed ? 'text-danger' : 'text-text-secondary',
+          )}
+        >
+          {label}
+        </span>
+      </span>
+    </div>
   );
 }

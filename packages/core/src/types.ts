@@ -191,6 +191,23 @@ export interface Message {
   contact?: ContactRef;
   /** A time and a title, so it can be added to a calendar. */
   event?: EventRef;
+  /**
+   * A finished call, sitting in the thread where it happened.
+   *
+   * Calls are stored as messages rather than in a table of their own — see the
+   * call-history migration — so this is what the thread and the Calls screen
+   * both render from.
+   */
+  call?: CallLogRef;
+}
+
+export interface CallLogRef {
+  callKind: CallKind;
+  outcome: CallOutcome;
+  /** Seconds. Zero unless it was answered. */
+  durationSeconds: number;
+  /** Who was rung. The message's author is whoever rang them. */
+  calleeId: UserId;
 }
 
 export interface LocationRef {
@@ -375,7 +392,14 @@ export type ConversationFilter = 'all' | 'unread' | 'groups' | 'favorites';
 
 export type CallKind = 'voice' | 'video';
 export type CallDirection = 'incoming' | 'outgoing';
-export type CallOutcome = 'answered' | 'missed' | 'declined';
+/**
+ * How a call ended.
+ *
+ * `unreachable` is separate from `missed`: one means nobody picked up, the other
+ * means it never got as far as ringing. A caller can tell the difference by ear,
+ * so the log should not pretend they are the same thing.
+ */
+export type CallOutcome = 'answered' | 'missed' | 'declined' | 'unreachable';
 
 export interface CallRecord {
   id: string;

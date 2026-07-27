@@ -48,6 +48,7 @@ export function CallOverlay() {
     remoteStream,
     error,
     dismissError,
+    failureNotice,
   } = useCall();
   const { users } = useChat();
 
@@ -56,6 +57,13 @@ export function CallOverlay() {
    * arrives *after* the service has torn the call down, so without this the
    * screen closes and the reason goes with it.
    */
+  /*
+   * A call that did not connect keeps the screen for a moment after it ends,
+   * saying why — the same beat a real call gives you before the line drops.
+   * Not dismissable: it clears itself when the announcement finishes.
+   */
+  if (!call && failureNotice) return <CallError message={failureNotice} />;
+
   if (!call) return error ? <CallError message={error} onDismiss={dismissError} /> : null;
 
   // The service only knows the peer's id. The name comes from the chat roster,
@@ -280,7 +288,7 @@ function LocalPreview({ stream, cameraOff }: { stream: MediaStream; cameraOff: b
 }
 
 /** A toast for a call that could not begin. Dismissible, and never blocking. */
-function CallError({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+function CallError({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
   return (
     <div
       role="status"

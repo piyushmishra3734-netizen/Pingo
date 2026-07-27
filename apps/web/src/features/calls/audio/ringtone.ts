@@ -31,11 +31,9 @@
  * allowed.
  */
 
-export type RingKind = 'ringback' | 'ringtone';
+export type RingKind = 'ringback' | 'ringtone' | 'busy';
 
 /** The two tones every analogue telephone ring is built from. */
-const TONES = [440, 480] as const;
-
 interface Cadence {
   /** Seconds of tone, then seconds of silence, repeating. */
   pattern: number[];
@@ -45,8 +43,35 @@ interface Cadence {
 const CADENCES: Record<RingKind, Cadence> = {
   // North American ringback: a long burst, a long gap.
   ringback: { pattern: [2, 4], gain: 0.06 },
-  // Two short pulses then a rest — the "ring ring" everyone recognises.
+  // Two short pulses then a rest — the classic double ring.
   ringtone: { pattern: [0.4, 0.2, 0.4, 2], gain: 0.12 },
+  /*
+   * Fast busy, the tone a network plays when a call cannot be completed.
+   * Twice the speed of a ring and unmistakably not one.
+   */
+  busy: { pattern: [0.25, 0.25], gain: 0.09 },
+};
+
+/**
+ * What each kind is built from.
+ *
+ * Ringback and busy are the telephone network's own two-sine-wave tones,
+ * because imitating them badly is worse than reproducing them exactly.
+ *
+ * The incoming ringtone is not. A caller and a callee were hearing the same
+ * 440+480 Hz pair differing only in rhythm, so an incoming call and an outgoing
+ * one sounded alike with the phone face-down — the one moment the difference
+ * matters most. So an incoming call plays a short rising figure instead: a
+ * musical phrase reads instantly as "answer me" rather than "waiting".
+ */
+const VOICES: Record<RingKind, number[][]> = {
+  ringback: [[440, 480], [440, 480]],
+  busy: [[480, 620], [480, 620]],
+  // A major triad walked upward, one note per pulse of the cadence.
+  ringtone: [
+    [587.33, 880], // D5 + A5
+    [739.99, 1108.73], // F#5 + C#6
+  ],
 };
 
 export interface Ringer {
@@ -76,7 +101,7 @@ export function startRinging(kind: RingKind): Ringer {
   const { pattern, gain } = CADENCES[kind];
 
   /** One burst: both tones, with a short fade so it does not click. */
-  const burst = (duration: number) => {
+  const burst = (duration: number, pulse: number) => {
     if (!context || stopped) return;
 
     const envelope = context.createGain();
@@ -93,7 +118,7 @@ export function startRinging(kind: RingKind): Ringer {
     envelope.gain.setValueAtTime(gain, now + duration - 0.02);
     envelope.gain.linearRampToValueAtTime(0, now + duration);
 
-    for (const frequency of TONES) {
+    for (const frequency of VOICES[kind][pulse % VOICES[kind].length]!) {
       const oscillator = context.createOscillator();
       oscillator.type = 'sine';
       oscillator.frequency.value = frequency;
@@ -108,7 +133,7 @@ export function startRinging(kind: RingKind): Ringer {
   const tick = () => {
     if (stopped) return;
     const duration = pattern[step % pattern.length]!;
-    if (step % 2 === 0) burst(duration);
+    if (step % 2 === 0) burst(duration, step / 2);
     step += 1;
     timer = setTimeout(tick, duration * 1000);
   };

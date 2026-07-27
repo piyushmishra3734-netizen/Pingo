@@ -32,6 +32,7 @@ import {
 } from './seed.js';
 import type {
   AppNotification,
+  CallOutcome,
   CallRecord,
   ChatList,
   Conversation,
@@ -519,7 +520,30 @@ export class MockChatService implements ChatService {
 
   async listCalls(): Promise<CallRecord[]> {
     await delay(READ_LATENCY_MS);
-    return clone(calls);
+    return [...this.#loggedCalls, ...clone(calls)];
+  }
+
+  /** Calls placed during this session, newest first, ahead of the fixtures. */
+  #loggedCalls: CallRecord[] = [];
+
+  async logCall(entry: {
+    conversationId: ConversationId;
+    calleeId: UserId;
+    callKind: 'voice' | 'video';
+    outcome: CallOutcome;
+    durationSeconds: number;
+  }): Promise<void> {
+    this.#loggedCalls.unshift({
+      id: `call-${this.#loggedCalls.length + 1}`,
+      kind: entry.callKind,
+      // The mock only ever places calls, never receives them.
+      direction: 'outgoing',
+      outcome: entry.outcome,
+      withUserId: entry.calleeId,
+      conversationId: entry.conversationId,
+      startedAt: Date.now(),
+      duration: entry.durationSeconds,
+    });
   }
 
   async listGallery(userId: UserId): Promise<GalleryItem[]> {

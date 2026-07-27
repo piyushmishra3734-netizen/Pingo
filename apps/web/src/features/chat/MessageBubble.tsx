@@ -7,7 +7,12 @@ import {
   cn,
 } from '@pingo/ui';
 
-import { ContactBubble, EventBubble, LocationBubble } from './AttachmentBubbles.js';
+import {
+  CallBubble,
+  ContactBubble,
+  EventBubble,
+  LocationBubble,
+} from './AttachmentBubbles.js';
 import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { SnapBubble } from './SnapBubble.js';
@@ -63,6 +68,7 @@ export interface MessageBubbleProps {
  */
 export function quoteText(message: Message): string {
   if (message.deleted) return 'This message was deleted';
+  if (message.call) return message.call.callKind === 'video' ? 'Video call' : 'Voice call';
   if (message.location) return message.location.label ?? 'Location';
   if (message.contact) return message.contact.name;
   if (message.event) return message.event.title;
@@ -159,13 +165,14 @@ export function MessageBubble({
    * The three card kinds. Each *is* the whole message, so like a photo they
    * replace the bubble rather than sitting inside one.
    */
-  if (message.location || message.contact || message.event) {
+  if (message.location || message.contact || message.event || message.call) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
         <div id={`message-${message.id}`} className="animate-bubble-in max-w-[72%] min-w-0">
           {message.location && <LocationBubble location={message.location} mine={mine} />}
           {message.contact && <ContactBubble contact={message.contact} mine={mine} />}
           {message.event && <EventBubble event={message.event} mine={mine} />}
+          {message.call && <CallBubble call={message.call} mine={mine} outgoing={mine} />}
           {showMeta && (
             <span className="mt-1 block text-caption text-text-tertiary">
               {formatTime(message.createdAt)}

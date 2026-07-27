@@ -16,6 +16,7 @@
 
 import type {
   AppNotification,
+  CallOutcome,
   CallRecord,
   ChatList,
   Conversation,
@@ -58,6 +59,13 @@ export interface OutgoingMessage {
    * feature that behave differently for no reason a user could name.
    */
   photo?: { image: Blob; viewLimit?: number };
+  /** Makes this a call-log entry. See `logCall`. */
+  call?: {
+    callKind: 'voice' | 'video';
+    outcome: CallOutcome;
+    durationSeconds: number;
+    calleeId: string;
+  };
 
   /**
    * Makes this a voice note.
@@ -249,6 +257,21 @@ export interface ChatService {
 
   // -- Calls, gallery, moments --------------------------------------------
   listCalls(): Promise<CallRecord[]>;
+
+  /**
+   * Records a call that has finished.
+   *
+   * Written by the caller's client only. The callee's copy arrives over the
+   * same realtime stream every other message uses, so a declined call does not
+   * need both ends to agree on who writes it.
+   */
+  logCall(entry: {
+    conversationId: ConversationId;
+    calleeId: UserId;
+    callKind: 'voice' | 'video';
+    outcome: CallOutcome;
+    durationSeconds: number;
+  }): Promise<void>;
   listGallery(userId: UserId): Promise<GalleryItem[]>;
   listMoments(): Promise<Moment[]>;
 

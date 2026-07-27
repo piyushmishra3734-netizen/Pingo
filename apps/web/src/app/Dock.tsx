@@ -83,7 +83,7 @@ export function Dock() {
           >
             {({ isActive }) => (
               <>
-                <Icon size={24} />
+                <Icon size={26} />
                 <span className="sr-only">{label}</span>
 
                 {/* The brand dot as the active marker. */}

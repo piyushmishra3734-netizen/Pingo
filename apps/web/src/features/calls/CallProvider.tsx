@@ -11,7 +11,9 @@ import {
 } from 'react';
 
 import { usePreferences } from '../settings/SettingsContext.js';
+import { announce, stopAnnouncing, FAILURE_TEXT, type CallFailure } from './audio/announce.js';
 import { startRinging, type Ringer } from './audio/ringtone.js';
+import { useCallLog } from './useCallLog.js';
 
 /**
  * Call state, and the one audio element the whole app shares.
@@ -47,6 +49,14 @@ interface CallContextValue {
   /** Non-fatal problem worth showing, e.g. a refused microphone. */
   error: string | undefined;
   dismissError: () => void;
+  /**
+   * The line being spoken after a call that did not connect.
+   *
+   * Present only while the announcement is playing. Shown as text at the same
+   * time, so the information never depends on the audio arriving — a muted
+   * device or a browser with no voices still tells the user what happened.
+   */
+  failureNotice: string | undefined;
 }
 
 const CallContext = createContext<CallContextValue | undefined>(undefined);
@@ -207,6 +217,45 @@ export function CallProvider({
    * the sound. Derived from state, there is exactly one rule: it rings while
    * the call is waiting to connect, and never otherwise.
    */
+  // Every finished call is written into its conversation. See `useCallLog`.
+  useCallLog(call);
+
+  /**
+   * The failure tone and spoken line, after a call that never connected.
+   *
+   * Held separately from `call`, because it outlives it: the point is to keep
+   * saying something for a moment after the overlay would otherwise vanish, the
+   * way a real call does.
+   */
+  const [failure, setFailure] = useState<CallFailure | undefined>();
+  const previousCall = useRef<Call | undefined>(undefined);
+
+  useEffect(() => {
+    const ended = previousCall.current;
+    previousCall.current = call;
+
+    // Only an outgoing call that never connected has anything to announce.
+    if (call || !ended || ended.direction !== 'outgoing') return;
+    if (ended.connectedAt !== undefined) return;
+    if (ended.endReason === 'cancelled' || ended.endReason === 'hung-up') return;
+
+    setFailure(ended.endReason === 'unanswered' ? 'no-answer' : 'unreachable');
+  }, [call]);
+
+  useEffect(() => {
+    if (!failure) return;
+
+    // Busy tone first, then the sentence over the top of it — the order every
+    // network uses, and the reason the tone alone is enough for most people.
+    const tone = startRinging('busy');
+    void announce(failure).finally(() => setFailure(undefined));
+
+    return () => {
+      tone.stop();
+      stopAnnouncing();
+    };
+  }, [failure]);
+
   const ringer = useRef<Ringer | undefined>(undefined);
   const ringing = call?.state === 'dialling' || call?.state === 'ringing';
   const ringKind = call?.direction === 'incoming' ? 'ringtone' : 'ringback';
@@ -236,6 +285,7 @@ export function CallProvider({
       remoteStream,
       error,
       dismissError,
+      failureNotice: failure ? FAILURE_TEXT[failure] : undefined,
     }),
     [
       call,
@@ -253,6 +303,7 @@ export function CallProvider({
       streamVersion,
       error,
       dismissError,
+      failure,
     ],
   );
 

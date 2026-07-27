@@ -77,7 +77,7 @@ export type MessageRow = {
   edited_at: string | null;
   kind:
     | 'text' | 'sticker' | 'snap' | 'photo' | 'voice'
-    | 'document' | 'location' | 'contact' | 'event';
+    | 'document' | 'location' | 'contact' | 'event' | 'call';
   file_path: string | null;
   file_name: string | null;
   file_size: number | null;
@@ -253,7 +253,7 @@ export type Database = {
           body: string;
           kind?:
             | 'text' | 'sticker' | 'snap' | 'photo' | 'voice'
-            | 'document' | 'location' | 'contact' | 'event';
+            | 'document' | 'location' | 'contact' | 'event' | 'call';
           file_path?: string | null;
           file_name?: string | null;
           file_size?: number | null;
