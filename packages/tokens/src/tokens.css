@@ -297,6 +297,38 @@
  * while keyboard users always do — the outline is offset so it reads as a halo
  * around the control rather than a border on it.
  */
+/**
+ * The named durations, as utilities.
+ *
+ * `--duration-*` under `@theme` produces custom properties but **not** classes:
+ * Tailwind v4 has theme namespaces for colours, easings and animations, and no
+ * such namespace for duration. `duration-*` accepts a bare number or an
+ * arbitrary value and nothing else.
+ *
+ * So `duration-instant`, `duration-quick` and `duration-base` had been emitting
+ * nothing at all. Over a hundred transitions across the app were silently
+ * falling back to Tailwind's default 150ms — close enough to the intended
+ * values that nothing looked broken, which is exactly why it survived.
+ *
+ * Declared here rather than by renaming the tokens, because `--animate-*` reads
+ * `--duration-*` and the two should not drift apart.
+ */
+@utility duration-instant {
+  transition-duration: var(--duration-instant);
+}
+
+@utility duration-quick {
+  transition-duration: var(--duration-quick);
+}
+
+@utility duration-base {
+  transition-duration: var(--duration-base);
+}
+
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
+}
+
 @utility focus-ring {
   &:focus-visible {
     outline: 2px solid var(--color-focus-ring);

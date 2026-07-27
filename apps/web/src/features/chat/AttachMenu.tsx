@@ -76,7 +76,15 @@ export function AttachMenu({
         onClick={() => setOpen((was) => !was)}
         className={cn(
           'focus-ring touch-target mb-0.5 grid size-10 place-items-center rounded-full',
-          'text-text-secondary transition-[transform,color] duration-base ease-standard',
+          /*
+           * `rotate`, not `transform`.
+           *
+           * Tailwind v4's rotate utilities set the standalone `rotate` property,
+           * so a transition list naming `transform` does not cover them — the
+           * turn was snapping instantly with no animation at all.
+           */
+          'text-text-secondary transition-[rotate,color,background-color]',
+          'duration-base ease-standard',
           'hover:bg-hover hover:text-ink',
           /*
            * 45°, not 135°.
@@ -96,7 +104,7 @@ export function AttachMenu({
       {open && (
         <div
           role="menu"
-          aria-label="Attach"
+          aria-label="Attachment options"
           className={cn(
             // Grows upward from the button, which is where it came from.
             'absolute bottom-full left-0 z-200 mb-2 w-44 origin-bottom-left',
