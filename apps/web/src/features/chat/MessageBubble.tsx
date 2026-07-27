@@ -311,7 +311,29 @@ export function MessageBubble({
           )}
 
           {file && (
-            <div className={cn('flex items-center gap-3', hasBody && 'mb-2')}>
+            /*
+             * A file you cannot open is a filename.
+             *
+             * This rendered the name and size and nothing else, so a sent
+             * document was a dead card — the one failure mode this codebase
+             * keeps producing. `download` asks for the original name back,
+             * because the storage key is a uuid and saving `9f3c-…` helps
+             * nobody.
+             */
+            <a
+              href={file.url}
+              download={file.fileName}
+              target="_blank"
+              rel="noopener noreferrer"
+              // The bubble's tap opens the reaction bar; this one has a job.
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              className={cn(
+                'focus-ring -m-1 flex items-center gap-3 rounded-lg p-1',
+                'transition-opacity duration-instant hover:opacity-80',
+                hasBody && 'mb-2',
+              )}
+            >
               <span
                 className={cn(
                   'grid size-10 shrink-0 place-items-center rounded-md',
@@ -334,7 +356,7 @@ export function MessageBubble({
                   </span>
                 )}
               </span>
-            </div>
+            </a>
           )}
 
           {hasBody && (
