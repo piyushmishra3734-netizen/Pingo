@@ -353,7 +353,7 @@ export function StoryViewer({
             type="button"
             onClick={() => setMenuOpen(true)}
             aria-label="Story options"
-            className="focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
+            className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
           >
             <MoreIcon size={22} />
           </button>
@@ -363,7 +363,7 @@ export function StoryViewer({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
+            className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
           >
             <CloseIcon size={22} />
           </button>
