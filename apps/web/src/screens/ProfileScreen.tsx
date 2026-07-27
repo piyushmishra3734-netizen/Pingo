@@ -76,7 +76,10 @@ type Tab = 'posts' | 'media';
 
 export function ProfileScreen() {
   const { handle } = useParams<{ handle: string }>();
-  const { profile: mine, service: profiles } = useProfile();
+  // `updateMine` rather than `profiles.update`: the provider holds the copy the
+  // whole app renders from, so a photo changed through the service alone would
+  // not appear until the next reload.
+  const { profile: mine, service: profiles, update: updateMine } = useProfile();
   const { users, conversations, service: chat } = useChat();
   const { startCall } = useCall();
   const { mute } = useConversationActions();
@@ -282,7 +285,7 @@ export function ProfileScreen() {
   const changeAvatar = async (file: File) => {
     try {
       const url = await profiles.uploadAvatar(file);
-      await profiles.update({ avatarUrl: url });
+      await updateMine({ avatarUrl: url });
     } catch {
       // Nothing changed, and the previous photo is still on screen.
     }
@@ -319,7 +322,9 @@ export function ProfileScreen() {
             online={online}
             isSelf={isSelf}
             onChangePhoto={() => avatarFileRef.current?.click()}
-            onRemovePhoto={() => void profiles.update({ avatarUrl: undefined })}
+            // The key is present and undefined, which the service reads as
+            // "clear it" rather than as "not mentioned".
+            onRemovePhoto={() => void updateMine({ avatarUrl: undefined })}
           />
 
           <input

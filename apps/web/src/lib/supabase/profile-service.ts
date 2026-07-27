@@ -230,13 +230,26 @@ export class SupabaseProfileService implements ProfileService {
      * to compile — and that strictness is worth keeping: it means a typo in a
      * column name is a build error, not a silent no-op at runtime.
      */
+    /*
+     * Keyed on whether the property is *present*, not on whether it is defined.
+     *
+     * `avatarUrl` and `bio` are optional, so the only way to say "clear this" is
+     * to pass the key with `undefined` — and a `!== undefined` test reads that
+     * as "not mentioned" and leaves the old value in place. Removing a profile
+     * photo did nothing at all for exactly that reason.
+     *
+     * With `in`, an absent key means untouched and a present one means write it,
+     * which is the distinction the caller is actually trying to make.
+     */
     const patch: ProfileUpdate = {};
-    if (changes.username !== undefined) patch.username = normaliseUsername(changes.username);
-    if (changes.displayName !== undefined) patch.display_name = changes.displayName.trim();
-    if (changes.avatarUrl !== undefined) patch.avatar_url = changes.avatarUrl ?? null;
-    // Clearing the bio is a real edit, so an empty string writes null rather
-    // than being treated as "no change".
-    if (changes.bio !== undefined) patch.bio = changes.bio?.trim() || null;
+    if ('username' in changes && changes.username !== undefined) {
+      patch.username = normaliseUsername(changes.username);
+    }
+    if ('displayName' in changes && changes.displayName !== undefined) {
+      patch.display_name = changes.displayName.trim();
+    }
+    if ('avatarUrl' in changes) patch.avatar_url = changes.avatarUrl ?? null;
+    if ('bio' in changes) patch.bio = changes.bio?.trim() || null;
 
     const { data, error } = await this.client
       .from('profiles')

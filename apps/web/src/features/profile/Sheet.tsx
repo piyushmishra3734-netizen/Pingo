@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 
 import { useReturnFocus } from '../conversations/focus-restore.js';
 
@@ -49,7 +49,7 @@ export function Sheet({
 }: SheetProps) {
   useReturnFocus();
   const panelRef = useRef<HTMLDivElement>(null);
-  const titleId = useRef(`sheet-${Math.random().toString(36).slice(2, 9)}`).current;
+  const titleId = useId();
 
   useEffect(() => {
     panelRef.current?.focus();
