@@ -5,6 +5,7 @@ import {
   MicIcon,
   MicOffIcon,
   PhoneIcon,
+  SpeakerIcon,
   VideoIcon,
   VideoOffIcon,
   cn,
@@ -49,6 +50,7 @@ export function CallOverlay() {
     error,
     dismissError,
     failureNotice,
+    speaker,
   } = useCall();
   const { users } = useChat();
 
@@ -192,6 +194,23 @@ export function CallOverlay() {
               {call.cameraOff ? <VideoOffIcon size={24} /> : <VideoIcon size={24} />}
             </CallAction>
           ) : null}
+
+          {/*
+            Absent, not disabled, where the browser cannot route audio. Most
+            phone browsers do not expose the earpiece and the loudspeaker as
+            separate outputs, and a toggle that cannot move the sound is worse
+            than no toggle at all.
+          */}
+          {speaker && (
+            <CallAction
+              label={speaker.on ? 'Turn speaker off' : 'Turn speaker on'}
+              tone="neutral"
+              pressed={speaker.on}
+              onClick={speaker.toggle}
+            >
+              <SpeakerIcon size={24} />
+            </CallAction>
+          )}
 
           {video ? (
             <CallAction

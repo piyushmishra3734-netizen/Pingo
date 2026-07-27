@@ -224,7 +224,9 @@ export function CallBubble({
 
   const label =
     call.outcome === 'answered'
-      ? formatDuration(call.durationSeconds)
+      ? // Labelled, not bare. A lone "2:34" under a call reads as a timestamp
+        // at a glance, which is the one thing it is not.
+        `Duration ${formatDuration(call.durationSeconds)}`
       : call.outcome === 'declined'
         ? 'Declined'
         : call.outcome === 'unreachable'

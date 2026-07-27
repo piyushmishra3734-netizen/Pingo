@@ -14,6 +14,7 @@ import { usePreferences } from '../settings/SettingsContext.js';
 import { announce, stopAnnouncing, FAILURE_TEXT, type CallFailure } from './audio/announce.js';
 import { startRinging, type Ringer } from './audio/ringtone.js';
 import { useCallLog } from './useCallLog.js';
+import { useSpeaker } from './useSpeaker.js';
 
 /**
  * Call state, and the one audio element the whole app shares.
@@ -49,6 +50,13 @@ interface CallContextValue {
   /** Non-fatal problem worth showing, e.g. a refused microphone. */
   error: string | undefined;
   dismissError: () => void;
+  /**
+   * Whether remote audio is routed to the loudspeaker.
+   *
+   * Absent when the browser cannot route audio at all — see `useSpeaker`. The
+   * control hides itself in that case rather than sitting there doing nothing.
+   */
+  speaker: { on: boolean; toggle: () => void } | undefined;
   /**
    * The line being spoken after a call that did not connect.
    *
@@ -220,6 +228,9 @@ export function CallProvider({
   // Every finished call is written into its conversation. See `useCallLog`.
   useCallLog(call);
 
+  // Absent where the browser cannot route audio at all. See `useSpeaker`.
+  const speaker = useSpeaker(audioRef, Boolean(call));
+
   /**
    * The failure tone and spoken line, after a call that never connected.
    *
@@ -285,6 +296,7 @@ export function CallProvider({
       remoteStream,
       error,
       dismissError,
+      speaker,
       failureNotice: failure ? FAILURE_TEXT[failure] : undefined,
     }),
     [
@@ -303,6 +315,7 @@ export function CallProvider({
       streamVersion,
       error,
       dismissError,
+      speaker,
       failure,
     ],
   );

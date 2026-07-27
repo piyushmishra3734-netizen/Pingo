@@ -336,6 +336,15 @@ export const ListIcon = (props: IconProps) => (
   </IconBase>
 );
 
+export const SpeakerIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M11 5.5 6.8 9H4.2a.7.7 0 0 0-.7.7v4.6a.7.7 0 0 0 .7.7h2.6L11 18.5a.6.6 0 0 0 1-.5V6a.6.6 0 0 0-1-.5Z" />
+    {/* Two arcs: sound leaving the cone, which is what makes it read as loud. */}
+    <path d="M15.6 9.4a3.6 3.6 0 0 1 0 5.2" />
+    <path d="M18.2 7.2a7 7 0 0 1 0 9.6" />
+  </IconBase>
+);
+
 export const MuteIcon = (props: IconProps) => (
   <IconBase {...props}>
     <path d="M11 5.5 6.8 9H4.2a.7.7 0 0 0-.7.7v4.6a.7.7 0 0 0 .7.7h2.6L11 18.5a.6.6 0 0 0 1-.5V6a.6.6 0 0 0-1-.5Z" />
