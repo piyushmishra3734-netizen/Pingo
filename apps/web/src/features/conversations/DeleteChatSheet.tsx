@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'react';
 
 import { useReturnFocus } from './focus-restore.js';
 
+import { Overlay } from '../../components/Overlay.js';
+
 /**
  * The confirmation for deleting chats.
  *
@@ -55,60 +57,62 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
   const subject = count === 1 ? 'this chat' : `these ${count} chats`;
 
   return (
-    <div
-      className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
-      onPointerDown={onCancel}
-    >
-      <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
-
+    <Overlay>
       <div
-        ref={panelRef}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="delete-chat-title"
-        aria-describedby="delete-chat-body"
-        tabIndex={-1}
-        onPointerDown={(event) => event.stopPropagation()}
-        className={cn(
-          'animate-panel-in relative w-full max-w-sm outline-none',
-          'rounded-t-xl border border-line bg-surface p-4 shadow-lg',
-          'pb-[max(1rem,env(safe-area-inset-bottom))]',
-          'sm:rounded-xl sm:pb-4',
-        )}
+        className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
+        onPointerDown={onCancel}
       >
-        <h2 id="delete-chat-title" className="text-h2 text-ink">
-          Delete {subject}?
-        </h2>
-        <p id="delete-chat-body" className="mt-1.5 text-caption text-text-secondary">
-          The messages will be removed from your device. Everyone else keeps
-          their copy, and the chat comes back if someone writes again.
-        </p>
+        <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
 
-        <div className="mt-4 flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={cn(
-              'focus-ring w-full rounded-full bg-danger px-5 py-3',
-              'text-body font-medium text-white',
-              'transition-transform duration-instant active:scale-[0.98]',
-            )}
-          >
-            Delete for me
-          </button>
+        <div
+          ref={panelRef}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-chat-title"
+          aria-describedby="delete-chat-body"
+          tabIndex={-1}
+          onPointerDown={(event) => event.stopPropagation()}
+          className={cn(
+            'animate-panel-in relative w-full max-w-sm outline-none',
+            'rounded-t-xl border border-line bg-surface p-4 shadow-lg',
+            'pb-[max(1rem,env(safe-area-inset-bottom))]',
+            'sm:rounded-xl sm:pb-4',
+          )}
+        >
+          <h2 id="delete-chat-title" className="text-h2 text-ink">
+            Delete {subject}?
+          </h2>
+          <p id="delete-chat-body" className="mt-1.5 text-caption text-text-secondary">
+            The messages will be removed from your device. Everyone else keeps
+            their copy, and the chat comes back if someone writes again.
+          </p>
 
-          <button
-            type="button"
-            onClick={onCancel}
-            className={cn(
-              'focus-ring w-full rounded-full px-5 py-3 text-body',
-              'text-text-secondary hover:bg-hover',
-            )}
-          >
-            Cancel
-          </button>
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={onConfirm}
+              className={cn(
+                'focus-ring w-full rounded-full bg-danger px-5 py-3',
+                'text-body font-medium text-white',
+                'transition-transform duration-instant active:scale-[0.98]',
+              )}
+            >
+              Delete for me
+            </button>
+
+            <button
+              type="button"
+              onClick={onCancel}
+              className={cn(
+                'focus-ring w-full rounded-full px-5 py-3 text-body',
+                'text-text-secondary hover:bg-hover',
+              )}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }

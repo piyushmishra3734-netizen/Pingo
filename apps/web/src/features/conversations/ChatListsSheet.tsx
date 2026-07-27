@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 
 import { useReturnFocus } from './focus-restore.js';
 
+import { Overlay } from '../../components/Overlay.js';
+
 /**
  * Filing chats into the user's own lists — "Work", "Family".
  *
@@ -157,209 +159,211 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
   };
 
   return (
-    <div
-      className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
-      onPointerDown={onClose}
-    >
-      <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
-
+    <Overlay>
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add to list"
-        onPointerDown={(event) => event.stopPropagation()}
-        className={cn(
-          'animate-panel-in relative flex w-full max-w-sm flex-col',
-          'max-h-[70vh] rounded-t-xl border border-line bg-surface shadow-lg',
-          'sm:rounded-xl',
-        )}
+        className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
+        onPointerDown={onClose}
       >
-        <div className="shrink-0 px-4 pt-4 pb-2">
-          <h2 className="text-h2 text-ink">Add to list</h2>
-          <p className="mt-1 text-caption text-text-secondary">
-            {selected.length === 1
-              ? 'This chat can be in more than one.'
-              : `${selected.length} chats. A chat can be in more than one.`}
-          </p>
-        </div>
+        <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
 
-        {error && (
-          <p role="alert" className="mx-4 mb-2 rounded-lg bg-danger-soft px-3 py-2 text-caption text-danger">
-            {error}
-          </p>
-        )}
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-2">
-          {!lists ? null : lists.length === 0 && !creating ? (
-            <p className="px-2 py-6 text-center text-caption text-text-tertiary">
-              No lists yet. Make one below.
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add to list"
+          onPointerDown={(event) => event.stopPropagation()}
+          className={cn(
+            'animate-panel-in relative flex w-full max-w-sm flex-col',
+            'max-h-[70vh] rounded-t-xl border border-line bg-surface shadow-lg',
+            'sm:rounded-xl',
+          )}
+        >
+          <div className="shrink-0 px-4 pt-4 pb-2">
+            <h2 className="text-h2 text-ink">Add to list</h2>
+            <p className="mt-1 text-caption text-text-secondary">
+              {selected.length === 1
+                ? 'This chat can be in more than one.'
+                : `${selected.length} chats. A chat can be in more than one.`}
             </p>
-          ) : (
-            lists.map((list) => {
-              const state = membership(list);
+          </div>
 
-              /*
-               * Renaming replaces the row rather than opening a dialog. It is a
-               * small edit to a short string that is already on screen, and a
-               * modal for it would be a heavier interaction than the change.
-               */
-              if (renaming === list.id) {
+          {error && (
+            <p role="alert" className="mx-4 mb-2 rounded-lg bg-danger-soft px-3 py-2 text-caption text-danger">
+              {error}
+            </p>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-2">
+            {!lists ? null : lists.length === 0 && !creating ? (
+              <p className="px-2 py-6 text-center text-caption text-text-tertiary">
+                No lists yet. Make one below.
+              </p>
+            ) : (
+              lists.map((list) => {
+                const state = membership(list);
+
+                /*
+                 * Renaming replaces the row rather than opening a dialog. It is a
+                 * small edit to a short string that is already on screen, and a
+                 * modal for it would be a heavier interaction than the change.
+                 */
+                if (renaming === list.id) {
+                  return (
+                    <div key={list.id} className="flex items-center gap-2 px-2 py-2">
+                      <input
+                        autoFocus
+                        defaultValue={list.name}
+                        maxLength={40}
+                        aria-label={`Rename ${list.name}`}
+                        onBlur={(event) => void rename(list, event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') event.currentTarget.blur();
+                          if (event.key === 'Escape') setRenaming(undefined);
+                        }}
+                        className={cn(
+                          'focus-ring min-w-0 flex-1 rounded-lg border border-line bg-page',
+                          'px-3 py-2 text-body text-ink',
+                        )}
+                      />
+                    </div>
+                  );
+                }
+
                 return (
-                  <div key={list.id} className="flex items-center gap-2 px-2 py-2">
-                    <input
-                      autoFocus
-                      defaultValue={list.name}
-                      maxLength={40}
-                      aria-label={`Rename ${list.name}`}
-                      onBlur={(event) => void rename(list, event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') event.currentTarget.blur();
-                        if (event.key === 'Escape') setRenaming(undefined);
-                      }}
+                  <div key={list.id} className="group flex items-center gap-1">
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={state === 'all' ? true : state === 'some' ? 'mixed' : false}
+                      onClick={() => void toggle(list)}
+                      disabled={busy}
                       className={cn(
-                        'focus-ring min-w-0 flex-1 rounded-lg border border-line bg-page',
-                        'px-3 py-2 text-body text-ink',
-                      )}
-                    />
-                  </div>
-                );
-              }
-
-              return (
-                <div key={list.id} className="group flex items-center gap-1">
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={state === 'all' ? true : state === 'some' ? 'mixed' : false}
-                    onClick={() => void toggle(list)}
-                    disabled={busy}
-                    className={cn(
-                      'focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2.5',
-                      'text-left transition-colors duration-instant hover:bg-hover',
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'grid size-5 shrink-0 place-items-center rounded-md border',
-                        'transition-colors duration-instant',
-                        state === 'all'
-                          ? 'border-brand bg-brand text-white'
-                          : state === 'some'
-                            ? 'border-brand bg-brand/20 text-brand'
-                            : 'border-line-strong',
+                        'focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2.5',
+                        'text-left transition-colors duration-instant hover:bg-hover',
                       )}
                     >
-                      {/* A dash for mixed: a tick would claim all of them. */}
-                      {state === 'all' ? (
-                        <CheckIcon size={13} />
-                      ) : state === 'some' ? (
-                        <span className="h-0.5 w-2.5 rounded-full bg-brand" />
-                      ) : null}
-                    </span>
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'grid size-5 shrink-0 place-items-center rounded-md border',
+                          'transition-colors duration-instant',
+                          state === 'all'
+                            ? 'border-brand bg-brand text-white'
+                            : state === 'some'
+                              ? 'border-brand bg-brand/20 text-brand'
+                              : 'border-line-strong',
+                        )}
+                      >
+                        {/* A dash for mixed: a tick would claim all of them. */}
+                        {state === 'all' ? (
+                          <CheckIcon size={13} />
+                        ) : state === 'some' ? (
+                          <span className="h-0.5 w-2.5 rounded-full bg-brand" />
+                        ) : null}
+                      </span>
 
-                    <ListIcon size={16} className="shrink-0 text-text-tertiary" />
-                    <span className="min-w-0 flex-1 truncate text-body text-ink">
-                      {list.name}
-                    </span>
+                      <ListIcon size={16} className="shrink-0 text-text-tertiary" />
+                      <span className="min-w-0 flex-1 truncate text-body text-ink">
+                        {list.name}
+                      </span>
 
-                    <span className="shrink-0 text-caption text-text-tertiary tabular-nums">
-                      {list.count}
-                    </span>
-                  </button>
+                      <span className="shrink-0 text-caption text-text-tertiary tabular-nums">
+                        {list.count}
+                      </span>
+                    </button>
 
-                  <button
-                    type="button"
-                    aria-label={`Rename list ${list.name}`}
-                    onClick={() => setRenaming(list.id)}
-                    disabled={busy}
-                    className={cn(
-                      'focus-ring shrink-0 rounded-lg p-2 text-text-tertiary',
-                      'opacity-0 transition-opacity duration-instant',
-                      'hover:bg-hover hover:text-ink focus-visible:opacity-100 group-hover:opacity-100',
-                    )}
-                  >
-                    <EditIcon size={15} />
-                  </button>
+                    <button
+                      type="button"
+                      aria-label={`Rename list ${list.name}`}
+                      onClick={() => setRenaming(list.id)}
+                      disabled={busy}
+                      className={cn(
+                        'focus-ring shrink-0 rounded-lg p-2 text-text-tertiary',
+                        'opacity-0 transition-opacity duration-instant',
+                        'hover:bg-hover hover:text-ink focus-visible:opacity-100 group-hover:opacity-100',
+                      )}
+                    >
+                      <EditIcon size={15} />
+                    </button>
 
-                  <button
-                    type="button"
-                    aria-label={`Delete list ${list.name}`}
-                    onClick={() => void remove(list)}
-                    disabled={busy}
-                    className={cn(
-                      'focus-ring mr-1 shrink-0 rounded-lg p-2 text-text-tertiary',
-                      'opacity-0 transition-opacity duration-instant',
-                      'hover:bg-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100',
-                    )}
-                  >
-                    <TrashIcon size={15} />
-                  </button>
-                </div>
-              );
-            })
-          )}
+                    <button
+                      type="button"
+                      aria-label={`Delete list ${list.name}`}
+                      onClick={() => void remove(list)}
+                      disabled={busy}
+                      className={cn(
+                        'focus-ring mr-1 shrink-0 rounded-lg p-2 text-text-tertiary',
+                        'opacity-0 transition-opacity duration-instant',
+                        'hover:bg-hover hover:text-danger focus-visible:opacity-100 group-hover:opacity-100',
+                      )}
+                    >
+                      <TrashIcon size={15} />
+                    </button>
+                  </div>
+                );
+              })
+            )}
 
-          {creating ? (
-            <div className="flex items-center gap-2 px-2 py-2">
-              <input
-                autoFocus
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') void create();
-                  if (event.key === 'Escape') setCreating(false);
-                }}
-                maxLength={40}
-                placeholder="List name"
-                aria-label="New list name"
-                className={cn(
-                  'focus-ring min-w-0 flex-1 rounded-lg border border-line bg-page',
-                  'px-3 py-2 text-body text-ink placeholder:text-text-tertiary',
-                )}
-              />
+            {creating ? (
+              <div className="flex items-center gap-2 px-2 py-2">
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void create();
+                    if (event.key === 'Escape') setCreating(false);
+                  }}
+                  maxLength={40}
+                  placeholder="List name"
+                  aria-label="New list name"
+                  className={cn(
+                    'focus-ring min-w-0 flex-1 rounded-lg border border-line bg-page',
+                    'px-3 py-2 text-body text-ink placeholder:text-text-tertiary',
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => void create()}
+                  disabled={!name.trim() || busy}
+                  className={cn(
+                    'focus-ring shrink-0 rounded-full bg-brand-gradient px-4 py-2',
+                    'text-caption font-medium text-white disabled:opacity-50',
+                  )}
+                >
+                  Create
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={() => void create()}
-                disabled={!name.trim() || busy}
+                onClick={() => setCreating(true)}
                 className={cn(
-                  'focus-ring shrink-0 rounded-full bg-brand-gradient px-4 py-2',
-                  'text-caption font-medium text-white disabled:opacity-50',
+                  'focus-ring flex w-full items-center gap-3 rounded-lg px-2 py-2.5',
+                  'text-body text-brand transition-colors duration-instant hover:bg-hover',
                 )}
               >
-                Create
+                <span aria-hidden className="grid size-5 shrink-0 place-items-center">
+                  <PlusIcon size={16} />
+                </span>
+                New list
               </button>
-            </div>
-          ) : (
+            )}
+          </div>
+
+          <div className="shrink-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
             <button
               type="button"
-              onClick={() => setCreating(true)}
+              onClick={onClose}
               className={cn(
-                'focus-ring flex w-full items-center gap-3 rounded-lg px-2 py-2.5',
-                'text-body text-brand transition-colors duration-instant hover:bg-hover',
+                'focus-ring w-full rounded-full px-5 py-2.5 text-body',
+                'text-text-secondary hover:bg-hover',
               )}
             >
-              <span aria-hidden className="grid size-5 shrink-0 place-items-center">
-                <PlusIcon size={16} />
-              </span>
-              New list
+              Done
             </button>
-          )}
-        </div>
-
-        <div className="shrink-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(
-              'focus-ring w-full rounded-full px-5 py-2.5 text-body',
-              'text-text-secondary hover:bg-hover',
-            )}
-          >
-            Done
-          </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }

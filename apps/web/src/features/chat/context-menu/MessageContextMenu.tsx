@@ -1,6 +1,8 @@
 import { cn } from '@pingo/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
+import { Overlay } from '../../../components/Overlay.js';
+
 /**
  * The context menu shell: dim, lift, and where things sit.
  *
@@ -118,70 +120,72 @@ export function MessageContextMenu({
   const layout = place(anchor, touch, size, reactionsSize.width);
 
   return (
-    <div
-      ref={scrimRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Message actions"
-      onPointerDown={onDismiss}
-      className={cn(
-        'fixed inset-0 z-400',
-        // 5–10% dim, and deliberately no blur. docs/13 § 2.
-        'bg-ink/[0.08]',
-        'animate-fade-in',
-      )}
-      style={{ animationDuration: `${ENTER_MS}ms` }}
-    >
-      {/* Reactions above, actions below — or swapped when the menu flips. */}
+    <Overlay>
       <div
-        // Taps inside act; only the scrim dismisses.
-        onPointerDown={(event) => event.stopPropagation()}
-        className="pointer-events-none absolute inset-0"
+        ref={scrimRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Message actions"
+        onPointerDown={onDismiss}
+        className={cn(
+          'fixed inset-0 z-400',
+          // 5–10% dim, and deliberately no blur. docs/13 § 2.
+          'bg-ink/[0.08]',
+          'animate-fade-in',
+        )}
+        style={{ animationDuration: `${ENTER_MS}ms` }}
       >
+        {/* Reactions above, actions below — or swapped when the menu flips. */}
         <div
-          ref={reactionsRef}
-          className="pointer-events-auto absolute origin-bottom animate-panel-in"
-          style={{
-            left: layout.reactionsLeft,
-            top: layout.reactionsTop,
-            animationDuration: `${ENTER_MS}ms`,
-          }}
+          // Taps inside act; only the scrim dismisses.
+          onPointerDown={(event) => event.stopPropagation()}
+          className="pointer-events-none absolute inset-0"
         >
-          {reactions}
-        </div>
+          <div
+            ref={reactionsRef}
+            className="pointer-events-auto absolute origin-bottom animate-panel-in"
+            style={{
+              left: layout.reactionsLeft,
+              top: layout.reactionsTop,
+              animationDuration: `${ENTER_MS}ms`,
+            }}
+          >
+            {reactions}
+          </div>
 
-        {/*
-          The message itself, lifted out of the thread and drawn here so it sits
-          above the dim. It keeps its measured position, which is what makes the
-          lift read as the bubble rising rather than as a copy appearing.
-        */}
-        <div
-          className="pointer-events-none absolute transition-transform"
-          style={{
-            left: anchor.left,
-            top: anchor.top,
-            width: anchor.width,
-            transform: `translateY(-${LIFT_PX}px)`,
-            transitionDuration: '180ms',
-            filter: 'drop-shadow(0 6px 16px rgb(16 17 20 / 0.14))',
-          }}
-        >
-          {children}
-        </div>
+          {/*
+            The message itself, lifted out of the thread and drawn here so it sits
+            above the dim. It keeps its measured position, which is what makes the
+            lift read as the bubble rising rather than as a copy appearing.
+          */}
+          <div
+            className="pointer-events-none absolute transition-transform"
+            style={{
+              left: anchor.left,
+              top: anchor.top,
+              width: anchor.width,
+              transform: `translateY(-${LIFT_PX}px)`,
+              transitionDuration: '180ms',
+              filter: 'drop-shadow(0 6px 16px rgb(16 17 20 / 0.14))',
+            }}
+          >
+            {children}
+          </div>
 
-        <div
-          ref={actionsRef}
-          className="pointer-events-auto absolute origin-top animate-panel-in"
-          style={{
-            left: layout.left,
-            top: layout.actionsTop,
-            animationDuration: `${ENTER_MS}ms`,
-          }}
-        >
-          {actions}
+          <div
+            ref={actionsRef}
+            className="pointer-events-auto absolute origin-top animate-panel-in"
+            style={{
+              left: layout.left,
+              top: layout.actionsTop,
+              animationDuration: `${ENTER_MS}ms`,
+            }}
+          >
+            {actions}
+          </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }
 

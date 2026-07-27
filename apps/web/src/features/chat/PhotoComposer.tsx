@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { SnapEditor } from '../camera/SnapEditor.js';
 
+import { Overlay } from '../../components/Overlay.js';
+
 /**
  * Reviewing pictures before they are sent.
  *
@@ -81,80 +83,82 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-500 bg-ink">
-      <SnapEditor
-        // Remounted per picture, so strokes and text never bleed across.
-        key={index}
-        src={sources[index]!}
-        onCancel={onCancel}
-        onDone={(blob) => void finish(blob)}
-        busy={busy}
-        doneLabel={last ? (sources.length > 1 ? 'Send all' : 'Send') : 'Next photo'}
-        extras={
-          <div className="space-y-2">
-            {error && (
-              <p role="alert" className="text-center text-caption text-danger">
-                {error}
-              </p>
-            )}
-
-            {sources.length > 1 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {sources.map((src, position) => (
-                  <button
-                    key={src}
-                    type="button"
-                    aria-label={`Photo ${position + 1} of ${sources.length}`}
-                    aria-current={position === index}
-                    // Only backwards: going forward is what the confirm button
-                    // does, and it is the thing that flattens the current edit.
-                    disabled={position > index}
-                    onClick={() => setIndex(position)}
-                    className={cn(
-                      'focus-ring size-12 shrink-0 overflow-hidden rounded-lg',
-                      'ring-2 transition-[opacity,box-shadow] duration-instant',
-                      position === index ? 'ring-white' : 'ring-white/20',
-                      position > index && 'opacity-40',
-                    )}
-                  >
-                    <img src={src} alt="" className="size-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <input
-              value={caption}
-              onChange={(event) => setCaption(event.target.value)}
-              placeholder="Add a caption"
-              aria-label="Caption"
-              maxLength={1000}
-              className={cn(
-                'focus-ring w-full rounded-full border border-white/20 bg-white/10',
-                'px-4 py-2.5 text-body text-white placeholder:text-white/50',
+    <Overlay>
+      <div className="fixed inset-0 z-500 bg-ink">
+        <SnapEditor
+          // Remounted per picture, so strokes and text never bleed across.
+          key={index}
+          src={sources[index]!}
+          onCancel={onCancel}
+          onDone={(blob) => void finish(blob)}
+          busy={busy}
+          doneLabel={last ? (sources.length > 1 ? 'Send all' : 'Send') : 'Next photo'}
+          extras={
+            <div className="space-y-2">
+              {error && (
+                <p role="alert" className="text-center text-caption text-danger">
+                  {error}
+                </p>
               )}
-            />
 
-            <button
-              type="button"
-              role="switch"
-              aria-checked={once}
-              onClick={() => setOnce((was) => !was)}
-              className={cn(
-                'focus-ring flex w-full items-center justify-between rounded-full',
-                'border border-white/20 px-4 py-2.5 text-left',
-                'transition-colors duration-instant',
-                once ? 'bg-white/20' : 'bg-transparent',
+              {sources.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {sources.map((src, position) => (
+                    <button
+                      key={src}
+                      type="button"
+                      aria-label={`Photo ${position + 1} of ${sources.length}`}
+                      aria-current={position === index}
+                      // Only backwards: going forward is what the confirm button
+                      // does, and it is the thing that flattens the current edit.
+                      disabled={position > index}
+                      onClick={() => setIndex(position)}
+                      className={cn(
+                        'focus-ring size-12 shrink-0 overflow-hidden rounded-lg',
+                        'ring-2 transition-[opacity,box-shadow] duration-instant',
+                        position === index ? 'ring-white' : 'ring-white/20',
+                        position > index && 'opacity-40',
+                      )}
+                    >
+                      <img src={src} alt="" className="size-full object-cover" />
+                    </button>
+                  ))}
+                </div>
               )}
-            >
-              <span className="text-body text-white">View once</span>
-              <span className="text-caption text-white/60">
-                {once ? 'Opens once, then gone' : 'Stays in the chat'}
-              </span>
-            </button>
-          </div>
-        }
-      />
-    </div>
+
+              <input
+                value={caption}
+                onChange={(event) => setCaption(event.target.value)}
+                placeholder="Add a caption"
+                aria-label="Caption"
+                maxLength={1000}
+                className={cn(
+                  'focus-ring w-full rounded-full border border-white/20 bg-white/10',
+                  'px-4 py-2.5 text-body text-white placeholder:text-white/50',
+                )}
+              />
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={once}
+                onClick={() => setOnce((was) => !was)}
+                className={cn(
+                  'focus-ring flex w-full items-center justify-between rounded-full',
+                  'border border-white/20 px-4 py-2.5 text-left',
+                  'transition-colors duration-instant',
+                  once ? 'bg-white/20' : 'bg-transparent',
+                )}
+              >
+                <span className="text-body text-white">View once</span>
+                <span className="text-caption text-white/60">
+                  {once ? 'Opens once, then gone' : 'Stays in the chat'}
+                </span>
+              </button>
+            </div>
+          }
+        />
+      </div>
+    </Overlay>
   );
 }

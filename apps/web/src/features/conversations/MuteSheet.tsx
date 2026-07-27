@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react';
 
 import { useReturnFocus } from './focus-restore.js';
 
+import { Overlay } from '../../components/Overlay.js';
+
 /**
  * How long to mute for.
  *
@@ -38,60 +40,62 @@ export function MuteSheet({ count, onCancel, onChoose }: MuteSheetProps) {
   }, [onCancel]);
 
   return (
-    <div
-      className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
-      onPointerDown={onCancel}
-    >
-      <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
-
+    <Overlay>
       <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="mute-title"
-        tabIndex={-1}
-        onPointerDown={(event) => event.stopPropagation()}
-        className={cn(
-          'animate-panel-in relative w-full max-w-sm outline-none',
-          'rounded-t-xl border border-line bg-surface p-4 shadow-lg',
-          'pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-xl sm:pb-4',
-        )}
+        className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
+        onPointerDown={onCancel}
       >
-        <h2 id="mute-title" className="text-h2 text-ink">
-          Mute {count === 1 ? 'this chat' : `${count} chats`}
-        </h2>
-        <p className="mt-1.5 text-caption text-text-secondary">
-          You'll still see new messages in the list — they just won't notify you.
-        </p>
+        <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
 
-        <div className="mt-4 flex flex-col gap-1.5">
-          {MUTE_DURATIONS.map(({ label, ms }) => (
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mute-title"
+          tabIndex={-1}
+          onPointerDown={(event) => event.stopPropagation()}
+          className={cn(
+            'animate-panel-in relative w-full max-w-sm outline-none',
+            'rounded-t-xl border border-line bg-surface p-4 shadow-lg',
+            'pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-xl sm:pb-4',
+          )}
+        >
+          <h2 id="mute-title" className="text-h2 text-ink">
+            Mute {count === 1 ? 'this chat' : `${count} chats`}
+          </h2>
+          <p className="mt-1.5 text-caption text-text-secondary">
+            You'll still see new messages in the list — they just won't notify you.
+          </p>
+
+          <div className="mt-4 flex flex-col gap-1.5">
+            {MUTE_DURATIONS.map(({ label, ms }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => onChoose(ms)}
+                className={cn(
+                  // 44px minimum target, which py-3 on body text clears.
+                  'focus-ring w-full rounded-lg px-4 py-3 text-left text-body text-ink',
+                  'transition-colors duration-instant hover:bg-hover active:bg-pressed',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+
             <button
-              key={label}
               type="button"
-              onClick={() => onChoose(ms)}
+              onClick={onCancel}
               className={cn(
-                // 44px minimum target, which py-3 on body text clears.
-                'focus-ring w-full rounded-lg px-4 py-3 text-left text-body text-ink',
-                'transition-colors duration-instant hover:bg-hover active:bg-pressed',
+                'focus-ring mt-1 w-full rounded-full px-5 py-3 text-body',
+                'text-text-secondary hover:bg-hover',
               )}
             >
-              {label}
+              Cancel
             </button>
-          ))}
-
-          <button
-            type="button"
-            onClick={onCancel}
-            className={cn(
-              'focus-ring mt-1 w-full rounded-full px-5 py-3 text-body',
-              'text-text-secondary hover:bg-hover',
-            )}
-          >
-            Cancel
-          </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   );
 }
