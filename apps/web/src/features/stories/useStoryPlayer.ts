@@ -63,6 +63,15 @@ export function useStoryPlayer({
 
   const group = groups[groupIndex] ?? groups[0]!;
   const story = group.stories[storyIndex];
+  /*
+   * The clock is keyed on *which* story, not on the story object.
+   *
+   * Objects here are rebuilt whenever anything about the rail changes — a like
+   * landing, a story being marked seen. Restarting the timer on each of those
+   * resets `last` to now, so the accumulated delta is always about zero and the
+   * bar never fills. The id changes exactly when the clock should restart.
+   */
+  const storyId = story?.id;
 
   const next = useCallback(() => {
     progressRef.current = 0;
@@ -133,7 +142,7 @@ export function useStoryPlayer({
    * motion lands on real frames at whatever rate the display runs.
    */
   useEffect(() => {
-    if (!story || paused) return;
+    if (!storyId || paused) return;
 
     let frame = 0;
     let last = performance.now();
@@ -153,14 +162,14 @@ export function useStoryPlayer({
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-    // `story` rather than `storyIndex`: moving to the next person can leave the
+    // The id rather than the index: moving to the next person can leave the
     // index unchanged, and the clock must restart for the new story either way.
-  }, [story, paused, next]);
+  }, [storyId, paused, next]);
 
   // A new story starts from the beginning, however it was reached.
   useEffect(() => {
     progressRef.current = 0;
-  }, [story]);
+  }, [storyId]);
 
   return {
     groupIndex,

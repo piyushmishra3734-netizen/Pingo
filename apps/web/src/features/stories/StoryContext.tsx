@@ -112,17 +112,47 @@ export function StoryProvider({
   const groups = useMemo(() => order(raw, meId), [raw, meId]);
   const mine = useMemo(() => groups.find((group) => group.authorId === meId), [groups, meId]);
 
-  /** Rewrites one story wherever it appears, leaving everything else alone. */
+  /**
+   * Rewrites one story wherever it appears, leaving everything else alone.
+   *
+   * ## Why this bails out when nothing actually changed
+   *
+   * It used to rebuild the array unconditionally, and that was an infinite
+   * loop. The viewer marks a story seen in an effect keyed on the story; the
+   * patch made a new story object; the new object re-fired the effect; which
+   * marked it seen again. The symptom was not an error — it was a progress bar
+   * that never moved and a tab that eventually stopped responding, because
+   * React was re-rendering as fast as it could.
+   *
+   * Returning the identical array when the change is a no-op is what stops it,
+   * and it is also just true: nothing changed, so nothing downstream should
+   * believe it did.
+   */
   const patchStory = useCallback((storyId: string, change: (story: Story) => Story) => {
-    setRaw((previous) =>
-      previous.map((group) => {
+    setRaw((previous) => {
+      let touched = false;
+
+      const next = previous.map((group) => {
         if (!group.stories.some((story) => story.id === storyId)) return group;
-        const stories = group.stories.map((story) =>
-          story.id === storyId ? change(story) : story,
-        );
+
+        let groupTouched = false;
+        const stories = group.stories.map((story) => {
+          if (story.id !== storyId) return story;
+          const updated = change(story);
+          // Compared field by field rather than by identity: `change` always
+          // returns a fresh object, so identity would always differ.
+          if (updated.seen === story.seen && updated.likedByMe === story.likedByMe) return story;
+          groupTouched = true;
+          return updated;
+        });
+
+        if (!groupTouched) return group;
+        touched = true;
         return { ...group, stories, allSeen: stories.every((story) => story.seen) };
-      }),
-    );
+      });
+
+      return touched ? next : previous;
+    });
   }, []);
 
   const markSeen = useCallback(

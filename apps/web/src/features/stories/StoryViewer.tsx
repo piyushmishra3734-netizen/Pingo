@@ -126,11 +126,18 @@ export function StoryViewer({
     closeRef.current?.focus();
   }, []);
 
-  // Marked on display rather than on close, so leaving halfway still records
-  // exactly what was actually looked at.
+  /*
+   * Marked on display rather than on close, so leaving halfway still records
+   * exactly what was actually looked at.
+   *
+   * Keyed on the id, never the object. A story object is rebuilt whenever
+   * anything about the rail changes — including by this very call — so
+   * depending on its identity means marking the same story seen forever.
+   */
+  const storyId = story?.id;
   useEffect(() => {
-    if (story) void markSeen(story.id);
-  }, [story, markSeen]);
+    if (storyId) void markSeen(storyId);
+  }, [storyId, markSeen]);
 
   // ---- keyboard -----------------------------------------------------------
 
