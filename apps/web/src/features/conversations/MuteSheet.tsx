@@ -2,6 +2,8 @@ import { MUTE_DURATIONS } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { useEffect, useRef } from 'react';
 
+import { useReturnFocus } from './focus-restore.js';
+
 /**
  * How long to mute for.
  *
@@ -21,12 +23,9 @@ export interface MuteSheetProps {
 }
 
 export function MuteSheet({ count, onCancel, onChoose }: MuteSheetProps) {
+  useReturnFocus();
   const panelRef = useRef<HTMLDivElement>(null);
-  /** Focus goes back where it came from when this closes. */
-  const restoreTo = useRef<HTMLElement | null>(null);
-
   useEffect(() => {
-    restoreTo.current = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
 
     const onKey = (event: KeyboardEvent) => {
@@ -35,9 +34,6 @@ export function MuteSheet({ count, onCancel, onChoose }: MuteSheetProps) {
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
-      // Without this, dismissing sends focus to the document body and a
-      // keyboard user restarts from the top of the page.
-      restoreTo.current?.focus?.();
     };
   }, [onCancel]);
 

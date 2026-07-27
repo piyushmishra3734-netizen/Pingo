@@ -1,6 +1,8 @@
 import { cn } from '@pingo/ui';
 import { useEffect, useRef } from 'react';
 
+import { useReturnFocus } from './focus-restore.js';
+
 /**
  * The confirmation for deleting chats.
  *
@@ -32,13 +34,9 @@ export interface DeleteChatSheetProps {
 }
 
 export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetProps) {
+  useReturnFocus();
   const panelRef = useRef<HTMLDivElement>(null);
-  /** Where focus goes back to. Captured before this steals it. */
-  const restoreTo = useRef<HTMLElement | null>(null);
-
   useEffect(() => {
-    restoreTo.current = document.activeElement as HTMLElement | null;
-
     /*
      * The panel takes focus, never the Delete button — a destructive action
      * pre-focused is one stray Enter away from happening. The user aims.
@@ -51,9 +49,6 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
-      // Without this, dismissing drops focus on the body and a keyboard user
-      // restarts from the top of the page rather than from the row they were on.
-      restoreTo.current?.focus?.();
     };
   }, [onCancel]);
 

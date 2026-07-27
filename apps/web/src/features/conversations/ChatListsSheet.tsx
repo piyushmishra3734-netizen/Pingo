@@ -1,6 +1,8 @@
 import { useChat, type ChatList } from '@pingo/core';
 import { CheckIcon, EditIcon, ListIcon, PlusIcon, TrashIcon, cn } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+
+import { useReturnFocus } from './focus-restore.js';
 
 /**
  * Filing chats into the user's own lists — "Work", "Family".
@@ -59,20 +61,14 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
 
   useEffect(load, [service]);
 
-  /** Where focus returns when this closes. Captured before it is stolen. */
-  const restoreTo = useRef<HTMLElement | null>(null);
+  useReturnFocus();
 
   useEffect(() => {
-    restoreTo.current = document.activeElement as HTMLElement | null;
-
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      restoreTo.current?.focus?.();
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
   const membership = (list: ChatList): Membership => {
