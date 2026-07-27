@@ -26,7 +26,7 @@ import { useStories } from '../features/stories/StoryContext.js';
  * It used to happen only in the live preview, which meant a device with no
  * camera showed no filters at all and a photo chosen from the gallery reached
  * the editor untouched. The filter belonged to the camera rather than to the
- * snap. Now the preview renders the chain *and* the chosen filter is applied to
+ * Ping. Now the preview renders the chain *and* the chosen filter is applied to
  * the still, so both paths get the same result and neither depends on hardware.
  *
  * ## Hardware controls are offered only where they exist
@@ -239,7 +239,7 @@ export function CameraScreen() {
           <h1 className="mt-7 text-h1 text-white">Open the camera?</h1>
           <p className="mt-2 max-w-xs text-body text-white/60">
             PINGO will ask for camera access. Nothing is captured or sent until
-            you take a snap.
+            you take a Ping.
           </p>
 
           <div className="mt-9 flex w-full max-w-xs flex-col gap-3">
@@ -294,7 +294,7 @@ export function CameraScreen() {
     return (
       <div className="flex h-full flex-col bg-ink">
         <div className="relative min-h-0 flex-1 overflow-hidden">
-          <img src={shot.url} alt="Your snap" className="absolute inset-0 size-full object-contain" />
+          <img src={shot.url} alt="Your Ping" className="absolute inset-0 size-full object-contain" />
           {busy && (
             <div className="absolute inset-0 grid place-items-center bg-black/20">
               <PingoDot state="loading" size={7} label="Applying filter" />
@@ -584,7 +584,7 @@ export function CameraScreen() {
 
           <button
             type="button"
-            aria-label="Take snap"
+            aria-label="Take a Ping"
             disabled={!ready || countdown !== undefined}
             onClick={shoot}
             className={cn(

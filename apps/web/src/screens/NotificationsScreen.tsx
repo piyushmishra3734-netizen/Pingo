@@ -30,7 +30,7 @@ import { useNotifications } from '../features/notifications/NotificationContext.
  *
  * ## Where each row goes
  *
- * A follow notification opens requests; a message or snap opens the thread it
+ * A follow notification opens requests; a message or Ping opens the thread it
  * belongs to. A notification you cannot act on is just a log entry.
  */
 export function NotificationsScreen() {
@@ -117,7 +117,7 @@ export function NotificationsScreen() {
         ) : items.length === 0 ? (
           <EmptyState
             title="Nothing yet"
-            description="Follows, messages and snaps will show up here."
+            description="Follows, messages and Pings will show up here."
             icon={<BellIcon size={26} />}
           />
         ) : (

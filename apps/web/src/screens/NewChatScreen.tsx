@@ -18,7 +18,7 @@ import { useNavigate } from 'react-router-dom';
  * Until this existed there was no way to message anyone you had not already
  * messaged: `startDirectConversation` lived only on the Supabase implementation
  * and never reached the `ChatService` interface, so no screen could see it.
- * That one omission is why chats, calls and snaps were all unreachable for a
+ * That one omission is why chats, calls and Pings were all unreachable for a
  * new contact — every one of them needs a conversation to hang off.
  *
  * ## Filtering happens here, not on the server

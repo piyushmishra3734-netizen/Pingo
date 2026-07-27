@@ -47,7 +47,7 @@ export function MessageActions({
 
   const copy = async () => {
     /*
-     * A snap has no text and a sticker's text is its emoji, so `body` is what
+     * A Ping has no text and a sticker's text is its emoji, so `body` is what
      * gets copied in every case — it is the message's text fallback by design.
      */
     try {

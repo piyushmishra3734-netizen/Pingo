@@ -140,7 +140,7 @@ export function SettingsScreen() {
               <SettingsRow icon={<ChatIcon size={19} />} label="Chats" to="/settings/chats" />
               <SettingsRow
                 icon={<CameraIcon size={19} />}
-                label="Camera & Snaps"
+                label="Camera & Pings"
                 to="/settings/camera-snaps"
               />
               <SettingsRow icon={<PhoneIcon size={19} />} label="Calls" to="/settings/calls" />

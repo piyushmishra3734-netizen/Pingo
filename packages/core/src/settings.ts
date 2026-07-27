@@ -187,13 +187,13 @@ export const SETTINGS_REGISTRY: SettingsEntry[] = [
   entry('chats.swipe', 'Swipe Actions', 'Chats', ['swipe', 'gesture', 'action']),
 
   // -- Camera ----------------------------------------------------------------
-  entry('camera.default', 'Default Camera', 'Camera & Snaps', ['camera', 'front', 'back', 'selfie']),
-  entry('camera.filters', 'Filters', 'Camera & Snaps', ['filter', 'effect', 'lens']),
-  entry('camera.beauty', 'Beauty', 'Camera & Snaps', ['beauty', 'smooth', 'skin']),
-  entry('camera.hdr', 'HDR', 'Camera & Snaps', ['hdr', 'dynamic range', 'quality']),
-  entry('camera.save', 'Save Snaps', 'Camera & Snaps', ['save', 'gallery', 'roll']),
-  entry('camera.mirror', 'Mirror Camera', 'Camera & Snaps', ['mirror', 'flip', 'reverse']),
-  entry('camera.quality', 'Upload Quality', 'Camera & Snaps', ['quality', 'upload', 'data']),
+  entry('camera.default', 'Default Camera', 'Camera & Pings', ['camera', 'front', 'back', 'selfie']),
+  entry('camera.filters', 'Filters', 'Camera & Pings', ['filter', 'effect', 'lens']),
+  entry('camera.beauty', 'Beauty', 'Camera & Pings', ['beauty', 'smooth', 'skin']),
+  entry('camera.hdr', 'HDR', 'Camera & Pings', ['hdr', 'dynamic range', 'quality']),
+  entry('camera.save', 'Save Pings', 'Camera & Pings', ['save', 'gallery', 'roll']),
+  entry('camera.mirror', 'Mirror Camera', 'Camera & Pings', ['mirror', 'flip', 'reverse']),
+  entry('camera.quality', 'Upload Quality', 'Camera & Pings', ['quality', 'upload', 'data']),
 
   // -- Calls -----------------------------------------------------------------
   entry('calls.noise', 'Noise Cancellation', 'Calls', ['noise', 'cancel', 'background', 'audio']),

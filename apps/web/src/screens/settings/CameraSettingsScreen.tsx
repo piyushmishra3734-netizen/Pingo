@@ -7,7 +7,7 @@ import {
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 
 /**
- * Camera & Snaps.
+ * Camera & Pings.
  *
  * **Default Camera and Mirror are live** — the camera screen reads both, so
  * they change what happens the next time it opens. Everything else needs image
@@ -23,7 +23,7 @@ export function CameraSettingsScreen() {
   const c = preferences.camera;
 
   return (
-    <SettingsPage title="Camera & Snaps">
+    <SettingsPage title="Camera & Pings">
       <Group title="Capture">
         <ChoiceRow
           label="Default Camera"
@@ -64,7 +64,7 @@ export function CameraSettingsScreen() {
 
       <Group title="Saving">
         <ToggleRow
-          label="Save Snaps"
+          label="Save Pings"
           description="Keep a copy of what you post."
           checked={c.saveSnaps}
           onChange={(saveSnaps) => update('camera', { saveSnaps })}

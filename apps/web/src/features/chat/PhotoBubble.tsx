@@ -16,7 +16,7 @@ import { MessageText } from './MessageText.js';
  *
  * ## The picture is the message
  *
- * No bubble behind it, like snaps and stickers: a photo wrapped in a coloured
+ * No bubble behind it, like Pings and stickers: a photo wrapped in a coloured
  * rectangle reads as an attachment to something, and there is nothing else
  * here. The caption sits underneath in its own small bubble when there is one.
  */

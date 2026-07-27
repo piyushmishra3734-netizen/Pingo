@@ -20,7 +20,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  * | `incoming` | Accept | waiting on you |
  * | `following` | Requested | they have not added you back |
  * | `follower` | Add back | they are waiting on you |
- * | `mutual` | Friends | calls, snaps and stories are open |
+ * | `mutual` | Friends | calls, Pings and stories are open |
  *
  * ## Why it says "friend" rather than "follow"
  *
@@ -119,7 +119,7 @@ export function FollowButton({
         const go = await confirm({
           title: `Remove ${name ?? 'this person'} as a friend?`,
           description:
-            'Calls, snaps and stories close between you. You can still message each other, and either of you can ask again.',
+            'Calls, Pings and stories close between you. You can still message each other, and either of you can ask again.',
           confirmLabel: 'Remove friend',
         });
         if (!go) return;
