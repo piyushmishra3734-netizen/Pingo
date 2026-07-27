@@ -152,6 +152,8 @@ export function messagePreview(
   }
 
   let text = message.body.trim();
+  // A photo with no caption still has something to say about itself.
+  if (!text && message.photo) text = 'Photo';
   if (!text) {
     const attachment = message.attachments[0];
     switch (attachment?.kind) {

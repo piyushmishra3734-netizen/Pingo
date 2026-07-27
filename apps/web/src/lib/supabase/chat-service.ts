@@ -147,6 +147,14 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
           },
         }
       : {}),
+    /*
+     * A photo's URL is filled in afterwards by `#signPhotos`, which signs a
+     * whole page in one pass. Signing here would mean an await per row and a
+     * request per row for a thread that renders fifty of them.
+     */
+    ...(row.kind === 'photo' && row.photo_path
+      ? { photo: { ...(row.view_limit ? { viewLimit: row.view_limit } : {}) } }
+      : {}),
   };
 }
 
@@ -163,6 +171,18 @@ const MAX_PAGE_READS = 5;
 
 /** Snaps live in a private bucket; the `snaps` migration explains why. */
 const SNAP_BUCKET = 'snaps';
+
+/** Photos live in their own private bucket. See the `photo_messages` migration. */
+const PHOTO_BUCKET = 'photos';
+
+/**
+ * An hour for a photo's signed URL.
+ *
+ * Longer than a snap's minute, because a photo is meant to be scrolled back to
+ * and re-signing on every pass through the thread would be a request per bubble.
+ * Still finite: a URL that never expires is a copy that outlives the message.
+ */
+const PHOTO_URL_TTL_SECONDS = 60 * 60;
 
 /**
  * A minute. The URL only has to outlive the fetch that immediately follows it;
@@ -948,10 +968,12 @@ export class SupabaseChatService implements ChatService {
 
     // Fetched newest-first for the limit; returned newest-last so the UI can
     // append without re-sorting.
-    return rows.map((row) => ({
+    const page = rows.map((row) => ({
       ...toMessage(row, row.sender_id === me ? theirReadAt : undefined),
       reactions: this.#reactions.get(row.id) ?? [],
     }));
+
+    return this.#signPhotos(rows, page);
   }
 
   /**
@@ -1063,6 +1085,65 @@ export class SupabaseChatService implements ChatService {
     return path;
   }
 
+  async #uploadPhoto(image: Blob): Promise<string> {
+    const me = await this.#userId();
+    // The uploader's id leads the path, which is what the storage policy checks.
+    const path = `${me}/${crypto.randomUUID()}.jpg`;
+
+    const { error } = await this.#client.storage
+      .from(PHOTO_BUCKET)
+      .upload(path, image, { contentType: image.type || 'image/jpeg' });
+
+    if (error) throw error;
+    return path;
+  }
+
+  /**
+   * Signs every unlimited photo in a page, in one request.
+   *
+   * Limited photos are skipped deliberately: their URL only exists after the
+   * reader spends a view, and handing one out here would let the picture be
+   * seen without the limit ever being consulted.
+   */
+  async #signPhotos(rows: MessageRow[], messages: Message[]): Promise<Message[]> {
+    const paths = rows
+      .filter((row) => row.kind === 'photo' && row.photo_path && !row.view_limit)
+      .map((row) => row.photo_path!);
+
+    if (paths.length === 0) return messages;
+
+    const { data } = await this.#client.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
+
+    const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
+
+    return messages.map((message, index) => {
+      const row = rows[index];
+      if (!message.photo || !row?.photo_path) return message;
+      const url = urlByPath.get(row.photo_path);
+      return url ? { ...message, photo: { ...message.photo, url } } : message;
+    });
+  }
+
+  async openPhoto(
+    messageId: MessageId,
+  ): Promise<{ url: string; viewsLeft?: number } | undefined> {
+    const { data, error } = await this.#client.rpc('open_photo', { target: messageId });
+    const row = data?.[0];
+    if (error || !row?.path) return undefined;
+
+    const { data: signed } = await this.#client.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrl(row.path, PHOTO_URL_TTL_SECONDS);
+
+    if (!signed?.signedUrl) return undefined;
+    return {
+      url: signed.signedUrl,
+      ...(row.views_left !== null ? { viewsLeft: row.views_left } : {}),
+    };
+  }
+
   async openSnap(messageId: MessageId): Promise<SnapView | undefined> {
     const { data, error } = await this.#client.rpc('open_snap', { snap_id: messageId });
     const row = data?.[0];
@@ -1106,6 +1187,7 @@ export class SupabaseChatService implements ChatService {
      * a failed upload that inserts nothing is a retry.
      */
     const snapPath = draft.snap ? await this.#uploadSnap(draft.snap.image) : undefined;
+    const photoPath = draft.photo ? await this.#uploadPhoto(draft.photo.image) : undefined;
     const snapExpiry = snapPath
       ? new Date(Date.now() + SNAP_EXPIRY_MS).toISOString()
       : undefined;
@@ -1118,6 +1200,13 @@ export class SupabaseChatService implements ChatService {
         body: draft.body,
         ...(draft.replyToId ? { reply_to_id: draft.replyToId } : {}),
         ...(draft.sticker ? { kind: 'sticker', media_url: draft.sticker.url } : {}),
+        ...(photoPath
+          ? {
+              kind: 'photo',
+              photo_path: photoPath,
+              ...(draft.photo?.viewLimit ? { view_limit: draft.photo.viewLimit } : {}),
+            }
+          : {}),
         ...(snapPath
           ? {
               kind: 'snap',
@@ -1133,7 +1222,10 @@ export class SupabaseChatService implements ChatService {
       .single();
 
     if (error) throw error;
-    const message = toMessage(data, undefined);
+    // Signed here too, or the sender stares at their own photo as a blank frame
+    // until the thread is reloaded.
+    const [message] = await this.#signPhotos([data], [toMessage(data, undefined)]);
+    if (!message) throw new Error('Message could not be prepared.');
 
     /*
      * Emitted here, not left to Realtime.

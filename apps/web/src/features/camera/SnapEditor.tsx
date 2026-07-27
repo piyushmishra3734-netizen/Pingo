@@ -50,11 +50,17 @@ export function SnapEditor({
   onCancel,
   onDone,
   busy,
+  extras,
+  doneLabel = 'Next',
 }: {
   src: string;
   onCancel: () => void;
   onDone: (blob: Blob) => void;
   busy?: boolean;
+  /** Rendered above the confirm button — caption, view limit, whatever fits. */
+  extras?: React.ReactNode;
+  /** 'Next' from the camera, 'Send' when the picture is going straight out. */
+  doneLabel?: string;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -65,6 +71,8 @@ export function SnapEditor({
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [texts, setTexts] = useState<TextItem[]>([]);
   const drawing = useRef<Stroke | undefined>(undefined);
+  /** Quarter turns, clockwise. Applied at export, previewed with a transform. */
+  const [rotation, setRotation] = useState(0);
 
   // ---- drawing ------------------------------------------------------------
 
@@ -125,12 +133,26 @@ export function SnapEditor({
 
     const width = image.naturalWidth;
     const height = image.naturalHeight;
+
+    /*
+     * Rotation is applied to the canvas rather than to the annotations.
+     *
+     * Strokes and text are stored in the *image's* coordinate space, so drawing
+     * them after the canvas has been turned puts them exactly where the user
+     * left them relative to the picture — which is what they were aiming at.
+     * Rotating each point by hand would be the same maths done worse.
+     */
+    const quarterTurned = rotation % 180 !== 0;
     const out = document.createElement('canvas');
-    out.width = width;
-    out.height = height;
+    out.width = quarterTurned ? height : width;
+    out.height = quarterTurned ? width : height;
 
     const context = out.getContext('2d');
     if (!context) return;
+
+    context.translate(out.width / 2, out.height / 2);
+    context.rotate((rotation * Math.PI) / 180);
+    context.translate(-width / 2, -height / 2);
 
     context.drawImage(image, 0, 0, width, height);
 
@@ -192,7 +214,7 @@ export function SnapEditor({
       out.toBlob(resolve, 'image/jpeg', 0.92),
     );
     if (blob) onDone(blob);
-  }, [strokes, texts, onDone]);
+  }, [strokes, texts, rotation, onDone]);
 
   // ---- render -------------------------------------------------------------
 
@@ -227,7 +249,8 @@ export function SnapEditor({
           ref={imageRef}
           src={src}
           alt="Your snap"
-          className="absolute inset-0 size-full object-contain"
+          style={rotation ? { transform: `rotate(${rotation}deg)` } : undefined}
+          className="absolute inset-0 size-full object-contain transition-transform duration-quick ease-standard"
         />
 
         <canvas ref={canvasRef} className="absolute inset-0 size-full" />
@@ -271,6 +294,14 @@ export function SnapEditor({
           >
             Text
           </ToolButton>
+          {/*
+            A quarter turn per press, which is the whole of rotation as anyone
+            uses it — the photo is sideways or it is not. A free-angle dial
+            would be a second gesture to learn for a case that barely occurs.
+          */}
+          <ToolButton active={false} onClick={() => setRotation((r) => (r + 90) % 360)}>
+            Rotate
+          </ToolButton>
           <ToolButton
             active={false}
             disabled={strokes.length === 0}
@@ -279,6 +310,9 @@ export function SnapEditor({
             Undo
           </ToolButton>
         </div>
+
+        {/* Caption, view limit — supplied by whoever is using the editor. */}
+        {extras}
 
         <div className="flex items-center justify-center gap-2.5">
           {COLOURS.map((swatch) => (
@@ -309,7 +343,7 @@ export function SnapEditor({
           )}
         >
           <CheckIcon size={18} />
-          {busy ? 'Working…' : 'Next'}
+          {busy ? 'Working…' : doneLabel}
         </button>
       </div>
     </div>

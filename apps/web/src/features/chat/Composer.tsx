@@ -2,6 +2,7 @@ import type { Sticker } from '@pingo/core';
 import { IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { AttachMenu } from './AttachMenu.js';
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
 
@@ -21,6 +22,9 @@ import { StickerPicker } from '../stickers/StickerPicker.js';
  */
 
 export interface ComposerProps {
+  /** Opens the picture picker. Paired with onAttachCamera; both or neither. */
+  onAttachGallery?: () => void;
+  onAttachCamera?: () => void;
   onSend: (body: string) => void | Promise<void>;
   /** Absent means the surface cannot take stickers, and the button is hidden. */
   onSendSticker?: (sticker: Sticker) => void | Promise<void>;
@@ -36,6 +40,8 @@ export interface ComposerProps {
 const MAX_HEIGHT = 140;
 
 export function Composer({
+  onAttachGallery,
+  onAttachCamera,
   onSend,
   onSendSticker,
   onTyping,
@@ -121,6 +127,10 @@ export function Composer({
       )}
 
       <div className="flex items-end gap-2">
+      {onAttachGallery && onAttachCamera && (
+        <AttachMenu onGallery={onAttachGallery} onCamera={onAttachCamera} />
+      )}
+
       <div
         className={cn(
           'flex min-w-0 flex-1 items-end gap-2 bg-sunken',

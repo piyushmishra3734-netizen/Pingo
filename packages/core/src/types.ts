@@ -175,6 +175,40 @@ export interface Message {
    * `ChatService.openSnap`, and asking is what spends the view.
    */
   snap?: SnapRef;
+
+  /**
+   * A picture sent into the chat, with an optional caption in `body`.
+   *
+   * Distinct from `snap` because the two are opposites: a snap is built to be
+   * hard to keep, a photo is built to stay. Sharing one shape would mean every
+   * reader of a photo going through the machinery that destroys snaps.
+   */
+  photo?: PhotoRef;
+}
+
+/** A photo message's picture. Like a snap, it carries no URL — see `PhotoRef.url`. */
+export interface PhotoRef {
+  /**
+   * How many times each recipient may open it. Absent means without limit.
+   *
+   * A limited photo behaves like a snap: the thread shows a cover rather than
+   * the picture, and opening it spends one of the views.
+   */
+  viewLimit?: number;
+  /** Views this reader has left, once they have opened it at least once. */
+  viewsLeft?: number;
+  /** True once this reader can no longer open it. */
+  gone?: boolean;
+  /**
+   * A short-lived signed URL, present only for photos with no view limit.
+   *
+   * Limited ones deliberately have none until the reader asks, because a URL
+   * sitting in the message is a copy the limit cannot govern.
+   */
+  url?: string;
+  /** Shape, so the bubble can reserve the right space before the bytes land. */
+  width?: number;
+  height?: number;
 }
 
 /**

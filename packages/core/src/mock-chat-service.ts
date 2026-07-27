@@ -304,6 +304,16 @@ export class MockChatService implements ChatService {
     return undefined;
   }
 
+  /**
+   * Photos in the mock carry their URL already, so nothing has to be spent to
+   * see one. Returning undefined would make every limited photo look exhausted
+   * in the styleguide, which is a worse lie than having no limit at all.
+   */
+  async openPhoto(messageId: MessageId): Promise<{ url: string } | undefined> {
+    const url = this.#findMessage(messageId)?.photo?.url;
+    return url ? { url } : undefined;
+  }
+
   async markConversationRead(conversationId: ConversationId): Promise<void> {
     const conversation = this.#conversation(conversationId);
     if (!conversation || conversation.unreadCount === 0) return;

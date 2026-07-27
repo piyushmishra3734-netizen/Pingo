@@ -7,6 +7,7 @@ import {
   cn,
 } from '@pingo/ui';
 
+import { PhotoBubble } from './PhotoBubble.js';
 import { SnapBubble } from './SnapBubble.js';
 import { VoiceNote } from './VoiceNote.js';
 
@@ -60,6 +61,7 @@ export interface MessageBubbleProps {
  */
 export function quoteText(message: Message): string {
   if (message.deleted) return 'This message was deleted';
+  if (message.photo) return message.body.trim() || 'Photo';
   if (message.snap) return 'Snap';
   if (message.sticker) return 'Sticker';
   if (message.attachments.some((a) => a.kind === 'audio')) return 'Voice message';
@@ -146,6 +148,15 @@ export function MessageBubble({
         <span className="text-caption text-text-tertiary">{message.body}</span>
       </div>
     );
+  }
+
+  /*
+   * A photo is the message, so it gets no bubble either — its caption gets one
+   * of its own underneath. Before the snap branch because the two are mutually
+   * exclusive and this is the commoner of the pair.
+   */
+  if (message.photo) {
+    return <PhotoBubble message={message} photo={message.photo} mine={mine} />;
   }
 
   /*

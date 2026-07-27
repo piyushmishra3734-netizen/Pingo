@@ -75,7 +75,11 @@ export type MessageRow = {
   body: string;
   created_at: string;
   edited_at: string | null;
-  kind: 'text' | 'sticker' | 'snap';
+  kind: 'text' | 'sticker' | 'snap' | 'photo';
+  /** Storage path of a photo. Null for every other kind. */
+  photo_path: string | null;
+  /** Opens allowed per recipient. Null is unlimited. */
+  view_limit: number | null;
   /** The sticker image. Null for text messages. */
   media_url: string | null;
   /** Storage path of a snap's image. Nulled out when the snap is destroyed. */
@@ -236,7 +240,9 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           body: string;
-          kind?: 'text' | 'sticker' | 'snap';
+          kind?: 'text' | 'sticker' | 'snap' | 'photo';
+          photo_path?: string | null;
+          view_limit?: number | null;
           media_url?: string | null;
           snap_path?: string | null;
           snap_expires_at?: string | null;
@@ -323,6 +329,11 @@ export type Database = {
       open_snap: {
         Args: { snap_id: string };
         Returns: { path: string; views_left: number }[];
+      };
+      /** Spends one view of a limited photo; unlimited ones never reach here. */
+      open_photo: {
+        Args: { target: string };
+        Returns: { path: string; views_left: number | null }[];
       };
       /** Records the download and destroys the server copy. */
       download_snap: {

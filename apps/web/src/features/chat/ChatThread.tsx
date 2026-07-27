@@ -21,7 +21,7 @@ import {
 } from '@pingo/ui';
 import { CloseIcon } from '@pingo/ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
@@ -30,6 +30,7 @@ import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
+import { PhotoComposer } from './PhotoComposer.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 
 /**
@@ -68,6 +69,10 @@ export function ChatThread({
   const { messages, groups, loading, loadingOlder, hasOlder, loadOlder, send, sendSticker } =
     useMessages(conversation.id);
   const { startCall } = useCall();
+  const navigate = useNavigate();
+  const galleryRef = useRef<HTMLInputElement>(null);
+  /** Pictures chosen but not yet sent — the composer owns them until then. */
+  const [pending, setPending] = useState<File[]>();
   const mutuals = useMutuals();
 
   /**
@@ -561,11 +566,55 @@ export function ChatThread({
             onSendSticker={(sticker) =>
               sendSticker({ id: sticker.id, url: sticker.url, body: sticker.emoji ?? sticker.name })
             }
+            onAttachGallery={() => galleryRef.current?.click()}
+            onAttachCamera={() => navigate('/camera')}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}
             ariaLabel={`Message ${conversation.title}`}
           />
         </div>
       </div>
+
+      {/*
+        The real picker, hidden. The attach menu's rows have to look like the
+        other rows, and a file input cannot be one of those.
+      */}
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(event) => {
+          const chosen = [...(event.target.files ?? [])];
+          // Cleared first, so picking the same photo twice still fires.
+          event.target.value = '';
+          if (chosen.length > 0) setPending(chosen);
+        }}
+      />
+
+      {pending && (
+        <PhotoComposer
+          files={pending}
+          onCancel={() => setPending(undefined)}
+          onSend={async (blobs, caption, viewLimit) => {
+            /*
+             * Sent in order, awaited one at a time. In parallel they would race
+             * for `created_at` and land shuffled, which for a set of photos is
+             * the one thing the sender notices immediately.
+             */
+            for (const [position, image] of blobs.entries()) {
+              await service.sendMessage({
+                conversationId: conversation.id,
+                // The caption rides on the first picture only, so a set of four
+                // does not repeat one sentence four times.
+                body: position === 0 ? caption : '',
+                photo: { image, ...(viewLimit ? { viewLimit } : {}) },
+              });
+            }
+            setPending(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }

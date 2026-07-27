@@ -48,6 +48,16 @@ export interface OutgoingMessage {
    * needs to know which bucket snaps live in or how their paths are shaped.
    */
   snap?: { image: Blob };
+
+  /**
+   * Makes this a photo message. `body` carries the caption, if any.
+   *
+   * `viewLimit` absent means it stays in the chat and can be reopened freely;
+   * a number makes it openable that many times per recipient. One control, one
+   * concept — rather than a photo feature and a separate disappearing-photo
+   * feature that behave differently for no reason a user could name.
+   */
+  photo?: { image: Blob; viewLimit?: number };
 }
 
 /**
@@ -120,6 +130,15 @@ export interface ChatService {
    * dropped once it is in hand, so a failed download does not lose the snap.
    */
   downloadSnap(messageId: MessageId): Promise<Blob | undefined>;
+
+  /**
+   * Spends one view of a limited photo and returns a URL for it.
+   *
+   * Unlimited photos never reach here — they carry their URL already. Returns
+   * undefined once the reader has used their views up, which is the same answer
+   * as "there was never anything to see".
+   */
+  openPhoto(messageId: MessageId): Promise<{ url: string; viewsLeft?: number } | undefined>;
   markConversationRead(conversationId: ConversationId): Promise<void>;
 
   // -- conversation management ---------------------------------------------
