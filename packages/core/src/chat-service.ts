@@ -58,6 +58,15 @@ export interface OutgoingMessage {
    * feature that behave differently for no reason a user could name.
    */
   photo?: { image: Blob; viewLimit?: number };
+
+  /**
+   * Makes this a voice note.
+   *
+   * The waveform is computed by the recorder and travels with the message,
+   * because deriving it at playback means fetching and decoding every note in
+   * a thread to draw bars for one.
+   */
+  voice?: { audio: Blob; seconds: number; waveform: number[] };
 }
 
 /**

@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { AttachMenu } from './AttachMenu.js';
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
+import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
+import { VoiceRecorderBar } from './VoiceRecorderBar.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
 
 /**
@@ -26,6 +28,8 @@ export interface ComposerProps {
   onAttachGallery?: () => void;
   onAttachCamera?: () => void;
   onSend: (body: string) => void | Promise<void>;
+  /** Absent means the surface cannot take voice notes, and the mic is hidden. */
+  onSendVoice?: (recording: Recording) => void | Promise<void>;
   /** Absent means the surface cannot take stickers, and the button is hidden. */
   onSendSticker?: (sticker: Sticker) => void | Promise<void>;
   placeholder?: string;
@@ -43,6 +47,7 @@ export function Composer({
   onAttachGallery,
   onAttachCamera,
   onSend,
+  onSendVoice,
   onSendSticker,
   onTyping,
   placeholder = 'Type a message...',
@@ -63,6 +68,8 @@ export function Composer({
   const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
+
+  const recorder = useVoiceRecorder();
 
   /** A short, self-clearing line for things the composer cannot do yet. */
   const [notice, setNotice] = useState<string>();
@@ -90,9 +97,9 @@ export function Composer({
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      {notice && (
+      {(notice ?? recorder.error) && (
         <p role="status" className="px-1 text-caption text-text-tertiary">
-          {notice}
+          {recorder.error ?? notice}
         </p>
       )}
       {pickerOpen && (
@@ -127,6 +134,19 @@ export function Composer({
       )}
 
       <div className="flex items-end gap-2">
+      {recorder.recording ? (
+        <VoiceRecorderBar
+          recorder={recorder}
+          onSend={() => {
+            void recorder.stop().then((take) => {
+              // Too short to be a message. Discarded rather than sent as a
+              // quarter-second of nothing the other person has to open.
+              if (take) void onSendVoice?.(take);
+            });
+          }}
+        />
+      ) : (
+      <>
       {onAttachGallery && onAttachCamera && (
         <AttachMenu onGallery={onAttachGallery} onCamera={onAttachCamera} />
       )}
@@ -186,7 +206,10 @@ export function Composer({
         </IconButton>
       </div>
 
-      {hasText ? (
+      </>
+      )}
+
+      {!recorder.recording && (hasText ? (
         <IconButton
           label="Send message"
           variant="gradient"
@@ -196,26 +219,30 @@ export function Composer({
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={19} className="-translate-x-px translate-y-px" />
         </IconButton>
-      ) : (
-        /*
-         * Voice messages are not built, so the control says so instead of
-         * pretending. It had no `onClick` at all — a filled, primary-looking
-         * button that did nothing when pressed, which is the worst version of
-         * this: it looks more available than a text link would.
-         *
-         * Recording needs a message kind, a storage bucket and an upload path,
-         * none of which exist. Until they do this states the fact once, quietly,
-         * rather than failing silently on every press.
-         */
+      ) : onSendVoice ? (
         <IconButton
-          label="Voice messages aren't available yet"
-          variant="ghost"
-          className="mb-0.5 text-text-tertiary"
-          onClick={() => setNotice("Voice messages aren't available yet.")}
+          label="Record voice message"
+          variant="filled"
+          className="mb-0.5"
+          onClick={() => void recorder.start()}
         >
           <MicIcon size={20} />
         </IconButton>
-      )}
+      ) : (
+        /*
+         * No handler means this surface does not take voice notes — the
+         * styleguide, for one. Saying so beats a button that looks available
+         * and does nothing, which is what this was before recording existed.
+         */
+        <IconButton
+          label="Voice messages aren't available here"
+          variant="ghost"
+          className="mb-0.5 text-text-tertiary"
+          onClick={() => setNotice("Voice messages aren't available here.")}
+        >
+          <MicIcon size={20} />
+        </IconButton>
+      ))}
       </div>
     </div>
   );

@@ -117,7 +117,24 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
      * own read cursor has passed it.
      */
     status: readAt !== undefined && Date.parse(row.created_at) <= readAt ? 'read' : 'sent',
-    attachments: [],
+    /*
+     * A voice note arrives as an audio attachment rather than as a field of its
+     * own, because the bubble already renders one — a parallel `voice` shape
+     * would be a second thing meaning the same thing. The URL is empty until
+     * `#signMedia` fills it in, one pass per page rather than one per row.
+     */
+    attachments:
+      row.kind === 'voice' && row.voice_path
+        ? [
+            {
+              id: row.id,
+              kind: 'audio' as const,
+              url: '',
+              duration: row.voice_duration ?? 0,
+              waveform: row.voice_waveform ?? [],
+            },
+          ]
+        : [],
     reactions: [],
     ...(row.edited_at ? { editedAt: Date.parse(row.edited_at) } : {}),
     ...(row.reply_to_id ? { replyToId: row.reply_to_id } : {}),
@@ -174,6 +191,9 @@ const SNAP_BUCKET = 'snaps';
 
 /** Photos live in their own private bucket. See the `photo_messages` migration. */
 const PHOTO_BUCKET = 'photos';
+
+/** Voice notes, same arrangement and for the same reasons. */
+const VOICE_BUCKET = 'voice';
 
 /**
  * An hour for a photo's signed URL.
@@ -1124,7 +1144,9 @@ export class SupabaseChatService implements ChatService {
       .filter((row) => row.kind === 'photo' && row.photo_path && !row.view_limit)
       .map((row) => row.photo_path!);
 
-    if (paths.length === 0) return messages;
+    // No photos on this page still leaves the voice pass to run — returning
+    // here outright would silently skip it for any thread of only voice notes.
+    if (paths.length === 0) return this.#signVoice(rows, messages);
 
     const { data } = await this.#client.storage
       .from(PHOTO_BUCKET)
@@ -1132,12 +1154,65 @@ export class SupabaseChatService implements ChatService {
 
     const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
 
-    return messages.map((message, index) => {
+    const withPhotos = messages.map((message, index) => {
       const row = rows[index];
       if (!message.photo || !row?.photo_path) return message;
       const url = urlByPath.get(row.photo_path);
       return url ? { ...message, photo: { ...message.photo, url } } : message;
     });
+
+    return this.#signVoice(rows, withPhotos);
+  }
+
+  /**
+   * Fills in the URL on every voice note in a page, in one request.
+   *
+   * Separate from the photo pass only because they live in different buckets
+   * and `createSignedUrls` signs one bucket at a time. A message can never be
+   * both, so the two never contend.
+   */
+  async #signVoice(rows: MessageRow[], messages: Message[]): Promise<Message[]> {
+    const paths = rows
+      .filter((row) => row.kind === 'voice' && row.voice_path)
+      .map((row) => row.voice_path!);
+
+    if (paths.length === 0) return messages;
+
+    const { data } = await this.#client.storage
+      .from(VOICE_BUCKET)
+      .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
+
+    const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
+
+    return messages.map((message, index) => {
+      const row = rows[index];
+      if (!row?.voice_path) return message;
+      const url = urlByPath.get(row.voice_path);
+      if (!url) return message;
+
+      return {
+        ...message,
+        attachments: message.attachments.map((attachment) =>
+          attachment.kind === 'audio' ? { ...attachment, url } : attachment,
+        ),
+      };
+    });
+  }
+
+  async #uploadVoice(audio: Blob): Promise<string> {
+    const me = await this.#userId();
+    // Extension follows the codec the browser actually produced, so the file is
+    // playable when fetched back by something that trusts it.
+    const extension = audio.type.includes('mp4') ? 'm4a' : 'webm';
+    // The uploader's id leads the path, which is what the storage policy checks.
+    const path = `${me}/${crypto.randomUUID()}.${extension}`;
+
+    const { error } = await this.#client.storage
+      .from(VOICE_BUCKET)
+      .upload(path, audio, { contentType: audio.type || 'audio/webm' });
+
+    if (error) throw error;
+    return path;
   }
 
   async openPhoto(
@@ -1202,6 +1277,7 @@ export class SupabaseChatService implements ChatService {
      */
     const snapPath = draft.snap ? await this.#uploadSnap(draft.snap.image) : undefined;
     const photoPath = draft.photo ? await this.#uploadPhoto(draft.photo.image) : undefined;
+    const voicePath = draft.voice ? await this.#uploadVoice(draft.voice.audio) : undefined;
     const snapExpiry = snapPath
       ? new Date(Date.now() + SNAP_EXPIRY_MS).toISOString()
       : undefined;
@@ -1214,6 +1290,14 @@ export class SupabaseChatService implements ChatService {
         body: draft.body,
         ...(draft.replyToId ? { reply_to_id: draft.replyToId } : {}),
         ...(draft.sticker ? { kind: 'sticker', media_url: draft.sticker.url } : {}),
+        ...(voicePath && draft.voice
+          ? {
+              kind: 'voice' as const,
+              voice_path: voicePath,
+              voice_duration: draft.voice.seconds,
+              voice_waveform: draft.voice.waveform,
+            }
+          : {}),
         ...(photoPath
           ? {
               kind: 'photo',

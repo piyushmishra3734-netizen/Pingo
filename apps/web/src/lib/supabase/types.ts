@@ -75,7 +75,10 @@ export type MessageRow = {
   body: string;
   created_at: string;
   edited_at: string | null;
-  kind: 'text' | 'sticker' | 'snap' | 'photo';
+  kind: 'text' | 'sticker' | 'snap' | 'photo' | 'voice';
+  voice_path: string | null;
+  voice_duration: number | null;
+  voice_waveform: number[] | null;
   /** Storage path of a photo. Null for every other kind. */
   photo_path: string | null;
   /** Opens allowed per recipient. Null is unlimited. */
@@ -240,7 +243,10 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           body: string;
-          kind?: 'text' | 'sticker' | 'snap' | 'photo';
+          kind?: 'text' | 'sticker' | 'snap' | 'photo' | 'voice';
+          voice_path?: string | null;
+          voice_duration?: number | null;
+          voice_waveform?: number[] | null;
           photo_path?: string | null;
           view_limit?: number | null;
           media_url?: string | null;

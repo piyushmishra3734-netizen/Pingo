@@ -566,6 +566,13 @@ export function ChatThread({
             onSendSticker={(sticker) =>
               sendSticker({ id: sticker.id, url: sticker.url, body: sticker.emoji ?? sticker.name })
             }
+            onSendVoice={async (take) => {
+              await service.sendMessage({
+                conversationId: conversation.id,
+                body: '',
+                voice: { audio: take.blob, seconds: take.seconds, waveform: take.waveform },
+              });
+            }}
             onAttachGallery={() => galleryRef.current?.click()}
             onAttachCamera={() => navigate('/camera')}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}

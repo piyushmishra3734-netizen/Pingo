@@ -12,8 +12,12 @@ import { useEffect, useRef, useState } from 'react';
  * The whole waveform is a slider: click or arrow-key anywhere to seek. A voice
  * note you cannot scrub is a voice note you have to listen to twice.
  *
- * There is no audio file behind the seeded notes, so playback is simulated on a
- * timer. `<audio>` slots in later without changing anything visible here.
+ * ## Real audio, with the timer as a fallback
+ *
+ * When the attachment carries a URL an `<audio>` element drives everything and
+ * the bars follow its `timeupdate`. The seeded notes in the styleguide have no
+ * file behind them, so those still run on the original timer — otherwise every
+ * demo note would be a dead control. Both paths share all of the markup below.
  */
 
 export interface VoiceNoteProps {
@@ -31,16 +35,30 @@ export function VoiceNote({ attachment, tone = 'incoming', className }: VoiceNot
   const [elapsed, setElapsed] = useState(0);
   const outgoing = tone === 'outgoing';
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  /** A note with no file is a styleguide fixture; it runs on the timer instead. */
+  const hasAudio = Boolean(attachment.url);
+
+  /**
+   * Duration from the file once it is known.
+   *
+   * The recorder's own figure is a wall-clock measurement and can disagree with
+   * the encoded length by a fraction of a second. The file is the truth, so the
+   * bar does not stop short of the end or hang past it.
+   */
+  const [duration, setDuration] = useState(attachment.duration);
+
   // Held in a ref so the interval callback never closes over a stale value.
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
 
+  // The timer path, for fixtures with no file behind them.
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || hasAudio) return;
 
     const id = setInterval(() => {
       const next = elapsedRef.current + TICK_MS / 1000;
-      if (next >= attachment.duration) {
+      if (next >= duration) {
         // Reset to the start on completion, so the control is ready to replay.
         setElapsed(0);
         setPlaying(false);
@@ -50,19 +68,72 @@ export function VoiceNote({ attachment, tone = 'incoming', className }: VoiceNot
     }, TICK_MS);
 
     return () => clearInterval(id);
-  }, [playing, attachment.duration]);
+  }, [playing, hasAudio, duration]);
 
-  const progress = attachment.duration > 0 ? elapsed / attachment.duration : 0;
+  /*
+   * Only one note plays at a time.
+   *
+   * Two overlapping voices is never what anyone wanted, and on a thread of
+   * several it is easy to start a second without noticing the first. Pausing
+   * every other `<audio>` in the document is cruder than a shared context and
+   * exactly as correct, because there is only ever one document.
+   */
+  const stopOthers = () => {
+    for (const other of document.querySelectorAll('audio')) {
+      if (other !== audioRef.current) other.pause();
+    }
+  };
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!hasAudio || !audio) {
+      setPlaying((p) => !p);
+      return;
+    }
+
+    if (audio.paused) {
+      stopOthers();
+      void audio.play().catch(() => setPlaying(false));
+    } else {
+      audio.pause();
+    }
+  };
+
+  const progress = duration > 0 ? elapsed / duration : 0;
 
   const seekTo = (ratio: number) => {
-    setElapsed(Math.max(0, Math.min(1, ratio)) * attachment.duration);
+    const at = Math.max(0, Math.min(1, ratio)) * duration;
+    setElapsed(at);
+    // Seeking a real file has to move the file, not just the bar.
+    if (audioRef.current) audioRef.current.currentTime = at;
   };
 
   return (
     <div className={cn('flex items-center gap-3', className)}>
+      {hasAudio && (
+        <audio
+          ref={audioRef}
+          src={attachment.url}
+          preload="metadata"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onTimeUpdate={(event) => setElapsed(event.currentTarget.currentTime)}
+          onLoadedMetadata={(event) => {
+            const real = event.currentTarget.duration;
+            // Some browsers report Infinity for a stream-recorded file until it
+            // has been seeked; the recorder's figure is better than that.
+            if (Number.isFinite(real) && real > 0) setDuration(real);
+          }}
+          onEnded={() => {
+            setPlaying(false);
+            setElapsed(0);
+            if (audioRef.current) audioRef.current.currentTime = 0;
+          }}
+        />
+      )}
       <button
         type="button"
-        onClick={() => setPlaying((p) => !p)}
+        onClick={toggle}
         aria-label={playing ? 'Pause voice message' : 'Play voice message'}
         className={cn(
           'grid size-9 shrink-0 place-items-center rounded-full',
@@ -85,19 +156,21 @@ export function VoiceNote({ attachment, tone = 'incoming', className }: VoiceNot
         tabIndex={0}
         aria-label="Seek voice message"
         aria-valuemin={0}
-        aria-valuemax={Math.round(attachment.duration)}
+        aria-valuemax={Math.round(duration)}
         aria-valuenow={Math.round(elapsed)}
-        aria-valuetext={`${formatDuration(elapsed)} of ${formatDuration(attachment.duration)}`}
+        aria-valuetext={`${formatDuration(elapsed)} of ${formatDuration(duration)}`}
         onClick={(event) => {
           const bounds = event.currentTarget.getBoundingClientRect();
           seekTo((event.clientX - bounds.left) / bounds.width);
         }}
         onKeyDown={(event) => {
-          if (event.key === 'ArrowRight') seekTo((elapsed + 1) / attachment.duration);
-          if (event.key === 'ArrowLeft') seekTo((elapsed - 1) / attachment.duration);
+          if (event.key === 'ArrowRight') seekTo((elapsed + 1) / duration);
+          if (event.key === 'ArrowLeft') seekTo((elapsed - 1) / duration);
           if (event.key === ' ' || event.key === 'Enter') {
             event.preventDefault();
-            setPlaying((p) => !p);
+            // Through the same path as the button, or the keyboard would toggle
+            // the bar while the audio kept doing whatever it was doing.
+            toggle();
           }
         }}
         className="focus-ring flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-[2px] rounded-sm"
@@ -138,7 +211,7 @@ export function VoiceNote({ attachment, tone = 'incoming', className }: VoiceNot
         )}
       >
         {/* Counts up while playing, shows total when idle. */}
-        {formatDuration(playing || elapsed > 0 ? elapsed : attachment.duration)}
+        {formatDuration(playing || elapsed > 0 ? elapsed : duration)}
       </span>
     </div>
   );
