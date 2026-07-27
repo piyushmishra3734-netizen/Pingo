@@ -43,17 +43,29 @@ void main() {
  */
 function buildFragmentShader(body: string, params: FilterParam[] = []): string {
   /*
-   * The filter's own parameters, declared for it.
+   * The filter's own parameters — declared here only if the body has not
+   * already declared them itself.
    *
-   * They were not, and that silently broke every filter that had any. A shader
-   * body referring to `radius` compiled against no such identifier, the program
-   * failed to link, and `filterStill` caught the error and handed back the
-   * unfiltered original — so Bloom looked like the one filter that did not
-   * corrupt the picture, when in fact it was the one filter doing nothing at
-   * all. `render` was already setting these uniforms; there was simply nothing
-   * to set them on.
+   * Both styles exist in `filters/`. Most shaders declare their own uniforms;
+   * Bloom did not, so `radius` and `threshold` compiled against no such
+   * identifiers, the program failed to link, and `filterStill` caught it and
+   * handed back the unfiltered original. That is why Bloom appeared to be the
+   * one filter that did not corrupt the picture: it was the one filter doing
+   * nothing at all, and being untouched was the symptom.
+   *
+   * Declaring them unconditionally fixed Bloom and broke everything else with
+   * `'amount' : redefinition`. So the body is asked first. One declaration
+   * either way, and a filter can be written in either style without having to
+   * know which this file prefers.
    */
-  const declarations = params.map((param) => `uniform float ${param.name};`).join('\n');
+  const alreadyDeclared = new Set(
+    [...body.matchAll(/uniform\s+\w+\s+(\w+)\s*;/g)].map((match) => match[1]),
+  );
+
+  const declarations = params
+    .filter((param) => !alreadyDeclared.has(param.name))
+    .map((param) => `uniform float ${param.name};`)
+    .join('\n');
 
   return `#version 300 es
 precision highp float;
