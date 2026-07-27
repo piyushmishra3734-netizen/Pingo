@@ -266,6 +266,9 @@ export function ConversationRow({
         type="button"
         role="option"
         aria-selected={selected}
+        // Lets focus follow this conversation across the option/link swap when
+        // selection mode ends. See `handedBack` in ChatListBody.
+        data-conversation={conversation.id}
         onClick={onToggleSelect}
         className={cn(shell, selected && 'shadow-sm ring-1 ring-brand/25')}
       >
@@ -279,6 +282,7 @@ export function ConversationRow({
     <Link
       to={`/chats/${conversation.id}`}
       aria-current={active ? 'page' : undefined}
+      data-conversation={conversation.id}
       {...longPress}
       className={shell}
     >

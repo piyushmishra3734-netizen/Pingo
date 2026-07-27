@@ -12,7 +12,7 @@ import {
   UnarchiveIcon,
   cn,
 } from '@pingo/ui';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { ConversationRow } from './ConversationRow.js';
 import { SwipeableRow } from './SwipeableRow.js';
@@ -78,6 +78,35 @@ export function ChatListBody({
    */
   const [showArchived, setShowArchived] = useState(false);
 
+  /**
+   * The conversation focus should land on once selection mode ends.
+   *
+   * Leaving selection swaps every row from an `option` back to a link, so the
+   * element that had focus stops existing and the browser drops focus on
+   * `<body>` — a keyboard user is returned to the top of the page by the act of
+   * pressing Escape. Deselecting the last row has the same effect, since that
+   * also ends selection mode.
+   *
+   * So the id is remembered across the swap and focus is handed to the row that
+   * replaces it, which is the same chat in the same place.
+   */
+  const handedBack = useRef<string | undefined>(undefined);
+
+  /** Which conversation the focused row belongs to, if any. */
+  const focusedConversationId = (): string | undefined => {
+    const row = (document.activeElement as HTMLElement | null)?.closest('[data-conversation]');
+    return (row as HTMLElement | null)?.dataset.conversation;
+  };
+
+  useEffect(() => {
+    if (selectionMode) return;
+    const id = handedBack.current;
+    handedBack.current = undefined;
+    if (!id) return;
+
+    document.querySelector<HTMLElement>(`a[data-conversation="${id}"]`)?.focus();
+  }, [selectionMode]);
+
   /*
    * Arrow keys walk the selection, Space toggles, Escape leaves.
    *
@@ -91,6 +120,9 @@ export function ChatListBody({
 
     if (event.key === 'Escape') {
       event.preventDefault();
+      // Remembered before the rows change shape, so focus can follow the same
+      // conversation back out. See `handedBack` below.
+      handedBack.current = focusedConversationId();
       onCancelSelection();
       return;
     }
@@ -122,7 +154,10 @@ export function ChatListBody({
         active={conversation.id === activeConversationId}
         selectable={selectionMode}
         selected={selected}
-        onToggleSelect={() => onToggleSelect(conversation)}
+        onToggleSelect={() => {
+          handedBack.current = conversation.id;
+          onToggleSelect(conversation);
+        }}
         onEnterSelection={() => onEnterSelection(conversation)}
       />
     );
