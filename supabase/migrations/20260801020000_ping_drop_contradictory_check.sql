@@ -1,0 +1,34 @@
+-- Drop a check constraint that made destroying a Ping impossible.
+--
+-- ## The contradiction
+--
+-- The snaps migration added:
+--
+--   check (kind <> 'snap' or media_url is not null)
+--
+-- "a snap always has media". The lifecycle migration, two files later, exists
+-- precisely to reach the state where it does not: `destroy_snap` clears the
+-- media so the Ping cannot be read again. It sets `media_url = null`, which the
+-- constraint forbids.
+--
+-- So `destroy_snap` has raised since the day it shipped, and with it every path
+-- that called it — the final view, the download, the expiry purge. It was
+-- masked by a second failure in front of it (the storage-table guard, fixed in
+-- the previous migration) and surfaced only when that one was cleared.
+--
+-- ## Why the constraint goes rather than the null
+--
+-- It guards the wrong column. `media_url` has not carried snap media since the
+-- lifecycle migration moved to storing the object's *path* and minting a signed
+-- URL per view — that change is what made the view limit real, and it left
+-- `media_url` vestigial for this kind. Keeping the constraint would mean
+-- writing a placeholder into a column nothing reads, to satisfy a rule that
+-- describes a design the product moved away from.
+--
+-- The invariant that actually matters — a live Ping has a `snap_path`, a
+-- consumed one has none — is enforced by `open_snap`, which refuses on either
+-- a null path or a `snap_consumed_at`. That is the check with teeth, because it
+-- guards the only route to the bytes.
+
+alter table public.messages
+  drop constraint if exists messages_snap_media_check;
