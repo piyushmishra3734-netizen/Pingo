@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
+import { capturePointer, releasePointer } from '../../conversations/pointer-capture.js';
+
 /**
  * Drag a message sideways to reply to it.
  *
@@ -132,7 +134,7 @@ export function useSwipeToReply(
         setDragging(true);
         // The bubble keeps the pointer from here on, so a flick that leaves the
         // element does not strand it mid-swipe with no release to reset it.
-        (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+        capturePointer(event.currentTarget as HTMLElement, event.pointerId);
       }
 
       // Free travel up to the commit point, then heavy resistance: the message
@@ -149,7 +151,7 @@ export function useSwipeToReply(
   const onPointerUp = useCallback(
     (event: React.PointerEvent) => {
       const committed = engaged.current && offset >= COMMIT_PX;
-      (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+      releasePointer(event.currentTarget as HTMLElement, event.pointerId);
       reset();
 
       if (committed) {
@@ -164,7 +166,7 @@ export function useSwipeToReply(
 
   const onPointerCancel = useCallback(
     (event: React.PointerEvent) => {
-      (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+      releasePointer(event.currentTarget as HTMLElement, event.pointerId);
       reset();
     },
     [reset],

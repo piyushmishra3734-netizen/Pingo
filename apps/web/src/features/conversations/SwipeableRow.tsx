@@ -1,6 +1,8 @@
 import { cn } from '@pingo/ui';
 import { useCallback, useRef, useState } from 'react';
 
+import { capturePointer, releasePointer } from './pointer-capture.js';
+
 /**
  * A conversation row you can swipe either way to act on.
  *
@@ -107,7 +109,7 @@ export function SwipeableRow({ right, left, enabled = true, children }: Swipeabl
 
         engaged.current = true;
         setDragging(true);
-        (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+        capturePointer(event.currentTarget as HTMLElement, event.pointerId);
       }
 
       const magnitude = Math.abs(dx);
@@ -126,7 +128,7 @@ export function SwipeableRow({ right, left, enabled = true, children }: Swipeabl
       const action = offset > 0 ? right : left;
       const committed = engaged.current && Math.abs(offset) >= COMMIT_PX && action;
 
-      (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+      releasePointer(event.currentTarget as HTMLElement, event.pointerId);
       reset();
 
       if (committed) {
@@ -140,7 +142,7 @@ export function SwipeableRow({ right, left, enabled = true, children }: Swipeabl
 
   const onPointerCancel = useCallback(
     (event: React.PointerEvent) => {
-      (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+      releasePointer(event.currentTarget as HTMLElement, event.pointerId);
       reset();
     },
     [reset],
