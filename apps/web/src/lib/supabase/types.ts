@@ -56,6 +56,14 @@ export type ConversationMemberRow = {
   pinned: boolean;
   muted: boolean;
   favorite: boolean;
+  /** Out of the main list. Per member — the other side's copy does not move. */
+  archived_at: string | null;
+  /** Deliberately unread, which no read cursor can express. */
+  marked_unread: boolean;
+  /** Messages at or before this are hidden from this member. */
+  cleared_at: string | null;
+  /** The row is hidden until something newer than this arrives. */
+  deleted_at: string | null;
 };
 
 /** One row of `public.messages`. */
@@ -112,7 +120,23 @@ export type Database = {
           pinned?: boolean;
           muted?: boolean;
           favorite?: boolean;
+          archived_at?: string | null;
+          marked_unread?: boolean;
+          cleared_at?: string | null;
+          deleted_at?: string | null;
         };
+        Relationships: [];
+      };
+      chat_lists: {
+        Row: { id: string; owner_id: string; name: string; created_at: string };
+        Insert: { owner_id: string; name: string };
+        Update: { name?: string };
+        Relationships: [];
+      };
+      chat_list_members: {
+        Row: { list_id: string; conversation_id: string };
+        Insert: { list_id: string; conversation_id: string };
+        Update: Record<string, never>;
         Relationships: [];
       };
       notifications: {
@@ -274,6 +298,8 @@ export type Database = {
           conversation_id: string;
           last_message_id: string | null;
           unread_count: number;
+          archived: boolean;
+          deleted: boolean;
         }[];
       };
       /** Streak days per direct conversation, for the signed-in user only. */

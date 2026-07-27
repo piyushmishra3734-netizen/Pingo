@@ -296,6 +296,46 @@ export const PinIcon = (props: IconProps) => (
   </IconBase>
 );
 
+export const EditIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M16.4 4.6a2 2 0 0 1 2.8 2.8L8.6 18H5.5v-3.1L16.4 4.6Z" />
+    <path d="M14.5 6.5 17.5 9.5" />
+  </IconBase>
+);
+
+export const ArchiveIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M3.5 7.5h17v11a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-11Z" />
+    <path d="M2.8 4.5h18.4a.7.7 0 0 1 .7.7v1.6a.7.7 0 0 1-.7.7H2.8a.7.7 0 0 1-.7-.7V5.2a.7.7 0 0 1 .7-.7Z" />
+    <path d="M10 11.5h4" />
+  </IconBase>
+);
+
+export const UnarchiveIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M3.5 7.5h17v11a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-11Z" />
+    <path d="M2.8 4.5h18.4a.7.7 0 0 1 .7.7v1.6a.7.7 0 0 1-.7.7H2.8a.7.7 0 0 1-.7-.7V5.2a.7.7 0 0 1 .7-.7Z" />
+    <path d="M12 16.5v-5M9.6 13.4 12 11l2.4 2.4" />
+  </IconBase>
+);
+
+export const TrashIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M4 6.5h16" />
+    <path d="M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5" />
+    <path d="M6.5 6.5 7.3 19a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12.5" />
+    <path d="M10.5 10.5v6M13.5 10.5v6" />
+  </IconBase>
+);
+
+/** A list you made yourself — "Work", "Family". Deliberately not a folder. */
+export const ListIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M4 7h2M4 12h2M4 17h2" />
+    <path d="M9.5 7h10.5M9.5 12h10.5M9.5 17h10.5" />
+  </IconBase>
+);
+
 export const MuteIcon = (props: IconProps) => (
   <IconBase {...props}>
     <path d="M11 5.5 6.8 9H4.2a.7.7 0 0 0-.7.7v4.6a.7.7 0 0 0 .7.7h2.6L11 18.5a.6.6 0 0 0 1-.5V6a.6.6 0 0 0-1-.5Z" />

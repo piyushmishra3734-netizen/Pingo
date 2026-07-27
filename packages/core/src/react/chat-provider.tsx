@@ -107,6 +107,13 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
           break;
         }
 
+        case 'conversation:removed': {
+          setConversations((previous) =>
+            previous.filter((c) => c.id !== event.conversationId),
+          );
+          break;
+        }
+
         case 'presence:changed': {
           setUsers((previous) =>
             previous.map((u) =>

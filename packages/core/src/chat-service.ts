@@ -17,7 +17,9 @@
 import type {
   AppNotification,
   CallRecord,
+  ChatList,
   Conversation,
+  ConversationFlags,
   ConversationId,
   CurrentUser,
   GalleryItem,
@@ -63,6 +65,13 @@ export type ChatEvent =
    */
   | { type: 'message:removed'; messageId: MessageId }
   | { type: 'conversation:updated'; conversation: Conversation }
+  /**
+   * Gone from this member's list — deleted, or archived out of view.
+   *
+   * Not "the conversation ended": the membership survives and the row returns
+   * when something newer arrives. The list is what changed, not the chat.
+   */
+  | { type: 'conversation:removed'; conversationId: ConversationId }
   | { type: 'typing:changed'; conversationId: ConversationId; userIds: UserId[] }
   | { type: 'presence:changed'; userId: UserId; presence: User['presence'] }
   | { type: 'notification:new'; notification: AppNotification }
@@ -112,6 +121,50 @@ export interface ChatService {
    */
   downloadSnap(messageId: MessageId): Promise<Blob | undefined>;
   markConversationRead(conversationId: ConversationId): Promise<void>;
+
+  // -- conversation management ---------------------------------------------
+
+  /**
+   * Sets any combination of a conversation's per-member flags.
+   *
+   * Takes a list rather than one id because multi-select is the normal case on
+   * this screen — archiving eleven chats should be one round trip, not eleven,
+   * and eleven separate calls would also mean eleven chances to half-succeed.
+   *
+   * Every flag here is private to the caller. Archiving does not move the chat
+   * in anyone else's list, and there is deliberately no conversation-level
+   * equivalent of any of them.
+   */
+  setConversationFlags(
+    conversationIds: ConversationId[],
+    flags: ConversationFlags,
+  ): Promise<void>;
+
+  /**
+   * Hides the conversation and its history from this member only.
+   *
+   * Not a deletion in the database: the membership survives, so a later message
+   * brings the chat back carrying only what arrived after. Removing the row
+   * would drop you out of the conversation and make the next message create a
+   * second one.
+   */
+  deleteConversations(conversationIds: ConversationId[]): Promise<void>;
+
+  /** Empties the history but keeps the chat in the list. */
+  clearConversations(conversationIds: ConversationId[]): Promise<void>;
+
+  // -- custom lists ---------------------------------------------------------
+
+  listChatLists(): Promise<ChatList[]>;
+  createChatList(name: string): Promise<ChatList>;
+  renameChatList(listId: string, name: string): Promise<void>;
+  deleteChatList(listId: string): Promise<void>;
+  /** One call for a whole selection, for the same reason as the flags above. */
+  setChatListMembership(
+    listId: string,
+    conversationIds: ConversationId[],
+    member: boolean,
+  ): Promise<void>;
   setTyping(conversationId: ConversationId, typing: boolean): Promise<void>;
   toggleReaction(messageId: MessageId, emoji: string): Promise<Message>;
 

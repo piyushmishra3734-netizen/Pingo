@@ -19,6 +19,19 @@ const FILTERS: readonly ConversationFilter[] = [
 
 export const conversationFilters = FILTERS;
 
+/**
+ * How many conversations may be pinned at once.
+ *
+ * Three, matching WhatsApp. The cap is what keeps the pinned section meaning
+ * "these three matter" — an uncapped one drifts into a second inbox, and then
+ * the ordering it was supposed to fix is back.
+ *
+ * Here rather than in `types.ts` because the barrel re-exports that module with
+ * `export type *`, so a runtime constant declared there is unreachable by
+ * design — it typechecks at the definition and fails at every call site.
+ */
+export const PIN_LIMIT = 3;
+
 export const conversationFilterLabels: Record<ConversationFilter, string> = {
   all: 'All',
   unread: 'Unread',

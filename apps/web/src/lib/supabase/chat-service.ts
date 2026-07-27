@@ -30,9 +30,11 @@ import type {
   AppNotification,
   CallRecord,
   ChatEvent,
+  ChatList,
   ChatService,
   ConnectionState,
   Conversation,
+  ConversationFlags,
   ConversationId,
   CurrentUser,
   GalleryItem,
@@ -51,7 +53,7 @@ import type {
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { PresenceHub } from './presence.js';
-import type { ConversationRow, MessageRow, ProfileRow } from './types.js';
+import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
 
 /** Until a settings table exists, these are what every session starts from. */
 const DEFAULT_SETTINGS: UserSettings = {
@@ -484,6 +486,24 @@ export class SupabaseChatService implements ChatService {
     );
 
     /*
+     * Which lists each conversation is filed under.
+     *
+     * RLS scopes `chat_list_members` to lists this user owns, so this needs no
+     * filter of its own — and could not see anyone else's filing if it tried.
+     */
+    const { data: listRows } = await this.#client
+      .from('chat_list_members')
+      .select('list_id,conversation_id')
+      .in('conversation_id', ids);
+
+    const listsByConversation = new Map<string, string[]>();
+    for (const row of listRows ?? []) {
+      const existing = listsByConversation.get(row.conversation_id);
+      if (existing) existing.push(row.list_id);
+      else listsByConversation.set(row.conversation_id, [row.list_id]);
+    }
+
+    /*
      * The preview rows name the newest message; this fetches those rows. One
      * query for the whole list, and bounded by the number of conversations
      * rather than by how much anyone has been talking.
@@ -504,6 +524,12 @@ export class SupabaseChatService implements ChatService {
     await this.#loadPeople((members ?? []).map((m) => m.user_id));
 
     return rows
+      /*
+       * A chat the member deleted is not in their list at all — not archived,
+       * not empty, absent. It returns on its own when something newer arrives,
+       * which is what `deleted` in the preview already accounts for.
+       */
+      .filter((row) => !previewByConversation.get(row.id)?.deleted)
       .map((row) => {
         const roster = (members ?? []).filter((m) => m.conversation_id === row.id);
         const mine = roster.find((m) => m.user_id === me);
@@ -530,6 +556,8 @@ export class SupabaseChatService implements ChatService {
           pinned: mine?.pinned ?? false,
           muted: mine?.muted ?? false,
           favorite: mine?.favorite ?? false,
+          archived: preview?.archived ?? false,
+          listIds: listsByConversation.get(row.id) ?? [],
           typingUserIds: [],
           updatedAt: Date.parse(row.last_message_at),
           // Omitted entirely when there is no streak, so the row renders nothing.
@@ -585,6 +613,192 @@ export class SupabaseChatService implements ChatService {
 
     const { data: rows } = await this.#client.from('conversations').select('*').in('id', ids);
     return this.#hydrate(rows ?? [], me);
+  }
+
+  // -- conversation management ----------------------------------------------
+
+  /*
+   * Every one of these writes to `conversation_members` for this user only, so
+   * RLS on `user_id = auth.uid()` is what makes them safe — there is no way to
+   * express "archive it for them" and no code path that would want to.
+   */
+
+  async setConversationFlags(
+    conversationIds: ConversationId[],
+    flags: ConversationFlags,
+  ): Promise<void> {
+    if (conversationIds.length === 0) return;
+    const me = await this.#userId();
+
+    const patch: Database['public']['Tables']['conversation_members']['Update'] = {};
+    if (flags.pinned !== undefined) patch.pinned = flags.pinned;
+    if (flags.muted !== undefined) patch.muted = flags.muted;
+    if (flags.favorite !== undefined) patch.favorite = flags.favorite;
+    if (flags.archived !== undefined) {
+      patch.archived_at = flags.archived ? new Date().toISOString() : null;
+      /*
+       * Archiving un-pins. The pinned section sits above the main list, so a
+       * pinned-and-archived chat would have to be in two places at once — and
+       * the pin limit would be spent on something the user has put away.
+       */
+      if (flags.archived) patch.pinned = false;
+    }
+    if (flags.unread !== undefined) {
+      patch.marked_unread = flags.unread;
+      // Marking read has to move the cursor too, or the real unreads survive
+      // and the row goes straight back to bold.
+      if (!flags.unread) patch.last_read_at = new Date().toISOString();
+    }
+
+    if (Object.keys(patch).length === 0) return;
+
+    await this.#writeMembership(conversationIds, me, patch);
+    await this.#refresh(conversationIds);
+  }
+
+  async deleteConversations(conversationIds: ConversationId[]): Promise<void> {
+    if (conversationIds.length === 0) return;
+    const me = await this.#userId();
+    const now = new Date().toISOString();
+
+    /*
+     * Both timestamps. `cleared_at` hides the history, `deleted_at` hides the
+     * row — a chat that only cleared would sit in the list looking empty, and
+     * one that only "deleted" would come back with its whole history intact the
+     * moment anyone replied.
+     */
+    await this.#writeMembership(conversationIds, me, {
+      cleared_at: now,
+      deleted_at: now,
+      pinned: false,
+      marked_unread: false,
+    });
+
+    for (const id of conversationIds) {
+      this.#emit({ type: 'conversation:removed', conversationId: id });
+    }
+  }
+
+  async clearConversations(conversationIds: ConversationId[]): Promise<void> {
+    if (conversationIds.length === 0) return;
+    const me = await this.#userId();
+
+    await this.#writeMembership(conversationIds, me, {
+      cleared_at: new Date().toISOString(),
+    });
+    await this.#refresh(conversationIds);
+  }
+
+  /**
+   * Updates this user's membership rows, and refuses to succeed quietly.
+   *
+   * An `update` filtered by RLS does not error — it matches nothing and returns
+   * 200. So an archive that the policy declines, or one aimed at a conversation
+   * the user is not in, would look exactly like an archive that worked, and the
+   * row would spring back on the next refresh with no explanation. Asking for
+   * the count is what turns that into a failure the UI can report.
+   */
+  async #writeMembership(
+    conversationIds: ConversationId[],
+    me: UserId,
+    patch: Database['public']['Tables']['conversation_members']['Update'],
+  ): Promise<void> {
+    const { error, count } = await this.#client
+      .from('conversation_members')
+      .update(patch, { count: 'exact' })
+      .eq('user_id', me)
+      .in('conversation_id', conversationIds);
+
+    if (error) throw error;
+    if (!count) throw new Error('No conversations were updated.');
+  }
+
+  /** Re-reads the affected rows so the list reflects what the server now says. */
+  async #refresh(conversationIds: ConversationId[]): Promise<void> {
+    for (const id of conversationIds) {
+      const conversation = await this.getConversation(id);
+      if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+      // Gone from this member's list — archived away, or deleted.
+      else this.#emit({ type: 'conversation:removed', conversationId: id });
+    }
+  }
+
+  // -- custom lists ----------------------------------------------------------
+
+  async listChatLists(): Promise<ChatList[]> {
+    const me = await this.#userId();
+
+    const [{ data: lists }, { data: members }] = await Promise.all([
+      this.#client.from('chat_lists').select('*').eq('owner_id', me).order('name'),
+      // RLS already restricts this to lists I own, so no second filter is needed.
+      this.#client.from('chat_list_members').select('list_id'),
+    ]);
+
+    const counts = new Map<string, number>();
+    for (const row of members ?? []) {
+      counts.set(row.list_id, (counts.get(row.list_id) ?? 0) + 1);
+    }
+
+    return (lists ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      count: counts.get(row.id) ?? 0,
+    }));
+  }
+
+  async createChatList(name: string): Promise<ChatList> {
+    const me = await this.#userId();
+    const { data, error } = await this.#client
+      .from('chat_lists')
+      .insert({ owner_id: me, name: name.trim() })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { id: data.id, name: data.name, count: 0 };
+  }
+
+  async renameChatList(listId: string, name: string): Promise<void> {
+    const { error } = await this.#client
+      .from('chat_lists')
+      .update({ name: name.trim() })
+      .eq('id', listId);
+    if (error) throw error;
+  }
+
+  async deleteChatList(listId: string): Promise<void> {
+    // Membership rows go with it by cascade; the conversations are untouched,
+    // because a list is a view of chats rather than a container holding them.
+    const { error } = await this.#client.from('chat_lists').delete().eq('id', listId);
+    if (error) throw error;
+  }
+
+  async setChatListMembership(
+    listId: string,
+    conversationIds: ConversationId[],
+    member: boolean,
+  ): Promise<void> {
+    if (conversationIds.length === 0) return;
+
+    if (member) {
+      const { error } = await this.#client
+        .from('chat_list_members')
+        .upsert(
+          conversationIds.map((conversation_id) => ({ list_id: listId, conversation_id })),
+          // Filing a chat twice is not an error, it is a no-op.
+          { onConflict: 'list_id,conversation_id', ignoreDuplicates: true },
+        );
+      if (error) throw error;
+    } else {
+      const { error } = await this.#client
+        .from('chat_list_members')
+        .delete()
+        .eq('list_id', listId)
+        .in('conversation_id', conversationIds);
+      if (error) throw error;
+    }
+
+    await this.#refresh(conversationIds);
   }
 
   async getConversation(id: ConversationId): Promise<Conversation | undefined> {

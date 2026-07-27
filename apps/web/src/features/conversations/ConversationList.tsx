@@ -3,14 +3,15 @@ import {
   conversationFilters,
   useChat,
   useConversationFilter,
+  useProfile,
+  type ChatList,
+  type Conversation,
+  type StoryGroup,
 } from '@pingo/core';
 import {
-  ChatIcon,
+  BellIcon,
   Chip,
   ChipGroup,
-  BellIcon,
-  ConversationSkeleton,
-  EmptyState,
   IconButton,
   SearchField,
   PlusIcon,
@@ -18,27 +19,33 @@ import {
   SettingsIcon,
   cn,
 } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-import { useProfile, type StoryGroup } from '@pingo/core';
 
 import { AppWordmark } from '../../components/AppWordmark.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
 import { useStories } from '../stories/StoryContext.js';
-import { ConversationRow } from './ConversationRow.js';
+import { ChatListBody, ChatListEmpty } from './ChatListBody.js';
+import { ChatListsSheet } from './ChatListsSheet.js';
+import { DeleteChatSheet } from './DeleteChatSheet.js';
+import { SelectionBar, SelectionMenuItem } from './SelectionBar.js';
+import { useConversationActions } from './useConversationActions.js';
 
 /**
- * The conversation list — header, search, filter chips, rows.
+ * The conversation list — header, search, filters, rows, selection.
  *
  * The header is sticky and glass-backed so the wordmark stays put while rows
- * scroll beneath it, which is what keeps a long list feeling anchored.
+ * scroll beneath it, which is what keeps a long list feeling anchored. In
+ * selection mode that same header becomes the selection bar in place, so the
+ * screen never appears to gain a layer.
  *
- * Empty states are distinguished on purpose: an empty *filter* is not an empty
- * *inbox*, and telling a user "no conversations yet" when they simply have nothing
- * unread would be a small lie.
+ * ## Archived chats are not in `conversations`
+ *
+ * They are partitioned out here, once, rather than filtered at each of the four
+ * places that read the list. Everything downstream — filters, counts, search —
+ * therefore describes the main list without having to remember to exclude them.
  */
 
 export interface ConversationListProps {
@@ -51,196 +58,346 @@ export function ConversationList({
   activeConversationId,
   className,
 }: ConversationListProps) {
-  const { conversations, ready } = useChat();
-  // For the empty state's greeting, and the "You" circle on the story rail.
+  const { conversations, ready, service } = useChat();
   const { profile } = useProfile();
   const { groups: storyGroups, markSeen: markStorySeen } = useStories();
   const navigate = useNavigate();
-
   const searchRef = useRef<HTMLInputElement>(null);
-
   const { unread } = useNotifications();
-  /*
-   * The origin travels with the group so the viewer can grow out of the exact
-   * circle that was tapped. Measured at tap time, because the row scrolls.
-   */
+
+  const actions = useConversationActions();
+
   const [openStory, setOpenStory] = useState<
     { group: StoryGroup; origin: DOMRect } | undefined
   >();
   const [query, setQuery] = useState('');
-  const { filter, setFilter, filtered, counts } = useConversationFilter(
-    conversations,
-    query,
+
+  /** Selection mode is "the set is non-empty", so there is no second flag. */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectionMode = selectedIds.size > 0;
+
+  const [pendingDelete, setPendingDelete] = useState<Conversation[]>();
+  const [listsFor, setListsFor] = useState<Conversation[]>();
+
+  /** The custom list being viewed, if any. `undefined` is "no list filter". */
+  const [activeList, setActiveList] = useState<ChatList>();
+  const [lists, setLists] = useState<ChatList[]>([]);
+
+  const loadLists = () => {
+    void service
+      .listChatLists()
+      .then(setLists)
+      .catch(() => setLists([]));
+  };
+  useEffect(loadLists, [service]);
+
+  const { active, archived } = useMemo(
+    () => ({
+      active: conversations.filter((c) => !c.archived),
+      archived: conversations.filter((c) => c.archived),
+    }),
+    [conversations],
   );
 
+  const inList = useMemo(
+    () => (activeList ? active.filter((c) => c.listIds.includes(activeList.id)) : active),
+    [active, activeList],
+  );
+
+  const { filter, setFilter, filtered, counts } = useConversationFilter(inList, query);
+
+  const selected = useMemo(
+    () => conversations.filter((c) => selectedIds.has(c.id)),
+    [conversations, selectedIds],
+  );
+
+  /*
+   * A selection cannot outlive what it points at. Archiving four chats empties
+   * the selection, and without this the bar would keep counting rows that are
+   * no longer on screen.
+   */
+  useEffect(() => {
+    setSelectedIds((previous) => {
+      if (previous.size === 0) return previous;
+      const live = new Set(conversations.map((c) => c.id));
+      const next = new Set([...previous].filter((id) => live.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [conversations]);
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const toggleSelect = (conversation: Conversation) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(conversation.id)) next.delete(conversation.id);
+      else next.add(conversation.id);
+      return next;
+    });
+  };
+
   const searching = query.trim().length > 0;
+  const allSelected = selected.length > 0 && selected.every((c) => c.favorite);
+  const allMuted = selected.length > 0 && selected.every((c) => c.muted);
+  const anyUnread = selected.some((c) => c.unreadCount > 0);
+  /** Single selection unlocks the actions that only mean anything for one chat. */
+  const only = selected.length === 1 ? selected[0] : undefined;
+
+  /** Runs an action, then leaves selection mode — the job is done. */
+  const andClose = (work: Promise<void> | void) => {
+    void Promise.resolve(work).then(clearSelection);
+  };
+
+  const emptyReason = searching
+    ? ('search' as const)
+    : activeList
+      ? ('list' as const)
+      : filter === 'favorites'
+        ? ('favorites' as const)
+        : filter !== 'all'
+          ? ('filter' as const)
+          : ('none' as const);
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
       <header
         className={cn(
           'sticky top-0 z-100 shrink-0',
-          // Glass, because rows pass underneath it.
           'glass-surface border-x-0 border-t-0 border-b-line',
           'px-4 pt-4 pb-3',
           'pt-[max(1rem,env(safe-area-inset-top))]',
         )}
       >
-        <div className="flex items-center justify-between">
-          <AppWordmark height={22} as="h1" />
+        {selectionMode ? (
+          <SelectionBar
+            selected={selected}
+            onCancel={clearSelection}
+            onPin={(pinned) => andClose(actions.pin(selected, pinned))}
+            onArchive={(archive) =>
+              andClose(actions.archive(selected.map((c) => c.id), archive))
+            }
+            onDelete={() => setPendingDelete(selected)}
+            menu={
+              <>
+                <SelectionMenuItem
+                  label={anyUnread ? 'Mark as read' : 'Mark as unread'}
+                  onSelect={() =>
+                    andClose(actions.markUnread(selected.map((c) => c.id), !anyUnread))
+                  }
+                />
+                <SelectionMenuItem
+                  label={`Select all (${filtered.length})`}
+                  onSelect={() => setSelectedIds(new Set(filtered.map((c) => c.id)))}
+                />
+                <SelectionMenuItem
+                  label={allSelected ? 'Remove from favourites' : 'Add to favourites'}
+                  onSelect={() =>
+                    andClose(actions.favorite(selected.map((c) => c.id), !allSelected))
+                  }
+                />
+                <SelectionMenuItem
+                  label="Add to list"
+                  onSelect={() => setListsFor(selected)}
+                />
+                <SelectionMenuItem
+                  label={allMuted ? 'Unmute notifications' : 'Mute notifications'}
+                  onSelect={() =>
+                    andClose(actions.mute(selected.map((c) => c.id), !allMuted))
+                  }
+                />
+                <SelectionMenuItem
+                  label="Clear messages"
+                  onSelect={() => andClose(actions.clear(selected.map((c) => c.id)))}
+                />
 
-          <div className="flex items-center gap-0.5">
-            {/*
-              Search focuses the field below rather than opening a screen — the
-              field is already here, and a second search surface would be two
-              places to look for one thing.
-            */}
-            <IconButton
-              label="Search"
-              variant="ghost"
-              onClick={() => searchRef.current?.focus()}
-            >
-              <SearchIcon size={21} />
-            </IconButton>
-
-            {/*
-              The only way into a conversation with someone new. Without it the
-              app can only continue threads that already exist — which is what
-              it did, because `startDirectConversation` had no caller.
-            */}
-            <IconButton
-              label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-              variant="ghost"
-              onClick={() => navigate('/notifications')}
-            >
-              <span className="relative">
-                <BellIcon size={21} />
-                {/* A dot, not a number: the count is on the screen it opens. */}
-                {unread > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-brand ring-2 ring-page" />
+                {/*
+                  Single-selection only. "Chat info" for four chats has no
+                  meaning, and docs/13 § 3 applies here too — hide what was
+                  never available rather than offering it and refusing.
+                */}
+                {only && (
+                  <>
+                    <SelectionMenuItem
+                      label="Chat info"
+                      onSelect={() => {
+                        clearSelection();
+                        navigate(`/chats/${only.id}`);
+                      }}
+                    />
+                    {/*
+                      Shortcut and Export are honest omissions rather than dead
+                      rows: neither has an implementation behind it, and a menu
+                      item that silently does nothing is the failure this
+                      codebase keeps finding. They return when they work.
+                    */}
+                  </>
                 )}
-              </span>
-            </IconButton>
 
-            <IconButton
-              label="New chat"
-              variant="ghost"
-              onClick={() => navigate('/chats/new')}
-            >
-              <PlusIcon size={21} />
-            </IconButton>
-
-            <IconButton label="Settings" variant="ghost" onClick={() => navigate('/settings')}>
-              <SettingsIcon size={21} />
-            </IconButton>
-          </div>
-        </div>
-
-        <div className="mt-3.5">
-          <SearchField
-            inputRef={searchRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search"
-            aria-label="Search conversations"
+                <SelectionMenuItem
+                  label="Delete"
+                  danger
+                  onSelect={() => setPendingDelete(selected)}
+                />
+              </>
+            }
           />
-        </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <AppWordmark height={22} as="h1" />
 
-        <ChipGroup label="Filter conversations" className="mt-3">
-          {conversationFilters.map((f) => (
-            <Chip
-              key={f}
-              selected={filter === f}
-              onClick={() => setFilter(f)}
-              // A count on "All" is redundant — it is the list you are looking at.
-              count={f === 'all' ? undefined : counts[f]}
-            >
-              {conversationFilterLabels[f]}
-            </Chip>
-          ))}
-        </ChipGroup>
+              <div className="flex items-center gap-0.5">
+                <IconButton
+                  label="Search"
+                  variant="ghost"
+                  onClick={() => searchRef.current?.focus()}
+                >
+                  <SearchIcon size={21} />
+                </IconButton>
+
+                <IconButton
+                  label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+                  variant="ghost"
+                  onClick={() => navigate('/notifications')}
+                >
+                  <span className="relative">
+                    <BellIcon size={21} />
+                    <span
+                      className={cn(
+                        'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-brand ring-2 ring-page',
+                        'transition-opacity duration-quick',
+                        unread > 0 ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                  </span>
+                </IconButton>
+
+                <IconButton
+                  label="New chat"
+                  variant="ghost"
+                  onClick={() => navigate('/chats/new')}
+                >
+                  <PlusIcon size={21} />
+                </IconButton>
+
+                <IconButton
+                  label="Settings"
+                  variant="ghost"
+                  onClick={() => navigate('/settings')}
+                >
+                  <SettingsIcon size={21} />
+                </IconButton>
+              </div>
+            </div>
+
+            <div className="mt-3.5">
+              <SearchField
+                inputRef={searchRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search"
+                aria-label="Search conversations"
+              />
+            </div>
+
+            <ChipGroup label="Filter conversations" className="mt-3">
+              {conversationFilters.map((f) => (
+                <Chip
+                  key={f}
+                  selected={filter === f && !activeList}
+                  onClick={() => {
+                    setFilter(f);
+                    // The chips and the lists are one row of choices, so
+                    // picking a chip leaves whichever list was open.
+                    setActiveList(undefined);
+                  }}
+                  count={f === 'all' ? undefined : counts[f]}
+                >
+                  {conversationFilterLabels[f]}
+                </Chip>
+              ))}
+
+              {/*
+                Custom lists continue the same row rather than getting their own.
+                They are filters — a second row would imply a second kind of
+                thing and spend permanent vertical space saying so.
+              */}
+              {lists.map((list) => (
+                <Chip
+                  key={list.id}
+                  selected={activeList?.id === list.id}
+                  onClick={() => {
+                    setActiveList((was) => (was?.id === list.id ? undefined : list));
+                    setFilter('all');
+                  }}
+                  count={list.count}
+                >
+                  {list.name}
+                </Chip>
+              ))}
+            </ChipGroup>
+          </>
+        )}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {/*
-          The story rail sits above the chats and scrolls away with them, rather
-          than pinning to the sticky header. Stories are the day's news; the
-          conversations are why the screen exists, and pinning the rail would
-          spend permanent vertical space on the lesser of the two.
+      {actions.error && (
+        <p
+          role="alert"
+          onClick={actions.dismissError}
+          className="mx-3 mt-2 shrink-0 rounded-lg bg-danger-soft px-3 py-2 text-caption text-danger"
+        >
+          {actions.error}
+        </p>
+      )}
 
-          Hidden while searching or filtering — both are "find me a
-          conversation", and the rail answers neither.
-        */}
-        {!searching && filter === 'all' && (
-          <div className="pb-3">
-            <StoriesRow
-              groups={storyGroups}
-              currentUserId={profile?.id}
-              currentUserName={profile?.displayName ?? 'You'}
-              {...(profile?.avatarUrl ? { currentUserAvatarUrl: profile.avatarUrl } : {})}
-              onOpen={(group, origin) => setOpenStory({ group, origin })}
-            />
-          </div>
-        )}
-
-        {!ready ? (
-          <ConversationSkeleton />
-        ) : filtered.length === 0 ? (
-          searching ? (
-            <EmptyState
-              title="No matches"
-              description={`Nothing found for "${query.trim()}".`}
-              icon={<ChatIcon size={26} />}
-            />
-          ) : filter !== 'all' ? (
-            <EmptyState
-              title={`Nothing in ${conversationFilterLabels[filter]}`}
-              description="Try another filter to see the rest of your conversations."
-              icon={<ChatIcon size={26} />}
-            />
-          ) : (
+      <div
+        className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
+        role={selectionMode ? 'listbox' : undefined}
+        aria-multiselectable={selectionMode ? true : undefined}
+        aria-label={selectionMode ? 'Conversations, selecting' : undefined}
+      >
+        <ChatListBody
+          ready={ready}
+          conversations={filtered}
+          archived={archived}
+          {...(activeConversationId ? { activeConversationId } : {})}
+          selectedIds={selectedIds}
+          selectionMode={selectionMode}
+          onEnterSelection={(conversation) => setSelectedIds(new Set([conversation.id]))}
+          onToggleSelect={toggleSelect}
+          actions={actions}
+          onDeleteRequest={setPendingDelete}
+          header={
             /*
-             * Home's first impression, and the one screen most likely to greet
-             * someone who has just finished signing up. It uses their name on
-             * purpose: an empty product that knows who you are reads as ready,
-             * while the same screen without a name reads as broken.
-             *
-             * "No chats yet" still appears, under a divider — the state is
-             * stated plainly rather than hidden behind the welcome.
+             * The story rail scrolls away with the rows rather than pinning to
+             * the header. Stories are the day's news; the conversations are why
+             * the screen exists. Hidden while searching, filtering or selecting
+             * — all three are "find me a conversation", and the rail answers
+             * none of them.
              */
-            <EmptyState
-              title={profile ? `👋 Welcome ${profile.displayName}` : '👋 Welcome'}
-              description="Start your first conversation."
-              icon={<ChatIcon size={26} />}
-              action={
-                <div className="mt-2 w-full max-w-[16rem]">
-                  <div className="h-px w-full bg-divider" />
-                  <p className="mt-4 text-caption text-text-tertiary">No chats yet.</p>
-                </div>
-              }
-            />
-          )
-        ) : (
-          <div className="space-y-0.5">
-            {filtered.map((conversation, index) => (
-              <div
-                key={conversation.id}
-                className="animate-row-in"
-                /*
-                  Staggered, and capped at eight. Past that the delay is longer
-                  than anyone waits and the last rows would arrive after the
-                  user has already started scrolling.
-                */
-                style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
-              >
-                <ConversationRow
-                  conversation={conversation}
-                  active={conversation.id === activeConversationId}
+            !searching && filter === 'all' && !activeList && !selectionMode ? (
+              <div className="pb-3">
+                <StoriesRow
+                  groups={storyGroups}
+                  currentUserId={profile?.id}
+                  currentUserName={profile?.displayName ?? 'You'}
+                  {...(profile?.avatarUrl
+                    ? { currentUserAvatarUrl: profile.avatarUrl }
+                    : {})}
+                  onOpen={(group, origin) => setOpenStory({ group, origin })}
                 />
               </div>
-            ))}
-          </div>
-        )}
+            ) : undefined
+          }
+          empty={
+            <ChatListEmpty
+              reason={emptyReason}
+              query={query}
+              {...(activeList ? { listName: activeList.name } : {})}
+              {...(profile?.displayName ? { greeting: profile.displayName } : {})}
+            />
+          }
+        />
       </div>
 
       {openStory && (
@@ -249,6 +406,29 @@ export function ConversationList({
           origin={openStory.origin}
           onClose={() => setOpenStory(undefined)}
           onSeen={(storyId) => void markStorySeen(storyId)}
+        />
+      )}
+
+      {pendingDelete && (
+        <DeleteChatSheet
+          count={pendingDelete.length}
+          onCancel={() => setPendingDelete(undefined)}
+          onConfirm={() => {
+            const ids = pendingDelete.map((c) => c.id);
+            setPendingDelete(undefined);
+            andClose(actions.remove(ids));
+          }}
+        />
+      )}
+
+      {listsFor && (
+        <ChatListsSheet
+          selected={listsFor}
+          onClose={() => {
+            setListsFor(undefined);
+            clearSelection();
+          }}
+          onChanged={loadLists}
         />
       )}
     </div>

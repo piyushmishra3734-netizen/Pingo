@@ -230,6 +230,10 @@ export interface Conversation {
   /** Muted conversations still count unreads but never notify. */
   muted: boolean;
   favorite: boolean;
+  /** Out of the main list, into the Archived section. Private to this member. */
+  archived: boolean;
+  /** Custom lists this conversation is filed under. A chat may be in several. */
+  listIds: string[];
   /** User IDs currently typing. Drives the typing dots in the list and header. */
   typingUserIds: UserId[];
   updatedAt: number;
@@ -241,6 +245,39 @@ export interface Conversation {
    * into a scoreboard nobody asked to be on.
    */
   streak?: number;
+}
+
+/**
+ * A user's own way of grouping chats — "Work", "Family".
+ *
+ * Private to its owner. Two people may both have a "Work" list and they have
+ * nothing to do with each other.
+ */
+export interface ChatList {
+  id: string;
+  name: string;
+  /** How many conversations are filed under it, for the chip's count. */
+  count: number;
+}
+
+/**
+ * The per-member flags a conversation carries.
+ *
+ * All optional, so a caller states only what it is changing — passing the full
+ * set every time would mean every caller having to know the current values of
+ * the flags it does not care about.
+ */
+export interface ConversationFlags {
+  pinned?: boolean;
+  muted?: boolean;
+  favorite?: boolean;
+  archived?: boolean;
+  /**
+   * Deliberately unread. Cannot be derived from the read cursor, because the
+   * whole point is that you *have* read it and want the list to disagree.
+   * Setting it false is "mark as read", which also clears the real unreads.
+   */
+  unread?: boolean;
 }
 
 /** The chip row on the home screen: All · Unread · Groups · Favorites. */

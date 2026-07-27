@@ -153,6 +153,7 @@ export { ChatProvider, useChat } from './react/chat-provider.js';
 export { useMessages } from './react/use-messages.js';
 export {
   useConversationFilter,
+  PIN_LIMIT,
   conversationFilters,
   conversationFilterLabels,
   matchesFilter,

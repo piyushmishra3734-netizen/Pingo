@@ -17,6 +17,8 @@ import {
 } from '@pingo/ui';
 import { Link } from 'react-router-dom';
 
+import { useLongPress } from '../chat/context-menu/useLongPress.js';
+
 /**
  * One row in the conversation list.
  *
@@ -35,9 +37,29 @@ import { Link } from 'react-router-dom';
 export interface ConversationRowProps {
   conversation: Conversation;
   active?: boolean;
+  /**
+   * Selection mode. Absent means the row is an ordinary link.
+   *
+   * Passed in rather than read from context because the row is also rendered in
+   * the archived shelf, and only the list that owns a selection can say whether
+   * this row is part of one.
+   */
+  selectable?: boolean;
+  selected?: boolean;
+  /** A tap while selecting toggles the row instead of opening the chat. */
+  onToggleSelect?: () => void;
+  /** A hold on an ordinary row is what starts a selection. */
+  onEnterSelection?: () => void;
 }
 
-export function ConversationRow({ conversation, active = false }: ConversationRowProps) {
+export function ConversationRow({
+  conversation,
+  active = false,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+  onEnterSelection,
+}: ConversationRowProps) {
   const { currentUser, users } = useChat();
 
   const isTyping = conversation.typingUserIds.length > 0;
@@ -57,16 +79,15 @@ export function ConversationRow({ conversation, active = false }: ConversationRo
     users,
   });
 
-  return (
-    <Link
-      to={`/chats/${conversation.id}`}
-      aria-current={active ? 'page' : undefined}
-      className={cn(
-        'group flex items-center gap-3 rounded-lg px-3 py-3',
-        'focus-ring transition-colors duration-instant ease-standard',
-        active ? 'bg-selected' : 'hover:bg-hover active:bg-pressed',
-      )}
-    >
+  /*
+   * A hold enters selection mode; once in it, a tap toggles instead of opening.
+   * The same 500ms as the message menu, so "hold to choose" means one thing
+   * everywhere in the app rather than two slightly different things.
+   */
+  const longPress = useLongPress(() => onEnterSelection?.());
+
+  const body = (
+    <>
       {/*
         Groups get a single avatar, not a stack. A stack is wider than one circle,
         which would push the title and preview of group rows right and break the
@@ -188,6 +209,62 @@ export function ConversationRow({ conversation, active = false }: ConversationRo
           )}
         </div>
       </div>
+    </>
+  );
+
+  const shell = cn(
+    'group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left',
+    'focus-ring transition-colors duration-instant ease-standard',
+    selected
+      ? 'bg-selected'
+      : active
+        ? 'bg-selected'
+        : 'hover:bg-hover active:bg-pressed',
+  );
+
+  /*
+   * A tick on the left, and the row lifts slightly.
+   *
+   * The lift is what stops a selected row reading as merely "hovered" — the
+   * tint alone is the same colour the active desktop row already uses, so
+   * without it the two states would be indistinguishable in the two-pane layout.
+   */
+  const marker = selectable && (
+    <span
+      aria-hidden
+      className={cn(
+        'grid size-5 shrink-0 place-items-center rounded-full border',
+        'transition-colors duration-instant',
+        selected ? 'border-brand bg-brand text-white' : 'border-line-strong',
+      )}
+    >
+      {selected && <CheckIcon size={13} />}
+    </span>
+  );
+
+  if (selectable) {
+    return (
+      <button
+        type="button"
+        role="option"
+        aria-selected={selected}
+        onClick={onToggleSelect}
+        className={cn(shell, selected && 'shadow-sm ring-1 ring-brand/25')}
+      >
+        {marker}
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      to={`/chats/${conversation.id}`}
+      aria-current={active ? 'page' : undefined}
+      {...longPress}
+      className={shell}
+    >
+      {body}
     </Link>
   );
 }

@@ -33,7 +33,9 @@ import {
 import type {
   AppNotification,
   CallRecord,
+  ChatList,
   Conversation,
+  ConversationFlags,
   ConversationId,
   CurrentUser,
   GalleryItem,
@@ -308,6 +310,111 @@ export class MockChatService implements ChatService {
     this.#updateConversation(conversationId, { unreadCount: 0 });
   }
 
+  // -- conversation management ----------------------------------------------
+
+  /*
+   * In memory, and shaped exactly like the real thing — including the parts
+   * that are easy to get wrong, such as archiving un-pinning and marking read
+   * clearing the count. A mock that skips those lets a screen look correct here
+   * and be wrong against Supabase.
+   */
+  async setConversationFlags(
+    conversationIds: ConversationId[],
+    flags: ConversationFlags,
+  ): Promise<void> {
+    for (const id of conversationIds) {
+      const patch: Partial<Conversation> = {};
+      if (flags.pinned !== undefined) patch.pinned = flags.pinned;
+      if (flags.muted !== undefined) patch.muted = flags.muted;
+      if (flags.favorite !== undefined) patch.favorite = flags.favorite;
+      if (flags.archived !== undefined) {
+        patch.archived = flags.archived;
+        if (flags.archived) patch.pinned = false;
+      }
+      if (flags.unread !== undefined) {
+        patch.unreadCount = flags.unread
+          ? Math.max(this.#conversation(id)?.unreadCount ?? 0, 1)
+          : 0;
+      }
+      this.#updateConversation(id, patch);
+    }
+  }
+
+  async deleteConversations(conversationIds: ConversationId[]): Promise<void> {
+    for (const id of conversationIds) {
+      this.#messages[id] = [];
+      this.#conversations = this.#conversations.filter((c) => c.id !== id);
+      this.#emit({ type: 'conversation:removed', conversationId: id });
+    }
+  }
+
+  async clearConversations(conversationIds: ConversationId[]): Promise<void> {
+    for (const id of conversationIds) {
+      this.#messages[id] = [];
+      const conversation = this.#conversation(id);
+      if (conversation) {
+        // `lastMessage` is deleted rather than set undefined so the shape stays
+        // "absent means none", which is what the list renders against.
+        const next = { ...conversation, unreadCount: 0 };
+        delete next.lastMessage;
+        this.#conversations = this.#conversations.map((c) => (c.id === id ? next : c));
+        this.#emit({ type: 'conversation:updated', conversation: clone(next) });
+      }
+    }
+  }
+
+  #lists: ChatList[] = [];
+  #listMembers = new Map<string, Set<ConversationId>>();
+
+  async listChatLists(): Promise<ChatList[]> {
+    return this.#lists.map((list) => ({
+      ...list,
+      count: this.#listMembers.get(list.id)?.size ?? 0,
+    }));
+  }
+
+  async createChatList(name: string): Promise<ChatList> {
+    const list: ChatList = { id: `list-${this.#lists.length + 1}`, name: name.trim(), count: 0 };
+    this.#lists.push(list);
+    return list;
+  }
+
+  async renameChatList(listId: string, name: string): Promise<void> {
+    this.#lists = this.#lists.map((l) => (l.id === listId ? { ...l, name: name.trim() } : l));
+  }
+
+  async deleteChatList(listId: string): Promise<void> {
+    this.#lists = this.#lists.filter((l) => l.id !== listId);
+    this.#listMembers.delete(listId);
+    for (const conversation of this.#conversations) {
+      if (conversation.listIds.includes(listId)) {
+        this.#updateConversation(conversation.id, {
+          listIds: conversation.listIds.filter((id) => id !== listId),
+        });
+      }
+    }
+  }
+
+  async setChatListMembership(
+    listId: string,
+    conversationIds: ConversationId[],
+    member: boolean,
+  ): Promise<void> {
+    const set = this.#listMembers.get(listId) ?? new Set<ConversationId>();
+    for (const id of conversationIds) {
+      if (member) set.add(id);
+      else set.delete(id);
+
+      const conversation = this.#conversation(id);
+      if (!conversation) continue;
+      const without = conversation.listIds.filter((l) => l !== listId);
+      this.#updateConversation(id, {
+        listIds: member ? [...without, listId] : without,
+      });
+    }
+    this.#listMembers.set(listId, set);
+  }
+
   async setTyping(conversationId: ConversationId, typing: boolean): Promise<void> {
     // A real service broadcasts to other participants; locally this is a no-op
     // beyond confirming the conversation exists.
@@ -381,6 +488,8 @@ export class MockChatService implements ChatService {
       muted: false,
       pinned: false,
       favorite: false,
+      archived: false,
+      listIds: [],
     };
 
     this.#conversations = [conversation, ...this.#conversations];
