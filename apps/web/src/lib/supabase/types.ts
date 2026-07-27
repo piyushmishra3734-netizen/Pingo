@@ -48,6 +48,29 @@ export type PostRow = {
   updated_at: string;
 };
 
+/** One row of `public.stories`. */
+export type StoryRow = {
+  id: string;
+  author_id: string;
+  /**
+   * The public URL rows were written with before the bucket became private.
+   *
+   * Still read as a fallback: a handful of stories predate `media_path`, and a
+   * branch that disappears on its own within a day is cheaper than a data
+   * migration that has to be right the first time.
+   */
+  media_url: string;
+  /** A path in the private `stories` bucket. Signed on read. */
+  media_path: string | null;
+  kind: string;
+  caption: string | null;
+  audience: string;
+  location: string | null;
+  link_url: string | null;
+  created_at: string;
+  expires_at: string;
+};
+
 /** One row of `public.post_comments`. */
 export type PostCommentRow = {
   id: string;
@@ -298,20 +321,54 @@ export type Database = {
         Relationships: [];
       };
       stories: {
-        Row: {
-          id: string;
+        Row: StoryRow;
+        Insert: {
           author_id: string;
+          /** Kept for rows written before the bucket went private. */
           media_url: string;
-          created_at: string;
-          expires_at: string;
+          media_path?: string | null;
+          kind?: string;
+          caption?: string | null;
+          audience?: string;
+          location?: string | null;
+          link_url?: string | null;
         };
-        Insert: { author_id: string; media_url: string };
-        Update: { media_url?: string };
+        Update: { caption?: string | null; audience?: string };
         Relationships: [];
       };
       story_views: {
         Row: { story_id: string; viewer_id: string; viewed_at: string };
         Insert: { story_id: string; viewer_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      story_likes: {
+        Row: { story_id: string; user_id: string; created_at: string };
+        Insert: { story_id: string; user_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      story_audience: {
+        Row: { story_id: string; user_id: string };
+        Insert: { story_id: string; user_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      close_friends: {
+        Row: { owner_id: string; friend_id: string; created_at: string };
+        Insert: { owner_id: string; friend_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      story_hidden_from: {
+        Row: { owner_id: string; user_id: string; created_at: string };
+        Insert: { owner_id: string; user_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      story_muted_authors: {
+        Row: { muter_id: string; author_id: string; created_at: string };
+        Insert: { muter_id: string; author_id: string };
         Update: Record<string, never>;
         Relationships: [];
       };
@@ -434,6 +491,23 @@ export type Database = {
       download_snap: {
         Args: { snap_id: string };
         Returns: undefined;
+      };
+      /** Who watched one story, with whether they liked it. Author only. */
+      story_viewers: {
+        Args: { target: string };
+        Returns: {
+          viewer_id: string;
+          username: string;
+          display_name: string;
+          avatar_url: string | null;
+          viewed_at: string;
+          liked: boolean;
+        }[];
+      };
+      /** Views, likes and replies for one story. Author only. */
+      story_insights: {
+        Args: { target: string };
+        Returns: { views: number; likes: number; replies: number }[];
       };
       /** Posts, friends and groups for one person. Works for anyone. */
       profile_stats: {

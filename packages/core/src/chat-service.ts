@@ -88,6 +88,18 @@ export interface OutgoingMessage {
   location?: { lat: number; lng: number; label?: string };
   contact?: { name: string; handle?: string; userId?: string };
   event?: { title: string; startsAt: number; location?: string };
+
+  /**
+   * Marks an ordinary message as a reply to a story.
+   *
+   * A story reply *is* a private message — the product has no story comments,
+   * and inventing them would make a thing posted for a day into something with
+   * a public thread attached. So this changes nothing about how the message is
+   * sent or read; it records which story prompted it, which is what lets the
+   * author's own insights count replies and lets the bubble say what it is
+   * answering instead of arriving as a sentence with no subject.
+   */
+  storyReply?: { storyId: string };
 }
 
 /**

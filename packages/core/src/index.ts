@@ -55,7 +55,18 @@ export {
 } from './profile-service.js';
 
 // Service boundary — ephemeral posts
-export type { StoryService, Story, StoryGroup } from './story-service.js';
+export type {
+  StoryService,
+  Story,
+  StoryGroup,
+  StoryDraft,
+  StoryKind,
+  StoryAudience,
+  StoryViewer,
+  StoryInsights,
+  StoryReaction,
+} from './story-service.js';
+export { STORY_REACTIONS, STORY_PHOTO_MS, STORY_AUDIENCES } from './story-service.js';
 
 // Service boundary — voice and video
 export type {

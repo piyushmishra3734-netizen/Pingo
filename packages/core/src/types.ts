@@ -199,6 +199,15 @@ export interface Message {
    * both render from.
    */
   call?: CallLogRef;
+
+  /**
+   * Present when this message was sent as a reply to a story.
+   *
+   * The bubble is an ordinary one — the reply is just a message — but knowing
+   * it answers a story is what lets the thread say so, instead of showing a
+   * remark about a picture nobody in the conversation can see any more.
+   */
+  storyReply?: { storyId: string };
 }
 
 export interface CallLogRef {

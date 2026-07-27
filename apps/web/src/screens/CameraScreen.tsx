@@ -173,7 +173,9 @@ export function CameraScreen() {
     setBusy(true);
     setError(undefined);
     try {
-      await stories.post(shot.blob);
+      // Friends is the default audience; the creator's own audience step is
+      // where a different one is chosen.
+      await stories.post({ media: shot.blob, kind: 'photo', audience: 'friends' });
       await refresh();
       navigate('/chats', { replace: true });
     } catch {

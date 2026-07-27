@@ -215,6 +215,16 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     ...(row.kind === 'call' && row.meta
       ? { call: row.meta as unknown as Message['call'] }
       : {}),
+    /*
+     * Not keyed on `kind`, unlike everything above it.
+     *
+     * A story reply is a text message that happens to carry a tag, so there is
+     * no kind to match on — the presence of `storyId` in `meta` is the whole
+     * signal.
+     */
+    ...((row.meta as { storyId?: string } | null)?.storyId
+      ? { storyReply: { storyId: (row.meta as { storyId: string }).storyId } }
+      : {}),
   };
 }
 
@@ -1404,6 +1414,15 @@ export class SupabaseChatService implements ChatService {
         ...(draft.contact ? { kind: 'contact' as const, meta: draft.contact } : {}),
         ...(draft.event ? { kind: 'event' as const, meta: draft.event } : {}),
         ...(draft.call ? { kind: 'call' as const, meta: draft.call } : {}),
+        /*
+         * A story reply stays an ordinary text message — no `kind` of its own.
+         *
+         * That is the point: the product has no story comments, and giving the
+         * reply its own kind would be the first step towards inventing them.
+         * The tag in `meta` is what lets the author's insights count replies
+         * and lets the bubble say which story it is answering.
+         */
+        ...(draft.storyReply ? { meta: { storyId: draft.storyReply.storyId } } : {}),
         ...(voicePath && draft.voice
           ? {
               kind: 'voice' as const,
