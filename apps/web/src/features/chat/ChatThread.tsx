@@ -28,6 +28,7 @@ import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
+import { ConversationMenu } from './ConversationMenu.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 
@@ -120,6 +121,30 @@ export function ChatThread({
    * to disabled reads as broken rather than as loading.
    */
   const canCall = Boolean(partner && mutuals?.has(partner.id));
+
+  /**
+   * Why calling is unavailable, in a sentence. Undefined when it is available.
+   *
+   * The rule itself is not new — calls have always needed a mutual follow — but
+   * it was expressed only as a greyed-out icon, which reads as the feature
+   * being broken rather than as a condition the user can do something about.
+   */
+  const callBlockedReason = canCall
+    ? undefined
+    : conversation.kind !== 'direct'
+      ? 'Group calls are not available yet.'
+      : mutuals === undefined
+        ? 'Checking whether you can call…'
+        : `You and ${partner?.name ?? 'they'} need to follow each other before you can call.`;
+
+  /** Shown when someone presses a call button that cannot do anything. */
+  const [callNotice, setCallNotice] = useState<string>();
+
+  useEffect(() => {
+    if (!callNotice) return;
+    const timer = window.setTimeout(() => setCallNotice(undefined), 4000);
+    return () => window.clearTimeout(timer);
+  }, [callNotice]);
 
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
@@ -288,31 +313,58 @@ export function ChatThread({
 
         <div className="flex shrink-0 items-center gap-0.5">
           {/*
-            Disabled in groups rather than hidden: the affordance is real and
-            coming, and a button that vanishes on some threads is worse to learn
-            than one that is visibly not available yet.
+            Present and pressable even when calling is not available, because a
+            dimmed icon cannot say *why*. Pressing one states the reason where
+            there is room for a sentence — the menu — which is the difference
+            between "this app's calling is broken" and "you two do not follow
+            each other yet". Hiding them instead would make the feature look
+            absent rather than conditional.
           */}
           <IconButton
             label="Voice call"
             size="sm"
-            disabled={!canCall}
-            onClick={() => partner && void startCall(partner.id, partner.name, 'voice')}
+            className={cn(!canCall && 'text-text-tertiary')}
+            onClick={() =>
+              canCall && partner
+                ? void startCall(partner.id, partner.name, 'voice')
+                : setCallNotice(callBlockedReason)
+            }
           >
             <PhoneIcon size={20} />
           </IconButton>
           <IconButton
             label="Video call"
             size="sm"
-            disabled={!canCall}
-            onClick={() => partner && void startCall(partner.id, partner.name, 'video')}
+            className={cn(!canCall && 'text-text-tertiary')}
+            onClick={() =>
+              canCall && partner
+                ? void startCall(partner.id, partner.name, 'video')
+                : setCallNotice(callBlockedReason)
+            }
           >
             <VideoIcon size={20} />
           </IconButton>
-          <IconButton label="Conversation options" size="sm">
-            <MoreIcon size={20} />
-          </IconButton>
+          <ConversationMenu
+            conversation={conversation}
+            {...(partner
+              ? {
+                  onCall: (kind: 'audio' | 'video') =>
+                    void startCall(partner.id, partner.name, kind === 'audio' ? 'voice' : 'video'),
+                }
+              : {})}
+            {...(callBlockedReason ? { callBlockedReason } : {})}
+          />
         </div>
       </header>
+
+      {callNotice && (
+        <p
+          role="status"
+          className="shrink-0 border-b border-line bg-surface px-4 py-2 text-caption text-text-secondary"
+        >
+          {callNotice}
+        </p>
+      )}
 
       {/* ---- Thread ------------------------------------------------------- */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">

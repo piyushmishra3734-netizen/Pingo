@@ -1,6 +1,6 @@
 import type { Sticker } from '@pingo/core';
-import { IconButton, ImageIcon, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
@@ -44,13 +44,27 @@ export function Composer({
   className,
 }: ComposerProps) {
   const [value, setValue] = useState('');
-  // One panel at a time: two open at once would cover the thread entirely.
-  const [panel, setPanel] = useState<'emoji' | 'stickers' | undefined>();
+  /**
+   * One panel, two tabs.
+   *
+   * Emoji and stickers used to be separate buttons opening separate panels,
+   * which meant two icons to learn and two things that could each be the open
+   * one. They are two drawers of the same cupboard, so they share a panel and
+   * emoji is the default — it is what the button is reached for nine times out
+   * of ten.
+   */
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
 
-  const toggle = (next: 'emoji' | 'stickers') =>
-    setPanel((current) => (current === next ? undefined : next));
+  /** A short, self-clearing line for things the composer cannot do yet. */
+  const [notice, setNotice] = useState<string>();
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(undefined), 3000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   // Autosize before paint, so the field never renders at the wrong height first.
   useLayoutEffect(() => {
@@ -70,7 +84,12 @@ export function Composer({
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      {panel && (
+      {notice && (
+        <p role="status" className="px-1 text-caption text-text-tertiary">
+          {notice}
+        </p>
+      )}
+      {pickerOpen && (
         <div
           className={cn(
             'overflow-hidden rounded-xl border border-line bg-surface shadow-lg',
@@ -78,7 +97,9 @@ export function Composer({
             'origin-bottom animate-panel-in',
           )}
         >
-          {panel === 'emoji' ? (
+          <PickerTabs tab={tab} onTab={setTab} showStickers={Boolean(onSendSticker)} />
+
+          {tab === 'emoji' ? (
             <EmojiPicker
               onSelect={(emoji) => {
                 // Appended rather than sent: an emoji is part of a message,
@@ -86,13 +107,13 @@ export function Composer({
                 setValue((current) => current + emoji);
                 textareaRef.current?.focus();
               }}
-              onClose={() => setPanel(undefined)}
+              onClose={() => setPickerOpen(false)}
             />
           ) : (
             <StickerPicker
               onSelect={(sticker) => {
                 void onSendSticker?.(sticker);
-                setPanel(undefined);
+                setPickerOpen(false);
               }}
             />
           )}
@@ -137,24 +158,19 @@ export function Composer({
           )}
         />
 
-        {onSendSticker && (
-          <IconButton
-            label="Stickers"
-            size="sm"
-            variant="ghost"
-            className={cn('mb-0.5', panel === 'stickers' && 'text-brand')}
-            onClick={() => toggle('stickers')}
-          >
-            <ImageIcon size={20} />
-          </IconButton>
-        )}
-
+        {/*
+          One button for emoji *and* stickers. They are two drawers of the same
+          cupboard — both "insert something that is not typed" — and giving each
+          its own icon meant two things to learn and two panels that could each
+          be the open one. Emoji leads because it is what the button is reached
+          for nine times in ten.
+        */}
         <IconButton
-          label="Add emoji"
+          label="Emoji and stickers"
           size="sm"
           variant="ghost"
-          className={cn('mb-0.5', panel === 'emoji' && 'text-brand')}
-          onClick={() => toggle('emoji')}
+          className={cn('mb-0.5', pickerOpen && 'text-brand')}
+          onClick={() => setPickerOpen((was) => !was)}
         >
           <SmileIcon size={20} />
         </IconButton>
@@ -171,11 +187,74 @@ export function Composer({
           <SendIcon size={19} className="-translate-x-px translate-y-px" />
         </IconButton>
       ) : (
-        <IconButton label="Record voice message" variant="filled" className="mb-0.5">
+        /*
+         * Voice messages are not built, so the control says so instead of
+         * pretending. It had no `onClick` at all — a filled, primary-looking
+         * button that did nothing when pressed, which is the worst version of
+         * this: it looks more available than a text link would.
+         *
+         * Recording needs a message kind, a storage bucket and an upload path,
+         * none of which exist. Until they do this states the fact once, quietly,
+         * rather than failing silently on every press.
+         */
+        <IconButton
+          label="Voice messages aren't available yet"
+          variant="ghost"
+          className="mb-0.5 text-text-tertiary"
+          onClick={() => setNotice("Voice messages aren't available yet.")}
+        >
           <MicIcon size={20} />
         </IconButton>
       )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The two tabs above the picker.
+ *
+ * A segmented strip rather than a row of icons, because the tabs are a choice
+ * between two whole surfaces and the current one has to be obvious without
+ * looking at what is underneath. Absent entirely when the surface takes no
+ * stickers — one tab is not a choice.
+ */
+function PickerTabs({
+  tab,
+  onTab,
+  showStickers,
+}: {
+  tab: 'emoji' | 'stickers';
+  onTab: (next: 'emoji' | 'stickers') => void;
+  showStickers: boolean;
+}) {
+  if (!showStickers) return null;
+
+  const tabs = [
+    { id: 'emoji' as const, label: 'Emoji' },
+    { id: 'stickers' as const, label: 'Stickers' },
+  ];
+
+  return (
+    <div role="tablist" aria-label="Emoji and stickers" className="flex gap-1 border-b border-line p-1.5">
+      {tabs.map((entry) => (
+        <button
+          key={entry.id}
+          type="button"
+          role="tab"
+          aria-selected={tab === entry.id}
+          onClick={() => onTab(entry.id)}
+          className={cn(
+            'focus-ring flex-1 rounded-lg px-3 py-1.5 text-caption font-medium',
+            'transition-colors duration-instant',
+            tab === entry.id
+              ? 'bg-selected text-brand'
+              : 'text-text-secondary hover:bg-hover hover:text-ink',
+          )}
+        >
+          {entry.label}
+        </button>
+      ))}
     </div>
   );
 }

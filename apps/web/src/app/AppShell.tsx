@@ -47,6 +47,18 @@ export function AppShell() {
     );
   }
 
+  /**
+   * The screen a path belongs to, ignoring what is open *within* it.
+   *
+   * `/chats` and `/chats/:id` are one screen — the list and a thread are two
+   * views of the same place, and on desktop they are literally on screen
+   * together. Everything else keys on its first segment, so moving between
+   * tabs still animates.
+   */
+  function screenKey(pathname: string): string {
+    return pathname.split('/')[1] ?? '';
+  }
+
   return (
     <div className="flex h-full flex-col bg-page">
       <main
@@ -57,15 +69,23 @@ export function AppShell() {
         )}
       >
         {/*
-          Keyed on the path, so React remounts the subtree and the animation
-          replays on every navigation. Without the key it would run once, on
-          first mount, and never again — which is what "no animation anywhere"
+          Keyed on the *screen*, so React remounts the subtree and the animation
+          replays when you move between screens. Without a key it would run once
+          on first mount and never again, which is what "no animation anywhere"
           actually looks like.
+
+          Keying on the full path was too fine. Opening a second chat changed
+          the key, so the whole thread — header, scroller, composer — was torn
+          down and rebuilt, replaying the screen animation and re-running every
+          load. It read as the app reloading itself just to move one row over.
+          Switching conversations is a change of *content*, and the thread
+          already handles that: it reloads its own messages and resets its own
+          scroll when the id changes.
 
           The dock is deliberately outside: a navigation bar that fades on every
           tap draws attention to itself rather than to what changed.
         */}
-        <div key={location.pathname} className="h-full animate-screen-in">
+        <div key={screenKey(location.pathname)} className="h-full animate-screen-in">
           <Outlet />
         </div>
       </main>
