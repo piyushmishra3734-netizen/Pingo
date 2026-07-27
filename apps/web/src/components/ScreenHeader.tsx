@@ -46,7 +46,9 @@ export function ScreenHeader({
           onClick={() => navigate(-1)}
           aria-label="Back"
           className={cn(
-            'grid size-10 shrink-0 place-items-center rounded-full',
+            // Drawn at 40px, hit at 44. Back is the most-pressed control on
+            // every secondary screen and it sat under the bar on all of them.
+            'touch-target grid size-10 shrink-0 place-items-center rounded-full',
             'focus-ring text-text-secondary transition-colors duration-instant',
             'hover:bg-hover hover:text-ink active:scale-[0.96]',
           )}

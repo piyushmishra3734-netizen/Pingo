@@ -302,7 +302,9 @@ export function ProfileScreen() {
             onClick={() => setMenuOpen(true)}
             aria-label={isSelf ? 'Profile menu' : `Options for ${person.displayName}`}
             className={cn(
-              'focus-ring grid size-10 shrink-0 place-items-center rounded-full',
+              // 40px drawn, 44px to hit. Measured at 390px: without this the
+              // menu was one of only two targets on the page under the bar.
+              'touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full',
               'text-text-secondary transition-colors duration-instant',
               'hover:bg-hover hover:text-ink active:scale-[0.96]',
             )}
@@ -340,7 +342,13 @@ export function ProfileScreen() {
             }}
           />
 
-          <h1 className="mt-4 text-h1 text-ink">{person.displayName}</h1>
+          {/*
+            `h2`, not `h1`. `ScreenHeader` already contributes the page's one
+            `h1`, and measuring the rendered page turned up two of them — which
+            leaves a screen reader with no single answer to "what is this page".
+            Styled as `text-h1` because it is still the largest thing here.
+          */}
+          <h2 className="mt-4 text-h1 text-ink">{person.displayName}</h2>
           <p className="mt-0.5 text-body text-text-secondary">@{person.username}</p>
 
           {person.bio && (
