@@ -735,7 +735,11 @@ function SendAction({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'focus-ring flex-1 rounded-full bg-surface py-2.5 text-caption font-medium text-ink',
+        // `min-h-11` rather than padding alone: at `py-2.5` on caption text
+        // these came out 36px tall, which is under the 44px bar the rest of the
+        // product holds itself to — and they sit directly above the send
+        // button, where a thumb aiming for one can find the other.
+        'focus-ring min-h-11 flex-1 rounded-full bg-surface px-4 text-caption font-medium text-ink',
         'shadow-sm transition-transform duration-instant active:scale-[0.98]',
         'disabled:opacity-50',
       )}
