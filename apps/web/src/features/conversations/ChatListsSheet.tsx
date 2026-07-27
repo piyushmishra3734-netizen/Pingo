@@ -1,4 +1,4 @@
-import { useChat, type ChatList, type Conversation } from '@pingo/core';
+import { useChat, type ChatList } from '@pingo/core';
 import { CheckIcon, EditIcon, ListIcon, PlusIcon, TrashIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
@@ -21,8 +21,15 @@ import { useEffect, useRef, useState } from 'react';
  */
 
 export interface ChatListsSheetProps {
-  /** The chats being filed. */
-  selected: Conversation[];
+  /**
+   * The chats being filed, by id.
+   *
+   * Ids rather than the conversations themselves, because filing one changes
+   * its `listIds` and the sheet has to see that. Handed the objects, it would
+   * hold whatever they looked like when the menu was tapped — the tick would
+   * never appear, even though the count beside it went up.
+   */
+  selectedIds: string[];
   onClose: () => void;
   /** Called after any change, so the list can refresh its chips. */
   onChanged: () => void;
@@ -30,8 +37,11 @@ export interface ChatListsSheetProps {
 
 type Membership = 'none' | 'some' | 'all';
 
-export function ChatListsSheet({ selected, onClose, onChanged }: ChatListsSheetProps) {
-  const { service } = useChat();
+export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsSheetProps) {
+  const { service, conversations } = useChat();
+
+  /** Resolved live, so a filing that lands is a tick that appears. */
+  const selected = conversations.filter((c) => selectedIds.includes(c.id));
   const [lists, setLists] = useState<ChatList[]>();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');

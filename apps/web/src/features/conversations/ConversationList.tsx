@@ -79,7 +79,8 @@ export function ConversationList({
   const selectionMode = selectedIds.size > 0;
 
   const [pendingDelete, setPendingDelete] = useState<Conversation[]>();
-  const [listsFor, setListsFor] = useState<Conversation[]>();
+  /** Ids, not conversations: the sheet needs their live state. */
+  const [listsFor, setListsFor] = useState<string[]>();
   const [muting, setMuting] = useState<Conversation[]>();
 
   /** The custom list being viewed, if any. `undefined` is "no list filter". */
@@ -218,7 +219,7 @@ export function ConversationList({
                 />
                 <SelectionMenuItem
                   label="Add to list"
-                  onSelect={() => setListsFor(selected)}
+                  onSelect={() => setListsFor(selected.map((c) => c.id))}
                 />
                 <SelectionMenuItem
                   label={allMuted ? 'Unmute notifications' : 'Mute notifications'}
@@ -460,7 +461,7 @@ export function ConversationList({
 
       {listsFor && (
         <ChatListsSheet
-          selected={listsFor}
+          selectedIds={listsFor}
           onClose={() => {
             setListsFor(undefined);
             clearSelection();
