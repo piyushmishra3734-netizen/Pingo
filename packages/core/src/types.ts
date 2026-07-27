@@ -467,7 +467,17 @@ export interface Moment {
 
 export interface AppNotification {
   id: string;
-  kind: 'message' | 'ping' | 'call' | 'follow_request' | 'follow_accepted' | 'story' | 'mention' | 'system';
+  kind:
+    | 'message'
+    | 'ping'
+    | 'ping_opened'
+    | 'ping_replayed'
+    | 'call'
+    | 'follow_request'
+    | 'follow_accepted'
+    | 'story'
+    | 'mention'
+    | 'system';
   title: string;
   body: string;
   createdAt: number;

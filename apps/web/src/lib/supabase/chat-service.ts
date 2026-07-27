@@ -283,6 +283,10 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   follow_accepted: { body: 'accepted your follow request' },
   message: { body: 'sent you a message' },
   ping: { body: 'sent you a Ping' },
+  // The sender's two. Never "photo received" — a Ping is not a photo, and the
+  // word is the whole point of the feature having a name.
+  ping_opened: { body: 'opened your Ping' },
+  ping_replayed: { body: 'replayed your Ping' },
   story: { body: 'posted a story' },
 };
 
