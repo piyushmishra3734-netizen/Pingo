@@ -42,8 +42,12 @@ export interface ChatListBodyProps {
   /** Non-empty means selection mode. */
   selectedIds: Set<string>;
   selectionMode: boolean;
+  /** The chat preference. Off means rows do not move at all. */
+  swipeEnabled: boolean;
   onEnterSelection: (conversation: Conversation) => void;
   onToggleSelect: (conversation: Conversation) => void;
+  /** Escape leaves selection mode from anywhere in the list. */
+  onCancelSelection: () => void;
   actions: ConversationActions;
   onDeleteRequest: (conversations: Conversation[]) => void;
   /** Rendered above the rows — the story rail, when it applies. */
@@ -58,8 +62,10 @@ export function ChatListBody({
   activeConversationId,
   selectedIds,
   selectionMode,
+  swipeEnabled,
   onEnterSelection,
   onToggleSelect,
+  onCancelSelection,
   actions,
   onDeleteRequest,
   header,
@@ -71,6 +77,36 @@ export function ChatListBody({
    * put archived chats back in the main list by another name.
    */
   const [showArchived, setShowArchived] = useState(false);
+
+  /*
+   * Arrow keys walk the selection, Space toggles, Escape leaves.
+   *
+   * The rows are a `listbox` of `option`s while selecting, and a listbox that
+   * only answers to Tab makes a keyboard user step through every chat to reach
+   * the one after the one they are on. Handled at the container so it works
+   * regardless of which row has focus, and so rows stay presentational.
+   */
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (!selectionMode) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onCancelSelection();
+      return;
+    }
+
+    const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+    if (step === 0) return;
+    event.preventDefault();
+
+    const rows = [
+      ...(event.currentTarget.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
+    ];
+    const index = rows.indexOf(document.activeElement as HTMLElement);
+    // From nowhere, Down starts at the top and Up at the bottom.
+    const next = index === -1 ? (step > 0 ? 0 : rows.length - 1) : index + step;
+    rows[Math.max(0, Math.min(next, rows.length - 1))]?.focus();
+  };
 
   if (!ready) return <ConversationSkeleton />;
 
@@ -102,7 +138,7 @@ export function ChatListBody({
         <SwipeableRow
           // Swiping is off during selection, where the row is a tap target and
           // a half-swipe would read as a failed tap.
-          enabled={!selectionMode}
+          enabled={swipeEnabled && !selectionMode}
           right={
             inArchive
               ? {
@@ -135,7 +171,7 @@ export function ChatListBody({
   };
 
   return (
-    <>
+    <div onKeyDown={onKeyDown}>
       {header}
 
       {/*
@@ -203,7 +239,7 @@ export function ChatListBody({
           {rest.map((conversation, index) => row(conversation, pinned.length + index))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 

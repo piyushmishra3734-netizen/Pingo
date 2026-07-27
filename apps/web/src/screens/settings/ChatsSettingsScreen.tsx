@@ -70,15 +70,22 @@ export function ChatsSettingsScreen() {
         />
         <ToggleRow
           label="Swipe Actions"
-          description="Swipe a row to archive or mute."
+          description="Swipe a chat right to pin it, left to archive it."
           checked={c.swipeActions}
           onChange={(swipeActions) => update('chats', { swipeActions })}
+        />
+        <ToggleRow
+          label="Keep Chats Archived"
+          description="On, archived chats stay archived when new messages arrive. Off, they return to the list."
+          checked={c.keepArchived}
+          onChange={(keepArchived) => update('chats', { keepArchived })}
         />
       </Group>
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        Font Size and Enter to Send take effect now. Wallpaper, bubble style, auto-download
-        and swipe actions are saved and start working when those features are built.
+        Font Size, Enter to Send, Swipe Actions and Keep Chats Archived take effect now.
+        Wallpaper, bubble style and auto-download are saved and start working when those
+        features are built.
       </p>
     </SettingsPage>
   );

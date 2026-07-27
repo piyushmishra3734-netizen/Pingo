@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppWordmark } from '../../components/AppWordmark.js';
+import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
@@ -30,6 +31,7 @@ import { useStories } from '../stories/StoryContext.js';
 import { ChatListBody, ChatListEmpty } from './ChatListBody.js';
 import { ChatListsSheet } from './ChatListsSheet.js';
 import { DeleteChatSheet } from './DeleteChatSheet.js';
+import { MuteSheet } from './MuteSheet.js';
 import { SelectionBar, SelectionMenuItem } from './SelectionBar.js';
 import { useConversationActions } from './useConversationActions.js';
 
@@ -78,6 +80,7 @@ export function ConversationList({
 
   const [pendingDelete, setPendingDelete] = useState<Conversation[]>();
   const [listsFor, setListsFor] = useState<Conversation[]>();
+  const [muting, setMuting] = useState<Conversation[]>();
 
   /** The custom list being viewed, if any. `undefined` is "no list filter". */
   const [activeList, setActiveList] = useState<ChatList>();
@@ -91,12 +94,30 @@ export function ConversationList({
   };
   useEffect(loadLists, [service]);
 
+  const { preferences } = usePreferences();
+  const { keepArchived, swipeActions } = preferences.chats;
+
+  /*
+   * Whether an archived chat with new messages is still archived.
+   *
+   * Resolved here rather than written by anything, so both answers are pure
+   * functions of state: nothing has to be running at the moment a message
+   * arrives, and flipping the preference re-sorts the list that already exists
+   * instead of only applying from now on.
+   */
+  const isArchived = (conversation: Conversation) => {
+    if (!conversation.archived) return false;
+    if (keepArchived) return true;
+    const newest = conversation.lastMessage?.createdAt;
+    return newest === undefined || newest <= (conversation.archivedAt ?? 0);
+  };
+
   const { active, archived } = useMemo(
     () => ({
-      active: conversations.filter((c) => !c.archived),
-      archived: conversations.filter((c) => c.archived),
+      active: conversations.filter((c) => !isArchived(c)),
+      archived: conversations.filter(isArchived),
     }),
-    [conversations],
+    [conversations, keepArchived],
   );
 
   const inList = useMemo(
@@ -201,9 +222,11 @@ export function ConversationList({
                 />
                 <SelectionMenuItem
                   label={allMuted ? 'Unmute notifications' : 'Mute notifications'}
-                  onSelect={() =>
-                    andClose(actions.mute(selected.map((c) => c.id), !allMuted))
-                  }
+                  onSelect={() => {
+                    // Unmuting has one possible answer, so it does not ask.
+                    if (allMuted) andClose(actions.mute(selected.map((c) => c.id), null));
+                    else setMuting(selected);
+                  }}
                 />
                 <SelectionMenuItem
                   label="Clear messages"
@@ -363,8 +386,10 @@ export function ConversationList({
           {...(activeConversationId ? { activeConversationId } : {})}
           selectedIds={selectedIds}
           selectionMode={selectionMode}
+          swipeEnabled={swipeActions}
           onEnterSelection={(conversation) => setSelectedIds(new Set([conversation.id]))}
           onToggleSelect={toggleSelect}
+          onCancelSelection={clearSelection}
           actions={actions}
           onDeleteRequest={setPendingDelete}
           header={
@@ -417,6 +442,18 @@ export function ConversationList({
             const ids = pendingDelete.map((c) => c.id);
             setPendingDelete(undefined);
             andClose(actions.remove(ids));
+          }}
+        />
+      )}
+
+      {muting && (
+        <MuteSheet
+          count={muting.length}
+          onCancel={() => setMuting(undefined)}
+          onChoose={(durationMs) => {
+            const ids = muting.map((c) => c.id);
+            setMuting(undefined);
+            andClose(actions.mute(ids, durationMs));
           }}
         />
       )}

@@ -304,6 +304,34 @@
   }
 }
 
+/**
+ * Extends a control's hit area to 44×44 without changing how big it looks.
+ *
+ * The icon buttons are 40px, which is right visually — the row of them in a
+ * header would look heavy at 44 — but short of the 44×44 that WCAG 2.5.5 asks
+ * for and that a thumb actually wants. An invisible overlay is the standard
+ * answer: the target grows, the design does not move, and nothing reflows
+ * because the pseudo-element is absolutely positioned.
+ *
+ * Centred on the control via the -50%/-50% translate, so it grows evenly in
+ * every direction rather than hanging off one corner.
+ */
+@utility touch-target {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    min-width: 44px;
+    min-height: 44px;
+    width: 100%;
+    height: 100%;
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Accessibility                                                              */
 /*                                                                            */

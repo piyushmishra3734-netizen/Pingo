@@ -63,7 +63,17 @@ export interface ChatPreferences {
   autoDownload: AutoDownload;
   /** Live: the composer already reads this. */
   enterToSend: boolean;
+  /** Live: turns the chat list's swipe gestures off entirely. */
   swipeActions: boolean;
+  /**
+   * Live: whether an archived chat stays archived when a message arrives.
+   *
+   * Resolved by comparing `archivedAt` against the newest message rather than by
+   * writing anything, so both answers are pure functions of state — nothing has
+   * to be running at the moment a message lands, and changing this re-sorts the
+   * list that already exists instead of only applying from now on.
+   */
+  keepArchived: boolean;
 }
 
 export interface CameraPreferences {
@@ -135,6 +145,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
     autoDownload: 'wifi',
     enterToSend: true,
     swipeActions: true,
+    // Staying archived is the point of archiving. Anyone who wants the chat
+    // back on every message can say so, but that is the surprising answer.
+    keepArchived: true,
   },
   camera: {
     defaultCamera: 'front',

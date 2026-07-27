@@ -173,6 +173,10 @@ export function IconButton({
       className={cn(
         'inline-flex items-center justify-center rounded-full',
         'focus-ring transition-all duration-instant ease-standard',
+        // The visual size stays; the hit area reaches 44×44. A row of 44px
+        // buttons in a header looks heavy, and a 40px target under a thumb is
+        // a miss — this is how both are true at once.
+        'touch-target',
         'active:scale-[0.96]',
         'disabled:pointer-events-none disabled:opacity-45',
         ICON_SIZE[size],

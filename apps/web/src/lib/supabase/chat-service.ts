@@ -90,6 +90,19 @@ function toUser(row: ProfileRow): User {
   };
 }
 
+/**
+ * Postgres timestamps, including the two that are not dates.
+ *
+ * `infinity` is how "muted forever" is stored, and `Date.parse` returns NaN for
+ * it — which would silently become "muted until an invalid date" and compare
+ * false against every clock, quietly unmuting the chat.
+ */
+function parseTimestamp(value: string): number {
+  if (value === 'infinity') return Number.POSITIVE_INFINITY;
+  if (value === '-infinity') return Number.NEGATIVE_INFINITY;
+  return Date.parse(value);
+}
+
 function toMessage(row: MessageRow, readAt: number | undefined): Message {
   return {
     id: row.id,
@@ -554,9 +567,21 @@ export class SupabaseChatService implements ChatService {
           // happened to have fetched.
           unreadCount: preview?.unread_count ?? 0,
           pinned: mine?.pinned ?? false,
-          muted: mine?.muted ?? false,
+          // Both computed in SQL, so an expired mute needs nothing to clear it.
+          muted: preview?.muted ?? false,
+          ...(preview?.muted_until
+            ? { mutedUntil: parseTimestamp(preview.muted_until) }
+            : {}),
           favorite: mine?.favorite ?? false,
-          archived: preview?.archived ?? false,
+          /*
+           * Raw, as the server sees it. Whether a chat with newer messages is
+           * still archived is the reader's preference to answer, and the
+           * service has no business knowing which way they set it.
+           */
+          archived: preview?.archived_at !== null && preview?.archived_at !== undefined,
+          ...(preview?.archived_at
+            ? { archivedAt: Date.parse(preview.archived_at) }
+            : {}),
           listIds: listsByConversation.get(row.id) ?? [],
           typingUserIds: [],
           updatedAt: Date.parse(row.last_message_at),
@@ -632,7 +657,19 @@ export class SupabaseChatService implements ChatService {
 
     const patch: Database['public']['Tables']['conversation_members']['Update'] = {};
     if (flags.pinned !== undefined) patch.pinned = flags.pinned;
-    if (flags.muted !== undefined) patch.muted = flags.muted;
+    if (flags.mutedUntil !== undefined) {
+      /*
+       * `Infinity` is stored as Postgres `infinity` rather than as a date far
+       * enough away to look permanent. A sentinel year would eventually arrive,
+       * and every read would have to know which one was chosen to mean forever.
+       */
+      patch.muted_until =
+        flags.mutedUntil === null
+          ? null
+          : Number.isFinite(flags.mutedUntil)
+            ? new Date(flags.mutedUntil).toISOString()
+            : 'infinity';
+    }
     if (flags.favorite !== undefined) patch.favorite = flags.favorite;
     if (flags.archived !== undefined) {
       patch.archived_at = flags.archived ? new Date().toISOString() : null;

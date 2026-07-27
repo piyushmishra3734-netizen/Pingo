@@ -154,6 +154,8 @@ export { useMessages } from './react/use-messages.js';
 export {
   useConversationFilter,
   PIN_LIMIT,
+  MUTE_DURATIONS,
+  formatMuteUntil,
   conversationFilters,
   conversationFilterLabels,
   matchesFilter,

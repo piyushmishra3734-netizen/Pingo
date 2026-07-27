@@ -325,7 +325,13 @@ export class MockChatService implements ChatService {
     for (const id of conversationIds) {
       const patch: Partial<Conversation> = {};
       if (flags.pinned !== undefined) patch.pinned = flags.pinned;
-      if (flags.muted !== undefined) patch.muted = flags.muted;
+      if (flags.mutedUntil !== undefined) {
+        // Same derivation the SQL does, so a mute that has already lapsed reads
+        // as unmuted here too rather than only against Supabase.
+        patch.muted = flags.mutedUntil !== null && flags.mutedUntil > Date.now();
+        if (flags.mutedUntil !== null) patch.mutedUntil = flags.mutedUntil;
+        else delete patch.mutedUntil;
+      }
       if (flags.favorite !== undefined) patch.favorite = flags.favorite;
       if (flags.archived !== undefined) {
         patch.archived = flags.archived;

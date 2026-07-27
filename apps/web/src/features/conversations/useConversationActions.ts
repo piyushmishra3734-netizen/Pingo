@@ -25,7 +25,8 @@ export interface ConversationActions {
   busy: boolean;
 
   pin: (conversations: Conversation[], pinned: boolean) => Promise<void>;
-  mute: (ids: string[], muted: boolean) => Promise<void>;
+  /** `durationMs` of `Infinity` mutes for good; `null` unmutes. */
+  mute: (ids: string[], durationMs: number | null) => Promise<void>;
   favorite: (ids: string[], favorite: boolean) => Promise<void>;
   archive: (ids: string[], archived: boolean) => Promise<void>;
   markUnread: (ids: string[], unread: boolean) => Promise<void>;
@@ -92,7 +93,17 @@ export function useConversationActions(): ConversationActions {
     busy,
     pin,
     mute: useCallback(
-      (ids, muted) => flags(muted ? 'Muting' : 'Unmuting', ids, { muted }),
+      (ids, durationMs) =>
+        flags(durationMs === null ? 'Unmuting' : 'Muting', ids, {
+          // A deadline, computed here so the sheet only has to know durations
+          // and never has to think about clocks.
+          mutedUntil:
+            durationMs === null
+              ? null
+              : Number.isFinite(durationMs)
+                ? Date.now() + durationMs
+                : Number.POSITIVE_INFINITY,
+        }),
       [flags],
     ),
     favorite: useCallback(

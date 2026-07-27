@@ -1,5 +1,6 @@
 import {
   formatConversationTimestamp,
+  formatMuteUntil,
   formatTypingLabel,
   messagePreview,
   useChat,
@@ -13,6 +14,7 @@ import {
   MuteIcon,
   PinIcon,
   PingoDot,
+  StarIcon,
   cn,
 } from '@pingo/ui';
 import { Link } from 'react-router-dom';
@@ -143,11 +145,27 @@ export function ConversationRow({
             </span>
           )}
 
+          {/*
+            Three markers in a fixed order, all at tertiary weight so none of
+            them competes with the title or the unread badge. A favourite is the
+            quietest of the three — it is a filter you set once, not a state
+            that changes, so it is a hollow star rather than a filled one and it
+            sits first, furthest from the timestamp the eye lands on.
+          */}
+          {conversation.favorite && (
+            <StarIcon size={12} className="shrink-0 text-text-tertiary" title="Favourite" />
+          )}
           {conversation.pinned && (
             <PinIcon size={13} className="shrink-0 text-text-tertiary" title="Pinned" />
           )}
           {conversation.muted && (
-            <MuteIcon size={13} className="shrink-0 text-text-tertiary" title="Muted" />
+            <MuteIcon
+              size={13}
+              className="shrink-0 text-text-tertiary"
+              // Says how long, not just that. The row has no space for the
+              // sentence, so it is the tooltip and the accessible name.
+              title={formatMuteUntil(conversation.mutedUntil) ?? 'Muted'}
+            />
           )}
 
           <span

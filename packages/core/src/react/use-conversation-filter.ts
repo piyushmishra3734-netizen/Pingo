@@ -32,6 +32,43 @@ export const conversationFilters = FILTERS;
  */
 export const PIN_LIMIT = 3;
 
+/**
+ * What muting offers.
+ *
+ * Three, and no more. "8 hours" covers a night's sleep and a working day,
+ * "1 week" covers a holiday, and "Always" covers the group chat you have given
+ * up on — a longer menu is a longer decision about something nobody wants to
+ * spend a decision on.
+ */
+export const MUTE_DURATIONS: { label: string; ms: number }[] = [
+  { label: '8 hours', ms: 8 * 60 * 60 * 1000 },
+  { label: '1 week', ms: 7 * 24 * 60 * 60 * 1000 },
+  // Not a large number — the real thing, so nothing has to guess whether a
+  // date far in the future was meant as forever.
+  { label: 'Always', ms: Number.POSITIVE_INFINITY },
+];
+
+/**
+ * "Muted until 8:00 pm", or "Muted" when it never lifts.
+ *
+ * Returns undefined when the chat is not muted, so a caller renders nothing
+ * rather than an empty string that still takes up a gap.
+ */
+export function formatMuteUntil(mutedUntil: number | undefined): string | undefined {
+  if (mutedUntil === undefined) return undefined;
+  if (!Number.isFinite(mutedUntil)) return 'Muted';
+  if (mutedUntil <= Date.now()) return undefined;
+
+  const until = new Date(mutedUntil);
+  const sameDay = until.toDateString() === new Date().toDateString();
+
+  return `Muted until ${until.toLocaleString(undefined, {
+    ...(sameDay ? {} : { weekday: 'short' }),
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`;
+}
+
 export const conversationFilterLabels: Record<ConversationFilter, string> = {
   all: 'All',
   unread: 'Unread',

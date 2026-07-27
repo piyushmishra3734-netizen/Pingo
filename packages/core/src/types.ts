@@ -227,11 +227,29 @@ export interface Conversation {
   unreadCount: number;
   /** Pinned conversations sort above everything else. */
   pinned: boolean;
-  /** Muted conversations still count unreads but never notify. */
+  /**
+   * Muted right now. Derived from `mutedUntil`, never stored — an expired mute
+   * is unmuted the instant it expires, with nothing to run and clear it.
+   */
   muted: boolean;
+  /**
+   * When the mute lifts. Absent means not muted; `Infinity` means never.
+   *
+   * Carried separately from `muted` so a row can say *how long* rather than
+   * only whether — "Muted until 8:00 pm" is the sentence that helps.
+   */
+  mutedUntil?: number;
   favorite: boolean;
-  /** Out of the main list, into the Archived section. Private to this member. */
+  /**
+   * Out of the main list. Private to this member.
+   *
+   * Whether a chat with new messages still counts as archived depends on the
+   * reader's preference, so this is resolved from `archivedAt` rather than
+   * being a fact the server hands down.
+   */
   archived: boolean;
+  /** When it was archived, so a newer message can be compared against it. */
+  archivedAt?: number;
   /** Custom lists this conversation is filed under. A chat may be in several. */
   listIds: string[];
   /** User IDs currently typing. Drives the typing dots in the list and header. */
@@ -269,7 +287,12 @@ export interface ChatList {
  */
 export interface ConversationFlags {
   pinned?: boolean;
-  muted?: boolean;
+  /**
+   * When the mute should lift: a timestamp, `Infinity` for always, or `null` to
+   * unmute. Not a boolean — `true` cannot say for how long, and every product
+   * that starts with one ends up adding a deadline column beside it.
+   */
+  mutedUntil?: number | null;
   favorite?: boolean;
   archived?: boolean;
   /**

@@ -153,6 +153,16 @@ export function SwipeableRow({ right, left, enabled = true, children }: Swipeabl
   return (
     <div
       className="relative overflow-hidden rounded-lg"
+      /*
+       * Announced only once the gesture has committed to something.
+       *
+       * A live region that narrated every pixel of travel would talk over the
+       * row itself. This says "Release to archive" at the moment releasing
+       * would do that, which is the one instant the information is useful — and
+       * it is the only way a screen-reader user gets told what a swipe is
+       * about to do, since the revealed track is decorative.
+       */
+      aria-live="polite"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -194,6 +204,8 @@ export function SwipeableRow({ right, left, enabled = true, children }: Swipeabl
       >
         {children}
       </div>
+
+      <span className="sr-only">{armed && action ? `Release to ${action.label}` : ''}</span>
     </div>
   );
 }

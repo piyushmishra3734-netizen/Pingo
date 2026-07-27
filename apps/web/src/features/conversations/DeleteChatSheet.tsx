@@ -32,21 +32,29 @@ export interface DeleteChatSheetProps {
 }
 
 export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetProps) {
-  const confirmRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  /** Where focus goes back to. Captured before this steals it. */
+  const restoreTo = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    restoreTo.current = document.activeElement as HTMLElement | null;
+
     /*
-     * Focus lands on Cancel's neighbour rather than on Cancel, but never on
-     * Delete by default — a destructive action pre-focused is one stray Enter
-     * away from happening. So: focus the sheet, and let the user aim.
+     * The panel takes focus, never the Delete button — a destructive action
+     * pre-focused is one stray Enter away from happening. The user aims.
      */
-    confirmRef.current?.parentElement?.focus();
+    panelRef.current?.focus();
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCancel();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      // Without this, dismissing drops focus on the body and a keyboard user
+      // restarts from the top of the page rather than from the row they were on.
+      restoreTo.current?.focus?.();
+    };
   }, [onCancel]);
 
   const subject = count === 1 ? 'this chat' : `these ${count} chats`;
@@ -59,6 +67,7 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
       <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
 
       <div
+        ref={panelRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="delete-chat-title"
@@ -82,7 +91,6 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
 
         <div className="mt-4 flex flex-col gap-2">
           <button
-            ref={confirmRef}
             type="button"
             onClick={onConfirm}
             className={cn(

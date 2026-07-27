@@ -54,8 +54,9 @@ export type ConversationMemberRow = {
   /** Everything after this instant is unread. */
   last_read_at: string;
   pinned: boolean;
-  muted: boolean;
   favorite: boolean;
+  /** Null is unmuted; a timestamp is until then; Postgres infinity is always. */
+  muted_until: string | null;
   /** Out of the main list. Per member — the other side's copy does not move. */
   archived_at: string | null;
   /** Deliberately unread, which no read cursor can express. */
@@ -112,14 +113,13 @@ export type Database = {
           user_id: string;
           last_read_at?: string;
           pinned?: boolean;
-          muted?: boolean;
           favorite?: boolean;
         };
         Update: {
           last_read_at?: string;
           pinned?: boolean;
-          muted?: boolean;
           favorite?: boolean;
+          muted_until?: string | null;
           archived_at?: string | null;
           marked_unread?: boolean;
           cleared_at?: string | null;
@@ -298,8 +298,10 @@ export type Database = {
           conversation_id: string;
           last_message_id: string | null;
           unread_count: number;
-          archived: boolean;
+          archived_at: string | null;
           deleted: boolean;
+          muted: boolean;
+          muted_until: string | null;
         }[];
       };
       /** Streak days per direct conversation, for the signed-in user only. */
