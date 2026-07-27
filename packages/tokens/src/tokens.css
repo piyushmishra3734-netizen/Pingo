@@ -116,20 +116,20 @@
   --animate-dot-pulse: dot-pulse 1400ms var(--ease-ambient) infinite;
   --animate-dot-typing: dot-typing 1200ms var(--ease-ambient) infinite;
   --animate-dot-orbit: dot-orbit 1600ms linear infinite;
-  --animate-rise: rise var(--duration-base) var(--ease-standard) both;
-  --animate-fade-in: fade-in var(--duration-base) var(--ease-standard) both;
-  --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) both;
+  --animate-rise: rise var(--duration-base) var(--ease-standard) backwards;
+  --animate-fade-in: fade-in var(--duration-base) var(--ease-standard) backwards;
+  --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) backwards;
 
   /* A screen arriving. Short and shallow — navigation should feel instant and
      still be legible as a change, so this reads as settling rather than sliding. */
-  --animate-screen-in: screen-in var(--duration-quick) var(--ease-standard) both;
+  --animate-screen-in: screen-in var(--duration-quick) var(--ease-standard) backwards;
 
   /* A row appearing in a list. Used with a per-item delay for a stagger. */
-  --animate-row-in: row-in var(--duration-quick) var(--ease-standard) both;
+  --animate-row-in: row-in var(--duration-quick) var(--ease-standard) backwards;
 
   /* A panel or sheet opening. Grows from its own lower edge rather than the
      centre, because that is the edge it is anchored to. */
-  --animate-panel-in: panel-in var(--duration-quick) var(--ease-standard) both;
+  --animate-panel-in: panel-in var(--duration-quick) var(--ease-standard) backwards;
 
   /* ---- Layout ----------------------------------------------------------- */
   --breakpoint-sm: 480px;
