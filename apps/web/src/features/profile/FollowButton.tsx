@@ -13,17 +13,26 @@ import { useEffect, useState } from 'react';
  *
  * | State | Button | What it means |
  * | --- | --- | --- |
- * | `none` | Follow | nothing between you |
+ * | `none` | Add friend | nothing between you |
  * | `requested` | Requested | waiting on them |
  * | `incoming` | Accept | waiting on you |
- * | `following` | Requested | they have not followed back |
- * | `follower` | Follow back | they are waiting on you |
+ * | `following` | Requested | they have not added you back |
+ * | `follower` | Add back | they are waiting on you |
  * | `mutual` | Friends | calls, snaps and stories are open |
  *
- * ## Accepting is not following back
+ * ## Why it says "friend" rather than "follow"
+ *
+ * The mechanism underneath is a pair of follow rows and always has been, but
+ * that is not what the product calls it: a profile counts *Friends*, and the
+ * thing that produces one is both people agreeing. A button that says "Follow"
+ * above a number that says "Friends" makes the reader do a translation, and
+ * they will get it wrong — "following" reads one-way, which is exactly the
+ * thing PINGO's gate is not.
+ *
+ * ## Accepting is not adding back
  *
  * `incoming` → Accept grants *them* access, and leaves you at `follower`. The
- * button then reads "Follow back", because mutual access needs both directions
+ * button then reads "Add back", because being friends needs both directions
  * and letting one tap do both would hand over your stories and calls without
  * saying so.
  */
@@ -81,13 +90,13 @@ export function FollowButton({
 
   const label =
     state === 'none'
-      ? 'Follow'
+      ? 'Add friend'
       : state === 'requested' || state === 'following'
         ? 'Requested'
         : state === 'incoming'
           ? 'Accept'
           : state === 'follower'
-            ? 'Follow back'
+            ? 'Add back'
             : 'Friends';
 
   const primary = state === 'none' || state === 'incoming' || state === 'follower';

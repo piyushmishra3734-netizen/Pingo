@@ -59,8 +59,14 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   >(undefined);
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // Once, on open. Kept apart from the key handler because `onClose` is an
+  // inline arrow in every caller, so a combined effect would re-run on each
+  // parent render and yank focus back mid-gesture.
   useEffect(() => {
     closeRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };

@@ -70,8 +70,20 @@ export function PostViewer({
 
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  /*
+   * Focus moves in once, on open, and never again.
+   *
+   * Combining this with the key handler below meant it re-ran whenever
+   * `showComments` changed or the parent re-rendered — and since `onClose` is
+   * an inline arrow, that was every render. Opening the comments therefore
+   * pulled focus back to this button a beat after the input had taken it, so
+   * typing went nowhere and Enter pressed Close instead of posting the comment.
+   */
   useEffect(() => {
     closeRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       // Escape closes the innermost thing first, which is what every nested
@@ -149,7 +161,7 @@ export function PostViewer({
         className="animate-fade-in fixed inset-0 z-1000 flex flex-col bg-ink"
       >
         {/* ---- header ------------------------------------------------ */}
-        <div className="flex shrink-0 items-center gap-3 px-3 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
+        <div className="mx-auto flex w-full max-w-xl shrink-0 items-center gap-3 px-3 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
           <button
             ref={closeRef}
             type="button"
@@ -220,7 +232,12 @@ export function PostViewer({
         </div>
 
         {/* ---- actions and caption ----------------------------------- */}
-        <div className="shrink-0 space-y-2 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {/*
+          Held to a column rather than the window's full width. On a phone this
+          is the same layout; on a desktop the alternative is a save button a
+          metre from the like button with the picture stranded between them.
+        */}
+        <div className="mx-auto w-full max-w-xl shrink-0 space-y-2 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center gap-1 text-white">
             <button
               type="button"
@@ -375,7 +392,8 @@ function CommentPanel({
 
       <div
         className={cn(
-          'animate-panel-in flex min-h-0 flex-col rounded-t-xl border-t border-line bg-surface',
+          'animate-panel-in mx-auto flex w-full max-w-xl min-h-0 flex-col bg-surface',
+          'rounded-t-xl border-t border-line',
           'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
         )}
       >
