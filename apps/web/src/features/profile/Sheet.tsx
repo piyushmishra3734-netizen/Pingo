@@ -51,9 +51,21 @@ export function Sheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
+  /*
+   * Focus goes to the panel, unless something inside asked for it first.
+   *
+   * React runs a child's effects before its parent's, so a sheet whose content
+   * carries `autoFocus` had focus taken back off it a frame later — the caption
+   * editor opened with the cursor nowhere. Honouring the attribute here means
+   * a form sheet lands in its field and a menu sheet still lands on the dialog,
+   * which is the right answer for each.
+   */
   useEffect(() => {
-    panelRef.current?.focus();
+    const wanted = panelRef.current?.querySelector<HTMLElement>('[autofocus]');
+    (wanted ?? panelRef.current)?.focus();
+  }, []);
 
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
