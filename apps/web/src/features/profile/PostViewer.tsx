@@ -65,6 +65,7 @@ export function PostViewer({
   const [comments, setComments] = useState<PostComment[] | undefined>();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [commentError, setCommentError] = useState<string>();
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -126,13 +127,23 @@ export function PostViewer({
     const body = draft.trim();
     if (!body || sending) return;
     setSending(true);
+    setCommentError(undefined);
     try {
       const comment = await service.addComment(post.id, body);
       setComments((previous) => [...(previous ?? []), comment]);
       setDraft('');
       onChange({ ...post, commentCount: post.commentCount + 1 });
     } catch {
-      // The text stays in the box, which is the only recovery worth offering.
+      /*
+       * Said out loud, not swallowed.
+       *
+       * This caught silently at first, on the theory that leaving the text in
+       * the box was recovery enough. It is not: a comment that was rejected by
+       * the server looks exactly like one that was never sent, and the first
+       * real failure here — a broken embed returning 400 — was invisible from
+       * the screen. A press that does nothing has to say so.
+       */
+      setCommentError('That comment did not post. Try again.');
     } finally {
       setSending(false);
     }
@@ -318,6 +329,7 @@ export function PostViewer({
             postAuthorId={post.authorId}
             draft={draft}
             sending={sending}
+            error={commentError}
             onDraft={setDraft}
             onSubmit={() => void submitComment()}
             onDelete={(comment) => void removeComment(comment)}
@@ -365,6 +377,7 @@ function CommentPanel({
   postAuthorId,
   draft,
   sending,
+  error,
   onDraft,
   onSubmit,
   onDelete,
@@ -374,6 +387,7 @@ function CommentPanel({
   postAuthorId: string;
   draft: string;
   sending: boolean;
+  error: string | undefined;
   onDraft: (value: string) => void;
   onSubmit: () => void;
   onDelete: (comment: PostComment) => void;
@@ -463,6 +477,12 @@ function CommentPanel({
             </ul>
           )}
         </div>
+
+        {error && (
+          <p role="alert" className="px-4 pb-2 text-caption text-danger">
+            {error}
+          </p>
+        )}
 
         <form
           className="flex items-center gap-2 border-t border-line px-4 pt-3"

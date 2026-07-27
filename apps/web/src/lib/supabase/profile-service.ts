@@ -409,21 +409,47 @@ export class SupabaseProfileService implements ProfileService {
     return [...iFollow].filter((id) => followsMe.has(id));
   }
 
+  /**
+   * Requests waiting on the signed-in user, newest first.
+   *
+   * ## Why two queries rather than an embed
+   *
+   * This read `profiles!follows_follower_id_fkey(*)` and always failed with a
+   * 400. PostgREST resolves an embed by following a declared foreign key, and
+   * `follows.follower_id` points at `auth.users` — there is no key from
+   * `follows` to `profiles` for it to follow, so the relationship named there
+   * never existed. Every caller wrapped this in a `catch`, so it looked like a
+   * user with no pending requests rather than like a query that could not run.
+   *
+   * Repointing the key would fix the embed and would also be a change to the
+   * table the whole follow gate is built on. Two reads and a join in memory
+   * cost one extra round trip on a screen nobody opens in a loop.
+   */
   async listFollowRequests(): Promise<Profile[]> {
     const me = await this.requireUserId();
 
-    const { data, error } = await this.client
+    const { data: rows, error } = await this.client
       .from('follows')
-      .select('follower_id, created_at, profiles!follows_follower_id_fkey(*)')
+      .select('follower_id, created_at')
       .eq('followee_id', me)
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
 
     if (error) rethrow(error);
+    if (!rows || rows.length === 0) return [];
 
-    return (data ?? [])
-      .map((row) => (row as unknown as { profiles: ProfileRow | null }).profiles)
-      .filter((profile): profile is ProfileRow => profile !== null)
+    const { data: people, error: peopleError } = await this.client
+      .from('profiles')
+      .select('*')
+      .in('id', rows.map((row) => row.follower_id));
+
+    if (peopleError) rethrow(peopleError);
+
+    // Re-ordered to match the requests, so "newest first" survives the join.
+    const byId = new Map((people ?? []).map((person) => [person.id, person]));
+    return rows
+      .map((row) => byId.get(row.follower_id))
+      .filter((person): person is ProfileRow => person !== undefined)
       .map(toProfile);
   }
 
