@@ -1,5 +1,5 @@
 import { useChat, type FilterInstance } from '@pingo/core';
-import { Avatar, CameraFlipIcon, CameraIcon, CheckIcon, GridIcon, PingoDot, cn } from '@pingo/ui';
+import { CameraFlipIcon, CameraIcon, CheckIcon, GridIcon, PingoDot, cn } from '@pingo/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,18 +7,19 @@ import { filterStill } from '../features/camera/filterStill.js';
 import { FILTERS } from '../features/camera/filters/registry.js';
 import { SnapEditor } from '../features/camera/SnapEditor.js';
 import { useCamera } from '../features/camera/useCamera.js';
-import { useMutuals } from '../features/profile/useMutuals.js';
+import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
+import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
 /**
- * Camera — shoot, filter, edit, then send or save.
+ * Camera — shoot, filter, edit, then send a Ping or add to your story.
  *
  * Four stages, and the screen is only ever in one:
  *
  *   live    filtered preview, hardware controls, shutter
  *   filter  pick a look — for *every* image, however it arrived
  *   edit    draw and text
- *   send    who gets it, or save it
+ *   send    how many views, who gets it, or add it to your story
  *
  * ## Why filtering is its own stage
  *
@@ -42,7 +43,7 @@ const TIMERS = [0, 3, 5, 10] as const;
 
 export function CameraScreen() {
   const navigate = useNavigate();
-  const { service: chat, conversations, users, currentUser } = useChat();
+  const { service: chat } = useChat();
   const { service: stories, refresh } = useStories();
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -54,7 +55,12 @@ export function CameraScreen() {
   const [shot, setShot] = useState<{ blob: Blob; url: string } | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const [sentTo, setSentTo] = useState<Set<string>>(new Set());
+  /** Chosen together and committed once — see `PingRecipients`. */
+  const [recipients, setRecipients] = useState<Set<string>>(new Set());
+  /** Two is the default: long enough to look twice, short enough to be a Ping. */
+  const [views, setViews] = useState<PingViews>(2);
+  /** Drives the confirmation, and the beat before returning to the camera. */
+  const [sentCount, setSentCount] = useState(0);
 
   const [grid, setGrid] = useState(false);
   const [timer, setTimer] = useState<(typeof TIMERS)[number]>(0);
@@ -67,7 +73,6 @@ export function CameraScreen() {
   // Nothing is opened until the gate is passed, so arriving here by a mis-tap
   // never triggers the permission prompt.
   const camera = useCamera(chain, stage !== 'gate');
-  const mutuals = useMutuals();
 
   useEffect(() => {
     if (!shot) return;
@@ -84,7 +89,8 @@ export function CameraScreen() {
   const reset = () => {
     setShot(undefined);
     setOriginal(undefined);
-    setSentTo(new Set());
+    setRecipients(new Set());
+    setViews(2);
     setError(undefined);
     setFilterId('none');
     setStage('live');
@@ -154,16 +160,43 @@ export function CameraScreen() {
     link.click();
   };
 
-  const sendTo = async (conversationId: string) => {
-    if (!shot || sentTo.has(conversationId)) return;
+  /**
+   * Sends the Ping to everyone chosen, then goes back to the camera.
+   *
+   * One commit rather than one per tap: sending is a single decision about a
+   * single picture, and the return is the point. A Ping flow that leaves you
+   * looking at a chat has quietly become the normal chat flow.
+   */
+  const sendPing = async () => {
+    if (!shot || recipients.size === 0 || busy) return;
     setBusy(true);
     setError(undefined);
+
     try {
-      await chat.sendMessage({ conversationId, body: 'Snap', snap: { image: shot.blob } });
-      setSentTo((all) => new Set(all).add(conversationId));
+      await Promise.all(
+        [...recipients].map((conversationId) =>
+          chat.sendMessage({
+            conversationId,
+            body: 'Ping',
+            ping: { image: shot.blob, views },
+          }),
+        ),
+      );
+
+      /*
+       * A held beat before the camera comes back.
+       *
+       * Long enough to see that it went, short enough that nobody is waiting.
+       * Returning instantly makes a send feel like it may not have happened;
+       * a dialog makes it feel like paperwork.
+       */
+      setSentCount(recipients.size);
+      window.setTimeout(() => {
+        setSentCount(0);
+        reset();
+      }, 900);
     } catch {
       setError("That didn't send. Try again.");
-    } finally {
       setBusy(false);
     }
   };
@@ -307,94 +340,104 @@ export function CameraScreen() {
   }
 
   if (stage === 'send' && shot) {
-    /*
-     * Snaps need a mutual follow, so a thread you can message is not
-     * necessarily one you can snap. Filtered rather than disabled: a list of
-     * greyed-out names would be a roster of people who have not followed you
-     * back, which is not something to put on screen.
-     */
-    const direct = conversations.filter((conversation) => {
-      if (conversation.kind !== 'direct') return false;
-      const other = conversation.participantIds.find((id) => id !== currentUser?.id);
-      return Boolean(other && mutuals?.has(other));
-    });
-
     return (
       <div className="flex h-full flex-col bg-ink">
+        {/* ---- the picture ------------------------------------------- */}
         <div className="relative min-h-0 flex-[2] overflow-hidden">
-          <img src={shot.url} alt="Your snap" className="absolute inset-0 size-full object-contain" />
+          <img
+            src={shot.url}
+            alt="Your Ping"
+            className="animate-fade-in absolute inset-0 size-full object-contain"
+          />
+
+          {/*
+            The confirmation, over the picture rather than in place of it.
+
+            Replacing the screen would hide the thing that was just sent at the
+            exact moment somebody wants to see it go. This sits on top for a
+            beat and leaves with the picture underneath it.
+          */}
+          {sentCount > 0 && (
+            <div className="animate-fade-in absolute inset-0 grid place-items-center bg-ink/70 backdrop-blur-glass">
+              <div className="flex flex-col items-center gap-3">
+                <span className="grid size-16 place-items-center rounded-full bg-brand-gradient text-white shadow-brand">
+                  <CheckIcon size={30} />
+                </span>
+                <p className="text-body font-medium text-white" role="status">
+                  Ping sent to {sentCount}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={reset}
+            disabled={busy}
+            aria-label="Retake"
+            className={cn(
+              'touch-target focus-ring absolute top-4 left-4 grid size-10 place-items-center',
+              'rounded-full bg-black/45 text-white backdrop-blur-glass',
+              'transition-transform duration-instant active:scale-95',
+            )}
+          >
+            <CameraIcon size={19} />
+          </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-page px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {error && (
-            <p role="alert" className="mb-3 text-center text-caption text-danger">
-              {error}
-            </p>
-          )}
-
-          <div className="flex gap-2">
-            <SendAction onClick={() => void postStory()} disabled={busy}>
-              My Story
-            </SendAction>
-            <SendAction onClick={saveToGallery}>Save</SendAction>
-            <SendAction onClick={reset} disabled={busy}>
-              Retake
-            </SendAction>
+        {/* ---- how many views, and who ------------------------------- */}
+        <div className="flex min-h-0 flex-1 flex-col bg-page">
+          <div className="shrink-0 space-y-3 border-b border-line bg-ink px-4 py-3">
+            <PingViewLimit value={views} onChange={setViews} />
           </div>
 
-          <p className="mt-5 mb-2 text-caption text-text-secondary">Send to</p>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
+            {error && (
+              <p role="alert" className="mb-3 text-center text-caption text-danger">
+                {error}
+              </p>
+            )}
 
-          {direct.length === 0 ? (
-            <p className="py-6 text-center text-caption text-text-tertiary">
-              No one to snap yet. Snaps need you and the other person to follow
-              each other — your story is still open to everyone you are mutual with.
-            </p>
-          ) : (
-            <ul className="space-y-0.5">
-              {direct.map((conversation) => {
-                const partner = users.find(
-                  (user) =>
-                    conversation.participantIds.includes(user.id) && user.id !== currentUser?.id,
-                );
-                const sent = sentTo.has(conversation.id);
+            <PingRecipients
+              selected={recipients}
+              onToggle={(id) =>
+                setRecipients((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                })
+              }
+            />
+          </div>
 
-                return (
-                  <li key={conversation.id}>
-                    <button
-                      type="button"
-                      onClick={() => void sendTo(conversation.id)}
-                      disabled={busy || sent}
-                      className={cn(
-                        'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
-                        'transition-colors duration-instant hover:bg-hover',
-                      )}
-                    >
-                      <Avatar
-                        name={conversation.title}
-                        id={partner?.id ?? conversation.id}
-                        src={partner?.avatarUrl}
-                        size="sm"
-                      />
-                      <span className="min-w-0 flex-1 truncate text-left text-body text-ink">
-                        {conversation.title}
-                      </span>
-                      {sent ? (
-                        <span className="flex items-center gap-1 text-caption text-brand">
-                          <CheckIcon size={15} /> Sent
-                        </span>
-                      ) : (
-                        <span className="text-caption text-text-tertiary">Send</span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {/*
+            Story and Save sit above Send rather than beside it. They are the
+            other two things a picture can become, and putting them on the same
+            row as the commit would make three buttons that look interchangeable
+            when only one of them ends the flow.
+          */}
+          <div className="shrink-0 space-y-2 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="flex gap-2">
+              <SendAction onClick={() => void postStory()} disabled={busy}>
+                Add to story
+              </SendAction>
+              <SendAction onClick={saveToGallery} disabled={busy}>
+                Save
+              </SendAction>
+            </div>
+
+            <PingSendButton
+              count={recipients.size}
+              busy={busy}
+              onSend={() => void sendPing()}
+            />
+          </div>
         </div>
       </div>
     );
   }
+
 
   // ---- live ---------------------------------------------------------------
 

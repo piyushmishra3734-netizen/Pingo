@@ -46,7 +46,7 @@ import type {
   OutgoingMessage,
   Reaction,
   SearchResult,
-  SnapView,
+  PingView,
   Unsubscribe,
   User,
   UserId,
@@ -179,12 +179,14 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
       ? { sticker: { id: row.id, url: row.media_url } }
       : {}),
     /*
-     * A snap carries no URL — see `SnapRef`. `gone` folds together exhausted,
-     * downloaded and expired, because the thread should not tell you which.
+     * A Ping carries no URL — see `PingRef`. `gone` folds together exhausted,
+     * saved and expired, because the thread should not tell you which.
      */
     ...(row.kind === 'snap'
       ? {
-          snap: {
+          ping: {
+            // One or two. Older rows predate the choice and were sent as two.
+            views: row.view_limit ?? 2,
             expiresAt: row.snap_expires_at ? Date.parse(row.snap_expires_at) : 0,
             gone:
               row.snap_path === null ||
@@ -280,7 +282,7 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   follow_request: { body: 'wants to follow you' },
   follow_accepted: { body: 'accepted your follow request' },
   message: { body: 'sent you a message' },
-  snap: { body: 'sent you a snap' },
+  ping: { body: 'sent you a Ping' },
   story: { body: 'posted a story' },
 };
 
@@ -1161,7 +1163,7 @@ export class SupabaseChatService implements ChatService {
    *
    * A signed URL stored on the message would be a copy the viewer keeps, and
    * the two-view limit would mean nothing. The path is useless on its own — a
-   * URL is minted per view by `openSnap`, and minting it is what spends one.
+   * URL is minted per view by `openPing`, and minting it is what spends one.
    */
   async #uploadSnap(image: Blob): Promise<string> {
     const me = await this.#userId();
@@ -1343,14 +1345,14 @@ export class SupabaseChatService implements ChatService {
     };
   }
 
-  async openSnap(messageId: MessageId): Promise<SnapView | undefined> {
+  async openPing(messageId: MessageId): Promise<PingView | undefined> {
     const { data, error } = await this.#client.rpc('open_snap', { snap_id: messageId });
     const row = data?.[0];
     if (error || !row?.path) return undefined;
 
     /*
      * A minute. The URL only has to survive the fetch that follows it — anything
-     * longer is a window in which a shared link still works after the snap is
+     * longer is a window in which a shared link still works after the Ping is
      * supposed to be gone.
      */
     const signed = await this.#client.storage
@@ -1361,8 +1363,8 @@ export class SupabaseChatService implements ChatService {
     return { url: signed.data.signedUrl, viewsLeft: row.views_left };
   }
 
-  async downloadSnap(messageId: MessageId): Promise<Blob | undefined> {
-    const opened = await this.openSnap(messageId);
+  async savePing(messageId: MessageId): Promise<Blob | undefined> {
+    const opened = await this.openPing(messageId);
     if (!opened) return undefined;
 
     const response = await fetch(opened.url);
@@ -1370,8 +1372,8 @@ export class SupabaseChatService implements ChatService {
     const blob = await response.blob();
 
     /*
-     * Destroyed only once the bytes are in hand. Marking it downloaded first
-     * would mean a dropped connection costs the receiver the snap entirely.
+     * Destroyed only once the bytes are in hand. Marking it saved first would
+     * mean a dropped connection costs the receiver the Ping entirely.
      */
     await this.#client.rpc('download_snap', { snap_id: messageId });
     return blob;
@@ -1385,8 +1387,23 @@ export class SupabaseChatService implements ChatService {
      * media never arrived is a permanently broken bubble in someone's thread;
      * a failed upload that inserts nothing is a retry.
      */
-    const snapPath = draft.snap ? await this.#uploadSnap(draft.snap.image) : undefined;
-    const photoPath = draft.photo ? await this.#uploadPhoto(draft.photo.image) : undefined;
+    /*
+     * A Ping's `views` chooses the mechanism, not merely a number.
+     *
+     * One or two goes down the ephemeral path: its own bucket, a path rather
+     * than a URL on the row, and `open_ping` as the only way to the bytes.
+     * `null` is Keep in Chat, which *is* a photo message — so it takes the
+     * photo path rather than teaching the ephemeral one to never expire.
+     */
+    const keptPing = draft.ping && draft.ping.views === null ? draft.ping : undefined;
+    const ephemeralPing = draft.ping && draft.ping.views !== null ? draft.ping : undefined;
+
+    const snapPath = ephemeralPing ? await this.#uploadSnap(ephemeralPing.image) : undefined;
+    const photoPath = draft.photo
+      ? await this.#uploadPhoto(draft.photo.image)
+      : keptPing
+        ? await this.#uploadPhoto(keptPing.image)
+        : undefined;
     const voicePath = draft.voice ? await this.#uploadVoice(draft.voice.audio) : undefined;
     const filePath = draft.document ? await this.#uploadDocument(draft.document.file) : undefined;
     const snapExpiry = snapPath
@@ -1441,11 +1458,18 @@ export class SupabaseChatService implements ChatService {
         ...(snapPath
           ? {
               kind: 'snap',
-              // `media_url` stays populated to satisfy the not-null constraint
-              // on snap rows; the path is what `open_snap` actually reads.
+              /*
+               * `media_url` is written but never read for this kind. It once
+               * carried the snap's URL; the lifecycle moved to storing the path
+               * and minting a signed URL per view, which is what made the limit
+               * real. Kept populated because a row with neither is harder to
+               * recognise in the database than one with a redundant copy.
+               */
               media_url: snapPath,
               snap_path: snapPath,
               snap_expires_at: snapExpiry,
+              // The sender's choice. `open_ping` clamps and defaults it.
+              view_limit: ephemeralPing?.views ?? 2,
             }
           : {}),
       })
@@ -1792,11 +1816,19 @@ export class SupabaseChatService implements ChatService {
 
     return rows.map((row) => {
       const who = (row.actor_id && names.get(row.actor_id)) || 'Someone';
-      const copy = NOTIFICATION_COPY[row.kind] ?? { title: who, body: 'Something happened.' };
+      /*
+       * The column still says `snap`; the product says Ping.
+       *
+       * Renamed on the way out rather than in the database. A migration over
+       * live notification rows buys nothing a reader would notice, and the one
+       * thing it could do is fail halfway.
+       */
+      const kind = row.kind === 'snap' ? ('ping' as const) : row.kind;
+      const copy = NOTIFICATION_COPY[kind] ?? { title: who, body: 'Something happened.' };
 
       return {
         id: row.id,
-        kind: row.kind,
+        kind,
         title: who,
         body: copy.body,
         createdAt: Date.parse(row.created_at),

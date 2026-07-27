@@ -65,7 +65,7 @@ export interface MoreSheetProps {
 
 export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetProps) {
   const categories = useMemo<Category[]>(() => {
-    const hasMedia = Boolean(message.snap ?? message.sticker);
+    const hasMedia = Boolean(message.ping ?? message.sticker);
 
     const run = (fn: () => void) => () => {
       fn();

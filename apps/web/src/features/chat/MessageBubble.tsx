@@ -15,7 +15,7 @@ import {
 } from './AttachmentBubbles.js';
 import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
-import { SnapBubble } from './SnapBubble.js';
+import { PingBubble } from './PingBubble.js';
 import { VoiceNote } from './VoiceNote.js';
 
 /**
@@ -63,7 +63,7 @@ export interface MessageBubbleProps {
 /**
  * What a quoted message reads as in one line.
  *
- * A snap or sticker has no text worth quoting, so it is named rather than shown
+ * A Ping or sticker has no text worth quoting, so it is named rather than shown
  * — quoting a sticker's emoji fallback would look like the person typed it.
  */
 export function quoteText(message: Message): string {
@@ -73,7 +73,7 @@ export function quoteText(message: Message): string {
   if (message.contact) return message.contact.name;
   if (message.event) return message.event.title;
   if (message.photo) return message.body.trim() || 'Photo';
-  if (message.snap) return 'Snap';
+  if (message.ping) return 'Ping';
   if (message.sticker) return 'Sticker';
   if (message.attachments.some((a) => a.kind === 'audio')) return 'Voice message';
   return message.body.trim() || 'Attachment';
@@ -185,7 +185,7 @@ export function MessageBubble({
 
   /*
    * A photo is the message, so it gets no bubble either — its caption gets one
-   * of its own underneath. Before the snap branch because the two are mutually
+   * of its own underneath. Before the Ping branch because the two are mutually
    * exclusive and this is the commoner of the pair.
    */
   if (message.photo) {
@@ -193,15 +193,15 @@ export function MessageBubble({
   }
 
   /*
-   * A snap gets no bubble either, for the same reason: the picture *is* the
+   * A Ping gets no bubble either, for the same reason: the picture *is* the
    * message. It is rounded and capped in height so a portrait shot cannot push
    * the rest of the thread off screen.
    */
-  if (message.snap) {
+  if (message.ping) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
         <div className="animate-bubble-in">
-          <SnapBubble message={message} snap={message.snap} mine={mine} />
+          <PingBubble message={message} ping={message.ping} mine={mine} />
           <span className="mt-0.5 block text-caption text-text-tertiary">
             {formatTime(message.createdAt)}
           </span>

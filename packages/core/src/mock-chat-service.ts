@@ -292,16 +292,16 @@ export class MockChatService implements ChatService {
   }
 
   /*
-   * Snaps are not simulated. The whole point of the feature is a server that
+   * Pings are not simulated. The whole point of the feature is a server that
    * forgets on a schedule, and there is no honest way to fake that in memory —
-   * a mock that always returned an image would make the two-view limit look
-   * broken, and one that never did would make every snap look expired.
+   * a mock that always returned an image would make the view limit look broken,
+   * and one that never did would make every Ping look expired.
    */
-  async openSnap(): Promise<undefined> {
+  async openPing(): Promise<undefined> {
     return undefined;
   }
 
-  async downloadSnap(): Promise<undefined> {
+  async savePing(): Promise<undefined> {
     return undefined;
   }
 

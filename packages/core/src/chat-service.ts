@@ -28,7 +28,7 @@ import type {
   MessageId,
   Moment,
   SearchResult,
-  SnapView,
+  PingView,
   User,
   UserId,
   UserSettings,
@@ -43,12 +43,24 @@ export interface OutgoingMessage {
   /** Makes this a sticker message rather than a text one. */
   sticker?: { id: string; url: string };
   /**
-   * Makes this a snap: a photo taken in the camera, already flattened.
+   * Makes this a **Ping**: a visual message, already flattened by the editor.
    *
    * The blob is uploaded by the service, not the caller, so a screen never
-   * needs to know which bucket snaps live in or how their paths are shaped.
+   * needs to know which bucket the media lives in or how its paths are shaped.
+   *
+   * ## `views` picks the mechanism, not just a number
+   *
+   * One or two views is an ephemeral Ping: the server hands out the bytes only
+   * through `openPing`, and calling it is what spends the view. `null` is
+   * *Keep in Chat*, which is an ordinary photo message — it stays in the thread
+   * and can be reopened freely.
+   *
+   * They are two different storage behaviours because they are two different
+   * promises, and the product already had both. Collapsing them into one
+   * mechanism with a flag would mean the ephemeral path having a mode where it
+   * never expires and never destroys anything.
    */
-  snap?: { image: Blob };
+  ping?: { image: Blob; views: 1 | 2 | null };
 
   /**
    * Makes this a photo message. `body` carries the caption, if any.
@@ -159,19 +171,22 @@ export interface ChatService {
    * Spends one view and returns a short-lived URL for the image.
    *
    * Calling this **is** the view — there is no separate "confirm" step, because
-   * a client that could decline to confirm could watch a snap forever. Returns
-   * undefined once the snap is gone, which is the same answer for exhausted,
+   * a client that could decline to confirm could watch a Ping forever. Returns
+   * undefined once it is gone, which is the same answer for exhausted,
    * downloaded and expired.
    */
-  openSnap(messageId: MessageId): Promise<SnapView | undefined>;
+  openPing(messageId: MessageId): Promise<PingView | undefined>;
 
   /**
    * Fetches the bytes so the receiver can keep them, then destroys the copy.
    *
    * The order matters: the blob is returned first and the server copy is only
-   * dropped once it is in hand, so a failed download does not lose the snap.
+   * dropped once it is in hand, so a failed save does not lose the Ping.
+   *
+   * Saving goes to the device, never to a PINGO server — that is the whole
+   * point of the exchange, and it is why this destroys rather than archives.
    */
-  downloadSnap(messageId: MessageId): Promise<Blob | undefined>;
+  savePing(messageId: MessageId): Promise<Blob | undefined>;
 
   /**
    * Spends one view of a limited photo and returns a URL for it.

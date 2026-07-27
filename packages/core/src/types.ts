@@ -169,19 +169,19 @@ export interface Message {
    * picture is the message. `body` stays a short label so notifications and the
    * conversation list have something to say without loading the image.
    *
-   * Deliberately carries **no URL**. A snap can be opened twice and then never
+   * Deliberately carries **no URL**. A Ping can be opened once or twice and then never
    * again, and a URL sitting in the message would be a copy the viewer keeps —
    * which would make the limit decorative. The bytes are fetched through
-   * `ChatService.openSnap`, and asking is what spends the view.
+   * `ChatService.openPing`, and asking is what spends the view.
    */
-  snap?: SnapRef;
+  ping?: PingRef;
 
   /**
    * A picture sent into the chat, with an optional caption in `body`.
    *
-   * Distinct from `snap` because the two are opposites: a snap is built to be
+   * Distinct from `ping` because the two are opposites: a Ping is built to be
    * hard to keep, a photo is built to stay. Sharing one shape would mean every
-   * reader of a photo going through the machinery that destroys snaps.
+   * reader of a photo going through the machinery that destroys Pings.
    */
   photo?: PhotoRef;
 
@@ -241,12 +241,12 @@ export interface EventRef {
   location?: string;
 }
 
-/** A photo message's picture. Like a snap, it carries no URL — see `PhotoRef.url`. */
+/** A photo message's picture. Like a Ping, it carries no URL — see `PhotoRef.url`. */
 export interface PhotoRef {
   /**
    * How many times each recipient may open it. Absent means without limit.
    *
-   * A limited photo behaves like a snap: the thread shows a cover rather than
+   * A limited photo behaves like a Ping: the thread shows a cover rather than
    * the picture, and opening it spends one of the views.
    */
   viewLimit?: number;
@@ -267,21 +267,29 @@ export interface PhotoRef {
 }
 
 /**
- * What a client may know about a snap without having opened it.
+ * What a client may know about a Ping without having opened it.
  *
- * `gone` covers every way a snap ends — two views spent, downloaded, or
- * expired — because from the thread's point of view they are the same state and
+ * `gone` covers every way a Ping ends — views spent, saved, or expired —
+ * because from the thread's point of view they are the same state, and
  * distinguishing them would only tell the viewer things about the other person.
  */
-export interface SnapRef {
+export interface PingRef {
   /** Epoch ms. After this the server will not hand out the image. */
   expiresAt: number;
   /** True once the media is unrecoverable. The bubble stays; the picture does not. */
   gone: boolean;
+  /**
+   * How many views the sender allowed: 1 or 2.
+   *
+   * Shown before opening, so the decision to look is an informed one — a single
+   * view is a different thing to accept than two, and finding that out
+   * afterwards is too late.
+   */
+  views: number;
 }
 
 /** The result of spending a view: the image, and how many are left after it. */
-export interface SnapView {
+export interface PingView {
   url: string;
   /** 0 means this was the last look. */
   viewsLeft: number;
@@ -459,7 +467,7 @@ export interface Moment {
 
 export interface AppNotification {
   id: string;
-  kind: 'message' | 'snap' | 'call' | 'follow_request' | 'follow_accepted' | 'story' | 'mention' | 'system';
+  kind: 'message' | 'ping' | 'call' | 'follow_request' | 'follow_accepted' | 'story' | 'mention' | 'system';
   title: string;
   body: string;
   createdAt: number;
