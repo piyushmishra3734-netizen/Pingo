@@ -9,17 +9,18 @@
  * which costs nothing to download, cannot be mis-licensed, and stays in tune at
  * any sample rate.
  *
- * ## Two different sounds, on purpose
+ * ## Three sounds, and only two of them are telephone tones
  *
- * | | Frequencies | Cadence | Heard by |
- * | --- | --- | --- | --- |
- * | Ringback | 440 + 480 Hz | 2s on, 4s off | the caller |
- * | Ringtone | 440 + 480 Hz | 0.4s on/off ×2, then 2s off | the callee |
+ * | | Built from | Heard by |
+ * | --- | --- | --- |
+ * | Ringback | 440 + 480 Hz, 2s on / 4s off | the caller |
+ * | Busy | 480 + 620 Hz, fast | the caller, when it failed |
+ * | Ringtone | a pentatonic phrase | the callee |
  *
- * Ringback is the tone a phone network plays back to *you* so you know the far
- * end is ringing; the callee hears a faster double-pulse. Using one sound for
- * both would make an incoming call and an outgoing one indistinguishable with
- * the screen face-down, which is precisely when it matters.
+ * Ringback and busy are the network's own tones, reproduced rather than
+ * imitated. The ringtone is not one: both ends once played the same 440+480 Hz
+ * pair differing only in rhythm, so with a phone face-down an incoming call and
+ * an outgoing one sounded alike — the one moment the difference matters most.
  *
  * ## Autoplay
  *
@@ -45,18 +46,20 @@ interface Cadence {
  *
  * The first values were chosen against headphones on a quiet desk and were far
  * too quiet on a phone at arm's length — a ring nobody hears is a missed call.
- * These are roughly three times louder. They stay well under 1.0 because two
- * oscillators sum before the destination, and a gain that clips produces a
- * buzz that sounds like a broken speaker rather than a loud ring.
+ *
+ * These sit above where clipping would normally start, which is only safe
+ * because of the limiter in `startRinging`. Without it, a gain this high would
+ * flatten the tops of the waveform and be heard as a buzz rather than as
+ * volume; with it, the peaks are caught and the level is genuinely louder.
  *
  * The ringtone is loudest of the three: it has to carry across a room. Ringback
  * is quieter because it plays against your own ear.
  */
 const CADENCES: Record<RingKind, Cadence> = {
   // North American ringback: a long burst, a long gap.
-  ringback: { pattern: [2, 4], gain: 0.18 },
+  ringback: { pattern: [2, 4], gain: 0.24 },
   // Melody, rest. The pattern below is walked one note per beat.
-  ringtone: { pattern: [0.22, 0.06], gain: 0.34 },
+  ringtone: { pattern: [0.22, 0.06], gain: 0.62 },
   /*
    * Fast busy, the tone a network plays when a call cannot be completed.
    * Twice the speed of a ring and unmistakably not one.
@@ -125,12 +128,35 @@ export function startRinging(kind: RingKind): Ringer {
 
   const { pattern, gain } = CADENCES[kind];
 
+  /**
+   * A limiter across everything, so loudness is not capped by arithmetic.
+   *
+   * Each note stacks three partials and rings on past its beat, so two or three
+   * overlap at any moment. Their amplitudes sum before the output, and once
+   * that sum passes 1.0 the waveform is clipped flat — which is heard as a
+   * buzz, not as volume. Raising the gain alone therefore stops making the ring
+   * louder and starts making it worse.
+   *
+   * The compressor catches those peaks and leaves everything below them alone,
+   * which is what lets the level be pushed well past where clipping would
+   * otherwise begin. It is how every ringtone on a phone is made loud.
+   */
+  const master = context.createDynamicsCompressor();
+  master.threshold.value = -8;
+  // A high ratio with a fast attack is a limiter rather than a compressor: it
+  // stops the peaks and does not otherwise squash the shape of the notes.
+  master.ratio.value = 12;
+  master.attack.value = 0.003;
+  master.release.value = 0.12;
+  master.knee.value = 6;
+  master.connect(context.destination);
+
   /** One burst: both tones, with a short fade so it does not click. */
   const burst = (duration: number, pulse: number) => {
     if (!context || stopped) return;
 
     const envelope = context.createGain();
-    envelope.connect(context.destination);
+    envelope.connect(master);
 
     const now = context.currentTime;
     /*
