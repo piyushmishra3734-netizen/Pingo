@@ -7,6 +7,7 @@ import { ChatListsSheet } from '../conversations/ChatListsSheet.js';
 import { DeleteChatSheet } from '../conversations/DeleteChatSheet.js';
 import { MuteSheet } from '../conversations/MuteSheet.js';
 import { useConversationActions } from '../conversations/useConversationActions.js';
+import { useUnmuteConfirm } from '../conversations/useUnmuteConfirm.js';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 
@@ -52,6 +53,7 @@ export function ConversationMenu({
   const navigate = useNavigate();
   const actions = useConversationActions();
   const confirm = useConfirm();
+  const confirmUnmute = useUnmuteConfirm();
 
   useEffect(() => {
     if (!open) return;
@@ -133,11 +135,14 @@ export function ConversationMenu({
                 : 'Mute notifications'
             }
             onSelect={() => {
-              if (conversation.muted) run(actions.mute(id, null));
-              else {
-                setOpen(false);
+              setOpen(false);
+              if (!conversation.muted) {
                 setMuting(true);
+                return;
               }
+              void (async () => {
+                if (await confirmUnmute(1, conversation.title)) await actions.mute(id, null);
+              })();
             }}
           />
           <Item
@@ -159,9 +164,10 @@ export function ConversationMenu({
           <Divider />
 
           {/*
-            Confirmed, unlike the rows above it. Pin, mute and archive are all
-            one tap to undo; clearing a thread is not, and it sits directly
-            above Delete chat where a thumb aiming for one can find the other.
+            Confirmed, unlike pin, favourite, archive and mark-as-read above —
+            those are all one tap to undo. Clearing a thread is not, and it sits
+            directly above Delete chat where a thumb aiming for one can find the
+            other.
           */}
           <Item
             label="Clear messages"

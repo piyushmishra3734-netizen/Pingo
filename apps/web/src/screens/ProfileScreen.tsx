@@ -28,6 +28,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
+import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
 import { CaptionText } from '../features/profile/CaptionText.js';
 import { FollowButton } from '../features/profile/FollowButton.js';
@@ -86,6 +87,7 @@ export function ProfileScreen() {
   const { mute } = useConversationActions();
   const mutuals = useMutuals();
   const confirm = useConfirm();
+  const confirmUnmute = useUnmuteConfirm();
   const navigate = useNavigate();
 
   const isSelf = !handle || handle === mine?.username || handle === mine?.id;
@@ -255,17 +257,29 @@ export function ProfileScreen() {
     setMenuOpen(false);
     const next = !blocked;
 
-    // Only blocking asks. Unblocking gives something back rather than taking
-    // it away, and a product that questions both teaches people to tap through.
-    if (next) {
-      const go = await confirm({
-        title: `Block ${person.displayName}?`,
-        description:
-          'They will not be able to call you or see your stories, and you will stop being friends. They are not told.',
-        confirmLabel: 'Block',
-      });
-      if (!go) return;
-    }
+    /*
+     * Both directions ask, and neither pretends to be the other.
+     *
+     * Blocking is the destructive one and gets the red button. Unblocking
+     * gives something back — but it is still a decision about somebody the
+     * user once chose to shut out, and "did you mean to let them back in?" is
+     * a fair question to put once. It is the calm button, not the red one.
+     */
+    const go = next
+      ? await confirm({
+          title: `Block ${person.displayName}?`,
+          description:
+            'They will not be able to call you or see your stories, and you will stop being friends. They are not told.',
+          confirmLabel: 'Block',
+        })
+      : await confirm({
+          title: `Unblock ${person.displayName}?`,
+          description:
+            'They will be able to message you again. Being friends is not restored — either of you can ask.',
+          tone: 'normal',
+          confirmLabel: 'Unblock',
+        });
+    if (!go) return;
 
     setBlocked(next);
     try {
@@ -584,15 +598,21 @@ export function ProfileScreen() {
           onMute={() => {
             setMenuOpen(false);
             if (!conversation) return;
-            /*
-             * Always, when muting from here. The durations sheet belongs to the
-             * chat list, where mute is a bulk action across rows; on one
-             * person's profile it is a decision about them, not a timer.
-             */
-            void mute([conversation.id], conversation.muted ? null : MUTE_DURATIONS.at(-1)!.ms);
+            void (async () => {
+              if (conversation.muted) {
+                if (await confirmUnmute(1, person.displayName)) await mute([conversation.id], null);
+                return;
+              }
+              /*
+               * Always, when muting from here. The durations sheet belongs to
+               * the chat list, where mute is a bulk action across rows; on one
+               * person's profile it is a decision about them, not a timer.
+               */
+              await mute([conversation.id], MUTE_DURATIONS.at(-1)!.ms);
+            })();
           }}
-          // `toggleBlock` asks for itself when it is about to block, so both
-          // directions go through the same call.
+          // `toggleBlock` asks for itself in both directions, so block and
+          // unblock go through the same call.
           onBlock={() => void toggleBlock()}
           onReport={() => {
             setMenuOpen(false);

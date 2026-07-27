@@ -34,10 +34,15 @@ import { Sheet, SheetCancel } from './Sheet.js';
  * ## What it is for, and what it is not
  *
  * Anything that destroys something the user has — messages, posts, comments,
- * a photo, a friendship, their session. Not for choices that are merely
- * significant: archiving, muting and unfollowing are all one tap to undo, and a
- * product that asks twice about everything teaches people to confirm without
- * reading, which is how the important one gets waved through too.
+ * a photo, a friendship, their session — and the handful of reversible acts
+ * that still change how the app behaves towards a person: unmuting a chat, and
+ * unblocking someone. Those two get `tone: 'normal'` rather than the red
+ * button, because they are decisions rather than losses.
+ *
+ * Not for the ordinary ones. Pin, favourite, archive and mark-as-read are all a
+ * single tap to undo, and a product that asks twice about everything teaches
+ * people to confirm without reading — which is how the important question gets
+ * waved through too.
  *
  * ## Why cancelling resolves rather than rejects
  *

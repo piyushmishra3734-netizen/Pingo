@@ -35,6 +35,7 @@ import { DeleteChatSheet } from './DeleteChatSheet.js';
 import { MuteSheet } from './MuteSheet.js';
 import { SelectionBar, SelectionMenuItem } from './SelectionBar.js';
 import { useConversationActions } from './useConversationActions.js';
+import { useUnmuteConfirm } from './useUnmuteConfirm.js';
 
 /**
  * The conversation list — header, search, filters, rows, selection.
@@ -70,6 +71,7 @@ export function ConversationList({
 
   const actions = useConversationActions();
   const confirm = useConfirm();
+  const confirmUnmute = useUnmuteConfirm();
 
   const [openStory, setOpenStory] = useState<
     { group: StoryGroup; origin: DOMRect } | undefined
@@ -226,9 +228,16 @@ export function ConversationList({
                 <SelectionMenuItem
                   label={allMuted ? 'Unmute notifications' : 'Mute notifications'}
                   onSelect={() => {
-                    // Unmuting has one possible answer, so it does not ask.
-                    if (allMuted) andClose(actions.mute(selected.map((c) => c.id), null));
-                    else setMuting(selected);
+                    if (!allMuted) {
+                      // Muting asks *how long* rather than whether, which is a
+                      // sheet of its own.
+                      setMuting(selected);
+                      return;
+                    }
+                    void (async () => {
+                      const go = await confirmUnmute(selected.length, only?.title);
+                      if (go) andClose(actions.mute(selected.map((c) => c.id), null));
+                    })();
                   }}
                 />
                 <SelectionMenuItem
