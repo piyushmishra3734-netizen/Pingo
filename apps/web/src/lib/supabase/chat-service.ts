@@ -343,7 +343,17 @@ export class SupabaseChatService implements ChatService {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const row = payload.new as MessageRow;
-          this.#emit({ type: 'message:new', message: toMessage(row, undefined) });
+          /*
+           * Signed before it is announced.
+           *
+           * A photo arriving over the socket has a storage path and no URL, and
+           * this echo races the signed copy that `sendMessage` returns — the
+           * hook de-duplicates by id, so whichever lands first wins. When the
+           * socket won, the sender's own photo rendered as an unopened cover.
+           */
+          void this.#signPhotos([row], [toMessage(row, undefined)]).then(([message]) => {
+            if (message) this.#emit({ type: 'message:new', message });
+          });
 
           // The list needs the new preview and a bumped position, and only a
           // refetch can produce a correctly-shaped `Conversation`.
@@ -366,9 +376,13 @@ export class SupabaseChatService implements ChatService {
         { event: 'UPDATE', schema: 'public', table: 'messages' },
         (payload) => {
           const row = payload.new as MessageRow;
-          this.#emit({
-            type: 'message:updated',
-            message: { ...toMessage(row, undefined), reactions: this.#reactions.get(row.id) ?? [] },
+          // Signed for the same reason as the insert above.
+          void this.#signPhotos([row], [toMessage(row, undefined)]).then(([signed]) => {
+            if (!signed) return;
+            this.#emit({
+              type: 'message:updated',
+              message: { ...signed, reactions: this.#reactions.get(row.id) ?? [] },
+            });
           });
 
           // The list shows this message when it is the newest one, so an edit

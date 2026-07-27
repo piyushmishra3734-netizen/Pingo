@@ -68,6 +68,21 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
               limited && 'ring-2 ring-brand',
             )}
           />
+        ) : !limited ? (
+          /*
+           * An unlimited photo with no URL is one whose signing has not landed
+           * — a slow round trip, or one that failed. It is emphatically not a
+           * view-once cover, which is what it used to render: an ordinary photo
+           * inviting you to spend a view it does not have.
+           */
+          <div
+            className={cn(
+              'grid h-40 w-56 place-items-center rounded-lg',
+              'border border-line bg-surface',
+            )}
+          >
+            <PingoDot state="loading" size={5} label="Loading photo" />
+          </div>
         ) : (
           <button
             type="button"
