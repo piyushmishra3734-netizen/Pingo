@@ -39,6 +39,10 @@ export function Chip({
         'h-8 px-3.5',
         'font-sans text-caption font-medium',
         'focus-ring transition-all duration-instant ease-standard',
+        // 32px reads right in a filter row; 32px under a thumb does not. The
+        // overlay reaches 44×44 without the chip growing — same trick, and the
+        // same reason, as IconButton.
+        'touch-target',
         'active:scale-[0.96]',
         selected
           ? 'bg-selected text-brand'
