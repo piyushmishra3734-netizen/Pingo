@@ -1,23 +1,37 @@
 import type { StoryGroup } from '@pingo/core';
 import { Avatar, PlusIcon, cn } from '@pingo/ui';
-import { useNavigate } from 'react-router-dom';
+import { useRef } from 'react';
 
 /**
- * The story rail at the top of Home.
+ * The story rail at the top of the chat list.
  *
  * Horizontal, scrollable, people not posts — five stories from one person is
- * one circle that opens as a sequence.
+ * one circle that opens as a sequence. Order is decided in `StoryContext`: you,
+ * then friends, then everybody else.
  *
  * ## The ring carries the state
  *
- * Unseen gets the brand gradient; seen drops to a hairline. That is the whole
- * signal, and it is why the row can be read without counting anything: the
- * bright circles are what is new.
+ * Three of them, and each says something different:
+ *
+ * | Ring | Means |
+ * | --- | --- |
+ * | Accent gradient | unseen |
+ * | Neutral grey | seen |
+ * | Green | posted to close friends |
+ *
+ * Green outranks the other two, because it is about *who the story is for*
+ * rather than whether you have watched it — being let into somebody's close
+ * friends is the more interesting fact and it survives being seen. A watched
+ * close story dims to a softer green rather than dropping to grey, so the band
+ * still reads while the "already seen" signal still lands.
  *
  * "You" is always first and always present. With no story of your own it is a
- * `+` that opens the camera — the row doubles as the way in, so posting is
- * never a feature you have to go looking for.
+ * `+` that opens the creator, so posting is never a feature you have to go
+ * looking for; with one, a long press reaches delete and the archive.
  */
+
+/** How long a press has to last to mean "manage this" rather than "open it". */
+const HOLD_MS = 480;
 
 export interface StoriesRowProps {
   groups: StoryGroup[];
@@ -27,6 +41,10 @@ export interface StoriesRowProps {
   currentUserAvatarUrl?: string;
   /** The second argument is where the circle was, so the viewer can grow from it. */
   onOpen: (group: StoryGroup, origin: DOMRect) => void;
+  /** Tapping `+` with no story of your own. */
+  onCreate: () => void;
+  /** Holding your own circle. */
+  onManageMine: () => void;
 }
 
 export function StoriesRow({
@@ -35,9 +53,9 @@ export function StoriesRow({
   currentUserName,
   currentUserAvatarUrl,
   onOpen,
+  onCreate,
+  onManageMine,
 }: StoriesRowProps) {
-  const navigate = useNavigate();
-
   const mine = groups.find((group) => group.authorId === currentUserId);
   const others = groups.filter((group) => group.authorId !== currentUserId);
 
@@ -47,75 +65,170 @@ export function StoriesRow({
 
       {/*
         `scrollbar-none` because a horizontal scrollbar under six circles is
-        louder than the circles. Momentum scrolling still works.
+        louder than the circles. Momentum scrolling still works, and
+        `overscroll-x-contain` stops a flick past the end of the rail from
+        triggering the browser's own back gesture.
       */}
-      <div className="flex gap-3.5 overflow-x-auto scrollbar-none px-3 pb-1">
-        {/* You — either your own stories, or the way to post one. */}
-        <button
-          type="button"
-          onClick={(event) =>
-            mine
-              ? onOpen(mine, event.currentTarget.getBoundingClientRect())
-              : navigate("/camera")
-          }
-          className={cn(
-            // px, not rem: the ring is a fixed 67px, and the app scales its root
-            // font size for accessibility — a rem width would clip it at small scales.
-            'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
-            'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
-          )}
-        >
-          <span className="relative">
-            <StoryRing seen={mine?.allSeen ?? true} hasStory={Boolean(mine)}>
-              <Avatar
-                name={currentUserName}
-                id={currentUserId}
-                src={mine?.stories[0]?.mediaUrl ?? currentUserAvatarUrl}
-                size="lg"
-              />
-            </StoryRing>
-
-            {!mine && (
-              <span
-                className={cn(
-                  'absolute -bottom-0.5 -right-0.5 grid size-6 place-items-center',
-                  'rounded-full bg-brand-gradient text-white ring-2 ring-page',
-                )}
-                aria-hidden
-              >
-                <PlusIcon size={14} />
-              </span>
-            )}
-          </span>
-
-          <span className="w-full truncate text-caption text-text-secondary">You</span>
-        </button>
+      <ul
+        className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pb-1"
+        aria-label="Stories"
+      >
+        <li>
+          <MyCircle
+            group={mine}
+            name={currentUserName}
+            userId={currentUserId}
+            avatarUrl={currentUserAvatarUrl}
+            onOpen={onOpen}
+            onCreate={onCreate}
+            onManage={onManageMine}
+          />
+        </li>
 
         {others.map((group) => (
-          <button
-            key={group.authorId}
-            type="button"
-            onClick={(event) => onOpen(group, event.currentTarget.getBoundingClientRect())}
-            className={cn(
-            'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
-            'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
-          )}
-          >
-            <StoryRing seen={group.allSeen} hasStory>
-              <Avatar
-                name={group.authorName}
-                id={group.authorId}
-                src={group.stories[0]?.mediaUrl ?? group.authorAvatarUrl}
-                size="lg"
-              />
-            </StoryRing>
-            <span className="w-full truncate text-caption text-text-secondary">
-              {group.authorName.split(' ')[0]}
-            </span>
-          </button>
+          <li key={group.authorId}>
+            <button
+              type="button"
+              onClick={(event) => onOpen(group, event.currentTarget.getBoundingClientRect())}
+              aria-label={`${group.authorName}'s story, ${group.stories.length} ${
+                group.stories.length === 1 ? 'item' : 'items'
+              }, ${group.allSeen ? 'already seen' : 'not seen yet'}${
+                group.closeFriends ? ', close friends' : ''
+              }`}
+              className={cn(
+                'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+                'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
+              )}
+            >
+              <StoryRing seen={group.allSeen} close={group.closeFriends} hasStory>
+                <Avatar
+                  name={group.authorName}
+                  id={group.authorId}
+                  src={group.authorAvatarUrl}
+                  size="lg"
+                />
+              </StoryRing>
+              <span className="w-full truncate text-caption text-text-secondary">
+                {group.authorName.split(' ')[0]}
+              </span>
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
+  );
+}
+
+/**
+ * Your own circle: open it, start one, or manage what is there.
+ *
+ * The hold is only offered when there is something to manage. With no story the
+ * circle has exactly one job, and a hold that opened a menu of things you
+ * cannot do yet would be worse than no hold at all.
+ */
+function MyCircle({
+  group,
+  name,
+  userId,
+  avatarUrl,
+  onOpen,
+  onCreate,
+  onManage,
+}: {
+  group: StoryGroup | undefined;
+  name: string;
+  userId: string | undefined;
+  avatarUrl?: string;
+  onOpen: (group: StoryGroup, origin: DOMRect) => void;
+  onCreate: () => void;
+  onManage: () => void;
+}) {
+  const timer = useRef<number | undefined>(undefined);
+  const held = useRef(false);
+  const origin = useRef<{ x: number; y: number } | undefined>(undefined);
+
+  const clear = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = undefined;
+  };
+
+  const onPointerDown = (event: React.PointerEvent) => {
+    if (!group) return;
+    held.current = false;
+    origin.current = { x: event.clientX, y: event.clientY };
+    timer.current = window.setTimeout(() => {
+      held.current = true;
+      onManage();
+      // The press has become a different gesture; say so the way a phone does.
+      navigator.vibrate?.(8);
+    }, HOLD_MS);
+  };
+
+  const onPointerMove = (event: React.PointerEvent) => {
+    if (!origin.current) return;
+    // A hold that drifts is the rail being scrolled, not a hold.
+    const moved = Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y);
+    if (moved > 10) clear();
+  };
+
+  return (
+    <button
+      type="button"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={clear}
+      onPointerCancel={clear}
+      onContextMenu={(event) => {
+        // A long press on a touch screen also raises the browser's own menu,
+        // which would land on top of ours.
+        if (group) event.preventDefault();
+      }}
+      onClick={(event) => {
+        clear();
+        // The hold already opened the menu; the click that follows is noise.
+        if (held.current) {
+          held.current = false;
+          return;
+        }
+        if (group) onOpen(group, event.currentTarget.getBoundingClientRect());
+        else onCreate();
+      }}
+      aria-label={
+        group
+          ? `Your story, ${group.stories.length} ${
+              group.stories.length === 1 ? 'item' : 'items'
+            }. Tap to view, hold to manage.`
+          : 'Add to your story'
+      }
+      className={cn(
+        'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
+        'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
+      )}
+    >
+      <span className="relative">
+        <StoryRing
+          seen={group?.allSeen ?? true}
+          close={group?.closeFriends ?? false}
+          hasStory={Boolean(group)}
+        >
+          <Avatar name={name} id={userId} src={avatarUrl} size="lg" />
+        </StoryRing>
+
+        {!group && (
+          <span
+            className={cn(
+              'absolute -right-0.5 -bottom-0.5 grid size-6 place-items-center',
+              'rounded-full bg-brand-gradient text-white ring-2 ring-page',
+            )}
+            aria-hidden
+          >
+            <PlusIcon size={14} />
+          </span>
+        )}
+      </span>
+
+      <span className="w-full truncate text-caption text-text-secondary">You</span>
+    </button>
   );
 }
 
@@ -127,10 +240,12 @@ export function StoriesRow({
  */
 function StoryRing({
   seen,
+  close,
   hasStory,
   children,
 }: {
   seen: boolean;
+  close: boolean;
   hasStory: boolean;
   children: React.ReactNode;
 }) {
@@ -138,26 +253,30 @@ function StoryRing({
     <span
       className={cn(
         /*
-          67px across: a 56px avatar, 5px of inner gap, 6px of gradient.
+          67px across: a 56px avatar, 5px of inner gap, 6px of ring.
 
-          The gradient band is what says "there is a story here", so it is the
-          part that got thicker — 3px rather than 2.5px. Growing the avatar
-          instead made the whole rail shout; the ring is the signal, and the
-          face is just what it surrounds.
+          The band is what says "there is a story here", so it is the part that
+          got thicker — 3px rather than 2.5px. Growing the avatar instead made
+          the whole rail shout; the ring is the signal, and the face is just
+          what it surrounds.
         */
         'grid shrink-0 place-items-center rounded-full p-[3px]',
         !hasStory
           ? 'bg-transparent'
-          : seen
-            ? 'bg-line-strong'
-            // Unseen gets a brand-tinted glow as well as the gradient. Colour
-            // alone is easy to miss on a bright screen; the halo is what makes
-            // the circle read as lit from across the room.
-            : 'bg-brand-gradient shadow-brand',
+          : close
+            ? seen
+              ? 'bg-online/40'
+              : 'bg-online shadow-sm'
+            : seen
+              ? 'bg-line-strong'
+              : // Unseen gets a brand-tinted glow as well as the gradient.
+                // Colour alone is easy to miss on a bright screen; the halo is
+                // what makes the circle read as lit from across the room.
+                'bg-brand-gradient shadow-brand',
       )}
     >
       {/*
-        The inner ring separates the avatar from the gradient.
+        The inner ring separates the avatar from the band.
 
         `grid`, and it has to be. As a plain inline span this box formed a line
         box around the avatar, and the avatar is `inline-flex` — so it sat on the

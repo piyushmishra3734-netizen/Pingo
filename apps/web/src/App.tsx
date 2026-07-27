@@ -32,6 +32,7 @@ import { NewChatScreen } from './screens/NewChatScreen.js';
 import { NotificationsScreen as NotificationsFeedScreen } from './screens/NotificationsScreen.js';
 import { EditProfileScreen } from './screens/EditProfileScreen.js';
 import { ProfileScreen } from './screens/ProfileScreen.js';
+import { StoryArchiveScreen } from './screens/StoryArchiveScreen.js';
 import { SettingsScreen } from './screens/SettingsScreen.js';
 import { AccountScreen } from './screens/settings/AccountScreen.js';
 import { AdvancedScreen } from './screens/settings/AdvancedScreen.js';
@@ -256,6 +257,8 @@ export function App() {
                   <Route path="/profile/edit" element={<EditProfileScreen />} />
                   {/* Accepts a handle or a user id — see `ProfileService.find`. */}
                   <Route path="/profile/:handle" element={<ProfileScreen />} />
+                  {/* Private, and owner-only by the read policy rather than by this route. */}
+                  <Route path="/stories/archive" element={<StoryArchiveScreen />} />
                   <Route path="/settings" element={<SettingsScreen />} />
                   <Route path="/settings/account" element={<AccountScreen />} />
                   <Route path="/settings/appearance" element={<AppearanceScreen />} />

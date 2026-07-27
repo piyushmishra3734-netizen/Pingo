@@ -27,6 +27,8 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
+import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
+import { StoryComposer } from '../stories/StoryComposer.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
 import { useStories } from '../stories/StoryContext.js';
 import { ChatListBody, ChatListEmpty } from './ChatListBody.js';
@@ -64,7 +66,7 @@ export function ConversationList({
 }: ConversationListProps) {
   const { conversations, ready, service } = useChat();
   const { profile } = useProfile();
-  const { groups: storyGroups, markSeen: markStorySeen } = useStories();
+  const { groups: storyGroups } = useStories();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const { unread } = useNotifications();
@@ -73,9 +75,9 @@ export function ConversationList({
   const confirm = useConfirm();
   const confirmUnmute = useUnmuteConfirm();
 
-  const [openStory, setOpenStory] = useState<
-    { group: StoryGroup; origin: DOMRect } | undefined
-  >();
+  const [openStory, setOpenStory] = useState<{ index: number; origin: DOMRect } | undefined>();
+  const [creating, setCreating] = useState(false);
+  const [managingStory, setManagingStory] = useState(false);
   const [query, setQuery] = useState('');
 
   /** Selection mode is "the set is non-empty", so there is no second flag. */
@@ -434,7 +436,16 @@ export function ConversationList({
                   {...(profile?.avatarUrl
                     ? { currentUserAvatarUrl: profile.avatarUrl }
                     : {})}
-                  onOpen={(group, origin) => setOpenStory({ group, origin })}
+                  onOpen={(group, origin) =>
+                    setOpenStory({
+                      // The index, not the group: the viewer runs the whole
+                      // queue and needs to know where in it to start.
+                      index: storyGroups.indexOf(group),
+                      origin,
+                    })
+                  }
+                  onCreate={() => setCreating(true)}
+                  onManageMine={() => setManagingStory(true)}
                 />
               </div>
             ) : undefined
@@ -452,10 +463,29 @@ export function ConversationList({
 
       {openStory && (
         <StoryViewer
-          group={openStory.group}
+          groups={storyGroups}
+          startGroupIndex={openStory.index}
+          currentUserId={profile?.id}
           origin={openStory.origin}
           onClose={() => setOpenStory(undefined)}
-          onSeen={(storyId) => void markStorySeen(storyId)}
+        />
+      )}
+
+      {creating && (
+        <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} />
+      )}
+
+      {managingStory && (
+        <MyStoryManageSheet
+          onClose={() => setManagingStory(false)}
+          onAdd={() => {
+            setManagingStory(false);
+            setCreating(true);
+          }}
+          onArchive={() => {
+            setManagingStory(false);
+            navigate('/stories/archive');
+          }}
         />
       )}
 
