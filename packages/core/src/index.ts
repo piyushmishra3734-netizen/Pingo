@@ -132,6 +132,10 @@ export {
   type PasswordStrength,
 } from './password-policy.js';
 
+// Links inside a message: a product rule about what a message means.
+export type { MessageSegment, TextSegment, LinkSegment } from './linkify.js';
+export { linkify, hasLink } from './linkify.js';
+
 // Formatting (product rules, not styling)
 export {
   formatTime,

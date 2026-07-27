@@ -7,6 +7,7 @@ import {
   cn,
 } from '@pingo/ui';
 
+import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { SnapBubble } from './SnapBubble.js';
 import { VoiceNote } from './VoiceNote.js';
@@ -314,7 +315,7 @@ export function MessageBubble({
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
             <p className="text-body break-words whitespace-pre-wrap">
-              {message.body}
+              <MessageText body={message.body} mine={mine} />
               {message.editedAt && (
                 /*
                  * Inside the bubble, on the edited message itself — not with

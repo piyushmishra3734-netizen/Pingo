@@ -2,6 +2,8 @@ import { useChat, type Message, type PhotoRef } from '@pingo/core';
 import { EyeIcon, ImageIcon, PingoDot, cn } from '@pingo/ui';
 import { useState } from 'react';
 
+import { MessageText } from './MessageText.js';
+
 /**
  * A photo in the thread.
  *
@@ -132,7 +134,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
               mine ? 'bg-brand-gradient text-white' : 'bg-surface text-ink shadow-sm',
             )}
           >
-            {caption}
+            <MessageText body={caption} mine={mine} />
           </p>
         )}
       </div>
