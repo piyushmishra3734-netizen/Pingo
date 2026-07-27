@@ -148,7 +148,22 @@ export function useStoryPlayer({
     let last = performance.now();
 
     const tick = (now: number) => {
-      const delta = now - last;
+      /*
+       * Clamped, and this is not defensive padding.
+       *
+       * `requestAnimationFrame` stops entirely in a hidden tab — which is the
+       * reason it is used here, so a story does not run out while nobody is
+       * looking. But it means the *first* frame after coming back carries the
+       * whole time the tab was away: switch away for two minutes and that one
+       * delta is 120,000ms, which completes this story and every story after it
+       * in a single frame. You would return to find the rail empty and
+       * everything marked seen.
+       *
+       * A frame longer than a quarter second did not happen; the clock was
+       * suspended. Treating it as one ordinary frame is what makes coming back
+       * resume where you left off.
+       */
+      const delta = Math.min(now - last, 250);
       last = now;
 
       progressRef.current = Math.min(1, progressRef.current + delta / durationRef.current);
