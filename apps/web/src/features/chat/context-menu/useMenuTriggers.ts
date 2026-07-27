@@ -81,6 +81,29 @@ export interface MenuTriggers {
   openFromButton: () => void;
 }
 
+/**
+ * Whether a tap landed on something that already does its own job.
+ *
+ * A bubble is not always inert. It can hold a voice note's play button and seek
+ * bar, a link, a photo's cover, a reaction pill — and tapping any of those was
+ * also opening the reaction bar over the top, because the tap bubbled up to the
+ * trigger. On a phone that made a voice note nearly unplayable: every press of
+ * play summoned the emoji row.
+ *
+ * Checked here rather than by adding `stopPropagation` to each control, so a
+ * control added later cannot forget. Only the *reaction* tap is suppressed —
+ * long press, right-click and the keyboard openers still work anywhere on the
+ * bubble, because those are deliberate and unambiguous.
+ */
+function isInteractive(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      'button, a, input, textarea, select, [role="button"], [role="slider"], [role="menuitem"]',
+    ),
+  );
+}
+
 export function useMessageMenu(): MenuTriggers {
   const [open, setOpen] = useState<MenuOpen | undefined>();
   const element = useRef<HTMLElement | null>(null);
@@ -148,6 +171,9 @@ export function useMessageMenu(): MenuTriggers {
 
         const drift = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
         if (drift > TAP_SLOP_PX) return;
+
+        // The tap was aimed at something inside the bubble that does its own job.
+        if (isInteractive(event.target)) return;
 
         openAtBubble('reactions');
       },

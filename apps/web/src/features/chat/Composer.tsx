@@ -43,6 +43,15 @@ export interface ComposerProps {
 /** Growth cap, in px. Roughly six lines before the field starts to scroll. */
 const MAX_HEIGHT = 140;
 
+/**
+ * How long the microphone must be held before it counts as hold-to-record.
+ *
+ * Shorter than a long press, because this is not a hidden gesture being
+ * discovered — the button is already the record button, and the only question
+ * is whether the finger stayed. Long enough that a firm tap is still a tap.
+ */
+const HOLD_MS = 220;
+
 export function Composer({
   onAttachGallery,
   onAttachCamera,
@@ -70,6 +79,19 @@ export function Composer({
   const hasText = value.trim().length > 0;
 
   const recorder = useVoiceRecorder();
+
+  /** Set while a press is being treated as hold-to-record. */
+  const heldRef = useRef(false);
+  const holdTimer = useRef<number | undefined>(undefined);
+
+  /** Ends the take and sends it, if there is enough of one to send. */
+  const sendRecording = () => {
+    void recorder.stop().then((take) => {
+      // Under the floor, or empty. Dropped rather than sent as a fraction of a
+      // second the other person has to open to find nothing in.
+      if (take) void onSendVoice?.(take);
+    });
+  };
 
   /** A short, self-clearing line for things the composer cannot do yet. */
   const [notice, setNotice] = useState<string>();
@@ -137,13 +159,7 @@ export function Composer({
       {recorder.recording ? (
         <VoiceRecorderBar
           recorder={recorder}
-          onSend={() => {
-            void recorder.stop().then((take) => {
-              // Too short to be a message. Discarded rather than sent as a
-              // quarter-second of nothing the other person has to open.
-              if (take) void onSendVoice?.(take);
-            });
-          }}
+          onSend={sendRecording}
         />
       ) : (
       <>
@@ -220,11 +236,53 @@ export function Composer({
           <SendIcon size={19} className="-translate-x-px translate-y-px" />
         </IconButton>
       ) : onSendVoice ? (
+        /*
+         * Both gestures, because both are things people already do.
+         *
+         * Hold and release sends, which is the phone habit. A quick tap starts
+         * recording and leaves it running, which is the only version that works
+         * with a mouse, and the only one usable by someone who cannot hold a
+         * press steady. Neither is a mode the user has to choose in advance —
+         * the button works out which one happened.
+         */
         <IconButton
           label="Record voice message"
           variant="filled"
           className="mb-0.5"
-          onClick={() => void recorder.start()}
+          onPointerDown={(event) => {
+            // Secondary buttons and the context menu are not this gesture.
+            if (event.button !== 0) return;
+            heldRef.current = false;
+            holdTimer.current = window.setTimeout(() => {
+              heldRef.current = true;
+              void recorder.start();
+            }, HOLD_MS);
+          }}
+          onPointerUp={() => {
+            if (holdTimer.current) window.clearTimeout(holdTimer.current);
+            holdTimer.current = undefined;
+
+            // Released after the hold took: that is the whole recording.
+            if (heldRef.current) {
+              heldRef.current = false;
+              sendRecording();
+              return;
+            }
+
+            // Released before it took: a tap, so recording stays running and
+            // the bar's own send button ends it.
+            void recorder.start();
+          }}
+          onPointerCancel={() => {
+            if (holdTimer.current) window.clearTimeout(holdTimer.current);
+            holdTimer.current = undefined;
+            // The gesture was taken away — a notification, a system sheet. The
+            // take is dropped rather than sent half-finished.
+            if (heldRef.current) {
+              heldRef.current = false;
+              recorder.cancel();
+            }
+          }}
         >
           <MicIcon size={20} />
         </IconButton>
