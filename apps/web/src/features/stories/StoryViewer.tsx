@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
+import { ShareStorySheet } from './ShareStorySheet.js';
 import { StoryActions } from './StoryActions.js';
 import { useStories } from './StoryContext.js';
 import { MyStoryMenu, OtherStoryMenu } from './StoryMenus.js';
@@ -77,6 +78,7 @@ export function StoryViewer({
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
 
@@ -276,17 +278,17 @@ export function StoryViewer({
     }
   };
 
-  const shareStory = async () => {
+  /*
+   * Sharing goes to a chat, not to the OS.
+   *
+   * The spec's destinations are a friend and a group, which are both inside the
+   * product — handing the URL to the system share sheet would be a different
+   * feature that happens to share the word. The sheet also enforces the rule
+   * that a close-friends or specific-people story cannot be passed on at all.
+   */
+  const shareStory = () => {
     setMenuOpen(false);
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ url: storyUrl });
-        return;
-      } catch {
-        // Cancelled, or refused. Fall through to the clipboard.
-      }
-    }
-    await navigator.clipboard.writeText(storyUrl).catch(() => undefined);
+    setSharing(true);
   };
 
   const toggleMute = async () => {
@@ -447,7 +449,7 @@ export function StoryViewer({
               setMenuOpen(false);
               setViewersOpen(true);
             }}
-            onShare={() => void shareStory()}
+            onShare={shareStory}
             onClose={() => setMenuOpen(false)}
           />
         ) : (
@@ -473,6 +475,8 @@ export function StoryViewer({
         ))}
 
       {viewersOpen && <StoryViewersSheet story={story} onClose={() => setViewersOpen(false)} />}
+
+      {sharing && <ShareStorySheet story={story} onClose={() => setSharing(false)} />}
     </Overlay>
   );
 }

@@ -1,6 +1,8 @@
 import { CheckIcon, CloseIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useStickers } from '../stickers/StickerContext.js';
+
 /**
  * The edit stage: draw on the snap, put text on it, then hand back a flat image.
  *
@@ -34,16 +36,46 @@ interface Stroke {
   points: { x: number; y: number }[];
 }
 
-interface TextItem {
+/**
+ * Anything placed on top of the picture.
+ *
+ * Text, emoji and stickers are one type rather than three, because they are one
+ * thing to the user: something you put somewhere and then move. They differ
+ * only in what gets painted at export, and three parallel arrays would mean
+ * three copies of dragging, removal and the export loop.
+ */
+interface Item {
   id: string;
+  kind: 'text' | 'emoji' | 'sticker';
+  /** The words, the emoji, or the sticker's name for its alt text. */
   value: string;
+  /** Stickers only. Fetched with CORS at export so the canvas stays clean. */
+  url?: string;
   colour: string;
   /** Normalised centre. */
   x: number;
   y: number;
 }
 
-type Tool = 'none' | 'draw' | 'text';
+/** Normalised crop rectangle, 0–1 over the displayed frame. */
+interface Crop {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+type Tool = 'none' | 'draw' | 'text' | 'emoji' | 'sticker' | 'crop';
+
+/**
+ * The emoji offered on the toolbar.
+ *
+ * A short row rather than the full picker. The picker is a panel with search
+ * and categories and belongs in a composer; here it would cover the picture you
+ * are decorating. Anything not on this row can still be typed into a text
+ * label, which is how most emoji reach an image anyway.
+ */
+const QUICK_EMOJI = ['😂', '❤️', '🔥', '😮', '😢', '✨', '👀', '🎉', '💯', '🙏'];
 
 export function SnapEditor({
   src,
@@ -69,10 +101,23 @@ export function SnapEditor({
   const [tool, setTool] = useState<Tool>('none');
   const [colour, setColour] = useState(COLOURS[0]!);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [texts, setTexts] = useState<TextItem[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const drawing = useRef<Stroke | undefined>(undefined);
   /** Quarter turns, clockwise. Applied at export, previewed with a transform. */
   const [rotation, setRotation] = useState(0);
+  /** Absent means the whole frame. Applied at export, previewed as a mask. */
+  const [crop, setCrop] = useState<Crop | undefined>();
+
+  const addItem = useCallback(
+    (item: Omit<Item, 'id' | 'x' | 'y'>) =>
+      setItems((all) => [
+        ...all,
+        // Slightly above centre, where the thumb is not, so a new item is
+        // never dropped underneath the finger that asked for it.
+        { ...item, id: crypto.randomUUID(), x: 0.5, y: 0.4 },
+      ]),
+    [],
+  );
 
   // ---- drawing ------------------------------------------------------------
 
@@ -179,7 +224,50 @@ export function SnapEditor({
     context.textAlign = 'center';
     context.textBaseline = 'middle';
 
-    for (const text of texts) {
+    /*
+     * Stickers first, fetched with CORS.
+     *
+     * Drawing a cross-origin image onto a canvas taints it, and a tainted
+     * canvas throws on `toBlob` — the export would fail at the very last step,
+     * after the user had done all the work. `crossOrigin = 'anonymous'` asks
+     * for the CORS headers that keep it clean; the packs are served from a CDN
+     * that sends them. A sticker that will not load is skipped rather than
+     * taking the whole picture down with it.
+     */
+    await Promise.all(
+      items
+        .filter((item) => item.kind === 'sticker' && item.url)
+        .map(
+          (item) =>
+            new Promise<void>((resolve) => {
+              const sticker = new Image();
+              sticker.crossOrigin = 'anonymous';
+              sticker.onload = () => {
+                const size = height * 0.18;
+                const ratio = sticker.naturalWidth / sticker.naturalHeight || 1;
+                const w = ratio >= 1 ? size : size * ratio;
+                const h = ratio >= 1 ? size / ratio : size;
+                context.drawImage(sticker, item.x * width - w / 2, item.y * height - h / 2, w, h);
+                resolve();
+              };
+              sticker.onerror = () => resolve();
+              sticker.src = item.url!;
+            }),
+        ),
+    );
+
+    // Emoji: painted as text, but larger and without the plate a label gets.
+    const emojiSize = Math.round(height * 0.12);
+    for (const item of items) {
+      if (item.kind !== 'emoji') continue;
+      context.font = `${emojiSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+      context.fillText(item.value, item.x * width, item.y * height);
+    }
+
+    context.font = `600 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
+
+    for (const text of items) {
+      if (text.kind !== 'text') continue;
       const value = text.value.trim();
       if (!value) continue;
 
@@ -210,11 +298,22 @@ export function SnapEditor({
       context.fillText(value, x, y);
     }
 
+    /*
+     * Crop last, and after rotation on purpose.
+     *
+     * The rectangle was dragged over the picture as it looked on screen — which
+     * is the rotated picture. Cropping the source before turning it would apply
+     * the user's rectangle to a different orientation and cut out the wrong
+     * part; doing it here means "what was inside the box" is exactly what comes
+     * out, whatever else was done first.
+     */
+    const finished = crop ? cropCanvas(out, crop) : out;
+
     const blob = await new Promise<Blob | null>((resolve) =>
-      out.toBlob(resolve, 'image/jpeg', 0.92),
+      finished.toBlob(resolve, 'image/jpeg', 0.92),
     );
     if (blob) onDone(blob);
-  }, [strokes, texts, rotation, onDone]);
+  }, [strokes, items, rotation, crop, onDone]);
 
   // ---- render -------------------------------------------------------------
 
@@ -255,17 +354,23 @@ export function SnapEditor({
 
         <canvas ref={canvasRef} className="absolute inset-0 size-full" />
 
-        {texts.map((text) => (
-          <DraggableText
-            key={text.id}
-            item={text}
+        {items.map((item) => (
+          <DraggableItem
+            key={item.id}
+            item={item}
             frameRef={frameRef}
-            onChange={(next) =>
-              setTexts((all) => all.map((t) => (t.id === next.id ? next : t)))
-            }
-            onRemove={() => setTexts((all) => all.filter((t) => t.id !== text.id))}
+            onChange={(next) => setItems((all) => all.map((t) => (t.id === next.id ? next : t)))}
+            onRemove={() => setItems((all) => all.filter((t) => t.id !== item.id))}
           />
         ))}
+
+        {tool === 'crop' && (
+          <CropOverlay
+            crop={crop ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }}
+            frameRef={frameRef}
+            onChange={setCrop}
+          />
+        )}
 
         <button
           type="button"
@@ -285,14 +390,36 @@ export function SnapEditor({
           </ToolButton>
           <ToolButton
             active={false}
-            onClick={() =>
-              setTexts((all) => [
-                ...all,
-                { id: crypto.randomUUID(), value: 'Tap to edit', colour, x: 0.5, y: 0.4 },
-              ])
-            }
+            onClick={() => addItem({ kind: 'text', value: 'Tap to edit', colour })}
           >
             Text
+          </ToolButton>
+          <ToolButton
+            active={tool === 'emoji'}
+            onClick={() => setTool(tool === 'emoji' ? 'none' : 'emoji')}
+          >
+            Emoji
+          </ToolButton>
+          <ToolButton
+            active={tool === 'sticker'}
+            onClick={() => setTool(tool === 'sticker' ? 'none' : 'sticker')}
+          >
+            Stickers
+          </ToolButton>
+          <ToolButton
+            active={tool === 'crop'}
+            onClick={() => {
+              if (tool === 'crop') {
+                setTool('none');
+                return;
+              }
+              setTool('crop');
+              // Opening the tool proposes a crop rather than making the user
+              // draw one from nothing on top of their own picture.
+              setCrop((current) => current ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+            }}
+          >
+            Crop
           </ToolButton>
           {/*
             A quarter turn per press, which is the whole of rotation as anyone
@@ -310,6 +437,44 @@ export function SnapEditor({
             Undo
           </ToolButton>
         </div>
+
+        {tool === 'emoji' && (
+          <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1">
+            {QUICK_EMOJI.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                aria-label={`Add ${emoji}`}
+                onClick={() => addItem({ kind: 'emoji', value: emoji, colour })}
+                className={cn(
+                  'focus-ring grid size-10 shrink-0 place-items-center rounded-full text-[1.4rem]',
+                  'transition-transform duration-instant hover:bg-white/10 active:scale-125',
+                )}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tool === 'sticker' && (
+          <StickerStrip
+            onPick={(sticker) =>
+              addItem({ kind: 'sticker', value: sticker.name, url: sticker.url, colour })
+            }
+          />
+        )}
+
+        {tool === 'crop' && (
+          <div className="flex items-center justify-center gap-2">
+            <ToolButton active={false} onClick={() => setCrop(undefined)}>
+              Reset crop
+            </ToolButton>
+            <ToolButton active={false} onClick={() => setTool('none')}>
+              Done cropping
+            </ToolButton>
+          </div>
+        )}
 
         {/* Caption, view limit — supplied by whoever is using the editor. */}
         {extras}
@@ -379,20 +544,214 @@ function ToolButton({
 }
 
 /**
- * One text label: draggable, editable in place, removable.
+ * Crops a finished canvas to a normalised rectangle.
+ *
+ * Rounded to whole pixels, and never to nothing: a rectangle dragged to a
+ * hairline would otherwise produce a zero-width canvas, which `toBlob` answers
+ * with `null` and the caller reads as "the export failed".
+ */
+function cropCanvas(source: HTMLCanvasElement, crop: Crop): HTMLCanvasElement {
+  const sx = Math.round(crop.x * source.width);
+  const sy = Math.round(crop.y * source.height);
+  const sw = Math.max(1, Math.round(crop.w * source.width));
+  const sh = Math.max(1, Math.round(crop.h * source.height));
+
+  const out = document.createElement('canvas');
+  out.width = sw;
+  out.height = sh;
+  out.getContext('2d')?.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
+  return out;
+}
+
+/**
+ * The crop rectangle: drag inside to move it, drag a corner to resize.
+ *
+ * Four corners rather than eight handles. Edge handles are the difference
+ * between adjusting one side and adjusting two, which matters on a desktop with
+ * a mouse and is a coin toss on a phone where the handle is smaller than the
+ * fingertip. Corners cover both cases with half the targets.
+ *
+ * Everything outside the rectangle is dimmed rather than hidden, so the picture
+ * you are cutting from stays visible while you decide.
+ */
+function CropOverlay({
+  crop,
+  frameRef,
+  onChange,
+}: {
+  crop: Crop;
+  frameRef: React.RefObject<HTMLDivElement | null>;
+  onChange: (crop: Crop) => void;
+}) {
+  const drag = useRef<
+    { corner: string | undefined; x: number; y: number; from: Crop } | undefined
+  >(undefined);
+
+  const at = (event: React.PointerEvent) => {
+    const rect = frameRef.current?.getBoundingClientRect();
+    if (!rect) return undefined;
+    return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+  };
+
+  const start = (corner: string | undefined) => (event: React.PointerEvent) => {
+    event.stopPropagation();
+    const point = at(event);
+    if (!point) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { corner, x: point.x, y: point.y, from: crop };
+  };
+
+  const move = (event: React.PointerEvent) => {
+    const state = drag.current;
+    const point = at(event);
+    if (!state || !point) return;
+
+    const dx = point.x - state.x;
+    const dy = point.y - state.y;
+    const { from } = state;
+    // Never smaller than a tenth of the frame, so the rectangle cannot be lost.
+    const MIN = 0.1;
+
+    if (!state.corner) {
+      onChange({
+        ...from,
+        x: Math.min(1 - from.w, Math.max(0, from.x + dx)),
+        y: Math.min(1 - from.h, Math.max(0, from.y + dy)),
+      });
+      return;
+    }
+
+    const left = state.corner.includes('w');
+    const top = state.corner.includes('n');
+
+    const x = left ? Math.min(from.x + from.w - MIN, Math.max(0, from.x + dx)) : from.x;
+    const y = top ? Math.min(from.y + from.h - MIN, Math.max(0, from.y + dy)) : from.y;
+    const w = left ? from.x + from.w - x : Math.min(1 - from.x, Math.max(MIN, from.w + dx));
+    const h = top ? from.y + from.h - y : Math.min(1 - from.y, Math.max(MIN, from.h + dy));
+
+    onChange({ x, y, w, h });
+  };
+
+  const end = () => {
+    drag.current = undefined;
+  };
+
+  const corners = [
+    ['nw', 'top-0 left-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize'],
+    ['ne', 'top-0 right-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize'],
+    ['sw', 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize'],
+    ['se', 'bottom-0 right-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize'],
+  ] as const;
+
+  return (
+    <div className="absolute inset-0 touch-none" onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+      {/* The dimmed surround, drawn as four bands rather than a hole. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 bg-ink/55" style={{ height: `${crop.y * 100}%` }} />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/55"
+        style={{ height: `${(1 - crop.y - crop.h) * 100}%` }}
+      />
+      <div
+        className="pointer-events-none absolute left-0 bg-ink/55"
+        style={{ top: `${crop.y * 100}%`, height: `${crop.h * 100}%`, width: `${crop.x * 100}%` }}
+      />
+      <div
+        className="pointer-events-none absolute right-0 bg-ink/55"
+        style={{
+          top: `${crop.y * 100}%`,
+          height: `${crop.h * 100}%`,
+          width: `${(1 - crop.x - crop.w) * 100}%`,
+        }}
+      />
+
+      <div
+        role="group"
+        aria-label="Crop area"
+        onPointerDown={start(undefined)}
+        style={{
+          left: `${crop.x * 100}%`,
+          top: `${crop.y * 100}%`,
+          width: `${crop.w * 100}%`,
+          height: `${crop.h * 100}%`,
+        }}
+        className="absolute cursor-move border-2 border-white/90"
+      >
+        {corners.map(([corner, position]) => (
+          <span
+            key={corner}
+            role="slider"
+            tabIndex={0}
+            aria-label={`Crop ${corner} corner`}
+            aria-valuenow={Math.round(crop.w * 100)}
+            onPointerDown={start(corner)}
+            className={cn('absolute size-6 rounded-full border-2 border-white bg-ink/70', position)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A horizontal strip of stickers from the installed packs.
+ *
+ * Deliberately not the full `StickerPicker`: that is a tall panel with search
+ * and categories, and over a picture you are decorating it would cover the
+ * thing you are working on. A strip keeps the image visible, which is the only
+ * way to judge where a sticker should go.
+ */
+function StickerStrip({ onPick }: { onPick: (sticker: { name: string; url: string }) => void }) {
+  const { packs, loading } = useStickers();
+  const stickers = packs.flatMap((pack) => pack.stickers).slice(0, 40);
+
+  if (loading) {
+    return <p className="py-2 text-center text-caption text-white/60">Loading stickers…</p>;
+  }
+  if (stickers.length === 0) {
+    return (
+      <p className="py-2 text-center text-caption text-white/60">
+        No sticker packs installed yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-1">
+      {stickers.map((sticker) => (
+        <button
+          key={sticker.id}
+          type="button"
+          onClick={() => onPick(sticker)}
+          aria-label={`Add sticker ${sticker.name}`}
+          className={cn(
+            'focus-ring size-12 shrink-0 rounded-lg p-1',
+            'transition-transform duration-instant hover:bg-white/10 active:scale-110',
+          )}
+        >
+          <img src={sticker.url} alt="" loading="lazy" className="size-full object-contain" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One placed item: draggable, removable, and editable when it is text.
  *
  * `contentEditable` rather than an `<input>` so the chip grows with the words
- * and wraps like the exported version does.
+ * and wraps like the exported version does. Emoji and stickers are not
+ * editable — there is nothing in them to edit — so they get the drag and the
+ * remove button and nothing else.
  */
-function DraggableText({
+function DraggableItem({
   item,
   frameRef,
   onChange,
   onRemove,
 }: {
-  item: TextItem;
+  item: Item;
   frameRef: React.RefObject<HTMLDivElement | null>;
-  onChange: (item: TextItem) => void;
+  onChange: (item: Item) => void;
   onRemove: () => void;
 }) {
   const dragging = useRef(false);
@@ -422,20 +781,38 @@ function DraggableText({
       }}
     >
       <div className="flex items-center gap-1.5">
-        <span
-          role="textbox"
-          tabIndex={0}
-          contentEditable
-          suppressContentEditableWarning
-          style={{ color: item.colour }}
-          onBlur={(event) => onChange({ ...item, value: event.currentTarget.textContent ?? '' })}
-          className="focus-ring max-w-[70vw] rounded-lg bg-black/40 px-3 py-1.5 text-h2 outline-none"
-        >
-          {item.value}
-        </span>
+        {item.kind === 'text' && (
+          <span
+            role="textbox"
+            tabIndex={0}
+            contentEditable
+            suppressContentEditableWarning
+            style={{ color: item.colour }}
+            onBlur={(event) => onChange({ ...item, value: event.currentTarget.textContent ?? '' })}
+            className="focus-ring max-w-[70vw] rounded-lg bg-black/40 px-3 py-1.5 text-h2 outline-none"
+          >
+            {item.value}
+          </span>
+        )}
+
+        {item.kind === 'emoji' && (
+          <span className="text-[3rem] leading-none select-none" aria-label={item.value}>
+            {item.value}
+          </span>
+        )}
+
+        {item.kind === 'sticker' && item.url && (
+          <img
+            src={item.url}
+            alt={item.value}
+            draggable={false}
+            className="size-24 object-contain select-none"
+          />
+        )}
+
         <button
           type="button"
-          aria-label="Remove text"
+          aria-label={`Remove ${item.kind === 'text' ? 'text' : item.value}`}
           onClick={onRemove}
           className="focus-ring grid size-6 shrink-0 place-items-center rounded-full bg-black/50 text-white"
         >
