@@ -4,6 +4,7 @@ import {
   FlagIcon,
   LinkIcon,
   MuteIcon,
+  PlusIcon,
   QrIcon,
   SettingsIcon,
   cn,
@@ -28,11 +29,16 @@ import { Sheet, SheetCancel, SheetItem } from './Sheet.js';
  */
 
 export function MyProfileMenu({
+  onNewPost,
+  postsFull,
   onEdit,
   onShare,
   onSettings,
   onClose,
 }: {
+  onNewPost: () => void;
+  /** Three already. The action becomes a replacement rather than an addition. */
+  postsFull: boolean;
   onEdit: () => void;
   onShare: () => void;
   onSettings: () => void;
@@ -41,6 +47,21 @@ export function MyProfileMenu({
   return (
     <Sheet title="Profile" hideTitle onClose={onClose}>
       <div className="flex flex-col gap-1">
+        {/*
+          The only way to post once the grid is full.
+
+          The empty slots in the grid are the obvious route to a first, second
+          and third post — and they are gone by definition when there are three,
+          which left the replace flow with nothing to trigger it. This is the
+          entry that is always there, and it says which of the two things it is
+          about to do.
+        */}
+        <SheetItem
+          icon={<PlusIcon size={20} />}
+          label={postsFull ? 'Replace a post' : 'New post'}
+          hint={postsFull ? 'A profile holds three' : undefined}
+          onClick={onNewPost}
+        />
         <SheetItem icon={<EditIcon size={20} />} label="Edit profile" onClick={onEdit} />
         <SheetItem icon={<QrIcon size={20} />} label="Share profile" onClick={onShare} />
         <SheetItem

@@ -219,6 +219,19 @@ export function ProfileScreen() {
 
   // ---- actions ------------------------------------------------------------
 
+  /**
+   * Starting a post, from wherever it was started.
+   *
+   * The grid's empty slots and the profile menu both land here, and the rule
+   * lives in one place: with room, pick a picture; without, choose which of the
+   * three it replaces first. Duplicating that check in two callers is how one
+   * of them ends up allowing a fourth.
+   */
+  const startPost = () => {
+    if ((posts?.length ?? 0) >= 3) setReplacing(true);
+    else postFileRef.current?.click();
+  };
+
   const openMessage = async () => {
     try {
       const id = conversation?.id ?? (await chat.startDirectConversation(person.id));
@@ -468,12 +481,7 @@ export function ProfileScreen() {
               posts={posts}
               isSelf={isSelf}
               onOpen={setViewing}
-              onAdd={() => {
-                // Three already: the fourth upload is a replacement, and saying
-                // so before the picture is chosen is kinder than after.
-                if (posts.length >= 3) setReplacing(true);
-                else postFileRef.current?.click();
-              }}
+              onAdd={startPost}
             />
           )}
         </div>
@@ -514,6 +522,11 @@ export function ProfileScreen() {
 
       {menuOpen && isSelf && (
         <MyProfileMenu
+          postsFull={(posts?.length ?? 0) >= 3}
+          onNewPost={() => {
+            setMenuOpen(false);
+            startPost();
+          }}
           onEdit={() => {
             setMenuOpen(false);
             navigate('/profile/edit');
