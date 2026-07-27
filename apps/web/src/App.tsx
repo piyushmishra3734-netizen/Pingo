@@ -29,6 +29,7 @@ import { CommunitiesScreen } from './screens/CommunitiesScreen.js';
 import { FollowRequestsScreen } from './screens/FollowRequestsScreen.js';
 import { NewChatScreen } from './screens/NewChatScreen.js';
 import { NotificationsScreen as NotificationsFeedScreen } from './screens/NotificationsScreen.js';
+import { EditProfileScreen } from './screens/EditProfileScreen.js';
 import { ProfileScreen } from './screens/ProfileScreen.js';
 import { SettingsScreen } from './screens/SettingsScreen.js';
 import { AccountScreen } from './screens/settings/AccountScreen.js';
@@ -244,6 +245,9 @@ export function App() {
                   <Route path="/notifications" element={<NotificationsFeedScreen />} />
                   <Route path="/requests" element={<FollowRequestsScreen />} />
                   <Route path="/profile" element={<ProfileScreen />} />
+                  {/* Before `:handle`, or "edit" would be read as a username. */}
+                  <Route path="/profile/edit" element={<EditProfileScreen />} />
+                  {/* Accepts a handle or a user id — see `ProfileService.find`. */}
                   <Route path="/profile/:handle" element={<ProfileScreen />} />
                   <Route path="/settings" element={<SettingsScreen />} />
                   <Route path="/settings/account" element={<AccountScreen />} />

@@ -31,8 +31,30 @@ export type ProfileRow = {
   display_name: string;
   /** Null means the monogram, which is a real default rather than a gap. */
   avatar_url: string | null;
+  /** Free text, up to 200 characters. Null and empty both mean "not set". */
+  bio: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** One row of `public.posts`. Three per author, enforced by a trigger. */
+export type PostRow = {
+  id: string;
+  author_id: string;
+  /** A path in the private `posts` bucket, never a URL. */
+  image_path: string;
+  caption: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One row of `public.post_comments`. */
+export type PostCommentRow = {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
 };
 
 /** One row of `public.conversations`. */
@@ -301,12 +323,64 @@ export type Database = {
           username: string;
           display_name: string;
           avatar_url?: string | null;
+          bio?: string | null;
         };
         Update: {
           username?: string;
           display_name?: string;
           avatar_url?: string | null;
+          bio?: string | null;
         };
+        Relationships: [];
+      };
+      posts: {
+        Row: PostRow;
+        Insert: { author_id: string; image_path: string; caption?: string | null };
+        Update: { image_path?: string; caption?: string | null };
+        Relationships: [];
+      };
+      post_likes: {
+        Row: { post_id: string; user_id: string; created_at: string };
+        Insert: { post_id: string; user_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      post_saves: {
+        Row: { post_id: string; user_id: string; created_at: string };
+        Insert: { post_id: string; user_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      post_comments: {
+        Row: PostCommentRow;
+        Insert: { post_id: string; author_id: string; body: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      blocks: {
+        Row: { blocker_id: string; blocked_id: string; created_at: string };
+        Insert: { blocker_id: string; blocked_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      reports: {
+        Row: {
+          id: string;
+          reporter_id: string;
+          subject_user_id: string | null;
+          subject_post_id: string | null;
+          reason: string;
+          details: string | null;
+          created_at: string;
+        };
+        Insert: {
+          reporter_id: string;
+          subject_user_id?: string | null;
+          subject_post_id?: string | null;
+          reason: string;
+          details?: string | null;
+        };
+        Update: Record<string, never>;
         Relationships: [];
       };
     };
@@ -360,6 +434,20 @@ export type Database = {
       download_snap: {
         Args: { snap_id: string };
         Returns: undefined;
+      };
+      /** Posts, friends and groups for one person. Works for anyone. */
+      profile_stats: {
+        Args: { target: string };
+        Returns: { posts: number; friends: number; groups: number }[];
+      };
+      /** History between the caller and one other person. Never about two others. */
+      shared_with: {
+        Args: { other: string };
+        Returns: {
+          friends_since: string | null;
+          mutual_groups: number;
+          photos_shared: number;
+        }[];
       };
       /** Deletes every expired snap. Returns how many went. */
       purge_expired_snaps: {

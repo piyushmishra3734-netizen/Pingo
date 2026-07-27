@@ -24,6 +24,12 @@ export interface Profile {
   displayName: string;
   /** Absent means the monogram, which is a real default and not a gap. */
   avatarUrl?: string;
+  /**
+   * A short line about themselves. Free text — emoji, line breaks, a website,
+   * an @mention. Nothing in it is parsed for meaning at the boundary; the
+   * screen that renders it decides what a link or a mention looks like.
+   */
+  bio?: string;
   createdAt: number;
 }
 
@@ -32,6 +38,7 @@ export interface ProfileDraft {
   username: string;
   displayName: string;
   avatarUrl?: string;
+  bio?: string;
 }
 
 export type ProfileErrorCode =
@@ -39,8 +46,104 @@ export type ProfileErrorCode =
   | 'username_taken'
   /** The handle is not 3–20 of `[a-z0-9_]`. */
   | 'username_invalid'
+  /** A fourth post on a profile that already holds three. Replace one instead. */
+  | 'post_limit'
   | 'offline'
   | 'unknown';
+
+// ---------------------------------------------------------------------------
+// Posts
+// ---------------------------------------------------------------------------
+
+/**
+ * A post on a profile.
+ *
+ * PINGO allows three, permanently. That is a product decision rather than a
+ * storage one: a profile is a portrait, and three pictures is what a portrait
+ * needs. There is no feed for these to scroll in, which is why nothing here
+ * carries a cursor or a page.
+ *
+ * `imageUrl` is short-lived and signed — the bucket is private, so a URL held
+ * from an earlier read will stop working. Anything that keeps a post around
+ * should re-read it rather than cache the URL.
+ */
+export interface Post {
+  id: string;
+  authorId: string;
+  imageUrl: string;
+  caption?: string;
+  createdAt: number;
+  /** Set when the caption has been changed since posting. */
+  editedAt?: number;
+  likeCount: number;
+  likedByMe: boolean;
+  /** Saving is private: nobody else can see that this was saved. */
+  savedByMe: boolean;
+  commentCount: number;
+}
+
+/** A new post, or the replacement for an existing one. */
+export interface PostDraft {
+  image: Blob;
+  caption?: string;
+}
+
+export interface PostComment {
+  id: string;
+  postId: string;
+  author: Profile;
+  body: string;
+  createdAt: number;
+}
+
+/** The three numbers under a profile. Deliberately not followers and following. */
+export interface ProfileStats {
+  posts: number;
+  friends: number;
+  groups: number;
+}
+
+/**
+ * What the signed-in user and one other person have between them.
+ *
+ * PINGO's own idea, and the reason a profile here is not a copy of somebody
+ * else's: the interesting thing about a person you know is the history, not the
+ * audience. Only ever shown on the two profiles it concerns.
+ */
+export interface SharedHistory {
+  /** When the follow became mutual. Absent when they are not friends. */
+  friendsSince?: number;
+  mutualGroups: number;
+  photosShared: number;
+}
+
+/**
+ * One picture from a chat, for the owner's private Media tab.
+ *
+ * Not a post and never public: this is the pictures that have passed through
+ * someone's conversations, gathered so they can be found again. Only the owner
+ * of the profile can read it, which is enforced by row level security on the
+ * messages behind it rather than by this type.
+ */
+export interface ChatMediaItem {
+  /** The message it came from, so tapping it can open the conversation. */
+  id: string;
+  url: string;
+  createdAt: number;
+  conversationId: string;
+  /** True when the signed-in user sent it rather than received it. */
+  mine: boolean;
+}
+
+export type ReportReason = 'spam' | 'harassment' | 'nudity' | 'hate' | 'scam' | 'other';
+
+export interface ReportInput {
+  /** The person, the post, or both. At least one is required. */
+  userId?: string;
+  postId?: string;
+  reason: ReportReason;
+  details?: string;
+}
 
 export class ProfileError extends Error {
   readonly code: ProfileErrorCode;
@@ -55,6 +158,18 @@ export class ProfileError extends Error {
 export interface ProfileService {
   /** The signed-in user's profile, or `null` if sign-up has not created it yet. */
   getMine(): Promise<Profile | null>;
+
+  /**
+   * One person, by handle or by id.
+   *
+   * Both, in one call, because a profile link can carry either: `/profile/anaya`
+   * is what a user shares, and `/profile/<uuid>` is what a contact card in a
+   * chat produces. A caller that had to know which it held would guess, and the
+   * guess is what makes shared profile links break.
+   *
+   * `null` for a handle nobody has.
+   */
+  find(handleOrId: string): Promise<Profile | null>;
 
   /**
    * Whether a handle can be claimed.
@@ -123,6 +238,83 @@ export interface ProfileService {
    * per row would be a request per contact on every render.
    */
   listMutualIds(): Promise<string[]>;
+
+  // -- profile page ---------------------------------------------------------
+
+  /** Posts, friends and groups for one person. Works for anyone, not just you. */
+  stats(userId: string): Promise<ProfileStats>;
+
+  /**
+   * The history between the signed-in user and one other person.
+   *
+   * Takes one id rather than two, and can only ever answer about the caller —
+   * a profile cannot be used to inspect two other people's relationship.
+   */
+  sharedWith(userId: string): Promise<SharedHistory>;
+
+  // -- posts ----------------------------------------------------------------
+
+  /** Somebody's posts, newest first. Never more than three. */
+  listPosts(userId: string): Promise<Post[]>;
+
+  /**
+   * Publishes a post.
+   *
+   * @throws `ProfileError` with `post_limit` when the profile already holds
+   * three. The caller is expected to have offered a replacement before getting
+   * here — this is the backstop, not the user-facing rule.
+   */
+  createPost(draft: PostDraft): Promise<Post>;
+
+  /**
+   * Swaps the picture on an existing post, keeping its place and its comments.
+   *
+   * A replace rather than delete-then-create, because the fourth upload is
+   * supposed to take one of the three slots — and a delete followed by a failed
+   * upload would leave the profile with two.
+   */
+  replacePost(postId: string, draft: PostDraft): Promise<Post>;
+
+  /** Edits the words, not the picture. */
+  updatePostCaption(postId: string, caption: string): Promise<Post>;
+
+  deletePost(postId: string): Promise<void>;
+
+  setPostLiked(postId: string, liked: boolean): Promise<void>;
+
+  /** Private to the person saving. Nobody is told their post was saved. */
+  setPostSaved(postId: string, saved: boolean): Promise<void>;
+
+  /** Comments on a post, oldest first — the order a conversation reads in. */
+  listComments(postId: string): Promise<PostComment[]>;
+
+  addComment(postId: string, body: string): Promise<PostComment>;
+
+  /** Allowed for the comment's author and for the owner of the post. */
+  deleteComment(commentId: string): Promise<void>;
+
+  // -- private media --------------------------------------------------------
+
+  /**
+   * Pictures from the signed-in user's own conversations, newest first.
+   *
+   * Only ever their own: there is no user id here because there is no version
+   * of this that answers about somebody else.
+   */
+  listChatMedia(limit?: number): Promise<ChatMediaItem[]>;
+
+  // -- safety ---------------------------------------------------------------
+
+  isBlocked(userId: string): Promise<boolean>;
+
+  setBlocked(userId: string, blocked: boolean): Promise<void>;
+
+  /**
+   * Files a report. Fire and forget by design — nothing in the product reads
+   * these back, so there is no state for the caller to reflect afterwards
+   * beyond "thanks, we have it".
+   */
+  report(input: ReportInput): Promise<void>;
 }
 
 /**

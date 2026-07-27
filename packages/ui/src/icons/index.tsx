@@ -420,3 +420,98 @@ export const EyeOffIcon = (props: IconProps) => (
     <path d="m4 4 16 16" />
   </IconBase>
 );
+
+// ---------------------------------------------------------------------------
+// Profile — posts, and what a person can do with one
+// ---------------------------------------------------------------------------
+
+/**
+ * Like.
+ *
+ * Stroke only, like every other glyph here. The liked state is expressed by
+ * passing `fill="currentColor"` rather than by a second icon, so the shape
+ * never shifts between the two states — only what is inside it.
+ */
+export const HeartIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M12 20.3s-7.6-4.6-7.6-9.5A4.3 4.3 0 0 1 12 8.1a4.3 4.3 0 0 1 7.6 2.7c0 4.9-7.6 9.5-7.6 9.5Z" />
+  </IconBase>
+);
+
+/** Save. Filled the same way `HeartIcon` is, for the same reason. */
+export const BookmarkIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M6.5 4.5h11a1 1 0 0 1 1 1v14l-6.5-4-6.5 4v-14a1 1 0 0 1 1-1Z" />
+  </IconBase>
+);
+
+/** Share: an arrow leaving a tray. */
+export const ShareIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M12 3.5v11" />
+    <path d="m8.2 7.3 3.8-3.8 3.8 3.8" />
+    <path d="M5.5 12.5v5a3 3 0 0 0 3 3h7a3 3 0 0 0 3-3v-5" />
+  </IconBase>
+);
+
+/** A comment — the chat bubble with the lines a written reply implies. */
+export const CommentIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M20.5 11.8a7.9 7.9 0 0 1-8 7.9 8.6 8.6 0 0 1-3.4-.7L4.5 20.5l1.3-4a7.9 7.9 0 0 1-.9-3.6 7.9 7.9 0 0 1 8-7.9 7.9 7.9 0 0 1 7.6 6.8Z" />
+  </IconBase>
+);
+
+/** The menu on a profile. Three lines, not three dots — this one opens a panel. */
+export const MenuIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M4.5 7h15" />
+    <path d="M4.5 12h15" />
+    <path d="M4.5 17h15" />
+  </IconBase>
+);
+
+/** A QR code: three finder squares and a hint of data. */
+export const QrIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.6" />
+    <rect x="14" y="3.5" width="6.5" height="6.5" rx="1.6" />
+    <rect x="3.5" y="14" width="6.5" height="6.5" rx="1.6" />
+    <path d="M14 14h3v3" />
+    <path d="M20.5 17.5v3" />
+    <path d="M14 20.5h3" />
+  </IconBase>
+);
+
+/** A link, as two joined halves of a chain. */
+export const LinkIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M10 13.8a3.6 3.6 0 0 0 5.1 0l2.9-2.9a3.6 3.6 0 0 0-5.1-5.1l-1.2 1.2" />
+    <path d="M14 10.2a3.6 3.6 0 0 0-5.1 0L6 13.1a3.6 3.6 0 0 0 5.1 5.1l1.2-1.2" />
+  </IconBase>
+);
+
+/** Report. A flag on a pole, which is the one gesture nobody misreads. */
+export const FlagIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M6 20.5V4" />
+    <path d="M6 5h9.6a.7.7 0 0 1 .5 1.2L14 8.5l2.1 2.3a.7.7 0 0 1-.5 1.2H6" />
+  </IconBase>
+);
+
+/** Block: the circle with a bar through it. */
+export const BlockIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="8.2" />
+    <path d="m6.2 6.2 11.6 11.6" />
+  </IconBase>
+);
+
+/** Replace one thing with another: two arrows swapping places. */
+export const SwapIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M4 8.5h13" />
+    <path d="m13.5 5 3.5 3.5-3.5 3.5" />
+    <path d="M20 15.5H7" />
+    <path d="M10.5 12 7 15.5l3.5 3.5" />
+  </IconBase>
+);

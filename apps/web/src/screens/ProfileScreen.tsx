@@ -1,294 +1,791 @@
-import { useChat, useProfile, type FollowState, type GalleryItem, type User } from '@pingo/core';
 import {
-  Avatar,
+  MUTE_DURATIONS,
+  useChat,
+  useProfile,
+  type ChatMediaItem,
+  type Post,
+  type Profile,
+  type ProfileStats,
+  type SharedHistory,
+} from '@pingo/core';
+import {
   Button,
   ChatIcon,
-  ChevronRightIcon,
-  GridIcon,
+  EditIcon,
+  EmptyState,
   IconButton,
-  ImageIcon,
   LoadingState,
+  MenuIcon,
+  MoreIcon,
   PhoneIcon,
-  PlayIcon,
-  Skeleton,
+  QrIcon,
   UsersIcon,
   VideoIcon,
   cn,
 } from '@pingo/ui';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
+import { useCall } from '../features/calls/CallProvider.js';
+import { useConversationActions } from '../features/conversations/useConversationActions.js';
+import { AnimatedCount } from '../features/profile/AnimatedCount.js';
+import { CaptionText } from '../features/profile/CaptionText.js';
 import { FollowButton } from '../features/profile/FollowButton.js';
+import { MediaEmpty, MediaGrid, MediaSkeleton } from '../features/profile/MediaGrid.js';
+import { PostComposer } from '../features/profile/PostComposer.js';
+import { PostGrid, PostGridSkeleton, PostsEmpty } from '../features/profile/PostGrid.js';
+import { PostViewer } from '../features/profile/PostViewer.js';
+import { ConfirmSheet, MyProfileMenu, PersonMenu } from '../features/profile/ProfileMenus.js';
+import { ProfileAvatar } from '../features/profile/ProfileAvatar.js';
+import { ReplacePostSheet } from '../features/profile/ReplacePostSheet.js';
+import { ReportSheet } from '../features/profile/ReportSheet.js';
+import { Sheet, SheetCancel } from '../features/profile/Sheet.js';
+import { ShareProfileSheet, profileLink } from '../features/profile/ShareProfileSheet.js';
+import { SharedWithPanel } from '../features/profile/SharedWithPanel.js';
+import { useMutuals } from '../features/profile/useMutuals.js';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
 
 /**
- * Profile — for the signed-in user at `/profile`, for anyone else at
- * `/profile/:handle`.
+ * Profile — yours at `/profile`, anyone else's at `/profile/:handle`.
  *
- * One component for both, because the page is the same page; only the action row
- * differs (Settings for yourself, Message and Call for someone else). Forking it
- * would mean two layouts to keep aligned for no gain.
+ * One component for both, because the page *is* the same page: the same photo,
+ * the same three numbers, the same posts. What differs is the action row and
+ * whether the private Media tab exists. Forking it would mean two layouts to
+ * keep aligned, and they would stop being aligned within a month.
  *
- * The header is a soft brand wash with the avatar overlapping its lower edge —
- * the treatment on the board. Below it, the gallery: a masonry-ish grid with
- * varied tile heights, so a set of photos looks like a collection rather than a
- * spreadsheet.
+ * ## What this page counts, and what it deliberately does not
+ *
+ * Posts, Friends, Groups. There are no followers and no following, and their
+ * absence is the point rather than an omission: a one-way follow in PINGO is a
+ * request, not a relationship, and an audience size is a number that changes how
+ * people behave about the thing they are posting. Friends is the count of mutual
+ * follows — people who agreed, both ways.
+ *
+ * ## Why the Media tab is only on your own profile
+ *
+ * It shows pictures from your conversations, some of which were sent to exactly
+ * one person. A Media tab on somebody else's profile could only ever be empty or
+ * wrong, and an always-empty tab that says "private" is a placeholder wearing a
+ * lock. So the tab bar has two tabs on your own profile and one on everybody
+ * else's — which is also what a reader expects, because the private half of a
+ * page does not exist on a page that is not yours.
  */
+
+type Tab = 'posts' | 'media';
+
 export function ProfileScreen() {
   const { handle } = useParams<{ handle: string }>();
-  const { currentUser, users, service } = useChat();
+  const { profile: mine, service: profiles } = useProfile();
+  const { users, conversations, service: chat } = useChat();
+  const { startCall } = useCall();
+  const { mute } = useConversationActions();
+  const mutuals = useMutuals();
   const navigate = useNavigate();
 
-  const isSelf = !handle || handle === currentUser?.handle;
-  const user: User | undefined = isSelf
-    ? currentUser
-    : users.find((u) => u.handle === handle);
+  const isSelf = !handle || handle === mine?.username || handle === mine?.id;
 
-  const [gallery, setGallery] = useState<GalleryItem[] | undefined>();
-  const [follow, setFollow] = useState<FollowState>();
-  const [pendingCount, setPendingCount] = useState(0);
-  const { service: profileService } = useProfile();
+  // ---- who ----------------------------------------------------------------
 
-  // Only for your own profile; nobody else's requests are yours to see.
-  useEffect(() => {
-    if (!isSelf) return;
-    let active = true;
-    void profileService
-      .listFollowRequests()
-      .then((list) => { if (active) setPendingCount(list.length); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, [profileService, isSelf]);
+  const [other, setOther] = useState<Profile | null | undefined>();
 
   useEffect(() => {
-    if (!user) return;
+    if (isSelf || !handle) {
+      setOther(undefined);
+      return;
+    }
     let active = true;
-    void service.listGallery(user.id).then((items) => {
-      if (active) setGallery(items);
-    });
+    setOther(undefined);
+    void profiles
+      .find(handle)
+      .then((found) => {
+        if (active) setOther(found);
+      })
+      .catch(() => {
+        if (active) setOther(null);
+      });
     return () => {
       active = false;
     };
-  }, [service, user]);
+  }, [profiles, handle, isSelf]);
 
-  if (!user) {
-    // Reached only for an unknown handle; the shell guarantees a session exists.
-    return <LoadingState label="Loading profile" />;
+  const person = isSelf ? mine : other;
+
+  // ---- what ---------------------------------------------------------------
+
+  const [stats, setStats] = useState<ProfileStats>();
+  const [posts, setPosts] = useState<Post[]>();
+  const [media, setMedia] = useState<ChatMediaItem[]>();
+  const [shared, setShared] = useState<SharedHistory>();
+  const [blocked, setBlocked] = useState(false);
+
+  const [tab, setTab] = useState<Tab>('posts');
+
+  // Switching between profiles must not leave the previous person's posts on
+  // screen while the new ones load.
+  useEffect(() => {
+    setPosts(undefined);
+    setStats(undefined);
+    setShared(undefined);
+    setTab('posts');
+  }, [handle]);
+
+  const personId = person?.id;
+
+  useEffect(() => {
+    if (!personId) return;
+    let active = true;
+
+    void profiles
+      .stats(personId)
+      .then((next) => { if (active) setStats(next); })
+      .catch(() => undefined);
+
+    void profiles
+      .listPosts(personId)
+      .then((next) => { if (active) setPosts(next); })
+      .catch(() => { if (active) setPosts([]); });
+
+    if (isSelf) {
+      void profiles
+        .listChatMedia()
+        .then((next) => { if (active) setMedia(next); })
+        .catch(() => { if (active) setMedia([]); });
+    } else {
+      void profiles
+        .sharedWith(personId)
+        .then((next) => { if (active) setShared(next); })
+        .catch(() => undefined);
+      void profiles
+        .isBlocked(personId)
+        .then((next) => { if (active) setBlocked(next); })
+        .catch(() => undefined);
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [profiles, personId, isSelf]);
+
+  const reload = useCallback(() => {
+    if (!personId) return;
+    void profiles.listPosts(personId).then(setPosts).catch(() => undefined);
+    void profiles.stats(personId).then(setStats).catch(() => undefined);
+  }, [profiles, personId]);
+
+  // ---- surfaces -----------------------------------------------------------
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [reporting, setReporting] = useState<{ postId?: string } | undefined>();
+  const [confirmBlock, setConfirmBlock] = useState(false);
+  const [viewing, setViewing] = useState<Post>();
+  const [replacing, setReplacing] = useState(false);
+  /** The file chosen for a new or replacement post, before the editor opens. */
+  const [pending, setPending] = useState<{ file: File; replaces?: Post }>();
+  const [editingCaption, setEditingCaption] = useState<Post>();
+  const [deleting, setDeleting] = useState<Post>();
+
+  const postFileRef = useRef<HTMLInputElement>(null);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+  /** Set when the file picker was opened to replace one specific post. */
+  const replaceTarget = useRef<Post | undefined>(undefined);
+
+  if (person === undefined) return <LoadingState label="Loading profile" />;
+
+  if (person === null) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <ScreenHeader title="Profile" showBack />
+        <EmptyState
+          icon={<UsersIcon size={28} />}
+          title="No such profile"
+          description={`Nobody on PINGO goes by @${handle}.`}
+        />
+      </div>
+    );
   }
 
-  const directConversationId = isSelf
-    ? undefined
-    : `c-${user.handle}`;
+  const conversation = conversations.find(
+    (c) => c.kind === 'direct' && c.participantIds.includes(person.id),
+  );
+  const canCall = !isSelf && Boolean(mutuals?.has(person.id));
+  const roster = users.find((u) => u.id === person.id);
+  const online = roster?.presence.state === 'online';
+  const showMediaTab = isSelf;
+
+  // ---- actions ------------------------------------------------------------
+
+  const openMessage = async () => {
+    try {
+      const id = conversation?.id ?? (await chat.startDirectConversation(person.id));
+      navigate(`/chats/${id}`);
+    } catch {
+      // Nowhere useful to send them, so the button does not navigate rather
+      // than landing on a thread that does not exist.
+    }
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(profileLink(person.username));
+    } catch {
+      // Clipboard access refused. The share sheet shows the link in full.
+    }
+    setMenuOpen(false);
+  };
+
+  const toggleBlock = async () => {
+    setConfirmBlock(false);
+    setMenuOpen(false);
+    const next = !blocked;
+    setBlocked(next);
+    try {
+      await profiles.setBlocked(person.id, next);
+    } catch {
+      setBlocked(!next);
+    }
+  };
+
+  const publish = async (image: Blob, caption: string) => {
+    const target = pending?.replaces;
+    const post = target
+      ? await profiles.replacePost(target.id, { image, caption })
+      : await profiles.createPost({ image, caption });
+
+    setPending(undefined);
+    setPosts((previous) =>
+      target
+        ? (previous ?? []).map((p) => (p.id === target.id ? post : p))
+        : [post, ...(previous ?? [])],
+    );
+    if (!target) {
+      setStats((previous) => (previous ? { ...previous, posts: previous.posts + 1 } : previous));
+    }
+  };
+
+  const removePost = async (post: Post) => {
+    setDeleting(undefined);
+    setViewing(undefined);
+    const previous = posts ?? [];
+    setPosts(previous.filter((p) => p.id !== post.id));
+    setStats((s) => (s ? { ...s, posts: Math.max(0, s.posts - 1) } : s));
+    try {
+      await profiles.deletePost(post.id);
+    } catch {
+      // Put it back, then ask the server what is actually there.
+      setPosts(previous);
+      reload();
+    }
+  };
+
+  const changeAvatar = async (file: File) => {
+    try {
+      const url = await profiles.uploadAvatar(file);
+      await profiles.update({ avatarUrl: url });
+    } catch {
+      // Nothing changed, and the previous photo is still on screen.
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto">
       <ScreenHeader
-        title={isSelf ? 'Profile' : user.name}
-        showBack={!isSelf}
+        title={isSelf ? 'Profile' : person.displayName}
+        showBack
         action={
-          isSelf ? (
-            <Button variant="text" size="sm" onClick={() => navigate('/settings')}>
-              Settings
-            </Button>
-          ) : undefined
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label={isSelf ? 'Profile menu' : `Options for ${person.displayName}`}
+            className={cn(
+              'focus-ring grid size-10 shrink-0 place-items-center rounded-full',
+              'text-text-secondary transition-colors duration-instant',
+              'hover:bg-hover hover:text-ink active:scale-[0.96]',
+            )}
+          >
+            {isSelf ? <MenuIcon size={22} /> : <MoreIcon size={22} />}
+          </button>
         }
       />
 
-      <div className="mx-auto w-full max-w-2xl px-5 pb-8">
-        {/* ---- Identity card --------------------------------------------- */}
-        <div className="relative mt-2 overflow-hidden rounded-2xl bg-brand-wash shadow-sm">
-          <div className="h-28" aria-hidden />
+      <div className="mx-auto w-full max-w-2xl px-5 pb-10">
+        {/* ---- identity ------------------------------------------------- */}
+        <div className="flex flex-col items-center pt-6">
+          <ProfileAvatar
+            name={person.displayName}
+            id={person.id}
+            src={person.avatarUrl}
+            online={online}
+            isSelf={isSelf}
+            onChangePhoto={() => avatarFileRef.current?.click()}
+            onRemovePhoto={() => void profiles.update({ avatarUrl: undefined })}
+          />
 
-          <div className="flex flex-col items-center px-6 pb-6">
-            {/* Pulled up so it straddles the wash and the card body. */}
-            <div className="-mt-14 rounded-full ring-4 ring-surface">
-              <Avatar
-                name={user.name}
-                id={user.id}
-                src={user.avatarUrl}
-                size="xl"
-                presence={user.presence.state === 'online' ? 'online' : undefined}
-              />
+          <input
+            ref={avatarFileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              // Cleared so choosing the same file twice still fires a change.
+              event.target.value = '';
+              if (file) void changeAvatar(file);
+            }}
+          />
+
+          <h1 className="mt-4 text-h1 text-ink">{person.displayName}</h1>
+          <p className="mt-0.5 text-body text-text-secondary">@{person.username}</p>
+
+          {person.bio && (
+            <p className="mt-3 max-w-sm text-center text-body text-text-secondary">
+              <CaptionText text={person.bio} />
+            </p>
+          )}
+
+          {/* ---- the three numbers -------------------------------------- */}
+          <dl className="mt-5 grid w-full max-w-xs grid-cols-3">
+            <Stat label="Posts" value={stats?.posts} />
+            <Stat label="Friends" value={stats?.friends} />
+            <Stat label="Groups" value={stats?.groups} />
+          </dl>
+
+          {/* ---- actions ------------------------------------------------ */}
+          {isSelf ? (
+            <div className="mt-5 flex w-full max-w-xs items-center gap-2">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                leadingIcon={<EditIcon size={16} />}
+                onClick={() => navigate('/profile/edit')}
+              >
+                Edit profile
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex-1"
+                leadingIcon={<QrIcon size={16} />}
+                onClick={() => setSharing(true)}
+              >
+                Share profile
+              </Button>
             </div>
+          ) : (
+            <div className="mt-5 flex w-full max-w-xs flex-col items-center gap-2">
+              {/*
+                Not friends yet, so the request comes first and is the primary
+                action. Messaging stays available regardless — PINGO's rule is
+                that anyone can message anyone, and a request you cannot send is
+                a product nobody can start using.
+              */}
+              {mutuals && !mutuals.has(person.id) && (
+                <FollowButton userId={person.id} className="w-full" />
+              )}
 
-            <h1 className="mt-4 text-h1 text-ink">{user.name}</h1>
-            <p className="mt-1 text-body text-brand">@{user.handle}</p>
-
-            {/*
-              Only on other people. The button is also where the mutual state
-              is discovered, so the note below it reads from the same fetch
-              rather than asking again.
-            */}
-            {!isSelf && (
-              <div className="mt-4 flex flex-col items-center gap-2">
-                <FollowButton userId={user.id} onChange={setFollow} />
-
-                {follow && follow !== 'mutual' && (
-                  <p className="max-w-xs text-center text-caption text-text-tertiary">
-                    Calls, snaps and stories open up once you both follow each other.
-                    You can still message.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {user.bio && (
-              <p className="mt-3 max-w-sm text-center text-body text-text-secondary">
-                {user.bio}
-              </p>
-            )}
-
-            {!isSelf && (
-              <div className="mt-6 flex items-center gap-2">
+              <div className="flex w-full items-center gap-2">
                 <Button
                   variant="primary"
-                  leadingIcon={<ChatIcon size={18} />}
-                  onClick={() => navigate(`/chats/${directConversationId}`)}
+                  className="flex-1"
+                  leadingIcon={<ChatIcon size={16} />}
+                  onClick={() => void openMessage()}
                 >
                   Message
                 </Button>
-                <IconButton label={`Voice call ${user.name}`} variant="filled">
+
+                <IconButton
+                  label={
+                    canCall
+                      ? `Voice call ${person.displayName}`
+                      : `Voice calls open up once you and ${person.displayName} both follow each other`
+                  }
+                  variant="filled"
+                  disabled={!canCall}
+                  onClick={() => void startCall(person.id, person.displayName, 'voice')}
+                >
                   <PhoneIcon size={20} />
                 </IconButton>
-                <IconButton label={`Video call ${user.name}`} variant="filled">
+
+                <IconButton
+                  label={
+                    canCall
+                      ? `Video call ${person.displayName}`
+                      : `Video calls open up once you and ${person.displayName} both follow each other`
+                  }
+                  variant="filled"
+                  disabled={!canCall}
+                  onClick={() => void startCall(person.id, person.displayName, 'video')}
+                >
                   <VideoIcon size={20} />
                 </IconButton>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* ---- Gallery ---------------------------------------------------- */}
-        <section className="mt-8">
-          <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="flex items-center gap-2 text-h2 text-ink">
-              <GridIcon size={18} className="text-text-tertiary" />
-              Gallery
-            </h2>
-            {gallery && gallery.length > 0 && (
-              <span className="text-caption text-text-tertiary">
-                {gallery.length} {gallery.length === 1 ? 'item' : 'items'}
-              </span>
-            )}
-          </div>
-
-          {!gallery ? (
-            <GallerySkeleton />
-          ) : gallery.length === 0 ? (
-            <div className="rounded-lg bg-surface px-6 py-12 text-center shadow-sm">
-              <ImageIcon size={26} className="mx-auto text-text-tertiary" />
-              <p className="mt-3 text-body text-text-secondary">
-                {isSelf ? 'Your gallery is empty.' : 'Nothing shared yet.'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {gallery.map((item) => (
-                <GalleryTile key={item.id} item={item} />
-              ))}
+              {blocked && (
+                <p className="text-caption text-danger">
+                  You have blocked {person.displayName}.
+                </p>
+              )}
             </div>
           )}
-        </section>
+        </div>
 
-        {/*
-          Only on your own profile, and only when there is something waiting.
-          An always-present "0 requests" row is a permanent reminder of nothing.
-        */}
-        {isSelf && pendingCount > 0 && (
-          <button
-            type="button"
-            onClick={() => navigate('/requests')}
-            className={cn(
-              'focus-ring mt-8 flex w-full items-center gap-3 rounded-lg',
-              'bg-surface px-4 py-3.5 shadow-sm',
-              'transition-transform duration-instant active:scale-[0.99]',
-            )}
+        {!isSelf && shared && <SharedWithPanel history={shared} />}
+
+        {/* ---- tabs ----------------------------------------------------- */}
+        <div role="tablist" aria-label="Profile content" className="mt-7 flex border-b border-line">
+          <TabButton id="posts" label="Posts" active={tab === 'posts'} onSelect={() => setTab('posts')} />
+          {showMediaTab && (
+            <TabButton id="media" label="Media" active={tab === 'media'} onSelect={() => setTab('media')} />
+          )}
+        </div>
+
+        <div
+          role="tabpanel"
+          id="panel-posts"
+          aria-labelledby="tab-posts"
+          hidden={tab !== 'posts'}
+          className="pt-4"
+        >
+          {!posts ? (
+            <PostGridSkeleton />
+          ) : posts.length === 0 && !isSelf ? (
+            <PostsEmpty name={person.displayName} />
+          ) : (
+            <PostGrid
+              posts={posts}
+              isSelf={isSelf}
+              onOpen={setViewing}
+              onAdd={() => {
+                // Three already: the fourth upload is a replacement, and saying
+                // so before the picture is chosen is kinder than after.
+                if (posts.length >= 3) setReplacing(true);
+                else postFileRef.current?.click();
+              }}
+            />
+          )}
+        </div>
+
+        {showMediaTab && (
+          <div
+            role="tabpanel"
+            id="panel-media"
+            aria-labelledby="tab-media"
+            hidden={tab !== 'media'}
+            className="pt-4"
           >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-gradient text-white">
-              <UsersIcon size={18} />
-            </span>
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block text-body text-ink">Follow requests</span>
-              <span className="block text-caption text-text-secondary">
-                {pendingCount} waiting on you
-              </span>
-            </span>
-            <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
-          </button>
-        )}
-
-        {isSelf && (
-          <p className="mt-8 text-center text-caption text-text-tertiary">
-            <Link to="/settings" className="focus-ring rounded-sm text-brand hover:underline">
-              Manage your account and privacy
-            </Link>
-          </p>
+            {!media ? <MediaSkeleton /> : media.length === 0 ? <MediaEmpty /> : <MediaGrid items={media} />}
+          </div>
         )}
       </div>
+
+      {/* Every post upload goes through this one input. */}
+      <input
+        ref={postFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) {
+            // Cancelled the picker: the pending replacement is off too.
+            replaceTarget.current = undefined;
+            return;
+          }
+          setPending({ file, replaces: replaceTarget.current });
+          replaceTarget.current = undefined;
+        }}
+      />
+
+      {/* ---- overlays ---------------------------------------------------- */}
+
+      {menuOpen && isSelf && (
+        <MyProfileMenu
+          onEdit={() => {
+            setMenuOpen(false);
+            navigate('/profile/edit');
+          }}
+          onShare={() => {
+            setMenuOpen(false);
+            setSharing(true);
+          }}
+          onSettings={() => {
+            setMenuOpen(false);
+            navigate('/settings');
+          }}
+          onClose={() => setMenuOpen(false)}
+        />
+      )}
+
+      {menuOpen && !isSelf && (
+        <PersonMenu
+          name={person.displayName}
+          muted={conversation ? conversation.muted : undefined}
+          blocked={blocked}
+          onShare={() => {
+            setMenuOpen(false);
+            setSharing(true);
+          }}
+          onCopyLink={() => void copyLink()}
+          onMute={() => {
+            setMenuOpen(false);
+            if (!conversation) return;
+            /*
+             * Always, when muting from here. The durations sheet belongs to the
+             * chat list, where mute is a bulk action across rows; on one
+             * person's profile it is a decision about them, not a timer.
+             */
+            void mute([conversation.id], conversation.muted ? null : MUTE_DURATIONS.at(-1)!.ms);
+          }}
+          onBlock={() => {
+            setMenuOpen(false);
+            if (blocked) void toggleBlock();
+            else setConfirmBlock(true);
+          }}
+          onReport={() => {
+            setMenuOpen(false);
+            setReporting({});
+          }}
+          onClose={() => setMenuOpen(false)}
+        />
+      )}
+
+      {sharing && (
+        <ShareProfileSheet
+          username={person.username}
+          displayName={person.displayName}
+          onClose={() => setSharing(false)}
+        />
+      )}
+
+      {reporting && (
+        <ReportSheet
+          subjectName={person.displayName}
+          userId={isSelf ? undefined : person.id}
+          postId={reporting.postId}
+          onClose={() => setReporting(undefined)}
+          onBlock={
+            isSelf || blocked
+              ? undefined
+              : () => {
+                  setReporting(undefined);
+                  setConfirmBlock(true);
+                }
+          }
+        />
+      )}
+
+      {confirmBlock && (
+        <ConfirmSheet
+          title={`Block ${person.displayName}?`}
+          description="They will not be able to call you or see your stories, and you will stop being friends. They are not told."
+          confirmLabel="Block"
+          onConfirm={() => void toggleBlock()}
+          onCancel={() => setConfirmBlock(false)}
+        />
+      )}
+
+      {replacing && posts && (
+        <ReplacePostSheet
+          posts={posts}
+          onCancel={() => setReplacing(false)}
+          onChoose={(post) => {
+            setReplacing(false);
+            replaceTarget.current = post;
+            postFileRef.current?.click();
+          }}
+        />
+      )}
+
+      {pending && (
+        <PostComposer
+          file={pending.file}
+          confirmLabel={pending.replaces ? 'Replace' : 'Share'}
+          initialCaption={pending.replaces?.caption ?? ''}
+          onCancel={() => setPending(undefined)}
+          onDone={publish}
+        />
+      )}
+
+      {viewing && (
+        <PostViewer
+          post={viewing}
+          author={person}
+          isMine={isSelf}
+          onClose={() => setViewing(undefined)}
+          onChange={(next) => {
+            setViewing(next);
+            setPosts((previous) => (previous ?? []).map((p) => (p.id === next.id ? next : p)));
+          }}
+          onEditCaption={() => setEditingCaption(viewing)}
+          onReplace={() => {
+            replaceTarget.current = viewing;
+            setViewing(undefined);
+            postFileRef.current?.click();
+          }}
+          onDelete={() => setDeleting(viewing)}
+          onReport={() => setReporting({ postId: viewing.id })}
+        />
+      )}
+
+      {editingCaption && (
+        <CaptionEditor
+          post={editingCaption}
+          onCancel={() => setEditingCaption(undefined)}
+          onSave={async (caption) => {
+            const next = await profiles.updatePostCaption(editingCaption.id, caption);
+            setEditingCaption(undefined);
+            setPosts((previous) => (previous ?? []).map((p) => (p.id === next.id ? next : p)));
+            setViewing((current) => (current?.id === next.id ? next : current));
+          }}
+        />
+      )}
+
+      {deleting && (
+        <ConfirmSheet
+          title="Delete this post?"
+          description="It goes for good, along with its likes and comments. A profile holds three, so this frees a slot."
+          confirmLabel="Delete"
+          onConfirm={() => void removePost(deleting)}
+          onCancel={() => setDeleting(undefined)}
+        />
+      )}
     </div>
   );
 }
 
 /**
- * A gallery tile.
+ * One of the three numbers.
  *
- * Seeded media is a CSS gradient rather than a file, so the tile paints it as a
- * background. Real uploads will be `<img>`; the aspect handling is already correct
- * for both because the ratio comes from the item's own dimensions.
+ * `dd` before `dt` in the markup so the number sits above its label visually,
+ * while the pair still reads as one definition — "Posts, 3" — to a screen
+ * reader, which walks the list in document order within each group.
  */
-function GalleryTile({ item }: { item: GalleryItem }) {
-  const portrait = item.height > item.width;
+function Stat({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div className="flex flex-col items-center">
+      <dt className="sr-only">{label}</dt>
+      <dd className="text-h2 font-semibold text-ink tabular-nums">
+        {value === undefined ? (
+          <span className="text-text-tertiary">—</span>
+        ) : (
+          <AnimatedCount value={value} />
+        )}
+      </dd>
+      <p aria-hidden className="text-caption text-text-secondary">
+        {label}
+      </p>
+    </div>
+  );
+}
 
+function TabButton({
+  id,
+  label,
+  active,
+  onSelect,
+}: {
+  id: Tab;
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
   return (
     <button
       type="button"
+      role="tab"
+      id={`tab-${id}`}
+      aria-selected={active}
+      aria-controls={`panel-${id}`}
+      onClick={onSelect}
       className={cn(
-        'group relative overflow-hidden rounded-lg',
-        'focus-ring transition-transform duration-quick ease-standard',
-        'active:scale-[0.99]',
-        // Varied heights so the grid reads as a collection, not a table.
-        portrait ? 'aspect-[3/4]' : 'aspect-square',
+        'focus-ring relative flex-1 px-4 py-3 text-body font-medium',
+        'transition-colors duration-instant',
+        active ? 'text-ink' : 'text-text-tertiary hover:text-text-secondary',
       )}
-      style={{ backgroundImage: item.url }}
-      aria-label={item.caption ?? `${item.kind} from gallery`}
     >
-      {item.kind === 'video' && (
-        <span
-          className="absolute inset-0 grid place-items-center"
-          aria-hidden
-        >
-          <span className="grid size-11 place-items-center rounded-full bg-white/85 text-brand shadow-md backdrop-blur-glass">
-            <PlayIcon size={18} className="translate-x-px" />
-          </span>
-        </span>
-      )}
-
-      {item.caption && (
-        <span
-          className={cn(
-            'absolute inset-x-0 bottom-0 px-3 py-2 text-left',
-            // Scrim only under the text, so the image is not dimmed overall.
-            'bg-gradient-to-t from-ink/45 to-transparent',
-            'text-caption text-white',
-            // Revealed on hover and always visible to keyboard focus.
-            'opacity-0 transition-opacity duration-quick ease-standard',
-            'group-hover:opacity-100 group-focus-visible:opacity-100',
-          )}
-        >
-          {item.caption}
-        </span>
-      )}
+      {label}
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-x-0 -bottom-px h-0.5 rounded-full',
+          'transition-opacity duration-quick ease-standard',
+          active ? 'bg-brand opacity-100' : 'opacity-0',
+        )}
+      />
     </button>
   );
 }
 
-function GallerySkeleton() {
+/**
+ * Editing the words on a post without touching the picture.
+ *
+ * A sheet rather than sending the user back through the editor: changing a
+ * typo should not mean re-flattening the image and re-uploading it, and
+ * `updatePostCaption` writes only the caption for exactly that reason.
+ */
+function CaptionEditor({
+  post,
+  onCancel,
+  onSave,
+}: {
+  post: Post;
+  onCancel: () => void;
+  onSave: (caption: string) => Promise<void>;
+}) {
+  const [caption, setCaption] = useState(post.caption ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const save = async () => {
+    setSaving(true);
+    setError(undefined);
+    try {
+      await onSave(caption);
+    } catch {
+      setError('That did not save. Try again.');
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="status" aria-label="Loading gallery">
-      {Array.from({ length: 6 }, (_, i) => (
-        <Skeleton key={i} className={i % 3 === 0 ? 'aspect-[3/4]' : 'aspect-square'} />
-      ))}
-    </div>
+    <Sheet title="Edit caption" onClose={onCancel}>
+      <textarea
+        value={caption}
+        onChange={(event) => setCaption(event.target.value)}
+        rows={4}
+        maxLength={2200}
+        autoFocus
+        aria-label="Caption"
+        placeholder="Write a caption"
+        className={cn(
+          'focus-ring mt-3 w-full resize-none rounded-lg border border-line bg-page',
+          'px-3 py-2.5 text-body text-ink placeholder:text-text-tertiary',
+        )}
+      />
+
+      {error && (
+        <p role="alert" className="mt-2 text-caption text-danger">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving}
+          className={cn(
+            'focus-ring w-full rounded-full px-5 py-3 text-body font-medium',
+            'bg-brand-gradient text-white shadow-brand',
+            'transition-transform duration-instant active:scale-[0.98]',
+            saving && 'opacity-50',
+          )}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <SheetCancel onClick={onCancel} />
+      </div>
+    </Sheet>
   );
 }

@@ -37,6 +37,14 @@ export type {
   ProfileDraft,
   ProfileErrorCode,
   FollowState,
+  Post,
+  PostDraft,
+  PostComment,
+  ProfileStats,
+  SharedHistory,
+  ChatMediaItem,
+  ReportReason,
+  ReportInput,
 } from './profile-service.js';
 export {
   ProfileError,
