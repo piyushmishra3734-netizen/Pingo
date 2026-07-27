@@ -184,6 +184,35 @@ export interface Message {
    * reader of a photo going through the machinery that destroys snaps.
    */
   photo?: PhotoRef;
+
+  /** A place, shared as coordinates. Rendered as a card that opens a map. */
+  location?: LocationRef;
+  /** Somebody's details, passed on. */
+  contact?: ContactRef;
+  /** A time and a title, so it can be added to a calendar. */
+  event?: EventRef;
+}
+
+export interface LocationRef {
+  lat: number;
+  lng: number;
+  /** What the sender called it. Absent means the card shows coordinates. */
+  label?: string;
+}
+
+export interface ContactRef {
+  name: string;
+  /** A PINGO handle, when the contact is someone in the app. */
+  handle?: string;
+  /** Set when they are a PINGO user, so the card can open their chat. */
+  userId?: UserId;
+}
+
+export interface EventRef {
+  title: string;
+  /** Epoch ms. */
+  startsAt: number;
+  location?: string;
 }
 
 /** A photo message's picture. Like a snap, it carries no URL — see `PhotoRef.url`. */

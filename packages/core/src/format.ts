@@ -152,8 +152,11 @@ export function messagePreview(
   }
 
   let text = message.body.trim();
-  // A photo with no caption still has something to say about itself.
+  // Attachment kinds carry no body, so each says what it is.
   if (!text && message.photo) text = 'Photo';
+  if (!text && message.location) text = message.location.label ?? 'Location';
+  if (!text && message.contact) text = message.contact.name;
+  if (!text && message.event) text = message.event.title;
   if (!text) {
     const attachment = message.attachments[0];
     switch (attachment?.kind) {

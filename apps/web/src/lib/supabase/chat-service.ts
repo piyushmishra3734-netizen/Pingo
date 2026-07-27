@@ -28,6 +28,7 @@
 
 import type {
   AppNotification,
+  Attachment,
   CallRecord,
   ChatEvent,
   ChatList,
@@ -103,6 +104,44 @@ function parseTimestamp(value: string): number {
   return Date.parse(value);
 }
 
+/**
+ * The attachment a row carries, if any.
+ *
+ * Voice notes and documents both become attachments, because the bubble already
+ * renders those. Both leave the URL empty for the signing pass to fill in — a
+ * page signs one bucket per request rather than one row at a time.
+ */
+function toAttachments(row: MessageRow): Attachment[] {
+  if (row.kind === 'voice' && row.voice_path) {
+    return [
+      {
+        id: row.id,
+        kind: 'audio',
+        url: '',
+        duration: row.voice_duration ?? 0,
+        waveform: row.voice_waveform ?? [],
+      },
+    ];
+  }
+
+  if (row.kind === 'document' && row.file_path) {
+    return [
+      {
+        id: row.id,
+        kind: 'file',
+        url: '',
+        fileName: row.file_name ?? 'Document',
+        // The generic type is what a server falls back to when it cannot tell,
+        // so it is the honest value here rather than an empty string.
+        mimeType: row.file_mime ?? 'application/octet-stream',
+        ...(row.file_size !== null ? { size: row.file_size } : {}),
+      },
+    ];
+  }
+
+  return [];
+}
+
 function toMessage(row: MessageRow, readAt: number | undefined): Message {
   return {
     id: row.id,
@@ -123,18 +162,7 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
      * would be a second thing meaning the same thing. The URL is empty until
      * `#signMedia` fills it in, one pass per page rather than one per row.
      */
-    attachments:
-      row.kind === 'voice' && row.voice_path
-        ? [
-            {
-              id: row.id,
-              kind: 'audio' as const,
-              url: '',
-              duration: row.voice_duration ?? 0,
-              waveform: row.voice_waveform ?? [],
-            },
-          ]
-        : [],
+    attachments: toAttachments(row),
     reactions: [],
     ...(row.edited_at ? { editedAt: Date.parse(row.edited_at) } : {}),
     ...(row.reply_to_id ? { replyToId: row.reply_to_id } : {}),
@@ -172,6 +200,17 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     ...(row.kind === 'photo' && row.photo_path
       ? { photo: { ...(row.view_limit ? { viewLimit: row.view_limit } : {}) } }
       : {}),
+    // The structured kinds are read straight off `meta`, which is the shape the
+    // client wrote and the only thing that reads it.
+    ...(row.kind === 'location' && row.meta
+      ? { location: row.meta as unknown as Message['location'] }
+      : {}),
+    ...(row.kind === 'contact' && row.meta
+      ? { contact: row.meta as unknown as Message['contact'] }
+      : {}),
+    ...(row.kind === 'event' && row.meta
+      ? { event: row.meta as unknown as Message['event'] }
+      : {}),
   };
 }
 
@@ -194,6 +233,9 @@ const PHOTO_BUCKET = 'photos';
 
 /** Voice notes, same arrangement and for the same reasons. */
 const VOICE_BUCKET = 'voice';
+
+/** Documents, likewise. */
+const DOCUMENT_BUCKET = 'documents';
 
 /**
  * An hour for a photo's signed URL.
@@ -1176,7 +1218,7 @@ export class SupabaseChatService implements ChatService {
       .filter((row) => row.kind === 'voice' && row.voice_path)
       .map((row) => row.voice_path!);
 
-    if (paths.length === 0) return messages;
+    if (paths.length === 0) return this.#signDocuments(rows, messages);
 
     const { data } = await this.#client.storage
       .from(VOICE_BUCKET)
@@ -1184,7 +1226,7 @@ export class SupabaseChatService implements ChatService {
 
     const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
 
-    return messages.map((message, index) => {
+    const signed = messages.map((message, index) => {
       const row = rows[index];
       if (!row?.voice_path) return message;
       const url = urlByPath.get(row.voice_path);
@@ -1194,6 +1236,43 @@ export class SupabaseChatService implements ChatService {
         ...message,
         attachments: message.attachments.map((attachment) =>
           attachment.kind === 'audio' ? { ...attachment, url } : attachment,
+        ),
+      };
+    });
+
+    return this.#signDocuments(rows, signed);
+  }
+
+  /**
+   * Fills in the URL on every document in a page, in one request.
+   *
+   * A third pass rather than a merged one, because `createSignedUrls` signs a
+   * single bucket at a time. Each kind lives in its own bucket, and a message
+   * is only ever one kind, so the passes never contend.
+   */
+  async #signDocuments(rows: MessageRow[], messages: Message[]): Promise<Message[]> {
+    const paths = rows
+      .filter((row) => row.kind === 'document' && row.file_path)
+      .map((row) => row.file_path!);
+
+    if (paths.length === 0) return messages;
+
+    const { data } = await this.#client.storage
+      .from(DOCUMENT_BUCKET)
+      .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
+
+    const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
+
+    return messages.map((message, index) => {
+      const row = rows[index];
+      if (!row?.file_path) return message;
+      const url = urlByPath.get(row.file_path);
+      if (!url) return message;
+
+      return {
+        ...message,
+        attachments: message.attachments.map((attachment) =>
+          attachment.kind === 'file' ? { ...attachment, url } : attachment,
         ),
       };
     });
@@ -1210,6 +1289,23 @@ export class SupabaseChatService implements ChatService {
     const { error } = await this.#client.storage
       .from(VOICE_BUCKET)
       .upload(path, audio, { contentType: audio.type || 'audio/webm' });
+
+    if (error) throw error;
+    return path;
+  }
+
+  async #uploadDocument(file: File): Promise<string> {
+    const me = await this.#userId();
+    /*
+     * The original name is kept in a column, not in the path. Filenames carry
+     * spaces, accents and slashes, and a storage key made from one is a key
+     * that eventually fails to round-trip.
+     */
+    const path = me + '/' + crypto.randomUUID();
+
+    const { error } = await this.#client.storage
+      .from(DOCUMENT_BUCKET)
+      .upload(path, file, { contentType: file.type || 'application/octet-stream' });
 
     if (error) throw error;
     return path;
@@ -1278,6 +1374,7 @@ export class SupabaseChatService implements ChatService {
     const snapPath = draft.snap ? await this.#uploadSnap(draft.snap.image) : undefined;
     const photoPath = draft.photo ? await this.#uploadPhoto(draft.photo.image) : undefined;
     const voicePath = draft.voice ? await this.#uploadVoice(draft.voice.audio) : undefined;
+    const filePath = draft.document ? await this.#uploadDocument(draft.document.file) : undefined;
     const snapExpiry = snapPath
       ? new Date(Date.now() + SNAP_EXPIRY_MS).toISOString()
       : undefined;
@@ -1290,6 +1387,18 @@ export class SupabaseChatService implements ChatService {
         body: draft.body,
         ...(draft.replyToId ? { reply_to_id: draft.replyToId } : {}),
         ...(draft.sticker ? { kind: 'sticker', media_url: draft.sticker.url } : {}),
+        ...(filePath && draft.document
+          ? {
+              kind: 'document' as const,
+              file_path: filePath,
+              file_name: draft.document.file.name,
+              file_size: draft.document.file.size,
+              file_mime: draft.document.file.type,
+            }
+          : {}),
+        ...(draft.location ? { kind: 'location' as const, meta: draft.location } : {}),
+        ...(draft.contact ? { kind: 'contact' as const, meta: draft.contact } : {}),
+        ...(draft.event ? { kind: 'event' as const, meta: draft.event } : {}),
         ...(voicePath && draft.voice
           ? {
               kind: 'voice' as const,

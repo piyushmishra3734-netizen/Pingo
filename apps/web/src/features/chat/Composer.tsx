@@ -24,9 +24,18 @@ import { StickerPicker } from '../stickers/StickerPicker.js';
  */
 
 export interface ComposerProps {
-  /** Opens the picture picker. Paired with onAttachCamera; both or neither. */
-  onAttachGallery?: () => void;
-  onAttachCamera?: () => void;
+  /**
+   * The attach menu's six actions. Supplied together or not at all — a menu
+   * with holes in it is the placeholder problem by another route.
+   */
+  attach?: {
+    gallery: () => void;
+    camera: () => void;
+    document: () => void;
+    location: () => void;
+    contact: () => void;
+    event: () => void;
+  };
   onSend: (body: string) => void | Promise<void>;
   /** Absent means the surface cannot take voice notes, and the mic is hidden. */
   onSendVoice?: (recording: Recording) => void | Promise<void>;
@@ -53,8 +62,7 @@ const MAX_HEIGHT = 140;
 const HOLD_MS = 220;
 
 export function Composer({
-  onAttachGallery,
-  onAttachCamera,
+  attach,
   onSend,
   onSendVoice,
   onSendSticker,
@@ -163,8 +171,15 @@ export function Composer({
         />
       ) : (
       <>
-      {onAttachGallery && onAttachCamera && (
-        <AttachMenu onGallery={onAttachGallery} onCamera={onAttachCamera} />
+      {attach && (
+        <AttachMenu
+          onGallery={attach.gallery}
+          onCamera={attach.camera}
+          onDocument={attach.document}
+          onLocation={attach.location}
+          onContact={attach.contact}
+          onEvent={attach.event}
+        />
       )}
 
       <div
@@ -229,11 +244,12 @@ export function Composer({
         <IconButton
           label="Send message"
           variant="gradient"
+          size="lg"
           onClick={submit}
           className="mb-0.5"
         >
           {/* Nudged to sit optically centred inside the circle. */}
-          <SendIcon size={19} className="-translate-x-px translate-y-px" />
+          <SendIcon size={21} className="-translate-x-px translate-y-px" />
         </IconButton>
       ) : onSendVoice ? (
         /*
@@ -248,6 +264,7 @@ export function Composer({
         <IconButton
           label="Record voice message"
           variant="filled"
+          size="lg"
           className="mb-0.5"
           onPointerDown={(event) => {
             // Secondary buttons and the context menu are not this gesture.
@@ -284,7 +301,7 @@ export function Composer({
             }
           }}
         >
-          <MicIcon size={20} />
+          <MicIcon size={22} />
         </IconButton>
       ) : (
         /*

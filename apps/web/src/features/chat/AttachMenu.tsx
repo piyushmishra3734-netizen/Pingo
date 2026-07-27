@@ -1,4 +1,4 @@
-import { CameraIcon, ImageIcon, PlusIcon, cn } from '@pingo/ui';
+import { CameraIcon, FileIcon, ImageIcon, PlusIcon, UserIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -9,20 +9,31 @@ import { useEffect, useRef, useState } from 'react';
  * Rotating rather than swapping the glyph is what makes it read as the same
  * object changing rather than two buttons taking turns.
  *
- * ## Only what actually works
+ * ## Every row does something
  *
- * Gallery and Camera are here because both do their job. Location, Contact,
- * Document and Event are not, because nothing behind them exists — and a sheet
- * of six choices where four do nothing is worse than a sheet of two that do.
- * They belong here when they work, and the shape is ready for them.
+ * All six send a real message. Location asks the browser where you are, Contact
+ * picks from the people this app knows about, Document uploads a file, Event
+ * takes a title and a time — none of them is a stub, and none is a screen,
+ * because each is one decision reached from a menu.
  */
 
 export interface AttachMenuProps {
   onGallery: () => void;
   onCamera: () => void;
+  onDocument: () => void;
+  onLocation: () => void;
+  onContact: () => void;
+  onEvent: () => void;
 }
 
-export function AttachMenu({ onGallery, onCamera }: AttachMenuProps) {
+export function AttachMenu({
+  onGallery,
+  onCamera,
+  onDocument,
+  onLocation,
+  onContact,
+  onEvent,
+}: AttachMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -43,9 +54,17 @@ export function AttachMenu({ onGallery, onCamera }: AttachMenuProps) {
     };
   }, [open]);
 
+  /*
+   * Ordered by how often each is reached for, not alphabetically or by type.
+   * Gallery and Camera are most of the traffic and sit closest to the thumb.
+   */
   const items = [
     { label: 'Gallery', icon: <ImageIcon size={19} />, onSelect: onGallery },
     { label: 'Camera', icon: <CameraIcon size={19} />, onSelect: onCamera },
+    { label: 'Document', icon: <FileIcon size={19} />, onSelect: onDocument },
+    { label: 'Location', icon: <span className="text-[1.05rem]">📍</span>, onSelect: onLocation },
+    { label: 'Contact', icon: <UserIcon size={19} />, onSelect: onContact },
+    { label: 'Event', icon: <span className="text-[1.05rem]">📅</span>, onSelect: onEvent },
   ];
 
   return (
@@ -56,14 +75,22 @@ export function AttachMenu({ onGallery, onCamera }: AttachMenuProps) {
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
         className={cn(
-          'focus-ring touch-target mb-0.5 grid size-9 place-items-center rounded-full',
-          'text-text-secondary transition-[transform,color] duration-quick ease-standard',
-          'hover:text-ink',
-          // 135° anticlockwise turns the plus into a cross.
-          open && '-rotate-[135deg] text-brand',
+          'focus-ring touch-target mb-0.5 grid size-10 place-items-center rounded-full',
+          'text-text-secondary transition-[transform,color] duration-base ease-standard',
+          'hover:bg-hover hover:text-ink',
+          /*
+           * 45°, not 135°.
+           *
+           * A plus has four-fold symmetry, so both land on the same cross — but
+           * 135° travels three times as far to get there, and in the same
+           * duration that is three times the angular speed. It read as a spin
+           * rather than a turn. The shorter arc over a slightly longer duration
+           * is the same gesture, unhurried.
+           */
+          open && '-rotate-45 text-brand',
         )}
       >
-        <PlusIcon size={20} />
+        <PlusIcon size={24} />
       </button>
 
       {open && (

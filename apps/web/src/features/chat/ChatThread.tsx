@@ -30,6 +30,7 @@ import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
+import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
 import { PhotoComposer } from './PhotoComposer.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 
@@ -73,6 +74,9 @@ export function ChatThread({
   const galleryRef = useRef<HTMLInputElement>(null);
   /** Pictures chosen but not yet sent — the composer owns them until then. */
   const [pending, setPending] = useState<File[]>();
+  const documentRef = useRef<HTMLInputElement>(null);
+  /** Which of the three small attach sheets is open, if any. */
+  const [sheet, setSheet] = useState<'location' | 'contact' | 'event'>();
   const mutuals = useMutuals();
 
   /**
@@ -573,8 +577,14 @@ export function ChatThread({
                 voice: { audio: take.blob, seconds: take.seconds, waveform: take.waveform },
               });
             }}
-            onAttachGallery={() => galleryRef.current?.click()}
-            onAttachCamera={() => navigate('/camera')}
+            attach={{
+              gallery: () => galleryRef.current?.click(),
+              camera: () => navigate('/camera'),
+              document: () => documentRef.current?.click(),
+              location: () => setSheet('location'),
+              contact: () => setSheet('contact'),
+              event: () => setSheet('event'),
+            }}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}
             ariaLabel={`Message ${conversation.title}`}
           />
@@ -598,6 +608,53 @@ export function ChatThread({
           if (chosen.length > 0) setPending(chosen);
         }}
       />
+
+      {/* Any file type, since a document is whatever the sender calls one. */}
+      <input
+        ref={documentRef}
+        type="file"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) return;
+          void service.sendMessage({
+            conversationId: conversation.id,
+            body: '',
+            document: { file },
+          });
+        }}
+      />
+
+      {sheet === 'location' && (
+        <LocationSheet
+          onClose={() => setSheet(undefined)}
+          onSend={(location) => {
+            setSheet(undefined);
+            void service.sendMessage({ conversationId: conversation.id, body: '', location });
+          }}
+        />
+      )}
+
+      {sheet === 'contact' && (
+        <ContactSheet
+          onClose={() => setSheet(undefined)}
+          onSend={(contact) => {
+            setSheet(undefined);
+            void service.sendMessage({ conversationId: conversation.id, body: '', contact });
+          }}
+        />
+      )}
+
+      {sheet === 'event' && (
+        <EventSheet
+          onClose={() => setSheet(undefined)}
+          onSend={(event) => {
+            setSheet(undefined);
+            void service.sendMessage({ conversationId: conversation.id, body: '', event });
+          }}
+        />
+      )}
 
       {pending && (
         <PhotoComposer

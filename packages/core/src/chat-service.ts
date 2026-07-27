@@ -67,6 +67,19 @@ export interface OutgoingMessage {
    * a thread to draw bars for one.
    */
   voice?: { audio: Blob; seconds: number; waveform: number[] };
+
+  /** Makes this a document message. The service uploads and names it. */
+  document?: { file: File };
+
+  /**
+   * The three structured kinds.
+   *
+   * None of them needs storage — each is a few fields — so they travel as the
+   * shape the bubble will render rather than as bytes to be fetched later.
+   */
+  location?: { lat: number; lng: number; label?: string };
+  contact?: { name: string; handle?: string; userId?: string };
+  event?: { title: string; startsAt: number; location?: string };
 }
 
 /**

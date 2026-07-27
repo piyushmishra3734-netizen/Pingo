@@ -75,7 +75,15 @@ export type MessageRow = {
   body: string;
   created_at: string;
   edited_at: string | null;
-  kind: 'text' | 'sticker' | 'snap' | 'photo' | 'voice';
+  kind:
+    | 'text' | 'sticker' | 'snap' | 'photo' | 'voice'
+    | 'document' | 'location' | 'contact' | 'event';
+  file_path: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  file_mime: string | null;
+  /** Shape depends on kind. See the attachments migration. */
+  meta: Record<string, unknown> | null;
   voice_path: string | null;
   voice_duration: number | null;
   voice_waveform: number[] | null;
@@ -243,7 +251,14 @@ export type Database = {
           conversation_id: string;
           sender_id: string;
           body: string;
-          kind?: 'text' | 'sticker' | 'snap' | 'photo' | 'voice';
+          kind?:
+            | 'text' | 'sticker' | 'snap' | 'photo' | 'voice'
+            | 'document' | 'location' | 'contact' | 'event';
+          file_path?: string | null;
+          file_name?: string | null;
+          file_size?: number | null;
+          file_mime?: string | null;
+          meta?: Record<string, unknown> | null;
           voice_path?: string | null;
           voice_duration?: number | null;
           voice_waveform?: number[] | null;
