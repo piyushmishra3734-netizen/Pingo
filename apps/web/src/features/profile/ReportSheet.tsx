@@ -2,7 +2,7 @@ import { useProfile, type ReportReason } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { useState } from 'react';
 
-import { Sheet, SheetCancel } from './Sheet.js';
+import { Sheet, SheetCancel } from '../../components/Sheet.js';
 
 /**
  * Reporting someone, or one of their posts.

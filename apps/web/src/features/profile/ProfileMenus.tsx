@@ -7,10 +7,9 @@ import {
   PlusIcon,
   QrIcon,
   SettingsIcon,
-  cn,
 } from '@pingo/ui';
 
-import { Sheet, SheetCancel, SheetItem } from './Sheet.js';
+import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 
 /**
  * The two profile menus.
@@ -131,50 +130,6 @@ export function PersonMenu({
         />
 
         <SheetCancel onClick={onClose} />
-      </div>
-    </Sheet>
-  );
-}
-
-/**
- * One question, two answers, and the destructive one named rather than "OK".
- *
- * Every confirmation in the product says what will happen on the button itself,
- * because "Are you sure? / OK" is the pattern people learn to dismiss without
- * reading.
- */
-export function ConfirmSheet({
-  title,
-  description,
-  confirmLabel,
-  tone = 'danger',
-  onConfirm,
-  onCancel,
-}: {
-  title: string;
-  description: string;
-  confirmLabel: string;
-  tone?: 'danger' | 'normal';
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <Sheet title={title} description={description} onClose={onCancel}>
-      <div className="mt-4 flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={onConfirm}
-          className={cn(
-            'focus-ring w-full rounded-full px-5 py-3 text-body font-medium',
-            'transition-transform duration-instant active:scale-[0.98]',
-            tone === 'danger'
-              ? 'bg-danger text-white shadow-sm'
-              : 'bg-brand-gradient text-white shadow-brand',
-          )}
-        >
-          {confirmLabel}
-        </button>
-        <SheetCancel onClick={onCancel} />
       </div>
     </Sheet>
   );

@@ -8,6 +8,8 @@ import { DeleteChatSheet } from '../conversations/DeleteChatSheet.js';
 import { MuteSheet } from '../conversations/MuteSheet.js';
 import { useConversationActions } from '../conversations/useConversationActions.js';
 
+import { useConfirm } from '../../components/ConfirmProvider.js';
+
 /**
  * The `⋯` in a thread header: everything you can do to this conversation.
  *
@@ -49,6 +51,7 @@ export function ConversationMenu({
   const wrapRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const actions = useConversationActions();
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (!open) return;
@@ -155,7 +158,26 @@ export function ConversationMenu({
 
           <Divider />
 
-          <Item label="Clear messages" onSelect={() => run(actions.clear(id))} />
+          {/*
+            Confirmed, unlike the rows above it. Pin, mute and archive are all
+            one tap to undo; clearing a thread is not, and it sits directly
+            above Delete chat where a thumb aiming for one can find the other.
+          */}
+          <Item
+            label="Clear messages"
+            onSelect={() => {
+              setOpen(false);
+              void (async () => {
+                const go = await confirm({
+                  title: 'Clear this chat?',
+                  description:
+                    'Every message goes from your side. The other person keeps theirs, and the chat itself stays in your list.',
+                  confirmLabel: 'Clear messages',
+                });
+                if (go) await actions.clear(id);
+              })();
+            }}
+          />
           <Item
             label="Delete chat"
             danger

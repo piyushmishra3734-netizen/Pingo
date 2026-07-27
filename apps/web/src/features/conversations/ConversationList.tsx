@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppWordmark } from '../../components/AppWordmark.js';
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
@@ -68,6 +69,7 @@ export function ConversationList({
   const { unread } = useNotifications();
 
   const actions = useConversationActions();
+  const confirm = useConfirm();
 
   const [openStory, setOpenStory] = useState<
     { group: StoryGroup; origin: DOMRect } | undefined
@@ -231,7 +233,20 @@ export function ConversationList({
                 />
                 <SelectionMenuItem
                   label="Clear messages"
-                  onSelect={() => andClose(actions.clear(selected.map((c) => c.id)))}
+                  onSelect={() => {
+                    void (async () => {
+                      const go = await confirm({
+                        title:
+                          selected.length === 1
+                            ? 'Clear this chat?'
+                            : `Clear ${selected.length} chats?`,
+                        description:
+                          'Every message goes from your side. The other people keep theirs, and the chats stay in your list.',
+                        confirmLabel: 'Clear messages',
+                      });
+                      if (go) andClose(actions.clear(selected.map((c) => c.id)));
+                    })();
+                  }}
                 />
 
                 {/*

@@ -35,15 +35,16 @@ import { MediaEmpty, MediaGrid, MediaSkeleton } from '../features/profile/MediaG
 import { PostComposer } from '../features/profile/PostComposer.js';
 import { PostGrid, PostGridSkeleton, PostsEmpty } from '../features/profile/PostGrid.js';
 import { PostViewer } from '../features/profile/PostViewer.js';
-import { ConfirmSheet, MyProfileMenu, PersonMenu } from '../features/profile/ProfileMenus.js';
+import { MyProfileMenu, PersonMenu } from '../features/profile/ProfileMenus.js';
 import { ProfileAvatar } from '../features/profile/ProfileAvatar.js';
 import { ReplacePostSheet } from '../features/profile/ReplacePostSheet.js';
 import { ReportSheet } from '../features/profile/ReportSheet.js';
-import { Sheet, SheetCancel } from '../features/profile/Sheet.js';
+import { Sheet, SheetCancel } from '../components/Sheet.js';
 import { ShareProfileSheet, profileLink } from '../features/profile/ShareProfileSheet.js';
 import { SharedWithPanel } from '../features/profile/SharedWithPanel.js';
 import { useMutuals } from '../features/profile/useMutuals.js';
 
+import { useConfirm } from '../components/ConfirmProvider.js';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 
 /**
@@ -84,6 +85,7 @@ export function ProfileScreen() {
   const { startCall } = useCall();
   const { mute } = useConversationActions();
   const mutuals = useMutuals();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   const isSelf = !handle || handle === mine?.username || handle === mine?.id;
@@ -181,13 +183,11 @@ export function ProfileScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [reporting, setReporting] = useState<{ postId?: string } | undefined>();
-  const [confirmBlock, setConfirmBlock] = useState(false);
   const [viewing, setViewing] = useState<Post>();
   const [replacing, setReplacing] = useState(false);
   /** The file chosen for a new or replacement post, before the editor opens. */
   const [pending, setPending] = useState<{ file: File; replaces?: Post }>();
   const [editingCaption, setEditingCaption] = useState<Post>();
-  const [deleting, setDeleting] = useState<Post>();
 
   const postFileRef = useRef<HTMLInputElement>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
@@ -252,9 +252,21 @@ export function ProfileScreen() {
   };
 
   const toggleBlock = async () => {
-    setConfirmBlock(false);
     setMenuOpen(false);
     const next = !blocked;
+
+    // Only blocking asks. Unblocking gives something back rather than taking
+    // it away, and a product that questions both teaches people to tap through.
+    if (next) {
+      const go = await confirm({
+        title: `Block ${person.displayName}?`,
+        description:
+          'They will not be able to call you or see your stories, and you will stop being friends. They are not told.',
+        confirmLabel: 'Block',
+      });
+      if (!go) return;
+    }
+
     setBlocked(next);
     try {
       await profiles.setBlocked(person.id, next);
@@ -281,7 +293,14 @@ export function ProfileScreen() {
   };
 
   const removePost = async (post: Post) => {
-    setDeleting(undefined);
+    const go = await confirm({
+      title: 'Delete this post?',
+      description:
+        'It goes for good, along with its likes and comments. A profile holds three, so this frees a slot.',
+      confirmLabel: 'Delete',
+    });
+    if (!go) return;
+
     setViewing(undefined);
     const previous = posts ?? [];
     setPosts(previous.filter((p) => p.id !== post.id));
@@ -337,9 +356,18 @@ export function ProfileScreen() {
             online={online}
             isSelf={isSelf}
             onChangePhoto={() => avatarFileRef.current?.click()}
-            // The key is present and undefined, which the service reads as
-            // "clear it" rather than as "not mentioned".
-            onRemovePhoto={() => void updateMine({ avatarUrl: undefined })}
+            onRemovePhoto={() => {
+              void (async () => {
+                const go = await confirm({
+                  title: 'Remove your photo?',
+                  description: 'Your monogram takes its place. You can add a new one any time.',
+                  confirmLabel: 'Remove photo',
+                });
+                // The key is present and undefined, which the service reads as
+                // "clear it" rather than as "not mentioned".
+                if (go) await updateMine({ avatarUrl: undefined });
+              })();
+            }}
           />
 
           <input
@@ -406,7 +434,7 @@ export function ProfileScreen() {
                 a product nobody can start using.
               */}
               {mutuals && !mutuals.has(person.id) && (
-                <FollowButton userId={person.id} className="w-full" />
+                <FollowButton userId={person.id} name={person.displayName} className="w-full" />
               )}
 
               <div className="flex w-full items-center gap-2">
@@ -563,11 +591,9 @@ export function ProfileScreen() {
              */
             void mute([conversation.id], conversation.muted ? null : MUTE_DURATIONS.at(-1)!.ms);
           }}
-          onBlock={() => {
-            setMenuOpen(false);
-            if (blocked) void toggleBlock();
-            else setConfirmBlock(true);
-          }}
+          // `toggleBlock` asks for itself when it is about to block, so both
+          // directions go through the same call.
+          onBlock={() => void toggleBlock()}
           onReport={() => {
             setMenuOpen(false);
             setReporting({});
@@ -595,21 +621,12 @@ export function ProfileScreen() {
               ? undefined
               : () => {
                   setReporting(undefined);
-                  setConfirmBlock(true);
+                  void toggleBlock();
                 }
           }
         />
       )}
 
-      {confirmBlock && (
-        <ConfirmSheet
-          title={`Block ${person.displayName}?`}
-          description="They will not be able to call you or see your stories, and you will stop being friends. They are not told."
-          confirmLabel="Block"
-          onConfirm={() => void toggleBlock()}
-          onCancel={() => setConfirmBlock(false)}
-        />
-      )}
 
       {replacing && posts && (
         <ReplacePostSheet
@@ -649,7 +666,7 @@ export function ProfileScreen() {
             setViewing(undefined);
             postFileRef.current?.click();
           }}
-          onDelete={() => setDeleting(viewing)}
+          onDelete={() => void removePost(viewing)}
           onReport={() => setReporting({ postId: viewing.id })}
         />
       )}
@@ -667,15 +684,6 @@ export function ProfileScreen() {
         />
       )}
 
-      {deleting && (
-        <ConfirmSheet
-          title="Delete this post?"
-          description="It goes for good, along with its likes and comments. A profile holds three, so this frees a slot."
-          confirmLabel="Delete"
-          onConfirm={() => void removePost(deleting)}
-          onCancel={() => setDeleting(undefined)}
-        />
-      )}
     </div>
   );
 }

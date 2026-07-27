@@ -1,4 +1,4 @@
-import { searchSettings, useAuth } from '@pingo/core';
+import { searchSettings } from '@pingo/core';
 import {
   AccountIcon,
   BellIcon,
@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useAppearance } from '../features/settings/SettingsContext.js';
 import { SettingsRow } from '../features/settings/SettingsRow.js';
+import { useSignOut } from '../features/settings/useSignOut.js';
 
 /**
  * Settings — the index.
@@ -52,7 +53,7 @@ const ACCENT_LABEL: Record<string, string> = {
 
 export function SettingsScreen() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const signOut = useSignOut();
   const { appearance, resolvedTheme } = useAppearance();
 
   const [query, setQuery] = useState('');

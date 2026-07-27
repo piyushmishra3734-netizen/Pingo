@@ -8,6 +8,7 @@ import { IdentityFlow } from './features/auth/IdentityFlow.js';
 import { RequireAuth, RequireGuest } from './features/auth/guards.js';
 import { markOnboarded } from './features/auth/onboarded.js';
 import { CallOverlay } from './features/calls/CallOverlay.js';
+import { ConfirmProvider } from './components/ConfirmProvider.js';
 import { CallProvider } from './features/calls/CallProvider.js';
 import { NotificationProvider } from './features/notifications/NotificationContext.js';
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
@@ -139,6 +140,12 @@ export function App() {
       splash and the sign-in screens too, which a signed-out user sees first.
     */
     <SettingsProvider>
+    {/*
+      Outside auth, because logging out is one of the things it asks about — a
+      confirmation that unmounts with the session could not survive its own
+      question.
+    */}
+    <ConfirmProvider>
     <AuthProvider
       service={services.auth}
       /*
@@ -281,6 +288,7 @@ export function App() {
         </StickerProvider>
       </ProfileProvider>
     </AuthProvider>
+    </ConfirmProvider>
     </SettingsProvider>
   );
 }

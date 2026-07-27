@@ -1,7 +1,7 @@
 import { CheckIcon, LinkIcon, ShareIcon, cn } from '@pingo/ui';
 import { useMemo, useState } from 'react';
 
-import { Sheet, SheetCancel, SheetItem } from './Sheet.js';
+import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import { encodeQr, qrPath } from './qr.js';
 
 /**

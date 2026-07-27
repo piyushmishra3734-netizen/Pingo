@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CaptionText } from './CaptionText.js';
 import { ShareLinkButton, profileLink } from './ShareProfileSheet.js';
 
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
 
 /**
@@ -61,6 +62,7 @@ export function PostViewer({
   onReport,
 }: PostViewerProps) {
   const { service } = useProfile();
+  const confirm = useConfirm();
 
   const [comments, setComments] = useState<PostComment[] | undefined>();
   const [draft, setDraft] = useState('');
@@ -150,6 +152,15 @@ export function PostViewer({
   };
 
   const removeComment = async (comment: PostComment) => {
+    const go = await confirm({
+      title: 'Delete this comment?',
+      // Named rather than described. Comments are short and there may be
+      // several; quoting it is how you know you are deleting the right one.
+      description: `“${comment.body.slice(0, 80)}${comment.body.length > 80 ? '…' : ''}”`,
+      confirmLabel: 'Delete',
+    });
+    if (!go) return;
+
     const previous = comments ?? [];
     setComments(previous.filter((c) => c.id !== comment.id));
     onChange({ ...post, commentCount: Math.max(0, post.commentCount - 1) });

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { useReturnFocus } from './focus-restore.js';
 
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
 
 /**
@@ -50,6 +51,7 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
   /** The list whose name is being edited. Renaming is rare, so it is not a mode. */
   const [renaming, setRenaming] = useState<string>();
   const [error, setError] = useState<string>();
@@ -146,6 +148,19 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
 
   const remove = async (list: ChatList) => {
     if (busy) return;
+
+    /*
+     * The chats in it are untouched — only the grouping goes. Saying so is the
+     * difference between a moment's hesitation and a real fright, and it is why
+     * this dialog names what survives rather than warning about what does not.
+     */
+    const go = await confirm({
+      title: `Delete the list “${list.name}”?`,
+      description: 'The chats in it stay exactly where they are. Only the list goes.',
+      confirmLabel: 'Delete list',
+    });
+    if (!go) return;
+
     setBusy(true);
     try {
       await service.deleteChatList(list.id);

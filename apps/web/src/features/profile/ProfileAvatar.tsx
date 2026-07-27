@@ -2,7 +2,7 @@ import { Avatar, CameraIcon, TrashIcon, cn } from '@pingo/ui';
 import { useRef, useState } from 'react';
 
 import { ImageViewer } from './ImageViewer.js';
-import { Sheet, SheetCancel, SheetItem } from './Sheet.js';
+import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 
 /**
  * The profile photo.

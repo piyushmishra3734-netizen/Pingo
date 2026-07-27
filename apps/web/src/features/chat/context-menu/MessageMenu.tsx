@@ -8,6 +8,8 @@ import { MoreSheet } from './MoreSheet.js';
 import { ReactionBar } from './ReactionBar.js';
 import { useMessageMenu } from './useMenuTriggers.js';
 
+import { useConfirm } from '../../../components/ConfirmProvider.js';
+
 /**
  * The whole context menu, assembled.
  *
@@ -208,8 +210,32 @@ function useLevel2(
   onFail: (why: string) => void,
   onEdit: () => void,
 ) {
+  const confirm = useConfirm();
+
   const guard = (what: string, run: () => Promise<unknown>) => () => {
     void run().catch(() => onFail(`${what} failed`));
+  };
+
+  /**
+   * Deleting a message, with the question in front of it.
+   *
+   * The two are genuinely different acts and the dialog says which one is
+   * about to happen: for me leaves the message where everybody else can still
+   * read it, and for everyone reaches into somebody else's thread. Offering
+   * them as two rows in a menu made them look like the same button twice.
+   */
+  const confirmDelete = (forEveryone: boolean) => () => {
+    void (async () => {
+      const go = await confirm({
+        title: forEveryone ? 'Delete for everyone?' : 'Delete for you?',
+        description: forEveryone
+          ? 'It goes from this chat for both of you. They will see that a message was deleted.'
+          : 'It goes from your side only. The other person still has their copy.',
+        confirmLabel: 'Delete',
+      });
+      if (!go) return;
+      await service.deleteMessage(message.id, forEveryone).catch(() => onFail('Delete failed'));
+    })();
   };
 
   return {
@@ -223,8 +249,8 @@ function useLevel2(
     ),
 
 
-    deleteForMe: guard('Delete', () => service.deleteMessage(message.id, false)),
-    deleteForEveryone: guard('Delete', () => service.deleteMessage(message.id, true)),
+    deleteForMe: confirmDelete(false),
+    deleteForEveryone: confirmDelete(true),
 
     /*
      * Share and Save hand off to the platform. Both fall back to the clipboard

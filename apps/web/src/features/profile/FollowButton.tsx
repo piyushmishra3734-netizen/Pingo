@@ -2,6 +2,8 @@ import { useProfile, type FollowState } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
+import { useConfirm } from '../../components/ConfirmProvider.js';
+
 /**
  * The follow control, and the only place a follow state changes.
  *
@@ -38,14 +40,18 @@ import { useEffect, useState } from 'react';
  */
 export function FollowButton({
   userId,
+  name,
   onChange,
   className,
 }: {
   userId: string;
+  /** Used in the confirmation when a friendship is about to end. */
+  name?: string;
   onChange?: (state: FollowState) => void;
   className?: string;
 }) {
   const { service } = useProfile();
+  const confirm = useConfirm();
   const [state, setState] = useState<FollowState>();
   const [busy, setBusy] = useState(false);
 
@@ -102,12 +108,30 @@ export function FollowButton({
   const primary = state === 'none' || state === 'incoming' || state === 'follower';
 
   const onClick = () =>
-    void run(() => {
-      if (state === 'incoming') return service.acceptFollow(userId);
-      if (state === 'none' || state === 'follower') return service.requestFollow(userId);
-      // Requested, following, mutual — all undo to the same thing.
-      return service.removeFollow(userId);
-    });
+    void (async () => {
+      /*
+       * Only ending a friendship asks. Withdrawing a request you sent is
+       * undoing your own action a moment later, and adding somebody is not
+       * destructive at all — a dialog on either would be the kind of noise
+       * that trains people to tap through the one that matters.
+       */
+      if (state === 'mutual') {
+        const go = await confirm({
+          title: `Remove ${name ?? 'this person'} as a friend?`,
+          description:
+            'Calls, snaps and stories close between you. You can still message each other, and either of you can ask again.',
+          confirmLabel: 'Remove friend',
+        });
+        if (!go) return;
+      }
+
+      await run(() => {
+        if (state === 'incoming') return service.acceptFollow(userId);
+        if (state === 'none' || state === 'follower') return service.requestFollow(userId);
+        // Requested, following, mutual — all undo to the same thing.
+        return service.removeFollow(userId);
+      });
+    })();
 
   return (
     <button

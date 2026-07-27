@@ -1,9 +1,9 @@
 import { cn } from '@pingo/ui';
 import { useEffect, useId, useRef } from 'react';
 
-import { useReturnFocus } from '../conversations/focus-restore.js';
+import { useReturnFocus } from '../features/conversations/focus-restore.js';
 
-import { Overlay } from '../../components/Overlay.js';
+import { Overlay } from './Overlay.js';
 
 /**
  * The bottom sheet, once.
@@ -36,6 +36,15 @@ export interface SheetProps {
   children: React.ReactNode;
   /** Hides the heading visually while keeping it for screen readers. */
   hideTitle?: boolean;
+  /**
+   * Puts the sheet above the full-screen layers rather than beside them.
+   *
+   * Ordinary sheets sit at `z-500`, which is above the app and below the post
+   * viewer, the photo viewer and a call — all of which are `z-1000` and are all
+   * places a confirmation can be asked *from*. A confirm rendered at the normal
+   * height would open behind the very thing that opened it.
+   */
+  elevated?: boolean;
   className?: string;
 }
 
@@ -45,6 +54,7 @@ export function Sheet({
   onClose,
   children,
   hideTitle,
+  elevated = false,
   className,
 }: SheetProps) {
   useReturnFocus();
@@ -65,20 +75,41 @@ export function Sheet({
     (wanted ?? panelRef.current)?.focus();
   }, []);
 
+  /*
+   * Escape, and who else gets to hear it.
+   *
+   * An elevated sheet is by definition on top of something that also listens
+   * for Escape — the post viewer, the photo viewer, a conversation menu. Two
+   * window listeners both fire, so one Escape would dismiss the confirmation
+   * *and* close the thing that asked the question, which is a strange way to
+   * answer "no".
+   *
+   * So an elevated sheet listens in the capture phase, before anything bound to
+   * the bubble, and stops the event dead. An ordinary sheet does not: it has
+   * nothing above it and no reason to take the key away from anyone.
+   */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Escape') return;
+      if (elevated) {
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+      onClose();
     };
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, elevated);
     return () => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, elevated);
     };
-  }, [onClose]);
+  }, [onClose, elevated]);
 
   return (
     <Overlay>
       <div
-        className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
+        className={cn(
+          'fixed inset-0 flex items-end justify-center sm:items-center',
+          elevated ? 'z-[1100]' : 'z-500',
+        )}
         onPointerDown={onClose}
       >
         <div className="absolute inset-0 animate-fade-in bg-ink/[0.18]" />

@@ -9,6 +9,7 @@ import { Avatar, Button, PingoDot, TextField, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
+import { useSignOut } from '../../features/settings/useSignOut.js';
 
 /**
  * Account.
@@ -30,7 +31,8 @@ import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.j
  * rather than pretend.
  */
 export function AccountScreen() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
+  const signOut = useSignOut();
   const { profile, service, update } = useProfile();
 
   const [displayName, setDisplayName] = useState('');

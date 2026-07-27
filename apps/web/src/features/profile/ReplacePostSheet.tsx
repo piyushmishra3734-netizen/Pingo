@@ -1,7 +1,7 @@
 import type { Post } from '@pingo/core';
 import { cn } from '@pingo/ui';
 
-import { Sheet, SheetCancel } from './Sheet.js';
+import { Sheet, SheetCancel } from '../../components/Sheet.js';
 
 /**
  * The fourth post.
