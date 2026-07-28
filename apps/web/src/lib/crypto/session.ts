@@ -1,3 +1,4 @@
+import { STORE, localDelete, localEntries } from '../local/db.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
@@ -264,15 +265,42 @@ export async function sealRecord(value: unknown): Promise<SealedRecord> {
 }
 
 /**
- * Reads a record back, tolerating one written before this existed.
+ * Purges anything on disk that is not sealed.
  *
- * An unsealed value is returned as-is rather than rejected. The cache predates
- * encryption, and treating the old plaintext records as corrupt would empty
- * every existing user's offline history on the day they update.
+ * The cache predates encryption, so every existing device holds plaintext
+ * records written by an older build. An earlier draft of this module simply
+ * tolerated them — read them back as-is and let them be replaced whenever that
+ * conversation next happened to be opened. Checking in the browser showed what
+ * that means in practice: a conversation nobody reopens keeps its readable
+ * copy on disk indefinitely. For a feature whose entire claim is that the disk
+ * is not readable, "eventually, if you visit it" is not a claim at all.
+ *
+ * Losing them costs one network fetch. Keeping them costs the guarantee.
+ */
+let purged: Promise<void> | undefined;
+
+export function purgeUnsealedCache(): Promise<void> {
+  purged ??= (async () => {
+    for (const store of [STORE.conversations, STORE.messages, STORE.outbox] as const) {
+      for (const [key, value] of await localEntries<unknown>(store)) {
+        if (!isSealed(value)) await localDelete(store, key);
+      }
+    }
+  })().catch(() => undefined);
+
+  return purged;
+}
+
+/**
+ * Reads a record back.
+ *
+ * Unsealed values are refused rather than returned. They should already have
+ * been purged above; this is the second lock on the same door, and it means no
+ * future caller can reintroduce plaintext by writing to a store directly.
  */
 export async function openRecord<T>(stored: unknown): Promise<T | undefined> {
   if (stored === undefined) return undefined;
-  if (!isSealed(stored)) return stored as T;
+  if (!isSealed(stored)) return undefined;
 
   try {
     const key = await databaseKey();

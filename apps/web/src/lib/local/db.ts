@@ -174,6 +174,14 @@ export function localAll<T>(store: StoreName): Promise<T[]> {
   return withStore<T[]>(store, 'readonly', (s) => s.getAll()).then((rows) => rows ?? []);
 }
 
+/** Keys alongside values, for passes that have to delete what they inspect. */
+export async function localEntries<T>(store: StoreName): Promise<Array<[string, T]>> {
+  const keys = await withStore<IDBValidKey[]>(store, 'readonly', (s) => s.getAllKeys());
+  const values = await withStore<T[]>(store, 'readonly', (s) => s.getAll());
+  if (!keys || !values) return [];
+  return keys.map((key, i) => [String(key), values[i] as T]);
+}
+
 /** Wipes everything. Called on sign-out — one device, one account's cache. */
 export async function localClear(): Promise<void> {
   for (const name of Object.values(STORE)) {

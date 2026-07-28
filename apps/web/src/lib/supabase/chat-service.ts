@@ -60,6 +60,7 @@ import {
   openRow,
   openRows,
   publishDeviceKey,
+  purgeUnsealedCache,
   sealBody,
   sealRecord,
 } from '../crypto/session.js';
@@ -439,6 +440,10 @@ export class SupabaseChatService implements ChatService {
      * read and send, it just cannot be encrypted *to* until it has.
      */
     void publishDeviceKey(this.#client, id);
+
+    // Plaintext left on disk by a build that predates sealing. Runs once, and
+    // costs one refetch for any conversation it clears.
+    void purgeUnsealedCache();
 
     return id;
   }
