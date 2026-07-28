@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 import type { VisionCapability, VisionFrame, VisionTaskDefinition } from '@pingo/core';
 import type {
   FaceLandmarker,
@@ -102,11 +104,27 @@ export const VISION_TASKS: VisionTaskDefinition[] = [
  * worker skips this folder deliberately, so the cost is paid once by whoever
  * uses the feature rather than by everyone on first load.
  */
+/**
+ * Where the models are fetched from at runtime.
+ *
+ * On the web they are same-origin files, served from PINGO's own domain — which
+ * is the whole point of having self-hosted them.
+ *
+ * Inside the Android app they are deliberately *not* bundled. Forty megabytes
+ * of model would push the APK past the 25MiB a static host will serve, and
+ * being able to hand somebody a download link matters more than face filters
+ * working with no signal at all. So the shell fetches them from the same PINGO
+ * origin the first time an effect is opened.
+ *
+ * Still not Google, which was the reason for self-hosting, and that survives.
+ */
+const ASSET_ORIGIN = Capacitor.isNativePlatform() ? 'https://pingochat.pages.dev' : '';
+
 const MODELS = {
-  face: '/vision/face_landmarker.task',
-  hand: '/vision/hand_landmarker.task',
-  gesture: '/vision/gesture_recognizer.task',
-  segmenter: '/vision/selfie_segmenter.tflite',
+  face: `${ASSET_ORIGIN}/vision/face_landmarker.task`,
+  hand: `${ASSET_ORIGIN}/vision/hand_landmarker.task`,
+  gesture: `${ASSET_ORIGIN}/vision/gesture_recognizer.task`,
+  segmenter: `${ASSET_ORIGIN}/vision/selfie_segmenter.tflite`,
 } as const;
 
 /**
@@ -117,7 +135,7 @@ const MODELS = {
  * an older device fetching a 404 and losing camera effects entirely — a silent
  * failure on precisely the hardware least able to explain itself.
  */
-const WASM_ROOT = '/vision/wasm';
+const WASM_ROOT = `${ASSET_ORIGIN}/vision/wasm`;
 
 /**
  * The concrete union of the tasks in use.

@@ -52,9 +52,9 @@ const PLATFORMS: PlatformCard[] = [
     key: 'android',
     name: 'Android',
     icon: '🤖',
-    status: 'soon',
-    method: 'A real Play Store app, built from the same engine as everything else. Not a shortcut to a website.',
-    requirements: 'Android 8 or newer.',
+    status: 'available',
+    method: 'A real installable app — its own icon, no browser, full screen. Install the APK directly today; the Play Store listing comes later.',
+    requirements: 'Android 7 or newer. Allow install from unknown sources once.',
   },
   {
     key: 'ios',
@@ -138,11 +138,13 @@ const BENEFITS = [
 const GUIDES: { key: Platform; title: string; steps: string[] }[] = [
   {
     key: 'android',
-    title: 'Android',
+    title: 'Android — install it now',
     steps: [
-      'The Android app is built and signed as a Play Store release.',
-      'It is not published yet — this page will carry the Play Store link the day it is.',
-      'Until then, use PINGO in your browser. Everything works; it is the same product.',
+      'Get PINGO.apk onto your phone: USB cable, Google Drive, or email it to yourself.',
+      'Open the file on the phone. Android will ask permission to install from this source — allow it once.',
+      'Tap Install. PINGO appears in your app drawer with its own icon.',
+      'Open it. No browser, no address bar. Sign in and everything works exactly as it does on the web.',
+      'The Play Store listing comes later; nothing about the app changes when it does.',
     ],
   },
   {
