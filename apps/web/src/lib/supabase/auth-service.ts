@@ -52,6 +52,7 @@ import type {
   User as SupabaseUser,
 } from '@supabase/supabase-js';
 
+import { localClear } from '../local/db.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 
 /**
@@ -428,5 +429,20 @@ export class SupabaseAuthService implements AuthService {
   async signOut(): Promise<void> {
     const { error } = await this.client.auth.signOut();
     if (error) rethrow(error);
+
+    /*
+     * The local cache goes with the session.
+     *
+     * It holds conversations, message pages and anything still in the outbox —
+     * all of it one account's private data sitting on a device that may be
+     * shared. Signing out and leaving it behind would mean the next person to
+     * open the app on a bad network sees the previous person's chats served
+     * from disk.
+     *
+     * After the sign-out rather than before: if the network call fails the
+     * session survives, and wiping first would have logged someone out of their
+     * own cache while leaving them signed in.
+     */
+    await localClear();
   }
 }

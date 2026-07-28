@@ -55,6 +55,8 @@ import type {
   UserSettings,
 } from '@pingo/core';
 
+import { STORE, localGet, localSet } from '../local/db.js';
+import { enqueue, flush } from '../local/outbox.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { PresenceHub } from './presence.js';
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
@@ -676,8 +678,20 @@ export class SupabaseChatService implements ChatService {
           status === 'SUBSCRIBED' ? 'connected' : status === 'CLOSED' ? 'offline' : 'connecting';
 
         if (next !== this.#connection) {
+          const wasOffline = this.#connection !== 'connected';
           this.#connection = next;
           this.#emit({ type: 'connection:changed', state: next });
+
+          /*
+           * Coming back is what drains the outbox.
+           *
+           * Keyed on the transition rather than on a timer or a retry loop:
+           * there is exactly one moment when a queued message becomes sendable,
+           * and polling for it would either be slow or waste battery being
+           * early. A reconnect after a reconnect flushes nothing, because the
+           * queue is already empty.
+           */
+          if (next === 'connected' && wasOffline) void this.#flushOutbox();
         }
       });
   }
@@ -886,6 +900,26 @@ export class SupabaseChatService implements ChatService {
   // -- conversations -------------------------------------------------------
 
   async listConversations(): Promise<Conversation[]> {
+    /*
+     * The cache answers first when the network cannot.
+     *
+     * Not cache-first: a stale list shown ahead of a fresh one makes every
+     * launch flash the wrong unread counts. This tries the network, and falls
+     * back only when it fails — so an offline launch opens on the conversations
+     * you had rather than on an empty screen with an error.
+     */
+    try {
+      const live = await this.#listConversationsFromNetwork();
+      void localSet(STORE.conversations, 'all', live);
+      return live;
+    } catch (cause) {
+      const cached = await localGet<Conversation[]>(STORE.conversations, 'all');
+      if (cached) return cached;
+      throw cause;
+    }
+  }
+
+  async #listConversationsFromNetwork(): Promise<Conversation[]> {
     const me = await this.#userId();
 
     const { data: memberships } = await this.#client
@@ -1107,6 +1141,31 @@ export class SupabaseChatService implements ChatService {
   }
 
   async listMessages(
+    conversationId: ConversationId,
+    options?: { limit?: number; before?: MessageId },
+  ): Promise<Message[]> {
+    /*
+     * Only the newest page is cached, and only that page is served offline.
+     *
+     * A `before` cursor is a request for history that is not held locally —
+     * answering it from a cache of the newest fifty would hand back the wrong
+     * messages and let the caller believe it had paged. So paging simply fails
+     * offline, which the thread already renders as "no more history".
+     */
+    if (options?.before) return this.#listMessagesFromNetwork(conversationId, options);
+
+    try {
+      const live = await this.#listMessagesFromNetwork(conversationId, options);
+      void localSet(STORE.messages, conversationId, live);
+      return live;
+    } catch (cause) {
+      const cached = await localGet<Message[]>(STORE.messages, conversationId);
+      if (cached) return cached;
+      throw cause;
+    }
+  }
+
+  async #listMessagesFromNetwork(
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId },
   ): Promise<Message[]> {
@@ -1528,6 +1587,42 @@ export class SupabaseChatService implements ChatService {
   }
 
   async sendMessage(draft: OutgoingMessage): Promise<Message> {
+    /*
+     * Queued rather than refused when there is no connection.
+     *
+     * The message still appears in the thread — emitted below as `sending` —
+     * and goes out on reconnect. Without this, a message typed in a tunnel is
+     * lost with the tab, and that is exactly the message somebody assumes was
+     * sent.
+     *
+     * Media is deliberately excluded. A photo or voice note is a file handle
+     * that does not survive a reload, so queueing one would promise a delivery
+     * the outbox cannot keep. Those still fail immediately and visibly.
+     */
+    const hasMedia = Boolean(
+      draft.photo ?? draft.ping ?? draft.voice ?? draft.document ?? draft.sticker,
+    );
+    if (!navigator.onLine && !hasMedia) {
+      const entry = await enqueue(draft);
+      const queued: Message = {
+        id: entry.id,
+        conversationId: draft.conversationId,
+        authorId: await this.#userId(),
+        body: draft.body,
+        createdAt: entry.queuedAt,
+        status: 'sending',
+        attachments: [],
+        reactions: [],
+        ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
+      };
+      this.#emit({ type: 'message:new', message: queued });
+      return queued;
+    }
+
+    return this.#sendNow(draft);
+  }
+
+  async #sendNow(draft: OutgoingMessage): Promise<Message> {
     const me = await this.#userId();
 
     /*
@@ -1790,6 +1885,21 @@ export class SupabaseChatService implements ChatService {
    * without this, promoting somebody leaves the screen you did it from showing
    * the roles as they were.
    */
+  /**
+   * Sends everything queued, oldest first, and tells the app what went.
+   *
+   * Each message is re-emitted on success so the bubble that has been sitting
+   * at 'sending' since a tunnel becomes a real message with the server's own
+   * id and timestamp — otherwise the thread would hold a ghost that never
+   * resolves and a duplicate would arrive beside it over realtime.
+   */
+  async #flushOutbox(): Promise<void> {
+    await flush(async (draft) => {
+      const sent = await this.#sendNow(draft);
+      this.#emit({ type: 'message:new', message: sent });
+    });
+  }
+
   async #announce(conversationId: ConversationId): Promise<void> {
     const conversation = await this.getConversation(conversationId);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
