@@ -11,7 +11,7 @@ import {
   UsersIcon,
   cn,
 } from '@pingo/ui';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useMutuals } from '../features/profile/useMutuals.js';
@@ -31,11 +31,14 @@ import { useMutuals } from '../features/profile/useMutuals.js';
  * invite link is for, and the empty state points at it rather than leaving
  * somebody stuck: make the group, then share the link.
  *
- * ## Name first, people second
+ * ## The name is required, and the screen has to say so
  *
- * A group with no name cannot be created, so the field that blocks the button
- * is the field the cursor starts in. Picking eight people and then discovering
- * you owe the form a name is the order that wastes the effort.
+ * A group cannot be created without one, so the cursor starts in that field.
+ * That is not enough on its own: people go to the list first, pick somebody,
+ * and press the button — and the first version answered by staying `disabled`
+ * under a label that read "Create with 1", which is a control that looks
+ * finished and does nothing. The button is now always pressable and says what
+ * it is missing.
  */
 export function NewGroupScreen() {
   const navigate = useNavigate();
@@ -48,6 +51,8 @@ export function NewGroupScreen() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  /** Focused when the button is pressed without one, so the ask has a target. */
+  const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -97,8 +102,28 @@ export function NewGroupScreen() {
   };
 
   const create = async () => {
+    if (busy) return;
+
     const name = title.trim();
-    if (!name || busy) return;
+
+    /*
+     * Say why, rather than going quiet.
+     *
+     * This button used to be `disabled` until the group had a name, while its
+     * label still counted the people you had picked — so choosing somebody made
+     * it read "Create with 1" and do nothing, with no hint anywhere that a name
+     * was what it was waiting for. Picking people is the part that feels like
+     * the work, so it is exactly the moment you press it and find it dead.
+     *
+     * Same rule as the call buttons in a thread: present and pressable even
+     * when it cannot proceed, because a greyed-out control cannot explain
+     * itself. Pressing it now points at the field it needs.
+     */
+    if (!name) {
+      setError('Give the group a name first.');
+      nameRef.current?.focus();
+      return;
+    }
 
     setBusy(true);
     setError(undefined);
@@ -138,8 +163,14 @@ export function NewGroupScreen() {
           </label>
           <input
             id="group-name"
+            ref={nameRef}
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              // Cleared on the first keystroke: a complaint that outlives the
+              // thing it complained about reads as a second, unrelated problem.
+              if (error) setError(undefined);
+            }}
             maxLength={60}
             placeholder="Group name"
             autoFocus
@@ -163,12 +194,6 @@ export function NewGroupScreen() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        {error && (
-          <p role="alert" className="mb-2 px-1 text-caption text-danger">
-            {error}
-          </p>
-        )}
-
         {matches === undefined ? (
           <LoadingState label="Loading friends" />
         ) : matches.length === 0 ? (
@@ -240,11 +265,25 @@ export function NewGroupScreen() {
           'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
         )}
       >
+        {/*
+          Beside the button, not at the top of the list.
+
+          It used to render above the friends, which is a scrolling region — so
+          the answer to "why did nothing happen?" could be sitting several
+          screens above the button that did nothing. This footer is pinned, so
+          the reason appears exactly where the press did.
+        */}
+        {error && (
+          <p role="alert" className="mb-2 text-caption text-danger">
+            {error}
+          </p>
+        )}
+
         <Button
           variant="primary"
           size="lg"
           className="w-full"
-          disabled={!title.trim() || busy}
+          disabled={busy}
           onClick={() => void create()}
         >
           {busy
