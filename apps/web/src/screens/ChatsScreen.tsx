@@ -3,6 +3,7 @@ import { EmptyState, cn } from '@pingo/ui';
 import { Navigate, useParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
+import { InstallBanner } from '../features/install/InstallBanner.js';
 import { ChatThread } from '../features/chat/ChatThread.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
@@ -39,12 +40,20 @@ export function ChatsScreen() {
     return conversation ? (
       <ChatThread conversation={conversation} showBack />
     ) : (
-      <ConversationList />
+      <>
+        <ConversationList />
+        {/*
+          Home only, and only with no thread open. An offer to install has no
+          business over a conversation somebody is reading.
+        */}
+        <InstallBanner />
+      </>
     );
   }
 
   return (
     <div className="flex h-full min-h-0">
+      <InstallBanner />
       <aside
         className={cn(
           'hidden h-full shrink-0 border-r border-line bg-page lg:block',

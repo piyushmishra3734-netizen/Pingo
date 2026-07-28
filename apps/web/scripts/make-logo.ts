@@ -55,10 +55,10 @@ const OUT = process.argv[3] ?? 'apps/web/src/assets/pingo-mark.png';
  * mark alone is what goes inside something else, where a second rounded square
  * would just be a box around a logo.
  */
-const MODE = (process.argv[4] ?? 'mark') as 'mark' | 'tile';
+const MODE = (process.argv[4] ?? 'mark') as 'mark' | 'tile' | 'maskable';
 
 if (!SOURCE) {
-  console.error('usage: pnpm build:logo <source.png> [out.png] [mark|tile]');
+  console.error('usage: pnpm build:logo <source.png> [out.png] [mark|tile|maskable]');
   process.exit(1);
 }
 
@@ -97,6 +97,43 @@ function tileAlpha(x: number, y: number): number {
 
   // One pixel of feathering, so the corner is antialiased rather than jagged.
   return Math.max(0, Math.min(1, 0.5 - outside));
+}
+
+/**
+ * The maskable icon: artwork edge to edge, no transparency anywhere.
+ *
+ * Android does not draw an app icon as supplied — it crops it to whatever shape
+ * the launcher uses, which is a circle on one phone, a squircle on another and
+ * a rounded square on a third. An icon with transparent corners gets those
+ * corners cropped *again* and comes out as a small badge floating in a large
+ * empty circle, which is the single most common way a PWA looks amateur on a
+ * home screen.
+ *
+ * So this fills the frame: the tile is scaled until its gradient reaches every
+ * edge, and the crop takes the rounded corners the launcher was going to
+ * replace anyway. The mark ends up at roughly 47% of the width, comfortably
+ * inside the 80% safe zone the specification guarantees will survive any mask.
+ */
+if (MODE === 'maskable') {
+  const inset = Math.round(width * 0.029);
+  const side = width - inset * 2;
+
+  const filled = new PNG({ width: side, height: side });
+  for (let y = 0; y < side; y += 1) {
+    for (let x = 0; x < side; x += 1) {
+      const from = (width * (y + inset) + (x + inset)) << 2;
+      const to = (side * y + x) << 2;
+      filled.data[to] = data[from]!;
+      filled.data[to + 1] = data[from + 1]!;
+      filled.data[to + 2] = data[from + 2]!;
+      // Fully opaque, everywhere. That is what "maskable" means.
+      filled.data[to + 3] = 255;
+    }
+  }
+
+  writeFileSync(OUT, PNG.sync.write(resize(filled, 512)));
+  console.log(`wrote ${OUT} at 512x512 (maskable, opaque to the edges)`);
+  process.exit(0);
 }
 
 if (MODE === 'tile') {

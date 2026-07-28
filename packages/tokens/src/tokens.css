@@ -167,6 +167,11 @@
      linear return just says the button was pushed. */
   --animate-send-pop: send-pop 360ms var(--ease-spring);
 
+  /* The install banner arriving. Slower and further than a sheet, because it
+     is an offer rather than a response -- it should be noticed on its way in,
+     which is the one thing a banner has to earn. */
+  --animate-install-in: install-in 420ms var(--ease-liquid) backwards;
+
   /* Waiting, as a sonar ping. A ring leaves the dot, expands and fades; three
      of them a third of a cycle apart keep one always mid-flight, so the eye
      reads continuous outward motion without anything spinning. */
@@ -300,6 +305,17 @@
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes install-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
