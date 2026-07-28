@@ -5,6 +5,26 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AppLogo } from '../components/AppLogo.js';
 import { useInstall, type Platform } from '../features/install/useInstall.js';
 
+/**
+ * The official Android download.
+ *
+ * GitHub Releases rather than this site, and `/latest/` rather than a pinned
+ * tag — the link keeps working when a new version ships, so the page never
+ * offers an old build and nobody has to remember to edit it.
+ *
+ * Cloudflare Pages hosts the website and nothing else now. It caps files at
+ * 25 MiB, which the APK has already brushed against once; the moment a build
+ * carries the camera models or a native library it stops fitting, and a
+ * distribution channel with a ceiling that low is one that fails silently at
+ * the worst moment.
+ */
+const ANDROID_APK =
+  'https://github.com/piyushmishra3734-netizen/Pingo/releases/latest/download/PINGO-v1.0.0.apk';
+
+/** The release page itself, for anyone who wants the notes and the history. */
+const ANDROID_RELEASES =
+  'https://github.com/piyushmishra3734-netizen/Pingo/releases/latest';
+
 /** Where each platform's app will come from. Named, so the button can say it. */
 const STORE_NAME: Record<Platform, string> = {
   android: 'Play Store',
@@ -140,7 +160,7 @@ const GUIDES: { key: Platform; title: string; steps: string[] }[] = [
     key: 'android',
     title: 'Android — install it now',
     steps: [
-      'Tap “Download for Android” at the top of this page, on the phone itself.',
+      'Tap “Download for Android” at the top of this page, on the phone itself. It comes from PINGO’s GitHub releases.',
       'Open the file on the phone. Android will ask permission to install from this source — allow it once.',
       'Tap Install. PINGO appears in your app drawer with its own icon.',
       'Open it. No browser, no address bar. Sign in and everything works exactly as it does on the web.',
@@ -278,8 +298,13 @@ export function DownloadScreen() {
                 page to navigate to, and it is an attribute only an anchor has.
               */
               <a
-                href="/PINGO.apk"
-                download="PINGO.apk"
+                href={ANDROID_APK}
+                /*
+                  No `download` attribute: it only works same-origin, and the
+                  file now lives on GitHub. Android downloads an APK by content
+                  type anyway, which GitHub serves correctly.
+                */
+                rel="noopener"
                 className={cn(
                   'glass-press inline-flex items-center justify-center rounded-full',
                   'bg-brand-gradient px-6 py-3 text-body font-medium text-white',
@@ -294,9 +319,20 @@ export function DownloadScreen() {
               </Button>
             )}
             <p className="text-caption text-text-tertiary">
-              {platform === 'android'
-                ? 'Free · 2 MB · Android 7 and up'
-                : 'Free, and the full product runs in your browser today.'}
+              {platform === 'android' ? (
+                <>
+                  Free · 2 MB · Android 7 and up ·{' '}
+                  <a
+                    href={ANDROID_RELEASES}
+                    rel="noopener"
+                    className="underline underline-offset-2 hover:text-ink"
+                  >
+                    release notes
+                  </a>
+                </>
+              ) : (
+                'Free, and the full product runs in your browser today.'
+              )}
             </p>
           </div>
         </section>
