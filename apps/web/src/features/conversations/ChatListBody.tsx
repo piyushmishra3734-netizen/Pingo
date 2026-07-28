@@ -14,6 +14,7 @@ import {
 } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { useFlipList } from '../../hooks/useFlipList.js';
 import { ConversationRow } from './ConversationRow.js';
 import { SwipeableRow } from './SwipeableRow.js';
 import type { ConversationActions } from './useConversationActions.js';
@@ -92,6 +93,24 @@ export function ChatListBody({
    */
   const handedBack = useRef<string | undefined>(undefined);
 
+  /*
+   * Reordering, animated.
+   *
+   * A message arriving sends its conversation to the top and shuffles every
+   * row below it down in a single frame, which rearranges a list somebody is
+   * reading with nothing to say which row moved. The hook measures the rows
+   * before and after and animates the difference away.
+   *
+   * Keyed on the order rather than the conversations themselves: the rows
+   * re-render constantly — a timestamp ticking over, a typing indicator — and
+   * only a change in *sequence* is a reorder worth animating.
+   */
+  const listRef = useRef<HTMLDivElement>(null);
+  useFlipList(
+    listRef,
+    conversations.map((c) => c.id).join(','),
+  );
+
   /** Which conversation the focused row belongs to, if any. */
   const focusedConversationId = (): string | undefined => {
     const row = (document.activeElement as HTMLElement | null)?.closest('[data-conversation]');
@@ -165,6 +184,9 @@ export function ChatListBody({
     return (
       <div
         key={conversation.id}
+        // What FLIP tracks. See useFlipList: it measures these by id before and
+        // after a reorder and animates the difference away.
+        data-flip-id={conversation.id}
         className="animate-row-in"
         // Staggered and capped at eight; past that the last rows would arrive
         // after the user has already started scrolling.
@@ -206,7 +228,7 @@ export function ChatListBody({
   };
 
   return (
-    <div onKeyDown={onKeyDown}>
+    <div ref={listRef} onKeyDown={onKeyDown}>
       {header}
 
       {/*

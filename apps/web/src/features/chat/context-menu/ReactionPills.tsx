@@ -115,6 +115,9 @@ function Pill({
       aria-pressed={mine}
       className={cn(
         'focus-ring flex items-center gap-1 rounded-full px-2 py-0.5',
+        // Springs in on arrival. Only when it is genuinely new: a pill that is
+        // merely re-rendering must not re-announce itself.
+        !leaving && 'motion-safe:animate-react-in',
         'text-caption transition-all duration-quick ease-standard',
         mine ? 'bg-selected text-brand' : 'bg-sunken text-text-secondary',
         leaving ? 'scale-90 opacity-0' : 'scale-100 opacity-100',

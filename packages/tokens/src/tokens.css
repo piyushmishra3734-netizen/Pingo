@@ -127,6 +127,14 @@
   --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) backwards;
   --animate-bubble-in-mine: bubble-in-mine var(--duration-base) var(--ease-standard) backwards;
 
+  /* A reaction landing.
+
+     A pill used to appear at full size in one frame, which for something that
+     is a reply to a particular message reads as the layout shifting rather
+     than as somebody responding. It springs in from small, and slightly past
+     its size on the way, so it looks placed rather than inserted. */
+  --animate-react-in: react-in 260ms var(--ease-standard) backwards;
+
   /* A long press, in progress.
 
      Long-press opens story management, and until now it gave nothing back
@@ -239,6 +247,21 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes react-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
