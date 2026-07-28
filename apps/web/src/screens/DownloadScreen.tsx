@@ -384,22 +384,25 @@ export function DownloadScreen() {
         {/* ---- footer ---------------------------------------------------- */}
         <footer className="mt-16 border-t border-line pt-6">
           {/*
-            Two links, not four.
+            Three links, and each goes where its label says.
 
-            The brief asked for Privacy, Terms, Support and Contact. Terms does
-            not exist — there is no terms document anywhere in this product — and
-            a footer link labelled "Terms" that lands on a help page is the kind
-            of small lie that makes a visitor doubt the rest of the page. Contact
-            and Support would both have pointed at the same screen, which is one
-            destination wearing two names.
+            Terms is public, because this page is read by people who do not have
+            an account and terms behind a sign-in wall cannot be read before
+            being agreed to.
 
-            Both of these live behind the sign-in wall, so they are marked. A
-            link that silently bounces a logged-out visitor to a login form is
-            worse than one that says where it goes.
+            "Privacy" used to point at `/settings/privacy`, which is the privacy
+            *settings* screen — a set of toggles, not a policy — and behind the
+            sign-in wall besides. A visitor clicking Privacy on a public download
+            page expects a document about what happens to their data, so it now
+            points at the section of the terms that actually answers that.
+
+            Contact is not here because it would be Support wearing a second
+            name, and there is still no separate contact address.
           */}
           <nav aria-label="Legal and support" className="flex flex-wrap gap-x-5 gap-y-2">
             {[
-              { to: '/settings/privacy', label: 'Privacy' },
+              { to: '/terms', label: 'Terms' },
+              { to: '/terms#data', label: 'Privacy' },
               { to: '/settings/help', label: 'Support' },
             ].map((link) => (
               <Link
@@ -408,7 +411,6 @@ export function DownloadScreen() {
                 className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
               >
                 {link.label}
-                <span className="sr-only"> (requires sign in)</span>
               </Link>
             ))}
           </nav>
