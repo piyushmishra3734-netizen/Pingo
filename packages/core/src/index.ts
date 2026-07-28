@@ -13,7 +13,9 @@ export type {
   ChatService,
   ChatEvent,
   ConnectionState,
+  MessageReceipt,
   OutgoingMessage,
+  ReadReceipt,
   Unsubscribe,
 } from './chat-service.js';
 export { MockChatService, type MockChatServiceOptions } from './mock-chat-service.js';

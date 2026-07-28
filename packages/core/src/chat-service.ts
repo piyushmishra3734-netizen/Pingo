@@ -115,6 +115,31 @@ export interface OutgoingMessage {
 }
 
 /**
+ * How far one person has read in one conversation.
+ *
+ * A watermark rather than a per-message flag: everything sent at or before
+ * `readAt` has been seen by `userId`. One row per member is enough to draw
+ * every tick in the thread, and it stays one row however much is said.
+ */
+export interface ReadReceipt {
+  userId: UserId;
+  /** Epoch ms. Everything at or before this has been read by them. */
+  readAt: number;
+}
+
+/**
+ * One person's answer for one particular message.
+ *
+ * `readAt` absent means they have not read it yet — which the message-info
+ * screen shows as plainly as it shows the ones who have, because "still waiting
+ * on Priya" is half of what anybody opens that screen to find out.
+ */
+export interface MessageReceipt {
+  userId: UserId;
+  readAt?: number;
+}
+
+/**
  * Events pushed from the service.
  *
  * Every event carries enough context for a reducer to apply it without a refetch.
@@ -137,6 +162,16 @@ export type ChatEvent =
    */
   | { type: 'conversation:removed'; conversationId: ConversationId }
   | { type: 'typing:changed'; conversationId: ConversationId; userIds: UserId[] }
+  /**
+   * Somebody else's read cursor moved.
+   *
+   * The half of delivery that used to travel only on a page load. Without it a
+   * second tick could not appear while you were watching the thread it belonged
+   * to — you had to leave the conversation and come back to learn that the
+   * person you were talking to had read you, which is the one moment a receipt
+   * exists for.
+   */
+  | { type: 'receipts:changed'; conversationId: ConversationId; readers: ReadReceipt[] }
   | { type: 'presence:changed'; userId: UserId; presence: User['presence'] }
   | { type: 'notification:new'; notification: AppNotification }
   | { type: 'connection:changed'; state: ConnectionState };
@@ -197,6 +232,23 @@ export interface ChatService {
    */
   openPhoto(messageId: MessageId): Promise<{ url: string; viewsLeft?: number } | undefined>;
   markConversationRead(conversationId: ConversationId): Promise<void>;
+
+  /**
+   * How far everyone *else* has read in this conversation.
+   *
+   * Excludes the caller: a receipt for your own reading is not a receipt. The
+   * thread needs this on open, and gets every later change over
+   * `receipts:changed` rather than by asking again.
+   */
+  listReceipts(conversationId: ConversationId): Promise<ReadReceipt[]>;
+
+  /**
+   * Who has read one particular message, and when they did.
+   *
+   * Distinct from `listReceipts` because a watermark cannot say *when* it
+   * passed a given message — only that it has. This resolves the moment.
+   */
+  messageReceipts(messageId: MessageId): Promise<MessageReceipt[]>;
 
   // -- conversation management ---------------------------------------------
 

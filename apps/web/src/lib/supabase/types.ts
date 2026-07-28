@@ -528,6 +528,28 @@ export type Database = {
         Args: Record<string, never>;
         Returns: number;
       };
+      /**
+       * Moves my read cursor to now, and records the advance.
+       *
+       * Replaces a bare update of `last_read_at`: the cursor alone is a
+       * watermark, and once it has passed a message the moment it passed is
+       * unrecoverable. The history row is what lets message info say *when*.
+       */
+      mark_conversation_read: {
+        Args: { conv: string };
+        Returns: undefined;
+      };
+      /**
+       * Who has read one message. One row per other member, `read_at` null for
+       * the ones who have not — "still waiting on Priya" is half the answer.
+       */
+      message_receipts: {
+        Args: { msg: string };
+        Returns: {
+          user_id: string;
+          read_at: string | null;
+        }[];
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

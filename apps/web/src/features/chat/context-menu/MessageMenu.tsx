@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 
 import { EditMessageSheet } from './EditMessageSheet.js';
 import { MessageActions } from './MessageActions.js';
+import { MessageInfoSheet } from './MessageInfoSheet.js';
 import { MessageContextMenu } from './MessageContextMenu.js';
 import { MoreSheet } from './MoreSheet.js';
 import { ReactionBar } from './ReactionBar.js';
@@ -52,6 +53,8 @@ export function MessageMenu({
   const [error, setError] = useState<string>();
   /** The in-app editor, which replaced `window.prompt`. */
   const [editing, setEditing] = useState(false);
+  /** The in-app info sheet, which replaced `window.alert`. */
+  const [info, setInfo] = useState(false);
 
   const react = useCallback(
     async (emoji: string) => {
@@ -103,8 +106,9 @@ export function MessageMenu({
       window.setTimeout(() => setError(undefined), 2200);
     },
     // Opening the editor is the menu's job, not Level 2's — Level 2 only knows
-    // which row was pressed.
+    // which row was pressed. Info is the same shape, for the same reason.
     () => setEditing(true),
+    () => setInfo(true),
   );
 
   const close = useCallback(() => {
@@ -190,6 +194,8 @@ export function MessageMenu({
           }}
         />
       )}
+
+      {info && <MessageInfoSheet message={message} onClose={() => setInfo(false)} />}
     </>
   );
 }
@@ -209,6 +215,7 @@ function useLevel2(
   service: ReturnType<typeof useChat>['service'],
   onFail: (why: string) => void,
   onEdit: () => void,
+  onInfo: () => void,
 ) {
   const confirm = useConfirm();
 
@@ -272,15 +279,13 @@ function useLevel2(
       link.click();
     },
 
-    info: () => {
-      const sent = new Date(message.createdAt).toLocaleString();
-      const edited = message.editedAt
-        ? `
-Edited ${new Date(message.editedAt).toLocaleString()}`
-        : '';
-      window.alert(`Sent ${sent}${edited}
-Status: ${message.status}`);
-    },
+    /*
+     * Was a `window.alert`. It could say when the message was sent and what its
+     * status was, and could not say the thing anybody opens info for: who has
+     * read it. It also blocked the page, so nothing could arrive in the chat
+     * while you read about what already had.
+     */
+    info: onInfo,
 
     jumpToOriginal: () => {
       if (!message.replyToId) return;

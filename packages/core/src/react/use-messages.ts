@@ -10,10 +10,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useChat } from './chat-provider.js';
 import { groupMessages } from '../format.js';
+import type { ReadReceipt } from '../chat-service.js';
 import type { ConversationId, Message } from '../types.js';
 
 interface UseMessagesResult {
   messages: Message[];
+  /**
+   * How far each other member has read, live.
+   *
+   * Kept beside the messages rather than folded into them because a group needs
+   * to count readers ("Seen by 3"), and a status of `'read'` on a message can
+   * only ever say "at least one".
+   */
+  receipts: ReadReceipt[];
   /** Messages pre-clustered by author and time, ready to render. */
   groups: Message[][];
   loading: boolean;
@@ -40,6 +49,7 @@ const PAGE_SIZE = 50;
 export function useMessages(conversationId: ConversationId | undefined): UseMessagesResult {
   const { service } = useChat();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [receipts, setReceipts] = useState<ReadReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
@@ -48,6 +58,7 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
   useEffect(() => {
     if (!conversationId) {
       setMessages([]);
+      setReceipts([]);
       setLoading(false);
       return;
     }
@@ -55,6 +66,12 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
     let active = true;
     setLoading(true);
     setHasOlder(true);
+
+    // Where everyone had read up to at the moment the thread opened. Every
+    // later move arrives on the socket, so this is asked once and never again.
+    void service.listReceipts(conversationId).then((initial) => {
+      if (active) setReceipts(initial);
+    });
 
     void service
       .listMessages(conversationId, { limit: PAGE_SIZE })
@@ -139,6 +156,31 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
       if (event.type === 'message:removed') {
         setMessages((previous) => previous.filter((m) => m.id !== event.messageId));
       }
+
+      /*
+       * Somebody read us while we were watching.
+       *
+       * Merged rather than replaced: the event carries only the member whose
+       * cursor moved, so overwriting the list would forget everyone else's.
+       * Cursors only ever move forward, and an out-of-order delivery would
+       * otherwise walk a receipt backwards, so the newer time wins.
+       */
+      if (event.type === 'receipts:changed') {
+        if (event.conversationId !== conversationId) return;
+        setReceipts((previous) => {
+          const merged = new Map(previous.map((r) => [r.userId, r.readAt]));
+          let changed = false;
+          for (const reader of event.readers) {
+            if ((merged.get(reader.userId) ?? 0) >= reader.readAt) continue;
+            merged.set(reader.userId, reader.readAt);
+            changed = true;
+          }
+          // Returning the same array when nothing moved keeps a repeated
+          // cursor update from re-rendering the whole thread.
+          if (!changed) return previous;
+          return [...merged].map(([userId, readAt]) => ({ userId, readAt }));
+        });
+      }
     });
   }, [service, conversationId]);
 
@@ -168,7 +210,46 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
     [service, conversationId],
   );
 
-  const groups = useMemo(() => groupMessages(messages), [messages]);
+  /*
+   * The receipts, folded back onto the messages.
+   *
+   * `listMessages` stamps a status from the cursor as it stood when the thread
+   * was fetched, and that stamp is frozen from then on. Deriving the upgrade
+   * here instead means a cursor arriving over the socket repaints the ticks
+   * immediately, with no refetch and nothing to keep in sync — the messages own
+   * their text, the receipts own who has seen it, and neither has to know when
+   * the other changed.
+   *
+   * Only `sent` is upgraded. `sending` and `failed` are facts about our own
+   * outbox and are not anybody else's to overrule.
+   */
+  const furthestRead = useMemo(
+    () => receipts.reduce((furthest, r) => Math.max(furthest, r.readAt), 0),
+    [receipts],
+  );
 
-  return { messages, groups, loading, loadingOlder, hasOlder, loadOlder, send, sendSticker };
+  const read = useMemo(() => {
+    if (furthestRead === 0) return messages;
+    let touched = false;
+    const next = messages.map((message) => {
+      if (message.status !== 'sent' || message.createdAt > furthestRead) return message;
+      touched = true;
+      return { ...message, status: 'read' as const };
+    });
+    return touched ? next : messages;
+  }, [messages, furthestRead]);
+
+  const groups = useMemo(() => groupMessages(read), [read]);
+
+  return {
+    messages: read,
+    receipts,
+    groups,
+    loading,
+    loadingOlder,
+    hasOlder,
+    loadOlder,
+    send,
+    sendSticker,
+  };
 }

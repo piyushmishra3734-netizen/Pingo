@@ -42,9 +42,11 @@ import type {
   GalleryItem,
   Message,
   MessageId,
+  MessageReceipt,
   Moment,
   OutgoingMessage,
   Reaction,
+  ReadReceipt,
   SearchResult,
   PingView,
   Unsubscribe,
@@ -547,6 +549,50 @@ export class SupabaseChatService implements ChatService {
        * confirmation of our own change is matched on the user id and compared
        * against the newest pending intent.
        */
+      /*
+       * Read receipts, live.
+       *
+       * The stream that was missing. `last_read_at` was fetched once, when the
+       * thread opened, so the second tick could only ever appear on a *later*
+       * visit — you had to leave the conversation and come back to find out
+       * that the person you were talking to had read you.
+       *
+       * RLS on `conversation_members` is already "members of that
+       * conversation", and realtime applies it to its own stream, so this
+       * carries nothing a member could not have read directly.
+       */
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversation_members' },
+        (payload) => {
+          const row = payload.new as {
+            conversation_id?: string;
+            user_id?: string;
+            last_read_at?: string;
+          };
+          if (!row.conversation_id || !row.user_id || !row.last_read_at) return;
+
+          void this.#userId().then((me) => {
+            // My own cursor moving is not news to me, and echoing it would
+            // redraw the thread every time I opened it.
+            if (row.user_id === me) return;
+
+            this.#emit({
+              type: 'receipts:changed',
+              conversationId: row.conversation_id!,
+              readers: [
+                { userId: row.user_id!, readAt: Date.parse(row.last_read_at!) },
+              ],
+            });
+
+            // The list draws its ticks from the conversation's own preview, so
+            // it needs the same news in the shape it already understands.
+            void this.getConversation(row.conversation_id!).then((conversation) => {
+              if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+            });
+          });
+        },
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'message_reactions' },
@@ -671,6 +717,25 @@ export class SupabaseChatService implements ChatService {
         const others = roster.filter((m) => m.user_id !== me);
         const otherUser = others[0] ? this.#people.get(others[0].user_id) : undefined;
 
+        /*
+         * How far the *others* have read.
+         *
+         * This used to be `undefined`, unconditionally, which is why the chat
+         * list could never show a second tick: the thread knew the message had
+         * been read and the row beside it still said "sent". One number was
+         * missing from one call, and the two screens disagreed about the same
+         * message.
+         *
+         * The furthest reader wins. In a group that means two ticks appear when
+         * the first person reads it, which matches what the thread's "Seen by"
+         * line counts from — a row cannot express "three of six", and pretending
+         * a group behaves like a direct chat is better than saying nothing until
+         * the last straggler catches up.
+         */
+        const theirReadAt = others
+          .map((m) => Date.parse(m.last_read_at))
+          .sort((a, b) => b - a)[0];
+
         return {
           id: row.id,
           kind: row.kind,
@@ -678,7 +743,7 @@ export class SupabaseChatService implements ChatService {
           title: row.title ?? otherUser?.name ?? 'Conversation',
           ...(otherUser?.avatarUrl ? { avatarUrl: otherUser.avatarUrl } : {}),
           participantIds: roster.map((m) => m.user_id),
-          ...(last ? { lastMessage: toMessage(last, undefined) } : {}),
+          ...(last ? { lastMessage: toMessage(last, theirReadAt) } : {}),
           // Counted in SQL over the real rows, not over whatever this client
           // happened to have fetched.
           unreadCount: preview?.unread_count ?? 0,
@@ -1504,16 +1569,52 @@ export class SupabaseChatService implements ChatService {
   }
 
   async markConversationRead(conversationId: ConversationId): Promise<void> {
-    const me = await this.#userId();
-
-    await this.#client
-      .from('conversation_members')
-      .update({ last_read_at: new Date().toISOString() })
-      .eq('conversation_id', conversationId)
-      .eq('user_id', me);
+    /*
+     * Through the function rather than straight at the column.
+     *
+     * The cursor and its history have to move together — a client that updated
+     * `last_read_at` on its own would leave no record of *when* it caught up,
+     * and the message-info screen would have nothing to show. Doing both in one
+     * `security definer` call also means the cursor cannot be set to a time the
+     * caller did not earn.
+     */
+    await this.#client.rpc('mark_conversation_read', { conv: conversationId });
 
     const conversation = await this.getConversation(conversationId);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+  }
+
+  /**
+   * Everyone else's read cursor, newest state.
+   *
+   * Excludes me, so the thread never has to filter it and can never draw a
+   * second tick because of its own reading.
+   */
+  async listReceipts(conversationId: ConversationId): Promise<ReadReceipt[]> {
+    const me = await this.#userId();
+
+    const { data } = await this.#client
+      .from('conversation_members')
+      .select('user_id,last_read_at')
+      .eq('conversation_id', conversationId);
+
+    return (data ?? [])
+      .filter((row) => row.user_id !== me)
+      .map((row) => ({ userId: row.user_id, readAt: Date.parse(row.last_read_at) }));
+  }
+
+  async messageReceipts(messageId: MessageId): Promise<MessageReceipt[]> {
+    const { data } = await this.#client.rpc('message_receipts', { msg: messageId });
+    const rows = (data ?? []) as { user_id: string; read_at: string | null }[];
+
+    // The names come from the same cache the thread already filled, so opening
+    // message info costs one round trip rather than one per reader.
+    await this.#loadPeople(rows.map((row) => row.user_id));
+
+    return rows.map((row) => ({
+      userId: row.user_id,
+      ...(row.read_at ? { readAt: Date.parse(row.read_at) } : {}),
+    }));
   }
 
   /** Not persisted — typing needs a realtime presence channel, not a table. */

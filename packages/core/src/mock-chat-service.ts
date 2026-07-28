@@ -17,7 +17,9 @@ import type {
   ChatEvent,
   ChatService,
   ConnectionState,
+  MessageReceipt,
   OutgoingMessage,
+  ReadReceipt,
   Unsubscribe,
 } from './chat-service.js';
 import {
@@ -319,6 +321,41 @@ export class MockChatService implements ChatService {
     const conversation = this.#conversation(conversationId);
     if (!conversation || conversation.unreadCount === 0) return;
     this.#updateConversation(conversationId, { unreadCount: 0 });
+  }
+
+  /**
+   * Derived from what the seed already says, rather than tracked separately.
+   *
+   * The fixtures mark some messages `read`, so the newest one they agree on
+   * *is* the other side's cursor. Inventing a second source of truth here would
+   * let the mock's ticks and its statuses contradict each other, which is
+   * exactly the class of bug this mock exists to catch.
+   */
+  async listReceipts(conversationId: ConversationId): Promise<ReadReceipt[]> {
+    const conversation = this.#conversation(conversationId);
+    if (!conversation) return [];
+
+    const readAt = (this.#messages[conversationId] ?? [])
+      .filter((m) => m.authorId === this.#currentUser.id && m.status === 'read')
+      .reduce((newest, m) => Math.max(newest, m.createdAt), 0);
+
+    return conversation.participantIds
+      .filter((id) => id !== this.#currentUser.id)
+      .map((userId) => ({ userId, readAt }));
+  }
+
+  async messageReceipts(messageId: MessageId): Promise<MessageReceipt[]> {
+    for (const [conversationId, messages] of Object.entries(this.#messages)) {
+      const message = messages.find((m) => m.id === messageId);
+      if (!message) continue;
+
+      const receipts = await this.listReceipts(conversationId);
+      return receipts.map(({ userId, readAt }) => ({
+        userId,
+        ...(readAt >= message.createdAt ? { readAt } : {}),
+      }));
+    }
+    return [];
   }
 
   // -- conversation management ----------------------------------------------

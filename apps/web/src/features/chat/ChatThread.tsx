@@ -1,6 +1,7 @@
 import {
   formatDayDivider,
   formatPresence,
+  formatTime,
   formatTypingLabel,
   useChat,
   useMessages,
@@ -67,8 +68,17 @@ export function ChatThread({
   className,
 }: ChatThreadProps) {
   const { currentUser, users, service } = useChat();
-  const { messages, groups, loading, loadingOlder, hasOlder, loadOlder, send, sendSticker } =
-    useMessages(conversation.id);
+  const {
+    messages,
+    receipts,
+    groups,
+    loading,
+    loadingOlder,
+    hasOlder,
+    loadOlder,
+    send,
+    sendSticker,
+  } = useMessages(conversation.id);
   const { startCall } = useCall();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -157,6 +167,37 @@ export function ChatThread({
 
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
+
+  /*
+   * The "Seen" line, the way Instagram does it.
+   *
+   * Only under the *last* message, and only while it is still mine. A reply is
+   * a stronger acknowledgement than a receipt, so once they answer, the line
+   * goes — leaving it there would be telling you something their own message
+   * already told you, and it would stack up down a long thread as a row of
+   * receipts for messages nobody is waiting on any more.
+   *
+   * Ticks are unaffected: those stay on every message, which is where you look
+   * when you want the history rather than the latest word.
+   */
+  const seen = useMemo(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.authorId !== currentUser?.id || last.status !== 'read') return undefined;
+
+    const readers = receipts.filter((r) => r.readAt >= last.createdAt);
+    if (readers.length === 0) return undefined;
+
+    // A direct chat has one reader, so counting them would only ever say "1".
+    // The moment is the interesting fact there; in a group it is the tally.
+    if (conversation.kind === 'direct') {
+      return `Seen ${formatTime(Math.min(...readers.map((r) => r.readAt)))}`;
+    }
+
+    const everyone = conversation.participantIds.length - 1;
+    return readers.length >= everyone
+      ? 'Seen by everyone'
+      : `Seen by ${readers.length}`;
+  }, [messages, receipts, currentUser?.id, conversation.kind, conversation.participantIds.length]);
 
   // Track scroll position continuously; the value is read after new messages land.
   useEffect(() => {
@@ -497,6 +538,20 @@ export function ChatThread({
                 })}
               </div>
             ))}
+
+            {seen && (
+              <p
+                className="pr-1 pt-0.5 text-right text-caption text-text-tertiary"
+                /*
+                 * Announced when it changes rather than on every render. A
+                 * screen reader user gets told once that the message landed,
+                 * which is the same single beat a sighted user gets.
+                 */
+                aria-live="polite"
+              >
+                {seen}
+              </p>
+            )}
 
             {isTyping && (
               <div className="flex justify-start pt-1">
