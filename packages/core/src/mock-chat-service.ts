@@ -262,6 +262,11 @@ export class MockChatService implements ChatService {
     return clone(thread.slice(Math.max(0, end - limit), end));
   }
 
+  /** The mock has no disk, so there is nothing it could have cached. */
+  async cachedMessages(): Promise<Message[] | undefined> {
+    return undefined;
+  }
+
   // -- sending -------------------------------------------------------------
 
   async sendMessage(draft: OutgoingMessage): Promise<Message> {

@@ -1198,6 +1198,17 @@ export class SupabaseChatService implements ChatService {
     }
   }
 
+  async cachedMessages(conversationId: ConversationId): Promise<Message[] | undefined> {
+    const cached = await openRecord<Message[]>(
+      await localGet<unknown>(STORE.messages, conversationId),
+    );
+
+    // An empty array is not worth rendering — it looks like an empty chat, and
+    // an empty chat that turns out to have fifty messages is a worse first
+    // frame than a brief spinner.
+    return cached && cached.length > 0 ? cached : undefined;
+  }
+
   async #listMessagesFromNetwork(
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId },

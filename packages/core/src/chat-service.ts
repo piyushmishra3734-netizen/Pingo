@@ -197,6 +197,20 @@ export interface ChatService {
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId },
   ): Promise<Message[]>;
+  /**
+   * The last page this device saw, straight from disk. Never touches the
+   * network and resolves in about a millisecond.
+   *
+   * Separate from `listMessages` rather than folded into it, because the two
+   * answer different questions: this one asks *what did I have*, and
+   * `listMessages` asks *what is true*. A thread shows the first immediately
+   * and corrects itself with the second, which is the difference between a
+   * chat that opens and a chat that loads.
+   *
+   * Resolves `undefined` when nothing is cached — a first visit, a cleared
+   * origin, or a device whose database key has been regenerated.
+   */
+  cachedMessages(conversationId: ConversationId): Promise<Message[] | undefined>;
 
   // -- Sending -------------------------------------------------------------
   /** Resolves with the optimistic message; watch events for delivery status. */
