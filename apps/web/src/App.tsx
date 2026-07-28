@@ -29,6 +29,8 @@ import { ChatsScreen } from './screens/ChatsScreen.js';
 import { CommunitiesScreen } from './screens/CommunitiesScreen.js';
 import { FollowRequestsScreen } from './screens/FollowRequestsScreen.js';
 import { NewChatScreen } from './screens/NewChatScreen.js';
+import { NewGroupScreen } from './screens/NewGroupScreen.js';
+import { JoinGroupScreen } from './screens/JoinGroupScreen.js';
 import { NotificationsScreen as NotificationsFeedScreen } from './screens/NotificationsScreen.js';
 import { EditProfileScreen } from './screens/EditProfileScreen.js';
 import { ProfileScreen } from './screens/ProfileScreen.js';
@@ -246,6 +248,8 @@ export function App() {
                     reorder away from being read as a conversation id.
                   */}
                   <Route path="/chats/new" element={<NewChatScreen />} />
+                  <Route path="/chats/new-group" element={<NewGroupScreen />} />
+                  <Route path="/join/:code" element={<JoinGroupScreen />} />
                   <Route path="/chats/:conversationId" element={<ChatsScreen />} />
                   <Route path="/calls" element={<CallsScreen />} />
                   <Route path="/camera" element={<CameraScreen />} />

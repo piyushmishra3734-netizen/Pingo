@@ -35,6 +35,7 @@ import { ChatListBody, ChatListEmpty } from './ChatListBody.js';
 import { ChatListsSheet } from './ChatListsSheet.js';
 import { DeleteChatSheet } from './DeleteChatSheet.js';
 import { MuteSheet } from './MuteSheet.js';
+import { NewChatMenu } from './NewChatMenu.js';
 import { SelectionBar, SelectionMenuItem } from './SelectionBar.js';
 import { useConversationActions } from './useConversationActions.js';
 import { useUnmuteConfirm } from './useUnmuteConfirm.js';
@@ -77,6 +78,8 @@ export function ConversationList({
 
   const [openStory, setOpenStory] = useState<{ index: number; origin: DOMRect } | undefined>();
   const [creating, setCreating] = useState(false);
+  /** What the plus opens: a chat, or a group. */
+  const [starting, setStarting] = useState(false);
   const [managingStory, setManagingStory] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -323,9 +326,9 @@ export function ConversationList({
                 </IconButton>
 
                 <IconButton
-                  label="New chat"
+                  label="Start a chat or a group"
                   variant="ghost"
-                  onClick={() => navigate('/chats/new')}
+                  onClick={() => setStarting(true)}
                 >
                   <PlusIcon size={21} />
                 </IconButton>
@@ -523,6 +526,8 @@ export function ConversationList({
           onChanged={loadLists}
         />
       )}
+
+      {starting && <NewChatMenu onClose={() => setStarting(false)} />}
     </div>
   );
 }

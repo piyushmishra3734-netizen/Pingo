@@ -29,6 +29,7 @@ import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
+import { GroupInfoSheet } from './GroupInfoSheet.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
@@ -97,6 +98,9 @@ export function ChatThread({
    * gesture that happens nowhere near it.
    */
   const [replyTo, setReplyTo] = useState<Message>();
+
+  /** Group info: the roster, the roles and the invite link. */
+  const [groupInfo, setGroupInfo] = useState(false);
 
   // Cleared when the thread changes: a reply aimed at another conversation
   // would attach to whatever is open now.
@@ -316,13 +320,21 @@ export function ChatThread({
           </Link>
         )}
 
-        {/* The identity block links through to the profile, as on the board. */}
-        <Link
-          to={partner ? `/profile/${partner.handle}` : '/chats'}
+        {/*
+          The identity block goes wherever "who is this?" is answered: a
+          person's profile in a direct chat, the group's own info in a group.
+          It used to be a link in both cases, and in a group it pointed at
+          `/chats` — so the one place a group's roster could plausibly be
+          reached bounced you back to the list you came from.
+        */}
+        <Identity
           className={cn(
             'flex min-w-0 flex-1 items-center gap-3 rounded-md px-1 py-1',
             'focus-ring transition-colors duration-instant hover:bg-hover',
           )}
+          {...(conversation.kind === 'direct' && partner
+            ? { to: `/profile/${partner.handle}` }
+            : { onClick: () => setGroupInfo(true) })}
         >
           {conversation.kind === 'direct' ? (
             <Avatar
@@ -359,7 +371,7 @@ export function ChatThread({
               </span>
             )}
           </span>
-        </Link>
+        </Identity>
 
         <div className="flex shrink-0 items-center gap-0.5">
           {/*
@@ -734,6 +746,44 @@ export function ChatThread({
           }}
         />
       )}
+
+      {groupInfo && (
+        <GroupInfoSheet conversation={conversation} onClose={() => setGroupInfo(false)} />
+      )}
     </div>
+  );
+}
+
+/**
+ * The header's identity block: a link to a profile, or a button to group info.
+ *
+ * One component rather than two branches at the call site, because the two
+ * differ only in what happens when you press them — everything visual, the
+ * avatar, the name, the presence line, is shared, and duplicating it to change
+ * the wrapper is how the two drift apart.
+ */
+function Identity({
+  to,
+  onClick,
+  className,
+  children,
+}: {
+  to?: string;
+  onClick?: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (to) {
+    return (
+      <Link to={to} className={className}>
+        {children}
+      </Link>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={cn(className, 'text-left')}>
+      {children}
+    </button>
   );
 }

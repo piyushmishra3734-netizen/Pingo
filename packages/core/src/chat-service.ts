@@ -334,6 +334,80 @@ export interface ChatService {
    */
   startDirectConversation(otherUserId: UserId): Promise<ConversationId>;
 
+  // -- Groups ---------------------------------------------------------------
+  //
+  // Two doors, and the rule is the same one stated twice: *a friend may put you
+  // in a group, or you may walk in yourself.* Being added needs a mutual follow,
+  // because adding somebody reaches into their app without asking. A link needs
+  // none, because following one is the invitee's own act.
+
+  /**
+   * Makes a group and returns it. The creator is its first admin.
+   *
+   * Rejects a member who is not a mutual follow — before anything is written,
+   * so a refused member never leaves a half-made group behind.
+   */
+  createGroup(input: {
+    title: string;
+    memberIds: UserId[];
+    avatarUrl?: string;
+  }): Promise<ConversationId>;
+
+  /** Admin only. Every id must be a mutual follow of the person adding. */
+  addGroupMembers(conversationId: ConversationId, memberIds: UserId[]): Promise<void>;
+
+  /** Admin only, and never yourself — leaving has its own door. */
+  removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void>;
+
+  /**
+   * Leaves, handing the group on if you were the last admin.
+   *
+   * The alternative is a room nobody can rename, add to or remove from, ever
+   * again — promotion needs an admin, and there would not be one.
+   */
+  leaveGroup(conversationId: ConversationId): Promise<void>;
+
+  /** Admin only. `false` demotes, and is refused if you are the last admin. */
+  setGroupAdmin(
+    conversationId: ConversationId,
+    userId: UserId,
+    admin: boolean,
+  ): Promise<void>;
+
+  /** Admin only. An empty `avatarUrl` removes the picture. */
+  updateGroup(
+    conversationId: ConversationId,
+    changes: { title: string; avatarUrl?: string },
+  ): Promise<void>;
+
+  /**
+   * The group's live invite code, minting one if there is not already one.
+   *
+   * Idempotent on purpose: opening the invite screen twice must not invalidate
+   * the link somebody is already holding.
+   */
+  groupInviteCode(conversationId: ConversationId): Promise<string>;
+
+  /** Admin only. Kills the live code; a new one can be minted afterwards. */
+  revokeGroupInvite(conversationId: ConversationId): Promise<void>;
+
+  /**
+   * What a link shows before you commit to it: the name, the picture and how
+   * many people are in it. Not the roster, and not a single message.
+   */
+  previewGroupInvite(code: string): Promise<
+    | {
+        conversationId: ConversationId;
+        title: string;
+        avatarUrl?: string;
+        memberCount: number;
+      }
+    | undefined
+  >;
+
+  /** Joins by link. Returns the conversation, whether or not you were in it. */
+  joinGroupWithCode(code: string): Promise<ConversationId>;
+
   // -- Calls, gallery, moments --------------------------------------------
   listCalls(): Promise<CallRecord[]>;
 

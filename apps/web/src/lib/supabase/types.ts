@@ -89,6 +89,8 @@ export type ConversationRow = {
   created_by: string | null;
   created_at: string;
   last_message_at: string;
+  /** Groups only. A direct chat wears whoever else is in it. */
+  avatar_url: string | null;
 };
 
 /** One row of `public.conversation_members`. Per-person state lives here. */
@@ -98,6 +100,8 @@ export type ConversationMemberRow = {
   joined_at: string;
   /** Everything after this instant is unread. */
   last_read_at: string;
+  /** Groups only. Members are plain everywhere else. */
+  role: 'member' | 'admin';
   pinned: boolean;
   favorite: boolean;
   /** Null is unmuted; a timestamp is until then; Postgres infinity is always. */
@@ -549,6 +553,63 @@ export type Database = {
           user_id: string;
           read_at: string | null;
         }[];
+      };
+
+      /*
+       * Groups.
+       *
+       * Every mutation is a function because every one has a condition on it,
+       * and a condition about `conversation_members` written as a policy *on*
+       * `conversation_members` is the recursion this schema hit in its first
+       * migration. The rules live in `security definer`; the table is readable
+       * and, apart from your own personal state, not writable.
+       */
+      create_group: {
+        Args: { title: string; member_ids: string[]; avatar_url: string | null };
+        Returns: string;
+      };
+      add_group_members: {
+        Args: { conv: string; member_ids: string[] };
+        Returns: undefined;
+      };
+      remove_group_member: {
+        Args: { conv: string; target: string };
+        Returns: undefined;
+      };
+      leave_group: {
+        Args: { conv: string };
+        Returns: undefined;
+      };
+      set_group_admin: {
+        Args: { conv: string; target: string; make_admin: boolean };
+        Returns: undefined;
+      };
+      update_group: {
+        Args: { conv: string; title: string; avatar_url: string | null };
+        Returns: undefined;
+      };
+      /** Idempotent — returns the live code rather than minting a second. */
+      group_invite_code: {
+        Args: { conv: string };
+        Returns: string;
+      };
+      revoke_group_invite: {
+        Args: { conv: string };
+        Returns: undefined;
+      };
+      /** Name, picture and headcount. Deliberately not the roster. */
+      preview_group_invite: {
+        Args: { invite_code: string };
+        Returns: {
+          conversation_id: string;
+          title: string | null;
+          avatar_url: string | null;
+          member_count: number;
+        }[];
+      };
+      join_group_with_code: {
+        Args: { invite_code: string };
+        Returns: string;
       };
     };
     Enums: { [_ in never]: never };

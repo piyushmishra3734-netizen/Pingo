@@ -323,6 +323,177 @@ export class MockChatService implements ChatService {
     this.#updateConversation(conversationId, { unreadCount: 0 });
   }
 
+  // -- groups ---------------------------------------------------------------
+  //
+  // In memory, and shaped like the real thing everywhere a screen can tell the
+  // difference: the creator is an admin, roles change, links are idempotent and
+  // revocable, and leaving hands the group on rather than stranding it.
+  //
+  // The one rule this cannot enforce is the friend gate — the mock has no
+  // follow graph to ask, and inventing one here would be a second answer to a
+  // question the real service already answers from the database. So it accepts
+  // whoever it is given. The rule is real and lives in `create_group`.
+
+  #invites = new Map<string, ConversationId>();
+
+  async createGroup(input: {
+    title: string;
+    memberIds: UserId[];
+    avatarUrl?: string;
+  }): Promise<ConversationId> {
+    const title = input.title.trim();
+    if (!title || title.length > 60) throw new Error('That group name will not work.');
+
+    const id = `conversation-${Date.now().toString(36)}`;
+    const participantIds = [
+      this.#currentUser.id,
+      ...input.memberIds.filter((memberId) => memberId !== this.#currentUser.id),
+    ];
+
+    const conversation: Conversation = {
+      id,
+      kind: 'group',
+      title,
+      participantIds,
+      adminIds: [this.#currentUser.id],
+      unreadCount: 0,
+      pinned: false,
+      muted: false,
+      favorite: false,
+      archived: false,
+      listIds: [],
+      typingUserIds: [],
+      updatedAt: Date.now(),
+      ...(input.avatarUrl ? { avatarUrl: input.avatarUrl } : {}),
+    };
+
+    this.#conversations.unshift(conversation);
+    this.#messages[id] = [];
+    this.#emit({ type: 'conversation:updated', conversation: clone(conversation) });
+    return id;
+  }
+
+  async addGroupMembers(conversationId: ConversationId, memberIds: UserId[]): Promise<void> {
+    const conversation = this.#requireAdmin(conversationId);
+    const participantIds = [...new Set([...conversation.participantIds, ...memberIds])];
+    this.#updateConversation(conversationId, { participantIds });
+  }
+
+  async removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void> {
+    const conversation = this.#requireAdmin(conversationId);
+    if (userId === this.#currentUser.id) throw new Error('Use Leave group to leave.');
+
+    this.#updateConversation(conversationId, {
+      participantIds: conversation.participantIds.filter((id) => id !== userId),
+      adminIds: (conversation.adminIds ?? []).filter((id) => id !== userId),
+    });
+  }
+
+  async leaveGroup(conversationId: ConversationId): Promise<void> {
+    const conversation = this.#conversation(conversationId);
+    if (!conversation) return;
+
+    const participantIds = conversation.participantIds.filter(
+      (id) => id !== this.#currentUser.id,
+    );
+    let adminIds = (conversation.adminIds ?? []).filter((id) => id !== this.#currentUser.id);
+
+    // The same succession the database does, for the same reason: a group with
+    // no admin can never be given one, because promotion needs an admin.
+    if (adminIds.length === 0 && participantIds[0]) adminIds = [participantIds[0]];
+
+    this.#updateConversation(conversationId, { participantIds, adminIds });
+    this.#conversations = this.#conversations.filter((c) => c.id !== conversationId);
+    this.#emit({ type: 'conversation:removed', conversationId });
+  }
+
+  async setGroupAdmin(
+    conversationId: ConversationId,
+    userId: UserId,
+    admin: boolean,
+  ): Promise<void> {
+    const conversation = this.#requireAdmin(conversationId);
+    const current = conversation.adminIds ?? [];
+
+    if (!admin && userId === this.#currentUser.id && current.length <= 1) {
+      throw new Error('Make someone else an admin before you step down.');
+    }
+
+    this.#updateConversation(conversationId, {
+      adminIds: admin
+        ? [...new Set([...current, userId])]
+        : current.filter((id) => id !== userId),
+    });
+  }
+
+  async updateGroup(
+    conversationId: ConversationId,
+    changes: { title: string; avatarUrl?: string },
+  ): Promise<void> {
+    this.#requireAdmin(conversationId);
+    const title = changes.title.trim();
+    if (!title || title.length > 60) throw new Error('That group name will not work.');
+
+    this.#updateConversation(conversationId, {
+      title,
+      ...(changes.avatarUrl ? { avatarUrl: changes.avatarUrl } : { avatarUrl: undefined }),
+    });
+  }
+
+  async groupInviteCode(conversationId: ConversationId): Promise<string> {
+    this.#requireAdmin(conversationId);
+
+    for (const [code, id] of this.#invites) {
+      if (id === conversationId) return code;
+    }
+
+    const code = Math.random().toString(36).slice(2, 14);
+    this.#invites.set(code, conversationId);
+    return code;
+  }
+
+  async revokeGroupInvite(conversationId: ConversationId): Promise<void> {
+    this.#requireAdmin(conversationId);
+    for (const [code, id] of this.#invites) {
+      if (id === conversationId) this.#invites.delete(code);
+    }
+  }
+
+  async previewGroupInvite(code: string) {
+    const conversationId = this.#invites.get(code);
+    const conversation = conversationId ? this.#conversation(conversationId) : undefined;
+    if (!conversation) return undefined;
+
+    return {
+      conversationId: conversation.id,
+      title: conversation.title,
+      memberCount: conversation.participantIds.length,
+      ...(conversation.avatarUrl ? { avatarUrl: conversation.avatarUrl } : {}),
+    };
+  }
+
+  async joinGroupWithCode(code: string): Promise<ConversationId> {
+    const conversationId = this.#invites.get(code);
+    const conversation = conversationId ? this.#conversation(conversationId) : undefined;
+    if (!conversation) throw new Error('That invite link is no longer valid.');
+
+    if (!conversation.participantIds.includes(this.#currentUser.id)) {
+      this.#updateConversation(conversation.id, {
+        participantIds: [...conversation.participantIds, this.#currentUser.id],
+      });
+    }
+    return conversation.id;
+  }
+
+  #requireAdmin(conversationId: ConversationId): Conversation {
+    const conversation = this.#conversation(conversationId);
+    if (!conversation) throw new Error('That group is gone.');
+    if (!(conversation.adminIds ?? []).includes(this.#currentUser.id)) {
+      throw new Error('Only an admin can do that.');
+    }
+    return conversation;
+  }
+
   /**
    * Derived from what the seed already says, rather than tracked separately.
    *

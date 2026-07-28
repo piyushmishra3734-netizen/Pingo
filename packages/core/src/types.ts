@@ -319,6 +319,15 @@ export interface Conversation {
   title: string;
   avatarUrl?: string;
   participantIds: UserId[];
+  /**
+   * Who runs this group. Empty for a direct chat, which has no ranks.
+   *
+   * A subset of `participantIds` rather than a flag on each participant,
+   * because almost every screen wants the roster and only the group's own
+   * screens want the roles — and a list of two ids is cheaper to compare than
+   * a list of objects that changes identity whenever anything else does.
+   */
+  adminIds?: UserId[];
   /** Denormalised for the list view, so rendering never needs the full thread. */
   lastMessage?: Message;
   unreadCount: number;

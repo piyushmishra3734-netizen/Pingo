@@ -145,6 +145,30 @@ function toAttachments(row: MessageRow): Attachment[] {
   return [];
 }
 
+/**
+ * The group rules, in the words a person should read.
+ *
+ * The functions raise custom SQLSTATEs rather than messages, so the rule lives
+ * in one place and every client says the same thing about it. Mapping them here
+ * rather than showing `error.message` also stops a Postgres string — schema
+ * names, function names, a hint about granting privileges — from reaching a
+ * screen.
+ */
+const GROUP_ERRORS: Record<string, string> = {
+  GR001: 'That group name will not work. Try something between 1 and 60 characters.',
+  GR002: 'You can only add friends to a group. Send them the invite link instead.',
+  GR003: 'Only an admin can do that.',
+  GR004: 'Use Leave group to leave.',
+  GR005: 'Make someone else an admin before you step down.',
+  GR006: 'That invite link is no longer valid.',
+};
+
+function groupError(error: { code?: string; message?: string }): Error {
+  return new Error(
+    (error.code ? GROUP_ERRORS[error.code] : undefined) ?? 'That did not work. Try again.',
+  );
+}
+
 function toMessage(row: MessageRow, readAt: number | undefined): Message {
   return {
     id: row.id,
@@ -741,8 +765,23 @@ export class SupabaseChatService implements ChatService {
           kind: row.kind,
           // A direct chat is titled by whoever else is in it, per viewer.
           title: row.title ?? otherUser?.name ?? 'Conversation',
-          ...(otherUser?.avatarUrl ? { avatarUrl: otherUser.avatarUrl } : {}),
+          /*
+           * A group's own picture, or the other person's.
+           *
+           * Checked in that order rather than merged: a group that has had its
+           * picture removed must fall back to nothing, not to whichever member
+           * happens to sort first — which would give the group a face belonging
+           * to somebody who might later leave it.
+           */
+          ...(row.avatar_url
+            ? { avatarUrl: row.avatar_url }
+            : otherUser?.avatarUrl
+              ? { avatarUrl: otherUser.avatarUrl }
+              : {}),
           participantIds: roster.map((m) => m.user_id),
+          // Only groups have ranks, so a direct chat carries an empty list
+          // rather than an absent field the screens would have to guard.
+          adminIds: roster.filter((m) => m.role === 'admin').map((m) => m.user_id),
           ...(last ? { lastMessage: toMessage(last, theirReadAt) } : {}),
           // Counted in SQL over the real rows, not over whatever this client
           // happened to have fetched.
@@ -1580,6 +1619,138 @@ export class SupabaseChatService implements ChatService {
      */
     await this.#client.rpc('mark_conversation_read', { conv: conversationId });
 
+    const conversation = await this.getConversation(conversationId);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+  }
+
+  // -- groups ---------------------------------------------------------------
+  //
+  // Every one of these is an RPC rather than a table write, and for one reason:
+  // each has a condition attached, and a condition about `conversation_members`
+  // expressed as a policy *on* `conversation_members` is the recursion this
+  // schema already hit once. The rules live in `security definer` functions;
+  // the table stays readable and, apart from your own personal state, not
+  // writable at all.
+
+  async createGroup(input: {
+    title: string;
+    memberIds: UserId[];
+    avatarUrl?: string;
+  }): Promise<ConversationId> {
+    const { data, error } = await this.#client.rpc('create_group', {
+      title: input.title,
+      member_ids: input.memberIds,
+      avatar_url: input.avatarUrl ?? null,
+    });
+    if (error) throw groupError(error);
+
+    const conversation = await this.getConversation(data as string);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+    return data as string;
+  }
+
+  async addGroupMembers(conversationId: ConversationId, memberIds: UserId[]): Promise<void> {
+    const { error } = await this.#client.rpc('add_group_members', {
+      conv: conversationId,
+      member_ids: memberIds,
+    });
+    if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  async removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void> {
+    const { error } = await this.#client.rpc('remove_group_member', {
+      conv: conversationId,
+      target: userId,
+    });
+    if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  async leaveGroup(conversationId: ConversationId): Promise<void> {
+    const { error } = await this.#client.rpc('leave_group', { conv: conversationId });
+    if (error) throw groupError(error);
+    // Not `#announce`: the row is gone from this person's list entirely, and
+    // re-reading it would hand back nothing and leave the old one on screen.
+    this.#emit({ type: 'conversation:removed', conversationId });
+  }
+
+  async setGroupAdmin(
+    conversationId: ConversationId,
+    userId: UserId,
+    admin: boolean,
+  ): Promise<void> {
+    const { error } = await this.#client.rpc('set_group_admin', {
+      conv: conversationId,
+      target: userId,
+      make_admin: admin,
+    });
+    if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  async updateGroup(
+    conversationId: ConversationId,
+    changes: { title: string; avatarUrl?: string },
+  ): Promise<void> {
+    const { error } = await this.#client.rpc('update_group', {
+      conv: conversationId,
+      title: changes.title,
+      avatar_url: changes.avatarUrl ?? null,
+    });
+    if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  async groupInviteCode(conversationId: ConversationId): Promise<string> {
+    const { data, error } = await this.#client.rpc('group_invite_code', {
+      conv: conversationId,
+    });
+    if (error) throw groupError(error);
+    return data as string;
+  }
+
+  async revokeGroupInvite(conversationId: ConversationId): Promise<void> {
+    const { error } = await this.#client.rpc('revoke_group_invite', {
+      conv: conversationId,
+    });
+    if (error) throw groupError(error);
+  }
+
+  async previewGroupInvite(code: string) {
+    const { data } = await this.#client.rpc('preview_group_invite', { invite_code: code });
+    const row = (data ?? [])[0] as
+      | { conversation_id: string; title: string | null; avatar_url: string | null; member_count: number }
+      | undefined;
+    if (!row) return undefined;
+
+    return {
+      conversationId: row.conversation_id,
+      title: row.title ?? 'Group',
+      memberCount: row.member_count,
+      ...(row.avatar_url ? { avatarUrl: row.avatar_url } : {}),
+    };
+  }
+
+  async joinGroupWithCode(code: string): Promise<ConversationId> {
+    const { data, error } = await this.#client.rpc('join_group_with_code', {
+      invite_code: code,
+    });
+    if (error) throw groupError(error);
+
+    const conversation = await this.getConversation(data as string);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+    return data as string;
+  }
+
+  /**
+   * Re-reads a group and tells the app.
+   *
+   * A roster change is not a message, so nothing on the socket announces it —
+   * without this, promoting somebody leaves the screen you did it from showing
+   * the roles as they were.
+   */
+  async #announce(conversationId: ConversationId): Promise<void> {
     const conversation = await this.getConversation(conversationId);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
   }
