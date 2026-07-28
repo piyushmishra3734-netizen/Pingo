@@ -155,9 +155,10 @@ phase extends them rather than replacing them.
 | `outbox` | composed but unsent | survives a force-quit |
 | `keys` | this device's identity keypair | non-extractable handles |
 
-**Plaintext is cached locally.** That is the point of local-first: decrypting
-the whole history on every open would make the app slower than the server it
-replaced. The device is trusted; the server is not. That is the boundary.
+**The cache is encrypted at rest.** An earlier draft of this document cached
+plaintext and argued the device was trusted; section 8 explains why that was
+wrong and what replaced it. Records are encrypted with a per-device database
+key before they are written.
 
 Reads stay **network-first with a cache fallback** for the conversation list —
 a stale list shown ahead of a fresh one flashes wrong unread counts — and
@@ -207,3 +208,121 @@ where `encryption is null`.
 - A chat opens from disk, and the network catches it up afterwards.
 - A device's private key has never been transmitted, and cannot be — the
   platform refuses to export it.
+
+---
+
+# Addendum — encrypted local storage, and room for what comes next
+
+## 8. Local storage is encrypted too
+
+The original design cached plaintext on the device and argued the device was
+trusted. That was the wrong call. A stolen laptop, a shared phone, a backup
+sync, another origin's bug — all of them reach an IndexedDB full of readable
+conversations, and "the server cannot read it" is a thin promise if the disk can.
+
+Records are now encrypted at rest with a **database key**: AES-256-GCM,
+generated once per device, held as a non-extractable `CryptoKey` in IndexedDB.
+
+```
+decrypt(message) ──► plaintext ──► encrypt(dbKey) ──► IndexedDB ──► UI
+```
+
+### What this protects against, precisely
+
+| Threat | Protected |
+| --- | --- |
+| Reading the IndexedDB files off disk | **yes** — ciphertext without the key |
+| A backup or sync copying the profile | **yes** |
+| Another origin, or a browser extension reading storage | **yes** |
+| Malicious code running *inside* PINGO's own origin | **no** |
+
+That last row is the honest limit and no web design escapes it: code in the
+origin can ask the browser to use the key, because that is what the key is for.
+Non-extractable means it cannot be *stolen* — exported, sent anywhere, put in a
+log. It does not mean it cannot be *used*. Anyone claiming otherwise about a
+browser is selling something.
+
+### Why not a password-derived key
+
+It is stronger — a key that exists only while someone is present protects a
+locked device too. It also means a password prompt on every cold start, and
+PINGO has accounts with no password at all: signing in with Google never
+produces one. A design that cannot serve its own Google users is not a design.
+
+The key is generated, not derived, for that reason. A passphrase-locked
+vault is a real future feature and is listed in the roadmap below.
+
+### On SQLCipher for Android
+
+Recommended, and deliberately not adopted here.
+
+Storage on Android lives in the WebView, so IndexedDB *is* the Android
+database — the same code, the same key handling, one implementation. Moving to
+SQLCipher means a native storage plugin, a bridge for every read and write, and
+a second encryption path to keep in step with the web one. That contradicts the
+requirement above it: **identical between Web and Android WebView**.
+
+The gain would be real: SQLCipher can hold its key in the Android Keystore,
+backed by hardware, which the WebView cannot reach. That is worth having and it
+is a phase of its own — one where Android's storage stops being the web's. It
+is on the roadmap rather than in this step.
+
+---
+
+## 9. Shaped for what is coming, built for none of it
+
+Each of these is a decision made now so it costs nothing later.
+
+**Group chats.** The envelope already wraps the content key once *per recipient
+device* rather than once per conversation. A group is more devices in that list
+and no change to the format. Sender keys — one key per group, rotated on
+membership change — become worthwhile past roughly twenty devices; the envelope
+version field is how that arrives without breaking `v1`.
+
+**Voice, images, video, files.** Media is encrypted with its own key, uploaded
+as ciphertext to storage, and *that* key travels in the message envelope. So
+attachments need no second key exchange, and a Ping's view limit keeps working
+because deleting the object still destroys the media regardless of who holds a
+key.
+
+**Multi-device.** Already the unit of encryption. What is missing is only key
+*sync* — a new device cannot read history. Closing it needs an authenticated
+channel between two devices the user owns, which is device verification below.
+
+**Editing and deletion.** An edit is a new ciphertext replacing a body; the
+envelope is unchanged because the recipients have not. Deletion already writes
+a tombstone and clears the body, and a cleared body needs no key.
+
+**Reactions.** Deliberately *not* encrypted. A reaction is one emoji against a
+message id, and encrypting it per device would multiply rows for something that
+leaks almost nothing — and it must be countable and de-duplicated by the server.
+The tradeoff is stated rather than hidden.
+
+**Key rotation.** `device_keys` is keyed on `device_id`, so rotating is
+publishing a new row and retiring the old. Messages already sent stay readable
+by the old key, which is why retiring is not deleting.
+
+**Device verification.** Comparing public key fingerprints out of band — a QR
+code or a short number both sides read aloud — is what turns "the server says
+this is their key" into "I checked". It is the prerequisite for key sync, and
+without it multi-device sync would trust the server to introduce devices.
+
+**Secure backup.** A passphrase-wrapped export of the device key, so a lost
+phone does not mean lost history. Optional by nature: it re-introduces the
+password prompt this design avoided, for people who want it.
+
+---
+
+## 10. Order, revised
+
+| # | Step | State |
+| --- | --- | --- |
+| 1 | Schema: `encryption`, `envelope`, `device_keys` | **done** |
+| 2 | Keys, encrypt/decrypt pipeline, encrypted local cache | **this step** |
+| 3 | Encrypted media, and the Ping view limit through it | |
+| 4 | Device verification — fingerprints, out of band | |
+| 5 | Multi-device key sync, on top of verification | |
+| 6 | Key rotation | |
+| 7 | Android storage on SQLCipher, key in the Android Keystore | |
+| 8 | Sender keys for large groups | |
+| 9 | Passphrase-locked backup | |

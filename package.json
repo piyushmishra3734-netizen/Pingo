@@ -12,8 +12,9 @@
     "build:logo": "node --experimental-strip-types apps/web/scripts/make-logo.ts",
     "release:android": "node apps/web/scripts/release-android.mjs",
     "verify:qr": "node --experimental-strip-types apps/web/scripts/verify-qr.ts",
+    "verify:crypto": "node apps/web/scripts/verify-crypto.mjs",
     "functions:deploy": "supabase functions deploy turn-credentials --project-ref lppzoqgvshhmxqsvggug",
-    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr"
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto"
   },
   "devDependencies": {
     "jsqr": "^1.4.0",

@@ -42,6 +42,14 @@ export const STORE = {
   outbox: 'outbox',
   /** Unsent text per conversation, saved as you type. */
   drafts: 'drafts',
+  /**
+   * This device's keys — identity and database — as non-extractable handles.
+   *
+   * Cleared on sign-out with everything else, which is correct: the identity
+   * belongs to that session's account, and a new sign-in publishes a new device
+   * rather than inheriting one.
+   */
+  keys: 'keys',
 } as const;
 
 export type StoreName = (typeof STORE)[keyof typeof STORE];
