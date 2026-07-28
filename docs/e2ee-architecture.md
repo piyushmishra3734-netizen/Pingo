@@ -325,4 +325,4 @@ password prompt this design avoided, for people who want it.
 | 6 | Key rotation | |
 | 7 | Android storage on SQLCipher, key in the Android Keystore | |
 | 8 | Sender keys for large groups | |
-| 9 | Passphrase-locked backup | |
+| 9 | Key recovery — see [the recovery architecture](./e2ee-recovery-architecture.md) | design agreed, unbuilt |
