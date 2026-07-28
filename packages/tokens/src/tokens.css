@@ -468,21 +468,39 @@
   -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
   border: 1px solid var(--color-glass-line);
 
+  position: relative;
+
   /*
    * The specular edge — what separates glass from frosted plastic.
    *
-   * Real glass is brightest where it curves away at the top and darkest where
-   * it meets what is under it. Two inset shadows, a hair each, give the surface
-   * a lit edge and a grounded one, and the eye reads thickness from that alone.
-   * Without them a blurred panel is just a blurred rectangle, which is what
-   * this was.
+   * Real glass is brightest where it curves away at the top. A hairline of
+   * light along the upper edge is all it takes; the eye reads thickness from
+   * that alone, and without it a blurred panel is just a blurred rectangle.
    *
-   * Kept to inset shadows rather than a gradient overlay so nothing is added to
-   * the DOM and no child has to opt in.
+   * ## Why a pseudo-element and not an inset box-shadow
+   *
+   * It was an inset shadow, and it never appeared. `GlassPanel` puts
+   * `shadow-lg` on the same element for elevation, and `box-shadow` is one
+   * property — the utility replaced the specular outright rather than adding to
+   * it. Measured on the deployed build: the dock's computed shadow had no inset
+   * layer at all.
+   *
+   * A pseudo-element cannot be clobbered by a shadow utility, and it inherits
+   * the corner radius, so it follows whatever shape the surface happens to be.
    */
-  box-shadow:
-    inset 0 1px 0 0 rgb(255 255 255 / 0.5),
-    inset 0 -1px 0 0 rgb(0 0 0 / 0.03);
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.55) 0,
+      rgb(255 255 255 / 0.06) 2px,
+      transparent 55%
+    );
+  }
 }
 
 /**
@@ -497,17 +515,25 @@
  * happens to be behind the glass — which is the whole point of the material.
  */
 @utility glass-press {
+  /*
+   * Colour is in this list on purpose.
+   *
+   * This declares the `transition` shorthand, and a `transition-colors`
+   * utility beside it does not merge — it replaces the whole thing, spring and
+   * all. Measured on the deployed build: the dock came back with
+   * `cubic-bezier(0.32, 0.72, 0, 1)`, the standard curve, because the colour
+   * utility had won. So this owns every property the control animates and
+   * nothing else declares one.
+   */
   transition:
     transform var(--duration-quick) var(--ease-spring),
-    filter var(--duration-quick) var(--ease-standard),
-    box-shadow var(--duration-quick) var(--ease-standard);
+    color var(--duration-quick) var(--ease-standard),
+    background-color var(--duration-quick) var(--ease-standard),
+    filter var(--duration-quick) var(--ease-standard);
 
   &:active {
     transform: scale(0.96);
     filter: brightness(1.06) saturate(1.05);
-    box-shadow:
-      inset 0 2px 4px 0 rgb(0 0 0 / 0.06),
-      inset 0 1px 0 0 rgb(255 255 255 / 0.6);
   }
 }
 

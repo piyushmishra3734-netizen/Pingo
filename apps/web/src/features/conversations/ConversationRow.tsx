@@ -246,10 +246,17 @@ export function ConversationRow({
       on the standard curve; the scale springs, so letting go feels like the
       surface pushing back rather than the row simply resizing.
     */
-    'focus-ring',
-    'transition-[background-color] duration-instant ease-standard',
-    'transition-transform duration-quick ease-spring',
-    'active:scale-[0.985]',
+    /*
+      One declaration, two curves.
+
+      Two `transition-*` utilities do not compose — they both set
+      `transition-property`, so the second replaces the first and its timing
+      function goes with it. Measured on the deployed build: the row reported
+      the standard curve and the spring was nowhere. An arbitrary value is the
+      only way to give one element two different curves.
+    */
+    'focus-ring active:scale-[0.985]',
+    '[transition:background-color_120ms_var(--ease-standard),transform_180ms_var(--ease-spring)]',
     selected
       ? 'bg-selected'
       : active

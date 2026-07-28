@@ -80,7 +80,6 @@ export function Dock() {
                   button drawn on top of one.
                 */
                 'focus-ring glass-press',
-                'transition-colors duration-quick ease-standard',
                 isActive
                   ? 'text-brand'
                   : 'text-text-secondary hover:bg-hover hover:text-ink',
