@@ -58,7 +58,13 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
 
   return (
     <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
-      <div className="animate-bubble-in max-w-[72%] min-w-0">
+      {/* Same rule as every other bubble: it arrives from its own side. */}
+      <div
+        className={cn(
+          'max-w-[72%] min-w-0',
+          mine ? 'animate-bubble-in-mine' : 'animate-bubble-in',
+        )}
+      >
         {url ? (
           <img
             src={url}

@@ -92,12 +92,27 @@ export function Dock() {
                 <Icon size={26} />
                 <span className="sr-only">{label}</span>
 
-                {/* The brand dot as the active marker. */}
+                {/*
+                  The brand dot as the active marker.
+
+                  It used to cross-fade: the old dot faded out while the new one
+                  faded in, so at the midpoint there were two half-dots and no
+                  sense of having gone anywhere. Now it also *arrives* — dropping
+                  the last couple of pixels into place and widening briefly, so
+                  the eye is pulled to where you now are rather than being left
+                  to notice which of two marks survived.
+
+                  A single indicator sliding along the bar would be better still,
+                  and needs the dock to measure its own items; this gets most of
+                  the effect for none of that.
+                */}
                 <span
                   className={cn(
-                    'absolute bottom-1.5 size-1 rounded-full bg-dot',
-                    'transition-opacity duration-quick ease-standard',
-                    isActive ? 'opacity-100' : 'opacity-0',
+                    'absolute bottom-1.5 h-1 rounded-full bg-dot',
+                    'transition-[opacity,width,transform] duration-base ease-standard',
+                    isActive
+                      ? 'w-3.5 translate-y-0 opacity-100'
+                      : 'w-1 translate-y-1 opacity-0',
                   )}
                   aria-hidden
                 />

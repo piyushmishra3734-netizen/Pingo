@@ -109,6 +109,15 @@ export function MessageBubble({
   replyToAuthor,
   onJumpToReply,
 }: MessageBubbleProps) {
+  /*
+     * Which way this bubble comes in from.
+     *
+     * Held once rather than branched at each of the five places a bubble is
+     * rendered — a voice note, a photo, a sticker and a tombstone are all
+     * bubbles, and they were all rising from below identically.
+     */
+    const arrive = mine ? 'animate-bubble-in-mine' : 'animate-bubble-in';
+
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
   const hasBody = message.body.trim().length > 0;
@@ -127,7 +136,7 @@ export function MessageBubble({
         <div
           id={`message-${message.id}`}
           className={cn(
-            'max-w-[68%] animate-bubble-in px-4 py-2.5',
+            'max-w-[68%] px-4 py-2.5', arrive,
             SHAPE[mine ? 'mine' : 'theirs'][position],
             'border border-line bg-surface',
           )}
@@ -168,7 +177,7 @@ export function MessageBubble({
   if (message.location || message.contact || message.event || message.call) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
-        <div id={`message-${message.id}`} className="animate-bubble-in max-w-[72%] min-w-0">
+        <div id={`message-${message.id}`} className={cn(arrive, 'max-w-[72%] min-w-0')}>
           {message.location && <LocationBubble location={message.location} mine={mine} />}
           {message.contact && <ContactBubble contact={message.contact} mine={mine} />}
           {message.event && <EventBubble event={message.event} mine={mine} />}
@@ -200,7 +209,7 @@ export function MessageBubble({
   if (message.ping) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
-        <div className="animate-bubble-in">
+        <div className={arrive}>
           <PingBubble message={message} ping={message.ping} mine={mine} />
           <span className="mt-0.5 block text-caption text-text-tertiary">
             {formatTime(message.createdAt)}
@@ -221,7 +230,7 @@ export function MessageBubble({
   if (message.sticker) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
-        <div className="animate-bubble-in">
+        <div className={arrive}>
           <img
             src={message.sticker.url}
             // `body` is the emoji fallback, which makes a real alt text.
@@ -257,7 +266,8 @@ export function MessageBubble({
         // Every way of opening the menu lands here: press, right-click, keyboard.
         {...trigger}
         className={cn(
-          'group relative max-w-[68%] min-w-0 animate-bubble-in',
+          'group relative max-w-[68%] min-w-0',
+          arrive,
           // Focusable for the keyboard openers, never outlined by a press —
           // the menu appearing is the feedback.
           'outline-none',

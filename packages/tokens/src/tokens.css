@@ -118,7 +118,27 @@
   --animate-dot-orbit: dot-orbit 1600ms linear infinite;
   --animate-rise: rise var(--duration-base) var(--ease-standard) backwards;
   --animate-fade-in: fade-in var(--duration-base) var(--ease-standard) backwards;
+  /* A message arriving.
+
+     Two of them, because a bubble should come from where it came from: yours
+     from the composer on the right, theirs from their side on the left. One
+     shared animation made every message rise from below, which reads as the
+     list re-laying-out rather than as somebody speaking. */
   --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) backwards;
+  --animate-bubble-in-mine: bubble-in-mine var(--duration-base) var(--ease-standard) backwards;
+
+  /* A long press, in progress.
+
+     Long-press opens story management, and until now it gave nothing back
+     until it had already fired — so the gesture was invisible to anyone who
+     did not already know it existed, and a press abandoned halfway looked
+     identical to one that never started. Squeezing over the hold's own
+     duration says "something is happening, keep going", and lets a press be
+     abandoned knowingly.
+
+     The duration is deliberately the same constant the timer uses, so the
+     squeeze completes exactly as the menu opens rather than guessing at it. */
+  --animate-press-hold: press-hold 480ms var(--ease-standard) forwards;
 
   /* The send button, acknowledging a press. Overshoots slightly on the way
      back rather than easing to rest: a spring says the thing left, where a
@@ -219,6 +239,15 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes press-hold {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(0.88);
   }
 }
 
@@ -337,11 +366,27 @@
 @keyframes bubble-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.99);
+    /* Sideways and slightly small, so it reads as arriving from their side
+       rather than growing out of the floor. Small numbers on purpose: this
+       fires on every message in a thread, and anything larger turns opening a
+       conversation into a performance. */
+    transform: translate(-10px, 4px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* The same, mirrored. Yours leave from where the composer is. */
+@keyframes bubble-in-mine {
+  from {
+    opacity: 0;
+    transform: translate(10px, 4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
   }
 }
 

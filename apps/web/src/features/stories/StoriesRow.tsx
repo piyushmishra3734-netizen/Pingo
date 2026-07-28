@@ -1,6 +1,6 @@
 import type { StoryGroup } from '@pingo/core';
 import { Avatar, PlusIcon, cn } from '@pingo/ui';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 /**
  * The story rail at the top of the chat list.
@@ -150,11 +150,16 @@ function MyCircle({
   const clear = () => {
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = undefined;
+    setHolding(false);
   };
+
+  /** True while a press is being held. Drives the squeeze. */
+  const [holding, setHolding] = useState(false);
 
   const onPointerDown = (event: React.PointerEvent) => {
     if (!group) return;
     held.current = false;
+    setHolding(true);
     origin.current = { x: event.clientX, y: event.clientY };
     timer.current = window.setTimeout(() => {
       held.current = true;
@@ -214,7 +219,15 @@ function MyCircle({
         'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
       )}
     >
-      <span className="relative">
+      <span
+        className={cn(
+          'relative block',
+          // Squeezes over the hold's duration, then springs back on release.
+          holding
+            ? 'motion-safe:animate-press-hold'
+            : 'transition-transform duration-quick ease-standard',
+        )}
+      >
         <StoryRing
           seen={group?.allSeen ?? true}
           close={group?.closeFriends ?? false}
