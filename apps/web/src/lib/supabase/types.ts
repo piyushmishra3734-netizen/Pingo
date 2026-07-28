@@ -150,6 +150,30 @@ export type MessageRow = {
   /** Soft delete. The row stays so replies that quote it keep their anchor. */
   deleted_at: string | null;
   reply_to_id: string | null;
+  /**
+   * Null on every message that existed before E2EE, and `'v1'` after.
+   *
+   * A column rather than a guess at the content. "Does this body look like
+   * base64?" misfires on a message that happens to, and the failure is
+   * somebody's chat rendering as garbage.
+   */
+  encryption: string | null;
+  /** Ephemeral public key and one wrapped content key per device. */
+  envelope: {
+    epk: string;
+    iv: string;
+    keys: Record<string, { iv: string; key: string }>;
+  } | null;
+};
+
+/** One row per device, holding the public half only. World-readable by design. */
+export type DeviceKeyRow = {
+  device_id: string;
+  user_id: string;
+  /** SPKI, base64. */
+  public_key: string;
+  created_at: string;
+  last_seen_at: string;
 };
 
 /** The `public` schema. */
@@ -317,11 +341,28 @@ export type Database = {
           snap_path?: string | null;
           snap_expires_at?: string | null;
           reply_to_id?: string | null;
+          encryption?: string | null;
+          envelope?: MessageRow['envelope'];
         };
         Update: {
           body?: string;
           edited_at?: string | null;
+          /* An edit replaces the ciphertext; the recipients have not changed,
+           * so it may replace the envelope too. */
+          encryption?: string | null;
+          envelope?: MessageRow['envelope'];
         };
+        Relationships: [];
+      };
+      device_keys: {
+        Row: DeviceKeyRow;
+        Insert: {
+          device_id: string;
+          user_id: string;
+          public_key: string;
+          last_seen_at?: string;
+        };
+        Update: { last_seen_at?: string };
         Relationships: [];
       };
       stories: {

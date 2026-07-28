@@ -54,6 +54,7 @@ import type {
 
 import { Capacitor } from '@capacitor/core';
 import { SupabaseNativeGoogleAuth } from './google-native.js';
+import { forgetPublication } from '../crypto/session.js';
 import { localClear } from '../local/db.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 
@@ -462,5 +463,12 @@ export class SupabaseAuthService implements AuthService {
      * own cache while leaving them signed in.
      */
     await localClear();
+
+    /*
+     * The device identity went with it. Dropping the guard means the next
+     * sign-in publishes a fresh device rather than assuming the one it
+     * announced at the start of the session is still the current account's.
+     */
+    forgetPublication();
   }
 }

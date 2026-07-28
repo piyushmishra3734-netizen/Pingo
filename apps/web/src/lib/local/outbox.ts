@@ -1,5 +1,6 @@
 import type { OutgoingMessage } from '@pingo/core';
 
+import { openRecord, sealRecord } from '../crypto/session.js';
 import { STORE, localAll, localDelete, localSet } from './db.js';
 
 /**
@@ -54,15 +55,25 @@ export async function enqueue(draft: OutgoingMessage): Promise<OutboxEntry> {
     queuedAt: Date.now(),
     attempts: 0,
   };
-  await localSet(STORE.outbox, entry.id, entry);
+  /*
+   * Sealed like everything else on disk.
+   *
+   * A queued message is the one case where plaintext genuinely has to rest
+   * locally — it has not been encrypted for anybody yet, because the recipient
+   * list is read at send time. That makes the database key the only thing
+   * standing between an unsent message and whoever picks the device up.
+   */
+  await localSet(STORE.outbox, entry.id, await sealRecord(entry));
   return entry;
 }
 
 /** Everything waiting, oldest first. */
 export async function pending(): Promise<OutboxEntry[]> {
-  const all = await localAll<OutboxEntry>(STORE.outbox);
+  const stored = await localAll<unknown>(STORE.outbox);
+  const all = await Promise.all(stored.map((row) => openRecord<OutboxEntry>(row)));
+
   return all
-    .filter((entry) => entry.attempts < MAX_ATTEMPTS)
+    .filter((entry): entry is OutboxEntry => Boolean(entry) && entry!.attempts < MAX_ATTEMPTS)
     .sort((a, b) => a.queuedAt - b.queuedAt);
 }
 
@@ -71,7 +82,11 @@ export async function forget(id: string): Promise<void> {
 }
 
 async function fail(entry: OutboxEntry): Promise<void> {
-  await localSet(STORE.outbox, entry.id, { ...entry, attempts: entry.attempts + 1 });
+  await localSet(
+    STORE.outbox,
+    entry.id,
+    await sealRecord({ ...entry, attempts: entry.attempts + 1 }),
+  );
 }
 
 /**

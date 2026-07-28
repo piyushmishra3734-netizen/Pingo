@@ -55,6 +55,14 @@ import type {
   UserSettings,
 } from '@pingo/core';
 
+import {
+  openRecord,
+  openRow,
+  openRows,
+  publishDeviceKey,
+  sealBody,
+  sealRecord,
+} from '../crypto/session.js';
 import { STORE, localGet, localSet } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
@@ -423,6 +431,15 @@ export class SupabaseChatService implements ChatService {
     const { data } = await this.#client.auth.getUser();
     const id = data.user?.id;
     if (!id) throw new Error('Not signed in.');
+
+    /*
+     * Publishing rides along with the first thing that needs an identity,
+     * rather than being a step sign-in has to remember. It runs once per
+     * session and never blocks: a device that has not published yet can still
+     * read and send, it just cannot be encrypted *to* until it has.
+     */
+    void publishDeviceKey(this.#client, id);
+
     return id;
   }
 
@@ -461,9 +478,13 @@ export class SupabaseChatService implements ChatService {
            * hook de-duplicates by id, so whichever lands first wins. When the
            * socket won, the sender's own photo rendered as an unopened cover.
            */
-          void this.#signPhotos([row], [toMessage(row, undefined)]).then(([message]) => {
-            if (message) this.#emit({ type: 'message:new', message });
-          });
+          // Decrypted before it is signed, because signing reads the row and
+          // the announcement reads the body.
+          void openRow(row)
+            .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
+            .then(([message]) => {
+              if (message) this.#emit({ type: 'message:new', message });
+            });
 
           // The list needs the new preview and a bumped position, and only a
           // refetch can produce a correctly-shaped `Conversation`.
@@ -487,13 +508,15 @@ export class SupabaseChatService implements ChatService {
         (payload) => {
           const row = payload.new as MessageRow;
           // Signed for the same reason as the insert above.
-          void this.#signPhotos([row], [toMessage(row, undefined)]).then(([signed]) => {
-            if (!signed) return;
-            this.#emit({
-              type: 'message:updated',
-              message: { ...signed, reactions: this.#reactions.get(row.id) ?? [] },
+          void openRow(row)
+            .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
+            .then(([signed]) => {
+              if (!signed) return;
+              this.#emit({
+                type: 'message:updated',
+                message: { ...signed, reactions: this.#reactions.get(row.id) ?? [] },
+              });
             });
-          });
 
           // The list shows this message when it is the newest one, so an edit
           // or a deletion has to reach the preview as well as the thread.
@@ -771,6 +794,9 @@ export class SupabaseChatService implements ChatService {
         .from('messages')
         .select('*')
         .in('id', lastMessageIds);
+      // The list's previews are ciphertext too. Without this the home screen
+      // would show base64 under every name.
+      await openRows(lastRows ?? []);
       for (const row of lastRows ?? []) lastById.set(row.id, row);
     }
 
@@ -910,10 +936,14 @@ export class SupabaseChatService implements ChatService {
      */
     try {
       const live = await this.#listConversationsFromNetwork();
-      void localSet(STORE.conversations, 'all', live);
+      // Sealed too. The list carries message previews, which is to say it
+      // carries the first line of every conversation you have.
+      void sealRecord(live).then((sealed) => localSet(STORE.conversations, 'all', sealed));
       return live;
     } catch (cause) {
-      const cached = await localGet<Conversation[]>(STORE.conversations, 'all');
+      const cached = await openRecord<Conversation[]>(
+        await localGet<unknown>(STORE.conversations, 'all'),
+      );
       if (cached) return cached;
       throw cause;
     }
@@ -1156,10 +1186,13 @@ export class SupabaseChatService implements ChatService {
 
     try {
       const live = await this.#listMessagesFromNetwork(conversationId, options);
-      void localSet(STORE.messages, conversationId, live);
+      // Sealed with this device's database key before it reaches the disk.
+      void sealRecord(live).then((sealed) => localSet(STORE.messages, conversationId, sealed));
       return live;
     } catch (cause) {
-      const cached = await localGet<Message[]>(STORE.messages, conversationId);
+      const cached = await openRecord<Message[]>(
+        await localGet<unknown>(STORE.messages, conversationId),
+      );
       if (cached) return cached;
       throw cause;
     }
@@ -1264,6 +1297,10 @@ export class SupabaseChatService implements ChatService {
     const reactions = await this.#reactionsFor(rows.map((row) => row.id));
     // The cache is filled here and mutated from then on. docs/13 § 8.1.
     for (const row of rows) this.#reactions.set(row.id, reactions.get(row.id) ?? []);
+
+    // Decrypted as a batch before anything reads a body. Concurrent, because
+    // each row carries its own wrapped key and none depends on another.
+    await openRows(rows);
 
     // Fetched newest-first for the limit; returned newest-last so the UI can
     // append without re-sorting.
@@ -1653,12 +1690,25 @@ export class SupabaseChatService implements ChatService {
       ? new Date(Date.now() + SNAP_EXPIRY_MS).toISOString()
       : undefined;
 
+    /*
+     * Encrypted here, at the last moment before the row leaves.
+     *
+     * Everything above this line — uploads, ping paths, expiry — is about
+     * media, which this phase does not encrypt yet. The body does, and doing it
+     * at the insert rather than at the top of `sendMessage` means the offline
+     * queue holds plaintext it can re-seal on flush, when the recipient list
+     * may well have changed.
+     */
+    const sealed = await sealBody(this.#client, draft.conversationId, draft.body);
+
     const { data, error } = await this.#client
       .from('messages')
       .insert({
         conversation_id: draft.conversationId,
         sender_id: me,
-        body: draft.body,
+        body: sealed.body,
+        encryption: sealed.encryption,
+        envelope: sealed.envelope,
         ...(draft.replyToId ? { reply_to_id: draft.replyToId } : {}),
         ...(draft.sticker ? { kind: 'sticker', media_url: draft.sticker.url } : {}),
         ...(filePath && draft.document
@@ -1720,6 +1770,16 @@ export class SupabaseChatService implements ChatService {
       .single();
 
     if (error) throw error;
+
+    /*
+     * The row that came back holds the ciphertext this method just wrote, and
+     * the sender already has the plaintext in hand. Putting it back is both
+     * cheaper than a decrypt and immune to the one failure that would matter
+     * here — a sender who cannot read their own message the instant they send
+     * it has no way to tell that from the message not sending.
+     */
+    data.body = draft.body;
+
     // Signed here too, or the sender stares at their own photo as a blank frame
     // until the thread is reloaded.
     const [message] = await this.#signPhotos([data], [toMessage(data, undefined)]);
@@ -1996,6 +2056,7 @@ export class SupabaseChatService implements ChatService {
 
     if (error) throw error;
     if (!data) throw new Error(`No message ${messageId}`);
+    await openRow(data);
     return toMessage(data, undefined);
   }
 
