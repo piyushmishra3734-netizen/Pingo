@@ -24,3 +24,9 @@ apps/web/android/.gradle/
 apps/web/android/local.properties
 apps/web/ios/App/Pods/
 apps/web/ios/App/build/
+
+# Play upload key. Never committed -- Play accepts one upload key for the life
+# of an app, and losing it means you cannot update your own listing.
+apps/web/android/keystore.properties
+apps/web/android/*.jks
+apps/web/android/*.keystore

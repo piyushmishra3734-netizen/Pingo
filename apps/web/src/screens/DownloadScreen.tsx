@@ -3,7 +3,16 @@ import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
-import { INSTALL_LABEL, useInstall, type Platform } from '../features/install/useInstall.js';
+import { useInstall, type Platform } from '../features/install/useInstall.js';
+
+/** Where each platform's app will come from. Named, so the button can say it. */
+const STORE_NAME: Record<Platform, string> = {
+  android: 'Play Store',
+  ios: 'the App Store',
+  windows: 'Windows',
+  macos: 'macOS',
+  other: 'your platform',
+};
 
 /**
  * Where PINGO explains that it is an app.
@@ -18,21 +27,22 @@ import { INSTALL_LABEL, useInstall, type Platform } from '../features/install/us
  * up, so the page does not promise them.
  *
  * The one thing it will not do is describe a native app that does not exist.
- * Installing this is installing a PWA, it says so, and it explains why that is
- * genuinely better than a tab rather than pretending to be something else.
+ * The Android and iOS builds are real store applications produced from the
+ * shared engine, and until they are published this page says so rather than
+ * teaching anybody to bookmark a website instead.
  *
  * ## Why the status on each card is honest
  *
- * "Available" where the platform can install today. Anything that cannot is
- * said plainly rather than being labelled "coming soon", which is the phrase
- * products use when they mean "no".
+ * "Available now" only for what somebody can use this minute — which today is
+ * the web. Everything else says "In development", because a store badge that
+ * links nowhere is worse than a sentence explaining where things stand.
  */
 
 interface PlatformCard {
   key: Platform | 'web';
   name: string;
   icon: string;
-  status: 'available' | 'manual';
+  status: 'available' | 'soon';
   method: string;
   requirements: string;
 }
@@ -42,45 +52,40 @@ const PLATFORMS: PlatformCard[] = [
     key: 'android',
     name: 'Android',
     icon: '🤖',
-    status: 'available',
-    method: 'Install from Chrome. PINGO adds itself to your home screen and app drawer.',
-    requirements: 'Android 8 or newer, Chrome, Edge, Samsung Internet or Opera.',
+    status: 'soon',
+    method: 'A real Play Store app, built from the same engine as everything else. Not a shortcut to a website.',
+    requirements: 'Android 8 or newer.',
   },
   {
     key: 'ios',
     name: 'iPhone & iPad',
     icon: '',
-    /*
-     * Not "coming soon". Safari has never exposed an install API and Apple has
-     * given no sign it intends to, so a promise here would be one nobody can
-     * keep. The steps are three taps and the guide below has them.
-     */
-    status: 'manual',
-    method: 'Open in Safari, then Share → Add to Home Screen.',
-    requirements: 'iOS or iPadOS 16.4 or newer, using Safari.',
+    status: 'soon',
+    method: 'A real App Store app, downloaded and installed like any other.',
+    requirements: 'iOS or iPadOS 15 or newer.',
   },
   {
     key: 'windows',
     name: 'Windows',
     icon: '🪟',
-    status: 'available',
-    method: 'Install from Chrome or Edge. PINGO gets its own window and taskbar icon.',
-    requirements: 'Windows 10 or 11, Chrome or Edge.',
+    status: 'soon',
+    method: 'A signed desktop installer with its own window, taskbar icon and notifications.',
+    requirements: 'Windows 10 or 11.',
   },
   {
     key: 'macos',
     name: 'macOS',
     icon: '💻',
-    status: 'available',
-    method: 'Install from Chrome or Edge. Safari can add it to the Dock from the File menu.',
-    requirements: 'macOS 12 or newer. Safari 17 for Dock installation.',
+    status: 'soon',
+    method: 'A signed .dmg that installs to Applications like any Mac app.',
+    requirements: 'macOS 12 or newer.',
   },
   {
     key: 'web',
     name: 'Web',
     icon: '🌐',
     status: 'available',
-    method: 'Nothing to install. PINGO runs in any modern browser.',
+    method: 'Nothing to install. The full product runs in any modern browser, right now.',
     requirements: 'Any browser from the last two years.',
   },
 ];
@@ -119,45 +124,50 @@ const BENEFITS = [
   },
 ];
 
+/**
+ * What is actually happening, per platform.
+ *
+ * These used to be "Add to Home Screen" instructions. PINGO is not a Progressive
+ * Web App and must never ask anybody to bookmark it — the native builds are real
+ * store applications produced from the same engine, and a page teaching people
+ * to save a shortcut instead would undercut the thing being built.
+ *
+ * Until a listing exists, saying so is the only honest option. A store badge
+ * that links nowhere is worse than a sentence explaining where things stand.
+ */
 const GUIDES: { key: Platform; title: string; steps: string[] }[] = [
   {
     key: 'android',
     title: 'Android',
     steps: [
-      'Open pingochat.pages.dev in Chrome.',
-      'Tap the ⋮ menu in the top right.',
-      'Choose “Install app” or “Add to Home screen”.',
-      'Confirm. PINGO appears in your app drawer.',
+      'The Android app is built and signed as a Play Store release.',
+      'It is not published yet — this page will carry the Play Store link the day it is.',
+      'Until then, use PINGO in your browser. Everything works; it is the same product.',
     ],
   },
   {
     key: 'ios',
     title: 'iPhone & iPad',
     steps: [
-      'Open pingochat.pages.dev in Safari. It must be Safari — Chrome on iOS cannot install web apps.',
-      'Tap the Share button at the bottom of the screen.',
-      'Scroll down and tap “Add to Home Screen”.',
-      'Tap Add. PINGO appears on your Home Screen.',
+      'The iOS app ships through the App Store, downloaded and installed like any other app.',
+      'It is not published yet. This page will carry the App Store link when it is.',
+      'PINGO runs fully in Safari in the meantime.',
     ],
   },
   {
     key: 'windows',
     title: 'Windows',
     steps: [
-      'Open pingochat.pages.dev in Chrome or Edge.',
-      'Click the install icon in the address bar, or open the ⋮ menu.',
-      'Choose “Install PINGO”.',
-      'PINGO opens in its own window and pins to the taskbar.',
+      'A signed desktop installer is in development.',
+      'It will install to your Start menu with its own window and notifications.',
     ],
   },
   {
     key: 'macos',
     title: 'macOS',
     steps: [
-      'Open pingochat.pages.dev in Chrome, Edge or Safari 17.',
-      'In Chrome or Edge, click the install icon in the address bar.',
-      'In Safari, choose File → Add to Dock.',
-      'PINGO opens in its own window.',
+      'A signed .dmg is in development.',
+      'It will install to Applications like any other Mac app.',
     ],
   },
 ];
@@ -184,8 +194,8 @@ const FAQ = [
     a: 'Yes, the same way as any other app on your device. Uninstalling removes the local copy; your account and messages are untouched.',
   },
   {
-    q: 'Is this a native app?',
-    a: 'It is a Progressive Web App. It installs, gets its own icon and window, and works offline — but it is built with web technology rather than shipped through an app store. That is why there is no download queue and no update to approve.',
+    q: 'Is this a real app or a website shortcut?',
+    a: 'The Android and iOS versions are real applications, downloaded from the Play Store and App Store and installed like any other. They have their own icon, splash screen, native permissions and notifications, and they run full screen with no browser anywhere. They share one engine with the web version, which is why a fix lands everywhere at once rather than three times.',
   },
 ];
 
@@ -216,12 +226,14 @@ export function DownloadScreen() {
     };
   }, []);
 
+  /*
+   * There is no store listing yet, so the button explains rather than lies.
+   *
+   * It used to raise the browser's install prompt, which is exactly the
+   * "Add to Home Screen" behaviour PINGO is not built on. Scrolling to the
+   * platform's own section is the honest action until a real link exists.
+   */
   const primaryAction = () => {
-    if (method === 'prompt') {
-      void install();
-      return;
-    }
-    // No prompt available: send them to the steps for their own platform.
     document.getElementById(`guide-${platform}`)?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -256,14 +268,10 @@ export function DownloadScreen() {
 
           <div className="flex flex-col items-center gap-2">
             <Button variant="primary" size="lg" onClick={primaryAction} className="glass-press">
-              {method === 'installed' ? 'Already installed' : INSTALL_LABEL[platform]}
+              {platform === 'other' ? 'See the platforms' : `Coming to ${STORE_NAME[platform]}`}
             </Button>
             <p className="text-caption text-text-tertiary">
-              {method === 'installed'
-                ? 'You are using the installed app.'
-                : method === 'prompt'
-                  ? 'Free. Installs in seconds.'
-                  : 'Free. Takes three taps — steps below.'}
+              Free, and the full product runs in your browser today.
             </p>
           </div>
         </section>
@@ -295,7 +303,7 @@ export function DownloadScreen() {
                         : 'bg-sunken text-text-secondary',
                     )}
                   >
-                    {card.status === 'available' ? 'Available' : 'Manual install'}
+                    {card.status === 'available' ? 'Available now' : 'In development'}
                   </span>
                 </div>
                 <p className="mt-2 text-caption text-text-secondary">{card.method}</p>
@@ -413,7 +421,8 @@ export function DownloadScreen() {
             ))}
           </nav>
           <p className="mt-4 text-caption text-text-tertiary">
-            PINGO is a Progressive Web App. Installing it costs nothing and takes seconds.
+            One engine, five platforms. The web version is live now; the store
+            applications are in development.
           </p>
         </footer>
       </div>

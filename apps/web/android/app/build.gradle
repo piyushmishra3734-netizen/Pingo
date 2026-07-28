@@ -16,11 +16,68 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /*
+     * Release signing, read from a properties file that is never committed.
+     *
+     * Play accepts exactly one upload key for the lifetime of an app. Lose it
+     * and you cannot publish an update to your own listing -- there is a reset
+     * process and it involves proving ownership to a human. So the keystore and
+     * its passwords live outside the repository, and this reads them if they
+     * are there.
+     *
+     * The block is conditional so that a checkout without the keystore still
+     * builds a debug APK. A release build without it fails loudly at signing
+     * rather than silently producing an unsigned artefact nobody can install.
+     */
+    signingConfigs {
+        release {
+            def props = new Properties()
+            def file = rootProject.file('keystore.properties')
+            if (file.exists()) {
+                props.load(new FileInputStream(file))
+                storeFile rootProject.file(props['storeFile'])
+                storePassword props['storePassword']
+                keyAlias props['keyAlias']
+                keyPassword props['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            /*
+             * Shrinking is on for release, and the ProGuard rules matter.
+             *
+             * Capacitor reaches into plugin classes by name from JavaScript, so
+             * an over-eager shrinker removes a class nothing appears to
+             * reference and the camera stops existing at runtime -- in the
+             * release build only, which is the worst place to find it.
+             */
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            signingConfig signingConfigs.release
         }
+
+        debug {
+            // Suffixed so a debug build can sit beside a store install on the
+            // same device without one replacing the other.
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+    }
+
+    /*
+     * The App Bundle is what Play takes now; an APK is for sideloading and
+     * testing. Splitting by density and ABI is what makes the delivered
+     * download smaller than the bundle -- Play generates a device-specific APK
+     * from it rather than shipping every resource to every phone.
+     */
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
     }
 }
 

@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../../components/AppLogo.js';
-import { INSTALL_LABEL, useInstall } from './useInstall.js';
+import { useInstall } from './useInstall.js';
 
 /**
- * "PINGO can live on your home screen."
+ * "PINGO is becoming a real app."
  *
  * ## Home only, and above the dock
  *
@@ -25,27 +25,31 @@ import { INSTALL_LABEL, useInstall } from './useInstall.js';
  * The one thing that legitimately brings it back is uninstalling and returning
  * later, which clears site data anyway.
  *
- * ## It says what will actually happen
+ * ## It never raises the browser's install prompt
  *
- * Where the browser has a real install prompt, the button raises it. Where it
- * does not — every iPhone, and Firefox anywhere — the button goes to the
- * download page, which has the actual steps. A button labelled "Install" that
- * cannot install is worse than no button.
+ * It used to, and that was wrong. PINGO is not a Progressive Web App and does
+ * not want to be saved as a shortcut — the Android and iOS builds are real
+ * store applications. Offering "Add to Home Screen" would teach people to
+ * install the thing PINGO is deliberately not.
+ *
+ * So the banner is an announcement rather than an installer: it says the app is
+ * coming to the store for this platform, and the button opens the page that
+ * explains where things stand.
  */
 
 const DISMISSED = 'pingo:install-dismissed';
 
 /** What the banner promises, per platform. Specific, because vague is ignored. */
 const BLURB: Record<string, string> = {
-  android: 'Add PINGO to your home screen. Opens instantly, works offline.',
-  ios: 'Add PINGO to your Home Screen from the Share menu.',
-  windows: 'Install PINGO as a desktop app. Its own window, its own icon.',
-  macos: 'Install PINGO as a desktop app. Its own window, its own icon.',
-  other: 'Install PINGO for a faster, full-screen experience.',
+  android: 'The Android app is on its way to the Play Store.',
+  ios: 'The iPhone app is on its way to the App Store.',
+  windows: 'A desktop app for Windows is in development.',
+  macos: 'A desktop app for macOS is in development.',
+  other: 'Native apps for every platform are in development.',
 };
 
 export function InstallBanner() {
-  const { platform, method, install } = useInstall();
+  const { platform, method } = useInstall();
   const navigate = useNavigate();
 
   const [dismissed, setDismissed] = useState(() => {
@@ -72,16 +76,6 @@ export function InstallBanner() {
   };
 
   const act = () => {
-    if (method === 'prompt') {
-      void install().then((accepted) => {
-        // Accepted means the app is installing and the banner has done its job.
-        // Declined means they have now said no through the browser's own
-        // dialog, which is a firmer no than the dismiss button.
-        if (accepted) setDismissed(true);
-        else dismiss();
-      });
-      return;
-    }
     navigate('/download');
   };
 
@@ -95,7 +89,7 @@ export function InstallBanner() {
     >
       <div
         role="region"
-        aria-label="Install PINGO"
+        aria-label="PINGO native apps"
         className={cn(
           'pointer-events-auto flex w-full max-w-md items-center gap-3',
           'glass-surface rounded-2xl px-3.5 py-3 shadow-lg',
@@ -105,7 +99,7 @@ export function InstallBanner() {
         <AppLogo size={40} alt="" className="shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-body font-medium text-ink">Get the app</p>
+          <p className="truncate text-body font-medium text-ink">PINGO is becoming an app</p>
           <p className="line-clamp-2 text-caption text-text-secondary">
             {BLURB[platform] ?? BLURB.other}
           </p>
@@ -120,17 +114,13 @@ export function InstallBanner() {
             'focus-ring',
           )}
         >
-          {/*
-            The platform's own word. "Install for iPhone" on an iPhone reads as
-            written for you; "Install PINGO" everywhere reads as a template.
-          */}
-          {INSTALL_LABEL[platform]}
+          Learn more
         </button>
 
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Dismiss install banner"
+          aria-label="Dismiss"
           className={cn(
             'shrink-0 rounded-full p-1.5 text-text-tertiary',
             'transition-colors duration-quick ease-standard hover:bg-hover hover:text-ink',

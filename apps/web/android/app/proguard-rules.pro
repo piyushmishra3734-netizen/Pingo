@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Capacitor resolves plugin classes by name from JavaScript, so nothing in the
+# bytecode appears to reference them and R8 removes them. The symptom is a
+# release build where the camera, share sheet or status bar silently do not
+# exist while the debug build is fine.
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keep class chat.pingo.app.** { *; }
