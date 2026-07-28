@@ -46,34 +46,64 @@ export function forgetPublication(): void {
   published = undefined;
 }
 
+/** What is known about a conversation's ability to carry encrypted messages. */
+export interface Keying {
+  /**
+   * Every device that should be able to read messages here, the sender's own
+   * included. Leaving those out would mean writing messages you cannot read
+   * back — the sent thread would go blank on reload, which is a spectacular
+   * way to lose a conversation.
+   */
+  devices: RecipientDevice[];
+  /**
+   * True only when *every* member has at least one published device.
+   *
+   * The distinction that matters. Encrypting for the devices that happen to
+   * exist would produce a message the other side is cryptographically unable
+   * to open — not a downgrade, which is at least readable, but mail nobody can
+   * deliver. A conversation becomes encrypted when everyone in it can read it,
+   * and not one message sooner.
+   */
+  everyoneReady: boolean;
+}
+
 /**
- * Every device that should be able to read messages in this conversation.
+ * Errors propagate rather than being swallowed.
  *
- * Includes the sender's own devices. Leaving them out would mean writing
- * messages you cannot read back — the sent thread would go blank on reload,
- * which is a spectacular way to lose a conversation.
+ * A failed lookup means *not known*, and treating it as *nobody has keys* is
+ * how a network blip turns into a message sent in the clear. The caller decides
+ * what an unknown answer is worth; this refuses to invent a confident one.
  */
-export async function recipientDevices(
+export async function conversationKeying(
   client: PingoSupabaseClient,
   conversationId: string,
-): Promise<RecipientDevice[]> {
-  const { data: members } = await client
+): Promise<Keying> {
+  const { data: members, error: membersError } = await client
     .from('conversation_members')
     .select('user_id')
     .eq('conversation_id', conversationId);
 
-  const userIds = (members ?? []).map((m) => m.user_id);
-  if (userIds.length === 0) return [];
+  if (membersError) throw membersError;
 
-  const { data: rows } = await client
+  const userIds = (members ?? []).map((m) => m.user_id);
+  if (userIds.length === 0) return { devices: [], everyoneReady: false };
+
+  const { data: rows, error: devicesError } = await client
     .from('device_keys')
-    .select('device_id,public_key')
+    .select('device_id,public_key,user_id')
     .in('user_id', userIds);
 
-  return (rows ?? []).map((row) => ({
-    deviceId: row.device_id,
-    publicKey: row.public_key,
-  }));
+  if (devicesError) throw devicesError;
+
+  const covered = new Set((rows ?? []).map((row) => row.user_id));
+
+  return {
+    devices: (rows ?? []).map((row) => ({
+      deviceId: row.device_id,
+      publicKey: row.public_key,
+    })),
+    everyoneReady: userIds.every((id) => covered.has(id)),
+  };
 }
 
 /** What `sendMessage` merges into the row it inserts. */
@@ -84,26 +114,79 @@ export interface SealedBody {
 }
 
 /**
+ * Conversations known to have carried an encrypted message.
+ *
+ * A one-way latch. Nothing ever removes an entry, because the property it
+ * records — this conversation has been encrypted at least once — cannot stop
+ * being true.
+ */
+const encrypted = new Set<string>();
+
+/**
+ * Has this conversation ever carried a `v1` message?
+ *
+ * Asked of the server only when the in-memory latch has not already been set,
+ * and only when a plaintext send is on the table — so the happy path never pays
+ * for it. A tab opened fresh has an empty latch, which is exactly the case that
+ * needs the server's memory rather than its own.
+ */
+async function hasEncryptedHistory(
+  client: PingoSupabaseClient,
+  conversationId: string,
+): Promise<boolean> {
+  if (encrypted.has(conversationId)) return true;
+
+  const { data, error } = await client
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('encryption', 'v1')
+    .limit(1);
+
+  // Unknown is treated as yes. Refusing to send is recoverable; sending in the
+  // clear because a query failed is not.
+  if (error) return true;
+
+  if ((data ?? []).length > 0) {
+    encrypted.add(conversationId);
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Encrypt a body for a conversation, or hand it back untouched.
  *
- * Falls back to legacy plaintext in exactly one case: nobody in the
- * conversation has published a key, so there is no one to encrypt to. That
- * happens for a recipient still on an old build, and refusing to send would
- * make PINGO look broken to the person who did nothing wrong.
+ * Plaintext is permitted in exactly one situation: this conversation has never
+ * been encrypted, and somebody in it still has no published key. That is a
+ * recipient on an older build, and refusing would make PINGO look broken to the
+ * person who did nothing wrong.
  *
- * The fallback is narrow on purpose. Any *failure* of the crypto propagates
- * rather than silently downgrading — an encryption bug that quietly posts
- * plaintext is worse than one that stops the send, because nobody finds out.
+ * Once a conversation has carried a single encrypted message, that door shuts
+ * for good. A send that cannot be encrypted then **throws** rather than
+ * quietly reverting — a thread that silently drops back to plaintext is the
+ * worst failure this system can have, because it looks exactly like a thread
+ * that is working.
  */
 export async function sealBody(
   client: PingoSupabaseClient,
   conversationId: string,
   body: string,
 ): Promise<SealedBody> {
-  const devices = await recipientDevices(client, conversationId);
-  if (devices.length === 0) return { body, encryption: null, envelope: null };
+  const { devices, everyoneReady } = await conversationKeying(client, conversationId);
+
+  if (!everyoneReady) {
+    if (await hasEncryptedHistory(client, conversationId)) {
+      throw new Error(
+        'This chat is end-to-end encrypted, but a key for everyone in it is not available right now. Your message has not been sent.',
+      );
+    }
+    return { body, encryption: null, envelope: null };
+  }
 
   const sealed = await encryptMessage(body, devices);
+  encrypted.add(conversationId);
   return { body: sealed.body, encryption: 'v1', envelope: sealed.envelope };
 }
 
@@ -119,6 +202,13 @@ export const UNREADABLE = 'Sent before you added this device.';
  */
 export async function openRow(row: MessageRow): Promise<void> {
   if (row.encryption !== 'v1' || !row.envelope) return;
+
+  /*
+   * Receiving one is proof too, and cheaper proof than asking. A tab that has
+   * read an encrypted message in this conversation never needs the server's
+   * memory to know it must not send plaintext into it.
+   */
+  encrypted.add(row.conversation_id);
 
   try {
     const identity = await deviceIdentity();
