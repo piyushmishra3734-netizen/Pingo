@@ -450,25 +450,39 @@ export class SupabaseAuthService implements AuthService {
     if (error) rethrow(error);
 
     /*
-     * The local cache goes with the session.
+     * Signing out ends the session and nothing else.
      *
-     * It holds conversations, message pages and anything still in the outbox —
-     * all of it one account's private data sitting on a device that may be
-     * shared. Signing out and leaving it behind would mean the next person to
-     * open the app on a bad network sees the previous person's chats served
-     * from disk.
+     * It used to wipe local storage as well, and that was the wrong trade. The
+     * device identity lives there, so a logout destroyed the private key every
+     * encrypted message had been sealed to — signing back in minted a new one
+     * and the old conversations became permanently unreadable. Nobody expects
+     * "log out" to mean "burn your history", and no messaging app people
+     * actually use behaves that way.
      *
-     * After the sign-out rather than before: if the network call fails the
-     * session survives, and wiping first would have logged someone out of their
-     * own cache while leaving them signed in.
+     * So the keys stay, the sealed cache stays, and signing back in on this
+     * device picks up exactly where it left off — including chats that were
+     * encrypted before the logout.
+     *
+     * The shared-device worry that motivated the wipe is real but is a
+     * different question, and it now has its own answer: Clear local data, run
+     * deliberately by someone who means it. A destructive default is not a
+     * privacy feature if it fires on the ninety-nine people who just wanted to
+     * switch accounts.
      */
-    await localClear();
+    forgetPublication();
+  }
 
-    /*
-     * The device identity went with it. Dropping the guard means the next
-     * sign-in publishes a fresh device rather than assuming the one it
-     * announced at the start of the session is still the current account's.
-     */
+  /**
+   * Erases everything this device holds: cached chats, the outbox, and the
+   * device keys themselves.
+   *
+   * Deliberately separate from signing out, and deliberately not reversible.
+   * Anything encrypted to this device's key becomes unreadable here once the
+   * key is gone, which is exactly what somebody handing the laptop back wants
+   * and exactly what somebody switching accounts does not.
+   */
+  async clearLocalData(): Promise<void> {
+    await localClear();
     forgetPublication();
   }
 }

@@ -113,6 +113,33 @@ export default defineConfig({
         runtimeCaching: [
           {
             /*
+             * Navigations go to the network first, and this is what makes a
+             * deploy land on the next load rather than the one after.
+             *
+             * Measured, not assumed: with the shell served from precache, a
+             * browser that already had PINGO open loaded the *previous*
+             * bundle even though the new one was live — the HTML came from
+             * disk, so it referenced the old hashed assets, and the fresh
+             * service worker could only take effect the load after that. For
+             * ordinary features a visit of lag is invisible. For a fix to the
+             * encryption path it means the build that is wrong is the build
+             * people are running.
+             *
+             * Three seconds, then fall back to the cached shell. Long enough
+             * that a slow connection still gets the current build, short
+             * enough that a dead one still opens — which is the offline
+             * guarantee, kept.
+             */
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pingo-shell',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 4 },
+            },
+          },
+          {
+            /*
              * Supabase is deliberately never cached.
              *
              * Messages, stories and Pings are the whole product and they are

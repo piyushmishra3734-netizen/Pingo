@@ -8,6 +8,7 @@ import {
 import { Avatar, Button, PingoDot, TextField, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
 import { useSignOut } from '../../features/settings/useSignOut.js';
 
@@ -31,7 +32,9 @@ import { useSignOut } from '../../features/settings/useSignOut.js';
  * rather than pretend.
  */
 export function AccountScreen() {
-  const { session } = useAuth();
+  const auth = useAuth();
+  const { session } = auth;
+  const confirm = useConfirm();
   const signOut = useSignOut();
   const { profile, service, update } = useProfile();
 
@@ -206,6 +209,28 @@ export function AccountScreen() {
         note="Deleting an account has to remove messages other people are still holding a copy of, so it needs server-side work before it can be offered honestly."
       >
         <InfoRow label="Logout" onClick={() => void signOut()} destructive />
+        <InfoRow
+          label="Clear local data"
+          onClick={() => {
+            /*
+             * The shared-device answer, now that logging out no longer wipes
+             * anything. Stated in full because it is the one action here that
+             * destroys something the server cannot give back.
+             */
+            void (async () => {
+              const go = await confirm({
+                title: 'Clear local data?',
+                description:
+                  'Removes the chats saved on this device and the key that unlocks your end-to-end encrypted messages. Those messages will no longer be readable here, and no backup exists yet. Everything else is still on the server.',
+                confirmLabel: 'Clear',
+              });
+              if (!go) return;
+              await auth.service.clearLocalData();
+              window.location.reload();
+            })();
+          }}
+          destructive
+        />
         <InfoRow label="Delete Account" destructive />
       </Group>
     </SettingsPage>

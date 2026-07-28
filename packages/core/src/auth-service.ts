@@ -169,4 +169,14 @@ export interface AuthService {
   onSessionChange(listener: (session: AuthSession | null) => void): Unsubscribe;
 
   signOut(): Promise<void>;
+  /**
+   * Erases everything this device holds — cached chats, the outbox, and the
+   * device keys that decrypt end-to-end encrypted messages.
+   *
+   * Separate from `signOut` on purpose. Signing out ends a session and is
+   * routine; this destroys the key, and anything encrypted to it becomes
+   * unreadable on this device afterwards. Two very different intentions that
+   * used to share one button.
+   */
+  clearLocalData(): Promise<void>;
 }

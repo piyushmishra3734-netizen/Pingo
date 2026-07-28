@@ -1,4 +1,4 @@
-import { STORE, localDelete, localEntries } from '../local/db.js';
+import { STORE, localClear, localDelete, localEntries, localGet, localSet } from '../local/db.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
@@ -16,6 +16,9 @@ import { databaseKey, deviceIdentity, fromBase64, toBase64 } from './keys.js';
 /** Published once per session. A second publish in the same tab is wasted work. */
 let published: Promise<void> | undefined;
 
+/** Which account this device's keys belong to. See `publishDeviceKey`. */
+const OWNER = 'identity-owner';
+
 /**
  * Announce this device's public key.
  *
@@ -27,7 +30,27 @@ let published: Promise<void> | undefined;
  */
 export function publishDeviceKey(client: PingoSupabaseClient, userId: string): Promise<void> {
   published ??= (async () => {
+    /*
+     * Whose device is this?
+     *
+     * Now that signing out leaves the keys in place, the same browser can see
+     * a second account sign in — a shared laptop, or someone switching between
+     * their own two accounts. Handing the new account the previous one's
+     * identity would republish that device under a new owner and quietly move
+     * a key between people, which is the sort of thing that is obvious only
+     * once it has happened.
+     *
+     * A different owner therefore wipes the slate first. The same owner
+     * returning finds everything where they left it, which is the whole point
+     * of not clearing on logout.
+     */
+    const previous = await localGet<string>(STORE.keys, OWNER);
+    if (previous && previous !== userId) {
+      await localClear();
+    }
+
     const identity = await deviceIdentity();
+    await localSet(STORE.keys, OWNER, userId);
     await client.from('device_keys').upsert(
       {
         device_id: identity.deviceId,

@@ -72,6 +72,8 @@ export function Composer({
   className,
 }: ComposerProps) {
   const [value, setValue] = useState('');
+  /** Why the last send was refused. Cleared the moment another is attempted. */
+  const [error, setError] = useState<string | undefined>();
   /**
    * One panel, two tabs.
    *
@@ -121,10 +123,41 @@ export function Composer({
 
   const submit = () => {
     if (!hasText) return;
-    void onSend(value);
+
+    /*
+     * Cleared optimistically, and put back if the send is refused.
+     *
+     * Optimistic because a composer that waits for the network before emptying
+     * feels broken on a slow connection, and that is the common case by a wide
+     * margin. But the old version cleared and never looked again, so a refused
+     * send took the text with it and said nothing at all — the message was
+     * simply gone, and the only way to notice was to reread the thread.
+     *
+     * End-to-end encryption made that failure reachable rather than
+     * theoretical: a chat that is already encrypted refuses to send when no
+     * key for a participant is available, precisely so it never falls back to
+     * plaintext. Refusing loudly is the entire point, so it has to be said out
+     * loud.
+     */
+    const sent = value;
     setValue('');
+    setError(undefined);
     // Keep focus so a conversation can be held entirely from the keyboard.
     textareaRef.current?.focus();
+
+    void (async () => {
+      try {
+        await onSend(sent);
+      } catch (cause) {
+        // Only restores if nothing else has been typed since. Overwriting what
+        // someone is in the middle of writing would be a worse bug than the
+        // one being reported.
+        setValue((current) => (current.length === 0 ? sent : current));
+        setError(
+          cause instanceof Error ? cause.message : 'That message could not be sent.',
+        );
+      }
+    })();
   };
 
   return (
@@ -162,6 +195,31 @@ export function Composer({
               }}
             />
           )}
+        </div>
+      )}
+
+      {error && (
+        /*
+         * Above the composer, beside the text it is about, and dismissible.
+         *
+         * Not a toast: a toast disappears while somebody is still reading it,
+         * and this one has to survive long enough to be understood and acted
+         * on. It is `alert` so a screen reader announces it — a silent failure
+         * is worse for someone who cannot see the box refill itself.
+         */
+        <div
+          role="alert"
+          className="mb-2 flex items-start gap-2 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300"
+        >
+          <span className="flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(undefined)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded-full px-1 leading-none opacity-70 hover:opacity-100"
+          >
+            ×
+          </button>
         </div>
       )}
 
