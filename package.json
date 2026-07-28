@@ -9,10 +9,12 @@
     "preview": "pnpm --filter @pingo/web preview",
     "typecheck": "pnpm -r typecheck",
     "check:docs": "node docs/.check-wireframes.mjs && node docs/.check-links.mjs",
+    "verify:qr": "node --experimental-strip-types apps/web/scripts/verify-qr.ts",
     "functions:deploy": "supabase functions deploy turn-credentials --project-ref lppzoqgvshhmxqsvggug",
-    "check": "pnpm typecheck && pnpm check:docs"
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr"
   },
   "devDependencies": {
+    "jsqr": "^1.4.0",
     "supabase": "^2.109.1",
     "typescript": "^5.7.3"
   },

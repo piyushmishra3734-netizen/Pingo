@@ -39,9 +39,13 @@ import { encodeQr, type QrLevel } from './qr.js';
  * ## The logo is damage, and is budgeted as such
  *
  * Level H recovers about 30% of a code. The logo plate is 22% of the width,
- * which is 4.8% of the area — comfortably inside that budget with room left for
- * the real-world damage the level is actually there for. The mark itself is
- * capped at 18% of the width as specified.
+ * which is 4.8% of the area — a fifth of the budget, leaving the rest for what
+ * a camera actually adds: angle, motion blur, glare, a cheap sensor. The mark
+ * itself is capped at 18% of the width as specified, and the plate is larger
+ * than the mark so the logo never lands on a live module.
+ *
+ * Verified rather than reasoned: `pnpm verify:qr` decodes the real output with
+ * jsQR, including the centre blanked at 18, 22, 26 and 30 per cent.
  */
 
 /** Modules of quiet zone. Four is the specification's minimum, not a taste. */

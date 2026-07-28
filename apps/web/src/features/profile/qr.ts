@@ -55,9 +55,15 @@ const LEVEL_M: Record<number, Capacity> = {
  * Added for the branded code, and it is not decoration: a logo sitting in the
  * middle of a QR is *damage*. Every module it covers is a module the scanner
  * cannot read, and the only reason a centred logo works at all is that the
- * error correction reconstructs what it hides. At level M a logo of any useful
- * size takes the code past what can be recovered, and it fails on exactly the
- * cheap phone cameras nobody tests with.
+ * error correction reconstructs what it hides.
+ *
+ * Measured rather than assumed. Decoded with jsQR against a perfect raster,
+ * level M survives the logo too — up to 30% of the width blanked. That is not
+ * the argument for H, because a perfect raster is not what a phone gets. The
+ * budget has to cover the logo *and* everything a camera adds on top of it:
+ * angle, motion blur, glare, a cheap sensor, a screen at half brightness. H
+ * spends about a fifth of its budget on the logo and keeps the rest for that.
+ * M would spend most of its budget before the camera is even raised.
  *
  * ## Version 5 is deliberately missing
  *
