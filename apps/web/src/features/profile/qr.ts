@@ -6,7 +6,8 @@
  * Every QR package is a few kilobytes of the same well-specified algorithm, and
  * adding one to render a link to your own profile is a supply-chain decision
  * taken for a convenience. This is that algorithm, scoped to exactly what a
- * profile link needs: byte mode, error correction level M, versions 1 to 6.
+ * profile link needs: byte mode, error correction levels M and H, versions 1
+ * to 6.
  *
  * ## Why it stops at version 6
  *
@@ -17,18 +18,29 @@
  * which is 55. There is no input this product can produce that needs version 7,
  * and `encodeQr` throws rather than silently truncating if one ever appears.
  *
- * ## Why level M
+ * ## Two levels, for two different jobs
  *
  * Level M recovers about 15% of a damaged code. On a screen there is no damage,
  * but a phone camera reading at an angle in poor light behaves like one — and M
  * is the level every payment and messaging app settled on for the same reason.
  *
+ * Level H recovers about 30%, and exists here for the branded code with a logo
+ * in the middle of it. A logo is damage: the modules under it are gone, and it
+ * is the error correction alone that puts them back.
+ *
  * The output is a square of booleans. Nothing here knows about SVG, canvas or
  * colour; how it is drawn is the caller's business.
  */
 
-/** Error correction level M, by version: data codewords, EC per block, blocks. */
-const LEVEL_M: Record<number, { data: number; ecPerBlock: number; blocks: number }> = {
+/** Capacity for one level and version: data codewords, EC per block, blocks. */
+interface Capacity {
+  data: number;
+  ecPerBlock: number;
+  blocks: number;
+}
+
+/** Error correction level M, by version. */
+const LEVEL_M: Record<number, Capacity> = {
   1: { data: 16, ecPerBlock: 10, blocks: 1 },
   2: { data: 28, ecPerBlock: 16, blocks: 1 },
   3: { data: 44, ecPerBlock: 26, blocks: 1 },
@@ -36,6 +48,40 @@ const LEVEL_M: Record<number, { data: number; ecPerBlock: number; blocks: number
   5: { data: 86, ecPerBlock: 24, blocks: 2 },
   6: { data: 108, ecPerBlock: 16, blocks: 4 },
 };
+
+/**
+ * Error correction level H — thirty per cent recoverable.
+ *
+ * Added for the branded code, and it is not decoration: a logo sitting in the
+ * middle of a QR is *damage*. Every module it covers is a module the scanner
+ * cannot read, and the only reason a centred logo works at all is that the
+ * error correction reconstructs what it hides. At level M a logo of any useful
+ * size takes the code past what can be recovered, and it fails on exactly the
+ * cheap phone cameras nobody tests with.
+ *
+ * ## Version 5 is deliberately missing
+ *
+ * At level H its blocks are unequal — two of eleven data codewords and two of
+ * twelve — and `interleave` below assumes one block size, as versions 1 to 6 at
+ * level M all do. Rather than grow a second group for one version nothing needs,
+ * a payload that would have wanted 5 takes 6. A larger version is always a
+ * legal encoding of the same text; it is a slightly denser picture and nothing
+ * else.
+ */
+const LEVEL_H: Record<number, Capacity> = {
+  1: { data: 9, ecPerBlock: 17, blocks: 1 },
+  2: { data: 16, ecPerBlock: 28, blocks: 1 },
+  3: { data: 26, ecPerBlock: 22, blocks: 2 },
+  4: { data: 36, ecPerBlock: 16, blocks: 4 },
+  6: { data: 60, ecPerBlock: 28, blocks: 4 },
+};
+
+export type QrLevel = 'M' | 'H';
+
+const LEVELS: Record<QrLevel, Record<number, Capacity>> = { M: LEVEL_M, H: LEVEL_H };
+
+/** The two format-info bits for each level. Not in numeric order — the spec's. */
+const LEVEL_BITS: Record<QrLevel, number> = { M: 0b00, H: 0b10 };
 
 const MAX_VERSION = 6;
 
@@ -114,8 +160,8 @@ function eccBlock(data: number[], n: number): number[] {
  * it would not qualify — and switching modes mid-string to save a version is
  * complexity nobody is asking for.
  */
-function encodeData(bytes: Uint8Array, version: number): number[] {
-  const { data: capacity } = LEVEL_M[version]!;
+function encodeData(bytes: Uint8Array, version: number, level: QrLevel): number[] {
+  const { data: capacity } = LEVELS[level][version]!;
   const bits: number[] = [];
 
   const push = (value: number, length: number) => {
@@ -161,12 +207,13 @@ function encodeData(bytes: Uint8Array, version: number): number[] {
  * damages one codeword from each block rather than destroying one block
  * entirely, and each block can lose several codewords and still be recovered.
  *
- * Versions 1–6 at level M have equally sized blocks, which is why there is no
- * second group here. It is the reason this stops at 6 as much as the version
- * information block is.
+ * Every version this supports has equally sized blocks, which is why there is
+ * no second group here — level M versions 1–6 all do, and level H omits its one
+ * exception (version 5) for exactly this reason. It is as much why this stops
+ * at version 6 as the version information block is.
  */
-function interleave(codewords: number[], version: number): number[] {
-  const { ecPerBlock, blocks } = LEVEL_M[version]!;
+function interleave(codewords: number[], version: number, level: QrLevel): number[] {
+  const { ecPerBlock, blocks } = LEVELS[level][version]!;
   const perBlock = codewords.length / blocks;
 
   const dataBlocks: number[][] = [];
@@ -263,9 +310,8 @@ function drawFunctionPatterns(modules: Grid, reserved: Grid, version: number): v
  * The 15-bit format field: two bits of error correction level, three of mask,
  * ten of BCH, all XORed with a constant so an all-zero field is impossible.
  */
-function formatBits(mask: number): number {
-  // 0b00 is level M.
-  const data = (0b00 << 3) | mask;
+function formatBits(mask: number, level: QrLevel): number {
+  const data = (LEVEL_BITS[level] << 3) | mask;
   let bch = data << 10;
   for (let i = 4; i >= 0; i -= 1) {
     if (bch & (1 << (i + 10))) bch ^= 0b10100110111 << i;
@@ -273,9 +319,9 @@ function formatBits(mask: number): number {
   return ((data << 10) | bch) ^ 0b101010000010010;
 }
 
-function drawFormat(modules: Grid, mask: number): void {
+function drawFormat(modules: Grid, mask: number, level: QrLevel): void {
   const size = modules.length;
-  const bits = formatBits(mask);
+  const bits = formatBits(mask, level);
   const bit = (i: number) => ((bits >> i) & 1) === 1;
 
   /*
@@ -429,22 +475,29 @@ function penalty(modules: Grid): number {
  * means a future caller finds out at once instead of shipping a code that scans
  * to half a URL.
  */
-export function encodeQr(text: string): boolean[][] {
+export function encodeQr(text: string, level: QrLevel = 'M'): boolean[][] {
   const bytes = new TextEncoder().encode(text);
+  const table = LEVELS[level];
 
   let version = 0;
   for (let candidate = 1; candidate <= MAX_VERSION; candidate += 1) {
+    const capacity = table[candidate];
+    // Level H skips version 5, so a missing entry is a version to step over
+    // rather than an error — see LEVEL_H.
+    if (!capacity) continue;
     // 12 bits of header, so the payload has to fit in what remains.
-    if (bytes.length * 8 + 12 <= LEVEL_M[candidate]!.data * 8) {
+    if (bytes.length * 8 + 12 <= capacity.data * 8) {
       version = candidate;
       break;
     }
   }
   if (version === 0) {
-    throw new Error(`QR payload of ${bytes.length} bytes exceeds version 6 at level M`);
+    throw new Error(
+      `QR payload of ${bytes.length} bytes exceeds version ${MAX_VERSION} at level ${level}`,
+    );
   }
 
-  const codewords = interleave(encodeData(bytes, version), version);
+  const codewords = interleave(encodeData(bytes, version, level), version, level);
   const size = 17 + 4 * version;
 
   const base = blankGrid(size);
@@ -471,7 +524,7 @@ export function encodeQr(text: string): boolean[][] {
         if (!reserved[y]![x] && rule(y, x)) candidate[y]![x] = !candidate[y]![x];
       }
     }
-    drawFormat(candidate, mask);
+    drawFormat(candidate, mask, level);
 
     const score = penalty(candidate);
     if (score < bestScore) {
@@ -483,19 +536,3 @@ export function encodeQr(text: string): boolean[][] {
   return best!;
 }
 
-/**
- * The grid as one SVG path, which is what makes it cheap to render.
- *
- * One `<path>` of a few hundred rectangles beats a few hundred `<rect>`
- * elements: same picture, one node instead of hundreds, and it scales to any
- * size without resampling the way a canvas would.
- */
-export function qrPath(modules: boolean[][]): string {
-  const parts: string[] = [];
-  for (let y = 0; y < modules.length; y += 1) {
-    for (let x = 0; x < modules.length; x += 1) {
-      if (modules[y]![x]) parts.push(`M${x} ${y}h1v1h-1z`);
-    }
-  }
-  return parts.join('');
-}

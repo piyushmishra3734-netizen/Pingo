@@ -43,7 +43,8 @@ import { ProfileAvatar } from '../features/profile/ProfileAvatar.js';
 import { ReplacePostSheet } from '../features/profile/ReplacePostSheet.js';
 import { ReportSheet } from '../features/profile/ReportSheet.js';
 import { Sheet, SheetCancel } from '../components/Sheet.js';
-import { ShareProfileSheet, profileLink } from '../features/profile/ShareProfileSheet.js';
+import { profileLink } from '../features/profile/ShareProfileSheet.js';
+import { QrCodeSheet } from '../features/profile/QrCodeSheet.js';
 import { SharedWithPanel } from '../features/profile/SharedWithPanel.js';
 import { useMutuals } from '../features/profile/useMutuals.js';
 
@@ -669,9 +670,11 @@ export function ProfileScreen() {
       )}
 
       {sharing && (
-        <ShareProfileSheet
+        <QrCodeSheet
           username={person.username}
           displayName={person.displayName}
+          userId={person.id}
+          {...(person.avatarUrl ? { avatarUrl: person.avatarUrl } : {})}
           onClose={() => setSharing(false)}
         />
       )}
