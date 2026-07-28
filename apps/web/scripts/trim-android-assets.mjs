@@ -17,7 +17,7 @@ import { rm } from 'node:fs/promises';
  */
 const assets = new URL('../android/app/src/main/assets/public/', import.meta.url);
 
-for (const path of ['vision', 'PINGO.apk']) {
+for (const path of ['PINGO.apk']) {
   await rm(new URL(path, assets), { recursive: true, force: true });
 }
 

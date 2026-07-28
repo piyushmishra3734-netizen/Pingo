@@ -1,5 +1,5 @@
 import { Button, CheckIcon, ChevronLeftIcon, IconButton, cn } from '@pingo/ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
@@ -12,6 +12,10 @@ import { useInstall, type Platform } from '../features/install/useInstall.js';
  * tag — the link keeps working when a new version ships, so the page never
  * offers an old build and nobody has to remember to edit it.
  *
+ * The asset is always named `PINGO.apk`, never `PINGO-v1.2.3.apk`. A versioned
+ * filename would change every release and break this URL the moment it did,
+ * which is the failure that looks like the download simply disappearing.
+ *
  * Cloudflare Pages hosts the website and nothing else now. It caps files at
  * 25 MiB, which the APK has already brushed against once; the moment a build
  * carries the camera models or a native library it stops fitting, and a
@@ -19,7 +23,20 @@ import { useInstall, type Platform } from '../features/install/useInstall.js';
  * the worst moment.
  */
 const ANDROID_APK =
-  'https://github.com/piyushmishra3734-netizen/Pingo/releases/latest/download/PINGO-v1.0.0.apk';
+  'https://github.com/piyushmishra3734-netizen/Pingo/releases/latest/download/PINGO.apk';
+
+/**
+ * Asked of GitHub rather than written here.
+ *
+ * The size was a hardcoded "2 MB", and it was wrong within a day — the APK
+ * changes with every release and a number typed into a page does not. Reading
+ * it from the release means the page cannot drift from what it is offering.
+ *
+ * Public repository, so no token and no auth. If the call fails the size line
+ * is simply absent, which is better than a stale figure presented as current.
+ */
+const RELEASE_API =
+  'https://api.github.com/repos/piyushmishra3734-netizen/Pingo/releases/latest';
 
 /** The release page itself, for anyone who wants the notes and the history. */
 const ANDROID_RELEASES =
@@ -225,6 +242,32 @@ export function DownloadScreen() {
   const navigate = useNavigate();
   const { platform, method, install } = useInstall();
 
+  /** The published build: how big it is, and which version. Undefined until known. */
+  const [release, setRelease] = useState<{ size: string; tag: string }>();
+
+  useEffect(() => {
+    // Android only. Nobody else's card shows a size, so nobody else's visit
+    // should cost a request.
+    if (platform !== 'android') return;
+
+    let active = true;
+    void fetch(RELEASE_API)
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((data) => {
+        const asset = data?.assets?.find((a: { name: string }) => a.name.endsWith('.apk'));
+        if (!active || !asset || !data?.tag_name) return;
+        setRelease({
+          size: `${(asset.size / 1048576).toFixed(1)} MB`,
+          tag: data.tag_name,
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [platform]);
+
   /*
    * This page is the one part of PINGO meant to be found by search, so it sets
    * its own title and description rather than inheriting the app's. Undone on
@@ -321,7 +364,7 @@ export function DownloadScreen() {
             <p className="text-caption text-text-tertiary">
               {platform === 'android' ? (
                 <>
-                  Free · 2 MB · Android 7 and up ·{' '}
+                  Free{release ? ` · ${release.size} · ${release.tag}` : ''} · Android 7 and up ·{' '}
                   <a
                     href={ANDROID_RELEASES}
                     rel="noopener"

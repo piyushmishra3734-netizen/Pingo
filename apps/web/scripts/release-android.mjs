@@ -35,7 +35,15 @@ const run = (cmd, args, opts = {}) =>
   execFileSync(cmd, args, { stdio: 'inherit', ...opts });
 
 const apk = 'android/app/build/outputs/apk/release/app-release.apk';
-const asset = `.tools/release/PINGO-${tag}.apk`;
+/*
+ * A stable filename, deliberately.
+ *
+ * The website links to /releases/latest/download/PINGO.apk. Naming the asset
+ * after its version would change that path every release and break the link at
+ * the moment it matters, which looks like the download vanishing rather than
+ * like a rename. The tag carries the version; the filename does not need to.
+ */
+const asset = `.tools/release/PINGO.apk`;
 
 /*
  * The env has to reach Gradle, and the JDK is the portable one in `.tools`
@@ -80,7 +88,7 @@ run(GH, [
   'release',
   'create',
   tag,
-  `${asset}#PINGO-${tag}.apk`,
+  `${asset}#PINGO.apk`,
   '--repo',
   REPO,
   '--title',

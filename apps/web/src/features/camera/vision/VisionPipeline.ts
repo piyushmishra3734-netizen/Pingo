@@ -118,7 +118,19 @@ export const VISION_TASKS: VisionTaskDefinition[] = [
  *
  * Still not Google, which was the reason for self-hosting, and that survives.
  */
-const ASSET_ORIGIN = Capacitor.isNativePlatform() ? 'https://pingochat.pages.dev' : '';
+/*
+ * Same-origin everywhere, which on Android means bundled inside the app.
+ *
+ * They were briefly fetched from the website instead, to keep the APK under the
+ * 25 MiB a static host will serve. That limit stopped existing the moment
+ * distribution moved to GitHub Releases, which allows 2 GB.
+ *
+ * Bundled is the right answer and always was: a camera that needs a connection
+ * to apply a filter is precisely what self-hosting these was meant to prevent.
+ * Trading forty megabytes of download for that was a compromise forced by a
+ * host, not a decision about the product.
+ */
+const ASSET_ORIGIN = '';
 
 const MODELS = {
   face: `${ASSET_ORIGIN}/vision/face_landmarker.task`,
