@@ -392,9 +392,7 @@ export function DownloadScreen() {
 
             "Privacy" used to point at `/settings/privacy`, which is the privacy
             *settings* screen — a set of toggles, not a policy — and behind the
-            sign-in wall besides. A visitor clicking Privacy on a public download
-            page expects a document about what happens to their data, so it now
-            points at the section of the terms that actually answers that.
+            sign-in wall besides. It now points at the policy, which is public.
 
             Contact is not here because it would be Support wearing a second
             name, and there is still no separate contact address.
@@ -402,7 +400,7 @@ export function DownloadScreen() {
           <nav aria-label="Legal and support" className="flex flex-wrap gap-x-5 gap-y-2">
             {[
               { to: '/terms', label: 'Terms' },
-              { to: '/terms#data', label: 'Privacy' },
+              { to: '/privacy', label: 'Privacy' },
               { to: '/settings/help', label: 'Support' },
             ].map((link) => (
               <Link

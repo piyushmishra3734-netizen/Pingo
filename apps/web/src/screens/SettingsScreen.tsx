@@ -166,6 +166,7 @@ export function SettingsScreen() {
               <SettingsRow icon={<HelpIcon size={19} />} label="Help" to="/settings/help" />
               {/* Public route, deliberately: the same page the download page links to. */}
               <SettingsRow icon={<InfoIcon size={19} />} label="Terms of Use" to="/terms" />
+              <SettingsRow icon={<ShieldIcon size={19} />} label="Privacy Policy" to="/privacy" />
             </section>
 
             <section className="rounded-lg bg-surface p-1 shadow-sm">

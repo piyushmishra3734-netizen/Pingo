@@ -87,7 +87,7 @@ const SECTIONS: Section[] = [
       'Everything travels over HTTPS. Voice and video calls are peer-to-peer and encrypted by WebRTC — the media does not pass through our servers at all.',
       'Messages, photos and voice notes are encrypted in transit and encrypted at rest on our database. They are not end-to-end encrypted, which means PINGO could technically read them. We do not, and there is no process that does — but we would rather state the limit plainly than let the word "encrypted" imply something stronger than what is built.',
       'We do not sell personal data, and there is no advertising on PINGO.',
-      'You can control who finds you, who can see your stories and who may message you in Privacy settings.',
+      'The Privacy Policy sets out exactly what is held, what is not, and who else touches it.',
     ],
   },
   {

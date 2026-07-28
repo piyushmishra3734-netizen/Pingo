@@ -30,6 +30,7 @@ import { CommunitiesScreen } from './screens/CommunitiesScreen.js';
 import { FollowRequestsScreen } from './screens/FollowRequestsScreen.js';
 import { LiveProfile } from './features/profile/LiveProfile.js';
 import { DownloadScreen } from './screens/DownloadScreen.js';
+import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen.js';
 import { TermsScreen } from './screens/TermsScreen.js';
 import { NewChatScreen } from './screens/NewChatScreen.js';
 import { NewGroupScreen } from './screens/NewGroupScreen.js';
@@ -195,6 +196,7 @@ export function App() {
               {/* Public: reachable without an account, and meant to be. */}
               <Route path="/download" element={<DownloadScreen />} />
               <Route path="/terms" element={<TermsScreen />} />
+              <Route path="/privacy" element={<PrivacyPolicyScreen />} />
 
               <Route path="/signup" element={<SignUpMethodScreen />} />
               <Route path="/login" element={<LoginMethodScreen />} />
