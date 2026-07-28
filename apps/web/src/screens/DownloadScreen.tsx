@@ -53,7 +53,7 @@ const PLATFORMS: PlatformCard[] = [
     name: 'Android',
     icon: '🤖',
     status: 'available',
-    method: 'A real installable app — its own icon, no browser, full screen. Install the APK directly today; the Play Store listing comes later.',
+    method: 'A real installable app — its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
     requirements: 'Android 7 or newer. Allow install from unknown sources once.',
   },
   {
@@ -140,7 +140,7 @@ const GUIDES: { key: Platform; title: string; steps: string[] }[] = [
     key: 'android',
     title: 'Android — install it now',
     steps: [
-      'Get PINGO.apk onto your phone: USB cable, Google Drive, or email it to yourself.',
+      'Tap “Download for Android” at the top of this page, on the phone itself.',
       'Open the file on the phone. Android will ask permission to install from this source — allow it once.',
       'Tap Install. PINGO appears in your app drawer with its own icon.',
       'Open it. No browser, no address bar. Sign in and everything works exactly as it does on the web.',
@@ -269,11 +269,34 @@ export function DownloadScreen() {
           </div>
 
           <div className="flex flex-col items-center gap-2">
-            <Button variant="primary" size="lg" onClick={primaryAction} className="glass-press">
-              {platform === 'other' ? 'See the platforms' : `Coming to ${STORE_NAME[platform]}`}
-            </Button>
+            {platform === 'android' ? (
+              /*
+                A real file, not a prompt.
+
+                An anchor rather than a button with a click handler: `download`
+                is what makes Android treat it as a file to save instead of a
+                page to navigate to, and it is an attribute only an anchor has.
+              */
+              <a
+                href="/PINGO.apk"
+                download="PINGO.apk"
+                className={cn(
+                  'glass-press inline-flex items-center justify-center rounded-full',
+                  'bg-brand-gradient px-6 py-3 text-body font-medium text-white',
+                  'focus-ring',
+                )}
+              >
+                Download for Android
+              </a>
+            ) : (
+              <Button variant="primary" size="lg" onClick={primaryAction} className="glass-press">
+                {platform === 'other' ? 'See the platforms' : `Coming to ${STORE_NAME[platform]}`}
+              </Button>
+            )}
             <p className="text-caption text-text-tertiary">
-              Free, and the full product runs in your browser today.
+              {platform === 'android'
+                ? 'Free · 2 MB · Android 7 and up'
+                : 'Free, and the full product runs in your browser today.'}
             </p>
           </div>
         </section>
