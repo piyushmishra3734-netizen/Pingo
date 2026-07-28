@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- The tile's own wash, sampled from the official artwork. A white
+         background would put the mark on a white circle inside whatever
+         colour the launcher sits on, which reads as a sticker. -->
+    <color name="ic_launcher_background">#F0ECFC</color>
 </resources>
