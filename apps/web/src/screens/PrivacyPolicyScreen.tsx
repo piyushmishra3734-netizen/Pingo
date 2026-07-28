@@ -91,12 +91,12 @@ const SECTIONS: Section[] = [
   {
     id: 'third-parties',
     title: 'Who else touches your data',
-    body: ['Four, and no others.'],
+    body: ['Three, and no others.'],
     list: [
       'Supabase runs the database, authentication, file storage and the realtime connection. Your data lives on their infrastructure.',
       'Cloudflare Pages serves the app and sees the IP address of every request, as any web host does.',
-      'Google Fonts serves the typeface. That means Google receives an IP address for every visitor, before you have signed in or done anything. It is a small thing and most policies omit it; we would rather list it than let the list look shorter than it is.',
-      'Google, if — and only if — you choose to sign in with a Google account.',
+      'Google, in two narrow cases and no others: if you choose to sign in with a Google account, and if you turn on a camera effect that needs face or hand tracking — those models are downloaded from Google’s servers the first time you use one. The tracking itself runs entirely on your device and no image ever leaves it.',
+      'The typeface used to be a fourth. It was served from Google Fonts, which meant Google received an IP address for every visitor before they had signed in or done anything. It is now served from PINGO’s own servers.',
     ],
   },
   {

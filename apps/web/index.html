@@ -13,19 +13,28 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
     <!--
-      Space Grotesk is the brand face. Preconnecting to both Google Fonts hosts
-      shaves a round-trip off first paint; `display=swap` means text is never
-      invisible while the font loads.
+      Space Grotesk is the brand face, served from our own origin.
 
-      Production note: self-host these files to remove the third-party request
-      entirely — a messaging product built on privacy should not leak a font
-      fetch on every cold load.
+      It used to come from fonts.googleapis.com, which meant Google received an
+      IP address for every visitor on every cold load — before sign-in, before
+      anything at all. On a product whose argument is that the middle is empty,
+      that was the one request contradicting it, and the privacy policy would
+      have had to list Google as a third party purely because of a typeface.
+
+      Preloaded rather than merely linked: the @font-face lives in an imported
+      stylesheet, so without this the browser cannot discover the font until CSS
+      has parsed — a round trip that lands squarely in first paint. The latin
+      subset only; the others are fetched on demand by their unicode-range and
+      most sessions never need them.
+
+      Licensed under the SIL Open Font License. See /fonts/OFL.txt.
     -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      href="/fonts/space-grotesk-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
 
     <!--
