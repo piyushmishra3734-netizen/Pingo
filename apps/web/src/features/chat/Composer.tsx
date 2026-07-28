@@ -82,6 +82,8 @@ export function Composer({
    * of ten.
    */
   const [pickerOpen, setPickerOpen] = useState(false);
+  /** Bumped per send, purely to restart the send button's animation. */
+  const [sent, setSent] = useState(0);
   const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
@@ -245,8 +247,20 @@ export function Composer({
           label="Send message"
           variant="gradient"
           size="lg"
-          onClick={submit}
-          className="mb-0.5"
+          onClick={() => {
+            setSent((n) => n + 1);
+            submit();
+          }}
+          /*
+            The most repeated action in the product, and it acknowledged nothing.
+
+            `key` on the count is what makes the animation replay: re-running a
+            CSS animation needs a new element, and without it the second message
+            of a burst — the case where you most want to know it went — would
+            animate once and then sit still for the rest of the conversation.
+          */
+          key={sent}
+          className="mb-0.5 motion-safe:animate-send-pop"
         >
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={21} className="-translate-x-px translate-y-px" />

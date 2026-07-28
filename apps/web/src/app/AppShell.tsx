@@ -1,6 +1,6 @@
 import { useChat } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
@@ -59,6 +59,21 @@ export function AppShell() {
     return pathname.split('/')[1] ?? '';
   }
 
+  /*
+   * Which way the screen should travel.
+   *
+   * Every navigation used to animate identically, which is what made moving
+   * around feel like a page reloading rather than a stack being pushed. The
+   * direction is the whole point: going deeper should come from the right and
+   * coming back from the left, so the motion agrees with the gesture that
+   * caused it. When it does not, the app feels like it is guessing.
+   *
+   * `navigationType` is what the router already knows — POP is the back button
+   * or a swipe back, PUSH and REPLACE are going somewhere. No history stack of
+   * our own to keep in sync, which is the usual way this goes wrong.
+   */
+  const back = useNavigationType() === 'POP';
+
   return (
     <div className="flex h-full flex-col bg-page">
       <main
@@ -85,7 +100,10 @@ export function AppShell() {
           The dock is deliberately outside: a navigation bar that fades on every
           tap draws attention to itself rather than to what changed.
         */}
-        <div key={screenKey(location.pathname)} className="h-full animate-screen-in">
+        <div
+          key={screenKey(location.pathname)}
+          className={cn('h-full', back ? 'animate-screen-back' : 'animate-screen-in')}
+        >
           <Outlet />
         </div>
       </main>

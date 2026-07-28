@@ -120,6 +120,11 @@
   --animate-fade-in: fade-in var(--duration-base) var(--ease-standard) backwards;
   --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) backwards;
 
+  /* The send button, acknowledging a press. Overshoots slightly on the way
+     back rather than easing to rest: a spring says the thing left, where a
+     linear return just says the button was pushed. */
+  --animate-send-pop: send-pop 320ms var(--ease-standard);
+
   /* Waiting, as a sonar ping. A ring leaves the dot, expands and fades; three
      of them a third of a cycle apart keep one always mid-flight, so the eye
      reads continuous outward motion without anything spinning. */
@@ -134,9 +139,18 @@
      around a QR may keep moving, because a camera needs a still target. */
   --animate-qr-in: qr-in 420ms var(--ease-standard) backwards;
 
-  /* A screen arriving. Short and shallow — navigation should feel instant and
-     still be legible as a change, so this reads as settling rather than sliding. */
-  --animate-screen-in: screen-in var(--duration-quick) var(--ease-standard) backwards;
+  /* A screen arriving.
+
+     Two of them, because going deeper and coming back are different events and
+     a single animation for both is what makes navigation feel like a page
+     reload rather than a stack. Forward enters from the right; back enters from
+     the left, so the direction always matches the gesture that caused it.
+
+     Slower than the old shared 180ms: 6px of lift is over before the eye
+     registers it, which is why every screen felt like it simply appeared. This
+     travels far enough to be read as movement and still lands quickly. */
+  --animate-screen-in: screen-in var(--duration-base) var(--ease-standard) backwards;
+  --animate-screen-back: screen-back var(--duration-base) var(--ease-standard) backwards;
 
   /* A row appearing in a list. Used with a per-item delay for a stagger. */
   --animate-row-in: row-in var(--duration-quick) var(--ease-standard) backwards;
@@ -208,6 +222,21 @@
   }
 }
 
+@keyframes send-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.86);
+  }
+  70% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @keyframes ping-ripple {
   0% {
     transform: scale(1);
@@ -259,9 +288,23 @@
 @keyframes screen-in {
   from {
     opacity: 0;
-    /* 6px, not 20. A big offset on every navigation is a page that never
-       settles; this is enough to see and not enough to wait for. */
-    transform: translateY(6px);
+    /* Sideways, not up. Vertical reads as "something appeared"; horizontal
+       reads as "you moved", which is what navigation actually is. 3% rather
+       than a fixed pixel offset so it scales with the viewport. */
+    transform: translateX(3%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Coming back. The exact mirror of screen-in, so the pair reads as one axis
+   travelled in two directions rather than as two unrelated effects. */
+@keyframes screen-back {
+  from {
+    opacity: 0;
+    transform: translateX(-3%);
   }
   to {
     opacity: 1;

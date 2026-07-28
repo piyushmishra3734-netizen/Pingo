@@ -73,8 +73,14 @@ export function Dock() {
             className={({ isActive }) =>
               cn(
                 'relative grid size-12 place-items-center rounded-lg',
-                'focus-ring transition-colors duration-instant ease-standard',
-                'active:scale-[0.96]',
+                /*
+                  Transform was missing from the transition list, so the press
+                  scale snapped to 0.96 and back with no easing at all — the
+                  one control in the app that is pressed on every navigation.
+                */
+                'focus-ring ease-standard',
+                'transition-[color,background-color,transform] duration-quick',
+                'active:scale-[0.92]',
                 isActive
                   ? 'text-brand'
                   : 'text-text-secondary hover:bg-hover hover:text-ink',

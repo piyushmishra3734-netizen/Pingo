@@ -232,7 +232,18 @@ export function ConversationRow({
 
   const shell = cn(
     'group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left',
-    'focus-ring transition-colors duration-instant ease-standard',
+    /*
+      Colour *and* transform. It was colour only, so the most-tapped element in
+      the product acknowledged a press by changing shade and nothing else —
+      which on a touch screen reads as the tap not having landed.
+
+      Two durations on purpose: the tint at 120ms because colour should keep up
+      with the finger, the scale at 180ms because something that moves needs
+      long enough to be seen moving.
+    */
+    'focus-ring ease-standard',
+    'transition-[background-color,transform] duration-quick',
+    'active:scale-[0.985]',
     selected
       ? 'bg-selected'
       : active
