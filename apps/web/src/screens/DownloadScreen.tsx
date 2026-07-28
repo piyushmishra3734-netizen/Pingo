@@ -8,22 +8,19 @@ import { useInstall, type Platform } from '../features/install/useInstall.js';
 /**
  * The official Android download.
  *
- * GitHub Releases rather than this site, and `/latest/` rather than a pinned
- * tag — the link keeps working when a new version ships, so the page never
- * offers an old build and nobody has to remember to edit it.
+ * A Cloudflare Worker reading from R2, not GitHub and not this site. Pages caps
+ * a file at 25 MiB, which the APK passed the moment the camera models went back
+ * inside it, and GitHub put the source repository in front of anybody who just
+ * wanted the app.
  *
- * The asset is always named `PINGO.apk`, never `PINGO-v1.2.3.apk`. A versioned
- * filename would change every release and break this URL the moment it did,
- * which is the failure that looks like the download simply disappearing.
+ * The URL never changes. Publishing a new build is one upload to the bucket --
+ * no deploy, no edit here, nothing to forget. That is the whole reason the
+ * Worker exists rather than a public bucket URL.
  *
- * Cloudflare Pages hosts the website and nothing else now. It caps files at
- * 25 MiB, which the APK has already brushed against once; the moment a build
- * carries the camera models or a native library it stops fitting, and a
- * distribution channel with a ceiling that low is one that fails silently at
- * the worst moment.
+ * It will become download.pingo.chat once pingo.chat is a zone in the
+ * Cloudflare account; only this constant changes.
  */
-const ANDROID_APK =
-  'https://github.com/piyushmishra3734-netizen/Pingo/releases/latest/download/PINGO.apk';
+const ANDROID_APK = 'https://pingo-download.dubesminecraft.workers.dev/android';
 
 /**
  * Asked of GitHub rather than written here.
@@ -35,13 +32,11 @@ const ANDROID_APK =
  * Public repository, so no token and no auth. If the call fails the size line
  * is simply absent, which is better than a stale figure presented as current.
  */
-const RELEASE_API =
-  'https://api.github.com/repos/piyushmishra3734-netizen/Pingo/releases/latest';
+// The size comes from the endpoint that serves the file, so the two can never
+// disagree. A HEAD, so asking costs nothing.
+const RELEASE_API = ANDROID_APK;
 
 /** The release page itself, for anyone who wants the notes and the history. */
-const ANDROID_RELEASES =
-  'https://github.com/piyushmishra3734-netizen/Pingo/releases/latest';
-
 /** Where each platform's app will come from. Named, so the button can say it. */
 const STORE_NAME: Record<Platform, string> = {
   android: 'Play Store',
@@ -251,15 +246,11 @@ export function DownloadScreen() {
     if (platform !== 'android') return;
 
     let active = true;
-    void fetch(RELEASE_API)
-      .then((response) => (response.ok ? response.json() : undefined))
-      .then((data) => {
-        const asset = data?.assets?.find((a: { name: string }) => a.name.endsWith('.apk'));
-        if (!active || !asset || !data?.tag_name) return;
-        setRelease({
-          size: `${(asset.size / 1048576).toFixed(1)} MB`,
-          tag: data.tag_name,
-        });
+    void fetch(RELEASE_API, { method: 'HEAD' })
+      .then((response) => {
+        const length = Number(response.headers.get('content-length'));
+        if (!active || !Number.isFinite(length) || length <= 0) return;
+        setRelease({ size: `${(length / 1048576).toFixed(1)} MB`, tag: '' });
       })
       .catch(() => undefined);
 
@@ -364,15 +355,7 @@ export function DownloadScreen() {
             <p className="text-caption text-text-tertiary">
               {platform === 'android' ? (
                 <>
-                  Free{release ? ` · ${release.size} · ${release.tag}` : ''} · Android 7 and up ·{' '}
-                  <a
-                    href={ANDROID_RELEASES}
-                    rel="noopener"
-                    className="underline underline-offset-2 hover:text-ink"
-                  >
-                    release notes
-                  </a>
-                </>
+                  Free{release ? ` · ${release.size}` : ''} · Android 7 and up ·</>
               ) : (
                 'Free, and the full product runs in your browser today.'
               )}

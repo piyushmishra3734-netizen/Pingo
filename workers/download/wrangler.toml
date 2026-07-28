@@ -1,0 +1,31 @@
+# The APK download endpoint.
+#
+# Cloudflare Pages serves the website; this Worker serves the app. They are
+# deliberately separate: Pages caps a file at 25 MiB, which the APK passed the
+# moment the camera models went back inside it, and a distribution channel with
+# a ceiling that low fails silently at the worst possible moment.
+name = "pingo-download"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# The bucket holds one object, `PINGO.apk`, and the Worker always serves that
+# name. Shipping a new version is a single upload with no deployment and no
+# change to the website -- which is the entire point of the indirection.
+[[r2_buckets]]
+binding = "APKS"
+bucket_name = "pingo"
+
+# The branded endpoint, waiting on one thing.
+#
+# A custom domain is DNS plus a certificate, and Cloudflare can only issue
+# either for a zone it controls. pingo.chat is not in this account -- wrangler
+# accepted the route, deployed, and created nothing, which is exactly how that
+# failure presents: no error, just a hostname that does not resolve.
+#
+# Add the zone (dashboard -> Add a site -> pingo.chat, then point the registrar
+# at the nameservers it gives you), uncomment this, and redeploy. The website
+# reads the endpoint from a single constant, so nothing else has to change.
+#
+# routes = [
+#   { pattern = "download.pingo.chat", custom_domain = true }
+# ]
