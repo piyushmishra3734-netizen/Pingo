@@ -19,6 +19,7 @@ export {
   type PingoMarkStateProps,
 } from './brand/PingoMarkState.js';
 export { Wordmark, Tagline, type WordmarkProps } from './brand/Wordmark.js';
+export { PingoLoader, type PingoLoaderProps } from './brand/PingoLoader.js';
 export { AppIcon, type AppIconProps, type AppIconVariant } from './brand/AppIcon.js';
 
 // Primitives

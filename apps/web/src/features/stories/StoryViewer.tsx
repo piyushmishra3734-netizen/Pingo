@@ -1,6 +1,6 @@
 import type { Story, StoryGroup } from '@pingo/core';
-import { Avatar, CloseIcon, MoreIcon, cn } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { Avatar, CloseIcon, MoreIcon, PingoLoader, cn } from '@pingo/ui';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
@@ -382,11 +382,10 @@ export function StoryViewer({
           {story.kind === 'video' ? (
             <StoryVideo story={story} paused={player.paused} onDuration={player.reportDuration} />
           ) : (
-            <img
-              src={story.mediaUrl}
+            <StoryImage
+              story={story}
               alt={story.caption ?? `Story by ${group.authorName}`}
-              draggable={false}
-              className="absolute inset-0 size-full object-contain select-none"
+              hold={player.hold}
             />
           )}
 
@@ -488,6 +487,103 @@ export function StoryViewer({
  * so the clock defers: the element reports its duration once metadata arrives
  * and the player uses that instead.
  */
+/**
+ * A story photo that holds the clock until it is actually on screen.
+ *
+ * ## The bug this exists to fix
+ *
+ * The progress bar started the moment the story was selected, not the moment
+ * its picture arrived. On a fast connection those are the same instant and
+ * nothing looks wrong. On a slow one the five seconds run out while the image
+ * is still downloading, the viewer advances, and the story is marked seen and
+ * gone — the user watched an empty screen and then lost the story entirely.
+ *
+ * The player already had the mechanism: `hold()` is the counted pause that
+ * long-press uses. Loading is simply another reason to wait, and because the
+ * count is shared, a finger held down during a slow load keeps it paused
+ * afterwards rather than the two fighting over one boolean.
+ *
+ * ## Held before the first frame, not after
+ *
+ * The hold is taken during render — in a ref, synchronously — rather than in an
+ * effect. An effect runs after paint, which leaves one frame where the clock is
+ * already ticking, and that frame is exactly when a cached image would have
+ * resolved. Taking it late also means a story that loads instantly briefly
+ * shows the spinner.
+ *
+ * ## `decode()` rather than `onLoad`
+ *
+ * `onLoad` fires when the bytes are in, which is before the browser has
+ * decoded them into something it can paint. A large photo can take another
+ * beat, and the bar would start moving over a blank frame. `decode()` resolves
+ * when it is genuinely ready to draw.
+ */
+function StoryImage({
+  story,
+  alt,
+  hold,
+}: {
+  story: Story;
+  alt: string;
+  hold: () => () => void;
+}) {
+  const release = useRef<(() => void) | undefined>(undefined);
+  const [ready, setReady] = useState(false);
+
+  // Taken synchronously, once per story. See the note above.
+  if (!release.current && !ready) release.current = hold();
+
+  const done = useCallback(() => {
+    setReady(true);
+    release.current?.();
+    release.current = undefined;
+  }, []);
+
+  useEffect(() => {
+    // A new story means a new wait. Any hold from the previous one is released
+    // by the cleanup below, so the count cannot drift upward across stories.
+    setReady(false);
+    release.current ??= hold();
+
+    return () => {
+      release.current?.();
+      release.current = undefined;
+    };
+  }, [story.id, hold]);
+
+  return (
+    <>
+      <img
+        key={story.id}
+        src={story.mediaUrl}
+        alt={alt}
+        draggable={false}
+        onLoad={(event) => {
+          /*
+           * Resolved either way. `decode()` rejects on a detached or replaced
+           * image, and treating that as "never ready" would hang the story
+           * forever behind a spinner — which is a worse failure than starting
+           * the clock a frame early.
+           */
+          void event.currentTarget.decode().catch(() => undefined).finally(done);
+        }}
+        onError={done}
+        className={cn(
+          'absolute inset-0 size-full object-contain select-none',
+          'transition-opacity duration-base ease-standard',
+          ready ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+
+      {!ready && (
+        <span className="absolute inset-0 grid place-items-center">
+          <PingoLoader label="Loading story" />
+        </span>
+      )}
+    </>
+  );
+}
+
 function StoryVideo({
   story,
   paused,

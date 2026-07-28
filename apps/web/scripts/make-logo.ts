@@ -35,20 +35,87 @@ import { PNG } from 'pngjs';
  * is the larger of the two measures, so each shape is found by the test that
  * suits it.
  *
- * Run with `pnpm build:logo`. The output is committed, so this exists to be
- * re-run if the official mark is ever reissued.
+ * The outputs are committed, so this exists to be re-run if the official mark
+ * is ever reissued:
+ *
+ * ```
+ * pnpm build:logo <source.png> apps/web/src/assets/pingo-mark.png mark
+ * pnpm build:logo <source.png> apps/web/public/pingo-icon.png tile
+ * ```
  */
 
 const SOURCE = process.argv[2];
 const OUT = process.argv[3] ?? 'apps/web/src/assets/pingo-mark.png';
+/**
+ * `mark` lifts the P and dot off the tile. `tile` keeps the tile and only
+ * removes the white sheet the artwork is mounted on.
+ *
+ * Two outputs from one source because they are wanted in different places. The
+ * tile *is* the app icon — it belongs on a home screen and a browser tab. The
+ * mark alone is what goes inside something else, where a second rounded square
+ * would just be a box around a logo.
+ */
+const MODE = (process.argv[4] ?? 'mark') as 'mark' | 'tile';
 
 if (!SOURCE) {
-  console.error('usage: pnpm build:logo <source.png> [out.png]');
+  console.error('usage: pnpm build:logo <source.png> [out.png] [mark|tile]');
   process.exit(1);
 }
 
 const png = PNG.sync.read(readFileSync(SOURCE));
 const { width, height, data } = png;
+
+/**
+ * The tile: keep the artwork, drop the white sheet it is mounted on.
+ *
+ * The supplied PNG has no alpha, so everything outside the rounded square is
+ * opaque white — which shows up as a pale box behind the icon on any tinted
+ * surface, and this product is mostly tinted surfaces. It was being hidden with
+ * a CSS crop-and-round at every call site, which works until somebody renders
+ * it somewhere that forgets to.
+ *
+ * The alpha is generated geometrically rather than keyed out of the pixels, and
+ * that is the only honest way to do it here: the surround is white and the
+ * artwork's own top corner is #FDFDFE, so no threshold can separate them
+ * without eating the gradient. A rounded rectangle at the artwork's measured
+ * inset and radius cuts exactly where the design already cuts.
+ *
+ * Both numbers were measured from the file: the surround is ~36px of 1254
+ * (2.9% a side) and the corner radius ~275px of the 1183px square (23.2%).
+ */
+function tileAlpha(x: number, y: number): number {
+  const inset = width * 0.029;
+  const side = width - inset * 2;
+  const radius = side * 0.232;
+
+  // Distance outside the rounded rectangle, in px. Negative means inside.
+  const left = inset + radius;
+  const right = inset + side - radius;
+  const dx = x < left ? left - x : x > right ? x - right : 0;
+  const dy = y < left ? left - y : y > right ? y - right : 0;
+  const outside = Math.hypot(dx, dy) - radius;
+
+  // One pixel of feathering, so the corner is antialiased rather than jagged.
+  return Math.max(0, Math.min(1, 0.5 - outside));
+}
+
+if (MODE === 'tile') {
+  const tile = new PNG({ width, height });
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const i = (width * y + x) << 2;
+      tile.data[i] = data[i]!;
+      tile.data[i + 1] = data[i + 1]!;
+      tile.data[i + 2] = data[i + 2]!;
+      tile.data[i + 3] = Math.round(tileAlpha(x, y) * 255);
+    }
+  }
+
+  const out512 = resize(tile, 512);
+  writeFileSync(OUT, PNG.sync.write(out512));
+  console.log(`wrote ${OUT} at 512x512 (tile, white surround removed)`);
+  process.exit(0);
+}
 
 /** Luminance, 0–1. The usual perceptual weights. */
 const lum = (r: number, g: number, b: number) => (0.299 * r + 0.587 * g + 0.114 * b) / 255;

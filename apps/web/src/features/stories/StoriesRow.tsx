@@ -172,6 +172,15 @@ function MyCircle({
   };
 
   return (
+    /*
+      A wrapper, so the plus can be its own button.
+
+      Once you have a story the ring has to do two jobs — open what you posted,
+      and add another — and a button cannot contain a button. Previously the
+      second job simply disappeared: the plus was rendered only when there was
+      no story, so posting one removed the only way to post a second from here.
+    */
+    <span className="relative inline-flex">
     <button
       type="button"
       onPointerDown={onPointerDown}
@@ -214,6 +223,11 @@ function MyCircle({
           <Avatar name={name} id={userId} src={avatarUrl} size="lg" />
         </StoryRing>
 
+        {/*
+          Decorative only when there is no story: the whole tile already adds
+          one, so a second target for the same action would be two controls
+          saying one thing.
+        */}
         {!group && (
           <span
             className={cn(
@@ -229,6 +243,29 @@ function MyCircle({
 
       <span className="w-full truncate text-caption text-text-secondary">You</span>
     </button>
+
+    {group && (
+      <button
+        type="button"
+        onClick={onCreate}
+        aria-label="Add another story"
+        className={cn(
+          'absolute right-0 bottom-6 grid size-6 place-items-center',
+          'rounded-full bg-brand-gradient text-white ring-2 ring-page',
+          'focus-ring transition-transform duration-quick ease-standard',
+          'hover:scale-110 active:scale-95',
+          /*
+            The 44px target sits outside the badge, so it does not swallow the
+            ring around it — the tile is the bigger, more likely tap and must
+            stay reachable right up to the badge's edge.
+          */
+          'after:absolute after:-inset-2 after:content-[""]',
+        )}
+      >
+        <PlusIcon size={14} />
+      </button>
+    )}
+    </span>
   );
 }
 

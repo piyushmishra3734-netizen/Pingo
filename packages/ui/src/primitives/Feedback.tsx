@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 
-import { PingoMarkState } from '../brand/PingoMarkState.js';
+import { PingoLoader } from '../brand/PingoLoader.js';
 import { cn } from '../utils/cn.js';
 
 /**
@@ -87,7 +87,7 @@ export function LoadingState({
         className,
       )}
     >
-      <PingoMarkState state="loading" size={56} label={label} />
+      <PingoLoader size={44} label={label} />
       <p className="text-caption text-text-tertiary">{label}</p>
     </div>
   );

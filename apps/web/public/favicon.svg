@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44">
-  <!-- The PINGO monogram, matching packages/ui/src/brand/PingoMark.tsx geometry. -->
-  <rect width="44" height="44" rx="10" fill="#F8F9FD" />
-  <g fill="none" stroke="#5C6CFF" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 11 10 V 34" />
-    <path d="M 11 10 H 18 C 22.4 10 26 13.1 26 17 C 26 20.9 22.4 24 18 24 H 11" />
-  </g>
-  <circle cx="32" cy="10.5" r="3.4" fill="#8B5DFF" />
-</svg>

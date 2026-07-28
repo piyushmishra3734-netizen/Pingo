@@ -1,7 +1,8 @@
 import { useChat } from '@pingo/core';
-import { EmptyState, PingoMark, cn } from '@pingo/ui';
+import { EmptyState, cn } from '@pingo/ui';
 import { Navigate, useParams } from 'react-router-dom';
 
+import { AppLogo } from '../components/AppLogo.js';
 import { ChatThread } from '../features/chat/ChatThread.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
@@ -64,7 +65,12 @@ export function ChatsScreen() {
               considered.
             */}
             <div className="flex flex-col items-center">
-              <PingoMark size={64} strokeClassName="text-line-strong" dotClassName="text-dot/40" />
+              {/*
+                The official icon, faded rather than a recoloured redrawing of
+                it. A muted brand moment does not need a different logo — it
+                needs the same one, quieter.
+              */}
+              <AppLogo size={64} alt="" className="opacity-45" />
               <EmptyState
                 title="Pick a conversation"
                 description="Choose someone from the list to start reading."

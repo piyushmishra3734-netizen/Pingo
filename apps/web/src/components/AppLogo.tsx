@@ -3,37 +3,28 @@ import { cn } from '@pingo/ui';
 /**
  * The official PINGO app icon.
  *
- * This renders `public/pingo-icon.png` — the supplied artwork, byte for byte.
- * It is **not** redrawn, recoloured, or reconstructed in SVG.
+ * Renders `public/pingo-icon.png` — the supplied artwork, unmodified except
+ * that the white sheet it was mounted on has been made transparent. Not
+ * redrawn, not recoloured, not reconstructed in SVG.
  *
- * That distinction matters, because the codebase also contains `PingoMark`, a
- * vector *approximation* of the same shape. Anywhere the finished icon belongs
- * — splash, onboarding, the sign-in screens — this component is the one to use.
- * `PingoMark` stays for the cases the icon cannot serve: tinting to a muted
- * colour in an empty state, or animating the dot.
+ * ## What changed, and why the component got smaller
  *
- * ## Why the artwork is clipped rather than edited
+ * The supplied PNG is RGB with no alpha, so everything outside the rounded
+ * square was opaque white — a pale box behind the icon on any tinted surface,
+ * which is most of this product. It used to be hidden here: scale the image 7%
+ * to crop past the surround, and round the box at 23.5% to fake the corner.
  *
- * The PNG is RGB with no alpha, so everything outside the rounded square is
- * **opaque white** — a white sheet that shows up as a pale box behind the icon
- * on any tinted background, which is most of this product.
+ * That worked, and it was a compensation living at the call site rather than a
+ * fix. `pnpm build:logo … tile` now bakes the alpha into the file with a
+ * rounded-rectangle mask at the artwork's own measured inset and radius, so the
+ * image is simply correct and this component is simply an `<img>`.
  *
- * The fix is presentational: clip it in CSS and leave the file untouched. The
- * alternative, keying the white out to transparency, would have to guess where
- * the background ends and the artwork begins — and the artwork's own top-left is
- * near-white (#FDFDFE), so any threshold that removed the surround would eat
- * into the gradient too.
+ * The alpha has to be generated geometrically rather than keyed out of the
+ * pixels: the surround is white and the artwork's own top corner is #FDFDFE, so
+ * no threshold can separate them without eating into the gradient.
  *
- * Both numbers below were measured from the file rather than guessed:
- *
- * | | |
- * | --- | --- |
- * | White surround | 36px of 1254 ≈ **2.9%** per side |
- * | Corner radius | ~275px of the 1183px square ≈ **23.2%** |
- *
- * So the image is scaled 7% (cropping ~3.3% per side, comfortably past the
- * surround) and the box is rounded at 23.5% — a shade wider than the artwork's
- * own corner, so it trims a hair of gradient rather than leaving a white nick.
+ * `PingoMark` remains for the one thing a raster cannot do — taking a colour,
+ * as in a muted empty state.
  */
 
 export interface AppLogoProps {
@@ -49,22 +40,17 @@ export interface AppLogoProps {
 
 export function AppLogo({ size = 72, alt = 'PINGO', className }: AppLogoProps) {
   return (
-    <span
-      className={cn('relative block shrink-0 overflow-hidden', className)}
-      style={{ width: size, height: size, borderRadius: '23.5%' }}
-    >
-      <img
-        src="/pingo-icon.png"
-        alt={alt}
-        /*
-         * Both matter for a logo: dragging one out of the page is a stray
-         * interaction nobody wants, and the browser's default selection
-         * highlight on an image looks like a rendering fault.
-         */
-        draggable={false}
-        className="absolute inset-0 h-full w-full select-none"
-        style={{ transform: 'scale(1.07)' }}
-      />
-    </span>
+    <img
+      src="/pingo-icon.png"
+      alt={alt}
+      /*
+       * Both matter for a logo: dragging one out of the page is a stray
+       * interaction nobody wants, and the browser's default selection
+       * highlight on an image looks like a rendering fault.
+       */
+      draggable={false}
+      className={cn('block shrink-0 select-none', className)}
+      style={{ width: size, height: size }}
+    />
   );
 }
