@@ -5,6 +5,7 @@ import {
   formatTypingLabel,
   useChat,
   useMessages,
+  type CallKind,
   type Conversation,
   type Message,
 } from '@pingo/core';
@@ -80,7 +81,7 @@ export function ChatThread({
     send,
     sendSticker,
   } = useMessages(conversation.id);
-  const { startCall } = useCall();
+  const { startCall, startGroupCall } = useCall();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
   /** Pictures chosen but not yet sent — the composer owns them until then. */
@@ -139,11 +140,23 @@ export function ChatThread({
       : undefined;
 
   /*
-   * Calls need a mutual follow. `mutuals` is undefined while loading, so the
-   * buttons are not briefly disabled on first render — a control that flickers
-   * to disabled reads as broken rather than as loading.
+   * A direct call needs a mutual follow; a group call does not.
+   *
+   * `mutuals` is undefined while loading, so the buttons are not briefly
+   * disabled on first render — a control that flickers to disabled reads as
+   * broken rather than as loading.
+   *
+   * The rule for a direct call is that a stranger must not be able to make your
+   * phone ring. Being in a group is already the answer to that: you were either
+   * added by a friend or you walked in through a link, and either way you
+   * agreed to be in the room. Requiring friendship *inside* the room would mean
+   * a group of six where four people can be called and two cannot, which is not
+   * a privacy rule — it is a broken button.
    */
-  const canCall = Boolean(partner && mutuals?.has(partner.id));
+  const isGroup = conversation.kind !== 'direct';
+  const canCall = isGroup
+    ? conversation.participantIds.length > 1
+    : Boolean(partner && mutuals?.has(partner.id));
 
   /**
    * Why calling is unavailable, in a sentence. Undefined when it is available.
@@ -154,14 +167,40 @@ export function ChatThread({
    */
   const callBlockedReason = canCall
     ? undefined
-    : conversation.kind !== 'direct'
-      ? 'Group calls are not available yet.'
+    : isGroup
+      ? 'There is nobody else in this group yet.'
       : mutuals === undefined
         ? 'Checking whether you can call…'
         : `You and ${partner?.name ?? 'they'} need to follow each other before you can call.`;
 
   /** Shown when someone presses a call button that cannot do anything. */
   const [callNotice, setCallNotice] = useState<string>();
+
+  /**
+   * Places the call this thread is for — one person, or the whole room.
+   *
+   * One function rather than a ternary at each of the three call sites, because
+   * the three sites are the voice button, the video button and the menu, and
+   * they must never disagree about what "call" means here.
+   */
+  const placeCall = (kind: CallKind) => {
+    if (!canCall) {
+      setCallNotice(callBlockedReason);
+      return;
+    }
+
+    if (isGroup) {
+      void startGroupCall(
+        conversation.id,
+        conversation.title,
+        conversation.participantIds,
+        kind,
+      );
+      return;
+    }
+
+    if (partner) void startCall(partner.id, partner.name, kind);
+  };
 
   useEffect(() => {
     if (!callNotice) return;
@@ -386,11 +425,7 @@ export function ChatThread({
             label="Voice call"
             size="sm"
             className={cn(!canCall && 'text-text-tertiary')}
-            onClick={() =>
-              canCall && partner
-                ? void startCall(partner.id, partner.name, 'voice')
-                : setCallNotice(callBlockedReason)
-            }
+            onClick={() => placeCall('voice')}
           >
             <PhoneIcon size={20} />
           </IconButton>
@@ -398,20 +433,16 @@ export function ChatThread({
             label="Video call"
             size="sm"
             className={cn(!canCall && 'text-text-tertiary')}
-            onClick={() =>
-              canCall && partner
-                ? void startCall(partner.id, partner.name, 'video')
-                : setCallNotice(callBlockedReason)
-            }
+            onClick={() => placeCall('video')}
           >
             <VideoIcon size={20} />
           </IconButton>
           <ConversationMenu
             conversation={conversation}
-            {...(partner
+            {...(canCall
               ? {
                   onCall: (kind: 'audio' | 'video') =>
-                    void startCall(partner.id, partner.name, kind === 'audio' ? 'voice' : 'video'),
+                    placeCall(kind === 'audio' ? 'voice' : 'video'),
                 }
               : {})}
             {...(callBlockedReason ? { callBlockedReason } : {})}

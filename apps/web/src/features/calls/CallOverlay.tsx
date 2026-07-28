@@ -1,4 +1,4 @@
-import { formatDuration, useChat } from '@pingo/core';
+import { formatDuration, useChat, type CallParticipant } from '@pingo/core';
 import {
   Avatar,
   CameraFlipIcon,
@@ -46,7 +46,7 @@ export function CallOverlay() {
     toggleCamera,
     switchCamera,
     localStream,
-    remoteStream,
+    remoteStreams,
     error,
     dismissError,
     failureNotice,
@@ -76,13 +76,26 @@ export function CallOverlay() {
   const video = call.kind === 'video';
 
   /*
+   * A group call shows a roster instead of one big face.
+   *
+   * Branching on `participants` rather than on the conversation's kind keeps
+   * this honest: it is the *call* that is a group call, and a call placed to
+   * one person from inside a group is still a direct call.
+   */
+  const roster = call.participants;
+
+  /*
    * "Are we actually showing a picture?" — not "is this a video call?".
    *
    * A video call spends its first seconds with no remote track at all, and the
    * peer may have their camera off for the whole call. Both of those must keep
-   * the avatar layout rather than showing a black rectangle.
+   * the avatar layout rather than showing a black rectangle. A group never
+   * takes the full-bleed path at all — one person cannot own the background
+   * when four people are talking.
    */
-  const showingRemote = video && Boolean(remoteStream?.getVideoTracks().length);
+  const primaryRemote = [...remoteStreams.values()][0];
+  const showingRemote =
+    video && !roster && Boolean(primaryRemote?.getVideoTracks().length);
 
   return (
     <div
@@ -105,7 +118,7 @@ export function CallOverlay() {
       )}
     >
       {showingRemote ? (
-        <RemoteVideo stream={remoteStream} />
+        <RemoteVideo stream={primaryRemote} />
       ) : (
         <div className="pointer-events-none absolute inset-0 bg-brand-wash" aria-hidden />
       )}
@@ -121,7 +134,11 @@ export function CallOverlay() {
           showingRemote && 'pointer-events-none opacity-0',
         )}
       >
-        <Avatar name={name} id={call.peer.userId} src={known?.avatarUrl} size="2xl" />
+        {roster ? (
+          <CallRoster participants={roster} streams={remoteStreams} video={video} />
+        ) : (
+          <Avatar name={name} id={call.peer.userId} src={known?.avatarUrl} size="2xl" />
+        )}
 
         <div className="text-center">
           <h1 className="text-h1 text-ink">{name}</h1>
@@ -258,7 +275,113 @@ function useStream(stream: MediaStream | undefined) {
 }
 
 /** The peer, full-bleed. Muted — their audio plays on the provider's `<audio>`. */
-function RemoteVideo({ stream }: { stream: MediaStream | undefined }) {
+/**
+ * Everyone on a group call, as a grid.
+ *
+ * ## Everybody is here from the first ring
+ *
+ * Including the people who have not picked up, dimmed and labelled. A grid that
+ * filled in as people answered would give no sense of how big the room is or
+ * who is still missing, and the tiles would jump under your eyes as each person
+ * arrived — the two things you most want to be still while you wait.
+ *
+ * ## Faces, not video, past two people
+ *
+ * A four-way video mesh already asks a phone to encode one stream and decode
+ * three. Laying them out as live rectangles invites six- and eight-person calls
+ * that the format cannot carry. Video plays for a pair; beyond that the grid
+ * shows who is here and lets the voices do the work — which is what these calls
+ * are for anyway.
+ */
+function CallRoster({
+  participants,
+  streams,
+  video,
+}: {
+  participants: CallParticipant[];
+  streams: Map<string, MediaStream>;
+  video: boolean;
+}) {
+  const { users } = useChat();
+
+  // Two people is still a conversation with a face in it; past that it is a
+  // room, and a room is a list of who is in it.
+  const showVideo = video && participants.length === 1;
+
+  return (
+    <ul
+      className={cn(
+        'grid gap-4',
+        participants.length <= 1
+          ? 'grid-cols-1'
+          : participants.length <= 4
+            ? 'grid-cols-2'
+            : 'grid-cols-3',
+      )}
+    >
+      {participants.map((participant) => {
+        const person = users.find((user) => user.id === participant.userId);
+        const stream = streams.get(participant.userId);
+        const live = showVideo && Boolean(stream?.getVideoTracks().length);
+
+        return (
+          <li
+            key={participant.userId}
+            className="flex flex-col items-center gap-1.5"
+            /*
+             * The state is on the row, not only in the colour. "Ringing" and
+             * "connected" differ by opacity alone otherwise, which is nothing
+             * at all to a screen reader and very little in bright sun.
+             */
+            aria-label={`${person?.name ?? 'Someone'}, ${participant.state}`}
+          >
+            <span
+              className={cn(
+                'transition-opacity duration-base ease-standard',
+                participant.state === 'connected' ? 'opacity-100' : 'opacity-45',
+              )}
+            >
+              {live ? (
+                <RemoteVideo stream={stream} inline />
+              ) : (
+                <Avatar
+                  name={person?.name ?? 'Someone'}
+                  id={participant.userId}
+                  src={person?.avatarUrl}
+                  size={participants.length <= 2 ? 'xl' : 'lg'}
+                />
+              )}
+            </span>
+
+            <span className="max-w-24 truncate text-caption text-text-secondary">
+              {person?.name ?? 'Someone'}
+            </span>
+
+            {/*
+              Said in words for the two states that are not "here and talking".
+              Everyone connected gets nothing, because a label under every face
+              saying "connected" is noise once the call is under way.
+            */}
+            {participant.state !== 'connected' && (
+              <span className="text-caption text-text-tertiary">
+                {participant.state === 'left' ? 'Left' : 'Ringing…'}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function RemoteVideo({
+  stream,
+  inline = false,
+}: {
+  stream: MediaStream | undefined;
+  /** Sized to a roster tile instead of filling the screen. */
+  inline?: boolean;
+}) {
   const ref = useStream(stream);
 
   return (
@@ -272,7 +395,12 @@ function RemoteVideo({ stream }: { stream: MediaStream | undefined }) {
         letterboxes into thick black bars with `contain`; cropping to fill is what
         every video app does and what people expect to see.
       */
-      className="absolute inset-0 size-full object-cover"
+      className={cn(
+        'object-cover',
+        inline
+          ? 'size-20 rounded-full bg-surface-sunken'
+          : 'absolute inset-0 size-full',
+      )}
     />
   );
 }

@@ -75,6 +75,7 @@ export type {
   CallService,
   CallServiceOptions,
   Call,
+  CallParticipant,
   CallPeer,
   CallKind,
   CallState,

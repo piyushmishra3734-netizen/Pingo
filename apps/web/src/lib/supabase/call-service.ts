@@ -3,6 +3,7 @@ import type {
   CallEndReason,
   CallEvent,
   CallKind,
+  CallParticipant,
   CallService,
   CallServiceOptions,
   CallState,
@@ -51,7 +52,69 @@ type SignalPayload =
   | { kind: 'answer'; callId: string; from: string; sdp: string }
   | { kind: 'ice'; callId: string; from: string; candidate: RTCIceCandidateInit }
   | { kind: 'decline'; callId: string; from: string }
-  | { kind: 'hangup'; callId: string; from: string; reason: CallEndReason };
+  | { kind: 'hangup'; callId: string; from: string; reason: CallEndReason }
+  /*
+   * Group calls. Three extra signals, and each exists because a mesh has to
+   * *discover* its members — a direct call knows both ends from the first
+   * message and a room does not.
+   *
+   * `invite` carries no SDP. On a direct call the offer rides along with the
+   * ring, because there is exactly one connection to set up and the caller
+   * knows who it is with. In a room the caller cannot pre-negotiate: they do
+   * not know who will pick up, and offering to five people to have one answer
+   * would open four connections nobody wanted.
+   */
+  | {
+      kind: 'invite';
+      callId: string;
+      from: string;
+      media?: CallKind;
+      conversationId: string;
+      /** Everyone rung, so a joiner learns the room without asking a server. */
+      participants: string[];
+    }
+  /** "I have answered." Sent to everyone in the room. */
+  | { kind: 'join'; callId: string; from: string }
+  /** "So have I." The reply that lets a joiner discover who is already in. */
+  | { kind: 'here'; callId: string; from: string }
+  /** "I am gone." Ends one connection, not the call. */
+  | { kind: 'leave'; callId: string; from: string };
+
+/**
+ * One leg of the mesh.
+ *
+ * Everything that used to be a single field on the service is here instead,
+ * because a mesh has one of each per person: its own ICE queue, its own video
+ * sender to swap a camera into. Holding them as service-level singletons is
+ * what made the old code structurally one-to-one.
+ */
+interface PeerLink {
+  connection: RTCPeerConnection;
+  /** Candidates that arrived before this leg had a remote description. */
+  pending: RTCIceCandidateInit[];
+  videoSender: RTCRtpSender | undefined;
+  /**
+   * An offer is being built for this leg right now.
+   *
+   * Set *synchronously*, which is the entire point. `signalingState` does not
+   * leave `stable` until `setLocalDescription` resolves, so two discoveries of
+   * the same peer arriving in the same tick both pass a state check and both
+   * send an offer — the second arrives at a peer who is already
+   * `have-remote-offer` and is thrown away.
+   *
+   * That is not hypothetical: it happened on the first three-way run of this
+   * code, where one client sent three offers for two legs. It recovered, but
+   * only because the *duplicate* was the one discarded. Had the interleaving
+   * gone the other way the surviving offer would have been the rejected one,
+   * and that leg would have stayed silent for the whole call.
+   *
+   * Both discoveries are legitimate and both must be handled — when two people
+   * answer at once, each learns about the other through a `join` *and* through
+   * the `here` that answers their own. This is what makes the second one a
+   * no-op instead of a second offer.
+   */
+  negotiating: boolean;
+}
 
 export class SupabaseCallService implements CallService {
   readonly #client: PingoSupabaseClient;
@@ -61,29 +124,23 @@ export class SupabaseCallService implements CallService {
   #userId: string | undefined;
 
   #call: Call | undefined;
-  #peerConnection: RTCPeerConnection | undefined;
   #localStream: MediaStream | undefined;
   #cleanupAudio: (() => void) | undefined;
   #ringTimer: ReturnType<typeof setTimeout> | undefined;
 
   /**
-   * Candidates that arrived before the remote description was set.
+   * One connection per other person, keyed by their id.
    *
-   * ICE routinely races SDP — `addIceCandidate` throws if there is no remote
-   * description yet, and dropping those candidates is a call that connects
-   * slowly or not at all.
+   * A direct call is a mesh of one. That is the whole reason this replaced the
+   * single `#peerConnection` rather than sitting beside it — two code paths for
+   * "talk to somebody" is how the second one rots, and the direct call is the
+   * one that gets exercised every day.
    */
-  #pendingCandidates: RTCIceCandidateInit[] = [];
+  #peers = new Map<string, PeerLink>();
 
-  /**
-   * The sender carrying the camera, kept so the track can be swapped later.
-   *
-   * `replaceTrack` on an existing sender changes what is being transmitted
-   * without touching the SDP — which is what makes switching cameras instant
-   * and free. Adding or removing a track instead would force renegotiation
-   * mid-call and glitch the video for both sides.
-   */
-  #videoSender: RTCRtpSender | undefined;
+  /** The ICE servers resolved for this call, reused for every leg of the mesh. */
+  #iceServers: RTCIceServer[] = [];
+
   #facing: 'user' | 'environment' = 'user';
 
   constructor(client: PingoSupabaseClient = getSupabaseClient()) {
@@ -187,17 +244,25 @@ export class SupabaseCallService implements CallService {
    * cached rather than created per signal because `client.channel()` registers
    * every object it makes, and a call sends a dozen ICE candidates.
    */
-  #outbound: { topic: string; channel: ReturnType<PingoSupabaseClient['channel']> } | undefined;
+  #outbound = new Map<string, ReturnType<PingoSupabaseClient['channel']>>();
 
   async #send(toUserId: string, payload: SignalPayload): Promise<void> {
     const topic = `call:${toUserId}`;
 
-    if (this.#outbound?.topic !== topic) {
-      this.#closeOutbound();
-      this.#outbound = {
-        topic,
-        channel: this.#client.channel(topic, { config: { private: true } }),
-      };
+    /*
+     * One cached channel per peer, not one in total.
+     *
+     * This used to hold a single channel and rebuild it whenever the
+     * destination changed, which was free when there was only ever one
+     * destination. A mesh interleaves candidates to four people, so that cache
+     * would miss on essentially every send — tearing down and re-registering a
+     * channel per ICE candidate, and stalling connection setup exactly when
+     * candidates matter most.
+     */
+    let channel = this.#outbound.get(topic);
+    if (!channel) {
+      channel = this.#client.channel(topic, { config: { private: true } });
+      this.#outbound.set(topic, channel);
     }
 
     /*
@@ -207,7 +272,7 @@ export class SupabaseCallService implements CallService {
      * only via a deprecated fallback that logs a warning on every signal. This
      * is the explicit form, and it resolves on HTTP 202.
      */
-    await this.#outbound.channel.httpSend('signal', payload);
+    await channel.httpSend('signal', payload);
   }
 
   #closeOutbound(): void {
@@ -218,13 +283,23 @@ export class SupabaseCallService implements CallService {
      * listening channel and leave the user unreachable. (Observed exactly that
      * while testing a call to oneself.)
      */
-    if (this.#outbound) void this.#client.removeChannel(this.#outbound.channel);
-    this.#outbound = undefined;
+    for (const channel of this.#outbound.values()) void this.#client.removeChannel(channel);
+    this.#outbound.clear();
   }
 
   async #onSignal(signal: SignalPayload): Promise<void> {
     switch (signal.kind) {
       case 'offer': {
+        /*
+         * An offer for the call we are already on is a new leg of the mesh,
+         * not somebody ringing. Checked before the busy test, or every person
+         * joining a group call would be told the room was busy — by the room.
+         */
+        if (this.#call?.id === signal.callId && this.#inCall()) {
+          await this.#answerOffer(signal.from, signal.callId, signal.sdp);
+          return;
+        }
+
         // Busy: already on a call. Told explicitly rather than left ringing.
         if (this.#call && this.#call.state !== 'ended') {
           await this.#send(signal.from, {
@@ -254,46 +329,218 @@ export class SupabaseCallService implements CallService {
         break;
       }
 
-      case 'answer': {
-        if (!this.#peerConnection || this.#call?.id !== signal.callId) return;
-        await this.#peerConnection.setRemoteDescription({
-          type: 'answer',
-          sdp: signal.sdp,
+      /*
+       * A group ring. No SDP — see the note on the signal type.
+       *
+       * The roster travels with the invite so a joiner knows the room without
+       * asking a server for it, which is what keeps the mesh serverless.
+       */
+      case 'invite': {
+        if (this.#call && this.#call.state !== 'ended') {
+          await this.#send(signal.from, {
+            kind: 'hangup',
+            callId: signal.callId,
+            from: this.#userId!,
+            reason: 'busy',
+          });
+          return;
+        }
+
+        this.#call = {
+          id: signal.callId,
+          // On a group call `peer` names the group, not a person. The UI fills
+          // in the title, the same way it fills in a caller's name.
+          peer: { userId: signal.conversationId, name: 'Group call' },
+          conversationId: signal.conversationId,
+          direction: 'incoming',
+          kind: signal.media ?? 'voice',
+          state: 'ringing',
+          muted: false,
+          cameraOff: true,
+          participants: signal.participants
+            .filter((id) => id !== this.#userId)
+            .map((userId) => ({ userId, state: 'ringing' as const })),
+        };
+
+        this.#emit({ type: 'call:incoming', call: this.#call });
+        this.#armRingTimeout();
+        break;
+      }
+
+      /*
+       * Somebody picked up.
+       *
+       * Answered by *everyone already in the room*, which is how a joiner
+       * discovers who to connect to without a roster service. `here` goes back
+       * so they learn about us; the offer is decided by the rule below so
+       * exactly one side of each pair offers.
+       */
+      case 'join': {
+        if (this.#call?.id !== signal.callId || !this.#inCall()) return;
+
+        this.#setParticipantState(signal.from, 'connecting');
+        await this.#send(signal.from, {
+          kind: 'here',
+          callId: signal.callId,
+          from: this.#userId!,
         });
-        await this.#drainCandidates();
-        this.#update({ state: 'connecting' });
+        if (this.#shouldOffer(signal.from)) await this.#offerTo(signal.from);
+        break;
+      }
+
+      case 'here': {
+        if (this.#call?.id !== signal.callId || !this.#inCall()) return;
+
+        this.#setParticipantState(signal.from, 'connecting');
+        if (this.#shouldOffer(signal.from)) await this.#offerTo(signal.from);
+        break;
+      }
+
+      case 'answer': {
+        const link = this.#peers.get(signal.from);
+        if (!link || this.#call?.id !== signal.callId) return;
+        await link.connection.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
+        // Settled. Cleared so a later renegotiation on this leg is not blocked
+        // by a flag describing an offer that has already been answered.
+        link.negotiating = false;
+        await this.#drainCandidates(signal.from);
+        if (!this.#call.participants) this.#update({ state: 'connecting' });
         break;
       }
 
       case 'ice': {
         if (this.#call?.id !== signal.callId) return;
-        if (this.#peerConnection?.remoteDescription) {
-          await this.#peerConnection.addIceCandidate(signal.candidate).catch(() => {
+        const link = this.#peers.get(signal.from);
+        if (link?.connection.remoteDescription) {
+          await link.connection.addIceCandidate(signal.candidate).catch(() => {
             // A candidate that cannot be added is not fatal; ICE tries others.
           });
+        } else if (link) {
+          link.pending.push(signal.candidate);
         } else {
-          this.#pendingCandidates.push(signal.candidate);
+          /*
+           * ICE from somebody we have not built a leg for yet.
+           *
+           * In a mesh this is routine rather than exceptional: their candidates
+           * start flowing the moment they set a local description, which can
+           * beat their offer to us. Dropping these is a call that takes the
+           * long way round through TURN, or does not connect at all.
+           */
+          const queued = this.#earlyCandidates.get(signal.from) ?? [];
+          queued.push(signal.candidate);
+          this.#earlyCandidates.set(signal.from, queued);
         }
         break;
       }
 
       case 'decline':
-        if (this.#call?.id === signal.callId) this.#teardown('declined');
+        if (this.#call?.id !== signal.callId) return;
+        // In a room, one person saying no is not the call being declined.
+        if (this.#call.participants) this.#dropPeer(signal.from);
+        else this.#teardown('declined');
+        break;
+
+      case 'leave':
+        if (this.#call?.id === signal.callId) this.#dropPeer(signal.from);
         break;
 
       case 'hangup':
-        if (this.#call?.id === signal.callId) this.#teardown(signal.reason);
+        if (this.#call?.id !== signal.callId) return;
+        // In a room this is one person going — including the `busy` a phone
+        // already on another call sends back. It is never the room ending.
+        if (this.#call.participants) this.#dropPeer(signal.from);
+        else this.#teardown(signal.reason);
         break;
     }
   }
 
   #pendingOffer: string | undefined;
 
-  async #drainCandidates(): Promise<void> {
-    const queued = this.#pendingCandidates;
-    this.#pendingCandidates = [];
+  /** Candidates that arrived before their leg existed, keyed by sender. */
+  #earlyCandidates = new Map<string, RTCIceCandidateInit[]>();
+
+  /** True once we have media open — i.e. we are in the room, not just ringing. */
+  #inCall(): boolean {
+    return Boolean(this.#localStream) && this.#call?.state !== 'ringing';
+  }
+
+  /**
+   * Which side of a pair creates the offer.
+   *
+   * Both ends run this and reach opposite answers, so exactly one offers. Any
+   * total order over the two ids would do — the point is that it is decided by
+   * *who they are* rather than by who spoke first, because who spoke first is
+   * precisely what two people joining at the same instant cannot agree on.
+   *
+   * Without it, both sides offer, both set a local description, and both reject
+   * the other's offer for being in the wrong signalling state. That is glare,
+   * and in a mesh it is not a rare race — it is what happens every time two
+   * people answer the same ring together.
+   */
+  #shouldOffer(peerUserId: string): boolean {
+    return (this.#userId ?? '') < peerUserId;
+  }
+
+  async #offerTo(peerUserId: string): Promise<void> {
+    const callId = this.#call?.id;
+    if (!callId) return;
+
+    const link = this.#link(peerUserId, callId);
+
+    // Already negotiating or negotiated. The flag is checked as well as the
+    // signalling state because the state lags an offer that is still being
+    // built — see `PeerLink.negotiating`.
+    if (link.negotiating || link.connection.signalingState !== 'stable') return;
+    link.negotiating = true;
+
+    const offer = await link.connection.createOffer();
+    await link.connection.setLocalDescription(offer);
+
+    await this.#send(peerUserId, {
+      kind: 'offer',
+      callId,
+      from: this.#userId!,
+      sdp: offer.sdp ?? '',
+      media: this.#call?.kind,
+    });
+  }
+
+  /**
+   * Answers an offer that arrived mid-call, for a leg we did not initiate.
+   *
+   * Only reachable on a group call: on a direct call the offer arrives with the
+   * ring and is held until the user picks up, because answering it before then
+   * would open the microphone of somebody who has not agreed to talk.
+   */
+  async #answerOffer(peerUserId: string, callId: string, sdp: string): Promise<void> {
+    const link = this.#link(peerUserId, callId);
+
+    await link.connection.setRemoteDescription({ type: 'offer', sdp });
+    await this.#drainCandidates(peerUserId);
+
+    const answer = await link.connection.createAnswer();
+    await link.connection.setLocalDescription(answer);
+
+    await this.#send(peerUserId, {
+      kind: 'answer',
+      callId,
+      from: this.#userId!,
+      sdp: answer.sdp ?? '',
+    });
+  }
+
+  async #drainCandidates(peerUserId: string): Promise<void> {
+    const link = this.#peers.get(peerUserId);
+    if (!link) return;
+
+    const early = this.#earlyCandidates.get(peerUserId) ?? [];
+    this.#earlyCandidates.delete(peerUserId);
+
+    const queued = [...early, ...link.pending];
+    link.pending = [];
+
     for (const candidate of queued) {
-      await this.#peerConnection?.addIceCandidate(candidate).catch(() => {});
+      await link.connection.addIceCandidate(candidate).catch(() => {});
     }
   }
 
@@ -365,13 +612,22 @@ export class SupabaseCallService implements CallService {
    * Shared by both legs — caller and callee do exactly the same thing here, and
    * when they drifted apart earlier it was the callee that quietly lost video.
    */
-  #attachLocalTracks(connection: RTCPeerConnection): void {
+  #attachLocalTracks(link: PeerLink): void {
     const stream = this.#localStream;
     if (!stream) return;
 
+    /*
+     * The same tracks, added to every leg.
+     *
+     * One capture, N encodings — which is the mesh's real cost and the reason
+     * it is right for a handful of people and wrong for a hundred. Sharing the
+     * track object rather than re-opening the camera per peer is what keeps it
+     * to one capture: mute and camera-off then apply everywhere at once,
+     * because there is only ever one track to disable.
+     */
     for (const track of stream.getTracks()) {
-      const sender = connection.addTrack(track, stream);
-      if (track.kind === 'video') this.#videoSender = sender;
+      const sender = link.connection.addTrack(track, stream);
+      if (track.kind === 'video') link.videoSender = sender;
     }
 
     if (stream.getVideoTracks().length > 0) {
@@ -379,12 +635,25 @@ export class SupabaseCallService implements CallService {
     }
   }
 
-  #createPeerConnection(
-    peerUserId: string,
-    callId: string,
-    iceServers: RTCIceServer[],
-  ): RTCPeerConnection {
-    const connection = new RTCPeerConnection({ iceServers });
+  /**
+   * Opens one leg of the mesh, or hands back the one already open.
+   *
+   * Idempotent because discovery can name the same person twice — a `join` and
+   * a `here` can cross on the wire — and building a second connection to
+   * somebody you are already talking to gets you two of their voice.
+   */
+  #link(peerUserId: string, callId: string): PeerLink {
+    const existing = this.#peers.get(peerUserId);
+    if (existing) return existing;
+
+    const connection = new RTCPeerConnection({ iceServers: this.#iceServers });
+    const link: PeerLink = {
+      connection,
+      pending: [],
+      videoSender: undefined,
+      negotiating: false,
+    };
+    this.#peers.set(peerUserId, link);
 
     connection.onicecandidate = (event) => {
       if (!event.candidate) return;
@@ -398,32 +667,117 @@ export class SupabaseCallService implements CallService {
 
     connection.ontrack = (event) => {
       const [stream] = event.streams;
-      if (stream) this.#emit({ type: 'call:remote-stream', stream });
+      // Named, so the UI can put it in this person's tile rather than guessing.
+      if (stream) this.#emit({ type: 'call:remote-stream', stream, userId: peerUserId });
     };
 
     connection.onconnectionstatechange = () => {
-      const map: Partial<Record<RTCPeerConnectionState, CallState>> = {
-        connected: 'connected',
-        disconnected: 'reconnecting',
-        connecting: 'connecting',
-      };
-
-      const next = map[connection.connectionState];
-      if (next) {
-        this.#update({
-          state: next,
-          // The timer starts at the first connect, not at each reconnect.
-          ...(next === 'connected' && !this.#call?.connectedAt
-            ? { connectedAt: Date.now() }
-            : {}),
-        });
-        if (next === 'connected') this.#clearRingTimeout();
-      }
-
-      if (connection.connectionState === 'failed') this.#teardown('failed');
+      this.#onLegStateChange(peerUserId, connection.connectionState);
     };
 
-    return connection;
+    this.#attachLocalTracks(link);
+    return link;
+  }
+
+  /**
+   * One leg changed. What that means for the call depends on the others.
+   *
+   * This is where a mesh stops behaving like a direct call. On a direct call a
+   * failed connection *is* a failed call, so the old code tore everything down
+   * — correct for one peer, and catastrophic for five: one person's flaky
+   * network would end the call for the whole room. Here a leg failing removes
+   * that person and nothing else, and the call itself is only as ended as the
+   * roster is empty.
+   */
+  #onLegStateChange(peerUserId: string, state: RTCPeerConnectionState): void {
+    if (!this.#call) return;
+
+    const group = Boolean(this.#call.participants);
+
+    if (state === 'failed' || state === 'closed') {
+      if (!group) {
+        this.#teardown('failed');
+        return;
+      }
+      this.#dropPeer(peerUserId);
+      return;
+    }
+
+    if (group) {
+      const participantState =
+        state === 'connected' ? 'connected' : state === 'connecting' ? 'connecting' : undefined;
+      if (participantState) this.#setParticipantState(peerUserId, participantState);
+    }
+
+    const map: Partial<Record<RTCPeerConnectionState, CallState>> = {
+      connected: 'connected',
+      disconnected: 'reconnecting',
+      connecting: 'connecting',
+    };
+
+    const next = map[state];
+    if (!next) return;
+
+    /*
+     * In a room, one person reconnecting must not put the whole call into
+     * "Reconnecting…" while four others are talking normally. The call is
+     * connected while anybody is.
+     */
+    if (group && next !== 'connected' && this.#anyoneConnected()) return;
+
+    this.#update({
+      state: next,
+      // The timer starts at the first connect, not at each reconnect.
+      ...(next === 'connected' && !this.#call.connectedAt ? { connectedAt: Date.now() } : {}),
+    });
+    if (next === 'connected') this.#clearRingTimeout();
+  }
+
+  #anyoneConnected(): boolean {
+    for (const link of this.#peers.values()) {
+      if (link.connection.connectionState === 'connected') return true;
+    }
+    return false;
+  }
+
+  #setParticipantState(userId: string, state: CallParticipant['state']): void {
+    if (!this.#call?.participants) return;
+
+    let changed = false;
+    const participants = this.#call.participants.map((participant) => {
+      if (participant.userId !== userId || participant.state === state) return participant;
+      changed = true;
+      return { ...participant, state };
+    });
+
+    // Returning without emitting when nothing moved keeps a chatty connection
+    // state from re-rendering the grid on every ICE transition.
+    if (changed) this.#update({ participants });
+  }
+
+  /**
+   * Removes one person from the mesh, leaving the call standing.
+   *
+   * Their tile goes quiet rather than disappearing — `left`, not deleted — so a
+   * grid of four does not re-flow under everyone's eyes the instant somebody's
+   * train enters a tunnel.
+   */
+  #dropPeer(userId: string): void {
+    const link = this.#peers.get(userId);
+    if (link) {
+      link.connection.close();
+      this.#peers.delete(userId);
+      this.#emit({ type: 'call:remote-stream-ended', userId });
+    }
+
+    this.#setParticipantState(userId, 'left');
+
+    // The last person leaving ends the call. Sitting alone in an empty room
+    // waiting for a ring timeout that was cleared long ago is not a state.
+    if (this.#call?.participants && this.#peers.size === 0) {
+      const anyoneLeft = this.#call.participants.some((p) => p.state !== 'left');
+      if (!anyoneLeft) this.#teardown('hung-up');
+    }
   }
 
   // -- public actions ------------------------------------------------------
@@ -466,17 +820,15 @@ export class SupabaseCallService implements CallService {
       ]);
 
       this.#localStream = stream;
-      const connection = this.#createPeerConnection(peerUserId, callId, iceServers);
-      this.#peerConnection = connection;
-
-      this.#attachLocalTracks(connection);
+      this.#iceServers = iceServers;
+      const link = this.#link(peerUserId, callId);
 
       // Honours `cameraOff` before the first frame is ever sent, so starting
       // camera-off never leaks a moment of video.
       if (this.#call.cameraOff) this.#applyCameraOff(true);
 
-      const offer = await connection.createOffer();
-      await connection.setLocalDescription(offer);
+      const offer = await link.connection.createOffer();
+      await link.connection.setLocalDescription(offer);
 
       await this.#send(peerUserId, {
         kind: 'offer',
@@ -494,8 +846,100 @@ export class SupabaseCallService implements CallService {
     return this.#call;
   }
 
+  /**
+   * Rings a whole group.
+   *
+   * The media opens *before* anybody is invited, and that order is deliberate:
+   * a refused microphone should be a dialog on your own screen, not five
+   * phones ringing for a call you turn out to be unable to join.
+   *
+   * Nothing is negotiated here. The invite is a ring and only a ring; each
+   * connection is built when its person actually answers, so calling six
+   * people and having one pick up costs one connection rather than six.
+   */
+  async callGroup(
+    conversationId: string,
+    participantIds: string[],
+    options?: CallServiceOptions,
+  ): Promise<Call> {
+    await this.connect();
+
+    const kind = options?.kind ?? 'voice';
+    const callId = crypto.randomUUID();
+    const others = participantIds.filter((id) => id !== this.#userId);
+
+    this.#call = {
+      id: callId,
+      peer: { userId: conversationId, name: 'Group call' },
+      conversationId,
+      direction: 'outgoing',
+      kind,
+      state: 'dialling',
+      muted: false,
+      cameraOff: kind === 'voice' || Boolean(options?.cameraOff),
+      participants: others.map((userId) => ({ userId, state: 'ringing' as const })),
+    };
+    this.#emit({ type: 'call:updated', call: this.#call });
+
+    try {
+      const [stream, iceServers] = await Promise.all([
+        this.#openMedia(kind, options),
+        resolveIceServers(),
+      ]);
+
+      this.#localStream = stream;
+      this.#iceServers = iceServers;
+      if (this.#call.cameraOff) this.#applyCameraOff(true);
+
+      // The self-preview, which otherwise appears only once a leg is built —
+      // and on a group call the first leg may be twenty seconds away.
+      if (stream.getVideoTracks().length > 0) {
+        this.#emit({ type: 'call:local-stream', stream });
+      }
+
+      /*
+       * The state deliberately stays `dialling`.
+       *
+       * The caller counts as being in the room from the moment they place the
+       * call — `#inCall()` tests for media plus "not still ringing", and
+       * `dialling` satisfies both — so an early `join` is answered without
+       * having to advance anything here.
+       *
+       * Advancing to `connecting` would have been the obvious thing and would
+       * have stopped the ringback tone, which is driven by the call state:
+       * a group call would ring six phones while its caller sat in silence.
+       * The first leg to negotiate moves it on, which is exactly when the
+       * ringing should stop.
+       */
+      await Promise.all(
+        others.map((userId) =>
+          this.#send(userId, {
+            kind: 'invite',
+            callId,
+            from: this.#userId!,
+            media: kind,
+            conversationId,
+            participants: participantIds,
+          }),
+        ),
+      );
+    } catch (cause) {
+      this.#teardown('failed');
+      throw cause;
+    }
+
+    this.#armRingTimeout();
+    return this.#call;
+  }
+
   async answer(callId: string, options?: CallServiceOptions): Promise<void> {
-    if (!this.#call || this.#call.id !== callId || !this.#pendingOffer) return;
+    if (!this.#call || this.#call.id !== callId) return;
+
+    // A group ring carries no offer, so there is nothing to answer — there is a
+    // room to announce yourself to. See `#answerGroup`.
+    if (this.#call.participants) return this.#answerGroup(callId, options);
+
+    if (!this.#pendingOffer) return;
 
     this.#clearRingTimeout();
     // `options.kind` is ignored here on purpose: the offer decides. See the
@@ -519,23 +963,9 @@ export class SupabaseCallService implements CallService {
       ]);
 
       this.#localStream = stream;
-      const connection = this.#createPeerConnection(peerUserId, callId, iceServers);
-      this.#peerConnection = connection;
+      this.#iceServers = iceServers;
 
-      this.#attachLocalTracks(connection);
-
-      await connection.setRemoteDescription({ type: 'offer', sdp: this.#pendingOffer });
-      await this.#drainCandidates();
-
-      const answer = await connection.createAnswer();
-      await connection.setLocalDescription(answer);
-
-      await this.#send(peerUserId, {
-        kind: 'answer',
-        callId,
-        from: this.#userId!,
-        sdp: answer.sdp ?? '',
-      });
+      await this.#answerOffer(peerUserId, callId, this.#pendingOffer);
     } catch (cause) {
       // The caller is still ringing and deserves to know, rather than being left
       // to time out 45 seconds later.
@@ -552,25 +982,135 @@ export class SupabaseCallService implements CallService {
     this.#pendingOffer = undefined;
   }
 
+  /**
+   * Joining a room, rather than answering a person.
+   *
+   * The whole protocol is one broadcast: *I have answered.* Everyone already in
+   * the room replies `here`, and each pair then builds its own connection with
+   * the offerer decided by `#shouldOffer`. Nobody had to be told who was in the
+   * room, which is what lets a mesh work without a conference server.
+   *
+   * The announcement goes to everyone who was *invited*, not to everyone who
+   * has answered — we cannot know the latter, and that is precisely the thing
+   * being discovered.
+   */
+  async #answerGroup(callId: string, options?: CallServiceOptions): Promise<void> {
+    if (!this.#call?.participants) return;
+
+    this.#clearRingTimeout();
+    const kind = this.#call.kind;
+    /*
+     * Everyone invited, which already includes whoever placed the call.
+     *
+     * `peer.userId` is the *conversation* on a group call, not the host, so
+     * there is no separate person to tell — reading it as one would have sent
+     * every announcement to a topic nobody listens on.
+     */
+    const roster = this.#call.participants.map((participant) => participant.userId);
+
+    this.#update({ state: 'connecting', cameraOff: kind === 'voice' });
+
+    try {
+      const [stream, iceServers] = await Promise.all([
+        this.#openMedia(kind, options),
+        resolveIceServers(),
+      ]);
+
+      this.#localStream = stream;
+      this.#iceServers = iceServers;
+      if (this.#call.cameraOff) this.#applyCameraOff(true);
+      if (stream.getVideoTracks().length > 0) {
+        this.#emit({ type: 'call:local-stream', stream });
+      }
+
+      /*
+       * Announced only once media is open.
+       *
+       * A `here` can come back within milliseconds and an offer straight after
+       * it, and `#link` attaches the local tracks as it builds the connection —
+       * announcing first would race a leg into existence with nothing to send
+       * down it, and that leg would be silent for the rest of the call.
+       */
+      await Promise.all(
+        roster.map((userId) =>
+          this.#send(userId, { kind: 'join', callId, from: this.#userId! }),
+        ),
+      );
+    } catch (cause) {
+      /*
+       * Tell the room, not just the host.
+       *
+       * A direct call has one person waiting; a group has everyone who already
+       * picked up, and each of them is holding a tile that says you are
+       * connecting. Silence would leave it there.
+       */
+      await Promise.all(
+        roster.map((userId) =>
+          this.#send(userId, {
+            kind: 'leave',
+            callId,
+            from: this.#userId!,
+          }).catch(() => {}),
+        ),
+      );
+      this.#teardown('failed');
+      throw cause;
+    }
+  }
+
+  /** Everyone this call has to be told about, deduplicated. */
+  #audience(): string[] {
+    if (!this.#call) return [];
+    const roster = this.#call.participants?.map((participant) => participant.userId) ?? [];
+    // The host is in `peer` on a group call, and `peer` is the *conversation*
+    // there — so the roster is the list, and a direct call is just peer.
+    return this.#call.participants
+      ? [...new Set([...roster, ...this.#peers.keys()])]
+      : [this.#call.peer.userId];
+  }
+
   async decline(callId: string): Promise<void> {
     if (this.#call?.id !== callId) return;
-    await this.#send(this.#call.peer.userId, {
-      kind: 'decline',
-      callId,
-      from: this.#userId!,
-    });
+
+    await Promise.all(
+      this.#audience().map((userId) =>
+        this.#send(userId, { kind: 'decline', callId, from: this.#userId! }).catch(() => {}),
+      ),
+    );
     this.#teardown('declined');
   }
 
   async hangUp(callId: string): Promise<void> {
     if (this.#call?.id !== callId) return;
+
     const wasConnected = Boolean(this.#call.connectedAt);
-    await this.#send(this.#call.peer.userId, {
-      kind: 'hangup',
-      callId,
-      from: this.#userId!,
-      reason: wasConnected ? 'hung-up' : 'cancelled',
-    });
+    const group = Boolean(this.#call.participants);
+    const audience = this.#audience();
+
+    /*
+     * `leave`, not `hangup`, when it is a room.
+     *
+     * They are genuinely different acts and the old signal could only say one
+     * of them: hanging up a direct call ends it for both people, and walking
+     * out of a group ends it for nobody. Sending `hangup` to a room would clear
+     * everyone's screen the moment the first person stepped away.
+     */
+    await Promise.all(
+      audience.map((userId) =>
+        this.#send(
+          userId,
+          group
+            ? { kind: 'leave', callId, from: this.#userId! }
+            : {
+                kind: 'hangup',
+                callId,
+                from: this.#userId!,
+                reason: wasConnected ? 'hung-up' : 'cancelled',
+              },
+        ).catch(() => {}),
+      ),
+    );
+
     this.#teardown(wasConnected ? 'hung-up' : 'cancelled');
   }
 
@@ -633,7 +1173,11 @@ export class SupabaseCallService implements CallService {
     // un-mute a camera the user had deliberately turned off.
     track.enabled = !this.#call.cameraOff;
 
-    await this.#videoSender?.replaceTrack(track);
+    // Every leg. One sender per person, and a camera swap that reached only the
+    // first of them would leave the rest of the room watching the old lens.
+    await Promise.all(
+      [...this.#peers.values()].map((link) => link.videoSender?.replaceTrack(track)),
+    );
 
     for (const old of this.#localStream?.getVideoTracks() ?? []) {
       this.#localStream?.removeTrack(old);
@@ -682,12 +1226,17 @@ export class SupabaseCallService implements CallService {
     this.#cleanupAudio?.();
     this.#cleanupAudio = undefined;
 
-    this.#peerConnection?.close();
-    this.#peerConnection = undefined;
-    this.#videoSender = undefined;
-    this.#facing = 'user';
+    // Every leg, and the map emptied — a mesh that keeps one connection open
+    // after the call ends keeps a microphone flowing down it.
+    for (const [userId, link] of this.#peers) {
+      link.connection.close();
+      this.#emit({ type: 'call:remote-stream-ended', userId });
+    }
+    this.#peers.clear();
 
-    this.#pendingCandidates = [];
+    this.#facing = 'user';
+    this.#iceServers = [];
+    this.#earlyCandidates.clear();
     this.#pendingOffer = undefined;
 
     if (this.#call) {

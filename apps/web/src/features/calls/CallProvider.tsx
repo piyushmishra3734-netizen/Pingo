@@ -32,6 +32,13 @@ import { useSpeaker } from './useSpeaker.js';
 interface CallContextValue {
   call: Call | undefined;
   startCall: (peerUserId: string, peerName: string, kind?: CallKind) => Promise<void>;
+  /** Rings every member of a group at once. Friendship is not required. */
+  startGroupCall: (
+    conversationId: string,
+    title: string,
+    participantIds: string[],
+    kind?: CallKind,
+  ) => Promise<void>;
   answer: () => Promise<void>;
   decline: () => Promise<void>;
   hangUp: () => Promise<void>;
@@ -46,7 +53,14 @@ interface CallContextValue {
    * second unmuted element would play the peer twice.
    */
   localStream: MediaStream | undefined;
-  remoteStream: MediaStream | undefined;
+  /**
+   * Everyone else's media, keyed by their id.
+   *
+   * A map rather than one stream, because a group call is a mesh and each
+   * person arrives on their own connection. A direct call has one entry, which
+   * is why this replaced the singular field rather than sitting beside it.
+   */
+  remoteStreams: Map<string, MediaStream>;
   /** Non-fatal problem worth showing, e.g. a refused microphone. */
   error: string | undefined;
   dismissError: () => void;
@@ -83,7 +97,8 @@ export function CallProvider({
   const [call, setCall] = useState<Call | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [localStream, setLocalStream] = useState<MediaStream | undefined>();
-  const [remoteStream, setRemoteStream] = useState<MediaStream | undefined>();
+  /** One per person on the call. A direct call has exactly one entry. */
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // The Calls settings screen drives the media, so its toggles are not decorative.
@@ -117,20 +132,33 @@ export function CallProvider({
         case 'call:ended':
           setCall(undefined);
           setLocalStream(undefined);
-          setRemoteStream(undefined);
+          setRemoteStreams(new Map());
           if (audioRef.current) audioRef.current.srcObject = null;
           break;
 
         case 'call:remote-stream':
-          setRemoteStream(event.stream);
-          if (audioRef.current) {
-            audioRef.current.srcObject = event.stream;
-            // Autoplay can be refused until the user has interacted; answering
-            // a call is an interaction, so this normally succeeds.
-            void audioRef.current.play().catch(() => {
-              setError('Tap anywhere to enable audio.');
-            });
-          }
+          /*
+           * Keyed by person, because a mesh has one of these each.
+           *
+           * This used to be a single `remoteStream`, which meant the second
+           * person to connect silently replaced the first: their tile went
+           * blank and their voice stopped, with nothing anywhere saying why.
+           */
+          setRemoteStreams((previous) => {
+            if (previous.get(event.userId) === event.stream) return previous;
+            const next = new Map(previous);
+            next.set(event.userId, event.stream);
+            return next;
+          });
+          break;
+
+        case 'call:remote-stream-ended':
+          setRemoteStreams((previous) => {
+            if (!previous.has(event.userId)) return previous;
+            const next = new Map(previous);
+            next.delete(event.userId);
+            return next;
+          });
           break;
 
         case 'call:local-stream':
@@ -158,6 +186,36 @@ export function CallProvider({
       } catch (cause) {
         // The service has already torn the call down, so the overlay closes and
         // this message needs somewhere else to live.
+        setError(mediaMessage(cause));
+      }
+    },
+    [service, noiseSuppression, hdVideo, cameraOnByDefault],
+  );
+
+  /**
+   * Rings a whole group.
+   *
+   * The title is passed in for the same reason a person's name is: the service
+   * deals in ids, and `peer` on a group call names the conversation. Without
+   * it the overlay would say "Group call" over a room that has a name.
+   */
+  const startGroupCall = useCallback(
+    async (
+      conversationId: string,
+      title: string,
+      participantIds: string[],
+      kind: CallKind = 'voice',
+    ) => {
+      setError(undefined);
+      try {
+        const started = await service.callGroup(conversationId, participantIds, {
+          kind,
+          noiseSuppression,
+          hdVideo,
+          cameraOff: kind === 'video' && !cameraOnByDefault,
+        });
+        setCall({ ...started, peer: { ...started.peer, name: title } });
+      } catch (cause) {
         setError(mediaMessage(cause));
       }
     },
@@ -206,16 +264,45 @@ export function CallProvider({
    */
   const [streamVersion, setStreamVersion] = useState(0);
 
+  // Every stream, not just the first: in a mesh each person's picture arrives
+  // after their audio, and only the one being watched would ever appear.
   useEffect(() => {
-    if (!remoteStream) return;
     const bump = () => setStreamVersion((n) => n + 1);
-    remoteStream.addEventListener('addtrack', bump);
-    remoteStream.addEventListener('removetrack', bump);
+    const watched = [...remoteStreams.values()];
+
+    for (const stream of watched) {
+      stream.addEventListener('addtrack', bump);
+      stream.addEventListener('removetrack', bump);
+    }
     return () => {
-      remoteStream.removeEventListener('addtrack', bump);
-      remoteStream.removeEventListener('removetrack', bump);
+      for (const stream of watched) {
+        stream.removeEventListener('addtrack', bump);
+        stream.removeEventListener('removetrack', bump);
+      }
     };
-  }, [remoteStream]);
+  }, [remoteStreams]);
+
+  /**
+   * The one stream the root `<audio>` element plays.
+   *
+   * A direct call has exactly one, and it is this. A group call plays the rest
+   * through their own elements below — one element cannot play four people, and
+   * mixing them here would mean building an audio graph to solve a problem the
+   * DOM already solves.
+   */
+  const primaryRemote = [...remoteStreams.values()][0];
+
+  useEffect(() => {
+    const element = audioRef.current;
+    if (!element) return;
+
+    element.srcObject = primaryRemote ?? null;
+    if (!primaryRemote) return;
+
+    // Autoplay can be refused until the user has interacted; answering a call
+    // is an interaction, so this normally succeeds.
+    void element.play().catch(() => setError('Tap anywhere to enable audio.'));
+  }, [primaryRemote]);
 
   /*
    * Ringing, driven by call state rather than by the actions around it.
@@ -229,8 +316,19 @@ export function CallProvider({
   // Every finished call is written into its conversation. See `useCallLog`.
   useCallLog(call);
 
-  // Boosts the remote voice rather than switching device. See `useSpeaker`.
-  const speaker = useSpeaker(audioRef, remoteStream, Boolean(call));
+  /*
+   * Boosts the remote voice rather than switching device. See `useSpeaker`.
+   *
+   * One-to-one only, and deliberately absent in a group: it amplifies one
+   * element, and a room has one per person. A toggle that made one of four
+   * people louder would be worse than no toggle — the contract already allows
+   * this to be undefined, and the UI hides it rather than offering a lie.
+   */
+  const speaker = useSpeaker(
+    audioRef,
+    remoteStreams.size <= 1 ? primaryRemote : undefined,
+    Boolean(call),
+  );
 
   /**
    * The failure tone and spoken line, after a call that never connected.
@@ -294,7 +392,8 @@ export function CallProvider({
       toggleCamera,
       switchCamera,
       localStream,
-      remoteStream,
+      remoteStreams,
+      startGroupCall,
       error,
       dismissError,
       speaker,
@@ -310,7 +409,8 @@ export function CallProvider({
       toggleCamera,
       switchCamera,
       localStream,
-      remoteStream,
+      remoteStreams,
+      startGroupCall,
       // Not read above — it is here so a track appearing inside an unchanged
       // stream still produces a new context value. See the effect above.
       streamVersion,
@@ -326,6 +426,18 @@ export function CallProvider({
       {children}
       {/* One element, root-level, never unmounted. See the note above. */}
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
+
+      {/*
+        Everyone else on a group call, one element each.
+
+        Outside the overlay on purpose — these outlive any screen, exactly as
+        the element above does. Mounted inside the call UI they would stop
+        playing the moment the overlay unmounted for a re-render, which is a
+        call that goes silent for no visible reason.
+      */}
+      {[...remoteStreams.entries()].slice(1).map(([userId, stream]) => (
+        <PeerAudio key={userId} stream={stream} />
+      ))}
     </CallContext.Provider>
   );
 }
@@ -358,6 +470,29 @@ function mediaMessage(cause: unknown): string {
     default:
       return 'Could not start the call.';
   }
+}
+
+/**
+ * One person's audio on a group call.
+ *
+ * A component rather than a ref, because the number of them changes as people
+ * join and leave, and React attaching `srcObject` through a `ref` callback is
+ * the only version of this that stays correct when the list reorders.
+ */
+function PeerAudio({ stream }: { stream: MediaStream }) {
+  return (
+    <audio
+      autoPlay
+      playsInline
+      className="hidden"
+      ref={(element) => {
+        if (!element) return;
+        element.srcObject = stream;
+        // Already an interaction by this point — they answered or placed it.
+        void element.play().catch(() => undefined);
+      }}
+    />
+  );
 }
 
 export function useCall(): CallContextValue {
