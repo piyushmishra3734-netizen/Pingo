@@ -1,3 +1,5 @@
+import mark from '../../assets/pingo-mark.png?inline';
+
 import { encodeQr, type QrLevel } from './qr.js';
 
 /**
@@ -209,48 +211,24 @@ export function QrArt({
             rx={plateSpan * 0.26}
             fill="#FFFFFF"
           />
-          <PingoGlyph
+          {/*
+            The official mark, unmodified.
+
+            An `<image>` of the real artwork rather than a redrawing of it: the
+            logo is a fixed asset and approximating it in paths — which an
+            earlier version of this file did — produces something that is nearly
+            the logo, which is worse than not having one.
+          */}
+          <image
+            href={mark}
             x={(count - count * MARK) / 2}
             y={(count - count * MARK) / 2}
-            span={count * MARK}
-            fill={`url(#${id})`}
+            width={count * MARK}
+            height={count * MARK}
+            preserveAspectRatio="xMidYMid meet"
           />
         </g>
       )}
     </svg>
-  );
-}
-
-/**
- * The PINGO mark, inline.
- *
- * Drawn here rather than reusing `<PingoMark>` because that renders its own
- * `<svg>` with its own viewBox, and nesting one inside this one would place it
- * in the wrong coordinate space — the mark has to be in *module* units to sit
- * on the plate at any rendered size.
- */
-function PingoGlyph({
-  x,
-  y,
-  span,
-  fill,
-}: {
-  x: number;
-  y: number;
-  span: number;
-  fill: string;
-}) {
-  return (
-    <g transform={`translate(${x} ${y}) scale(${span / 24})`} fill={fill}>
-      {/* A speech mark with the signature dot — the same silhouette as the app icon. */}
-      <path
-        d="M12 2.5c-5.2 0-9.5 3.6-9.5 8.1 0 2.6 1.4 4.9 3.6 6.4v3.4c0 .5.6.8 1 .5l3.2-2.2c.55.09 1.12.14 1.7.14 5.2 0 9.5-3.6 9.5-8.2S17.2 2.5 12 2.5z"
-        opacity="0.16"
-      />
-      <path
-        d="M12 4c-4.4 0-8 3-8 6.6 0 2.1 1.2 4 3.1 5.2l.4.3v2.3l2.1-1.4.4.06c.65.11 1.32.16 2 .16 4.4 0 8-3 8-6.6S16.4 4 12 4zm0-1.5c5.2 0 9.5 3.6 9.5 8.1s-4.3 8.2-9.5 8.2c-.58 0-1.15-.05-1.7-.14l-3.2 2.2c-.4.3-1 0-1-.5V17c-2.2-1.5-3.6-3.8-3.6-6.4C2.5 6.1 6.8 2.5 12 2.5z"
-      />
-      <circle cx="12" cy="10.6" r="2.1" />
-    </g>
   );
 }
