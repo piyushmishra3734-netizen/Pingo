@@ -286,14 +286,31 @@ export function ChatThread({
   }, [loadingOlder, messages.length]);
 
   /*
-   * Reading a thread is what clears its unread count, and nothing called this —
-   * so the badge only ever grew, on the list and on the dock. Fires on open and
-   * again as messages land while the thread is in front of you.
+   * Reading a thread is what clears its unread count, and what tells the other
+   * person you have seen them. Fires on open, and again each time something new
+   * lands while the thread is in front of you.
+   *
+   * ## Keyed on the newest message, not on the cluster count
+   *
+   * This used to depend on `groups.length`, which is the number of *clusters* —
+   * and consecutive messages from one person inside five minutes are one
+   * cluster. So a burst of four moved this number once. The reader's cursor
+   * advanced for the first message and then stopped, and the sender watched one
+   * message turn to "Seen" while the next three stayed on a single tick
+   * forever. Leaving the chat and coming back fixed it, because that remounts
+   * and re-runs this — which is exactly the workaround people found.
+   *
+   * The last message's id is the honest key: it changes when, and only when,
+   * something new arrives at the bottom. `messages.length` would also do it,
+   * but it moves when older history is paged in at the *top* as well, which is
+   * a write with nothing new to acknowledge.
    */
+  const newestMessageId = messages[messages.length - 1]?.id;
+
   useEffect(() => {
     if (loading) return;
     void service.markConversationRead(conversation.id);
-  }, [service, conversation.id, loading, groups.length]);
+  }, [service, conversation.id, loading, newestMessageId]);
 
   // Jump to the newest message when the thread opens, then follow smoothly.
   const openedRef = useRef(false);
