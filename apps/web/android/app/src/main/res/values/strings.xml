@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PINGO</string>
+    <string name="title_activity_main">PINGO</string>
+    <string name="package_name">chat.pingo.app</string>
+    <string name="custom_url_scheme">chat.pingo.app</string>
+</resources>

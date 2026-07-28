@@ -12,3 +12,15 @@ coverage/
 
 # Claude Code local settings — personal, never shared.
 .claude/settings.local.json
+
+# Capacitor native build output.
+#
+# The Android project itself IS committed -- it holds the manifest, the icons
+# and the Gradle config, all of which are source. What is ignored is what a
+# build produces from them.
+apps/web/android/app/build/
+apps/web/android/build/
+apps/web/android/.gradle/
+apps/web/android/local.properties
+apps/web/ios/App/Pods/
+apps/web/ios/App/build/
