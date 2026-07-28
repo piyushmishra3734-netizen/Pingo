@@ -4,4 +4,19 @@
     <string name="title_activity_main">PINGO</string>
     <string name="package_name">chat.pingo.app</string>
     <string name="custom_url_scheme">chat.pingo.app</string>
+
+    <!--
+        The Web OAuth client ID, read by the Google Sign-In SDK on Android.
+
+        Not the Android client ID, and that distinction is the whole trick. The
+        Android client authorises this app: Google matches it on package name
+        and signing certificate, it holds no secret, and it is never named
+        anywhere in code or config. What Supabase will accept is a token issued
+        for its own client, so Google is asked for one addressed to the web
+        client and hands it to an app already proven to be ours.
+
+        Public by design. An OAuth client ID is not a credential, and this same
+        value already ships inside the JavaScript bundle.
+    -->
+    <string name="server_client_id">896975933762-80sgvcmhs2nobs0ejt7g3klgrpqjjg2g.apps.googleusercontent.com</string>
 </resources>

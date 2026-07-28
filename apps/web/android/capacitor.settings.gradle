@@ -25,3 +25,6 @@ project(':capacitor-splash-screen').projectDir = new File('../../../node_modules
 
 include ':capacitor-status-bar'
 project(':capacitor-status-bar').projectDir = new File('../../../node_modules/.pnpm/@capacitor+status-bar@8.0.3_@capacitor+core@8.4.2/node_modules/@capacitor/status-bar/android')
+
+include ':codetrix-studio-capacitor-google-auth'
+project(':codetrix-studio-capacitor-google-auth').projectDir = new File('../../../node_modules/.pnpm/@codetrix-studio+capacitor-google-auth@3.4.0-rc.4_@capacitor+core@8.4.2/node_modules/@codetrix-studio/capacitor-google-auth/android')

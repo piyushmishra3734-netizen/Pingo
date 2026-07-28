@@ -52,6 +52,8 @@ import type {
   User as SupabaseUser,
 } from '@supabase/supabase-js';
 
+import { Capacitor } from '@capacitor/core';
+import { SupabaseNativeGoogleAuth } from './google-native.js';
 import { localClear } from '../local/db.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 
@@ -409,7 +411,23 @@ export class SupabaseAuthService implements AuthService {
     this.client = client;
     this.email = new SupabasePasswordAuth(client, 'email');
     this.phone = new SupabasePasswordAuth(client, 'phone');
-    this.google = new SupabaseGoogleAuth(client);
+    /*
+     * One door, two ways through it.
+     *
+     * The web keeps the OAuth redirect: it is correct in a browser and Supabase
+     * handles the return trip. Android gets the system account picker, because
+     * a redirect out to a browser and back is the seam that makes an app feel
+     * like a wrapped website — and because the shell has no address bar for the
+     * return to land in.
+     *
+     * Chosen once, here, on the only line in the product that knows there are
+     * two. Both satisfy `OAuthAuth`, both finish by producing a Supabase
+     * session through `onSessionChange`, so every screen above is unaware.
+     * Email and phone are untouched by any of this.
+     */
+    this.google = Capacitor.isNativePlatform()
+      ? new SupabaseNativeGoogleAuth(client)
+      : new SupabaseGoogleAuth(client);
   }
 
   async getSession(): Promise<AuthSession | null> {

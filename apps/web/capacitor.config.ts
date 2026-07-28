@@ -62,6 +62,26 @@ const config: CapacitorConfig = {
   },
 
   plugins: {
+    /*
+     * Google Sign-In, on Android.
+     *
+     * `serverClientId` is the **Web** OAuth client ID, and putting the Android
+     * one here is the mistake that costs an afternoon. The Android client
+     * authorises the app — Google matches it on package name and signing
+     * certificate, and it holds no secret, which is why it is never named in
+     * code at all. What Supabase will accept is a token issued for *its*
+     * client, so Google is asked for one addressed to the web client and hands
+     * it to an app already proven to be ours.
+     *
+     * Read from the environment rather than written here: the value differs
+     * between a personal build and anything shared, and a client ID committed
+     * to a repository is a value nobody can rotate.
+     */
+    GoogleAuth: {
+      serverClientId: process.env.VITE_GOOGLE_WEB_CLIENT_ID ?? '',
+      forceCodeForRefreshToken: false,
+    },
+
     SplashScreen: {
       /*
        * Hidden by the app, not by a timer.

@@ -50,6 +50,9 @@ importers:
       '@capacitor/status-bar':
         specifier: ^8.0.3
         version: 8.0.3(@capacitor/core@8.4.2)
+      '@codetrix-studio/capacitor-google-auth':
+        specifier: 3.4.0-rc.4
+        version: 3.4.0-rc.4(@capacitor/core@8.4.2)
       '@emoji-mart/data':
         specifier: 1.2.1
         version: 1.2.1
@@ -751,6 +754,11 @@ packages:
     resolution: {integrity: sha512-csSpfNeN49Hx9JaQBSJEIiEbOLtXg3kcc2IpScq2fu5L520h3AWEvsxoH8Srk1jxfRKepaJ4S4sqSC3foI4AgA==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4':
+    resolution: {integrity: sha512-d548/xKrbMHHbzMYSWnlgZCLZYo2zzY7Onrh3x8ujojrb7atkNK68I6su5WgmaBt4E+R4gxBsWams4554aOFjA==}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
 
   '@ecies/ciphers@0.2.6':
     resolution: {integrity: sha512-patgsRPKGkhhoBjETV4XxD0En4ui5fbX0hzayqI3M8tvNMGUoUvmyYAIWwlxBc1KX5cturfqByYdj5bYGRpN9g==}
@@ -3466,6 +3474,10 @@ snapshots:
       '@capacitor/core': 8.4.2
 
   '@capacitor/status-bar@8.0.3(@capacitor/core@8.4.2)':
+    dependencies:
+      '@capacitor/core': 8.4.2
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4(@capacitor/core@8.4.2)':
     dependencies:
       '@capacitor/core': 8.4.2
 
