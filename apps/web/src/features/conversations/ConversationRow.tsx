@@ -241,8 +241,14 @@ export function ConversationRow({
       with the finger, the scale at 180ms because something that moves needs
       long enough to be seen moving.
     */
-    'focus-ring ease-standard',
-    'transition-[background-color,transform] duration-quick',
+    /*
+      Two curves on one element, on purpose. The tint keeps up with the finger
+      on the standard curve; the scale springs, so letting go feels like the
+      surface pushing back rather than the row simply resizing.
+    */
+    'focus-ring',
+    'transition-[background-color] duration-instant ease-standard',
+    'transition-transform duration-quick ease-spring',
     'active:scale-[0.985]',
     selected
       ? 'bg-selected'

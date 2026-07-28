@@ -74,13 +74,13 @@ export function Dock() {
               cn(
                 'relative grid size-12 place-items-center rounded-lg',
                 /*
-                  Transform was missing from the transition list, so the press
-                  scale snapped to 0.96 and back with no easing at all — the
-                  one control in the app that is pressed on every navigation.
+                  `glass-press` rather than a bare scale: the item compresses,
+                  brightens along its lit edge and springs back, which is what
+                  makes it read as a piece of the glass panel rather than a
+                  button drawn on top of one.
                 */
-                'focus-ring ease-standard',
-                'transition-[color,background-color,transform] duration-quick',
-                'active:scale-[0.92]',
+                'focus-ring glass-press',
+                'transition-colors duration-quick ease-standard',
                 isActive
                   ? 'text-brand'
                   : 'text-text-secondary hover:bg-hover hover:text-ink',
@@ -109,7 +109,12 @@ export function Dock() {
                 <span
                   className={cn(
                     'absolute bottom-1.5 h-1 rounded-full bg-dot',
-                    'transition-[opacity,width,transform] duration-base ease-standard',
+                    /*
+                      Spring, so the indicator arrives with weight. It widens
+                      past its resting size and settles, the way a bead of
+                      liquid does when it stops moving.
+                    */
+                    'transition-[opacity,width,transform] duration-base ease-spring',
                     isActive
                       ? 'w-3.5 translate-y-0 opacity-100'
                       : 'w-1 translate-y-1 opacity-0',

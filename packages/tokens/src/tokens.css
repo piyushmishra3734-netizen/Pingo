@@ -104,6 +104,20 @@
 
   /* ---- Motion ----------------------------------------------------------- */
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Liquid glass has mass, and mass overshoots.
+
+     `--ease-standard` decelerates into its destination and stops dead, which
+     is correct for a screen arriving and wrong for anything you touched: a
+     material that stops the instant it is told to reads as a picture of a
+     material. `spring` carries slightly past and settles back, which is the
+     entire difference between "it moved" and "it is a thing".
+
+     `liquid` is the long tail without the overshoot — for surfaces too large
+     to bounce without looking silly. A sheet the size of the screen springing
+     is a trampoline; a sheet that glides and settles is glass. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-liquid: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-ambient: cubic-bezier(0.4, 0, 0.6, 1);
 
@@ -133,7 +147,7 @@
      is a reply to a particular message reads as the layout shifting rather
      than as somebody responding. It springs in from small, and slightly past
      its size on the way, so it looks placed rather than inserted. */
-  --animate-react-in: react-in 260ms var(--ease-standard) backwards;
+  --animate-react-in: react-in 320ms var(--ease-spring) backwards;
 
   /* A long press, in progress.
 
@@ -151,7 +165,7 @@
   /* The send button, acknowledging a press. Overshoots slightly on the way
      back rather than easing to rest: a spring says the thing left, where a
      linear return just says the button was pushed. */
-  --animate-send-pop: send-pop 320ms var(--ease-standard);
+  --animate-send-pop: send-pop 360ms var(--ease-spring);
 
   /* Waiting, as a sonar ping. A ring leaves the dot, expands and fades; three
      of them a third of a cycle apart keep one always mid-flight, so the eye
@@ -185,7 +199,7 @@
 
   /* A panel or sheet opening. Grows from its own lower edge rather than the
      centre, because that is the edge it is anchored to. */
-  --animate-panel-in: panel-in var(--duration-quick) var(--ease-standard) backwards;
+  --animate-panel-in: panel-in var(--duration-base) var(--ease-liquid) backwards;
 
   /* ---- Layout ----------------------------------------------------------- */
   --breakpoint-sm: 480px;
@@ -453,6 +467,48 @@
   backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
   border: 1px solid var(--color-glass-line);
+
+  /*
+   * The specular edge — what separates glass from frosted plastic.
+   *
+   * Real glass is brightest where it curves away at the top and darkest where
+   * it meets what is under it. Two inset shadows, a hair each, give the surface
+   * a lit edge and a grounded one, and the eye reads thickness from that alone.
+   * Without them a blurred panel is just a blurred rectangle, which is what
+   * this was.
+   *
+   * Kept to inset shadows rather than a gradient overlay so nothing is added to
+   * the DOM and no child has to opt in.
+   */
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 0 rgb(0 0 0 / 0.03);
+}
+
+/**
+ * A glass control that gives when you press it.
+ *
+ * Three things at once, and all three are needed for it to read as a material
+ * rather than as a button that got smaller: it compresses, it brightens along
+ * the top as the highlight slides, and it comes back with a spring rather than
+ * a stop. Any one of them alone is a scale transform wearing a costume.
+ *
+ * The brighten is `filter`, not a colour change, so it works over whatever
+ * happens to be behind the glass — which is the whole point of the material.
+ */
+@utility glass-press {
+  transition:
+    transform var(--duration-quick) var(--ease-spring),
+    filter var(--duration-quick) var(--ease-standard),
+    box-shadow var(--duration-quick) var(--ease-standard);
+
+  &:active {
+    transform: scale(0.96);
+    filter: brightness(1.06) saturate(1.05);
+    box-shadow:
+      inset 0 2px 4px 0 rgb(0 0 0 / 0.06),
+      inset 0 1px 0 0 rgb(255 255 255 / 0.6);
+  }
 }
 
 /**

@@ -260,7 +260,7 @@ export function Composer({
             animate once and then sit still for the rest of the conversation.
           */
           key={sent}
-          className="mb-0.5 motion-safe:animate-send-pop"
+          className="mb-0.5 glass-press motion-safe:animate-send-pop"
         >
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={21} className="-translate-x-px translate-y-px" />
