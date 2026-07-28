@@ -45,7 +45,7 @@
         Every one of these is used by a feature that already exists: the camera
         and microphone by Pings, stories and calls; notifications by the badge;
         network state by the offline banner. Android grants the dangerous ones
-        at runtime, so declaring them here only makes the request possible -- the
+        at runtime, so declaring them here only makes the request possible: the
         user is still asked, once, at the moment the feature is opened.
 
         Deliberately absent: contacts and location. Both are named as future
