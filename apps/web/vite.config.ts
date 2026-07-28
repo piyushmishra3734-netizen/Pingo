@@ -94,6 +94,17 @@ export default defineConfig({
          */
         globPatterns: ['**/*.{js,css,html,woff2}'],
         /*
+         * The vision models and their runtime are excluded, all forty
+         * megabytes of them. They are only needed by camera effects, most
+         * people never open one, and precaching them would make every first
+         * load pay for a feature most sessions never touch. They are fetched
+         * on demand and cached by the browser normally.
+         */
+        globIgnores: ['vision/**'],
+        // Raised for the app shell itself; the default 2MB would silently drop
+        // the main bundle from the precache and quietly break offline start.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        /*
          * Every navigation falls back to the shell. This is a single-page app,
          * so a deep link opened offline must still reach the router rather than
          * the browser's dinosaur.

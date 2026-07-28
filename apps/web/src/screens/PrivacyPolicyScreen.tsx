@@ -91,12 +91,21 @@ const SECTIONS: Section[] = [
   {
     id: 'third-parties',
     title: 'Who else touches your data',
-    body: ['Three, and no others.'],
+    body: ['Three, and each only for what it says.'],
     list: [
       'Supabase runs the database, authentication, file storage and the realtime connection. Your data lives on their infrastructure.',
       'Cloudflare Pages serves the app and sees the IP address of every request, as any web host does.',
-      'Google, in two narrow cases and no others: if you choose to sign in with a Google account, and if you turn on a camera effect that needs face or hand tracking — those models are downloaded from Google’s servers the first time you use one. The tracking itself runs entirely on your device and no image ever leaves it.',
-      'The typeface used to be a fourth. It was served from Google Fonts, which meant Google received an IP address for every visitor before they had signed in or done anything. It is now served from PINGO’s own servers.',
+      'Google, in one case only: if you choose to sign in with a Google account. Nothing else in PINGO contacts Google.',
+      'jsDelivr, a public CDN, serves the emoji and sticker artwork. It receives an IP address when those images load. Self-hosting them is the same job already done for the typeface and the camera models, and it is next.',
+    ],
+  },
+  {
+    id: 'moved',
+    title: 'Things that used to be third parties',
+    body: [
+      'Two contacts have been removed rather than disclosed, because the better answer to "who else sees this?" is "nobody".',
+      'The typeface came from Google Fonts, so Google received an IP address for every visitor on every cold load — before sign-in, before anything. It is now served from PINGO’s own servers.',
+      'The camera’s face, hand and gesture tracking downloaded its models from Google, so turning on a filter announced itself. Those forty megabytes now come from PINGO too. The tracking always ran on your device and no image ever left it; what left was a request saying somebody was about to use a filter, which was a small thing to leak and an unnecessary one.',
     ],
   },
   {

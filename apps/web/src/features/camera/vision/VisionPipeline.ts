@@ -79,24 +79,45 @@ export const VISION_TASKS: VisionTaskDefinition[] = [
 ];
 
 /**
- * Model locations.
+ * Model locations — our own origin.
  *
- * Google's CDN, which is what the MediaPipe docs use. For production these
- * should be self-hosted: a camera that stops working when a third-party CDN is
- * blocked is a camera that stops working in exactly the places people care
- * about privacy most.
+ * These came from Google's CDN, which is what the MediaPipe docs use, and the
+ * note that used to sit here said they should be self-hosted before production.
+ * Two reasons, and both turned out to matter.
+ *
+ * The first is the one that comment made: a camera that stops working when a
+ * third-party CDN is blocked stops working in exactly the places people care
+ * about privacy most. The second only became visible when the privacy policy
+ * was written — turning on a face filter contacted Google, so the policy had to
+ * name them as a third party for a reason that had nothing to do with the
+ * product's actual dependencies.
+ *
+ * The tracking always ran on the device and no image ever left it. What left
+ * was a request saying "somebody here is about to use a face filter", which is
+ * a small thing to leak and an unnecessary one.
+ *
+ * ## They are not precached
+ *
+ * Forty megabytes, and most people never open a camera effect. The service
+ * worker skips this folder deliberately, so the cost is paid once by whoever
+ * uses the feature rather than by everyone on first load.
  */
 const MODELS = {
-  face: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-  hand: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-  gesture:
-    'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task',
-  segmenter:
-    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite',
+  face: '/vision/face_landmarker.task',
+  hand: '/vision/hand_landmarker.task',
+  gesture: '/vision/gesture_recognizer.task',
+  segmenter: '/vision/selfie_segmenter.tflite',
 } as const;
 
-const WASM_ROOT =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm';
+/**
+ * The runtime, also ours.
+ *
+ * Both the SIMD and non-SIMD builds are here. MediaPipe picks between them by
+ * probing what the browser supports, and shipping only the SIMD one would mean
+ * an older device fetching a 404 and losing camera effects entirely — a silent
+ * failure on precisely the hardware least able to explain itself.
+ */
+const WASM_ROOT = '/vision/wasm';
 
 /**
  * The concrete union of the tasks in use.
