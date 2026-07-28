@@ -97,6 +97,13 @@ export function ConversationRow({
         alignment of the whole column. Member faces belong on the Communities
         cards, where horizontal space is free.
       */}
+      {/*
+        Wrapped, because `Avatar` renders only the props it declares and a
+        stray `data-` attribute on it goes nowhere — verified on the deployed
+        build, where the selector matched zero elements and the transition was
+        silently doing nothing.
+      */}
+      <span data-shared-avatar="" className="inline-flex shrink-0">
       <Avatar
         name={conversation.title}
         id={partner?.id ?? conversation.id}
@@ -106,8 +113,6 @@ export function ConversationRow({
           had set a picture — the avatar was there, its source was not.
         */
         src={partner?.avatarUrl ?? conversation.avatarUrl}
-        // Tagged so the thread can find where this was and arrive from it.
-        data-shared-avatar=""
         size="md"
         // Presence only. Typing is already carried by the preview line below, and
         // saying it twice in one row is two signals competing for the same glance.
@@ -117,6 +122,7 @@ export function ConversationRow({
             : undefined
         }
       />
+      </span>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
