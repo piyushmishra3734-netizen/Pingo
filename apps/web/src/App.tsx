@@ -185,6 +185,23 @@ export function App() {
           <Routes>
             <Route path="/" element={<SplashScreen />} />
 
+            {/*
+              Public, and outside every guard.
+
+              These were nested under `RequireGuest`, which exists to bounce a
+              *signed-in* visitor to Home — so tapping "Learn more" from the
+              install banner sent the user straight back to the chat list, and
+              the Terms and Privacy links in the footer did the same thing.
+
+              None of the three is pre-session content. A download page is for
+              people with an account as much as without one, and terms nobody
+              signed in can open are terms nobody can re-read after agreeing to
+              them.
+            */}
+            <Route path="/download" element={<DownloadScreen />} />
+            <Route path="/terms" element={<TermsScreen />} />
+            <Route path="/privacy" element={<PrivacyPolicyScreen />} />
+
             {/* Pre-session. A signed-in visitor is sent to Home. */}
             <Route element={<RequireGuest />}>
               {/*
@@ -193,10 +210,6 @@ export function App() {
                 sign-up method rows, Log In opens the returning-user ones.
               */}
               <Route path="/welcome" element={<OnboardingScreen />} />
-              {/* Public: reachable without an account, and meant to be. */}
-              <Route path="/download" element={<DownloadScreen />} />
-              <Route path="/terms" element={<TermsScreen />} />
-              <Route path="/privacy" element={<PrivacyPolicyScreen />} />
 
               <Route path="/signup" element={<SignUpMethodScreen />} />
               <Route path="/login" element={<LoginMethodScreen />} />
