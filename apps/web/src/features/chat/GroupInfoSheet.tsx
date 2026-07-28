@@ -46,8 +46,18 @@ export function GroupInfoSheet({
   const adminIds = conversation.adminIds ?? [];
   const iAmAdmin = currentUser ? adminIds.includes(currentUser.id) : false;
 
+  /*
+   * `users` does not contain you.
+   *
+   * It is the directory of *other* people, so resolving the roster through it
+   * alone silently dropped the viewer: a group of two rendered one row and
+   * called itself "1 member", and a group you had just made looked like it had
+   * nobody in it but the person you added.
+   */
   const members = conversation.participantIds
-    .map((id) => users.find((u) => u.id === id))
+    .map((id) =>
+      id === currentUser?.id ? currentUser : users.find((u) => u.id === id),
+    )
     .filter((u): u is User => Boolean(u))
     // Admins first, then alphabetical — the people who can act on your behalf
     // are the ones you came here to find.
@@ -146,7 +156,17 @@ export function GroupInfoSheet({
   return (
     <Sheet
       title={conversation.title}
-      description={`${members.length} ${members.length === 1 ? 'member' : 'members'}`}
+      /*
+       * Counted from the roster the server sent, not from the rows that
+       * resolved to a name. A member whose profile has not been fetched yet is
+       * still in the group, and a headcount that quietly drops them is worse
+       * than one that is briefly ahead of the list beneath it.
+       */
+      description={
+        conversation.participantIds.length === 1
+          ? '1 member'
+          : `${conversation.participantIds.length} members`
+      }
       onClose={onClose}
     >
       {error && (
