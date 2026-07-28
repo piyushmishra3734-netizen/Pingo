@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../../components/AppLogo.js';
+import { isNative } from '../native/shell.js';
 import { useInstall } from './useInstall.js';
 
 /**
@@ -15,15 +16,17 @@ import { useInstall } from './useInstall.js';
  * somebody arrives, and it is the one screen where an offer is not interrupting
  * something.
  *
- * ## Dismissal is permanent, and that is the point
+ * ## Dismissal lasts for the visit, not forever
  *
- * Stored in `localStorage`, not in state: a banner that returns on the next
- * visit is a banner that was never really dismissed, and asking twice after
- * being told no is the behaviour that makes people distrust an app. Once is an
- * offer. Twice is nagging.
+ * Closing it hides it until the page is reloaded, then it returns. That is a
+ * deliberate product choice: PINGO has native apps on the way and this is the
+ * only place that says so, and a banner dismissed once and never seen again is
+ * a launch announcement most people would miss entirely.
  *
- * The one thing that legitimately brings it back is uninstalling and returning
- * later, which clears site data anyway.
+ * It is held in component state rather than storage, which is what makes a
+ * refresh bring it back — there is nothing to remember and nothing to clear.
+ * The cost is real and worth naming: somebody who closes it every session will
+ * keep seeing it. That is the trade being made on purpose.
  *
  * ## It never raises the browser's install prompt
  *
@@ -36,8 +39,6 @@ import { useInstall } from './useInstall.js';
  * coming to the store for this platform, and the button opens the page that
  * explains where things stand.
  */
-
-const DISMISSED = 'pingo:install-dismissed';
 
 /** What the banner promises, per platform. Specific, because vague is ignored. */
 const BLURB: Record<string, string> = {
@@ -52,28 +53,19 @@ export function InstallBanner() {
   const { platform, method } = useInstall();
   const navigate = useNavigate();
 
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return localStorage.getItem(DISMISSED) === '1';
-    } catch {
-      // Private browsing can refuse storage. Showing the banner is the safer
-      // failure: an extra offer beats a feature nobody can discover.
-      return false;
-    }
-  });
+  const [dismissed, setDismissed] = useState(false);
 
-  // Nothing to offer someone who has already installed it, and nothing to say
-  // to someone who has said no.
-  if (dismissed || method === 'installed') return null;
+  /*
+   * Never inside the app itself.
+   *
+   * The banner announces that native apps are coming. Showing it to somebody
+   * already reading it *in* the Android app would be absurd, and
+   * `display-mode: standalone` does not reliably match in a Capacitor WebView —
+   * so the platform is asked directly rather than inferred from a media query.
+   */
+  if (isNative() || dismissed || method === 'installed') return null;
 
-  const dismiss = () => {
-    setDismissed(true);
-    try {
-      localStorage.setItem(DISMISSED, '1');
-    } catch {
-      // Dismissed for this session at least. See above.
-    }
-  };
+  const dismiss = () => setDismissed(true);
 
   const act = () => {
     navigate('/download');
