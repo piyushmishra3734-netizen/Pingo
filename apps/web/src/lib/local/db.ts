@@ -25,7 +25,22 @@
  */
 
 const DB_NAME = 'pingo';
-const DB_VERSION = 1;
+
+/**
+ * Bumped when a store is added, because `onupgradeneeded` fires on a version
+ * *increase* and on nothing else.
+ *
+ * The `keys` store was added at version 1 without this being raised, so every
+ * device that had ever opened PINGO already held a version-1 database without
+ * it. The store was therefore never created, `deviceIdentity` could not
+ * persist, and a fresh keypair was minted on every page load — one dead
+ * `device_keys` row per visit, and a database key that was gone before the
+ * cache it sealed could be read back.
+ *
+ * `openDatabase` no longer depends on anyone remembering to change this. It is
+ * still correct to change it, and it saves the reopen.
+ */
+const DB_VERSION = 2;
 
 /**
  * The stores, and what each is for.
@@ -56,8 +71,9 @@ export type StoreName = (typeof STORE)[keyof typeof STORE];
 
 let open: Promise<IDBDatabase | undefined> | undefined;
 
-function openDatabase(): Promise<IDBDatabase | undefined> {
-  open ??= new Promise<IDBDatabase | undefined>((resolve) => {
+/** One open attempt at a given version. Creates whatever stores are missing. */
+function openAt(version?: number): Promise<IDBDatabase | undefined> {
+  return new Promise<IDBDatabase | undefined>((resolve) => {
     if (typeof indexedDB === 'undefined') {
       resolve(undefined);
       return;
@@ -65,7 +81,7 @@ function openDatabase(): Promise<IDBDatabase | undefined> {
 
     let request: IDBOpenDBRequest;
     try {
-      request = indexedDB.open(DB_NAME, DB_VERSION);
+      request = indexedDB.open(DB_NAME, version);
     } catch {
       // Private browsing on some engines throws here rather than erroring.
       resolve(undefined);
@@ -88,6 +104,35 @@ function openDatabase(): Promise<IDBDatabase | undefined> {
      */
     request.onblocked = () => resolve(undefined);
   });
+}
+
+/**
+ * Opens the database and guarantees every store in `STORE` exists.
+ *
+ * The guarantee is checked rather than assumed. A missing store is not a
+ * theoretical case — it is what happens to every existing device the moment a
+ * store is added, and the symptom is silent: reads and writes fail into the
+ * harmless-value path and the feature simply never works. So if anything is
+ * missing after the open, this reopens one version higher, which is the only
+ * thing that runs `onupgradeneeded`.
+ *
+ * Costs one extra round trip exactly once per device per added store, and
+ * removes a whole class of bug that is invisible in code review.
+ */
+function openDatabase(): Promise<IDBDatabase | undefined> {
+  open ??= (async () => {
+    const db = await openAt(DB_VERSION);
+    if (!db) return undefined;
+
+    const missing = Object.values(STORE).filter((name) => !db.objectStoreNames.contains(name));
+    if (missing.length === 0) return db;
+
+    // A database already at or above DB_VERSION but short a store — someone
+    // added one without raising the constant, or a newer tab got there first.
+    const next = db.version + 1;
+    db.close();
+    return openAt(next);
+  })();
 
   return open;
 }
