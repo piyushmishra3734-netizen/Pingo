@@ -19,6 +19,7 @@ import {
 } from '@pingo/ui';
 import { Link } from 'react-router-dom';
 
+import { rememberSharedElement } from '../../hooks/useSharedElement.js';
 import { useLongPress } from '../chat/context-menu/useLongPress.js';
 
 /**
@@ -105,6 +106,8 @@ export function ConversationRow({
           had set a picture — the avatar was there, its source was not.
         */
         src={partner?.avatarUrl ?? conversation.avatarUrl}
+        // Tagged so the thread can find where this was and arrive from it.
+        data-shared-avatar=""
         size="md"
         // Presence only. Typing is already carried by the preview line below, and
         // saying it twice in one row is two signals competing for the same glance.
@@ -308,6 +311,24 @@ export function ConversationRow({
       aria-current={active ? 'page' : undefined}
       data-conversation={conversation.id}
       {...longPress}
+      /*
+        Measured on the way out, while the row is still on screen.
+
+        It has to happen here rather than in the thread, because on a phone this
+        row unmounts before the thread mounts — there is no instant where both
+        exist, and nothing left to read a position from afterwards.
+
+        Placed *after* the spread and calling through to it: `longPress` also
+        binds `onPointerDown`, and a second one in the JSX silently replaces it
+        rather than adding to it — which would have cost the row its long press.
+      */
+      onPointerDown={(event) => {
+        longPress.onPointerDown?.(event);
+        rememberSharedElement(
+          `chat-avatar:${conversation.id}`,
+          event.currentTarget.querySelector('[data-shared-avatar]'),
+        );
+      }}
       className={shell}
     >
       {body}

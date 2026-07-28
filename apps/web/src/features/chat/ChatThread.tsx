@@ -25,6 +25,7 @@ import { CloseIcon } from '@pingo/ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { useSharedElement } from '../../hooks/useSharedElement.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
@@ -99,6 +100,23 @@ export function ChatThread({
    * gesture that happens nowhere near it.
    */
   const [replyTo, setReplyTo] = useState<Message>();
+
+  /*
+   * The avatar that was pressed, arriving.
+   *
+   * The header's own avatar is transformed back to where the row's was and the
+   * transform animated away, so there is one avatar rather than a clone flying
+   * over everything. Silent when nothing was pressed — a thread opened from a
+   * notification or a reload has nothing to travel from.
+   */
+  const headerAvatar = useRef<HTMLSpanElement>(null);
+  /*
+   * The ref goes on a wrapper rather than on `Avatar` itself, which is not a
+   * forwardRef — and making it one to satisfy a navigation transition would
+   * push a concern about routing down into a primitive that has nothing to do
+   * with it.
+   */
+  useSharedElement(headerAvatar, `chat-avatar:${conversation.id}`);
 
   /** Group info: the roster, the roles and the invite link. */
   const [groupInfo, setGroupInfo] = useState(false);
@@ -393,6 +411,7 @@ export function ChatThread({
             : { onClick: () => setGroupInfo(true) })}
         >
           {conversation.kind === 'direct' ? (
+            <span ref={headerAvatar} className="inline-flex">
             <Avatar
               name={conversation.title}
               id={partner?.id ?? conversation.id}
@@ -400,6 +419,7 @@ export function ChatThread({
               size="sm"
               presence={partner?.presence.state === 'online' ? 'online' : undefined}
             />
+            </span>
           ) : (
             <AvatarStack
               people={members.map((m) => ({ id: m.id, name: m.name, src: m.avatarUrl }))}
