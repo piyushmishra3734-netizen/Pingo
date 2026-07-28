@@ -503,34 +503,6 @@ export class SupabaseChatService implements ChatService {
       /*
        * Notifications, live.
        *
-       * RLS filters this stream to rows whose  is mine, so no client
-       * filter is needed and no other user's feed can be observed. Without
-       * this the badge only ever reflected what was true when the app loaded.
-       */
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        (payload) => {
-          const row = payload.new as { id: string; kind: string; actor_id: string | null; subject_id: string | null; created_at: string };
-          const actor = row.actor_id ? this.#people.get(row.actor_id) : undefined;
-          this.#emit({
-            type: 'notification:new',
-            notification: {
-              id: row.id,
-              kind: row.kind as AppNotification['kind'],
-              title: actor?.name ?? 'Someone',
-              body: NOTIFICATION_COPY[row.kind]?.body ?? 'Something happened.',
-              createdAt: Date.parse(row.created_at),
-              read: false,
-              ...(row.subject_id ? { conversationId: row.subject_id } : {}),
-              ...(row.actor_id ? { actorId: row.actor_id } : {}),
-            },
-          });
-        },
-      )
-      /*
-       * Notifications, live.
-       *
        * RLS filters this stream to rows whose user_id is mine, so there is no
        * client-side filter to get wrong and no other feed to observe. Without
        * it the badge only ever showed what was true when the app loaded.
@@ -573,6 +545,74 @@ export class SupabaseChatService implements ChatService {
        * confirmation of our own change is matched on the user id and compared
        * against the newest pending intent.
        */
+      /*
+       * A conversation itself changing, live.
+       *
+       * The first migration deliberately left `conversations` unpublished,
+       * because the list updated from the same message events and publishing
+       * both would deliver everything twice. That reasoning held exactly as
+       * long as a conversation only ever changed *because* of a message.
+       *
+       * Groups broke it. A rename, a new group picture and a member joining are
+       * all changes with no message attached, so the list had no way to hear
+       * about any of them — which is why a group appeared only after a reload.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations' },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as { id?: string } | null;
+          if (!row?.id) return;
+          void this.#announce(row.id);
+        },
+      )
+      /*
+       * The roster, live.
+       *
+       * An INSERT naming me is the moment I am *in* a group — there is no other
+       * signal for it, because nothing is sent to the conversation when
+       * somebody is added. A DELETE naming me is being removed, and has to take
+       * the row out of my list rather than re-reading a conversation I can no
+       * longer see.
+       *
+       * For anybody else, both mean the roster moved, which the group info
+       * sheet and the header's avatar stack both draw from.
+       */
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'conversation_members' },
+        (payload) => {
+          const row = payload.new as { conversation_id?: string; user_id?: string };
+          if (!row.conversation_id) return;
+          void this.#announce(row.conversation_id);
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'conversation_members' },
+        (payload) => {
+          /*
+           * `old` carries only the primary key under the default replica
+           * identity — which is exactly the two columns needed here, because
+           * the key is (conversation_id, user_id).
+           */
+          const row = payload.old as { conversation_id?: string; user_id?: string };
+          if (!row.conversation_id || !row.user_id) return;
+
+          void this.#userId().then((me) => {
+            if (row.user_id === me) {
+              // Removed, or left from another device. Re-reading would return
+              // nothing and leave the old row on screen.
+              this.#emit({
+                type: 'conversation:removed',
+                conversationId: row.conversation_id!,
+              });
+              return;
+            }
+            void this.#announce(row.conversation_id!);
+          });
+        },
+      )
       /*
        * Read receipts, live.
        *

@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
+
 /**
  * Story state, shared by the rail, the viewer and the creator.
  *
@@ -108,6 +110,25 @@ export function StoryProvider({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  /*
+   * Somebody's story going up or coming down, without a reload.
+   *
+   * The rail is the one surface where being stale is most obvious — stories
+   * expire in a day, so a rail that only updates when the app is reopened is
+   * describing a window that has already moved.
+   *
+   * A whole re-read rather than patching the row in: a story arriving changes
+   * ordering (unseen first, inside bands), the author's ring state and whether
+   * they appear at all — and getting one of those wrong is worse than the extra
+   * fetch. `refresh` already coalesces into a single pair of requests.
+   */
+  useEffect(() => {
+    if (!signedIn) return;
+    return getRealtimeHub().on('stories', () => {
+      void refresh();
+    });
+  }, [signedIn, refresh]);
 
   const groups = useMemo(() => order(raw, meId), [raw, meId]);
   const mine = useMemo(() => groups.find((group) => group.authorId === meId), [groups, meId]);

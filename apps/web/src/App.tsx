@@ -28,6 +28,7 @@ import { CameraScreen } from './screens/CameraScreen.js';
 import { ChatsScreen } from './screens/ChatsScreen.js';
 import { CommunitiesScreen } from './screens/CommunitiesScreen.js';
 import { FollowRequestsScreen } from './screens/FollowRequestsScreen.js';
+import { LiveProfile } from './features/profile/LiveProfile.js';
 import { NewChatScreen } from './screens/NewChatScreen.js';
 import { NewGroupScreen } from './screens/NewGroupScreen.js';
 import { JoinGroupScreen } from './screens/JoinGroupScreen.js';
@@ -288,6 +289,8 @@ export function App() {
           </Routes>
         </BrowserRouter>
         <CallOverlay />
+        {/* Renders nothing. Keeps this session’s own profile live everywhere. */}
+        <LiveProfile />
         </CallProvider>
         </NotificationProvider>
         </ChatProvider>

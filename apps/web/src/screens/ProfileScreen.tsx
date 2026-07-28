@@ -24,6 +24,8 @@ import {
   cn,
 } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { useCall } from '../features/calls/CallProvider.js';
@@ -179,6 +181,50 @@ export function ProfileScreen() {
     void profiles.listPosts(personId).then(setPosts).catch(() => undefined);
     void profiles.stats(personId).then(setStats).catch(() => undefined);
   }, [profiles, personId]);
+
+  /*
+   * A profile that keeps up with itself.
+   *
+   * Every number and every word on this screen came from one fetch on mount, so
+   * a bio edited on a phone, a post added, a follow accepted — none of it
+   * arrived until the screen was left and re-entered. On your *own* profile
+   * that is the strangest version of it: you change something, come back, and
+   * the app shows you the old answer about yourself.
+   *
+   * The filters matter as much as the subscriptions. `profiles` is readable by
+   * everyone, so its stream carries every edit on PINGO; without narrowing to
+   * the person being looked at, every stranger's bio change would refetch this
+   * screen. `follows` has no id to match on — either side of the row can be
+   * this person — so it re-reads the counts and nothing else.
+   */
+  useEffect(() => {
+    if (!personId) return;
+    const hub = getRealtimeHub();
+
+    const offPosts = hub.on('posts', (change) => {
+      const author = (change.row.author_id ?? change.previous.author_id) as string | undefined;
+      if (author === personId) reload();
+    });
+
+    const offFollows = hub.on('follows', () => {
+      // Friends and mutual counts both live in `stats`.
+      void profiles.stats(personId).then(setStats).catch(() => undefined);
+    });
+
+    const offProfile = hub.on('profiles', (change) => {
+      if (change.row.id !== personId) return;
+      // Only the other person's copy is fetched here; `mine` is owned by the
+      // provider and refreshed by the bridge in App.
+      if (isSelf || !handle) return;
+      void profiles.find(handle).then(setOther).catch(() => undefined);
+    });
+
+    return () => {
+      offPosts();
+      offFollows();
+      offProfile();
+    };
+  }, [personId, isSelf, handle, profiles, reload]);
 
   // ---- surfaces -----------------------------------------------------------
 

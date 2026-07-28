@@ -14,6 +14,8 @@ import {
   cn,
 } from '@pingo/ui';
 import { useEffect, useState } from 'react';
+
+import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
 import { useNavigate } from 'react-router-dom';
 
 import { useNotifications } from '../features/notifications/NotificationContext.js';
@@ -66,6 +68,21 @@ export function NotificationsScreen() {
   const [items, setItems] = useState<AppNotification[]>();
   const { users } = useChat();
 
+  /**
+   * Bumped whenever a notification row changes, to re-run the load below.
+   *
+   * The screen used to fetch once on mount, so anything arriving while it was
+   * open stayed invisible until it was navigated away from and back — which is
+   * the worst case for this particular screen, because sitting on it is exactly
+   * what somebody does when they are waiting for something.
+   */
+  const [version, setVersion] = useState(0);
+
+  useEffect(
+    () => getRealtimeHub().on('notifications', () => setVersion((n) => n + 1)),
+    [],
+  );
+
   useEffect(() => {
     let active = true;
     void service
@@ -86,7 +103,7 @@ export function NotificationsScreen() {
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [service, version]);
 
   const open = (item: AppNotification) => {
     if (item.kind === 'follow_request' || item.kind === 'follow_accepted') {
