@@ -47,5 +47,65 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      /*
+       * Recover from a stale shell.
+       *
+       * Observed in production: a cached index.html referencing
+       * assets/index-CnNEDbzi.js, an asset a later deploy had removed. Pages
+       * answers a missing file with the SPA fallback, so the browser fetched
+       * 2,245 bytes of HTML where it expected a module, the script never ran,
+       * and #root stayed empty. A white screen, and nothing in the console to
+       * say why.
+       *
+       * Network-first navigations make it rarer, and cannot make it impossible:
+       * on a connection slower than the timeout the service worker still falls
+       * back to the shell it has, and that shell can name assets that no longer
+       * exist. The only reliable signal is the one that matters anyway -- did
+       * the app mount.
+       *
+       * If it did not, drop the caches and the worker and reload. Guarded by
+       * sessionStorage so a genuinely broken build reloads once rather than
+       * spinning, because a reload loop is worse than a white screen: it burns
+       * battery and data and never stops.
+       */
+      (function () {
+        var KEY = 'pingo:boot-retry';
+        function mounted() {
+          var root = document.getElementById('root');
+          return !!root && root.childNodes.length > 0;
+        }
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            if (mounted()) {
+              sessionStorage.removeItem(KEY);
+              return;
+            }
+            if (sessionStorage.getItem(KEY)) return;
+            sessionStorage.setItem(KEY, '1');
+
+            var done = function () {
+              location.reload();
+            };
+            var jobs = [];
+            if (window.caches && caches.keys) {
+              jobs.push(
+                caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                }),
+              );
+            }
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (all) {
+                  return Promise.all(all.map(function (r) { return r.unregister(); }));
+                }),
+              );
+            }
+            Promise.all(jobs).then(done, done);
+          }, 5000);
+        });
+      })();
+    </script>
   </body>
 </html>
