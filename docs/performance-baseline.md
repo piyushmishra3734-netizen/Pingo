@@ -248,7 +248,60 @@ the raw data.
 
 ---
 
-## 7. Raw data
+## 7. Phase 1 — milestone 2: row-per-message, dual-write
+
+Commit `5707a50`. 20 runs, `empty`. Dual-write only: rows are written beside
+the blob and nothing reads them for display, so any change here is **cost, not
+benefit** — the benefit arrives in milestone 3.
+
+### Verified on real data first
+
+| Conversation | Server messages | Expected (50-page cap) | Rows written |
+| --- | ---: | ---: | ---: |
+| `08db6020` | 10 | 10 | **10** |
+| `68d0ed53` | 59 | 50 | **50** |
+| `cb1a9a20` | 65 | 50 | **50** |
+
+111 rows across 4 conversations. All sealed, keys chronological, and no
+plaintext found on disk. The row store mirrors the blob exactly.
+
+### What it cost
+
+| Metric | Baseline | M1 | **M2** |
+| --- | ---: | ---: | ---: |
+| FCP → list gap, median | 1434.4 | 4.7–6.3 | **33.2** |
+| Conversation open, median | 144.1 | 169.6 | **332.1** |
+| IndexedDB size | 2.3 MB | 3.1 MB | **5.5 MB** |
+| Requests | 68 | 75 | **75** |
+
+**Conversation open roughly doubled**, from 169.6 ms to 332.1 ms. The gap also
+went from ~5 ms to 33.2 ms. Both are still far better than the 1434.4 ms
+baseline, but the direction is wrong and the cause is not mysterious.
+
+### Why, and what it means for milestone 3
+
+Sealing a page as one blob is **one** AES-GCM encrypt. Sealing it as fifty rows
+is **fifty**. Dual-write therefore does 51 encrypts where the old path did 1,
+and reading fifty rows back would likewise be fifty decrypts against one.
+
+That is worth stating plainly because it complicates the plan: **row-per-message
+is not cheaper than the blob for reading a whole page — it is dearer.** What it
+buys is incremental sync, lazy history and eviction, none of which the blob can
+do at all. The bet is that once milestone 3 lands, a full fifty-row read
+becomes rare: a quiet conversation reads nothing and appends nothing.
+
+If that bet turns out wrong when measured, the honest conclusion would be to
+keep a small blob for the newest page and rows only for history — and that
+decision should be made on numbers from milestone 3, not on this table.
+
+### Unchanged, as expected
+
+Requests stayed at 75 and bytes did not move. Milestone 2 does not touch the
+network, and request-count work was explicitly out of scope.
+
+---
+
+## 8. Raw data
 
 One JSON file per condition, every individual run included:
 `E:\ClaudeData\scratch\bench\results\{empty,warm,persisted}-<timestamp>.json`
