@@ -151,6 +151,11 @@ export type MessageRow = {
   deleted_at: string | null;
   reply_to_id: string | null;
   /**
+   * Moved by a trigger on every update, so one cursor can find both new
+   * messages and edited old ones. See the delta sync in chat-service.
+   */
+  updated_at: string;
+  /**
    * Null on every message that existed before E2EE, and `'v1'` after.
    *
    * A column rather than a guess at the content. "Does this body look like

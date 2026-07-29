@@ -184,6 +184,39 @@ function groupError(error: { code?: string; message?: string }): Error {
   );
 }
 
+/** How many changed rows one delta will accept before giving up on itself. */
+const DELTA_LIMIT = 200;
+
+/** Before any message. A cursor that has never advanced. */
+const EPOCH = '1970-01-01T00:00:00Z';
+
+/**
+ * Folds changed messages into a cached page.
+ *
+ * Replace by id, append what is new, and keep the page in creation order —
+ * changes arrive ordered by `updated_at`, which for an edited message says
+ * nothing about where it belongs on screen.
+ *
+ * The page is not trimmed back to fifty. A conversation that gained ten
+ * messages should show sixty rather than silently dropping the ten oldest,
+ * which would look like history disappearing while somebody was reading it.
+ */
+function mergeMessages(cached: Message[], changed: Message[]): Message[] {
+  const byId = new Map(cached.map((m) => [m.id, m]));
+  for (const message of changed) byId.set(message.id, message);
+  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/** The high-water mark to store, never moving backwards. */
+function newestUpdatedAt(rows: MessageRow[], fallback: string): string {
+  let newest = fallback;
+  for (const row of rows) {
+    const at = row.updated_at ?? row.created_at;
+    if (at > newest) newest = at;
+  }
+  return newest;
+}
+
 function toMessage(row: MessageRow, readAt: number | undefined): Message {
   return {
     id: row.id,
@@ -373,6 +406,23 @@ export class SupabaseChatService implements ChatService {
    * failure into a permanent one.
    */
   #pageFullyDecrypted = true;
+
+  /** Newest updated_at seen in the last full page. Seeds the delta cursor. */
+  #pageNewestUpdatedAt = EPOCH;
+
+  /**
+   * How often the delta path answered, and how much it moved.
+   *
+   * Counted rather than logged so milestone 3 can be measured on a real device
+   * instead of argued about. A hit that fetched zero rows is the shape this
+   * whole milestone is aiming for.
+   */
+  #deltaStats = { hits: 0, misses: 0, rowsFetched: 0 };
+
+  /** Delta sync effectiveness, for inspection. */
+  deltaReport(): { hits: number; misses: number; rowsFetched: number } {
+    return { ...this.#deltaStats };
+  }
 
   /**
    * What the row store looked like against the blob, per conversation.
@@ -1218,6 +1268,54 @@ export class SupabaseChatService implements ChatService {
      */
     if (options?.before) return this.#listMessagesFromNetwork(conversationId, options);
 
+    /*
+     * Milestone 3: ask what changed, not for the page again.
+     *
+     * The old path refetched fifty messages every time a conversation was
+     * opened, whether or not anything had happened in it. This asks a single
+     * indexed question instead — and for a quiet conversation the answer is
+     * zero rows, so opening it costs one small query rather than a page of
+     * history and a page of decryption.
+     *
+     * Everything here is conditional on already having a trustworthy local
+     * copy. Without a cursor, without a cached page, or if the delta cannot be
+     * answered cleanly, it falls through to the full fetch below, which is
+     * slower and always correct. That asymmetry is deliberate: the fast path
+     * is allowed to decline, and the correct path is not allowed to be skipped.
+     */
+    const cursor = await this.#syncCursor(conversationId);
+    const cached = cursor ? await this.cachedMessages(conversationId) : undefined;
+
+    if (cursor && cached) {
+      const changed = await this.#deltaMessages(conversationId, cursor);
+
+      if (changed) {
+        if (changed.length === 0) {
+          // Nothing has happened here since last time. The cached page is the
+          // answer, and no message was fetched or decrypted to establish that.
+          this.#deltaStats.hits += 1;
+          return cached;
+        }
+
+        const decrypted = await openRows(changed);
+        if (decrypted) {
+          const merged = mergeMessages(cached, changed.map((row) => toMessage(row, undefined)));
+          this.#deltaStats.hits += 1;
+          this.#deltaStats.rowsFetched += changed.length;
+
+          void sealRecord(merged).then((sealed) =>
+            localSet(STORE.messages, conversationId, sealed),
+          );
+          void writeMessageRows(conversationId, merged);
+          void this.#setSyncCursor(conversationId, newestUpdatedAt(changed, cursor));
+
+          return this.#signPhotos(changed, merged);
+        }
+      }
+    }
+
+    this.#deltaStats.misses += 1;
+
     try {
       const live = await this.#listMessagesFromNetwork(conversationId, options);
       // Sealed with this device's database key before it reaches the disk.
@@ -1248,6 +1346,15 @@ export class SupabaseChatService implements ChatService {
             this.#rowStoreIntegrity.set(conversationId, { ...integrity, written });
           }),
         );
+
+        /*
+         * Seed the cursor from what was just stored, so the next open can take
+         * the delta path. Set only when the page decrypted completely — a
+         * cursor implies the local copy is trustworthy, and claiming that over
+         * a page with a placeholder in it would let the delta path skip past
+         * the very message that failed.
+         */
+        void this.#setSyncCursor(conversationId, this.#pageNewestUpdatedAt);
       } else {
         // Drop any previously poisoned copy, so the stale placeholder cannot
         // outlive the failure that produced it.
@@ -1294,6 +1401,46 @@ export class SupabaseChatService implements ChatService {
     // an empty chat that turns out to have fifty messages is a worse first
     // frame than a brief spinner.
     return cached && cached.length > 0 ? cached : undefined;
+  }
+
+  /**
+   * Everything that changed in this conversation since we last looked.
+   *
+   * One cursor, not two, because `updated_at` already covers both cases: an
+   * insert defaults it to now and the trigger moves it on any edit or
+   * deletion. So a single `updated_at > cursor` returns new messages *and*
+   * messages whose text changed, which is the whole reason that column exists.
+   *
+   * Returns `undefined` when the answer cannot be trusted — no cursor yet, an
+   * error, or a full page of changes, which means more remain and merging a
+   * partial answer would leave a hole no later sync would notice. The caller
+   * falls back to a normal fetch, which is slower and always correct.
+   */
+  async #deltaMessages(
+    conversationId: ConversationId,
+    since: string,
+  ): Promise<MessageRow[] | undefined> {
+    const { data, error } = await this.#client
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .gt('updated_at', since)
+      .order('updated_at', { ascending: true })
+      .limit(DELTA_LIMIT);
+
+    if (error || !data) return undefined;
+    // A full page means there is more; a gap is worse than a slow path.
+    if (data.length >= DELTA_LIMIT) return undefined;
+    return data;
+  }
+
+  /** The newest `updated_at` this device has stored for a conversation. */
+  async #syncCursor(conversationId: ConversationId): Promise<string | undefined> {
+    return openRecord<string>(await localGet<unknown>(STORE.meta, `sync:${conversationId}`));
+  }
+
+  async #setSyncCursor(conversationId: ConversationId, at: string): Promise<void> {
+    await localSet(STORE.meta, `sync:${conversationId}`, await sealRecord(at));
   }
 
   async #listMessagesFromNetwork(
@@ -1402,6 +1549,8 @@ export class SupabaseChatService implements ChatService {
     // openRows: caching a page that failed to decrypt makes the placeholder
     // permanent.
     this.#pageFullyDecrypted = await openRows(rows);
+    // The high-water mark this page establishes, for the delta on the next open.
+    this.#pageNewestUpdatedAt = newestUpdatedAt(rows, EPOCH);
 
     // Fetched newest-first for the limit; returned newest-last so the UI can
     // append without re-sorting.
