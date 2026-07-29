@@ -2404,12 +2404,46 @@ export class SupabaseChatService implements ChatService {
 
     const sealed = await sealBody(this.#client, data.conversation_id, body);
 
-    await this.#client.rpc('edit_message', {
+    const { error: sealedError } = await this.#client.rpc('edit_message', {
       target: messageId,
       new_body: sealed.body,
       new_encryption: sealed.encryption,
       new_envelope: sealed.envelope,
     });
+
+    if (sealedError) {
+      /*
+       * The four-argument function may not be deployed yet.
+       *
+       * Client and database ship separately, and PostgREST answers a call it
+       * has no signature for with PGRST202 rather than anything more specific.
+       * Failing outright here would take editing away entirely on a database
+       * that is merely a migration behind, which is worse than the defect being
+       * fixed. So an unencrypted body falls back to the two-argument form,
+       * which is exactly what it did before and cannot corrupt a row that
+       * carries no envelope.
+       *
+       * An encrypted body does *not* fall back. The old function leaves
+       * `encryption` and the envelope in place while replacing the ciphertext
+       * with something the envelope no longer describes, which is the bug this
+       * whole change exists to remove. Refusing is the honest outcome: the edit
+       * visibly does not happen, rather than silently destroying the message.
+       */
+      if (sealedError.code !== 'PGRST202') throw sealedError;
+
+      if (sealed.encryption !== null) {
+        throw new Error(
+          'This chat is end-to-end encrypted and the server has not been updated to accept edited ciphertext yet. Your message has not been changed.',
+        );
+      }
+
+      const { error: legacyError } = await this.#client.rpc('edit_message', {
+        target: messageId,
+        new_body: sealed.body,
+      });
+      if (legacyError) throw legacyError;
+    }
+
     this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
   }
 

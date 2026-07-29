@@ -525,12 +525,21 @@ export type Database = {
        * two-argument form still exists for tabs loaded before that change, but
        * refuses encrypted rows rather than writing plaintext into one.
        */
+      /*
+       * Two signatures, because client and database ship separately.
+       *
+       * The sealed form is what callers should use: the body is re-encrypted on
+       * the device and the envelope travels with it, since the server holds no
+       * keys and cannot re-seal on anyone's behalf. The two-argument form is
+       * what a database that has not run the migration still answers, and it is
+       * safe only for a body that carries no envelope.
+       */
       edit_message: {
         Args: {
           target: string;
           new_body: string;
-          new_encryption: string | null;
-          new_envelope: MessageRow['envelope'];
+          new_encryption?: string | null;
+          new_envelope?: MessageRow['envelope'];
         };
         Returns: undefined;
       };
