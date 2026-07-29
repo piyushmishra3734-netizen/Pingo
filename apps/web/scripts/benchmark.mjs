@@ -59,7 +59,21 @@ async function measureRun(browser, { condition }) {
   cdp.on('Network.requestWillBeSent', () => { requests += 1; });
   cdp.on('Network.loadingFinished', (e) => { encodedBytes += e.encodedDataLength ?? 0; });
 
-  if (condition === 'empty') {
+  if (condition === 'persisted') {
+    /*
+     * Same cold launch as `empty`, with persistent storage granted first.
+     * Worth separating because a browser that may evict the origin is a
+     * different product from one that may not, and the difference should show
+     * up in the numbers rather than being assumed either way.
+     */
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+    await page.goto(`${ORIGIN}/chats`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async () => {
+      if (navigator.storage?.persist) await navigator.storage.persist();
+      for (const k of await caches.keys()) await caches.delete(k);
+      for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    });
+  } else if (condition === 'empty') {
     await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
     await page.goto(`${ORIGIN}/chats`, { waitUntil: 'domcontentloaded' });
     // Storage that survives a cache flag has to be cleared explicitly. The
@@ -110,6 +124,34 @@ async function measureRun(browser, { condition }) {
       }),
   );
 
+  /*
+   * Background sync: when the app stops talking to the server.
+   *
+   * Measured as the last Supabase response, once a full second has passed with
+   * no new one — quiet rather than a fixed count, because the number of
+   * requests is exactly what Phase 1 is meant to change and a count-based
+   * definition would stop meaning the same thing afterwards.
+   */
+  const backgroundSyncMs = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const lastEnd = () => {
+          const e = performance.getEntriesByType('resource').filter((r) => /supabase\.co\/rest/.test(r.name));
+          return e.length ? Math.max(...e.map((r) => r.responseEnd)) : null;
+        };
+        let seen = lastEnd();
+        const started = performance.now();
+        const tick = () => {
+          const now = lastEnd();
+          if (now !== seen) { seen = now; }
+          if (seen != null && performance.now() - seen > 1000) { resolve(seen); return; }
+          if (performance.now() - started > 25000) { resolve(seen); return; }
+          setTimeout(tick, 150);
+        };
+        tick();
+      }),
+  );
+
   const paints = await page.evaluate(() =>
     Object.fromEntries(performance.getEntriesByType('paint').map((p) => [p.name, p.startTime])),
   );
@@ -117,14 +159,31 @@ async function measureRun(browser, { condition }) {
   // Conversation open: click the first row, wait for a message bubble.
   let openMs = null;
   try {
-    const t0 = await page.evaluate(() => performance.now());
-    await page.click(LIST_SELECTOR);
+    /*
+     * Clicked through the router rather than with a real mouse.
+     *
+     * The install banner is an overlay sitting across the bottom of the list,
+     * and a synthetic mouse click at the row's coordinates hits the banner
+     * instead. Calling .click() on the anchor drives the same navigation the
+     * user's tap would, without measuring the overlay.
+     *
+     * "Open" means the thread's own composer exists and at least one message
+     * bubble has rendered -- an empty thread frame is not an opened chat, and
+     * timing to the frame would flatter every number here.
+     */
+    const t0 = await page.evaluate(() => {
+      document.querySelector('a[href^="/chats/"]').click();
+      return performance.now();
+    });
     await page.waitForFunction(
-      () => /\/chats\/[0-9a-f-]{36}/.test(location.pathname) && document.querySelectorAll('[data-message-id], article, li').length > 0,
-      { timeout: 20000 },
+      () =>
+        /\/chats\/[0-9a-f-]{36}/.test(location.pathname) &&
+        document.querySelector('textarea') &&
+        document.querySelectorAll('[class*=bubble]').length > 0,
+      { timeout: 20000, polling: 'raf' },
     );
     openMs = (await page.evaluate(() => performance.now())) - t0;
-  } catch { /* null */ }
+  } catch { /* null; a run that never opened is recorded as such */ }
 
   const metrics = await cdp.send('Performance.getMetrics');
   const metric = (n) => metrics.metrics.find((m) => m.name === n)?.value ?? null;
@@ -140,6 +199,7 @@ async function measureRun(browser, { condition }) {
     firstContentfulPaintMs: paints['first-contentful-paint'] ?? null,
     listVisibleMs,
     interactiveMs,
+    backgroundSyncMs,
     conversationOpenMs: openMs,
     jsHeapMB: metric('JSHeapUsedSize') ? metric('JSHeapUsedSize') / 1048576 : null,
     indexedDbMB: storage.usage != null ? storage.usage / 1048576 : null,
@@ -233,7 +293,7 @@ await browser.close();
 
 const keys = [
   'firstPaintMs', 'firstContentfulPaintMs', 'listVisibleMs', 'interactiveMs',
-  'conversationOpenMs', 'jsHeapMB', 'indexedDbMB', 'requests', 'transferredKB',
+  'backgroundSyncMs', 'conversationOpenMs', 'jsHeapMB', 'indexedDbMB', 'requests', 'transferredKB',
 ];
 const summary = Object.fromEntries(keys.map((k) => [k, summarise(rows, k)]));
 
