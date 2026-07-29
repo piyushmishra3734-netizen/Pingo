@@ -35,3 +35,4 @@ apps/web/android/*.keystore
 # The staged APK. A build artefact, not source.
 dist-apk/
 E:/pingo-build-tmp
+test-accounts.json
