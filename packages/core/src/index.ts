@@ -11,6 +11,7 @@ export type * from './types.js';
 // Service boundary — data
 export type {
   ChatService,
+  StartupSnapshot,
   ChatEvent,
   ConnectionState,
   MessageReceipt,

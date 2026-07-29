@@ -267,6 +267,14 @@ export class MockChatService implements ChatService {
     return undefined;
   }
 
+  async cachedStartup(): Promise<undefined> {
+    return undefined;
+  }
+
+  async cacheStartup(): Promise<void> {
+    /* nothing to write to */
+  }
+
   // -- sending -------------------------------------------------------------
 
   async sendMessage(draft: OutgoingMessage): Promise<Message> {

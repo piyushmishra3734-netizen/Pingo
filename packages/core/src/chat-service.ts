@@ -181,6 +181,15 @@ export type ConnectionState = 'connecting' | 'connected' | 'offline';
 /** Returned by `subscribe`; call it to stop listening. */
 export type Unsubscribe = () => void;
 
+/** What a cold launch can paint before the network answers. */
+export interface StartupSnapshot {
+  currentUser: CurrentUser;
+  users: User[];
+  conversations: Conversation[];
+  /** When the snapshot was taken. The UI may want to say "as of…" one day. */
+  at: number;
+}
+
 export interface ChatService {
   // -- Session -------------------------------------------------------------
   getCurrentUser(): Promise<CurrentUser>;
@@ -211,6 +220,19 @@ export interface ChatService {
    * origin, or a device whose database key has been regenerated.
    */
   cachedMessages(conversationId: ConversationId): Promise<Message[] | undefined>;
+  /**
+   * Everything the first frame needs, straight from disk.
+   *
+   * The home screen cannot render from a conversation list alone — it needs to
+   * know who you are and who the other participants are — so this returns the
+   * three together or not at all. Splitting them would only allow a state
+   * where two thirds of a screen can be drawn, which is not a screen.
+   *
+   * Resolves `undefined` on a device that has never completed a load.
+   */
+  cachedStartup(): Promise<StartupSnapshot | undefined>;
+  /** Records the snapshot above after a successful network load. */
+  cacheStartup(snapshot: StartupSnapshot): Promise<void>;
 
   // -- Sending -------------------------------------------------------------
   /** Resolves with the optimistic message; watch events for delivery status. */

@@ -40,7 +40,7 @@ const DB_NAME = 'pingo';
  * `openDatabase` no longer depends on anyone remembering to change this. It is
  * still correct to change it, and it saves the reopen.
  */
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /**
  * The stores, and what each is for.
@@ -65,6 +65,15 @@ export const STORE = {
    * rather than inheriting one.
    */
   keys: 'keys',
+  /**
+   * The startup snapshot: who you are, who you know, and your conversations,
+   * as of the last successful load.
+   *
+   * One record rather than three, because the first frame needs all of it or
+   * none of it — a list with no current user renders nothing useful, so there
+   * is no value in being able to read the pieces apart.
+   */
+  meta: 'meta',
 } as const;
 
 export type StoreName = (typeof STORE)[keyof typeof STORE];
