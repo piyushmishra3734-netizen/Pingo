@@ -24,6 +24,7 @@ export { MockChatService, type MockChatServiceOptions } from './mock-chat-servic
 // Service boundary — identity
 export type {
   AuthService,
+  SavedAccountSummary,
   AuthSession,
   AuthUser,
   AuthMethodKind,

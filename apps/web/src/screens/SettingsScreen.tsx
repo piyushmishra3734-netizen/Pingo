@@ -1,4 +1,4 @@
-import { searchSettings } from '@pingo/core';
+import { searchSettings, useAuth } from '@pingo/core';
 import {
   AccountIcon,
   BellIcon,
@@ -13,6 +13,7 @@ import {
   SearchField,
   ShieldIcon,
   StorageIcon,
+  UsersIcon,
   cn,
 } from '@pingo/ui';
 import { useState } from 'react';
@@ -22,6 +23,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useAppearance } from '../features/settings/SettingsContext.js';
 import { SettingsRow } from '../features/settings/SettingsRow.js';
 import { useSignOut } from '../features/settings/useSignOut.js';
+import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
 
 /**
  * Settings — the index.
@@ -54,6 +56,9 @@ const ACCENT_LABEL: Record<string, string> = {
 export function SettingsScreen() {
   const navigate = useNavigate();
   const signOut = useSignOut();
+  const auth = useAuth();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [saved, setSaved] = useState(() => auth.service.listSavedAccounts());
   const { appearance, resolvedTheme } = useAppearance();
 
   const [query, setQuery] = useState('');
@@ -170,6 +175,20 @@ export function SettingsScreen() {
             </section>
 
             <section className="rounded-lg bg-surface p-1 shadow-sm">
+              {/*
+                Above Logout, deliberately. They sit next to each other because
+                both are "leave this account", and switching is the one people
+                actually mean most of the time — putting it second would make
+                the destructive option the first thing a thumb reaches.
+              */}
+              <SettingsRow
+                icon={<UsersIcon size={19} />}
+                label="Switch account"
+                value={
+                  saved.length > 1 ? `${saved.length} accounts` : undefined
+                }
+                onClick={() => setSwitcherOpen(true)}
+              />
               <SettingsRow
                 icon={<LockIcon size={19} />}
                 label="Logout"
@@ -180,6 +199,28 @@ export function SettingsScreen() {
           </div>
         )}
       </div>
+
+      {switcherOpen && (
+      <SwitchAccountSheet
+        onClose={() => setSwitcherOpen(false)}
+        currentUserId={auth.session?.user.id}
+        accounts={saved}
+        onSwitch={(userId) => auth.service.switchTo(userId)}
+        onForget={(userId) => {
+          auth.service.forgetAccount(userId);
+          setSaved(auth.service.listSavedAccounts());
+        }}
+        onAddAccount={() => {
+          /*
+           * Adding an account is signing in, and signing in replaces the
+           * session — which is fine, because the one being replaced is already
+           * saved. Coming back through the switcher restores it in a tap.
+           */
+          setSwitcherOpen(false);
+          navigate('/welcome?add=1');
+        }}
+      />
+      )}
     </div>
   );
 }

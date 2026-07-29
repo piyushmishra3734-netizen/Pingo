@@ -55,6 +55,7 @@ import type {
 import { Capacitor } from '@capacitor/core';
 import { SupabaseNativeGoogleAuth } from './google-native.js';
 import { forgetPublication } from '../crypto/session.js';
+import { forget, remember, savedAccount, savedAccounts, type SavedAccount } from './accounts.js';
 import { localClear } from '../local/db.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 
@@ -439,10 +440,74 @@ export class SupabaseAuthService implements AuthService {
 
   onSessionChange(listener: (session: AuthSession | null) => void): Unsubscribe {
     const { data } = this.client.auth.onAuthStateChange((_event, session) => {
+      /*
+       * Recorded on every sign-in and every refresh.
+       *
+       * Refresh matters more than sign-in here: a saved account whose refresh
+       * token has gone stale is a face in a list that fails when tapped, which
+       * is worse than not offering the account at all. Keeping the stored copy
+       * current is what makes one-tap switching actually work a week later.
+       */
+      if (session?.user && session.refresh_token) {
+        const meta = session.user.user_metadata ?? {};
+        remember({
+          userId: session.user.id,
+          name: String(meta.name ?? meta.full_name ?? session.user.email ?? 'Account'),
+          handle: String(meta.username ?? session.user.email ?? ''),
+          ...(meta.avatar_url ? { avatarUrl: String(meta.avatar_url) } : {}),
+          accessToken: session.access_token,
+          refreshToken: session.refresh_token,
+        });
+      }
+
       listener(toSession(session));
     });
 
     return () => data.subscription.unsubscribe();
+  }
+
+  /** Accounts saved on this device, most recently used first. */
+  listSavedAccounts(): SavedAccount[] {
+    return savedAccounts();
+  }
+
+  /**
+   * Switch to a saved account in one step.
+   *
+   * `setSession` swaps the token Supabase holds; the reload is what rebuilds
+   * every provider, subscription and cache around the new identity. Trying to
+   * re-point all of that in place would mean auditing every module that has
+   * ever captured a user id, and getting one wrong shows another person's
+   * conversations — a reload is a fraction of a second and cannot be subtly
+   * wrong.
+   *
+   * The E2EE identity follows automatically: `publishDeviceKey` notices the
+   * owner has changed and restores that account's parked keys, so history
+   * encrypted before the switch is still readable after it.
+   */
+  async switchTo(userId: string): Promise<void> {
+    const account = savedAccount(userId);
+    if (!account) throw new Error('That account is not saved on this device.');
+
+    const { error } = await this.client.auth.setSession({
+      access_token: account.accessToken,
+      refresh_token: account.refreshToken,
+    });
+
+    if (error) {
+      // A refresh token the server no longer accepts. Drop it rather than
+      // leaving a row that fails every time it is tapped.
+      forget(userId);
+      rethrow(error);
+    }
+
+    forgetPublication();
+    window.location.assign('/chats');
+  }
+
+  /** Take an account off this device without signing it out elsewhere. */
+  forgetAccount(userId: string): void {
+    forget(userId);
   }
 
   async signOut(): Promise<void> {

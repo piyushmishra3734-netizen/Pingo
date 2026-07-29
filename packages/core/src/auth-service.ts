@@ -146,6 +146,14 @@ export interface OAuthAuth {
   start(redirectTo: string): Promise<void>;
 }
 
+/** What the switcher shows. No tokens: those never leave the implementation. */
+export interface SavedAccountSummary {
+  userId: string;
+  name: string;
+  handle: string;
+  avatarUrl?: string;
+}
+
 export interface AuthService {
   /**
    * Which doors this implementation can actually open.
@@ -179,4 +187,23 @@ export interface AuthService {
    * used to share one button.
    */
   clearLocalData(): Promise<void>;
+
+  // -- Account switching -----------------------------------------------------
+  //
+  // Several accounts may be signed in on one device, and switching between them
+  // is a tap. The session for each is held locally; nothing here asks the
+  // server to keep a list, because which accounts share a phone is exactly the
+  // sort of thing a server has no business knowing.
+
+  /** Accounts saved on this device, most recently used first. */
+  listSavedAccounts(): SavedAccountSummary[];
+  /**
+   * Become a saved account.
+   *
+   * Reloads on success. Each account's E2EE identity is parked and restored
+   * with it, so history encrypted before a switch is still readable after one.
+   */
+  switchTo(userId: string): Promise<void>;
+  /** Take an account off this device without signing it out elsewhere. */
+  forgetAccount(userId: string): void;
 }
