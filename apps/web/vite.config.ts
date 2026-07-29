@@ -105,11 +105,31 @@ export default defineConfig({
         // the main bundle from the precache and quietly break offline start.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         /*
-         * Every navigation falls back to the shell. This is a single-page app,
-         * so a deep link opened offline must still reach the router rather than
-         * the browser's dinosaur.
+         * `navigateFallback` is deliberately absent, and this is the fix for a
+         * bug that wasted real time three separate ways today.
+         *
+         * Workbox matches routes in registration order and the generated worker
+         * registers the navigateFallback route *before* anything in
+         * `runtimeCaching`. So the NetworkFirst navigation route below — added
+         * precisely to stop stale HTML — never ran once: every navigation was
+         * answered from the precache, which meant a deploy could not be seen
+         * until the worker updated and the page was loaded again.
+         *
+         * The symptom was not merely slow rollout. A cached shell names hashed
+         * assets, Cloudflare Pages deletes superseded ones, and the result was
+         * a white screen; later it made a correct fix look broken because the
+         * browser was still executing the previous bundle.
+         *
+         * Offline deep links are handled by the route below instead, which is
+         * where that behaviour should have lived all along.
+         *
+         * It has to be set to `undefined` rather than simply left out:
+         * vite-plugin-pwa fills in `navigateFallback: 'index.html'` as a
+         * default, so omitting the key silently keeps the behaviour being
+         * removed. Verified by reading the generated worker, which still
+         * registered the route after the key was deleted.
          */
-        navigateFallback: '/index.html',
+        navigateFallback: undefined,
         runtimeCaching: [
           {
             /*
@@ -135,7 +155,23 @@ export default defineConfig({
             options: {
               cacheName: 'pingo-shell',
               networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 4 },
+              /*
+               * Every route stores under one key, because every route is the
+               * same document — this is a single-page app and the server hands
+               * back the identical shell for `/chats` and for a deep link into
+               * a conversation.
+               *
+               * Without this, the offline copy exists only for URLs already
+               * visited, so opening a deep link on a dead connection would
+               * fail even though the shell that serves it is sitting in the
+               * cache under a different name. One entry, every navigation.
+               */
+              plugins: [
+                {
+                  cacheKeyWillBeUsed: async () => '/index.html',
+                },
+              ],
+              expiration: { maxEntries: 1 },
             },
           },
           {
