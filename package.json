@@ -13,10 +13,12 @@
     "release:android": "node apps/web/scripts/release-android.mjs",
     "verify:qr": "node --experimental-strip-types apps/web/scripts/verify-qr.ts",
     "verify:crypto": "node apps/web/scripts/verify-crypto.mjs",
+    "verify:recovery": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery.ts",
     "functions:deploy": "supabase functions deploy turn-credentials --project-ref lppzoqgvshhmxqsvggug",
-    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto"
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery"
   },
   "devDependencies": {
+    "esbuild": "^0.28.1",
     "jsqr": "^1.4.0",
     "pngjs": "^7.0.0",
     "supabase": "^2.109.1",
