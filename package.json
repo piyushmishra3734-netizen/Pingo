@@ -14,6 +14,7 @@
     "verify:qr": "node --experimental-strip-types apps/web/scripts/verify-qr.ts",
     "verify:crypto": "node apps/web/scripts/verify-crypto.mjs",
     "verify:recovery": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery.ts",
+    "bench": "node apps/web/scripts/benchmark.mjs",
     "functions:deploy": "supabase functions deploy turn-credentials --project-ref lppzoqgvshhmxqsvggug",
     "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery"
   },
