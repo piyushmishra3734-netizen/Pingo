@@ -2488,7 +2488,17 @@ export class SupabaseChatService implements ChatService {
       .order('created_at', { ascending: false })
       .limit(100);
 
-    const users = (data ?? []).map(toUser);
+    /*
+     * Called with an explicit row, never passed straight to `.map`.
+     *
+     * `.map(toUser)` hands the callback (value, index, array), so the moment
+     * `toUser` grew a second parameter the array index started arriving as
+     * `lastSeenAt` — and the first contact in the list reported "last seen
+     * Jan 1", the epoch, rendered with total confidence.
+     */
+    const rows = data ?? [];
+    const lastSeen = await this.#lastSeenFor(rows.map((row) => row.id));
+    const users = rows.map((row) => toUser(row, lastSeen.get(row.id)));
     for (const user of users) this.#people.set(user.id, user);
     return users;
   }
