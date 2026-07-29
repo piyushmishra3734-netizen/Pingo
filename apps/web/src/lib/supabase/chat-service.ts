@@ -94,18 +94,25 @@ const DEFAULT_SETTINGS: UserSettings = {
   reducedMotion: false,
 };
 
-function toUser(row: ProfileRow): User {
+function toUser(row: ProfileRow, lastSeenAt?: number): User {
   return {
     id: row.id,
     name: row.display_name,
     handle: row.username,
     avatarUrl: row.avatar_url ?? undefined,
     /*
-     * No presence system yet. Everyone reads as offline rather than as a
-     * plausible-looking "online", because a green dot that means nothing is
+     * Offline until Realtime says otherwise — a green dot that means nothing is
      * worse than no dot at all.
+     *
+     * `lastSeenAt` is when one of this person's devices last opened PINGO, read
+     * from `device_keys`. It used to be the profile's `created_at`, which meant
+     * the header confidently reported "last seen" as the day the account was
+     * made and never changed again. Falling back to `created_at` when the
+     * person has no device row is deliberate: it is the only timestamp we hold
+     * for someone who has not signed in since devices were recorded, and it is
+     * at least a real moment they existed.
      */
-    presence: { state: 'offline', lastSeenAt: Date.parse(row.created_at) },
+    presence: { state: 'offline', lastSeenAt: lastSeenAt ?? Date.parse(row.created_at) },
   };
 }
 
@@ -807,8 +814,44 @@ export class SupabaseChatService implements ChatService {
     const missing = ids.filter((id) => !this.#people.has(id));
     if (missing.length === 0) return;
 
-    const { data } = await this.#client.from('profiles').select('*').in('id', missing);
-    for (const row of data ?? []) this.#people.set(row.id, toUser(row));
+    const [{ data }, lastSeen] = await Promise.all([
+      this.#client.from('profiles').select('*').in('id', missing),
+      this.#lastSeenFor(missing),
+    ]);
+    for (const row of data ?? []) this.#people.set(row.id, toUser(row, lastSeen.get(row.id)));
+  }
+
+  /**
+   * When each of these people last had PINGO open.
+   *
+   * `device_keys.last_seen_at` is written every time a session starts, one row
+   * per device, so the answer for a person is the newest across their devices —
+   * a phone left closed for a week must not drag down a laptop used an hour
+   * ago. The table is world-readable by design (it holds public halves only),
+   * so this needs no policy of its own.
+   *
+   * A failure here is not worth failing a roster load over: the caller falls
+   * back to the profile timestamp and the header reads a little stale rather
+   * than not rendering.
+   */
+  async #lastSeenFor(ids: UserId[]): Promise<Map<UserId, number>> {
+    const newest = new Map<UserId, number>();
+    if (ids.length === 0) return newest;
+
+    const { data, error } = await this.#client
+      .from('device_keys')
+      .select('user_id,last_seen_at')
+      .in('user_id', ids);
+
+    if (error || !data) return newest;
+
+    for (const row of data) {
+      const at = Date.parse(row.last_seen_at);
+      if (!Number.isFinite(at)) continue;
+      const seen = newest.get(row.user_id);
+      if (seen === undefined || at > seen) newest.set(row.user_id, at);
+    }
+    return newest;
   }
 
   /** Builds the view-model conversations for a set of rows the user belongs to. */
@@ -2424,10 +2467,13 @@ export class SupabaseChatService implements ChatService {
     const cached = this.#people.get(id);
     if (cached) return cached;
 
-    const { data } = await this.#client.from('profiles').select('*').eq('id', id).maybeSingle();
+    const [{ data }, lastSeen] = await Promise.all([
+      this.#client.from('profiles').select('*').eq('id', id).maybeSingle(),
+      this.#lastSeenFor([id]),
+    ]);
     if (!data) return undefined;
 
-    const user = toUser(data);
+    const user = toUser(data, lastSeen.get(id));
     this.#people.set(id, user);
     return user;
   }

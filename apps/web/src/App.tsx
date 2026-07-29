@@ -1,5 +1,5 @@
 import { AuthProvider, ChatProvider, ProfileProvider } from '@pingo/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { BrowserRouter } from 'react-router-dom';
 
@@ -130,6 +130,31 @@ export function App() {
       };
     }
   });
+
+  /*
+   * Read-only diagnostics, reachable from the console.
+   *
+   * `deltaReport` and `rowStoreReport` were both written to be inspected on a
+   * real device with real data rather than argued about — that is what their
+   * comments say. Neither had a caller and neither was exposed, so in a built
+   * bundle there was no way to read either, and milestone 3 could not be
+   * diagnosed from the deployed app at all (see docs/performance-baseline.md
+   * § 8). Both only hand back counters the service already keeps: nothing is
+   * read from storage, nothing is sent, and nothing changes.
+   */
+  useEffect(() => {
+    const chat = services.chat;
+    if (!chat) return undefined;
+
+    const target = window as unknown as { __pingo?: Record<string, () => unknown> };
+    target.__pingo = {
+      delta: () => chat.deltaReport(),
+      rowStore: () => chat.rowStoreReport(),
+    };
+    return () => {
+      delete target.__pingo;
+    };
+  }, [services.chat]);
 
   if (
     !services.auth ||
