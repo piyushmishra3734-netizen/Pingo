@@ -18,24 +18,40 @@ the sealed message cache *and* the `CryptoKey` material for the database key
 and the device identity.
 
 Non-extractable stops **JavaScript** exporting a key. It does not stop the
-**file bytes** being copied by the operating system. So the configuration
-permits Drive to receive both the ciphertext and the key that opens it.
+**file bytes** being copied by the operating system.
 
-That directly contradicts a claim already published in
-`e2ee-architecture.md` §8:
+### What is confirmed, and what is not
+
+**Confirmed:**
+
+- `android:allowBackup="true"` enables Android Auto Backup unless other
+  configuration overrides it.
+- The WebView stores IndexedDB inside the app's private data directory.
+- Auto Backup's purpose is to back up that directory.
+
+**Not confirmed:** whether this WebView's IndexedDB — specifically its stored
+`CryptoKey` material — is actually included in the backed-up set on the Android
+versions and WebView builds PINGO targets, and whether it is usable after the
+round trip. Testing that needs the phone, which is not attached.
+
+So the accurate statement is: **a strongly suspected inconsistency with the
+threat model, pending device verification** — not a demonstration that
 
 > | A backup or sync copying the profile | **yes** — ciphertext without the key |
 
-**Confidence, stated precisely.** I have verified the manifest flag. I have
-*not* verified that Auto Backup captures WebView IndexedDB on this device and
-that usable key material survives the round trip — that needs the phone, which
-is not attached. So this is a **suspected defect pending device verification**,
-not a confirmed one.
+in `e2ee-architecture.md` §8 is already false. It may well hold. The point is
+that we cannot currently say so.
 
-It is cheap to close either way: excluding the WebView data (or setting
-`allowBackup="false"`) costs nothing we want, because §7 below replaces it with
-a backup we control and encrypt ourselves. **Recommend closing it before the
-next APK ships**, independently of everything else in this document.
+**It should be eliminated regardless**, because §7 replaces it with an
+application-controlled encrypted backup where PINGO chooses what leaves the
+device and encrypts it first. Relying on a platform mechanism that decides both
+of those for us is the wrong shape for an end-to-end encrypted product, whatever
+the answer to the open question turns out to be.
+
+**Status: fixed.** `allowBackup="false"` plus `data_extraction_rules.xml`
+refusing both `cloud-backup` and `device-transfer`. Device verification of what
+Auto Backup *would* have captured is still worth doing when a phone is
+available, and is recorded as an open item in the verification log.
 
 ---
 
@@ -100,6 +116,26 @@ leaving them legible on disk gives away nothing it does not have.
 Consequences: appending a message is one small write instead of a 15 KB
 rewrite; lazy-loading older history is a bounded range read; eviction can drop
 individual messages.
+
+### Who learns what, after this change
+
+Written out because the metadata exposure is a decision, not a side effect, and
+the next person to read this file should be able to tell those apart.
+
+| Attacker | Learns | Changed by this? |
+| --- | --- | --- |
+| **PINGO's server** | Who talked to whom and when, plus ciphertext | No — it already had all of it |
+| **Device thief with disk access** | Conversation ids, message ids, timestamps, ordering, plus ciphertext | **Yes** — previously they got ciphertext with no structure |
+| **Cloud backup** | Only PINGO's own encrypted archive, once §0 is closed | Yes, and for the better |
+| **Anyone, of any of the above** | Message bodies, attachments, keys | **No — none of these, ever** |
+
+The middle row is the entire cost. A thief with the disk learns *when* somebody
+was talking and how much, without learning what about. That buys range queries,
+which is what makes incremental sync, lazy history and eviction possible at all.
+
+It is worth being clear that the thief in that row already has the sealed
+records and cannot open them; what changes is that the filing cabinet now has
+labels on the drawers.
 
 ### `conversations` — keyed `conversationId`
 

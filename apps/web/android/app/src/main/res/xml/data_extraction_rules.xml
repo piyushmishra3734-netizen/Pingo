@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12 and above reads this in preference to android:allowBackup.
+
+    Both destinations are refused. cloud-backup is Auto Backup to Google Drive;
+    device-transfer is the copy made when somebody sets up a new phone from an
+    old one. Each would move the WebView's IndexedDB, which holds the sealed
+    message cache and this device's key material, somewhere PINGO did not
+    choose and did not encrypt for.
+
+    Recovery is how history reaches a new device, and it carries only material
+    that was encrypted before it left.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

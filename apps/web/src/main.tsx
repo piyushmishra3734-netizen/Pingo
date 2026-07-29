@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 
 import { initNativeShell } from './features/native/shell.js';
+import { requestPersistentStorage } from './lib/local/db.js';
 
 import { App } from './App.js';
 import './styles/app.css';
@@ -29,6 +30,18 @@ createRoot(container).render(
  * a sheet will claim it here rather than each binding their own listener.
  */
 void initNativeShell(() => false);
+
+/*
+ * Ask to keep what is on disk.
+ *
+ * Local-first only means anything if local survives. Without this the browser
+ * treats the origin as best-effort and may evict it under disk pressure —
+ * which would take the sealed cache, the outbox, and this device's keys with
+ * it, and losing the keys is not recoverable from the server by design.
+ *
+ * Fire and forget: the browser may refuse, and the app works either way.
+ */
+void requestPersistentStorage();
 
 /*
  * No service worker inside the native shell.

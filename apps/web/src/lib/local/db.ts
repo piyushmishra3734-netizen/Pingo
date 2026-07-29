@@ -182,6 +182,34 @@ export async function localEntries<T>(store: StoreName): Promise<Array<[string, 
   return keys.map((key, i) => [String(key), values[i] as T]);
 }
 
+/**
+ * Ask the browser not to evict this origin.
+ *
+ * Without it, storage is "best-effort": under disk pressure the browser may
+ * discard the whole origin, taking the sealed cache, the outbox, and — because
+ * they live in the same database — this device's keys. Losing keys silently is
+ * indistinguishable from a reinstall, and after it there is no way to read
+ * encrypted history back.
+ *
+ * Granting is the browser's decision, not ours. Chrome grants it to installed
+ * apps and to sites people actually use; Firefox prompts; Safari decides on
+ * engagement. So this is a request that can be refused, and the return value
+ * says which happened rather than pretending it always works.
+ *
+ * Called once at startup. Never blocks anything.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (!navigator.storage?.persist) return false;
+    // Already granted on a previous run: asking again would be a second prompt
+    // for an answer we have.
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
 /** Wipes everything. Called on sign-out — one device, one account's cache. */
 export async function localClear(): Promise<void> {
   for (const name of Object.values(STORE)) {

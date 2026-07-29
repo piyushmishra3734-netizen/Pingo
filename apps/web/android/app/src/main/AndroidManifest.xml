@@ -1,8 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        Auto Backup is off, and stays off.
+
+        It copies the app's private data directory to the user's Google Drive,
+        and that directory holds the WebView's IndexedDB: the sealed message
+        cache, and the stored CryptoKey material for the device identity and
+        database key. Non extractable stops JavaScript exporting a key. It does
+        not stop the platform copying the bytes of the file it is stored in.
+
+        Whether this WebView's key storage is actually captured has not been
+        tested on a device, so this is a suspected inconsistency with the threat
+        model rather than a proven one. It is switched off anyway: PINGO backs
+        up through its own encrypted Drive archive, where the app chooses what
+        leaves the device and encrypts it first. A platform mechanism that
+        decides both of those for us is not something an end to end encrypted
+        product should rely on.
+
+        This also disables device to device transfer of app data, which is
+        intended. A new phone restores through recovery, which rebuilds the
+        local database from material neither the server nor Google can read.
+
+        dataExtractionRules says the same thing again for Android 12 and above,
+        where the platform reads it in preference to allowBackup.
+    -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

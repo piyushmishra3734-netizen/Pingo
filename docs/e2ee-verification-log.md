@@ -168,6 +168,29 @@ probe conversations deleted · 1 device key.
 
 ---
 
+## 9 — Android Auto Backup ⚠️ open question, mitigated
+
+**Environment** Android manifest · merged by `:app:processDebugMainManifest`,
+exit 0
+
+| Item | Evidence |
+| --- | --- |
+| Was enabled | `android:allowBackup="true"` at `AndroidManifest.xml:5` |
+| Now | Merged manifest shows `android:allowBackup="false"` and `android:dataExtractionRules="@xml/data_extraction_rules"` |
+| Rules | `cloud-backup` and `device-transfer` both exclude every domain |
+
+**Still unanswered, and it needs a device.** Whether Auto Backup *would* have
+captured the WebView's IndexedDB — in particular the stored `CryptoKey`
+material — and whether that material would have been usable after a restore.
+The configuration made it possible; nobody has shown it happened.
+
+Worth answering even though the flag is now off, because the answer decides
+whether shipped APKs already placed key material in users' Drive accounts. Run
+it when a phone is attached: install a build with `allowBackup="true"`, trigger
+`bmgr backupnow`, restore to a wiped device, and look for readable key material.
+
+---
+
 ## 5–8 — pending
 
 Not started. Blocked on a second account (`kashish_` is currently the only
