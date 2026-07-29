@@ -301,10 +301,119 @@ network, and request-count work was explicitly out of scope.
 
 ---
 
-## 8. Raw data
+## 8. Phase 1 — milestone 3: delta sync
+
+Commits `90e7fc8` (the `updated_at` column) and `b32cba5` (the delta path),
+bundle `assets/index-D5aGATZU.js`. 20 runs, `empty`.
+
+This is the milestone §7 deferred its conclusion to, so it is measured against
+the question §7 actually asked: does making a full page read *rare* pay for
+having made it *dearer*?
+
+### The latency bet paid
+
+| Metric | Baseline | M1 | M2 | **M3** |
+| --- | ---: | ---: | ---: | ---: |
+| **Conversation open, median** | 144.1 | 169.6 | 332.1 | **124.1** |
+| Conversation open, p95 | 165.6 | — | — | **143.3** |
+| FCP → list gap, median | 1434.4 | 4.7–6.3 | 33.2 | **3.8** |
+| IndexedDB size (MB) | 2.3 | 3.1 | 5.5 | **6.2** |
+| Requests | 68 | 75 | 75 | **78** |
+| Transferred (KB) | 530 | 991 | 992 | **993** |
+
+**Conversation open went 332.1 → 124.1 ms**, undoing milestone 2's regression
+and landing 14% below the pre-Phase-1 baseline. It is also the tightest
+distribution recorded here: p95 143.3, worst 147.5 across 20 runs, against a
+baseline worst of 295.4. The fifty decrypts M2 added are no longer on the path
+that opens a conversation.
+
+The FCP → list gap also improved to 3.8 ms, the best of any run in this
+document.
+
+### The network goal was not met
+
+**Requests went up, 75 → 78.** Milestone 3 was supposed to reduce them, and
+this is the opposite. It is not noise: 78 median, and no run below 67.
+
+`benchmark-delta.mjs` was written to find out why, because the timing table
+cannot. It counts REST traffic attributable to the tap itself rather than to
+the launch. Opening a conversation in which nothing had changed produced:
+
+```
+delta [200] /messages?select=*&conversation_id=eq.68d0ed53…&updated_at=gt.2026-07-28T13…
+PAGE  [?]   /messages?select=*&conversation_id=eq.68d0ed53…&order=created_at.desc&limit…
+```
+
+**Both.** The delta question is asked, it succeeds, and the page is refetched
+anyway — so milestone 3 currently *adds* a query rather than replacing one,
+which is exactly the +3 in the table. The stated aim, "a quiet conversation
+reads nothing and appends nothing", is not what the deployed build does.
+
+Per the code, a page fetch after a delta means `#deltaMessages` returned
+`undefined` and `listMessages` fell through to `#listMessagesFromNetwork` —
+its only two callers are that fallback and explicit paging. So the fast path is
+declining, not short-circuiting.
+
+**How often it declines is not constant.** Two runs of the same probe against
+the same conversation disagreed:
+
+| Run | Warm opens that still refetched the page |
+| --- | --- |
+| 8 opens | **7 / 7** |
+| 3 opens | **1 / 2** |
+
+That range is reported rather than averaged, because two runs is not a rate and
+presenting one would invent precision that was not measured.
+
+### Why this could not be pinned down further
+
+`ChatService.deltaReport()` exists for precisely this question —
+`chat-service.ts:423`, commented "counted rather than logged so milestone 3 can
+be measured on a real device instead of argued about". It has **no callers and
+is not exposed on `window`**, so in the shipped bundle there is no way to read
+`hits`, `misses` or `rowsFetched`. Whether the delta returns zero rows and
+something else refetches, or returns rows that fail to decrypt and falls
+through, is the difference between two unrelated bugs, and the instrumentation
+built to distinguish them is unreachable. Making it reachable is the first step
+of milestone 4, ahead of any further optimisation.
+
+An attempt to distinguish the two from response sizes failed: CDP reported
+`encodedDataLength: 0` for every REST response in this environment, so
+per-query byte attribution is not available and is not presented.
+
+### Conditions, and what is not comparable
+
+First Paint — the control variable — was 452.0 median against the baseline's
+208.0, with one run at 24.9 s. **Absolute launch timings from this run cannot
+be compared against §2 and are not presented as if they could be.** The gap and
+conversation-open figures are used instead, for the reason given in §6: both
+are independent of how long the page took to arrive.
+
+Conversation open is measured on one conversation of 59 messages. A quiet
+conversation is the case milestone 3 is built for and the case measured; a busy
+one is not covered here.
+
+### Verdict
+
+| §7 asked | Answer |
+| --- | --- |
+| Does a full page read become rare? | **No.** Still fetched on every open observed, sometimes twice over. |
+| Does the row store pay for itself on latency? | **Yes.** 332.1 → 124.1 ms, below baseline. |
+
+The row-per-message architecture is vindicated on the metric users feel and
+unproven on the metric it was justified by. §7's fallback — "keep a small blob
+for the newest page and rows only for history" — is **not** triggered, because
+the latency it was meant to rescue is already fixed. What is open is a defect,
+not a design question: the fallback fires when it should not.
+
+---
+
+## 9. Raw data
 
 One JSON file per condition, every individual run included:
 `E:\ClaudeData\scratch\bench\results\{empty,warm,persisted}-<timestamp>.json`
+
+Delta-sync probes are saved alongside them as `delta-<timestamp>.json`.
 
 Reproduce with:
 
@@ -312,4 +421,7 @@ Reproduce with:
 node apps/web/scripts/benchmark.mjs --runs 20 --condition empty
 node apps/web/scripts/benchmark.mjs --runs 20 --condition warm
 node apps/web/scripts/benchmark.mjs --runs 20 --condition persisted
+
+node apps/web/scripts/benchmark-gap.mjs            # normalised FCP -> list gap
+node apps/web/scripts/benchmark-delta.mjs --opens 8 # what an open actually fetches
 ```
