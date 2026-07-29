@@ -72,12 +72,29 @@ export function SplashScreen() {
       className="grid h-full w-full place-items-center overflow-hidden"
       style={{ backgroundColor: SPLASH_GROUND }}
     >
-      <img
-        src="/pingo-splash.jpg"
-        alt="PINGO — Connect. Privately."
-        draggable={false}
-        className="h-full w-full select-none object-contain animate-fade-in"
-      />
+      {/*
+        Two pieces of artwork, one per shape of screen.
+
+        The landscape image is 16:9 and was the only one, so a portrait phone
+        got it letterboxed with empty bands above and below — the desktop
+        splash, on mobile. The official mobile artwork is portrait and is used
+        as drawn; neither file is recomposed here, they are simply chosen
+        between.
+
+        `object-cover` rather than `contain`, now that the aspect ratio roughly
+        matches the screen in both cases. Contain guarantees empty bands
+        whenever the fit is not exact, and both images carry a wide soft margin
+        around the logo, so filling the screen crops only gradient.
+      */}
+      <picture className="h-full w-full">
+        <source media="(orientation: portrait)" srcSet="/pingo-splash-mobile.png" />
+        <img
+          src="/pingo-splash.jpg"
+          alt="PINGO — Connect. Privately."
+          draggable={false}
+          className="h-full w-full select-none object-cover animate-fade-in"
+        />
+      </picture>
     </div>
   );
 }

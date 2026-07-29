@@ -66,7 +66,16 @@ run('npx', ['cap', 'sync', 'android'], { shell: true });
 run('node', ['scripts/trim-android-assets.mjs']);
 
 console.log(`\n▸ building the signed release APK`);
-run('./gradlew', ['assembleRelease', '--no-daemon'], { cwd: 'android', env, shell: true });
+/*
+ * `gradlew.bat` on Windows, `./gradlew` everywhere else.
+ *
+ * `shell: true` spawns cmd.exe on Windows, and cmd does not understand a `./`
+ * prefix — it reports "'.' is not recognized as an internal or external
+ * command", which reads like a missing tool rather than a path syntax the
+ * shell cannot parse.
+ */
+const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+run(gradlew, ['assembleRelease', '--no-daemon'], { cwd: 'android', env, shell: true });
 
 if (!existsSync(apk)) {
   console.error(`no APK at ${apk} — the Gradle build did not produce one`);
