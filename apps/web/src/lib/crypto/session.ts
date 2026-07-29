@@ -1,4 +1,14 @@
-import { STORE, localClear, localDelete, localEntries, localGet, localSet } from '../local/db.js';
+import {
+  STORE,
+  localDelete,
+  localEntries,
+  localGet,
+  localPutMany,
+  localRange,
+  localSet,
+  messageRowKey,
+  messageRowRange,
+} from '../local/db.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
@@ -317,6 +327,115 @@ export async function openRow(row: MessageRow): Promise<boolean> {
 export async function openRows(rows: MessageRow[]): Promise<boolean> {
   const results = await Promise.all(rows.map(openRow));
   return results.every(Boolean);
+}
+
+// -- row-per-message, dual-written -----------------------------------------
+//
+// Milestone 2. These write beside the page blob rather than instead of it, and
+// nothing reads from them for display yet. The blob stays authoritative until
+// the two are shown to agree on real data, because a storage migration that
+// cannot be checked is a storage migration that silently loses messages.
+
+/** What the row store holds per message. Sealed, like every other record. */
+export interface StoredRow {
+  id: string;
+  conversationId: string;
+  createdAt: number;
+  /** The decrypted body. Same trust boundary as the blob it mirrors. */
+  message: unknown;
+}
+
+/**
+ * Writes one page of messages as individual rows.
+ *
+ * Called after the blob is written, and never instead of it. A failure here
+ * must not affect what the user sees, so it resolves rather than throwing —
+ * the row store is a shadow copy under evaluation, not a source of truth.
+ */
+export async function writeMessageRows(
+  conversationId: string,
+  messages: Array<{ id: string; createdAt: number }>,
+): Promise<number> {
+  try {
+    const entries: Array<[string, unknown]> = [];
+    for (const message of messages) {
+      const row: StoredRow = {
+        id: message.id,
+        conversationId,
+        createdAt: message.createdAt,
+        message,
+      };
+      entries.push([
+        messageRowKey(conversationId, message.createdAt, message.id),
+        await sealRecord(row),
+      ]);
+    }
+    await localPutMany(STORE.messageRows, entries);
+    return entries.length;
+  } catch {
+    return 0;
+  }
+}
+
+/** Reads back the newest rows for a conversation, oldest-first. */
+export async function readMessageRows<T>(
+  conversationId: string,
+  limit = 50,
+): Promise<T[]> {
+  const sealed = await localRange<unknown>(
+    STORE.messageRows,
+    messageRowRange(conversationId),
+    limit,
+  );
+
+  const rows: T[] = [];
+  for (const record of sealed) {
+    const opened = await openRecord<StoredRow>(record);
+    if (opened) rows.push(opened.message as T);
+  }
+  return rows;
+}
+
+/** What an integrity check found. Reported, not acted on. */
+export interface RowStoreIntegrity {
+  conversationId: string;
+  blobCount: number;
+  rowCount: number;
+  /** Ids in the blob with no matching row. The failure that loses messages. */
+  missingFromRows: string[];
+  /** Ids in rows but not the blob. Usually eviction, not corruption. */
+  extraInRows: string[];
+  agrees: boolean;
+}
+
+/**
+ * Compares the two representations for one conversation.
+ *
+ * The point of dual-write is that this can be run on real data before anything
+ * depends on the new store. Ids only: comparing bodies would mean holding two
+ * decrypted copies of a conversation in memory to prove a point about keys.
+ */
+export async function verifyRowStore(
+  conversationId: string,
+  blobMessages: Array<{ id: string }>,
+): Promise<RowStoreIntegrity> {
+  const rows = await readMessageRows<{ id: string }>(conversationId, 500);
+  const blobIds = new Set(blobMessages.map((m) => m.id));
+  const rowIds = new Set(rows.map((r) => r.id));
+
+  const missingFromRows = [...blobIds].filter((id) => !rowIds.has(id));
+  const extraInRows = [...rowIds].filter((id) => !blobIds.has(id));
+
+  return {
+    conversationId,
+    blobCount: blobIds.size,
+    rowCount: rowIds.size,
+    missingFromRows,
+    extraInRows,
+    // Only the missing direction is a fault. Extra rows are history the blob
+    // never held, which is what the row store exists to make possible.
+    agrees: missingFromRows.length === 0,
+  };
 }
 
 // -- the local cache -------------------------------------------------------

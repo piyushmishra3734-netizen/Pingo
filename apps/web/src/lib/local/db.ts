@@ -40,7 +40,7 @@ const DB_NAME = 'pingo';
  * `openDatabase` no longer depends on anyone remembering to change this. It is
  * still correct to change it, and it saves the reopen.
  */
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 /**
  * The stores, and what each is for.
@@ -74,7 +74,32 @@ export const STORE = {
    * is no value in being able to read the pieces apart.
    */
   meta: 'meta',
+  /**
+   * One record per message, beside the page-per-conversation blob rather than
+   * instead of it.
+   *
+   * Keys are `conversationId|paddedCreatedAt|messageId`, which sorts
+   * chronologically as a string, so a range over one conversation is a single
+   * indexed read. The key is deliberately plaintext and the value sealed — a
+   * range query has to be answerable without decrypting anything to find out
+   * what to decrypt, and the server already knows every id and timestamp in
+   * that key.
+   *
+   * Dual-written for now. The blob stays authoritative until the two are shown
+   * to agree on real data.
+   */
+  messageRows: 'message-rows',
 } as const;
+
+/** Zero-padded so lexicographic order is chronological order. */
+export function messageRowKey(conversationId: string, createdAt: number, id: string): string {
+  return `${conversationId}|${String(createdAt).padStart(15, '0')}|${id}`;
+}
+
+/** Every key belonging to one conversation, in time order. */
+export function messageRowRange(conversationId: string): IDBKeyRange {
+  return IDBKeyRange.bound(`${conversationId}|`, `${conversationId}|￿`);
+}
 
 export type StoreName = (typeof STORE)[keyof typeof STORE];
 
@@ -181,6 +206,67 @@ export function localDelete(store: StoreName, key: string): Promise<unknown> {
 
 export function localAll<T>(store: StoreName): Promise<T[]> {
   return withStore<T[]>(store, 'readonly', (s) => s.getAll()).then((rows) => rows ?? []);
+}
+
+/**
+ * Values under a key range, newest last, capped.
+ *
+ * The cap is applied by the cursor rather than after the fact, so opening a
+ * conversation with ten thousand cached messages reads fifty records instead
+ * of ten thousand — which is the entire reason for storing them separately.
+ */
+export async function localRange<T>(
+  store: StoreName,
+  range: IDBKeyRange,
+  limit: number,
+): Promise<T[]> {
+  const db = await openDatabase();
+  if (!db) return [];
+
+  return new Promise<T[]>((resolve) => {
+    let request: IDBRequest<IDBCursorWithValue | null>;
+    try {
+      // Backwards, so the cap keeps the newest rather than the oldest.
+      request = db.transaction(store, 'readonly').objectStore(store).openCursor(range, 'prev');
+    } catch {
+      resolve([]);
+      return;
+    }
+
+    const out: T[] = [];
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor || out.length >= limit) {
+        resolve(out.reverse());
+        return;
+      }
+      out.push(cursor.value as T);
+      cursor.continue();
+    };
+    request.onerror = () => resolve(out.reverse());
+  });
+}
+
+/** Writes many records in one transaction. Separate puts would be one each. */
+export async function localPutMany(
+  store: StoreName,
+  entries: Array<[string, unknown]>,
+): Promise<void> {
+  const db = await openDatabase();
+  if (!db || entries.length === 0) return;
+
+  return new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(store, 'readwrite');
+      const objectStore = tx.objectStore(store);
+      for (const [key, value] of entries) objectStore.put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+      tx.onabort = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
 }
 
 /** Keys alongside values, for passes that have to delete what they inspect. */

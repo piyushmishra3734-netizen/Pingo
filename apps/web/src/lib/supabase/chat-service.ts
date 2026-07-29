@@ -62,6 +62,9 @@ import {
   openRows,
   publishDeviceKey,
   purgeUnsealedCache,
+  verifyRowStore,
+  writeMessageRows,
+  type RowStoreIntegrity,
   sealBody,
   sealRecord,
 } from '../crypto/session.js';
@@ -370,6 +373,21 @@ export class SupabaseChatService implements ChatService {
    * failure into a permanent one.
    */
   #pageFullyDecrypted = true;
+
+  /**
+   * What the row store looked like against the blob, per conversation.
+   *
+   * Held in memory and exposed rather than logged, so the migration can be
+   * inspected on a real device with real data before legacy writes are
+   * removed. Milestone 2 finishes when this reports agreement across a
+   * meaningful sample; until then the blob remains authoritative.
+   */
+  #rowStoreIntegrity = new Map<ConversationId, RowStoreIntegrity & { written: number }>();
+
+  /** Migration progress, for inspection. Reads nothing and changes nothing. */
+  rowStoreReport(): Array<RowStoreIntegrity & { written: number }> {
+    return [...this.#rowStoreIntegrity.values()];
+  }
 
   #authWatcher: { unsubscribe: () => void } | undefined;
 
@@ -1213,6 +1231,23 @@ export class SupabaseChatService implements ChatService {
        */
       if (this.#pageFullyDecrypted) {
         void sealRecord(live).then((sealed) => localSet(STORE.messages, conversationId, sealed));
+
+        /*
+         * Milestone 2: the same page, written again as individual rows.
+         *
+         * Beside the blob rather than instead of it. Nothing reads these for
+         * display yet — they exist so the two representations can be compared
+         * on real data before anything depends on the new one. A storage
+         * migration nobody can check is one that loses messages quietly.
+         *
+         * Not awaited, and failures inside are swallowed: a shadow copy under
+         * evaluation must not be able to affect what the user sees.
+         */
+        void writeMessageRows(conversationId, live).then((written) =>
+          verifyRowStore(conversationId, live).then((integrity) => {
+            this.#rowStoreIntegrity.set(conversationId, { ...integrity, written });
+          }),
+        );
       } else {
         // Drop any previously poisoned copy, so the stale placeholder cannot
         // outlive the failure that produced it.
