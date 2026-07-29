@@ -180,7 +180,75 @@ noise that 20 runs is too few to settle.
 
 ---
 
-## 6. Raw data
+## 6. Phase 1 — milestone 1: local-first conversation index
+
+Commit `112fea7`, bundle `assets/index-C1X5Vv7Y.js`. 20 runs per condition,
+plus a repeat of `empty` because the first result looked wrong.
+
+### The comparison had to be normalised, and here is why
+
+**First Paint moved.** It is the control variable — it happens before any
+application code runs, so nothing in this milestone can affect it.
+
+| | Baseline | After M1 (run A) | After M1 (run B) |
+| --- | ---: | ---: | ---: |
+| First Paint, median | 208.0 | 504.0 | 448.0 |
+| First Paint, p95 | 256.0 | 2100.0 | 1892.0 |
+
+A control that moves 7× at p95 means the machine or the network is not what it
+was five hours earlier. **Absolute timings from these runs cannot be compared
+against §2 and are not presented as if they could be.**
+
+### What can be compared: the gap between paint and list
+
+The time between the page having painted something and the conversation list
+being on screen. It is exactly the work this milestone changed, and it is
+independent of how long the page took to arrive.
+
+| Condition | Baseline median | After M1 | Change |
+| --- | ---: | ---: | --- |
+| `empty` | 1434.4 ms | **6.3 / 4.7 ms** | ~230× faster |
+| `persisted` | 1428.4 ms | **7.8 ms** | ~183× faster |
+| `warm` | 350.0 ms | **11.9 ms** | ~29× faster |
+
+p95, same measure: `empty` 1843.1 → 27.8 / 121.4 · `persisted` 1630.7 → 41.3 ·
+`warm` 614.1 → 41.8.
+
+The list now appears with first contentful paint rather than a second and a
+half after it. Everything still on the clock is the app shell arriving, not
+data being fetched.
+
+### One absolute number that survived the noise
+
+`persisted` improved even against a slower network: **2410.3 → 1280.4 ms**
+median to list visible, a 47% reduction. Offered as a single observation, not
+as the headline.
+
+### What did not improve, and why
+
+- **Network requests: 68 → 75.** Unchanged by design. This milestone stops the
+  screen *waiting* for those calls; it does not remove any of them. Reducing
+  the count is milestone 3 (delta sync) and the separate duplicate-request
+  investigation.
+- **Conversation open: 144.1 → 147.9 ms** (`persisted`). Unchanged as expected —
+  threads were already cache-first, so there was nothing here to fix.
+- **The < 100 ms target is still not met in absolute terms.** The data is no
+  longer the constraint; the app shell is. Getting the total under 100 ms is a
+  bundle and service-worker problem, not a storage one, and it is not what
+  Phase 1 is for.
+- **Transferred bytes: unchanged.** Same reason as request count.
+
+### Method note
+
+Two `empty` runs are recorded rather than one. The first produced a p95 of
+7701 ms and I did not publish it as a result, because a First Paint p95 of
+2100 ms in the same run said the environment was degraded. The repeat behaved
+the same way, which confirmed the environment rather than the code. Both are in
+the raw data.
+
+---
+
+## 7. Raw data
 
 One JSON file per condition, every individual run included:
 `E:\ClaudeData\scratch\bench\results\{empty,warm,persisted}-<timestamp>.json`
