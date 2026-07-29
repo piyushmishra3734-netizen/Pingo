@@ -2377,8 +2377,39 @@ export class SupabaseChatService implements ChatService {
    * client that gets it wrong is refused rather than obeyed.
    */
 
+  /**
+   * Edit re-seals, because the row it is replacing may be encrypted.
+   *
+   * Sending the new text as-is left `encryption` and the old envelope in place,
+   * so the message described itself as ciphertext it no longer contained and
+   * every reader -- including the author -- got the "sent before you added this
+   * device" placeholder over a message that had just been edited. The server
+   * cannot re-seal on our behalf, so it happens here, the same way it does on
+   * send.
+   */
   async editMessage(messageId: MessageId, body: string): Promise<void> {
-    await this.#client.rpc('edit_message', { target: messageId, new_body: body });
+    /*
+     * The conversation is read first because sealing needs the recipient list,
+     * and `editMessage` is given only a message id. One keyed lookup is a
+     * cheaper price than widening the signature through every caller.
+     */
+    const { data, error } = await this.#client
+      .from('messages')
+      .select('conversation_id')
+      .eq('id', messageId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new Error(`No message ${messageId}`);
+
+    const sealed = await sealBody(this.#client, data.conversation_id, body);
+
+    await this.#client.rpc('edit_message', {
+      target: messageId,
+      new_body: sealed.body,
+      new_encryption: sealed.encryption,
+      new_envelope: sealed.envelope,
+    });
     this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
   }
 

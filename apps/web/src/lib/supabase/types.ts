@@ -517,8 +517,23 @@ export type Database = {
       mark_notifications_read: { Args: Record<string, never>; Returns: undefined };
       /** Add, swap or remove in one statement — see the reactions migration. */
       toggle_reaction: { Args: { target: string; symbol: string }; Returns: undefined };
-      /** Both enforce the 15-minute window server-side. */
-      edit_message: { Args: { target: string; new_body: string }; Returns: undefined };
+      /**
+       * Ownership is enforced server-side; the edit window was removed.
+       *
+       * The body is re-sealed by the caller, so the envelope travels with it —
+       * the server holds no keys and cannot encrypt on anyone's behalf. The
+       * two-argument form still exists for tabs loaded before that change, but
+       * refuses encrypted rows rather than writing plaintext into one.
+       */
+      edit_message: {
+        Args: {
+          target: string;
+          new_body: string;
+          new_encryption: string | null;
+          new_envelope: MessageRow['envelope'];
+        };
+        Returns: undefined;
+      };
       delete_message: { Args: { target: string; for_everyone: boolean }; Returns: undefined };
       my_streaks: {
         Args: Record<string, never>;
