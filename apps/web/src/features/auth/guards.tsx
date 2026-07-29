@@ -58,9 +58,25 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
  */
 export function RequireGuest({ children }: { children?: ReactNode }) {
   const { status } = useAuth();
+  const location = useLocation();
+
+  /*
+   * One deliberate exception: adding a second account.
+   *
+   * The guard exists to stop a signed-in person landing back on Welcome, which
+   * is right almost always and wrong for exactly one journey — Settings →
+   * Switch account → Add account, where being signed in is the *premise* of the
+   * request rather than a mistake. Without this the redirect fires instantly
+   * and the button appears to do nothing at all, which is how it shipped.
+   *
+   * `?add=1` is set only by that button. Signing in from here replaces the
+   * current session, which is safe because it has already been saved — the
+   * switcher brings it back in a tap.
+   */
+  const addingAccount = new URLSearchParams(location.search).get('add') === '1';
 
   if (status === 'loading') return <Resolving />;
-  if (status === 'authenticated') return <Navigate to="/chats" replace />;
+  if (status === 'authenticated' && !addingAccount) return <Navigate to="/chats" replace />;
 
   return <>{children ?? <Outlet />}</>;
 }
