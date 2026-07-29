@@ -19,6 +19,50 @@ let published: Promise<void> | undefined;
 /** Which account this device's keys belong to. See `publishDeviceKey`. */
 const OWNER = 'identity-owner';
 
+/** The live slots. Archived per account when somebody else signs in. */
+const LIVE_KEYS = ['identity:v1', 'database:v1', 'device-id'] as const;
+
+/**
+ * Hand the device over to another account without destroying anything.
+ *
+ * This used to call `localClear()`, and that was a bad mistake with a real
+ * consequence: the `keys` store holds the device identity, so signing a second
+ * account in wiped the *first* account's private key. Every message already
+ * encrypted to it became permanently unreadable on that device — which is
+ * exactly the "Sent before you added this device" placeholder appearing over a
+ * message that had arrived perfectly well. The reasoning was that a shared
+ * device should not leak one person's data to the next; the reasoning was
+ * right and the implementation threw away far more than it needed to.
+ *
+ * Now each account's keys are parked under its own name and brought back if it
+ * returns. Nothing is destroyed by switching, so a message encrypted before a
+ * switch is still readable after switching back.
+ *
+ * The cached *conversations* are still cleared, because those genuinely do
+ * belong to the previous account and are what the shared-device concern was
+ * actually about. They cost a refetch; a key costs the history.
+ */
+async function switchAccount(previous: string, next: string): Promise<void> {
+  // Park the outgoing account's keys under its own id.
+  for (const slot of LIVE_KEYS) {
+    const value = await localGet<unknown>(STORE.keys, slot);
+    if (value !== undefined) await localSet(STORE.keys, `${slot}@${previous}`, value);
+  }
+
+  // Clear only what belongs to the previous account's *content*.
+  for (const store of [STORE.conversations, STORE.messages, STORE.outbox, STORE.drafts, STORE.meta]) {
+    for (const [key] of await localEntries<unknown>(store)) await localDelete(store, key);
+  }
+
+  // Bring back the incoming account's keys if this device has seen it before,
+  // otherwise leave the slots empty so a fresh identity is generated.
+  for (const slot of LIVE_KEYS) {
+    const parked = await localGet<unknown>(STORE.keys, `${slot}@${next}`);
+    if (parked !== undefined) await localSet(STORE.keys, slot, parked);
+    else await localDelete(STORE.keys, slot);
+  }
+}
+
 /**
  * Announce this device's public key.
  *
@@ -46,7 +90,7 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
      */
     const previous = await localGet<string>(STORE.keys, OWNER);
     if (previous && previous !== userId) {
-      await localClear();
+      await switchAccount(previous, userId);
     }
 
     const identity = await deviceIdentity();
@@ -224,8 +268,8 @@ export const UNREADABLE = 'Sent before you added this device.';
  * and every caller downstream already read `row.body`, and threading a second
  * body through all of them would be a wide change for no gain.
  */
-export async function openRow(row: MessageRow): Promise<void> {
-  if (row.encryption !== 'v1' || !row.envelope) return;
+export async function openRow(row: MessageRow): Promise<boolean> {
+  if (row.encryption !== 'v1' || !row.envelope) return true;
 
   /*
    * Receiving one is proof too, and cheaper proof than asking. A tab that has
@@ -243,18 +287,36 @@ export async function openRow(row: MessageRow): Promise<void> {
       identity.keyPair,
     );
     row.body = plaintext ?? UNREADABLE;
+    return plaintext !== undefined;
   } catch {
     /*
      * A stated sentence, never an error and never an empty bubble. An empty
      * bubble is a bug report; a sentence is information.
      */
     row.body = UNREADABLE;
+    return false;
   }
 }
 
-/** Decrypts a page. Concurrent because each row is independent. */
-export async function openRows(rows: MessageRow[]): Promise<void> {
-  await Promise.all(rows.map(openRow));
+/**
+ * Decrypts a page, and reports whether every row actually opened.
+ *
+ * The return value exists because of a real incident: a message that had
+ * arrived perfectly well was seen turning into the placeholder. The server
+ * copy was fine — the ciphertext and a wrap for that device were both present
+ * — so the failure was local and, in principle, temporary.
+ *
+ * What made it permanent was the cache. `openRow` writes the placeholder into
+ * `row.body`, and the page is then sealed to disk as if it were the message.
+ * One transient failure therefore became the stored text, served ahead of the
+ * network on every later open. A momentary problem was promoted to a
+ * permanent one by the thing meant to make reading faster.
+ *
+ * So the caller is told, and declines to cache a page it could not fully read.
+ */
+export async function openRows(rows: MessageRow[]): Promise<boolean> {
+  const results = await Promise.all(rows.map(openRow));
+  return results.every(Boolean);
 }
 
 // -- the local cache -------------------------------------------------------

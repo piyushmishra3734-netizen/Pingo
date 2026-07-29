@@ -65,7 +65,7 @@ import {
   sealBody,
   sealRecord,
 } from '../crypto/session.js';
-import { STORE, localGet, localSet } from '../local/db.js';
+import { STORE, localDelete, localGet, localSet } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { PresenceHub } from './presence.js';
@@ -360,6 +360,16 @@ export class SupabaseChatService implements ChatService {
 
   /** Messages this user deleted for themselves. Filtered out of every read. */
   #hidden = new Set<MessageId>();
+
+  /**
+   * Did every message in the page just fetched decrypt?
+   *
+   * Set by the fetch and read by the caller that decides whether to cache. A
+   * page with an undecryptable message in it is not written to disk, because a
+   * cached placeholder is served before the network and turns a passing
+   * failure into a permanent one.
+   */
+  #pageFullyDecrypted = true;
 
   #authWatcher: { unsubscribe: () => void } | undefined;
 
@@ -1193,7 +1203,21 @@ export class SupabaseChatService implements ChatService {
     try {
       const live = await this.#listMessagesFromNetwork(conversationId, options);
       // Sealed with this device's database key before it reaches the disk.
-      void sealRecord(live).then((sealed) => localSet(STORE.messages, conversationId, sealed));
+      /*
+       * Only cache what was fully readable.
+       *
+       * A page containing a placeholder must not be written to disk: the
+       * placeholder would be served ahead of the network next time and a
+       * temporary decryption failure would look permanent. Skipping the write
+       * costs one refetch and keeps the message recoverable.
+       */
+      if (this.#pageFullyDecrypted) {
+        void sealRecord(live).then((sealed) => localSet(STORE.messages, conversationId, sealed));
+      } else {
+        // Drop any previously poisoned copy, so the stale placeholder cannot
+        // outlive the failure that produced it.
+        void localDelete(STORE.messages, conversationId);
+      }
       return live;
     } catch (cause) {
       const cached = await openRecord<Message[]>(
@@ -1339,7 +1363,10 @@ export class SupabaseChatService implements ChatService {
 
     // Decrypted as a batch before anything reads a body. Concurrent, because
     // each row carries its own wrapped key and none depends on another.
-    await openRows(rows);
+    // Whether every row opened decides whether this page may be cached. See
+    // openRows: caching a page that failed to decrypt makes the placeholder
+    // permanent.
+    this.#pageFullyDecrypted = await openRows(rows);
 
     // Fetched newest-first for the limit; returned newest-last so the UI can
     // append without re-sorting.
