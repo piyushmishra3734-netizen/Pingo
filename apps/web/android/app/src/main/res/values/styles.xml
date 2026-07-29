@@ -16,7 +16,28 @@
     </style>
 
 
+    <!--
+        Two eras of splash screen, both of which have to be right.
+
+        Below Android 12, the window background is the splash, and it is
+        stretched to fill whatever shape the screen is. That is why the assets
+        are now generated per orientation and per density from the portrait
+        artwork: the previous default was a 480x320 landscape image, which a
+        portrait phone pulled to more than twice its height.
+
+        From Android 12, Theme.SplashScreen ignores android:background entirely
+        and composes its own screen from the two attributes below. Setting only
+        the old one left newer devices showing a system default, which is the
+        other half of the same bug.
+
+        The background colour is sampled from the artwork rather than picked,
+        so whichever path a device takes, the colour underneath is the colour
+        the image starts with.
+    -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/splashBackground</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Sampled from the official splash artwork's own corner, not chosen by
+        eye. Android may paint this before the image is ready, and a white
+        frame in front of a lavender gradient reads as a flicker on every
+        single launch.
+    -->
+    <color name="splashBackground">#efebfa</color>
+</resources>

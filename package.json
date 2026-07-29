@@ -9,6 +9,7 @@
     "preview": "pnpm --filter @pingo/web preview",
     "typecheck": "pnpm -r typecheck",
     "check:docs": "node docs/.check-wireframes.mjs && node docs/.check-links.mjs",
+    "build:splash": "node apps/web/scripts/make-splash.mjs",
     "build:logo": "node --experimental-strip-types apps/web/scripts/make-logo.ts",
     "release:android": "node apps/web/scripts/release-android.mjs",
     "verify:qr": "node --experimental-strip-types apps/web/scripts/verify-qr.ts",
