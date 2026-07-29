@@ -60,6 +60,7 @@ import {
   openRecord,
   openRow,
   openRows,
+  UNREADABLE,
   publishDeviceKey,
   purgeUnsealedCache,
   verifyRowStore,
@@ -1329,7 +1330,22 @@ export class SupabaseChatService implements ChatService {
     const cursor = await this.#syncCursor(conversationId);
     const cached = cursor ? await this.cachedMessages(conversationId) : undefined;
 
-    if (cursor && cached) {
+    /*
+     * A cached page carrying the placeholder is not an answer.
+     *
+     * `openRow` writes "sent before you added this device" into the body when a
+     * message cannot be opened, and a page holding one used to be corrected by
+     * the next open, because every open refetched. The delta path removed that
+     * safety net: when nothing has changed it returns the cached page and asks
+     * the server for nothing, so a placeholder that reached the disk once was
+     * served forever and the real message never came back.
+     *
+     * Declining here costs one fetch and is the difference between a temporary
+     * failure and a permanent one.
+     */
+    const poisoned = cached?.some((message) => message.body === UNREADABLE) ?? false;
+
+    if (cursor && cached && !poisoned) {
       const changed = await this.#deltaMessages(conversationId, cursor);
 
       if (changed) {
