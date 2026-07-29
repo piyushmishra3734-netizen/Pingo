@@ -129,6 +129,15 @@ RLS: a user reads and writes only their own row. `public_key` must be readable
 by anyone who needs to send to them — same rule `device_keys` already uses,
 since a public key is public.
 
+> **Write it with INSERT then PATCH, never upsert.** Demonstrated against the
+> live API: a plain `POST` returns 201 and a `PATCH` returns 204, but a
+> `Prefer: resolution=merge-duplicates` upsert returns **403 permission denied
+> for table recovery_packages**. `ON CONFLICT DO UPDATE` needs table-level
+> `SELECT`, and table-level `SELECT` is exactly what was revoked to keep the
+> `package` column unreadable. The privilege design and upsert cannot both
+> exist, and the privilege design is the one worth keeping. Rotation is
+> therefore a `PATCH`.
+
 The envelope format **does not change**. The recovery wrap is one more entry in
 the existing `keys` map, keyed `recovery:<user_id>`. Clients look up their own
 device id and ignore everything else, so old clients are unaffected by an entry
