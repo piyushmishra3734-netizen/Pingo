@@ -22,6 +22,7 @@ import {
   disableSecureBackup,
   readState,
   secureBackupStatus,
+  testRecovery,
   type SecureBackupState,
   type StateStore,
 } from '../src/lib/backup/secure-backup.js';
@@ -179,6 +180,32 @@ check(
   typeof (await readState(store))?.enrolledAt === 'number',
   'enrolment time is recorded',
 );
+
+console.log('\n— test recovery is a rehearsal, not a restore —');
+
+const good = await testRecovery(second.code, [target], store);
+check(good.ok, 'the current code passes');
+check(good.ok && good.version === 2, 'and reports the version it opened');
+check(target.stored !== undefined, 'testing does not remove the package');
+check((await readState(store))?.enabled === true, 'testing does not change enrolment');
+
+const bad = await testRecovery(pending.code, [target], store);
+check(!bad.ok && bad.reason === 'bad-code', 'a superseded code fails');
+
+const emptyStore = memoryStore();
+const emptyTarget = new MemoryTarget();
+const nothing = await testRecovery('whatever words these are', [emptyTarget], emptyStore);
+check(!nothing.ok && nothing.reason === 'no-package', 'with nothing enrolled there is nothing to test');
+
+/*
+ * The server cannot hand the package back, so the device copy has to stand in.
+ * A target that returns undefined must fall through rather than fail.
+ */
+const silentTarget = new MemoryTarget();
+silentTarget.get = async () => undefined;
+const viaDeviceCopy = await testRecovery(second.code, [silentTarget], store);
+check(viaDeviceCopy.ok, 'falls back to the sealed device copy when a target cannot return one');
+check(viaDeviceCopy.ok && viaDeviceCopy.source === 'device', 'and says which copy it checked');
 
 console.log('\n— disable —');
 

@@ -65,6 +65,7 @@ import { SignUpMethodScreen } from './screens/auth/SignUpMethodScreen.js';
 import { SignUpPhoneScreen } from './screens/auth/SignUpPhoneScreen.js';
 import { FindingPeopleScreen } from './screens/setup/FindingPeopleScreen.js';
 import { NameScreen } from './screens/setup/NameScreen.js';
+import { BackupScreen } from './screens/setup/BackupScreen.js';
 import { PermissionsScreen } from './screens/setup/PermissionsScreen.js';
 import { PhotoScreen } from './screens/setup/PhotoScreen.js';
 import { UsernameScreen } from './screens/setup/UsernameScreen.js';
@@ -280,6 +281,7 @@ export function App() {
                 <Route path="username" element={<UsernameScreen />} />
                 <Route path="photo" element={<PhotoScreen />} />
                 <Route path="permissions" element={<PermissionsScreen />} />
+                <Route path="backup" element={<BackupScreen />} />
                 <Route path="people" element={<FindingPeopleScreen />} />
               </Route>
             </Route>

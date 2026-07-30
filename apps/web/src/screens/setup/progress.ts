@@ -12,5 +12,11 @@ export const SETUP_PROGRESS = {
   name: 0.55,
   username: 0.7,
   photo: 0.85,
-  permissions: 1,
+  permissions: 0.95,
+  /*
+   * Secure Backup is the last thing asked, and the bar is full while it is on
+   * screen rather than a step short of it. Declining must not read as leaving
+   * setup unfinished: it is an offer, and the account is complete either way.
+   */
+  backup: 1,
 } as const;

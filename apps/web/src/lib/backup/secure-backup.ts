@@ -15,6 +15,7 @@
 import {
   createRecoveryKey,
   generateRecoveryCode,
+  restoreRecoveryKey,
   type RecoveryPackage,
 } from '../crypto/recovery.js';
 import { openRecord, sealRecord } from '../crypto/session.js';
@@ -33,6 +34,22 @@ export interface SecureBackupState {
   enrolledAt: number;
   /** Set when an archive was last written. Unused until Drive exists. */
   lastBackupAt?: number;
+  /**
+   * A copy of the sealed package, so the code can be tested without restoring.
+   *
+   * The server deliberately will not hand this back — `package` is not
+   * selectable by any client role, because "give me the blob that opens all
+   * history" is the request the recovery request flow exists to slow down. That
+   * leaves no way to answer "does the code I wrote down actually work?", which
+   * is the one question worth answering *before* the phone is lost.
+   *
+   * Retained here, sealed with the device database key on top of the code-
+   * derived key that already protects it. The honest cost: one more copy of an
+   * offline-attackable artefact, at the same strength as the other two. It buys
+   * a test that would otherwise be impossible, and it is discarded the moment
+   * Secure Backup is switched off.
+   */
+  package?: RecoveryPackage;
 }
 
 /** Material produced by `begin`, held only in memory until `complete`. */
@@ -170,6 +187,7 @@ export async function completeEnrolment(
     version: pending.package.version,
     publicKey: pending.publicKey,
     enrolledAt: Date.now(),
+    package: pending.package,
   };
 
   await store.write(state);
@@ -203,6 +221,73 @@ export async function disableSecureBackup(
 
   await store.clear();
   return { removed: problems.length === 0, problems };
+}
+
+export type RecoveryTestResult =
+  | { ok: true; version: number; source: 'target' | 'device' }
+  | { ok: false; reason: 'no-package' | 'bad-code'; detail?: string };
+
+/**
+ * Prove the code opens the package, without restoring anything.
+ *
+ * This is a rehearsal, not a recovery: it derives the wrapping key, opens the
+ * package, and throws the resulting key away. No message is decrypted, no
+ * device identity changes, nothing is written. The only thing that changes is
+ * that the user now knows whether the words they wrote down are the words that
+ * work — which is worth far more before a phone is lost than after.
+ *
+ * A target that can return the package is preferred, because it tests the copy
+ * that would actually be used. The server cannot, by design, so the sealed
+ * device copy stands in and the result says which was tested.
+ */
+export async function testRecovery(
+  code: string,
+  targets: BackupTarget[],
+  store: StateStore = sealedStateStore,
+): Promise<RecoveryTestResult> {
+  let stored: RecoveryPackage | undefined;
+  let source: 'target' | 'device' = 'target';
+
+  for (const target of targets) {
+    try {
+      const held = await target.get();
+      if (held) {
+        stored = held.package;
+        break;
+      }
+    } catch {
+      // A target that cannot answer is not a failed test; try the next.
+    }
+  }
+
+  if (!stored) {
+    stored = (await readState(store))?.package;
+    source = 'device';
+  }
+
+  if (!stored) return { ok: false, reason: 'no-package' };
+
+  try {
+    await restoreRecoveryKey(stored, code);
+    return { ok: true, version: stored.version, source };
+  } catch (cause) {
+    return {
+      ok: false,
+      reason: 'bad-code',
+      detail: cause instanceof Error ? cause.message : undefined,
+    };
+  }
+}
+
+/** Records that a backup ran. Chats archive arrives with the Drive target. */
+export async function markBackedUp(
+  store: StateStore = sealedStateStore,
+): Promise<SecureBackupState | undefined> {
+  const state = await readState(store);
+  if (!state) return undefined;
+  const next = { ...state, lastBackupAt: Date.now() };
+  await store.write(next);
+  return next;
 }
 
 export async function secureBackupStatus(
