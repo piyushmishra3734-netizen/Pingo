@@ -72,6 +72,19 @@ export function useBackupUx(): BackupUx {
   const [restoreAvailable, setRestoreAvailable] = useState(false);
   const [reminders, setReminders] = useState<ReminderState>(INITIAL_REMINDERS);
 
+  /*
+   * Latched, because recording that something was shown must not un-show it.
+   *
+   * Visibility used to be derived from `promptSeen`, and the effect that marks
+   * it seen flipped that flag the moment the dialog mounted — so the prompt
+   * appeared and closed itself in the same frame. Found by trying to
+   * photograph it and getting an empty screen every time.
+   *
+   * Once open, these stay open until the user answers.
+   */
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
+
   const refresh = useCallback(async () => {
     try {
       const status = await secureBackupStatus(targets);
@@ -85,6 +98,21 @@ export function useBackupUx(): BackupUx {
        */
       setRestoreAvailable(!status.local && (status.targets.some((t) => t.present) ?? false));
       setReminders(stored);
+
+      /*
+       * Decide once, from what was on disk before this session touched it.
+       * Later writes update the schedule without closing what is on screen.
+       */
+      if (!status.enabled && !(!status.local && status.targets.some((t) => t.present)) && !stored.promptSeen) {
+        setPromptOpen(true);
+      } else if (
+        !status.enabled &&
+        !(!status.local && status.targets.some((t) => t.present)) &&
+        stored.promptSeen &&
+        shouldShowReminder(stored, status.enabled)
+      ) {
+        setReminderOpen(true);
+      }
     } catch {
       // A status read that fails must not block the app; the surfaces simply
       // stay hidden until it succeeds.
@@ -112,19 +140,20 @@ export function useBackupUx(): BackupUx {
      * Shown once, and only when there is nothing to restore — a device with a
      * backup waiting should be offered the backup, not asked to make one.
      */
-    showPrompt: ready && !backupEnabled && !restoreAvailable && !reminders.promptSeen,
-    showReminder:
-      ready && !restoreAvailable && reminders.promptSeen && shouldShowReminder(reminders, backupEnabled),
+    showPrompt: ready && promptOpen,
+    showReminder: ready && reminderOpen,
 
     markPromptShown: async () => {
       void record('backup.prompt.shown');
       await update(afterShown(reminders));
     },
     promptEnable: async () => {
+      setPromptOpen(false);
       void record('backup.prompt.enable');
       await update(afterShown(reminders));
     },
     promptNotNow: async () => {
+      setPromptOpen(false);
       void record('backup.prompt.notnow');
       await update(afterDismissed(afterShown(reminders)));
     },
@@ -133,6 +162,7 @@ export function useBackupUx(): BackupUx {
       await update(afterShown(reminders));
     },
     dismissReminder: async () => {
+      setReminderOpen(false);
       void record('backup.reminder.dismissed');
       await update(afterDismissed(reminders));
     },
