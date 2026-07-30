@@ -78,6 +78,13 @@ const fromBase64 = (text: string) => {
   return out;
 };
 
+/*
+ * Exposed for the streaming builder, which produces this exact format without
+ * holding the archive in memory. Kept here rather than duplicated there so
+ * there is one definition of how a chunk is sealed and bound to its place.
+ */
+export { archiveKey as deriveArchiveKey, chunkAad, digest as chunkDigest, importPublic as importArchivePublicKey, toBase64 as archiveBase64 };
+
 async function digest(bytes: Uint8Array): Promise<string> {
   const hash = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
   return toBase64(new Uint8Array(hash));
