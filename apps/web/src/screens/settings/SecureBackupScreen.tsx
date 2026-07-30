@@ -92,7 +92,12 @@ export function SecureBackupScreen() {
    */
   const driveBackupNow = async () => {
     if (!local?.publicKey) return;
-    await driveCtl.backupStreaming(local.publicKey);
+    await driveCtl.backupStreaming(
+      local.publicKey,
+      // Mirror the package so a device that has never seen this account can open
+      // what it downloads. The server will not hand it back, by design.
+      local.package ? { package: local.package, publicKey: local.publicKey } : undefined,
+    );
   };
 
   /*

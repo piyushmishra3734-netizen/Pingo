@@ -14,6 +14,7 @@ import { openRecord, sealRecord } from '../../crypto/session.js';
 import { STORE, localDelete, localGet, localSet } from '../../local/db.js';
 import { DriveAuthError } from './auth.js';
 import { DriveError } from './client.js';
+import type { StoredPackage } from '../target.js';
 import type { ArchiveProgress, GoogleDriveBackupTarget } from './drive-target.js';
 
 const STATE_KEY = 'drive-backup';
@@ -343,10 +344,27 @@ export class DriveBackupController {
    * holding every message in memory to hand it over, which is the thing the
    * builder was written to avoid.
    */
-  async backupStreaming(recoveryPublicKey: string): Promise<DriveView> {
+  async backupStreaming(
+    recoveryPublicKey: string,
+    /**
+     * The sealed recovery package, mirrored to Drive alongside the archive.
+     *
+     * Without it Drive holds an archive nobody can open. The server keeps a
+     * copy but deliberately will not hand it back — that is the request the
+     * recovery request flow exists to slow down — so a device that has never
+     * seen this account has no other way to obtain the key. Measured on the
+     * first real backup: chunks, manifest and HEAD were all in appDataFolder
+     * and `pingo.recovery.json` was not.
+     *
+     * It is the same bytes the server holds, sealed under the 12-word code.
+     * Drive can no more open it than we can.
+     */
+    storedPackage?: StoredPackage,
+  ): Promise<DriveView> {
     return this.#exclusive(async () => {
       this.#set({ phase: 'backing-up', message: undefined, needsReconnect: undefined, progress: undefined });
       try {
+        if (storedPackage) await this.target.put(storedPackage);
         const { buildArchive, archiveLines } = await import('../archive-builder.js');
 
         const result = await this.target.backupArchiveStreaming(
