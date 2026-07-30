@@ -574,6 +574,27 @@ export type Database = {
         Returns: undefined;
       };
       delete_message: { Args: { target: string; for_everyone: boolean }; Returns: undefined };
+      /**
+       * The recovery package is written through functions, not the table.
+       *
+       * `package` is not selectable by any client role, and the column-level
+       * grants that achieve that also deny the table privileges an upsert
+       * needs. Granting them back would expose the blob that opens an
+       * account's history, so these definer functions re-state the checks the
+       * policies would have made.
+       */
+      upsert_recovery_package: {
+        Args: {
+          new_kdf: string;
+          new_salt: string;
+          new_iv: string;
+          new_package: string;
+          new_public_key: string;
+          new_version: number;
+        };
+        Returns: undefined;
+      };
+      delete_recovery_package: { Args: Record<string, never>; Returns: undefined };
       my_streaks: {
         Args: Record<string, never>;
         Returns: { conversation_id: string; streak: number }[];

@@ -37,20 +37,24 @@ export class ServerBackupTarget implements BackupTarget {
    * of its own choosing.
    */
   async put(stored: StoredPackage): Promise<void> {
-    const userId = await this.#userId();
-
-    const { error } = await this.client.from('recovery_packages').upsert(
-      {
-        user_id: userId,
-        kdf: stored.package.kdf,
-        salt: stored.package.salt,
-        iv: stored.package.iv,
-        package: stored.package.package,
-        public_key: stored.publicKey,
-        version: stored.package.version,
-      },
-      { onConflict: 'user_id' },
-    );
+    /*
+     * Through a function, not the table.
+     *
+     * `package` is not selectable by any client role, on purpose, and the
+     * column-level grants that achieve that also deny the table-level
+     * privileges PostgREST's upsert wants — measured, the first time this ran
+     * against the real database: 403, 42501, permission denied. Granting them
+     * back would expose the blob that opens an account's history, so the write
+     * goes through a definer function that re-states the same checks.
+     */
+    const { error } = await this.client.rpc('upsert_recovery_package', {
+      new_kdf: stored.package.kdf,
+      new_salt: stored.package.salt,
+      new_iv: stored.package.iv,
+      new_package: stored.package.package,
+      new_public_key: stored.publicKey,
+      new_version: stored.package.version,
+    });
 
     if (error) throw error;
   }
@@ -67,12 +71,8 @@ export class ServerBackupTarget implements BackupTarget {
   }
 
   async remove(): Promise<void> {
-    const userId = await this.#userId();
-    const { error } = await this.client
-      .from('recovery_packages')
-      .delete()
-      .eq('user_id', userId);
-
+    // Same reason as `put`: no table privileges, so a definer function does it.
+    const { error } = await this.client.rpc('delete_recovery_package');
     if (error) throw error;
   }
 
