@@ -170,7 +170,7 @@ const offlineController = new DriveBackupController(offlineTarget, offline.store
 const offlineView = await offlineController.backupNow(chats, recoveryPublic);
 check(offlineView.phase === 'error', 'being offline is an error state');
 check(offlineView.needsReconnect !== true, 'and does not ask the user to reconnect Drive');
-check(/connection|online/i.test(offlineView.message ?? ''), `message is about the network: "${offlineView.message}"`);
+check(/TypeError|Failed to fetch/i.test(offlineView.message ?? ''), `the real exception is reported, not a guess: "${offlineView.message}"`);
 
 console.log('\n— only one backup at a time —');
 

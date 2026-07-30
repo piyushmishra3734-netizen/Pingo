@@ -118,17 +118,32 @@ function describe(cause: unknown): { message: string; needsReconnect: boolean } 
   }
 
   /*
-   * `fetch` rejects rather than resolving when the network is gone, so this is
-   * the offline case as well as the genuinely unknown one.
+   * A TypeError is not proof of being offline.
+   *
+   * `fetch` rejects with one when the network is gone — and so does any
+   * ordinary bug in the code above it. Reporting both as "no connection" sent
+   * a real investigation looking at CSP, CORS and service workers for an
+   * exception that had nothing to do with the network: a direct fetch from the
+   * same page reached Google and came back 401, while the backup kept claiming
+   * to be offline.
+   *
+   * So offline is only claimed when the browser actually says so, and anything
+   * else is reported as what it is, name included, because a message that
+   * describes the wrong failure is worse than one that admits it is unexpected.
    */
-  if (cause instanceof TypeError) {
+  /*
+   * `=== false` rather than falsy: where `onLine` is undefined the browser has
+   * not said anything, and "no opinion" must not be read as "offline".
+   */
+  if (cause instanceof TypeError && typeof navigator !== 'undefined' && navigator.onLine === false) {
     return { message: 'No connection. Backup will work again once you are online.', needsReconnect: false };
   }
 
-  return {
-    message: cause instanceof Error ? cause.message : 'Google Drive backup failed.',
-    needsReconnect: false,
-  };
+  if (cause instanceof Error) {
+    return { message: `Backup failed — ${cause.name}: ${cause.message}`, needsReconnect: false };
+  }
+
+  return { message: `Backup failed — ${String(cause)}`, needsReconnect: false };
 }
 
 export class DriveBackupController {
