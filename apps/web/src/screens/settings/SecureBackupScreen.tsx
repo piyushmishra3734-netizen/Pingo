@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { EnrolmentFlow } from '../../features/backup/EnrolmentFlow.js';
-import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
+import { ChoiceRow, Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
+import { useBackupUx } from '../../features/backup/useBackupUx.js';
+import { describeInterval } from '../../lib/backup/reminders.js';
+import { setTelemetryEnabled, telemetryEnabled } from '../../lib/backup/ux-telemetry.js';
 import { ServerBackupTarget } from '../../lib/backup/server-target.js';
 import {
   disableSecureBackup,
@@ -50,6 +53,12 @@ export function SecureBackupScreen() {
   const [drive, setDrive] = useState<DriveView | undefined>();
   const [confirm, setConfirm] = useState<'restore' | 'disconnect' | undefined>();
   const [restoreCode, setRestoreCode] = useState('');
+  const backupUx = useBackupUx();
+  const reminderState = backupUx.reminders;
+  const [telemetryOn, setTelemetryOn] = useState(false);
+  useEffect(() => {
+    void telemetryEnabled().then(setTelemetryOn);
+  }, []);
   const isNative = useMemo(() => Capacitor.isNativePlatform(), []);
   const policy = useMemo(() => policyFor(isNative), [isNative]);
 
@@ -278,6 +287,33 @@ export function SecureBackupScreen() {
           of it.
         */}
         <InfoRow label="Recovery Code" value={enabled ? '••••••••••••' : '—'} />
+      </Group>
+
+      {/*
+        Reminders and telemetry, in plain words.
+        `describeInterval` is what the user sees; the durations stay internal.
+      */}
+      <Group title="Reminders">
+        <ChoiceRow
+          label="Remind me to back up"
+          value={reminderState.interval}
+          options={[
+            { value: '24h', label: describeInterval('24h') },
+            { value: '7d', label: describeInterval('7d') },
+            { value: '1m', label: describeInterval('1m') },
+            { value: 'never', label: describeInterval('never') },
+          ]}
+          onChange={(interval) => void backupUx.setInterval(interval)}
+        />
+        <ToggleRow
+          label="Help improve PINGO"
+          description="Shares which backup screens you saw. Never your messages, contacts or files. Off unless you turn it on."
+          checked={telemetryOn}
+          onChange={(on) => {
+            setTelemetryOn(on);
+            void setTelemetryEnabled(on);
+          }}
+        />
       </Group>
 
       {status?.mismatch ? (

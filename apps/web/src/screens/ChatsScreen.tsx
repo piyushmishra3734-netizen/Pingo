@@ -4,6 +4,8 @@ import { Navigate, useParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
 import { InstallBanner } from '../features/install/InstallBanner.js';
+import { BackupFoundCard, BackupPrompt, BackupReminderCard } from '../features/backup/BackupSurfaces.js';
+import { useBackupUx } from '../features/backup/useBackupUx.js';
 import { ChatThread } from '../features/chat/ChatThread.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
@@ -26,6 +28,11 @@ export function ChatsScreen() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const { conversations, ready } = useChat();
   const isDesktop = useIsDesktop();
+  /*
+   * Called before the early returns below, because a hook that runs only on
+   * some renders is a hook that crashes on the others.
+   */
+  const backupUx = useBackupUx();
 
   const conversation = conversationId
     ? conversations.find((c) => c.id === conversationId)
@@ -41,12 +48,19 @@ export function ChatsScreen() {
       <ChatThread conversation={conversation} showBack />
     ) : (
       <>
+        {/*
+          Above the list, because a backup that needs attention is about the
+          list rather than about any one conversation.
+        */}
+        <BackupFoundCard ux={backupUx} />
+        <BackupReminderCard ux={backupUx} />
         <ConversationList />
         {/*
           Home only, and only with no thread open. An offer to install has no
           business over a conversation somebody is reading.
         */}
         <InstallBanner />
+        <BackupPrompt ux={backupUx} />
       </>
     );
   }
@@ -54,12 +68,15 @@ export function ChatsScreen() {
   return (
     <div className="flex h-full min-h-0">
       <InstallBanner />
+      <BackupPrompt ux={backupUx} />
       <aside
         className={cn(
           'hidden h-full shrink-0 border-r border-line bg-page lg:block',
           'w-[22rem] xl:w-[25rem]',
         )}
       >
+        <BackupFoundCard ux={backupUx} />
+        <BackupReminderCard ux={backupUx} />
         <ConversationList activeConversationId={conversation?.id} />
       </aside>
 
