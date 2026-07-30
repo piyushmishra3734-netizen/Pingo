@@ -18,7 +18,7 @@
  * The practical consequence, stated rather than discovered: on the web, backup
  * happens while the tab is open. Background and periodic backup is Android.
  */
-import { DRIVE_APPDATA_SCOPE, DriveAuthError, type DriveAuth, type DriveToken } from './auth.js';
+import { DRIVE_APPDATA_SCOPE, DriveAuthError, isExpired, type DriveAuth, type DriveToken } from './auth.js';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -75,10 +75,50 @@ async function loadGis(): Promise<GoogleIdentity> {
   return loaded;
 }
 
+/**
+ * Where the token lives between page loads.
+ *
+ * Holding it only in memory made connecting useless: the grant survived, the
+ * token did not, and the screen went on saying "Connected" from persisted state
+ * while every backup failed with "access expired". Measured against real Google
+ * — connect succeeded, one reload later Backup Now could not reach Drive at all.
+ *
+ * Sealed with the device database key like every other record. It is a bearer
+ * token for `drive.appdata` and nothing else, it expires within the hour, and
+ * the alternative is a feature that cannot be used twice.
+ */
+const TOKEN_KEY = 'drive-token';
+
 export class WebDriveAuth implements DriveAuth {
   #token: DriveToken | undefined;
 
   constructor(private readonly clientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID?.trim()) {}
+
+  async #remember(token: DriveToken): Promise<void> {
+    this.#token = token;
+    const [{ sealRecord }, { STORE, localSet }] = await Promise.all([
+      import('../../crypto/session.js'),
+      import('../../local/db.js'),
+    ]);
+    await localSet(STORE.meta, TOKEN_KEY, await sealRecord(token));
+  }
+
+  async #recall(): Promise<DriveToken | undefined> {
+    if (this.#token) return this.#token;
+    const [{ openRecord }, { STORE, localGet }] = await Promise.all([
+      import('../../crypto/session.js'),
+      import('../../local/db.js'),
+    ]);
+    const stored = await openRecord<DriveToken>(await localGet<unknown>(STORE.meta, TOKEN_KEY));
+    if (stored) this.#token = stored;
+    return stored;
+  }
+
+  async #forget(): Promise<void> {
+    this.#token = undefined;
+    const { STORE, localDelete } = await import('../../local/db.js');
+    await localDelete(STORE.meta, TOKEN_KEY);
+  }
 
   async authorize(): Promise<DriveToken> {
     if (!this.clientId) {
@@ -119,17 +159,30 @@ export class WebDriveAuth implements DriveAuth {
       client.requestAccessToken();
     });
 
-    this.#token = token;
+    await this.#remember(token);
     return token;
   }
 
+  /**
+   * The stored token, if it is still worth using.
+   *
+   * An expired one is discarded rather than returned, so the caller is told to
+   * reconnect instead of discovering it mid-upload as a 401 that looks like
+   * corruption.
+   */
   async silent(): Promise<DriveToken | undefined> {
-    return this.#token;
+    const token = await this.#recall();
+    if (!token) return undefined;
+    if (isExpired(token, 0)) {
+      await this.#forget();
+      return undefined;
+    }
+    return token;
   }
 
   async disconnect(): Promise<void> {
-    const token = this.#token?.accessToken;
-    this.#token = undefined;
+    const token = this.#token?.accessToken ?? (await this.#recall())?.accessToken;
+    await this.#forget();
     // Best effort: revoking at Google is courteous but the local grant is what
     // this app relies on, and a failed revoke must not leave it connected here.
     if (token) {

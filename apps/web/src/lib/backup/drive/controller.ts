@@ -161,9 +161,37 @@ export class DriveBackupController {
    * something. On the web it stays undefined, so the screen has nothing to
    * render rather than a date it would not honour.
    */
-  async load(policy?: { triggers: readonly string[]; minimumIntervalMs: number }): Promise<DriveView> {
+  async load(
+    policy?: { triggers: readonly string[]; minimumIntervalMs: number },
+    hasToken?: () => Promise<boolean>,
+  ): Promise<DriveView> {
     const saved = await this.store.read();
     const schedules = policy?.triggers.includes('periodic') ?? false;
+
+    /*
+     * Connected means a usable token, not a remembered intention.
+     *
+     * Persisted state alone said "Connected" while the token had been lost to a
+     * reload, so every button was offered and every one of them failed with
+     * "access expired". Asking the auth layer keeps the screen honest: if there
+     * is no token, the only thing offered is Reconnect.
+     */
+    const usable = hasToken ? await hasToken() : true;
+    if (saved?.connected && !usable) {
+      this.#set({
+        phase: 'connected',
+        connected: true,
+        needsReconnect: true,
+        message: 'Google Drive needs reconnecting on this device.',
+        lastBackupAt: saved.lastBackupAt,
+        bytes: saved.bytes,
+        generation: saved.generation,
+        lastSuccessAt: saved.lastSuccessAt,
+        lastFailure: saved.lastFailure,
+        busy: false,
+      });
+      return this.#view;
+    }
 
     this.#set({
       phase: saved?.connected ? 'connected' : 'disconnected',

@@ -58,14 +58,15 @@ export function SecureBackupScreen() {
    * object does not authorise anything — the picker appears only when Connect
    * is pressed — so this is safe to do before the user has asked.
    */
-  const driveCtl = useMemo(() => {
-    const auth = isNative ? new NativeDriveAuth() : new WebDriveAuth();
-    return new DriveBackupController(new GoogleDriveBackupTarget(auth));
-  }, [isNative]);
+  const driveAuth = useMemo(() => (isNative ? new NativeDriveAuth() : new WebDriveAuth()), [isNative]);
+  const driveCtl = useMemo(
+    () => new DriveBackupController(new GoogleDriveBackupTarget(driveAuth)),
+    [driveAuth],
+  );
 
   useEffect(() => {
     const stop = driveCtl.subscribe(setDrive);
-    void driveCtl.load(policy);
+    void driveCtl.load(policy, async () => Boolean(await driveAuth.silent()));
     return stop;
   }, [driveCtl]);
 
@@ -79,8 +80,9 @@ export function SecureBackupScreen() {
           : 'Not connected';
 
   const connectDrive = () => {
-    const auth = isNative ? new NativeDriveAuth() : new WebDriveAuth();
-    void driveCtl.connect(() => auth.authorize());
+    // The same auth object the target uses, so the token it stores is the token
+    // the uploads will find.
+    void driveCtl.connect(() => driveAuth.authorize());
   };
 
   /*
