@@ -154,6 +154,11 @@ export function SettingsScreen() {
                 label="Storage"
                 to="/settings/storage"
               />
+              <SettingsRow
+                icon={<StorageIcon size={19} />}
+                label="Secure Backup"
+                to="/settings/secure-backup"
+              />
             </section>
 
             <section className="rounded-lg bg-surface p-1 shadow-sm">
