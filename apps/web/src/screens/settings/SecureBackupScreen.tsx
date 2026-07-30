@@ -12,6 +12,12 @@ import {
   type SecureBackupStatus,
 } from '../../lib/backup/secure-backup.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { Capacitor } from '@capacitor/core';
+import { DriveBackupController, type DriveView } from '../../lib/backup/drive/controller.js';
+import { GoogleDriveBackupTarget } from '../../lib/backup/drive/drive-target.js';
+import { NativeDriveAuth } from '../../lib/backup/drive/native-auth.js';
+import { WebDriveAuth } from '../../lib/backup/drive/web-auth.js';
+import { policyFor } from '../../lib/backup/drive/policy.js';
 
 /**
  * Secure Backup.
@@ -39,6 +45,63 @@ export function SecureBackupScreen() {
   const [testing, setTesting] = useState(false);
   const [code, setCode] = useState('');
   const [result, setResult] = useState<RecoveryTestResult | undefined>();
+
+  const [drive, setDrive] = useState<DriveView | undefined>();
+  const [restoring, setRestoring] = useState(false);
+  const isNative = useMemo(() => Capacitor.isNativePlatform(), []);
+  const policy = useMemo(() => policyFor(isNative), [isNative]);
+
+  /*
+   * Built lazily and kept for the life of the screen. Constructing the auth
+   * object does not authorise anything — the picker appears only when Connect
+   * is pressed — so this is safe to do before the user has asked.
+   */
+  const driveCtl = useMemo(() => {
+    const auth = isNative ? new NativeDriveAuth() : new WebDriveAuth();
+    return new DriveBackupController(new GoogleDriveBackupTarget(auth));
+  }, [isNative]);
+
+  useEffect(() => {
+    const stop = driveCtl.subscribe(setDrive);
+    void driveCtl.load();
+    return stop;
+  }, [driveCtl]);
+
+  const driveLabel =
+    drive?.phase === 'error'
+      ? 'Problem'
+      : drive?.connected
+        ? 'Connected'
+        : drive?.phase === 'connecting'
+          ? 'Connecting…'
+          : 'Not connected';
+
+  const connectDrive = () => {
+    const auth = isNative ? new NativeDriveAuth() : new WebDriveAuth();
+    void driveCtl.connect(() => auth.authorize());
+  };
+
+  const driveBackupNow = async () => {
+    if (!local?.publicKey) return;
+    /*
+     * A placeholder payload until the archive builder lands. The transport,
+     * sealing and integrity are real; what is being sealed is not yet the
+     * conversation store, and the screen does not pretend otherwise.
+     */
+    const payload = new TextEncoder().encode(JSON.stringify({ note: 'archive pending', at: Date.now() }));
+    await driveCtl.backupNow(payload, local.publicKey);
+  };
+
+  const disconnectDrive = () => {
+    setRestoring(false);
+    void driveCtl.disconnect();
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const refresh = useCallback(async () => {
     try {
@@ -216,19 +279,84 @@ export function SecureBackupScreen() {
       ) : null}
 
       {enabled ? (
-        <Group title="Backup">
-          <p className="px-4 pt-3 text-sm text-muted">
-            Your recovery key is registered. Backing up your chat archive arrives with Google
-            Drive support — this records that everything is in place.
-          </p>
-          <button
-            type="button"
-            disabled={busy === 'backup'}
-            className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
-            onClick={backupNow}
-          >
-            {busy === 'backup' ? 'Working…' : 'Backup Now'}
-          </button>
+        <Group title="Google Drive">
+          <InfoRow label="Status" value={driveLabel} />
+          <InfoRow
+            label="Last Backup"
+            value={drive?.lastBackupAt ? new Date(drive.lastBackupAt).toLocaleString() : '—'}
+          />
+          <InfoRow label="Backup Size" value={drive?.bytes ? formatBytes(drive.bytes) : '—'} />
+          <InfoRow
+            label="Current Generation"
+            value={drive?.generation ? `g${drive.generation}` : '—'}
+          />
+
+          {/*
+            The platform's real behaviour, not an aspiration. The web cannot
+            refresh a Drive token without a server-side credential, so it cannot
+            promise background backup and does not.
+          */}
+          <p className="px-4 pt-2 text-sm text-muted">{policy.description}</p>
+
+          {drive?.progress ? (
+            <p className="px-4 pt-1 text-sm text-muted">
+              {drive.progress.phase === 'uploading' && drive.progress.total
+                ? `Uploading ${Math.round(((drive.progress.sent ?? 0) / drive.progress.total) * 100)}%`
+                : drive.progress.phase}
+            </p>
+          ) : null}
+
+          {drive?.phase === 'error' && drive.message ? (
+            <p className="px-4 pt-1 text-sm text-danger">{drive.message}</p>
+          ) : null}
+
+          {!drive?.connected || drive?.needsReconnect ? (
+            <button
+              type="button"
+              disabled={drive?.phase === 'connecting'}
+              className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+              onClick={connectDrive}
+            >
+              {drive?.phase === 'connecting'
+                ? 'Connecting…'
+                : drive?.needsReconnect
+                  ? 'Reconnect Google Drive'
+                  : 'Connect Google Drive'}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={drive.phase === 'backing-up' || drive.phase === 'restoring'}
+                className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+                onClick={driveBackupNow}
+              >
+                {drive.phase === 'backing-up' ? 'Backing up…' : 'Backup Now'}
+              </button>
+              <button
+                type="button"
+                disabled={drive.phase === 'backing-up' || drive.phase === 'restoring'}
+                className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+                onClick={() => setRestoring(true)}
+              >
+                {drive.phase === 'restoring' ? 'Restoring…' : 'Restore Backup'}
+              </button>
+              <button
+                type="button"
+                className="w-full px-4 py-3 text-left text-danger"
+                onClick={disconnectDrive}
+              >
+                Disconnect Google Drive
+              </button>
+            </>
+          )}
+
+          {restoring ? (
+            <p className="px-4 pb-3 text-sm text-muted">
+              Restoring needs your 12-word recovery code. Use Test Recovery above first to check
+              the code works — restore replaces this device&rsquo;s local history.
+            </p>
+          ) : null}
         </Group>
       ) : null}
 
