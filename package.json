@@ -19,7 +19,9 @@
     "functions:deploy": "supabase functions deploy turn-credentials --project-ref lppzoqgvshhmxqsvggug",
     "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery",
     "verify:recovery-wrap": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery-wrap.ts",
-    "verify:secure-backup": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-secure-backup.ts"
+    "verify:secure-backup": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-secure-backup.ts",
+    "verify:archive": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-archive.ts",
+    "verify:drive": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
