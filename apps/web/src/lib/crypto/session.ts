@@ -143,6 +143,32 @@ export interface Keying {
    * and not one message sooner.
    */
   everyoneReady: boolean;
+  /**
+   * One wrap recipient per member who has enabled Secure Backup.
+   *
+   * Additional recipients, never a substitute for a device. A recovery key
+   * does not make a conversation encryptable — `everyoneReady` is decided by
+   * devices alone, exactly as before — it only means that a member who later
+   * loses every device can still read what was sent while they had one.
+   *
+   * Members without Secure Backup contribute nothing, so their envelopes are
+   * byte-for-byte what they were before this existed.
+   */
+  recovery: RecipientDevice[];
+}
+
+/**
+ * Recovery wraps are namespaced so they can never collide with a device.
+ *
+ * The envelope's `keys` map is keyed by opaque id and device ids are UUIDs, so
+ * a prefix that is not a legal UUID keeps the two populations separate for
+ * good. `openRow` looks up its own device id and therefore ignores these
+ * entries without needing to know they exist.
+ */
+export const RECOVERY_WRAP_PREFIX = 'recovery:';
+
+export function recoveryWrapId(userId: string): string {
+  return `${RECOVERY_WRAP_PREFIX}${userId}`;
 }
 
 /**
@@ -164,15 +190,33 @@ export async function conversationKeying(
   if (membersError) throw membersError;
 
   const userIds = (members ?? []).map((m) => m.user_id);
-  if (userIds.length === 0) return { devices: [], everyoneReady: false };
+  if (userIds.length === 0) return { devices: [], everyoneReady: false, recovery: [] };
 
-  const { data: rows, error: devicesError } = await client
-    .from('device_keys')
-    .select('device_id,public_key,user_id')
-    .in('user_id', userIds);
+  /*
+   * Both lookups together, because they answer one question.
+   *
+   * The recovery read is the same shape as the device read and neither depends
+   * on the other, so serialising them would add a round trip to every send for
+   * no benefit.
+   */
+  const [{ data: rows, error: devicesError }, { data: packages, error: recoveryError }] =
+    await Promise.all([
+      client.from('device_keys').select('device_id,public_key,user_id').in('user_id', userIds),
+      client.from('recovery_packages').select('user_id,public_key').in('user_id', userIds),
+    ]);
 
   if (devicesError) throw devicesError;
 
+  /*
+   * A failed recovery lookup is not a failed send.
+   *
+   * Errors propagate for devices because *not known* must never be read as
+   * *nobody has keys* — that is how a blip becomes a message in the clear.
+   * Recovery is different: it adds a recipient rather than deciding whether to
+   * encrypt at all. Losing it costs recoverability of this one message and
+   * changes nothing about who can read it, so a message that would otherwise
+   * send correctly still sends.
+   */
   const covered = new Set((rows ?? []).map((row) => row.user_id));
 
   return {
@@ -181,6 +225,12 @@ export async function conversationKeying(
       publicKey: row.public_key,
     })),
     everyoneReady: userIds.every((id) => covered.has(id)),
+    recovery: recoveryError
+      ? []
+      : (packages ?? []).map((row) => ({
+          deviceId: recoveryWrapId(row.user_id),
+          publicKey: row.public_key,
+        })),
   };
 }
 
@@ -252,7 +302,7 @@ export async function sealBody(
   conversationId: string,
   body: string,
 ): Promise<SealedBody> {
-  const { devices, everyoneReady } = await conversationKeying(client, conversationId);
+  const { devices, everyoneReady, recovery } = await conversationKeying(client, conversationId);
 
   if (!everyoneReady) {
     if (await hasEncryptedHistory(client, conversationId)) {
@@ -263,7 +313,20 @@ export async function sealBody(
     return { body, encryption: null, envelope: null };
   }
 
-  const sealed = await encryptMessage(body, devices);
+  /*
+   * Devices first, then recovery keys, in one envelope.
+   *
+   * Recovery is an extra wrap of the same content key, not a second copy of the
+   * message and not a different cipher — one more ECDH per enrolled member and
+   * no format change, because the `keys` map was always keyed by opaque id.
+   *
+   * This is not retroactive and cannot be. A message sent before a member
+   * enrolled carries no wrap for their recovery key, so enabling Secure Backup
+   * makes future messages recoverable and does nothing for past ones. The
+   * product has to say so at the moment of enabling rather than leave it to be
+   * discovered later.
+   */
+  const sealed = await encryptMessage(body, [...devices, ...recovery]);
   encrypted.add(conversationId);
   return { body: sealed.body, encryption: 'v1', envelope: sealed.envelope };
 }

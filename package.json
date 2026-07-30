@@ -17,7 +17,8 @@
     "verify:recovery": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery.ts",
     "bench": "node apps/web/scripts/benchmark.mjs",
     "functions:deploy": "supabase functions deploy turn-credentials --project-ref lppzoqgvshhmxqsvggug",
-    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery"
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery",
+    "verify:recovery-wrap": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery-wrap.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

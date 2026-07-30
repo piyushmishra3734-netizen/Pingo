@@ -370,6 +370,36 @@ export type Database = {
         Update: { last_seen_at?: string };
         Relationships: [];
       };
+      /**
+       * The account recovery package, and the public half senders wrap to.
+       *
+       * Only three columns are selectable — the migration revokes `select` on
+       * the table and grants it back for `user_id`, `public_key` and `version`
+       * individually. `package` is deliberately absent from `Row` here: it is
+       * not readable through this client at all, and typing it as though it
+       * were would invite code that cannot work.
+       */
+      recovery_packages: {
+        Row: { user_id: string; public_key: string; version: number };
+        Insert: {
+          user_id: string;
+          kdf: string;
+          salt: string;
+          iv: string;
+          package: string;
+          public_key: string;
+          version?: number;
+        };
+        Update: {
+          kdf?: string;
+          salt?: string;
+          iv?: string;
+          package?: string;
+          public_key?: string;
+          version?: number;
+        };
+        Relationships: [];
+      };
       stories: {
         Row: StoryRow;
         Insert: {
