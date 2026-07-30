@@ -152,6 +152,22 @@ export function App() {
     target.__pingo = {
       delta: () => chat.deltaReport(),
       rowStore: () => chat.rowStoreReport(),
+      /*
+       * The archive builder against this device's real IndexedDB. Everything
+       * else about it is verified with an injected source and sink, which says
+       * nothing about the two functions that actually touch storage and the
+       * device key. Reads, writes back what it read, reports numbers.
+       */
+      archiveSelfTest: async (chunkSize?: number) => {
+        const [{ archiveSelfTest }] = await Promise.all([import('./lib/backup/self-test.js')]);
+        const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+          'deriveKey',
+          'deriveBits',
+        ]);
+        const spki = await crypto.subtle.exportKey('spki', pair.publicKey);
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(spki)));
+        return archiveSelfTest(base64, pair.privateKey, chunkSize);
+      },
     };
     return () => {
       delete target.__pingo;
