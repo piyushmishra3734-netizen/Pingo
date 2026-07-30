@@ -38,6 +38,7 @@ export interface SelfTestReport {
     sealedBytes: number;
     chunks: number;
     records: number;
+    skipped: number;
     peakBufferBytes: number;
     buildMillis: number;
   };
@@ -123,6 +124,7 @@ export async function archiveSelfTest(
       sealedBytes: stats.sealedBytes,
       chunks: stats.chunks,
       records: stats.records,
+      skipped: stats.skipped,
       peakBufferBytes: stats.peakBufferBytes,
       buildMillis: stats.millis,
     },

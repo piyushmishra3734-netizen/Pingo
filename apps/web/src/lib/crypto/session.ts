@@ -59,8 +59,27 @@ async function switchAccount(previous: string, next: string): Promise<void> {
     if (value !== undefined) await localSet(STORE.keys, `${slot}@${previous}`, value);
   }
 
-  // Clear only what belongs to the previous account's *content*.
-  for (const store of [STORE.conversations, STORE.messages, STORE.outbox, STORE.drafts, STORE.meta]) {
+  /*
+   * Clear only what belongs to the previous account's *content*.
+   *
+   * `messageRows` was missing from this list for as long as it has existed: the
+   * store arrived with milestone 2, after this function was written, and
+   * nothing pointed at the gap. The rows survived an account switch sealed
+   * under the outgoing account's parked database key, so they were unreadable
+   * rather than exposed — but they were another person's messages sitting in
+   * this account's store, and they came back the moment that key was restored.
+   *
+   * Found by building an archive on a real device: 50 of 52 records would not
+   * open, all of them rows left behind by a switch.
+   */
+  for (const store of [
+    STORE.conversations,
+    STORE.messages,
+    STORE.messageRows,
+    STORE.outbox,
+    STORE.drafts,
+    STORE.meta,
+  ]) {
     for (const [key] of await localEntries<unknown>(store)) await localDelete(store, key);
   }
 

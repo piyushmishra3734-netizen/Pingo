@@ -285,6 +285,25 @@ check(dupeSink.stores.get('conversations')?.size === 3, 'a duplicated key does n
 const survivor = dupeSink.stores.get('conversations')!.get('conv-000000') as { value: { title: string } };
 check(survivor.value.title === 'Renamed later', 'and the later record wins');
 
+console.log('\n— skipped records are counted, not hidden —');
+
+/*
+ * The failure this exists to prevent: on a real device 50 of 52 records would
+ * not open, and the archive reported success having carried two of them.
+ */
+const withUnreadable = async function* () {
+  yield encoder.encode(`${JSON.stringify({ kind: 'header', version: 1 })}\n`);
+  yield encoder.encode(
+    `${JSON.stringify({ kind: 'record', store: 'conversations', key: 'a', value: { id: 'a' } })}\n`,
+  );
+  yield encoder.encode(`${JSON.stringify({ kind: 'end', records: 1, skipped: 49 })}\n`);
+};
+
+const counted = await buildArchive(recoveryPublic, 1, async () => {}, withUnreadable, 1024 * 1024);
+check(counted.stats.records === 1, 'one record carried');
+check(counted.stats.skipped === 49, 'and forty-nine reported as skipped rather than ignored');
+check(ten.stats.skipped === 0, 'a healthy database reports nothing skipped');
+
 console.log('\n— idempotent restore —');
 
 const onceSink = sink();

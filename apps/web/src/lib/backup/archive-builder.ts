@@ -61,6 +61,14 @@ const decoder = new TextDecoder();
 
 export interface ArchiveStats {
   records: number;
+  /**
+   * Records the source could not open.
+   *
+   * Never ignore a non-zero value. It means the archive is missing history the
+   * device is holding, and the first time it was measured on a real database it
+   * was 50 out of 52.
+   */
+  skipped: number;
   plaintextBytes: number;
   sealedBytes: number;
   chunks: number;
@@ -83,6 +91,7 @@ export async function* archiveLines(
   );
 
   let records = 0;
+  let skipped = 0;
   for (const store of stores) {
     let entries: Array<[string, unknown]>;
     try {
@@ -98,16 +107,25 @@ export async function* archiveLines(
        * Opened here and re-sealed by the chunk. A record that will not open is
        * skipped rather than aborting the whole archive: one unreadable row
        * should not cost somebody every other conversation they have.
+       *
+       * Skipping quietly is the dangerous part, and it was. On a real device
+       * 50 of 52 records failed to open — rows left behind by an account
+       * switch, sealed under a key this device no longer held — and the archive
+       * reported success having carried almost nothing. The count travels in
+       * the footer now, and the caller is expected to look at it.
        */
       const value = await openRecord<unknown>(sealed).catch(() => undefined);
-      if (value === undefined) continue;
+      if (value === undefined) {
+        skipped += 1;
+        continue;
+      }
 
       records += 1;
       yield encoder.encode(`${JSON.stringify({ kind: 'record', store, key, value })}\n`);
     }
   }
 
-  yield encoder.encode(`${JSON.stringify({ kind: 'end', records })}\n`);
+  yield encoder.encode(`${JSON.stringify({ kind: 'end', records, skipped })}\n`);
 }
 
 /** Pass one: how long is it? Nothing is sealed and nothing is kept. */
@@ -150,6 +168,7 @@ export async function buildArchive(
   let sealedBytes = 0;
   let peak = 0;
   let records = 0;
+  let skipped = 0;
 
   const sealChunk = async () => {
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -176,7 +195,24 @@ export async function buildArchive(
   };
 
   for await (const line of source()) {
-    if (line.length > 0 && line[0] === 0x7b) records += 1; // '{'
+    /*
+     * The footer carries the real counts. Counting every line would include the
+     * header and footer and, far worse, would not know how many records the
+     * source declined to open — which is the number that says whether this
+     * archive is worth having.
+     */
+    if (line.length > 0 && line[0] === 0x7b) {
+      const text = decoder.decode(line);
+      if (text.startsWith('{"kind":"record"')) {
+        records += 1;
+      } else if (text.startsWith('{"kind":"end"')) {
+        try {
+          skipped = (JSON.parse(text.trim()) as { skipped?: number }).skipped ?? 0;
+        } catch {
+          /* a footer we cannot read leaves the count at zero */
+        }
+      }
+    }
 
     let offset = 0;
     while (offset < line.length) {
@@ -204,6 +240,7 @@ export async function buildArchive(
     },
     stats: {
       records,
+      skipped,
       plaintextBytes: totalBytes,
       sealedBytes,
       chunks: index,
