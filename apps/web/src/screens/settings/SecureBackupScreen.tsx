@@ -47,7 +47,7 @@ export function SecureBackupScreen() {
   const [result, setResult] = useState<RecoveryTestResult | undefined>();
 
   const [drive, setDrive] = useState<DriveView | undefined>();
-  const [restoring, setRestoring] = useState(false);
+  const [confirm, setConfirm] = useState<'restore' | 'disconnect' | undefined>();
   const isNative = useMemo(() => Capacitor.isNativePlatform(), []);
   const policy = useMemo(() => policyFor(isNative), [isNative]);
 
@@ -63,7 +63,7 @@ export function SecureBackupScreen() {
 
   useEffect(() => {
     const stop = driveCtl.subscribe(setDrive);
-    void driveCtl.load();
+    void driveCtl.load(policy);
     return stop;
   }, [driveCtl]);
 
@@ -92,9 +92,28 @@ export function SecureBackupScreen() {
     await driveCtl.backupNow(payload, local.publicKey);
   };
 
-  const disconnectDrive = () => {
-    setRestoring(false);
+  /*
+   * Nothing here is awaited by the render path. Backup and restore run in the
+   * controller and report through the subscription, so the rest of PINGO stays
+   * usable while a multi-megabyte archive moves — navigating away does not
+   * cancel it and does not block a conversation from opening.
+   */
+  const busyDrive =
+    drive?.busy === true || drive?.phase === 'backing-up' || drive?.phase === 'restoring';
+
+  const confirmDisconnect = () => {
+    setConfirm(undefined);
     void driveCtl.disconnect();
+  };
+
+  const confirmRestore = () => {
+    setConfirm(undefined);
+    /*
+     * Deliberately not wired to a destructive apply yet: the archive builder
+     * that would produce a local database from these bytes does not exist, so
+     * restoring is verified end to end but does not yet overwrite anything.
+     */
+    setError('Restore needs your recovery code and the archive builder, which is not shipped yet.');
   };
 
   const formatBytes = (bytes: number) => {
@@ -290,6 +309,30 @@ export function SecureBackupScreen() {
             label="Current Generation"
             value={drive?.generation ? `g${drive.generation}` : '—'}
           />
+          <InfoRow
+            label="Last Successful Backup"
+            value={drive?.lastSuccessAt ? new Date(drive.lastSuccessAt).toLocaleString() : '—'}
+          />
+          {/*
+            Kept even after a later success. "It works now" and "it failed on
+            Tuesday because the token expired" are both worth knowing when
+            somebody reports that backup is broken.
+          */}
+          <InfoRow
+            label="Last Failure"
+            value={
+              drive?.lastFailure
+                ? `${new Date(drive.lastFailure.at).toLocaleString()} — ${drive.lastFailure.reason}`
+                : 'None'
+            }
+          />
+          {/* Android only. The web schedules nothing, so it shows nothing. */}
+          {drive?.nextScheduledAt ? (
+            <InfoRow
+              label="Next Scheduled Backup"
+              value={new Date(drive.nextScheduledAt).toLocaleString()}
+            />
+          ) : null}
 
           {/*
             The platform's real behaviour, not an aspiration. The web cannot
@@ -325,9 +368,16 @@ export function SecureBackupScreen() {
             </button>
           ) : (
             <>
+              {/*
+                Every action that conflicts with work in flight is disabled from
+                one flag, so a second backup cannot be started from the screen.
+                The controller holds the real lock — a disabled button is a
+                courtesy, not a guarantee, and a background trigger does not
+                look at buttons.
+              */}
               <button
                 type="button"
-                disabled={drive.phase === 'backing-up' || drive.phase === 'restoring'}
+                disabled={busyDrive}
                 className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
                 onClick={driveBackupNow}
               >
@@ -335,27 +385,57 @@ export function SecureBackupScreen() {
               </button>
               <button
                 type="button"
-                disabled={drive.phase === 'backing-up' || drive.phase === 'restoring'}
+                disabled={busyDrive}
                 className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
-                onClick={() => setRestoring(true)}
+                onClick={() => setConfirm('restore')}
               >
                 {drive.phase === 'restoring' ? 'Restoring…' : 'Restore Backup'}
               </button>
               <button
                 type="button"
-                className="w-full px-4 py-3 text-left text-danger"
-                onClick={disconnectDrive}
+                disabled={busyDrive}
+                className="w-full px-4 py-3 text-left text-danger disabled:opacity-50"
+                onClick={() => setConfirm('disconnect')}
               >
                 Disconnect Google Drive
               </button>
             </>
           )}
 
-          {restoring ? (
-            <p className="px-4 pb-3 text-sm text-muted">
-              Restoring needs your 12-word recovery code. Use Test Recovery above first to check
-              the code works — restore replaces this device&rsquo;s local history.
-            </p>
+          {/*
+            Both of these are destructive in ways a tap should not cause: one
+            replaces local history, the other removes the backup that would
+            have restored it.
+          */}
+          {confirm === 'restore' ? (
+            <div className="px-4 pb-3">
+              <p className="text-sm text-warning">
+                Restore replaces this device&rsquo;s local history with the backup in Drive, and
+                needs your 12-word recovery code. Use Test Recovery above first to check the code
+                works.
+              </p>
+              <button type="button" className="py-2 text-left text-accent" onClick={confirmRestore}>
+                Yes, restore from Drive
+              </button>
+              <button type="button" className="ml-4 py-2 text-left text-muted" onClick={() => setConfirm(undefined)}>
+                Cancel
+              </button>
+            </div>
+          ) : null}
+
+          {confirm === 'disconnect' ? (
+            <div className="px-4 pb-3">
+              <p className="text-sm text-warning">
+                Disconnecting deletes the backup from Google Drive. Messages already on this
+                device stay, but you will not be able to restore them on a new one.
+              </p>
+              <button type="button" className="py-2 text-left text-danger" onClick={confirmDisconnect}>
+                Yes, disconnect and delete
+              </button>
+              <button type="button" className="ml-4 py-2 text-left text-muted" onClick={() => setConfirm(undefined)}>
+                Cancel
+              </button>
+            </div>
           ) : null}
         </Group>
       ) : null}

@@ -24,6 +24,16 @@ export interface DriveBackupState {
   /** Sealed size on Drive, which is what the user's quota actually pays for. */
   bytes?: number;
   generation?: number;
+  /**
+   * Kept apart from `lastBackupAt` on purpose.
+   *
+   * "When did a backup last work" and "when did one last fail, and why" are
+   * different questions, and a single timestamp answers neither well. Someone
+   * reporting "backup is broken" can be asked one thing and get a date and a
+   * reason, instead of a support conversation that starts from nothing.
+   */
+  lastSuccessAt?: number;
+  lastFailure?: { reason: string; at: number };
 }
 
 export interface DriveStateStore {
@@ -68,6 +78,12 @@ export interface DriveView {
    * user: one is "try again in a minute", the other is "Google needs you".
    */
   needsReconnect?: boolean;
+  lastSuccessAt?: number;
+  lastFailure?: { reason: string; at: number };
+  /** Android only. Undefined on web, where nothing is scheduled. */
+  nextScheduledAt?: number;
+  /** True while a backup or restore holds the lock. */
+  busy?: boolean;
 }
 
 /**
@@ -138,17 +154,32 @@ export class DriveBackupController {
     for (const listener of this.#listeners) listener(this.#view);
   }
 
-  /** Read persisted state without touching the network. */
-  async load(): Promise<DriveView> {
+  /**
+   * Read persisted state without touching the network.
+   *
+   * `nextScheduledAt` is only produced when the policy actually schedules
+   * something. On the web it stays undefined, so the screen has nothing to
+   * render rather than a date it would not honour.
+   */
+  async load(policy?: { triggers: readonly string[]; minimumIntervalMs: number }): Promise<DriveView> {
     const saved = await this.store.read();
+    const schedules = policy?.triggers.includes('periodic') ?? false;
+
     this.#set({
       phase: saved?.connected ? 'connected' : 'disconnected',
       connected: Boolean(saved?.connected),
       lastBackupAt: saved?.lastBackupAt,
       bytes: saved?.bytes,
       generation: saved?.generation,
+      lastSuccessAt: saved?.lastSuccessAt,
+      lastFailure: saved?.lastFailure,
+      nextScheduledAt:
+        schedules && saved?.connected
+          ? (saved?.lastSuccessAt ?? Date.now()) + (policy?.minimumIntervalMs ?? 0)
+          : undefined,
       message: undefined,
       needsReconnect: undefined,
+      busy: false,
     });
     return this.#view;
   }
@@ -192,59 +223,101 @@ export class DriveBackupController {
     return this.#view;
   }
 
+  /**
+   * One at a time.
+   *
+   * Two backups running together would race for the same generation number and
+   * could interleave their chunk uploads under names the other is about to
+   * commit — a way to corrupt the very thing being protected. The lock is held
+   * by the controller rather than the button, because a disabled button is a
+   * suggestion and a second tab, a background trigger and a manual press are
+   * three ways to arrive here at once.
+   */
+  #inFlight: Promise<DriveView> | undefined;
+
+  get busy(): boolean {
+    return this.#inFlight !== undefined;
+  }
+
+  async #exclusive(run: () => Promise<DriveView>): Promise<DriveView> {
+    if (this.#inFlight) return this.#inFlight;
+    const work = run().finally(() => {
+      this.#inFlight = undefined;
+      this.#set({ busy: false });
+    });
+    this.#inFlight = work;
+    this.#set({ busy: true });
+    return work;
+  }
+
+  async #recordFailure(cause: unknown): Promise<void> {
+    const { message, needsReconnect } = describe(cause);
+    const saved = await this.store.read();
+    const failure = { reason: message, at: Date.now() };
+    if (saved) await this.store.write({ ...saved, lastFailure: failure });
+    this.#set({ phase: 'error', message, needsReconnect, progress: undefined, lastFailure: failure });
+  }
+
   async backupNow(plaintext: Uint8Array, recoveryPublicKey: string): Promise<DriveView> {
-    this.#set({ phase: 'backing-up', message: undefined, needsReconnect: undefined, progress: undefined });
-    try {
-      const result = await this.target.backupArchive(plaintext, recoveryPublicKey, (progress) =>
-        this.#set({ progress }),
-      );
-      const state: DriveBackupState = {
-        connected: true,
-        lastBackupAt: Date.now(),
-        bytes: result.bytes,
-        generation: result.generation,
-      };
-      await this.store.write(state);
-      this.#set({
-        phase: 'connected',
-        connected: true,
-        lastBackupAt: state.lastBackupAt,
-        bytes: state.bytes,
-        generation: state.generation,
-        progress: undefined,
-      });
-    } catch (cause) {
-      const { message, needsReconnect } = describe(cause);
-      this.#set({ phase: 'error', message, needsReconnect, progress: undefined });
-    }
-    return this.#view;
+    return this.#exclusive(async () => {
+      this.#set({ phase: 'backing-up', message: undefined, needsReconnect: undefined, progress: undefined });
+      try {
+        const result = await this.target.backupArchive(plaintext, recoveryPublicKey, (progress) =>
+          this.#set({ progress }),
+        );
+        const saved = await this.store.read();
+        const now = Date.now();
+        const state: DriveBackupState = {
+          ...(saved ?? {}),
+          connected: true,
+          lastBackupAt: now,
+          lastSuccessAt: now,
+          bytes: result.bytes,
+          generation: result.generation,
+        };
+        await this.store.write(state);
+        this.#set({
+          phase: 'connected',
+          connected: true,
+          lastBackupAt: now,
+          lastSuccessAt: now,
+          bytes: state.bytes,
+          generation: state.generation,
+          progress: undefined,
+        });
+      } catch (cause) {
+        await this.#recordFailure(cause);
+      }
+      return this.#view;
+    });
   }
 
   async restore(
     recoveryPrivateKey: CryptoKey,
     apply: (plaintext: Uint8Array) => Promise<void>,
   ): Promise<DriveView> {
-    this.#set({ phase: 'restoring', message: undefined, needsReconnect: undefined, progress: undefined });
-    try {
-      const saved = await this.store.read();
-      const { plaintext, generation } = await this.target.restoreArchive(
-        recoveryPrivateKey,
-        saved?.generation ?? 0,
-        (progress) => this.#set({ progress }),
-      );
+    return this.#exclusive(async () => {
+      this.#set({ phase: 'restoring', message: undefined, needsReconnect: undefined, progress: undefined });
+      try {
+        const saved = await this.store.read();
+        const { plaintext, generation } = await this.target.restoreArchive(
+          recoveryPrivateKey,
+          saved?.generation ?? 0,
+          (progress) => this.#set({ progress }),
+        );
 
-      /*
-       * Applied before the generation is recorded. Writing the generation first
-       * would mark a restore as done that then failed to land, and the next
-       * attempt would be refused as a rollback.
-       */
-      await apply(plaintext);
-      await this.store.write({ ...(saved ?? { connected: true }), connected: true, generation });
-      this.#set({ phase: 'connected', connected: true, generation, progress: undefined });
-    } catch (cause) {
-      const { message, needsReconnect } = describe(cause);
-      this.#set({ phase: 'error', message, needsReconnect, progress: undefined });
-    }
-    return this.#view;
+        /*
+         * Applied before the generation is recorded. Writing the generation
+         * first would mark a restore as done that then failed to land, and the
+         * next attempt would be refused as a rollback.
+         */
+        await apply(plaintext);
+        await this.store.write({ ...(saved ?? { connected: true }), connected: true, generation });
+        this.#set({ phase: 'connected', connected: true, generation, progress: undefined });
+      } catch (cause) {
+        await this.#recordFailure(cause);
+      }
+      return this.#view;
+    });
   }
 }

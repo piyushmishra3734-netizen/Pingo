@@ -11,6 +11,7 @@
 import { DriveBackupController, type DriveBackupState, type DriveStateStore, type DriveView } from '../src/lib/backup/drive/controller.js';
 import { GoogleDriveBackupTarget } from '../src/lib/backup/drive/drive-target.js';
 import { DriveAuthError } from '../src/lib/backup/drive/auth.js';
+import { ANDROID_POLICY, WEB_POLICY, shouldBackup } from '../src/lib/backup/drive/policy.js';
 import { FakeAuth, FakeDrive } from './fake-drive.js';
 
 let failures = 0;
@@ -170,6 +171,93 @@ const offlineView = await offlineController.backupNow(chats, recoveryPublic);
 check(offlineView.phase === 'error', 'being offline is an error state');
 check(offlineView.needsReconnect !== true, 'and does not ask the user to reconnect Drive');
 check(/connection|online/i.test(offlineView.message ?? ''), `message is about the network: "${offlineView.message}"`);
+
+console.log('\n— only one backup at a time —');
+
+const lock = build();
+await lock.controller.connect(() => lock.auth.authorize());
+
+/*
+ * Two backups started without awaiting the first. A second generation racing
+ * the first would fight over the same chunk names and could commit a HEAD
+ * pointing at a half-written mixture.
+ */
+const firstRun = lock.controller.backupNow(chats, recoveryPublic);
+const secondRun = lock.controller.backupNow(chats, recoveryPublic);
+check(lock.controller.busy, 'the controller reports itself busy while running');
+const [a, b] = await Promise.all([firstRun, secondRun]);
+check(a === b, 'the second request joins the first rather than starting another');
+check(a.generation === 1, 'exactly one generation was written, not two');
+check(!lock.controller.busy, 'the lock is released when it finishes');
+
+const afterLock = await lock.controller.backupNow(chats, recoveryPublic);
+check(afterLock.generation === 2, 'a later backup runs normally once the lock is free');
+
+console.log('\n— restore cannot start while a backup is running —');
+
+const mixed = build();
+await mixed.controller.connect(() => mixed.auth.authorize());
+await mixed.controller.backupNow(chats, recoveryPublic);
+const running = mixed.controller.backupNow(chats, recoveryPublic);
+const rejectedRestore = await mixed.controller.restore(recovery.privateKey, async () => {});
+await running;
+check(
+  rejectedRestore.phase !== 'restoring',
+  'a restore requested mid-backup does not start a second operation',
+);
+
+console.log('\n— success and failure are recorded separately —');
+
+const history = build();
+await history.controller.connect(() => history.auth.authorize());
+await history.controller.backupNow(chats, recoveryPublic);
+const successAt = history.store.peek()?.lastSuccessAt;
+check(typeof successAt === 'number', 'a successful backup records lastSuccessAt');
+check(history.store.peek()?.lastFailure === undefined, 'and records no failure');
+
+history.drive.failUploads = true;
+const failedView = await history.controller.backupNow(chats, recoveryPublic);
+history.drive.failUploads = false;
+
+check(history.store.peek()?.lastSuccessAt === successAt, 'a later failure does not overwrite the last success');
+check(typeof history.store.peek()?.lastFailure?.at === 'number', 'the failure time is recorded');
+check(
+  (history.store.peek()?.lastFailure?.reason ?? '').length > 0,
+  `the failure reason is kept: "${history.store.peek()?.lastFailure?.reason}"`,
+);
+check(failedView.lastFailure !== undefined, 'and the screen is given it to display');
+
+console.log('\n— next scheduled backup is Android-only —');
+
+const android = build();
+await android.controller.connect(() => android.auth.authorize());
+await android.controller.backupNow(chats, recoveryPublic);
+const androidView = await android.controller.load(ANDROID_POLICY);
+check(typeof androidView.nextScheduledAt === 'number', 'Android reports a next scheduled backup');
+check(
+  (androidView.nextScheduledAt ?? 0) > Date.now(),
+  'and it is in the future',
+);
+
+const webView = await android.controller.load(WEB_POLICY);
+check(
+  webView.nextScheduledAt === undefined,
+  'the web reports nothing scheduled, because nothing is',
+);
+
+console.log('\n— the policy itself —');
+
+check(shouldBackup(WEB_POLICY, 'manual', Date.now()), 'manual always runs, even just after a backup');
+check(!shouldBackup(WEB_POLICY, 'background', undefined), 'the web never runs a background backup');
+check(shouldBackup(ANDROID_POLICY, 'background', undefined), 'Android runs one when it has never backed up');
+check(
+  !shouldBackup(ANDROID_POLICY, 'periodic', Date.now()),
+  'and does not run again immediately afterwards',
+);
+check(
+  shouldBackup(ANDROID_POLICY, 'periodic', Date.now() - 25 * 60 * 60 * 1000),
+  'but does once the interval has passed',
+);
 
 console.log('\n— disconnected again —');
 
