@@ -59,10 +59,8 @@ export function SecureBackupScreen() {
    * is pressed — so this is safe to do before the user has asked.
    */
   const driveAuth = useMemo(() => (isNative ? new NativeDriveAuth() : new WebDriveAuth()), [isNative]);
-  const driveCtl = useMemo(
-    () => new DriveBackupController(new GoogleDriveBackupTarget(driveAuth)),
-    [driveAuth],
-  );
+  const driveTarget = useMemo(() => new GoogleDriveBackupTarget(driveAuth), [driveAuth]);
+  const driveCtl = useMemo(() => new DriveBackupController(driveTarget), [driveTarget]);
 
   useEffect(() => {
     const stop = driveCtl.subscribe(setDrive);
@@ -157,6 +155,47 @@ export function SecureBackupScreen() {
     });
   };
 
+  /**
+   * Recovery on a device that has never held this account's keys.
+   *
+   * The package comes from Drive rather than from here, because here has
+   * nothing — that is the situation. The server holds the same bytes and will
+   * not return them, deliberately, so Drive is the only path from a lost phone
+   * to readable history.
+   */
+  const recoverFromDrive = async () => {
+    const entered = restoreCode.trim();
+    setRestoreCode('');
+    setError(undefined);
+    if (!entered) return;
+
+    try {
+      const stored = await driveTarget.get();
+      if (!stored) {
+        setError('No recovery package was found in Google Drive for this account.');
+        return;
+      }
+
+      const { restoreRecoveryKey } = await import('../../lib/crypto/recovery.js');
+      let key: CryptoKey;
+      try {
+        key = await restoreRecoveryKey(stored.package, entered, 0);
+      } catch {
+        setError('That code did not open the recovery package. Nothing was restored.');
+        return;
+      }
+
+      const { applyArchivePlaintext } = await import('../../lib/backup/archive-builder.js');
+      await driveCtl.restore(key, async (plaintext) => {
+        const applied = await applyArchivePlaintext(plaintext);
+        setError(`Restored ${applied.records} records across ${applied.stores} stores. Reload to see them.`);
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? `Restore failed — ${cause.message}` : 'Restore failed.');
+    }
+  };
+
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -177,6 +216,11 @@ export function SecureBackupScreen() {
 
   const enabled = status?.enabled ?? false;
   const local = status?.local;
+  /*
+   * The account has a package somewhere, whatever this device remembers. That
+   * is what makes recovery possible and what the restore path keys on.
+   */
+  const accountEnrolled = status?.targets.some((t) => t.present) ?? false;
 
   const runTest = async () => {
     setBusy('test');
@@ -248,7 +292,64 @@ export function SecureBackupScreen() {
         </Group>
       ) : null}
 
-      {!enabled && !enrolling ? (
+      {/*
+        The device that most needs restore is the one that has nothing.
+
+        Everything below the status block used to be gated on local enrolment
+        state, which a reinstalled or replaced device never has — so the screen
+        offered "Enable Secure Backup" and no way back to the history sitting in
+        Drive. Measured by wiping the database: new device identity, empty
+        stores, account still enrolled server-side, and not one control that
+        could reach the backup.
+
+        The account's package being present is what proves recovery is possible,
+        so that is what this is keyed on rather than anything this device
+        remembers.
+      */}
+      {!local && accountEnrolled ? (
+        <Group title="Restore your history">
+          <p className="px-4 pt-3 text-sm text-muted">
+            This account has Secure Backup, but this device has never been set up. Connect Google
+            Drive and enter your 12-word recovery code to bring your chats back.
+          </p>
+
+          {!drive?.connected || drive?.needsReconnect ? (
+            <button
+              type="button"
+              disabled={drive?.phase === 'connecting'}
+              className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+              onClick={connectDrive}
+            >
+              {drive?.phase === 'connecting' ? 'Connecting…' : 'Connect Google Drive'}
+            </button>
+          ) : (
+            <>
+              <input
+                type="password"
+                value={restoreCode}
+                autoComplete="off"
+                placeholder="Your 12-word recovery code"
+                onChange={(event) => setRestoreCode(event.target.value)}
+                className="mx-4 my-2 rounded-md bg-surface px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                disabled={busyDrive || restoreCode.trim().length === 0}
+                className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+                onClick={() => void recoverFromDrive()}
+              >
+                {drive?.phase === 'restoring' ? 'Restoring…' : 'Restore from Google Drive'}
+              </button>
+            </>
+          )}
+
+          {drive?.phase === 'error' && drive.message ? (
+            <p className="px-4 pb-3 text-sm text-danger">{drive.message}</p>
+          ) : null}
+        </Group>
+      ) : null}
+
+      {!enabled && !accountEnrolled && !enrolling ? (
         <Group title="Set up">
           <p className="px-4 pt-3 text-sm text-muted">
             Read your history again after losing a phone, reinstalling, or signing in on a new
