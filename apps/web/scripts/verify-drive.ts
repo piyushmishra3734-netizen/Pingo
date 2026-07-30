@@ -143,5 +143,23 @@ try {
 }
 check(notFound, 'a deleted backup reports not-found rather than returning nothing');
 
+console.log('\n— the default transport is callable —');
+
+/*
+ * `http: Http = fetch` detaches fetch from its global, and every call then
+ * throws "Illegal invocation". Every other check in this file injects a
+ * transport, so the default shipped unexercised and failed on the very first
+ * real backup. This calls the real default: any failure is acceptable except
+ * that one, which would mean the binding is gone again.
+ */
+const defaultTransport = new DriveClient(new FakeAuth());
+let illegalInvocation = false;
+try {
+  await defaultTransport.find('anything');
+} catch (cause) {
+  illegalInvocation = /illegal invocation/i.test(String((cause as Error)?.message ?? ''));
+}
+check(!illegalInvocation, 'the default fetch is bound, not passed bare');
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

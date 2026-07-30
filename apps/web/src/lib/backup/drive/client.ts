@@ -41,9 +41,19 @@ export class DriveError extends Error {
 export const UPLOAD_CHUNK = 512 * 1024;
 
 export class DriveClient {
+  /*
+   * `fetch` is bound, not passed bare.
+   *
+   * `http: Http = fetch` detaches the function from `window`, so calling
+   * `this.http(...)` invokes it with `this` set to the client and the browser
+   * refuses: "Failed to execute 'fetch' on 'Window': Illegal invocation". Every
+   * verification suite injected its own transport, so the default was never
+   * once executed and no test could have caught it — the first real backup did,
+   * immediately.
+   */
   constructor(
     private readonly auth: DriveAuth,
-    private readonly http: Http = fetch,
+    private readonly http: Http = (url, init) => fetch(url, init),
   ) {}
 
   /**
