@@ -18,6 +18,7 @@ import { GoogleDriveBackupTarget } from '../../lib/backup/drive/drive-target.js'
 import { NativeDriveAuth } from '../../lib/backup/drive/native-auth.js';
 import { WebDriveAuth } from '../../lib/backup/drive/web-auth.js';
 import { policyFor } from '../../lib/backup/drive/policy.js';
+import { archiveLines, buildArchive } from '../../lib/backup/archive-builder.js';
 
 /**
  * Secure Backup.
@@ -48,6 +49,7 @@ export function SecureBackupScreen() {
 
   const [drive, setDrive] = useState<DriveView | undefined>();
   const [confirm, setConfirm] = useState<'restore' | 'disconnect' | undefined>();
+  const [restoreCode, setRestoreCode] = useState('');
   const isNative = useMemo(() => Capacitor.isNativePlatform(), []);
   const policy = useMemo(() => policyFor(isNative), [isNative]);
 
@@ -81,15 +83,14 @@ export function SecureBackupScreen() {
     void driveCtl.connect(() => auth.authorize());
   };
 
+  /*
+   * The real conversation store, streamed. Nothing here holds the archive: the
+   * builder fills one chunk, the target uploads it, and the bytes are dropped
+   * before the next chunk is sealed.
+   */
   const driveBackupNow = async () => {
     if (!local?.publicKey) return;
-    /*
-     * A placeholder payload until the archive builder lands. The transport,
-     * sealing and integrity are real; what is being sealed is not yet the
-     * conversation store, and the screen does not pretend otherwise.
-     */
-    const payload = new TextEncoder().encode(JSON.stringify({ note: 'archive pending', at: Date.now() }));
-    await driveCtl.backupNow(payload, local.publicKey);
+    await driveCtl.backupStreaming(local.publicKey);
   };
 
   /*
@@ -106,14 +107,47 @@ export function SecureBackupScreen() {
     void driveCtl.disconnect();
   };
 
-  const confirmRestore = () => {
+  /*
+   * Restore needs the recovery private key, which only the code can produce, so
+   * the code is asked for here and used once. It is never stored — not in state
+   * beyond this call, not on disk.
+   */
+  const confirmRestore = async () => {
     setConfirm(undefined);
-    /*
-     * Deliberately not wired to a destructive apply yet: the archive builder
-     * that would produce a local database from these bytes does not exist, so
-     * restoring is verified end to end but does not yet overwrite anything.
-     */
-    setError('Restore needs your recovery code and the archive builder, which is not shipped yet.');
+    const entered = restoreCode.trim();
+    setRestoreCode('');
+    if (!entered) {
+      setError('Restore needs your 12-word recovery code.');
+      return;
+    }
+
+    const { restoreRecoveryKey } = await import('../../lib/crypto/recovery.js');
+    const stored = local?.package;
+    if (!stored) {
+      setError('This device has no recovery package to open. Enable Secure Backup first.');
+      return;
+    }
+
+    let recoveryKey: CryptoKey;
+    try {
+      recoveryKey = await restoreRecoveryKey(stored, entered, 0);
+    } catch {
+      setError('That code did not open your recovery package. Nothing was restored.');
+      return;
+    }
+
+    const { applyArchivePlaintext } = await import('../../lib/backup/archive-builder.js');
+    await driveCtl.restore(recoveryKey, async (plaintext) => {
+      /*
+       * Every chunk has already been downloaded and checked against the
+       * manifest by the time this runs, so what arrives is known-good and goes
+       * straight into the database. The controller only records the generation
+       * once this resolves, so a write that fails is not remembered as a
+       * completed restore.
+       */
+      const applied = await applyArchivePlaintext(plaintext);
+      setError(`Restored ${applied.records} records across ${applied.stores} stores.`);
+    });
   };
 
   const formatBytes = (bytes: number) => {
@@ -414,7 +448,15 @@ export function SecureBackupScreen() {
                 needs your 12-word recovery code. Use Test Recovery above first to check the code
                 works.
               </p>
-              <button type="button" className="py-2 text-left text-accent" onClick={confirmRestore}>
+              <input
+                type="password"
+                value={restoreCode}
+                autoComplete="off"
+                placeholder="Your 12-word recovery code"
+                onChange={(event) => setRestoreCode(event.target.value)}
+                className="my-2 w-full rounded-md bg-surface px-3 py-2 text-sm"
+              />
+              <button type="button" className="py-2 text-left text-accent" onClick={() => void confirmRestore()}>
                 Yes, restore from Drive
               </button>
               <button type="button" className="ml-4 py-2 text-left text-muted" onClick={() => setConfirm(undefined)}>

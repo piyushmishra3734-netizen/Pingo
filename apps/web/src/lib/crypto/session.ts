@@ -572,9 +572,63 @@ export function purgeUnsealedCache(): Promise<void> {
         if (!isSealed(value)) await localDelete(store, key);
       }
     }
+    await purgeForeignRecords();
   })().catch(() => undefined);
 
   return purged;
+}
+
+/**
+ * Drop records this device is sealed out of.
+ *
+ * Distinct from the purge above, which removes values that were never sealed.
+ * These *are* sealed, correctly, under a database key this device no longer
+ * holds — rows left behind when an account switch failed to clear
+ * `message-rows`, which it did for as long as that store existed. They are
+ * unreadable rather than exposed, but they are another account's messages
+ * sitting in this one's store, and they made an archive carry two records out
+ * of fifty-two while reporting success.
+ *
+ * ## The guard matters more than the sweep
+ *
+ * "Will not open" and "cannot be opened right now" look identical from here,
+ * and deleting on the second would destroy good data on a transient failure.
+ * So nothing is removed unless the key itself is available *and* at least one
+ * record has been proven to open with it. If this device cannot read anything,
+ * the right conclusion is that the key is wrong, not that every message is.
+ */
+async function purgeForeignRecords(): Promise<void> {
+  let key: CryptoKey;
+  try {
+    key = await databaseKey();
+  } catch {
+    return;
+  }
+
+  const stores = [STORE.conversations, STORE.messages, STORE.messageRows] as const;
+  const candidates: Array<{ store: (typeof stores)[number]; key: string }> = [];
+  let proven = false;
+
+  for (const store of stores) {
+    for (const [id, value] of await localEntries<unknown>(store)) {
+      if (!isSealed(value)) continue;
+      try {
+        await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: fromBase64(value.iv) },
+          key,
+          fromBase64(value.data),
+        );
+        proven = true;
+      } catch {
+        candidates.push({ store, key: id });
+      }
+    }
+  }
+
+  // Nothing opened: assume the key, not the data, is what is wrong.
+  if (!proven) return;
+
+  for (const { store, key: id } of candidates) await localDelete(store, id);
 }
 
 /**

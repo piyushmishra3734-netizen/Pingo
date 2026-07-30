@@ -166,6 +166,83 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     return { generation, bytes: total };
   }
 
+  /**
+   * Build and upload at the same time, holding one chunk at a time.
+   *
+   * `backupArchive` above takes a finished archive, which means something has
+   * to have held all of it. This one drives the builder and uploads inside its
+   * `onChunk`, so the sealed bytes go to Drive and are dropped before the next
+   * chunk is filled. Peak memory is the chunk size plus one sealed copy of it,
+   * whatever the size of the history.
+   *
+   * ## Why a failed attempt is discarded rather than continued
+   *
+   * Reusing the chunks a dead run already delivered looks obviously right and
+   * is not. Each attempt seals with a fresh ephemeral key and a fresh IV per
+   * chunk, so chunks from attempt one cannot be opened by the manifest attempt
+   * two writes — verification produced exactly that: a resume that reported
+   * success and restored to "Backup part 0 is damaged".
+   *
+   * Making them match would mean reusing the ephemeral key *and* every IV. The
+   * database changes between attempts, so chunk three may hold different bytes
+   * the second time, and reusing an AES-GCM key and IV over different plaintext
+   * does not degrade — it discloses the keystream. That is not a trade worth
+   * one saved upload.
+   *
+   * So an attempt is atomic in the sense that matters: it either commits a
+   * complete, self-consistent generation or leaves orphans that the next run
+   * removes. Resuming still happens where it is safe — the client resumes an
+   * interrupted *file* against its own upload session, which is where a phone
+   * on a bad connection actually loses its progress.
+   */
+  async backupArchiveStreaming(
+    recoveryPublicKey: string,
+    build: (
+      recoveryPublicKey: string,
+      generation: number,
+      onChunk: (chunk: ArchiveChunk) => Promise<void>,
+    ) => Promise<{ manifest: ArchiveManifest; stats: { skipped: number; records: number } }>,
+    onProgress?: (progress: ArchiveProgress) => void,
+  ): Promise<{ generation: number; bytes: number; skipped: number; records: number; discarded: number }> {
+    const current = await this.head();
+    const generation = (current?.generation ?? 0) + 1;
+
+    /*
+     * Clear anything a previous failed attempt left at this generation before
+     * writing over it. Those chunks were sealed under a different ephemeral key
+     * and cannot be opened by the manifest this run is about to write, so
+     * leaving them would mean a directory holding two incompatible halves of
+     * the same generation number.
+     */
+    const orphans = await this.drive.list(`pingo.g${generation}.`);
+    for (const orphan of orphans) await this.drive.remove(orphan.id);
+
+    let bytes = 0;
+
+    onProgress?.({ phase: 'sealing' });
+    const { manifest, stats } = await build(recoveryPublicKey, generation, async (chunk) => {
+      bytes += chunk.bytes.length;
+      onProgress?.({ phase: 'uploading', sent: bytes, total: bytes });
+      await this.drive.upload(chunkName(generation, chunk.index), chunk.bytes);
+      // `chunk.bytes` is unreferenced from here; the builder reuses its buffer.
+    });
+
+    await this.drive.upload(manifestName(generation), encoder.encode(JSON.stringify(manifest)));
+
+    onProgress?.({ phase: 'committing' });
+    const previousHead = await this.drive.find(HEAD_FILE);
+    await this.drive.upload(
+      HEAD_FILE,
+      encoder.encode(JSON.stringify({ generation, updatedAt: Date.now() })),
+    );
+    if (previousHead) await this.drive.remove(previousHead.id);
+
+    onProgress?.({ phase: 'cleaning' });
+    await this.#removeGenerationsBefore(generation);
+
+    return { generation, bytes, skipped: stats.skipped, records: stats.records, discarded: orphans.length };
+  }
+
   async restoreArchive(
     recoveryPrivateKey: CryptoKey,
     seenGeneration = 0,

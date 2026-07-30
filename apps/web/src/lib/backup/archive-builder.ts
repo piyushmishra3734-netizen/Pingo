@@ -285,6 +285,52 @@ export const localRestoreSink: RestoreSink = {
   seal: (value) => sealRecord(value),
 };
 
+/**
+ * Write an already-decrypted archive into the database.
+ *
+ * Split out because there are two ways to arrive here with the same bytes: the
+ * chunk-by-chunk restore below, which decrypts as it goes, and the Drive path,
+ * where the target has already downloaded, verified and assembled the archive.
+ * Having the second one decrypt again would be wasteful; having it parse and
+ * write through a second implementation would be worse, because the two would
+ * eventually disagree about what a record is.
+ */
+export async function applyArchivePlaintext(
+  plaintext: Uint8Array,
+  sink: RestoreSink = localRestoreSink,
+): Promise<RestoreStats> {
+  const started = Date.now();
+  const pending = new Map<StoreName, Array<[string, unknown]>>();
+  let records = 0;
+
+  const flush = async (store: StoreName) => {
+    const batch = pending.get(store);
+    if (!batch?.length) return;
+    await sink.put(store, batch);
+    pending.set(store, []);
+  };
+
+  for (const line of decoder.decode(plaintext).split('\n')) {
+    if (!line.trim()) continue;
+    let parsed: { kind: string; store?: StoreName; key?: string; value?: unknown };
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (parsed.kind !== 'record' || !parsed.store || parsed.key === undefined) continue;
+
+    const batch = pending.get(parsed.store) ?? [];
+    batch.push([parsed.key, await sink.seal(parsed.value)]);
+    pending.set(parsed.store, batch);
+    records += 1;
+    if (batch.length >= 500) await flush(parsed.store);
+  }
+
+  for (const store of pending.keys()) await flush(store);
+  return { records, stores: pending.size, millis: Date.now() - started };
+}
+
 export async function restoreArchiveInto(
   chunks: AsyncIterable<Uint8Array> | Iterable<Uint8Array>,
   manifest: ArchiveManifest,

@@ -292,6 +292,62 @@ export class DriveBackupController {
     });
   }
 
+  /**
+   * Back up by building and uploading together.
+   *
+   * This is what the button calls. `backupNow` above takes a finished archive
+   * and exists for callers that already have one; using it here would mean
+   * holding every message in memory to hand it over, which is the thing the
+   * builder was written to avoid.
+   */
+  async backupStreaming(recoveryPublicKey: string): Promise<DriveView> {
+    return this.#exclusive(async () => {
+      this.#set({ phase: 'backing-up', message: undefined, needsReconnect: undefined, progress: undefined });
+      try {
+        const { buildArchive, archiveLines } = await import('../archive-builder.js');
+
+        const result = await this.target.backupArchiveStreaming(
+          recoveryPublicKey,
+          (publicKey, generation, onChunk) =>
+            buildArchive(publicKey, generation, onChunk, () => archiveLines()),
+          (progress) => this.#set({ progress }),
+        );
+
+        const saved = await this.store.read();
+        const now = Date.now();
+        await this.store.write({
+          ...(saved ?? {}),
+          connected: true,
+          lastBackupAt: now,
+          lastSuccessAt: now,
+          bytes: result.bytes,
+          generation: result.generation,
+        });
+
+        this.#set({
+          phase: 'connected',
+          connected: true,
+          lastBackupAt: now,
+          lastSuccessAt: now,
+          bytes: result.bytes,
+          generation: result.generation,
+          progress: undefined,
+          /*
+           * A backup that could not read part of the database is not a clean
+           * success, and saying so is the whole reason the count exists.
+           */
+          message:
+            result.skipped > 0
+              ? `Backed up ${result.records} records. ${result.skipped} could not be read on this device and were not included.`
+              : undefined,
+        });
+      } catch (cause) {
+        await this.#recordFailure(cause);
+      }
+      return this.#view;
+    });
+  }
+
   async restore(
     recoveryPrivateKey: CryptoKey,
     apply: (plaintext: Uint8Array) => Promise<void>,

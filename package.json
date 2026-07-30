@@ -24,7 +24,8 @@
     "verify:drive": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive.ts",
     "verify:drive-target": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-target.ts",
     "verify:drive-ui": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-ui.ts",
-    "verify:archive-builder": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-archive-builder.ts"
+    "verify:archive-builder": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-archive-builder.ts",
+    "verify:drive-streaming": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-streaming.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
