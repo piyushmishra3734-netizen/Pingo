@@ -20,7 +20,7 @@ import { useIsDesktop } from '../hooks/useMediaQuery.js';
  * with a placeholder when nothing is selected. The URL means the same thing in
  * both cases, so a link shared from a phone opens correctly on a desktop.
  *
- * One component rather than two routes because the *state* is identical — only
+ * One component rather than two routes because the *state* is identical - only
  * the arrangement differs. Splitting them would mean keeping two versions of the
  * same behaviour in sync.
  */
@@ -93,7 +93,7 @@ export function ChatsScreen() {
             <div className="flex flex-col items-center">
               {/*
                 The official icon, faded rather than a recoloured redrawing of
-                it. A muted brand moment does not need a different logo — it
+                it. A muted brand moment does not need a different logo - it
                 needs the same one, quieter.
               */}
               <AppLogo size={64} alt="" className="opacity-45" />

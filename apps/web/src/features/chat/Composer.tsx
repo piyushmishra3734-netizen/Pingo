@@ -16,7 +16,7 @@ import { StickerPicker } from '../stickers/StickerPicker.js';
  * user is still writing it.
  *
  * The send control swaps to a microphone when the field is empty, so the primary
- * action is always the one that makes sense — and the button never sits there
+ * action is always the one that makes sense - and the button never sits there
  * disabled, which is a dead-end the user has to reason about.
  *
  * Enter sends; Shift+Enter makes a newline. On touch, Enter always inserts a
@@ -25,7 +25,7 @@ import { StickerPicker } from '../stickers/StickerPicker.js';
 
 export interface ComposerProps {
   /**
-   * The attach menu's six actions. Supplied together or not at all — a menu
+   * The attach menu's six actions. Supplied together or not at all - a menu
    * with holes in it is the placeholder problem by another route.
    */
   attach?: {
@@ -56,7 +56,7 @@ const MAX_HEIGHT = 140;
  * How long the microphone must be held before it counts as hold-to-record.
  *
  * Shorter than a long press, because this is not a hidden gesture being
- * discovered — the button is already the record button, and the only question
+ * discovered - the button is already the record button, and the only question
  * is whether the finger stayed. Long enough that a firm tap is still a tap.
  */
 const HOLD_MS = 220;
@@ -80,7 +80,7 @@ export function Composer({
    * Emoji and stickers used to be separate buttons opening separate panels,
    * which meant two icons to learn and two things that could each be the open
    * one. They are two drawers of the same cupboard, so they share a panel and
-   * emoji is the default — it is what the button is reached for nine times out
+   * emoji is the default - it is what the button is reached for nine times out
    * of ten.
    */
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -130,7 +130,7 @@ export function Composer({
      * Optimistic because a composer that waits for the network before emptying
      * feels broken on a slow connection, and that is the common case by a wide
      * margin. But the old version cleared and never looked again, so a refused
-     * send took the text with it and said nothing at all — the message was
+     * send took the text with it and said nothing at all - the message was
      * simply gone, and the only way to notice was to reread the thread.
      *
      * End-to-end encryption made that failure reachable rather than
@@ -204,7 +204,7 @@ export function Composer({
          *
          * Not a toast: a toast disappears while somebody is still reading it,
          * and this one has to survive long enough to be understood and acted
-         * on. It is `alert` so a screen reader announces it — a silent failure
+         * on. It is `alert` so a screen reader announces it - a silent failure
          * is worse for someone who cannot see the box refill itself.
          */
         <div
@@ -281,7 +281,7 @@ export function Composer({
 
         {/*
           One button for emoji *and* stickers. They are two drawers of the same
-          cupboard — both "insert something that is not typed" — and giving each
+          cupboard - both "insert something that is not typed" - and giving each
           its own icon meant two things to learn and two panels that could each
           be the open one. Emoji leads because it is what the button is reached
           for nine times in ten.
@@ -314,7 +314,7 @@ export function Composer({
 
             `key` on the count is what makes the animation replay: re-running a
             CSS animation needs a new element, and without it the second message
-            of a burst — the case where you most want to know it went — would
+            of a burst - the case where you most want to know it went - would
             animate once and then sit still for the rest of the conversation.
           */
           key={sent}
@@ -330,7 +330,7 @@ export function Composer({
          * Hold and release sends, which is the phone habit. A quick tap starts
          * recording and leaves it running, which is the only version that works
          * with a mouse, and the only one usable by someone who cannot hold a
-         * press steady. Neither is a mode the user has to choose in advance —
+         * press steady. Neither is a mode the user has to choose in advance  - 
          * the button works out which one happened.
          */
         <IconButton
@@ -365,7 +365,7 @@ export function Composer({
           onPointerCancel={() => {
             if (holdTimer.current) window.clearTimeout(holdTimer.current);
             holdTimer.current = undefined;
-            // The gesture was taken away — a notification, a system sheet. The
+            // The gesture was taken away - a notification, a system sheet. The
             // take is dropped rather than sent half-finished.
             if (heldRef.current) {
               heldRef.current = false;
@@ -377,7 +377,7 @@ export function Composer({
         </IconButton>
       ) : (
         /*
-         * No handler means this surface does not take voice notes — the
+         * No handler means this surface does not take voice notes - the
          * styleguide, for one. Saying so beats a button that looks available
          * and does nothing, which is what this was before recording existed.
          */
@@ -401,7 +401,7 @@ export function Composer({
  * A segmented strip rather than a row of icons, because the tabs are a choice
  * between two whole surfaces and the current one has to be obvious without
  * looking at what is underneath. Absent entirely when the surface takes no
- * stickers — one tab is not a choice.
+ * stickers - one tab is not a choice.
  */
 function PickerTabs({
   tab,

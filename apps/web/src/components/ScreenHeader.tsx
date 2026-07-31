@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * The shared header for secondary screens — Profile, Settings, Calls, Communities.
+ * The shared header for secondary screens - Profile, Settings, Calls, Communities.
  *
  * Exists so those four screens cannot drift apart in height, padding, glass
  * treatment or back-button placement. The conversation list and chat thread have

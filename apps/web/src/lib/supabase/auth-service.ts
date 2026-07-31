@@ -3,7 +3,7 @@
  *
  * The only file in the product that knows Supabase handles identity. Screens
  * depend on the interface in `@pingo/core`; this is injected once in `App.tsx`.
- * The boundary note in `client.ts` applies here too — nothing under `screens/`
+ * The boundary note in `client.ts` applies here too - nothing under `screens/`
  * or `components/` may import this module.
  *
  * ## The three doors
@@ -11,7 +11,7 @@
  * | Door | Sign up | Sign in |
  * | --- | --- | --- |
  * | Email | `signUp({ email, password })` | `signInWithPassword({ email, … })` |
- * | Phone | the same, on a derived address — see `PHONE_IDENTITY_DOMAIN` | the same |
+ * | Phone | the same, on a derived address - see `PHONE_IDENTITY_DOMAIN` | the same |
  * | Google | `signInWithOAuth({ provider: 'google' })` | the same call |
  *
  * No OTP anywhere. Every door hands back a session immediately.
@@ -65,7 +65,7 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
  * ## Why a phone number signs in through the email provider
  *
  * Supabase's native phone provider cannot be switched on without SMS provider
- * credentials — the dashboard refuses to save without a Twilio (or Messagebird /
+ * credentials - the dashboard refuses to save without a Twilio (or Messagebird /
  * Textlocal / Vonage) account, and there is no "none" option. That is true even
  * with phone confirmations off, when not a single SMS would ever be sent.
  *
@@ -74,7 +74,7 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
  *   +91 98765 43210  →  919876543210@phone.pingo.chat
  *
  * The derivation is deterministic, so the same number always resolves to the
- * same account — sign-up, sign-in and the § 17 duplicate check all behave
+ * same account - sign-up, sign-in and the § 17 duplicate check all behave
  * exactly as they do for email, because underneath they *are* the email path.
  * The number itself is stored on the account in `user_metadata` and is what the
  * product displays; the derived address is plumbing and never shown.
@@ -83,10 +83,10 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
  *
  * | | |
  * | --- | --- |
- * | The number is unverified | Same as email in this flow — no OTP anywhere |
+ * | The number is unverified | Same as email in this flow - no OTP anywhere |
  * | `auth.users.phone` stays empty | The number lives in `user_metadata`, not the native column |
  * | Migration is not free | Moving to the native provider later means backfilling `phone` and re-keying these accounts |
- * | Metadata is user-writable | So it is display only — **authentication never reads it** |
+ * | Metadata is user-writable | So it is display only - **authentication never reads it** |
  *
  * That last row is the one that matters. A user can edit their own
  * `user_metadata` through the Supabase client, so if sign-in trusted it, anyone
@@ -111,7 +111,7 @@ function isPhoneAddress(address: string): boolean {
 /**
  * Supabase's provider strings, narrowed to the doors PINGO recognises.
  *
- * Anything else — a provider enabled in the dashboard but not in the product —
+ * Anything else - a provider enabled in the dashboard but not in the product  - 
  * is dropped rather than surfaced, so an unexpected value cannot reach a screen
  * that has no row for it.
  */
@@ -124,7 +124,7 @@ function toMethodKind(provider: string): AuthMethodKind | undefined {
 
 function toAuthUser(user: SupabaseUser): AuthUser {
   /*
-   * A phone account is recognised by its derived address, not by metadata —
+   * A phone account is recognised by its derived address, not by metadata  - 
    * the address is set at sign-up and a user cannot change it, whereas
    * `user_metadata` is theirs to edit. Reading the number from metadata is safe
    * *because* the classification does not depend on it.
@@ -176,7 +176,7 @@ function toSession(session: SupabaseSession | null): AuthSession | null {
 /**
  * Translate a Supabase error into the product's closed set.
  *
- * Supabase's `code` is the reliable signal and `status` is the fallback — the
+ * Supabase's `code` is the reliable signal and `status` is the fallback - the
  * message is not consulted at all, because it is server copy that can change
  * without notice.
  */
@@ -219,7 +219,7 @@ function toAuthError(error: SupabaseAuthError): AuthError {
   ) {
     /*
      * Supabase does not return Retry-After in the client payload, so the
-     * countdown is left undefined and the screen shows the honest version —
+     * countdown is left undefined and the screen shows the honest version  - 
      * "too many attempts" without inventing a number it cannot know.
      */
     return new AuthError('rate_limited', 'Too many attempts.');
@@ -260,7 +260,7 @@ function assertSession(session: SupabaseSession | null, context: 'signUp' | 'sig
   if (context === 'signUp') {
     /*
      * Console, not the screen. The person who can act on this is whoever runs
-     * the project, and they are the one with devtools open — the user in front
+     * the project, and they are the one with devtools open - the user in front
      * of the form can do nothing with it. `authErrorMessage` renders copy aimed
      * at them instead.
      */
@@ -283,7 +283,7 @@ function assertSession(session: SupabaseSession | null, context: 'signUp' | 'sig
 /**
  * Both credential doors, one implementation.
  *
- * `field` is the only difference between them — Supabase's `signUp` and
+ * `field` is the only difference between them - Supabase's `signUp` and
  * `signInWithPassword` take `{ email, password }` or `{ phone, password }`, and
  * nothing else about the two paths diverges.
  */
@@ -308,7 +308,7 @@ class SupabasePasswordAuth implements PasswordAuth {
     /*
      * The email door must refuse the reserved domain. Without this, typing
      * `919876543210@phone.pingo.chat` into the email screen would let anyone
-     * create — or sign in to — a phone account that is not theirs. The whole
+     * create - or sign in to - a phone account that is not theirs. The whole
      * scheme rests on that address space belonging to the phone door alone.
      */
     if (isPhoneAddress(value)) {
@@ -339,7 +339,7 @@ class SupabasePasswordAuth implements PasswordAuth {
      * With confirmations off, an identifier that is already taken comes back as
      * an error. With them on, Supabase instead returns an obfuscated user and no
      * session, to avoid confirming the account exists. This flow requires
-     * confirmations off, so the error path is the one that runs — but the
+     * confirmations off, so the error path is the one that runs - but the
      * identities check below catches the obfuscated shape too, rather than
      * reporting "unconfirmed" for what is really a collision.
      */
@@ -366,7 +366,7 @@ class SupabasePasswordAuth implements PasswordAuth {
  *
  * Redirect rather than popup: § 5.1 forbids a webview and popups are blocked by
  * default on mobile browsers. The client is already configured for the return
- * trip — `detectSessionInUrl` and `flowType: 'pkce'` in `client.ts` — so landing
+ * trip - `detectSessionInUrl` and `flowType: 'pkce'` in `client.ts` - so landing
  * back on the app is what produces the session, and it arrives through
  * `onSessionChange` like any other.
  */
@@ -379,7 +379,7 @@ class SupabaseGoogleAuth implements OAuthAuth {
       options: {
         redirectTo,
         /*
-         * § 5.1: openid, email, profile. Nothing else — no Drive, no Contacts,
+         * § 5.1: openid, email, profile. Nothing else - no Drive, no Contacts,
          * no Calendar. A scope we do not need is a scope we do not ask for.
          */
         scopes: 'openid email profile',
@@ -396,7 +396,7 @@ export class SupabaseAuthService implements AuthService {
    * All three doors are built.
    *
    * Whether the backend has each one switched on is a separate question, and one
-   * this class deliberately does not ask at construction time — a network round
+   * this class deliberately does not ask at construction time - a network round
    * trip before the first render would delay every launch to answer something
    * that only matters when a row is tapped. A disabled provider surfaces as
    * `provider_disabled` at that point, with copy that says so.
@@ -419,7 +419,7 @@ export class SupabaseAuthService implements AuthService {
      * The web keeps the OAuth redirect: it is correct in a browser and Supabase
      * handles the return trip. Android gets the system account picker, because
      * a redirect out to a browser and back is the seam that makes an app feel
-     * like a wrapped website — and because the shell has no address bar for the
+     * like a wrapped website - and because the shell has no address bar for the
      * return to land in.
      *
      * Chosen once, here, on the only line in the product that knows there are
@@ -478,7 +478,7 @@ export class SupabaseAuthService implements AuthService {
    * every provider, subscription and cache around the new identity. Trying to
    * re-point all of that in place would mean auditing every module that has
    * ever captured a user id, and getting one wrong shows another person's
-   * conversations — a reload is a fraction of a second and cannot be subtly
+   * conversations - a reload is a fraction of a second and cannot be subtly
    * wrong.
    *
    * The E2EE identity follows automatically: `publishDeviceKey` notices the
@@ -519,13 +519,13 @@ export class SupabaseAuthService implements AuthService {
      *
      * It used to wipe local storage as well, and that was the wrong trade. The
      * device identity lives there, so a logout destroyed the private key every
-     * encrypted message had been sealed to — signing back in minted a new one
+     * encrypted message had been sealed to - signing back in minted a new one
      * and the old conversations became permanently unreadable. Nobody expects
      * "log out" to mean "burn your history", and no messaging app people
      * actually use behaves that way.
      *
      * So the keys stay, the sealed cache stays, and signing back in on this
-     * device picks up exactly where it left off — including chats that were
+     * device picks up exactly where it left off - including chats that were
      * encrypted before the logout.
      *
      * The shared-device worry that motivated the wipe is real but is a

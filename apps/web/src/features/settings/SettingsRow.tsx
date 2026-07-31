@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
  * than playing a canned animation.
  *
  * Navigation is **not** delayed to wait for it. A row that holds you for 200ms
- * to finish being pretty is a row that feels slow the tenth time you use it —
+ * to finish being pretty is a row that feels slow the tenth time you use it  - 
  * the ripple simply plays out under the outgoing screen.
  *
  * A row with no destination yet says so. It still shows, because the index is

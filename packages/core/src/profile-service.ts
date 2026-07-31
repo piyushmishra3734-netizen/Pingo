@@ -7,8 +7,8 @@
  *
  * ## Why profile is not part of auth
  *
- * `AuthService` answers *who is signed in* — an id, the contact points, the
- * doors that open the account. This answers *who they are to other people* —
+ * `AuthService` answers *who is signed in* - an id, the contact points, the
+ * doors that open the account. This answers *who they are to other people*  - 
  * name, handle, photo. Keeping them apart is what stopped the auth layer from
  * growing into a second user store, and it is why signing in with a phone and
  * being called "Piyush" are independent facts.
@@ -18,14 +18,14 @@
 export interface Profile {
   /** Same id as the auth user. One row per account. */
   id: string;
-  /** Lowercase handle, 3–20 of `[a-z0-9_]`. Unique across the product. */
+  /** Lowercase handle, 3-20 of `[a-z0-9_]`. Unique across the product. */
   username: string;
-  /** What people call them. Required — a nameless account is unusable. */
+  /** What people call them. Required - a nameless account is unusable. */
   displayName: string;
   /** Absent means the monogram, which is a real default and not a gap. */
   avatarUrl?: string;
   /**
-   * A short line about themselves. Free text — emoji, line breaks, a website,
+   * A short line about themselves. Free text - emoji, line breaks, a website,
    * an @mention. Nothing in it is parsed for meaning at the boundary; the
    * screen that renders it decides what a link or a mention looks like.
    */
@@ -44,7 +44,7 @@ export interface ProfileDraft {
 export type ProfileErrorCode =
   /** The handle is taken. Checked live, and again on write. */
   | 'username_taken'
-  /** The handle is not 3–20 of `[a-z0-9_]`. */
+  /** The handle is not 3-20 of `[a-z0-9_]`. */
   | 'username_invalid'
   /** A fourth post on a profile that already holds three. Replace one instead. */
   | 'post_limit'
@@ -63,7 +63,7 @@ export type ProfileErrorCode =
  * needs. There is no feed for these to scroll in, which is why nothing here
  * carries a cursor or a page.
  *
- * `imageUrl` is short-lived and signed — the bucket is private, so a URL held
+ * `imageUrl` is short-lived and signed - the bucket is private, so a URL held
  * from an earlier read will stop working. Anything that keeps a post around
  * should re-read it rather than cache the URL.
  */
@@ -176,7 +176,7 @@ export interface ProfileService {
    *
    * Advisory only. Two people can pass this check with the same handle in the
    * same second, so `create` re-checks and the unique index is the real
-   * arbiter — this exists to give the sign-up screen an answer while typing,
+   * arbiter - this exists to give the sign-up screen an answer while typing,
    * not to guarantee one.
    */
   isUsernameAvailable(username: string): Promise<boolean>;
@@ -200,7 +200,7 @@ export interface ProfileService {
   /**
    * Other people on PINGO, newest first.
    *
-   * Not contact matching — the web has no address-book API, so this cannot be
+   * Not contact matching - the web has no address-book API, so this cannot be
    * "friends from your contacts". It is the honest version: people who are
    * already here.
    */
@@ -211,14 +211,14 @@ export interface ProfileService {
   /** Where this person stands with the signed-in user. */
   followState(userId: string): Promise<FollowState>;
 
-  /** Sends a follow request. Idempotent — asking twice does not queue two. */
+  /** Sends a follow request. Idempotent - asking twice does not queue two. */
   requestFollow(userId: string): Promise<FollowState>;
 
   /**
    * Accepts a request this person sent you.
    *
    * Accepting does **not** follow them back. Mutual access needs both
-   * directions, so the UI still offers "follow back" afterwards — otherwise
+   * directions, so the UI still offers "follow back" afterwards - otherwise
    * accepting would silently grant them your stories and calls while giving you
    * nothing, which is not what the person tapping "Accept" is agreeing to.
    */
@@ -247,7 +247,7 @@ export interface ProfileService {
   /**
    * The history between the signed-in user and one other person.
    *
-   * Takes one id rather than two, and can only ever answer about the caller —
+   * Takes one id rather than two, and can only ever answer about the caller  - 
    * a profile cannot be used to inspect two other people's relationship.
    */
   sharedWith(userId: string): Promise<SharedHistory>;
@@ -262,7 +262,7 @@ export interface ProfileService {
    *
    * @throws `ProfileError` with `post_limit` when the profile already holds
    * three. The caller is expected to have offered a replacement before getting
-   * here — this is the backstop, not the user-facing rule.
+   * here - this is the backstop, not the user-facing rule.
    */
   createPost(draft: PostDraft): Promise<Post>;
 
@@ -270,7 +270,7 @@ export interface ProfileService {
    * Swaps the picture on an existing post, keeping its place and its comments.
    *
    * A replace rather than delete-then-create, because the fourth upload is
-   * supposed to take one of the three slots — and a delete followed by a failed
+   * supposed to take one of the three slots - and a delete followed by a failed
    * upload would leave the profile with two.
    */
   replacePost(postId: string, draft: PostDraft): Promise<Post>;
@@ -285,7 +285,7 @@ export interface ProfileService {
   /** Private to the person saving. Nobody is told their post was saved. */
   setPostSaved(postId: string, saved: boolean): Promise<void>;
 
-  /** Comments on a post, oldest first — the order a conversation reads in. */
+  /** Comments on a post, oldest first - the order a conversation reads in. */
   listComments(postId: string): Promise<PostComment[]>;
 
   addComment(postId: string, body: string): Promise<PostComment>;
@@ -310,7 +310,7 @@ export interface ProfileService {
   setBlocked(userId: string, blocked: boolean): Promise<void>;
 
   /**
-   * Files a report. Fire and forget by design — nothing in the product reads
+   * Files a report. Fire and forget by design - nothing in the product reads
    * these back, so there is no state for the caller to reflect afterwards
    * beyond "thanks, we have it".
    */
@@ -321,7 +321,7 @@ export interface ProfileService {
  * The relationship between the signed-in user and someone else.
  *
  * Deliberately one value rather than a pair of booleans. Every screen asks the
- * same question — "what button do I show?" — and a `{ following, followedBy,
+ * same question - "what button do I show?" - and a `{ following, followedBy,
  * pending }` triple makes each of them re-derive the answer, differently.
  */
 export type FollowState =
@@ -361,7 +361,7 @@ export function isValidUsername(username: string): boolean {
 /**
  * A starting handle derived from a display name.
  *
- * Best effort — it can return something invalid (too short, or empty for a name
+ * Best effort - it can return something invalid (too short, or empty for a name
  * with no Latin characters), which the caller checks rather than assumes.
  */
 export function suggestUsernameFromName(displayName: string): string {

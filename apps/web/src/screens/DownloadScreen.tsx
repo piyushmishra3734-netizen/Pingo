@@ -26,7 +26,7 @@ const ANDROID_APK = 'https://pingo-download.dubesminecraft.workers.dev/android';
 /**
  * Asked of GitHub rather than written here.
  *
- * The size was a hardcoded "2 MB", and it was wrong within a day — the APK
+ * The size was a hardcoded "2 MB", and it was wrong within a day - the APK
  * changes with every release and a number typed into a page does not. Reading
  * it from the release means the page cannot drift from what it is offering.
  *
@@ -66,7 +66,7 @@ const STORE_NAME: Record<Platform, string> = {
  *
  * ## Why the status on each card is honest
  *
- * "Available now" only for what somebody can use this minute — which today is
+ * "Available now" only for what somebody can use this minute - which today is
  * the web. Everything else says "In development", because a store badge that
  * links nowhere is worse than a sentence explaining where things stand.
  */
@@ -86,7 +86,7 @@ const PLATFORMS: PlatformCard[] = [
     name: 'Android',
     icon: '🤖',
     status: 'available',
-    method: 'A real installable app — its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
+    method: 'A real installable app - its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
     requirements: 'Android 7 or newer. Allow install from unknown sources once.',
   },
   {
@@ -145,7 +145,7 @@ const BENEFITS = [
   },
   {
     title: 'Full screen on a phone',
-    body: 'The whole display, with the status bar tinted to match — not a page inside a browser.',
+    body: 'The whole display, with the status bar tinted to match - not a page inside a browser.',
   },
   {
     title: 'Camera and microphone',
@@ -161,7 +161,7 @@ const BENEFITS = [
  * What is actually happening, per platform.
  *
  * These used to be "Add to Home Screen" instructions. PINGO is not a Progressive
- * Web App and must never ask anybody to bookmark it — the native builds are real
+ * Web App and must never ask anybody to bookmark it - the native builds are real
  * store applications produced from the same engine, and a page teaching people
  * to save a shortcut instead would undercut the thing being built.
  *
@@ -171,10 +171,10 @@ const BENEFITS = [
 const GUIDES: { key: Platform; title: string; steps: string[] }[] = [
   {
     key: 'android',
-    title: 'Android — install it now',
+    title: 'Android - install it now',
     steps: [
       'Tap “Download for Android” at the top of this page, on the phone itself. It comes from PINGO’s GitHub releases.',
-      'Open the file on the phone. Android will ask permission to install from this source — allow it once.',
+      'Open the file on the phone. Android will ask permission to install from this source - allow it once.',
       'Tap Install. PINGO appears in your app drawer with its own icon.',
       'Open it. No browser, no address bar. Sign in and everything works exactly as it does on the web.',
       'The Play Store listing comes later; nothing about the app changes when it does.',
@@ -218,7 +218,7 @@ const FAQ = [
   },
   {
     q: 'Is my data encrypted?',
-    a: 'Everything travels over HTTPS, and calls are peer-to-peer and encrypted by WebRTC — PINGO never sees a frame of them. Messages are encrypted in transit and at rest on the server, which means PINGO could technically read them; they are not yet end-to-end encrypted, and we would rather say so than imply otherwise.',
+    a: 'Everything travels over HTTPS, and calls are peer-to-peer and encrypted by WebRTC - PINGO never sees a frame of them. Messages are encrypted in transit and at rest on the server, which means PINGO could technically read them; they are not yet end-to-end encrypted, and we would rather say so than imply otherwise.',
   },
   {
     q: 'How do I update the app?',
@@ -269,7 +269,7 @@ export function DownloadScreen() {
   useEffect(
     () =>
       applyPageSeo({
-        title: 'Download PINGO — for Android, iPhone, Windows and Mac',
+        title: 'Download PINGO. for Android, iPhone, Windows and Mac',
         description:
           'Install PINGO on Android, iPhone, iPad, Windows or Mac. Free, private messaging that opens instantly and works offline.',
         path: '/download',
@@ -300,7 +300,7 @@ export function DownloadScreen() {
         <IconButton label="Back" variant="ghost" onClick={() => navigate(-1)}>
           <ChevronLeftIcon size={22} />
         </IconButton>
-        {/* Chrome label only — the document H1 lives in the hero below. */}
+        {/* Chrome label only - the document H1 lives in the hero below. */}
         <p className="text-h2 text-ink">Download</p>
       </header>
 
@@ -323,7 +323,7 @@ export function DownloadScreen() {
             </h1>
             <p className="mx-auto mt-3 max-w-md text-body text-text-secondary">
               Private messaging that lives on your device. Pings that disappear, stories
-              that expire, and a profile that holds three posts — no feed, no follower
+              that expire, and a profile that holds three posts - no feed, no follower
               count, nothing to scroll.
             </p>
           </div>

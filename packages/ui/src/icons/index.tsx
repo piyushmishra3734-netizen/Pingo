@@ -2,7 +2,7 @@
  * The PINGO icon set.
  *
  * Every glyph is drawn on the same 24×24 grid with the same 2px rounded stroke,
- * and every one is geometry only — no fills, no two-tone, no gradients. That
+ * and every one is geometry only - no fills, no two-tone, no gradients. That
  * restraint is what makes a mixed row of them look like one family.
  *
  * Shapes favour the simplest reading of the idea: a chat is a rounded bubble, a
@@ -15,7 +15,7 @@ import { IconBase, type IconProps } from './Icon.js';
 export type { IconProps };
 
 // ---------------------------------------------------------------------------
-// Navigation — the four dock destinations, plus their supporting glyphs
+// Navigation - the four dock destinations, plus their supporting glyphs
 // ---------------------------------------------------------------------------
 
 export const ChatIcon = (props: IconProps) => (
@@ -220,12 +220,12 @@ export const AccountIcon = UserIcon;
 /**
  * The gear, for the Chats header's settings control.
  *
- * Not on the branding board — its icon panel shows six glyphs and none of them
+ * Not on the branding board - its icon panel shows six glyphs and none of them
  * is a gear. Drawn to the board's stated rules instead (rounded, 2px stroke,
  * minimal).
  *
  * Three rings, not two: hole, body, teeth. A first attempt drew only the hole
- * and eight long spokes, and at 21px it read as a **sun** — without the body
+ * and eight long spokes, and at 21px it read as a **sun** - without the body
  * ring there is nothing for the teeth to be attached to, so the eye sees rays.
  * The body circle is what makes it a gear.
  */
@@ -328,7 +328,7 @@ export const TrashIcon = (props: IconProps) => (
   </IconBase>
 );
 
-/** A list you made yourself — "Work", "Family". Deliberately not a folder. */
+/** A list you made yourself - "Work", "Family". Deliberately not a folder. */
 export const ListIcon = (props: IconProps) => (
   <IconBase {...props}>
     <path d="M4 7h2M4 12h2M4 17h2" />
@@ -387,7 +387,7 @@ export const GridIcon = (props: IconProps) => (
 // ---------------------------------------------------------------------------
 
 /**
- * The Email sign-in method's glyph — docs/01 § 4.2.
+ * The Email sign-in method's glyph - docs/01 § 4.2.
  *
  * Drawn rather than typed as the character `@`, so it carries the set's stroke
  * weight and sits on the same optical grid as the row icons beside it.
@@ -400,7 +400,7 @@ export const AtIcon = (props: IconProps) => (
 );
 
 /**
- * The password reveal toggle — docs/01 § 8.
+ * The password reveal toggle - docs/01 § 8.
  *
  * `EyeIcon` shows the *action* (reveal), not the state, which is why the crossed
  * variant appears only while the password is visible.
@@ -422,7 +422,7 @@ export const EyeOffIcon = (props: IconProps) => (
 );
 
 // ---------------------------------------------------------------------------
-// Profile — posts, and what a person can do with one
+// Profile - posts, and what a person can do with one
 // ---------------------------------------------------------------------------
 
 /**
@@ -430,7 +430,7 @@ export const EyeOffIcon = (props: IconProps) => (
  *
  * Stroke only, like every other glyph here. The liked state is expressed by
  * passing `fill="currentColor"` rather than by a second icon, so the shape
- * never shifts between the two states — only what is inside it.
+ * never shifts between the two states - only what is inside it.
  */
 export const HeartIcon = (props: IconProps) => (
   <IconBase {...props}>
@@ -454,14 +454,14 @@ export const ShareIcon = (props: IconProps) => (
   </IconBase>
 );
 
-/** A comment — the chat bubble with the lines a written reply implies. */
+/** A comment - the chat bubble with the lines a written reply implies. */
 export const CommentIcon = (props: IconProps) => (
   <IconBase {...props}>
     <path d="M20.5 11.8a7.9 7.9 0 0 1-8 7.9 8.6 8.6 0 0 1-3.4-.7L4.5 20.5l1.3-4a7.9 7.9 0 0 1-.9-3.6 7.9 7.9 0 0 1 8-7.9 7.9 7.9 0 0 1 7.6 6.8Z" />
   </IconBase>
 );
 
-/** The menu on a profile. Three lines, not three dots — this one opens a panel. */
+/** The menu on a profile. Three lines, not three dots - this one opens a panel. */
 export const MenuIcon = (props: IconProps) => (
   <IconBase {...props}>
     <path d="M4.5 7h15" />

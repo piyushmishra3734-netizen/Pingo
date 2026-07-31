@@ -17,7 +17,7 @@ import { useCall } from './CallProvider.js';
 /**
  * The call surface: incoming sheet, in-call screen, voice and video.
  *
- * One component for all of it, because they are one thing at different moments —
+ * One component for all of it, because they are one thing at different moments  - 
  * the same avatar, the same name, the same status line, and what changes is the
  * action row and whether video sits behind it. Splitting them would mean the
  * avatar jumping the instant a call connects.
@@ -32,8 +32,8 @@ import { useCall } from './CallProvider.js';
  * ## Video is a layer, not a different screen
  *
  * On a video call the remote picture fills the background and the avatar block
- * fades out once frames arrive. Until then — dialling, ringing, camera still
- * opening — it is exactly the voice layout, so there is never an empty black
+ * fades out once frames arrive. Until then - dialling, ringing, camera still
+ * opening - it is exactly the voice layout, so there is never an empty black
  * rectangle where a person should be.
  */
 export function CallOverlay() {
@@ -61,7 +61,7 @@ export function CallOverlay() {
    */
   /*
    * A call that did not connect keeps the screen for a moment after it ends,
-   * saying why — the same beat a real call gives you before the line drops.
+   * saying why - the same beat a real call gives you before the line drops.
    * Not dismissable: it clears itself when the announcement finishes.
    */
   if (!call && failureNotice) return <CallError message={failureNotice} />;
@@ -85,12 +85,12 @@ export function CallOverlay() {
   const roster = call.participants;
 
   /*
-   * "Are we actually showing a picture?" — not "is this a video call?".
+   * "Are we actually showing a picture?" - not "is this a video call?".
    *
    * A video call spends its first seconds with no remote track at all, and the
    * peer may have their camera off for the whole call. Both of those must keep
    * the avatar layout rather than showing a black rectangle. A group never
-   * takes the full-bleed path at all — one person cannot own the background
+   * takes the full-bleed path at all - one person cannot own the background
    * when four people are talking.
    */
   const primaryRemote = [...remoteStreams.values()][0];
@@ -110,7 +110,7 @@ export function CallOverlay() {
         'fixed inset-0 z-1000 flex flex-col items-center justify-between',
         /*
           `bg-page` first, and it is not redundant. `brand-wash` is a translucent
-          tint — on its own the chat list shows straight through a ringing call,
+          tint - on its own the chat list shows straight through a ringing call,
           which reads as a broken overlay rather than a screen.
         */
         'bg-page px-6 pt-24 pb-24',
@@ -176,7 +176,7 @@ export function CallOverlay() {
         <div className="relative flex w-full max-w-xs items-center justify-between">
           <CallAction label="Decline" tone="end" onClick={() => void decline()}>
             {/*
-              A handset rotated 135° — the universal hang-up glyph, and the same
+              A handset rotated 135° - the universal hang-up glyph, and the same
               icon as the answer button so the pair reads as one gesture.
             */}
             <PhoneIcon size={26} className="rotate-[135deg]" />
@@ -251,7 +251,7 @@ export function CallOverlay() {
 /**
  * Binds a stream to a video element.
  *
- * `srcObject` is a property, not an attribute, so React cannot set it from JSX —
+ * `srcObject` is a property, not an attribute, so React cannot set it from JSX  - 
  * it has to be assigned through a ref. Re-run on every stream identity change,
  * which is also what makes `switchCamera`'s re-emit take effect.
  */
@@ -274,7 +274,7 @@ function useStream(stream: MediaStream | undefined) {
   return ref;
 }
 
-/** The peer, full-bleed. Muted — their audio plays on the provider's `<audio>`. */
+/** The peer, full-bleed. Muted - their audio plays on the provider's `<audio>`. */
 /**
  * Everyone on a group call, as a grid.
  *
@@ -283,14 +283,14 @@ function useStream(stream: MediaStream | undefined) {
  * Including the people who have not picked up, dimmed and labelled. A grid that
  * filled in as people answered would give no sense of how big the room is or
  * who is still missing, and the tiles would jump under your eyes as each person
- * arrived — the two things you most want to be still while you wait.
+ * arrived - the two things you most want to be still while you wait.
  *
  * ## Faces, not video, past two people
  *
  * A four-way video mesh already asks a phone to encode one stream and decode
  * three. Laying them out as live rectangles invites six- and eight-person calls
  * that the format cannot carry. Video plays for a pair; beyond that the grid
- * shows who is here and lets the voices do the work — which is what these calls
+ * shows who is here and lets the voices do the work - which is what these calls
  * are for anyway.
  */
 function CallRoster({
@@ -426,7 +426,7 @@ function LocalPreview({ stream, cameraOff }: { stream: MediaStream; cameraOff: b
         muted
         /*
           Mirrored, like every selfie preview and every video app. Only the
-          preview — what the peer receives is never flipped.
+          preview - what the peer receives is never flipped.
         */
         className="size-full -scale-x-100 object-cover"
       />
@@ -461,7 +461,7 @@ function CallError({ message, onDismiss }: { message: string; onDismiss?: () => 
  * The one line under the name.
  *
  * Once connected it becomes a running timer, which is the only part of this
- * screen that needs to re-render every second — so the interval lives here and
+ * screen that needs to re-render every second - so the interval lives here and
  * not in the provider, where it would re-render the whole app.
  */
 function StatusLine({

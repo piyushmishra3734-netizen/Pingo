@@ -3,8 +3,8 @@
  *
  * Deliberately knows nothing about Drive. It turns bytes into chunks that a
  * dumb blob store can hold, and turns them back, refusing anything that does
- * not add up. That separation is what lets the interesting failures — a
- * truncated upload, a swapped chunk, a replayed old generation — be tested
+ * not add up. That separation is what lets the interesting failures - a
+ * truncated upload, a swapped chunk, a replayed old generation - be tested
  * without a network at all.
  *
  * ## Keyed from the recovery key, not the device

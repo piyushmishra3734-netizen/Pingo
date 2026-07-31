@@ -8,9 +8,9 @@ import { useStickers } from '../stickers/StickerContext.js';
  *
  * ## Everything is stored in normalised coordinates
  *
- * Strokes and text positions are kept as fractions of the frame (0–1), never as
+ * Strokes and text positions are kept as fractions of the frame (0-1), never as
  * pixels. The preview is whatever size the screen allows; the export is the
- * photo's native resolution — often three times larger. Storing pixels would
+ * photo's native resolution - often three times larger. Storing pixels would
  * mean text that sits perfectly on screen and lands somewhere else in the file,
  * and a stroke drawn 4px wide on a phone coming out hairline on a 1280px image.
  *
@@ -32,7 +32,7 @@ const PEN_WIDTH = 0.008;
 
 interface Stroke {
   colour: string;
-  /** Normalised points, 0–1. */
+  /** Normalised points, 0-1. */
   points: { x: number; y: number }[];
 }
 
@@ -57,7 +57,7 @@ interface Item {
   y: number;
 }
 
-/** Normalised crop rectangle, 0–1 over the displayed frame. */
+/** Normalised crop rectangle, 0-1 over the displayed frame. */
 interface Crop {
   x: number;
   y: number;
@@ -89,7 +89,7 @@ export function SnapEditor({
   onCancel: () => void;
   onDone: (blob: Blob) => void;
   busy?: boolean;
-  /** Rendered above the confirm button — caption, view limit, whatever fits. */
+  /** Rendered above the confirm button - caption, view limit, whatever fits. */
   extras?: React.ReactNode;
   /** 'Next' from the camera, 'Send' when the picture is going straight out. */
   doneLabel?: string;
@@ -184,7 +184,7 @@ export function SnapEditor({
      *
      * Strokes and text are stored in the *image's* coordinate space, so drawing
      * them after the canvas has been turned puts them exactly where the user
-     * left them relative to the picture — which is what they were aiming at.
+     * left them relative to the picture - which is what they were aiming at.
      * Rotating each point by hand would be the same maths done worse.
      */
     const quarterTurned = rotation % 180 !== 0;
@@ -201,7 +201,7 @@ export function SnapEditor({
 
     context.drawImage(image, 0, 0, width, height);
 
-    // Strokes, re-drawn at native size rather than upscaled from the preview —
+    // Strokes, re-drawn at native size rather than upscaled from the preview  - 
     // scaling a bitmap would soften every line.
     context.lineCap = 'round';
     context.lineJoin = 'round';
@@ -228,7 +228,7 @@ export function SnapEditor({
      * Stickers first, fetched with CORS.
      *
      * Drawing a cross-origin image onto a canvas taints it, and a tainted
-     * canvas throws on `toBlob` — the export would fail at the very last step,
+     * canvas throws on `toBlob` - the export would fail at the very last step,
      * after the user had done all the work. `crossOrigin = 'anonymous'` asks
      * for the CORS headers that keep it clean; the packs are served from a CDN
      * that sends them. A sticker that will not load is skipped rather than
@@ -301,7 +301,7 @@ export function SnapEditor({
     /*
      * Crop last, and after rotation on purpose.
      *
-     * The rectangle was dragged over the picture as it looked on screen — which
+     * The rectangle was dragged over the picture as it looked on screen - which
      * is the rotated picture. Cropping the source before turning it would apply
      * the user's rectangle to a different orientation and cut out the wrong
      * part; doing it here means "what was inside the box" is exactly what comes
@@ -423,7 +423,7 @@ export function SnapEditor({
           </ToolButton>
           {/*
             A quarter turn per press, which is the whole of rotation as anyone
-            uses it — the photo is sideways or it is not. A free-angle dial
+            uses it - the photo is sideways or it is not. A free-angle dial
             would be a second gesture to learn for a case that barely occurs.
           */}
           <ToolButton active={false} onClick={() => setRotation((r) => (r + 90) % 360)}>
@@ -476,7 +476,7 @@ export function SnapEditor({
           </div>
         )}
 
-        {/* Caption, view limit — supplied by whoever is using the editor. */}
+        {/* Caption, view limit - supplied by whoever is using the editor. */}
         {extras}
 
         <div className="flex items-center justify-center gap-2.5">
@@ -740,7 +740,7 @@ function StickerStrip({ onPick }: { onPick: (sticker: { name: string; url: strin
  *
  * `contentEditable` rather than an `<input>` so the chip grows with the words
  * and wraps like the exported version does. Emoji and stickers are not
- * editable — there is nothing in them to edit — so they get the drag and the
+ * editable - there is nothing in them to edit - so they get the drag and the
  * remove button and nothing else.
  */
 function DraggableItem({

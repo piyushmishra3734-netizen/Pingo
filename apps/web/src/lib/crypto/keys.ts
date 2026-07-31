@@ -13,7 +13,7 @@ import { STORE, localGet, localSet } from '../local/db.js';
  * ## Non-extractable, which is the whole guarantee
  *
  * Both are created with `extractable: false`. The browser will perform
- * operations with them and `exportKey` throws — so no bug, no XSS, no
+ * operations with them and `exportKey` throws - so no bug, no XSS, no
  * well-meaning future line can serialise a private key into a request, a log or
  * a sync payload. The promise is kept by the platform rather than by our care,
  * which is the only way a promise like that survives a codebase growing.
@@ -82,7 +82,7 @@ export async function deviceIdentity(): Promise<DeviceIdentity> {
  * Generated rather than derived from a password, and that is a decision with a
  * cost: a passphrase-derived key would also protect a device that is merely
  * locked. But it would mean a prompt on every cold start, and PINGO has
- * accounts with no password at all — signing in with Google never creates one.
+ * accounts with no password at all - signing in with Google never creates one.
  * A design that cannot serve its own Google users is not a design.
  *
  * See the roadmap: a passphrase-locked vault is a feature, for people who want
@@ -101,7 +101,7 @@ export async function databaseKey(): Promise<CryptoKey> {
   return key;
 }
 
-/** SPKI base64 — the wire form of a public key, in both directions. */
+/** SPKI base64 - the wire form of a public key, in both directions. */
 export async function exportPublicKey(key: CryptoKey): Promise<string> {
   const spki = await crypto.subtle.exportKey('spki', key);
   return toBase64(new Uint8Array(spki));
@@ -120,7 +120,7 @@ export async function importPublicKey(base64: string): Promise<CryptoKey> {
 /**
  * A fingerprint somebody can read aloud.
  *
- * Not used yet — device verification is a later step — but derived here so the
+ * Not used yet - device verification is a later step - but derived here so the
  * definition lives beside the key it describes rather than being invented twice
  * by two screens that then disagree about what a fingerprint is.
  */

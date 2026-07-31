@@ -2,7 +2,7 @@ import type { SharedHistory } from '@pingo/core';
 import { ImageIcon, UsersIcon, cn } from '@pingo/ui';
 
 /**
- * Shared With You — the PINGO part of a profile.
+ * Shared With You - the PINGO part of a profile.
  *
  * Everything above it on this page is what the person is: their name, their
  * photo, their three posts. This is what the two of you are, and it is the
@@ -18,7 +18,7 @@ import { ImageIcon, UsersIcon, cn } from '@pingo/ui';
  * ## Why a row is dropped rather than shown as zero
  *
  * "Mutual Groups 0" is a fact about nothing. Each line appears only when it has
- * something to say, and if none of them do the panel is absent entirely — which
+ * something to say, and if none of them do the panel is absent entirely - which
  * is the honest state for two people who have just met.
  */
 

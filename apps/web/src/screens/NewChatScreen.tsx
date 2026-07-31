@@ -19,13 +19,13 @@ import { useNavigate } from 'react-router-dom';
  * messaged: `startDirectConversation` lived only on the Supabase implementation
  * and never reached the `ChatService` interface, so no screen could see it.
  * That one omission is why chats, calls and Pings were all unreachable for a
- * new contact — every one of them needs a conversation to hang off.
+ * new contact - every one of them needs a conversation to hang off.
  *
  * ## Filtering happens here, not on the server
  *
  * `listContacts()` is fetched once and narrowed as you type. A round trip per
  * keystroke would make the list flicker and lag behind the field for a roster
- * this size, and `search()` caps at ten results — fine for finding someone by
+ * this size, and `search()` caps at ten results - fine for finding someone by
  * name, wrong for browsing everyone.
  *
  * ## Tapping is idempotent
@@ -75,7 +75,7 @@ export function NewChatScreen() {
     setError(undefined);
     try {
       const conversationId = await service.startDirectConversation(person.id);
-      // `replace`, so Back returns to the chat list rather than to this picker —
+      // `replace`, so Back returns to the chat list rather than to this picker  - 
       // reopening it after landing in the thread is never what someone means.
       navigate(`/chats/${conversationId}`, { replace: true });
     } catch {

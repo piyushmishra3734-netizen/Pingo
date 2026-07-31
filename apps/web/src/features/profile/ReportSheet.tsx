@@ -71,7 +71,7 @@ export function ReportSheet({
     return (
       <Sheet title="Report sent" description="It has been recorded." onClose={onClose}>
         <p className="mt-3 text-body text-text-secondary">
-          Nothing is shared with {subjectName} — they are not told a report was made.
+          Nothing is shared with {subjectName} - they are not told a report was made.
         </p>
 
         <div className="mt-4 flex flex-col gap-1.5">

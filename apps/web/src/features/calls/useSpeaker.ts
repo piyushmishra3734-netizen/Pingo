@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * as separate devices, so the control never appeared on the one platform that
  * wanted it.
  *
- * What someone means by "speaker" is almost always *louder* — the button exists
+ * What someone means by "speaker" is almost always *louder* - the button exists
  * so a call can be heard at arm's length. That is a gain problem, not a routing
  * one, and gain works in every browser.
  *
@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * silence the call entirely. Element for the plumbing, Web Audio for the sound.
  *
  * If Web Audio cannot start at all, the element's volume is restored and the
- * call is audible at normal loudness with no toggle offered — quieter than
+ * call is audible at normal loudness with no toggle offered - quieter than
  * intended beats silent.
  */
 
@@ -45,7 +45,7 @@ export function useSpeaker(
    * The choice outlives the audio.
    *
    * The button is offered the moment a call starts, which is before there is
-   * any remote sound to amplify — pressing it then means "be loud when we
+   * any remote sound to amplify - pressing it then means "be loud when we
    * connect", and this is what remembers that so the gain can be applied the
    * instant the stream arrives.
    */
@@ -91,7 +91,7 @@ export function useSpeaker(
     } catch {
       /*
        * No Web Audio. The element keeps playing at its normal volume, so the
-       * call is still audible — just not boostable. The control stays visible
+       * call is still audible - just not boostable. The control stays visible
        * because the call is still live, and pressing it simply does nothing
        * this once, which is better than a button that vanishes mid-call.
        */

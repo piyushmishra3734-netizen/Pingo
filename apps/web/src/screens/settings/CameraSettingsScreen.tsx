@@ -9,7 +9,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
 /**
  * Camera & Pings.
  *
- * **Default Camera and Mirror are live** — the camera screen reads both, so
+ * **Default Camera and Mirror are live** - the camera screen reads both, so
  * they change what happens the next time it opens. Everything else needs image
  * processing that does not exist yet.
  *

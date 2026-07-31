@@ -17,14 +17,14 @@ import { useNavigate } from 'react-router-dom';
  * ## Why accepting does not follow back
  *
  * Accept grants *them* access to your calls, Pings and stories. It does not
- * give you theirs, because that needs your own follow — so the row stays,
+ * give you theirs, because that needs your own follow - so the row stays,
  * offering "Follow back", until you decide. Collapsing the two into one tap
  * would be the app quietly deciding on your behalf.
  *
  * ## Why a rejected request disappears rather than being marked
  *
  * There is no `rejected` status. Rejecting deletes the row, which means the
- * other person sees "Follow" again rather than "Rejected" — they are never told
+ * other person sees "Follow" again rather than "Rejected" - they are never told
  * they were turned down, and they can ask again later. Storing the refusal
  * would be keeping a record whose only use is telling someone they were
  * refused.

@@ -6,7 +6,7 @@ import { initials, variantFromSeed } from '../utils/text.js';
  * Avatar, with the brand dot as its presence indicator.
  *
  * Without a photo it renders a monogram on a soft gradient chosen deterministically
- * from the user's id — so the same person is always the same colour, on every
+ * from the user's id - so the same person is always the same colour, on every
  * device, with no network request and no stored asset. The gradients are all
  * tints of the brand palette, which keeps a list of them looking like one product
  * rather than a bag of confetti.
@@ -32,13 +32,13 @@ export interface AvatarProps {
  * Circle diameters, in px.
  *
  * Raised about 10% across the board. The originals were sized for density, and
- * on a phone that read as cramped next to the products people compare this to —
+ * on a phone that read as cramped next to the products people compare this to  - 
  * a chat row's face is the thing the eye lands on first and it was losing to
  * the text beside it.
  *
  * Deliberately proportional rather than a redesign: every step keeps its
  * relationship to the others, so nothing below has to be re-tuned. `2xl` is
- * unchanged — a profile header is already as large as it should be, and growing
+ * unchanged - a profile header is already as large as it should be, and growing
  * it would push the name off a short screen.
  */
 const PX: Record<AvatarSize, number> = {
@@ -96,7 +96,7 @@ export function Avatar({
   const dot = DOT[size];
   const gradient = GRADIENTS[variantFromSeed(id ?? name, GRADIENTS.length)];
 
-  // 'offline' is a valid presence value but shows nothing — an absent dot is the
+  // 'offline' is a valid presence value but shows nothing - an absent dot is the
   // clearest way to say "not here", and it keeps quiet lists quiet.
   const showDot = presence !== undefined && presence !== 'offline';
 

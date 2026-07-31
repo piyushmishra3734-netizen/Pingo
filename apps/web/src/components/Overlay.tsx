@@ -6,15 +6,15 @@ import { createPortal } from "react-dom";
  * ## Why a portal rather than trusting `position: fixed`
  *
  * `fixed` is only fixed to the viewport while no ancestor establishes a
- * containing block — and a `transform`, `filter`, `backdrop-filter`,
+ * containing block - and a `transform`, `filter`, `backdrop-filter`,
  * `perspective`, `will-change: transform` or `contain: paint` anywhere above is
  * enough to capture it. Any one of those is a reasonable thing to add to a
  * screen, and none of them looks like it has anything to do with a dialog three
  * levels down.
  *
  * That is not hypothetical here. The screen wrapper's entrance animation left a
- * transform behind, so every overlay in this app — the context menu, all three
- * chat-list sheets, the edit dialog, the photo editor — was being sized against
+ * transform behind, so every overlay in this app - the context menu, all three
+ * chat-list sheets, the edit dialog, the photo editor - was being sized against
  * the screen container rather than the viewport. The photo editor came out
  * short by exactly the height of the dock, which is subtle enough to read as a
  * spacing choice rather than a bug.

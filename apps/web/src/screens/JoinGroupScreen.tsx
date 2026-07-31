@@ -13,13 +13,13 @@ import { useNavigate, useParams } from 'react-router-dom';
  *
  * ## It asks before it joins
  *
- * The obvious version joins on load — the link was tapped, after all. But a
+ * The obvious version joins on load - the link was tapped, after all. But a
  * link is a thing that gets forwarded, and arriving inside a room of strangers
  * because you tapped something in another chat is exactly the intrusion the
  * friend rule exists to prevent. So the preview comes first and the join is a
  * deliberate press.
  *
- * The preview is deliberately thin — name, picture, headcount. Not the roster
+ * The preview is deliberately thin - name, picture, headcount. Not the roster
  * and not a single message: standing in the doorway is not being in the room.
  */
 export function JoinGroupScreen() {

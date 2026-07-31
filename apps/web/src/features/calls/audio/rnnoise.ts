@@ -2,7 +2,7 @@
  * Wires RNNoise into a microphone stream.
  *
  * Returns a *new* `MediaStream` carrying the denoised audio, which is what goes
- * into the peer connection. The original stays open — closing it would stop the
+ * into the peer connection. The original stays open - closing it would stop the
  * microphone.
  *
  * ## This runs on top of the browser's suppression, not instead of it
@@ -14,13 +14,13 @@
  * ## The WASM is compiled here, not in the worklet
  *
  * An AudioWorklet has no `fetch` and no dynamic `import`, so the module is
- * compiled on the main thread and handed over in `processorOptions` — a
+ * compiled on the main thread and handed over in `processorOptions` - a
  * `WebAssembly.Module` is structured-cloneable, which is what makes this work
  * at all.
  */
 
 /*
- * `?url` asks Vite for the asset's served path rather than its contents — it
+ * `?url` asks Vite for the asset's served path rather than its contents - it
  * copies the 112 KB binary into the build and hands back a hashed URL. Resolved
  * through the package name so it does not depend on where pnpm put the file.
  */

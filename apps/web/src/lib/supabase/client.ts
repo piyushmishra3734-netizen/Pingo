@@ -2,12 +2,12 @@
  * The Supabase client.
  *
  * Configuration comes **only** from environment variables. Nothing is hard-coded,
- * and there is no fallback to a default project — a missing variable is an error
+ * and there is no fallback to a default project - a missing variable is an error
  * with a clear message, not a silent connection to somewhere unexpected.
  *
  * ---
  *
- * ## Architectural boundary — read before using this
+ * ## Architectural boundary - read before using this
  *
  * `packages/core`'s `ChatService` is the only data boundary in PINGO, and no
  * screen imports a concrete implementation
@@ -37,7 +37,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 /**
  * Whether both variables are present.
  *
- * Lets a caller degrade gracefully instead of throwing — useful while the
+ * Lets a caller degrade gracefully instead of throwing - useful while the
  * project is only partly wired up, and for tests that should run without a
  * Supabase project.
  */
@@ -55,7 +55,7 @@ function assertConfigured(): { url: string; anonKey: string } {
       `Supabase is not configured. Missing ${missing.join(' and ')}.\n` +
         'Copy apps/web/.env.example to apps/web/.env and fill in the values ' +
         'from your Supabase project (Project Settings → API), then restart the ' +
-        'dev server — Vite only reads .env at startup.',
+        'dev server - Vite only reads .env at startup.',
     );
   }
 
@@ -71,7 +71,7 @@ function assertConfigured(): { url: string; anonKey: string } {
  * unrelated module was pulled into the bundle. Lazy creation means the error
  * surfaces at the point of use, where it can be understood and handled.
  *
- * A single instance matters — more than one client on a page means duplicate
+ * A single instance matters - more than one client on a page means duplicate
  * realtime sockets and competing auth-token refreshes.
  */
 let cached: PingoSupabaseClient | undefined;
@@ -103,7 +103,7 @@ export function getSupabaseClient(): PingoSupabaseClient {
        * PKCE, not implicit flow. The implicit flow puts tokens in the URL
        * fragment where they can leak via history, referrers and logs. PKCE is
        * the correct choice for a browser client and is required by some
-       * providers — setting it now avoids a migration when auth lands.
+       * providers - setting it now avoids a migration when auth lands.
        */
       flowType: 'pkce',
       // Namespaced so it cannot collide with anything else on the origin.
@@ -132,7 +132,7 @@ export function getSupabaseClient(): PingoSupabaseClient {
  * Drops the cached instance.
  *
  * For tests and for a full sign-out that should abandon realtime subscriptions.
- * Production code should not need this — the client is meant to be long-lived.
+ * Production code should not need this - the client is meant to be long-lived.
  */
 export function resetSupabaseClient(): void {
   cached = undefined;

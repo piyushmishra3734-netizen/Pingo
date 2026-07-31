@@ -6,14 +6,14 @@ import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
- * Setup, step 4 — notifications.
+ * Setup, step 4 - notifications.
  *
  *   Allow Notifications
  *   Stay updated.
  *   [ Allow ]  ·  Skip
  *
  * One screen, one permission. Contacts comes later, and camera is asked for
- * only when the camera is opened — a permission requested before the feature
+ * only when the camera is opened - a permission requested before the feature
  * that needs it is a permission spent on nothing.
  *
  * ## Why we ask before the browser asks
@@ -25,7 +25,7 @@ import { SETUP_PROGRESS } from './progress.js';
  * triggers it**, which is what keeps the option alive for later.
  *
  * *"Only messages and calls. Nothing else."* is a commitment the product then
- * has to keep — no marketing pushes, no re-engagement nudges, no "you have
+ * has to keep - no marketing pushes, no re-engagement nudges, no "you have
  * unread messages" reminders.
  */
 
@@ -53,7 +53,7 @@ export function PermissionsScreen() {
         return;
       }
       /*
-       * Denied, or dismissed. Not an error and not a dead end — the user is
+       * Denied, or dismissed. Not an error and not a dead end - the user is
        * moved along either way, because nothing here depends on the answer.
        */
       setOutcome('denied');
@@ -88,7 +88,7 @@ export function PermissionsScreen() {
               Allow
             </Button>
           )}
-          {/* Never triggers the browser prompt — that is the whole point. */}
+          {/* Never triggers the browser prompt - that is the whole point. */}
           <Button variant="text" size="lg" block onClick={done} disabled={asking}>
             Skip
           </Button>

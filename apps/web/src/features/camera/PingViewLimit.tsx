@@ -6,8 +6,8 @@ import { cn } from '@pingo/ui';
  * ## Why the sender chooses, and why two is the default
  *
  * A fixed limit is a rule about somebody else's picture. Two is right often
- * enough to be the default — long enough to look twice, short enough to still
- * be a Ping — but a single view and a picture meant to stay are both ordinary
+ * enough to be the default - long enough to look twice, short enough to still
+ * be a Ping - but a single view and a picture meant to stay are both ordinary
  * things to want, and neither should require a different feature.
  *
  * ## Keep in Chat is a different mechanism, not a bigger number
@@ -15,7 +15,7 @@ import { cn } from '@pingo/ui';
  * One and two views are ephemeral: the bytes come only from `openPing`, and
  * asking is what spends the view. Keep in Chat is an ordinary photo message,
  * which stays in the thread and can be reopened freely. They are separate
- * because they are separate promises — and folding them into one would give the
+ * because they are separate promises - and folding them into one would give the
  * ephemeral path a mode where it never expires and never destroys anything.
  *
  * The control says so, in the smallest words that are still true. Somebody

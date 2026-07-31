@@ -6,7 +6,7 @@
  * the product is being built for and anything missing is a one-line addition.
  *
  * Flags are derived from the ISO code rather than stored, because a regional
- * indicator pair *is* the flag — `IN` → 🇮🇳. Storing the emoji separately would
+ * indicator pair *is* the flag - `IN` → 🇮🇳. Storing the emoji separately would
  * let the two drift.
  */
 
@@ -70,7 +70,7 @@ export function flagFor(code: string): string {
 }
 
 /**
- * The default country — § 6.2: **from device locale, never from IP.**
+ * The default country - § 6.2: **from device locale, never from IP.**
  *
  * IP reveals travel. Someone signing up from an airport should not have their
  * country quietly changed by where the plane landed, and the locale is the only

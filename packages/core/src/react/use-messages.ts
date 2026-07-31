@@ -28,7 +28,7 @@ interface UseMessagesResult {
   loading: boolean;
   /** True while an older page is in flight, so the thread can say so. */
   loadingOlder: boolean;
-  /** False once a page comes back short — there is nothing further back. */
+  /** False once a page comes back short - there is nothing further back. */
   hasOlder: boolean;
   /** Fetches the page before the oldest message held. Safe to call repeatedly. */
   loadOlder: () => Promise<void>;
@@ -41,7 +41,7 @@ interface UseMessagesResult {
  * How many messages a page holds.
  *
  * Stated here rather than left to the service's default because `hasOlder`
- * is decided by comparing the page's length against it — a caller that does not
+ * is decided by comparing the page's length against it - a caller that does not
  * know the size cannot tell a short page from a full one.
  */
 const PAGE_SIZE = 50;
@@ -122,7 +122,7 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
    *
    * This is the half that was missing. `listMessages` has always taken a
    * `before` cursor and nothing ever passed one, so a thread stopped at fifty
-   * messages and everything earlier was simply unreachable — which reads
+   * messages and everything earlier was simply unreachable - which reads
    * exactly like old messages deleting themselves. Nothing was ever deleted;
    * the rows are all still there.
    */
@@ -243,7 +243,7 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
    * `listMessages` stamps a status from the cursor as it stood when the thread
    * was fetched, and that stamp is frozen from then on. Deriving the upgrade
    * here instead means a cursor arriving over the socket repaints the ticks
-   * immediately, with no refetch and nothing to keep in sync — the messages own
+   * immediately, with no refetch and nothing to keep in sync - the messages own
    * their text, the receipts own who has seen it, and neither has to know when
    * the other changed.
    *

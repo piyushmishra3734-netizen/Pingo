@@ -9,14 +9,14 @@ import { Overlay } from '../../components/Overlay.js';
  * The confirmation for deleting chats.
  *
  * A bottom sheet rather than a centred dialog because this is reached by thumb,
- * from a list, on a phone — and the confirming tap should land near where the
+ * from a list, on a phone - and the confirming tap should land near where the
  * finger already is. On a wide screen it centres, since a sheet pinned to the
  * bottom of a desktop window is a long way from anything.
  *
  * ## Why "Delete for everyone" is absent rather than disabled
  *
  * There is no such thing for a whole conversation, in this product or any other
- * — you can unsend a message, not un-have a conversation. docs/13 § 3: hide what
+ * - you can unsend a message, not un-have a conversation. docs/13 § 3: hide what
  * was never yours. A greyed-out row here would invent a capability and then
  * refuse it, which is worse than never mentioning it.
  *
@@ -40,7 +40,7 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     /*
-     * The panel takes focus, never the Delete button — a destructive action
+     * The panel takes focus, never the Delete button - a destructive action
      * pre-focused is one stray Enter away from happening. The user aims.
      */
     panelRef.current?.focus();

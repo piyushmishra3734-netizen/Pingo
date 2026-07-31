@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
  * [docs/01 § 2.1](../../../../../docs/01-onboarding-auth.md#21-global-rules-for-the-whole-flow)
  * are structural rather than remembered: a progress bar with **no step numbers**,
  * a Back control that always works, one `h1`, one field group, one primary
- * action — and the primary action pinned to the bottom, above where a phone
+ * action - and the primary action pinned to the bottom, above where a phone
  * keyboard appears.
  *
  * Screens supply content and a footer. They do not lay out the page, which is
@@ -18,7 +18,7 @@ import { useNavigate } from 'react-router-dom';
 
 export interface AuthScreenProps {
   /**
-   * 0–1. Rendered as a bar, never as "3 of 7" — § 2.1 is explicit that step
+   * 0-1. Rendered as a bar, never as "3 of 7" - § 2.1 is explicit that step
    * numbers make a short flow feel long.
    *
    * Omit on screens outside the linear flow (Welcome, Log In triage), which have
@@ -32,7 +32,7 @@ export interface AuthScreenProps {
   /** The primary action, and anything that belongs beneath it. */
   footer?: ReactNode;
   /**
-   * Inline message above the footer — an offline notice or a failed attempt.
+   * Inline message above the footer - an offline notice or a failed attempt.
    * Never a dialog: § 19 forbids blocking the flow over a recoverable problem.
    */
   message?: ReactNode;
@@ -140,7 +140,7 @@ function ChevronLeft() {
 /**
  * The inline caption beneath a failed or blocked step.
  *
- * `role="alert"` so a screen reader announces it without moving focus — the
+ * `role="alert"` so a screen reader announces it without moving focus - the
  * field keeps focus so the user can simply correct and retry.
  */
 export function AuthMessage({

@@ -35,7 +35,7 @@ void initNativeShell(() => false);
  * Ask to keep what is on disk.
  *
  * Local-first only means anything if local survives. Without this the browser
- * treats the origin as best-effort and may evict it under disk pressure —
+ * treats the origin as best-effort and may evict it under disk pressure  - 
  * which would take the sealed cache, the outbox, and this device's keys with
  * it, and losing the keys is not recoverable from the server by design.
  *
@@ -47,7 +47,7 @@ void requestPersistentStorage();
  * No service worker inside the native shell.
  *
  * On the web it is what makes PINGO open offline, and it stays. In the Android
- * app the assets are already on the device, so it would only duplicate them —
+ * app the assets are already on the device, so it would only duplicate them  - 
  * and after an app update its cached copy can shadow the newly installed one,
  * leaving the app running an old build until somebody clears its storage.
  * Nobody would ever think to do that.

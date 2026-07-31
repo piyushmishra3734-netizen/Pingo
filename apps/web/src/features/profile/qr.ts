@@ -21,7 +21,7 @@
  * ## Two levels, for two different jobs
  *
  * Level M recovers about 15% of a damaged code. On a screen there is no damage,
- * but a phone camera reading at an angle in poor light behaves like one — and M
+ * but a phone camera reading at an angle in poor light behaves like one - and M
  * is the level every payment and messaging app settled on for the same reason.
  *
  * Level H recovers about 30%, and exists here for the branded code with a logo
@@ -50,7 +50,7 @@ const LEVEL_M: Record<number, Capacity> = {
 };
 
 /**
- * Error correction level H — thirty per cent recoverable.
+ * Error correction level H - thirty per cent recoverable.
  *
  * Added for the branded code, and it is not decoration: a logo sitting in the
  * middle of a QR is *damage*. Every module it covers is a module the scanner
@@ -58,7 +58,7 @@ const LEVEL_M: Record<number, Capacity> = {
  * error correction reconstructs what it hides.
  *
  * Measured rather than assumed. Decoded with jsQR against a perfect raster,
- * level M survives the logo too — up to 30% of the width blanked. That is not
+ * level M survives the logo too - up to 30% of the width blanked. That is not
  * the argument for H, because a perfect raster is not what a phone gets. The
  * budget has to cover the logo *and* everything a camera adds on top of it:
  * angle, motion blur, glare, a cheap sensor, a screen at half brightness. H
@@ -67,8 +67,8 @@ const LEVEL_M: Record<number, Capacity> = {
  *
  * ## Version 5 is deliberately missing
  *
- * At level H its blocks are unequal — two of eleven data codewords and two of
- * twelve — and `interleave` below assumes one block size, as versions 1 to 6 at
+ * At level H its blocks are unequal - two of eleven data codewords and two of
+ * twelve - and `interleave` below assumes one block size, as versions 1 to 6 at
  * level M all do. Rather than grow a second group for one version nothing needs,
  * a payload that would have wanted 5 takes 6. A larger version is always a
  * legal encoding of the same text; it is a slightly denser picture and nothing
@@ -86,7 +86,7 @@ export type QrLevel = 'M' | 'H';
 
 const LEVELS: Record<QrLevel, Record<number, Capacity>> = { M: LEVEL_M, H: LEVEL_H };
 
-/** The two format-info bits for each level. Not in numeric order — the spec's. */
+/** The two format-info bits for each level. Not in numeric order - the spec's. */
 const LEVEL_BITS: Record<QrLevel, number> = { M: 0b00, H: 0b10 };
 
 const MAX_VERSION = 6;
@@ -100,7 +100,7 @@ const MAX_VERSION = 6;
  * multiplication is addition of logarithms. Building the two tables once turns
  * every later multiply into an array lookup.
  *
- * 0x11D is the primitive polynomial QR specifies. It is not a free choice —
+ * 0x11D is the primitive polynomial QR specifies. It is not a free choice  - 
  * decoders assume it.
  */
 const EXP = new Uint8Array(512);
@@ -163,7 +163,7 @@ function eccBlock(data: number[], n: number): number[] {
  *
  * Byte mode with a UTF-8 payload. Alphanumeric mode would pack a bare domain
  * more tightly, but a profile link contains lowercase letters and a slash, so
- * it would not qualify — and switching modes mid-string to save a version is
+ * it would not qualify - and switching modes mid-string to save a version is
  * complexity nobody is asking for.
  */
 function encodeData(bytes: Uint8Array, version: number, level: QrLevel): number[] {
@@ -175,7 +175,7 @@ function encodeData(bytes: Uint8Array, version: number, level: QrLevel): number[
   };
 
   push(0b0100, 4); // byte mode
-  push(bytes.length, 8); // 8-bit count field, correct for versions 1–9
+  push(bytes.length, 8); // 8-bit count field, correct for versions 1-9
   for (const byte of bytes) push(byte, 8);
 
   // Terminator: up to four zero bits, or fewer if the capacity ends first.
@@ -192,7 +192,7 @@ function encodeData(bytes: Uint8Array, version: number, level: QrLevel): number[
   }
 
   /*
-   * The two pad bytes the specification names, alternating — and the run always
+   * The two pad bytes the specification names, alternating - and the run always
    * *starts* at 0xEC, whatever position in the stream it happens to begin at.
    *
    * Keying the alternation off `codewords.length` instead looks identical and
@@ -214,7 +214,7 @@ function encodeData(bytes: Uint8Array, version: number, level: QrLevel): number[
  * entirely, and each block can lose several codewords and still be recovered.
  *
  * Every version this supports has equally sized blocks, which is why there is
- * no second group here — level M versions 1–6 all do, and level H omits its one
+ * no second group here - level M versions 1-6 all do, and level H omits its one
  * exception (version 5) for exactly this reason. It is as much why this stops
  * at version 6 as the version information block is.
  */
@@ -280,9 +280,9 @@ function drawFunctionPatterns(modules: Grid, reserved: Grid, version: number): v
   /*
    * One alignment pattern, at the bottom right.
    *
-   * Versions 2–6 place their centres at row/column 6 and `size - 7`. Three of
+   * Versions 2-6 place their centres at row/column 6 and `size - 7`. Three of
    * the four combinations sit under a finder pattern and are omitted by the
-   * specification, so exactly one is ever drawn — which is why there is no
+   * specification, so exactly one is ever drawn - which is why there is no
    * table of centres here.
    */
   if (version >= 2) {
@@ -333,7 +333,7 @@ function drawFormat(modules: Grid, mask: number, level: QrLevel): void {
   /*
    * The field is written twice, in two corners, so losing one corner is
    * survivable. These positions are given by the specification and are not
-   * symmetric — the first copy runs *down* column 8 for the low bits and
+   * symmetric - the first copy runs *down* column 8 for the low bits and
    * *along* row 8 for the high ones, turning the corner at the middle. Writing
    * it transposed produces a code that is correct in every other respect and
    * scans as nothing at all.
@@ -400,7 +400,7 @@ function penalty(modules: Grid): number {
   const size = modules.length;
   let score = 0;
 
-  // Rule 1 — runs of five or more.
+  // Rule 1 - runs of five or more.
   const scoreLine = (get: (i: number) => boolean) => {
     let run = 1;
     for (let i = 1; i < size; i += 1) {
@@ -416,7 +416,7 @@ function penalty(modules: Grid): number {
   for (let y = 0; y < size; y += 1) scoreLine((x) => modules[y]![x]!);
   for (let x = 0; x < size; x += 1) scoreLine((y) => modules[y]![x]!);
 
-  // Rule 2 — 2×2 blocks of one colour.
+  // Rule 2 - 2×2 blocks of one colour.
   for (let y = 0; y < size - 1; y += 1) {
     for (let x = 0; x < size - 1; x += 1) {
       const a = modules[y]![x];
@@ -426,7 +426,7 @@ function penalty(modules: Grid): number {
     }
   }
 
-  // Rule 3 — the finder-like 1:1:3:1:1 sequence with four light modules beside it.
+  // Rule 3 - the finder-like 1:1:3:1:1 sequence with four light modules beside it.
   const FINDER = [true, false, true, true, true, false, true];
   const matches = (get: (i: number) => boolean, at: number): boolean => {
     for (let i = 0; i < 7; i += 1) if (get(at + i) !== FINDER[i]) return false;
@@ -456,7 +456,7 @@ function penalty(modules: Grid): number {
   for (let y = 0; y < size; y += 1) scoreFinders((x) => modules[y]![x]!);
   for (let x = 0; x < size; x += 1) scoreFinders((y) => modules[y]![x]!);
 
-  // Rule 4 — how far the proportion of dark modules is from half.
+  // Rule 4 - how far the proportion of dark modules is from half.
   let dark = 0;
   for (const row of modules) for (const cell of row) if (cell) dark += 1;
   const percent = (dark * 100) / (size * size);
@@ -472,7 +472,7 @@ function penalty(modules: Grid): number {
 /**
  * Encodes `text` and returns the module grid, `true` meaning dark.
  *
- * The quiet zone is not included — it is four modules of background on every
+ * The quiet zone is not included - it is four modules of background on every
  * side, and whether that is margin, padding or nothing at all is a rendering
  * decision the caller owns.
  *
@@ -489,7 +489,7 @@ export function encodeQr(text: string, level: QrLevel = 'M'): boolean[][] {
   for (let candidate = 1; candidate <= MAX_VERSION; candidate += 1) {
     const capacity = table[candidate];
     // Level H skips version 5, so a missing entry is a version to step over
-    // rather than an error — see LEVEL_H.
+    // rather than an error - see LEVEL_H.
     if (!capacity) continue;
     // 12 bits of header, so the payload has to fit in what remains.
     if (bytes.length * 8 + 12 <= capacity.data * 8) {
@@ -515,7 +515,7 @@ export function encodeQr(text: string, level: QrLevel = 'M'): boolean[][] {
    * All eight masks, scored, best kept. Trying one and hoping is the usual
    * shortcut and it is a real risk: a code whose data happens to produce long
    * dark runs under the chosen mask can fail to scan on a cheap camera, and it
-   * would fail for exactly one username in a thousand — the kind of bug that is
+   * would fail for exactly one username in a thousand - the kind of bug that is
    * never reproducible.
    */
   let best: Grid | undefined;

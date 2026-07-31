@@ -1,8 +1,8 @@
 /**
  * What the backup surfaces need to know, in one place.
  *
- * Three screens ask the same questions — is backup on, is there a backup to
- * restore, should we be asking about it — and answering them separately is how
+ * Three screens ask the same questions - is backup on, is there a backup to
+ * restore, should we be asking about it - and answering them separately is how
  * a reminder ends up on screen for somebody who turned backup on ten minutes
  * ago. This owns the state; the components render it.
  *
@@ -95,7 +95,7 @@ export function useBackupUx(): BackupUx {
    * Latched, because recording that something was shown must not un-show it.
    *
    * Visibility used to be derived from `promptSeen`, and the effect that marks
-   * it seen flipped that flag the moment the dialog mounted — so the prompt
+   * it seen flipped that flag the moment the dialog mounted - so the prompt
    * appeared and closed itself in the same frame. Found by trying to
    * photograph it and getting an empty screen every time.
    *
@@ -163,7 +163,7 @@ export function useBackupUx(): BackupUx {
     reminders,
 
     /*
-     * Shown once, and only when there is nothing to restore — a device with a
+     * Shown once, and only when there is nothing to restore - a device with a
      * backup waiting should be offered the backup, not asked to make one.
      */
     backupWhen: driveMeta.at ? relativeDay(driveMeta.at) : undefined,

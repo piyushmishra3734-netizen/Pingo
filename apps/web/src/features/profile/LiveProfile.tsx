@@ -7,13 +7,13 @@ import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
  * Keeps the signed-in user's own profile current, everywhere at once.
  *
  * `ProfileProvider` lives in `@pingo/core`, which knows nothing about Supabase
- * and must not — a mobile client would bring its own transport. So the socket
+ * and must not - a mobile client would bring its own transport. So the socket
  * cannot reach into it. This is the seam: a component that lives on the app
  * side, subscribes to the table, and calls the provider's own `refresh`.
  *
  * It renders nothing, and that is the point. Mounted once near the root, it
- * makes every avatar, name and bio in the app follow an edit made anywhere —
- * including on another device — without a single screen having to know.
+ * makes every avatar, name and bio in the app follow an edit made anywhere  - 
+ * including on another device - without a single screen having to know.
  *
  * Filtered to this user's own row, because `profiles` is readable by everyone
  * and so its stream carries every edit on PINGO. Without the check this would

@@ -27,7 +27,7 @@ import { useSignOut } from '../../features/settings/useSignOut.js';
  * is something to save.
  *
  * Phone, email and password are shown but not editable. Changing a sign-in
- * method has to re-authenticate first (docs/01 § 18) — without that step an
+ * method has to re-authenticate first (docs/01 § 18) - without that step an
  * open tab on a borrowed laptop is an account takeover, so the rows report
  * rather than pretend.
  */
@@ -166,7 +166,7 @@ export function AccountScreen() {
             spellCheck={false}
             hint={
               cleanUsername.length > 0 && !isValidUsername(cleanUsername)
-                ? '3–20 characters. Letters, numbers and underscores.'
+                ? '3-20 characters. Letters, numbers and underscores.'
                 : `pingo.chat/${cleanUsername}`
             }
             invalid={cleanUsername.length > 0 && !isValidUsername(cleanUsername)}
@@ -197,7 +197,7 @@ export function AccountScreen() {
 
       <Group
         title="Sign-in methods"
-        note="Changing one of these has to re-authenticate first, which is not built yet — so these are shown, not editable."
+        note="Changing one of these has to re-authenticate first, which is not built yet - so these are shown, not editable."
       >
         <InfoRow label="Phone" value={session?.user.phone ?? 'Not added'} />
         <InfoRow label="Email" value={session?.user.email ?? 'Not added'} />

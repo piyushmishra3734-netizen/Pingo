@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 /**
  * The six-emoji bar that appears above a held message.
  *
- * docs/13 § 2 — it grows from the message anchor with the same motion as the
+ * docs/13 § 2 - it grows from the message anchor with the same motion as the
  * action list, because they are two halves of one gesture rather than two
  * separate surfaces that happen to appear together.
  *
@@ -15,7 +15,7 @@ import { useRef, useState } from 'react';
  * move, which is the whole argument for a quick bar over a picker.
  */
 
-/** docs/13 § 3. `➕` is not in this list — it is the button after it. */
+/** docs/13 § 3. `➕` is not in this list - it is the button after it. */
 const QUICK: { emoji: string; label: string }[] = [
   { emoji: '❤️', label: 'React with heart' },
   { emoji: '👍', label: 'React with thumbs up' },
@@ -54,7 +54,7 @@ export function ReactionBar({ mine, onReact, onOpenPicker }: ReactionBarProps) {
 
   const react = (emoji: string) => {
     setPressed(emoji);
-    // Settles back rather than bouncing. docs/13 § 3 — a bounce reads as a
+    // Settles back rather than bouncing. docs/13 § 3 - a bounce reads as a
     // celebration, and reacting is a small, frequent act.
     window.setTimeout(() => setPressed(undefined), 160);
     onReact(emoji);

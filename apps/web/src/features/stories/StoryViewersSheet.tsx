@@ -9,7 +9,7 @@ import { useStories } from './StoryContext.js';
 /**
  * Who watched your story.
  *
- * Owner only, and enforced by `story_viewers()` rather than by this component —
+ * Owner only, and enforced by `story_viewers()` rather than by this component  - 
  * asking for somebody else's story returns nothing, so a reader of this file
  * cannot accidentally make it leak by changing a condition.
  *
@@ -21,7 +21,7 @@ import { useStories } from './StoryContext.js';
  * one thing this product has decided not to be.
  *
  * Replies are counted but not listed. They are private messages sitting in
- * threads — showing them here would be a second inbox with different rules, and
+ * threads - showing them here would be a second inbox with different rules, and
  * the thread is where an answer belongs.
  */
 
@@ -115,7 +115,7 @@ function Stat({ label, value }: { label: string; value: number | undefined }) {
     <div className="rounded-lg bg-hover px-3 py-2.5 text-center">
       <dt className="sr-only">{label}</dt>
       <dd className="text-h2 font-semibold text-ink tabular-nums">
-        {value === undefined ? <span className="text-text-tertiary">—</span> : value}
+        {value === undefined ? <span className="text-text-tertiary"> - </span> : value}
       </dd>
       <p aria-hidden className="text-caption text-text-secondary">
         {label}

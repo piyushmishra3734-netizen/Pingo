@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
  *
  * These are photos from chats. Some of them were sent to one person. A grid of
  * them on a page that also has a public half is exactly the kind of surface
- * where somebody assumes the wrong thing and shares their screen — so the tab
+ * where somebody assumes the wrong thing and shares their screen - so the tab
  * carries a lock and a line of text saying only you can see it. The enforcement
  * is row level security on `messages`; the label is so nobody has to trust that
  * without being told.
@@ -20,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
  * action is almost always "where was this and who was I talking to", and that is
  * one tap away rather than a viewer you then have to back out of.
  *
- * View-once photos are absent by construction — the service never lists them.
+ * View-once photos are absent by construction - the service never lists them.
  */
 
 export function MediaGrid({ items }: { items: ChatMediaItem[] }) {
@@ -41,7 +41,7 @@ export function MediaGrid({ items }: { items: ChatMediaItem[] }) {
             onClick={() => navigate(`/chats/${item.conversationId}`)}
             aria-label={`${item.mine ? 'Photo you sent' : 'Photo you received'} on ${new Date(
               item.createdAt,
-            ).toLocaleDateString()} — open the conversation`}
+            ).toLocaleDateString()} - open the conversation`}
             className={cn(
               'focus-ring relative aspect-square overflow-hidden rounded-lg bg-hover',
               'transition-transform duration-quick ease-standard active:scale-[0.98]',

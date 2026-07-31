@@ -16,8 +16,8 @@ import { applyPageSeo } from '../lib/seo.js';
  * ## Written to be read
  *
  * Plain sentences, short sections, no defined-term glossary. Everything here
- * describes what PINGO actually does — the view limits, the 24-hour expiry, the
- * three-post shelf, the mutual-follow rule — rather than the generic clauses a
+ * describes what PINGO actually does - the view limits, the 24-hour expiry, the
+ * three-post shelf, the mutual-follow rule - rather than the generic clauses a
  * template would supply for features this product does not have.
  *
  * The encryption section says what is true rather than what sounds best:
@@ -40,7 +40,7 @@ const SECTIONS: Section[] = [
     id: 'summary',
     title: 'The short version',
     body: [
-      'PINGO is free. You own what you post. We do not sell your data or show you advertising. Messages are private between the people in a conversation, but they are not end-to-end encrypted yet — the section on data below explains exactly what that means.',
+      'PINGO is free. You own what you post. We do not sell your data or show you advertising. Messages are private between the people in a conversation, but they are not end-to-end encrypted yet - the section on data below explains exactly what that means.',
       'If you break the rules below, we may suspend or remove your account.',
     ],
   },
@@ -69,7 +69,7 @@ const SECTIONS: Section[] = [
     id: 'content',
     title: 'Your content',
     body: [
-      'What you post stays yours. You give PINGO only the permission it needs to run the service — to store your messages, show them to the people you sent them to, and resize images so they load quickly.',
+      'What you post stays yours. You give PINGO only the permission it needs to run the service - to store your messages, show them to the people you sent them to, and resize images so they load quickly.',
       'That permission ends when the content does. Delete a message and we delete it; leave the service and your content goes with you.',
     ],
   },
@@ -77,7 +77,7 @@ const SECTIONS: Section[] = [
     id: 'ephemeral',
     title: 'Things that disappear',
     body: [
-      'Pings are opened a fixed number of times — once, twice, or kept in the chat if the sender chose that. Once the views are spent the media is unreachable and the file is deleted from our storage.',
+      'Pings are opened a fixed number of times - once, twice, or kept in the chat if the sender chose that. Once the views are spent the media is unreachable and the file is deleted from our storage.',
       'Stories expire 24 hours after posting and are then removed.',
       'We cannot promise that a recipient has not photographed their screen. Nothing on any platform can. Send accordingly.',
     ],
@@ -86,8 +86,8 @@ const SECTIONS: Section[] = [
     id: 'data',
     title: 'How your data is handled',
     body: [
-      'Everything travels over HTTPS. Voice and video calls are peer-to-peer and encrypted by WebRTC — the media does not pass through our servers at all.',
-      'Messages, photos and voice notes are encrypted in transit and encrypted at rest on our database. They are not end-to-end encrypted, which means PINGO could technically read them. We do not, and there is no process that does — but we would rather state the limit plainly than let the word "encrypted" imply something stronger than what is built.',
+      'Everything travels over HTTPS. Voice and video calls are peer-to-peer and encrypted by WebRTC - the media does not pass through our servers at all.',
+      'Messages, photos and voice notes are encrypted in transit and encrypted at rest on our database. They are not end-to-end encrypted, which means PINGO could technically read them. We do not, and there is no process that does - but we would rather state the limit plainly than let the word "encrypted" imply something stronger than what is built.',
       'We do not sell personal data, and there is no advertising on PINGO.',
       'The Privacy Policy sets out exactly what is held, what is not, and who else touches it.',
     ],
@@ -144,7 +144,7 @@ export function TermsScreen() {
   useEffect(
     () =>
       applyPageSeo({
-        title: 'Terms of Use — PINGO',
+        title: 'Terms of Use - PINGO',
         description:
           'Terms of Use for PINGO: private messaging, disappearing Pings, expiring stories, and a three-post profile shelf. Read before you create an account.',
         path: '/terms',

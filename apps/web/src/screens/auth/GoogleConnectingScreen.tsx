@@ -7,7 +7,7 @@ import { writeLastMethod } from '../../features/auth/last-method.js';
 import { authErrorMessage } from '../../features/auth/messages.js';
 
 /**
- * Google — [docs/01 § 5.1](../../../../../docs/01-onboarding-auth.md#51-consent).
+ * Google - [docs/01 § 5.1](../../../../../docs/01-onboarding-auth.md#51-consent).
  *
  * The interstitial from that wireframe: *Connecting to Google*, the three brand
  * dots, and a Cancel that returns to Welcome with nothing created.
@@ -15,7 +15,7 @@ import { authErrorMessage } from '../../features/auth/messages.js';
  * **One screen serves both legs of the trip.** Tapping the Google row lands here
  * and starts the redirect; Google returns the browser to this same URL, where
  * the session is waiting to be picked up. That is why the effect below branches
- * on what is in the query string rather than on a prop — after a full page
+ * on what is in the query string rather than on a prop - after a full page
  * navigation there is no React state left to carry.
  *
  * Consent is handed to the provider, never rendered in a webview: § 5.1 is

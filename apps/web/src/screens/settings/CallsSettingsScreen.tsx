@@ -10,7 +10,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * for a call engine to read it. The page says that once rather than eight
  * times.
  *
- * **Microphone Test is the exception, and it is completely real** — it opens
+ * **Microphone Test is the exception, and it is completely real** - it opens
  * the mic and shows a live level meter. It needs no calling stack, it answers
  * the only question anyone actually has on this screen ("is my mic working?"),
  * and it is the one control here that would be a lie to fake.
@@ -114,7 +114,7 @@ export function CallsSettingsScreen() {
               />
             </div>
             <p className="mt-2 text-caption text-text-secondary">
-              Say something — the bar should move.
+              Say something - the bar should move.
             </p>
           </div>
         )}

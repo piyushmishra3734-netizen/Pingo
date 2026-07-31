@@ -10,7 +10,7 @@ import { Overlay } from '../../components/Overlay.js';
  * How long to mute for.
  *
  * A sheet rather than an immediate toggle, because "muted" is almost never
- * meant forever — it is "not for the next few hours", and a switch cannot say
+ * meant forever - it is "not for the next few hours", and a switch cannot say
  * that. The cost is one extra tap on an action nobody performs often.
  *
  * Unmuting skips this entirely: there is only one way to be unmuted, so asking
@@ -64,7 +64,7 @@ export function MuteSheet({ count, onCancel, onChoose }: MuteSheetProps) {
             Mute {count === 1 ? 'this chat' : `${count} chats`}
           </h2>
           <p className="mt-1.5 text-caption text-text-secondary">
-            You'll still see new messages in the list — they just won't notify you.
+            You'll still see new messages in the list - they just won't notify you.
           </p>
 
           <div className="mt-4 flex flex-col gap-1.5">

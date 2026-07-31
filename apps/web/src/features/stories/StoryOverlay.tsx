@@ -7,7 +7,7 @@ import { CaptionText } from '../profile/CaptionText.js';
  * What sits on top of the picture: a caption, a place, a link.
  *
  * All three are optional and all three are laid over the media rather than
- * beside it, because a story is the picture — pushing it up to make room for a
+ * beside it, because a story is the picture - pushing it up to make room for a
  * line of text would letterbox the thing the person actually posted.
  *
  * ## The scrim is under the text, not over the picture
@@ -80,7 +80,7 @@ export function StoryOverlay({ story }: { story: Story }) {
  * The host, or the whole thing if it will not parse.
  *
  * A story link is a chip a few centimetres wide, and the readable part of a URL
- * is the domain — showing the full path would truncate to something that says
+ * is the domain - showing the full path would truncate to something that says
  * less than nothing about where the tap leads.
  */
 function hostOf(url: string): string {

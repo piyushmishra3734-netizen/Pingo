@@ -11,7 +11,7 @@
  * | Never onboarded | Welcome |
  *
  * The middle row is the reason this flag exists. A returning user who signed out
- * should land on Log In, not be walked through the method triage again — but
+ * should land on Log In, not be walked through the method triage again - but
  * that is only knowable from something persisted locally, because by definition
  * there is no session to ask.
  *

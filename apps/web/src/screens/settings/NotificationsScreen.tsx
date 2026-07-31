@@ -6,12 +6,12 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
 /**
  * Notifications.
  *
- * **Mute All is not a seventh switch — it is a master.** While it is on the
+ * **Mute All is not a seventh switch - it is a master.** While it is on the
  * others are disabled rather than silently ignored, so the screen cannot show
  * "Messages: on" to someone who will not receive any.
  *
  * The permission state is surfaced at the top, because every switch below it is
- * meaningless if the browser is refusing notifications outright — and that is a
+ * meaningless if the browser is refusing notifications outright - and that is a
  * fact the user can only fix in their browser, not here.
  */
 export function NotificationsScreen() {
@@ -37,7 +37,7 @@ export function NotificationsScreen() {
         <Group
           note={
             permission === 'denied'
-              ? 'Your browser is blocking notifications for this site. Turn them back on in its site settings — nothing here can override that.'
+              ? 'Your browser is blocking notifications for this site. Turn them back on in its site settings - nothing here can override that.'
               : undefined
           }
         >
@@ -116,7 +116,7 @@ export function NotificationsScreen() {
       >
         <ToggleRow
           label="Quiet Hours"
-          description={`${n.quietHoursStart} – ${n.quietHoursEnd}`}
+          description={`${n.quietHoursStart} - ${n.quietHoursEnd}`}
           checked={n.quietHours}
           onChange={(quietHours) => update('notifications', { quietHours })}
         />

@@ -10,7 +10,7 @@ import { Overlay } from '../../components/Overlay.js';
  *
  * Reuses `SnapEditor` rather than growing a second editor. A post is a picture
  * somebody wants to look right, which is the same problem the camera already
- * solved — drawing, text, rotation, and a flatten at the end. Building a
+ * solved - drawing, text, rotation, and a flatten at the end. Building a
  * separate one for profiles would mean two editors drifting apart, and the
  * second one always being the worse of the two.
  *

@@ -14,8 +14,8 @@ import { getFilter } from './filters/registry.js';
  * filter belonged to the *camera* rather than to the *snap*.
  *
  * With this, filtering is a stage every image passes through however it
- * arrived. The live preview still renders the chain — that is what makes it a
- * preview — but it is no longer the only place a filter can be applied.
+ * arrived. The live preview still renders the chain - that is what makes it a
+ * preview - but it is no longer the only place a filter can be applied.
  *
  * ## Off-screen, and disposed every time
  *
@@ -33,8 +33,8 @@ export async function filterStill(
    *
    * The pipeline's vertex shader maps uv (0,0) to the *bottom* of the frame,
    * which is GL's convention, and `setSource` corrects for it with
-   * `UNPACK_FLIP_Y_WEBGL`. That flag works for a `<video>` — which is what the
-   * live preview feeds it — and is **ignored for an `ImageBitmap`**, which is
+   * `UNPACK_FLIP_Y_WEBGL`. That flag works for a `<video>` - which is what the
+   * live preview feeds it - and is **ignored for an `ImageBitmap`**, which is
    * what this path feeds it. So every still came out vertically mirrored while
    * the preview looked fine, and the two disagreed about which way up a picture
    * was.
@@ -59,7 +59,7 @@ export async function filterStill(
        * Read back in the same tick as the render.
        *
        * Without `preserveDrawingBuffer` the buffer is cleared once the browser
-       * composites, and an awaited `toBlob` can land after that — returning a
+       * composites, and an awaited `toBlob` can land after that - returning a
        * blank image. Nothing yields between these two lines on purpose.
        */
       const blob = await new Promise<Blob | null>((resolve) =>

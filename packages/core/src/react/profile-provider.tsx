@@ -1,5 +1,5 @@
 /**
- * ProfileProvider — the composition root for display identity.
+ * ProfileProvider - the composition root for display identity.
  *
  * Sits inside `AuthProvider`, because a profile only exists for a signed-in
  * user. It loads once the session appears and clears when it goes, so a
@@ -67,7 +67,7 @@ export function ProfileProvider({
         if (active) setProfile(next);
       })
       .catch(() => {
-        // A failed read is not "no profile" — saying so would push a complete
+        // A failed read is not "no profile" - saying so would push a complete
         // user back through sign-up. Left undefined so the guard waits instead.
         if (active) setProfile(undefined);
       })

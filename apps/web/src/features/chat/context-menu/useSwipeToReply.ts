@@ -8,14 +8,14 @@ import { capturePointer, releasePointer } from '../../conversations/pointer-capt
  * The gesture every messaging app converged on, and for a good reason: reply is
  * the most frequent action on a message by a wide margin, and routing the most
  * frequent action through a 500 ms hold and a menu makes the common case the
- * slow one. A swipe is direct — the message moves under the finger and springs
+ * slow one. A swipe is direct - the message moves under the finger and springs
  * back, so the affordance teaches itself the first time a thumb brushes it.
  *
  * ## Why this is not gated to touch
  *
  * docs/13 § 4.5: one behaviour, several entry points, never a mobile branch and
  * a desktop branch. Pointer events cover mouse, touch and pen with the same
- * code, so a trackpad drag does the same thing — it just is not how anyone on a
+ * code, so a trackpad drag does the same thing - it just is not how anyone on a
  * desktop will reach for it, because the hover `⋯` is closer to hand there.
  *
  * ## Why it does not fight the scroller
@@ -23,7 +23,7 @@ import { capturePointer, releasePointer } from '../../conversations/pointer-capt
  * A thread scrolls vertically and this gesture is horizontal, so the two are
  * separated by direction rather than by timing. Nothing moves until the pointer
  * has travelled far enough to prove intent *and* is travelling more sideways
- * than up — before that the browser keeps the scroll, and after it we take the
+ * than up - before that the browser keeps the scroll, and after it we take the
  * pointer with `setPointerCapture` so a fast flick cannot escape mid-drag.
  */
 
@@ -65,7 +65,7 @@ export interface SwipeToReply {
  * @param onReply Fired on release, past the commit distance. Never fired mid-drag,
  * because a gesture you cannot abandon by dragging back is a trap.
  * @param enabled Off for messages there is nothing to reply to, such as a
- * tombstone — the affordance should not appear where the action does not exist.
+ * tombstone - the affordance should not appear where the action does not exist.
  */
 export function useSwipeToReply(
   onReply: () => void,
@@ -75,7 +75,7 @@ export function useSwipeToReply(
    *
    * Your own messages sit against the right edge of the thread and swipe left;
    * theirs sit against the left and swipe right. Both move *inward*, away from
-   * the edge they are already pressed against — a bubble dragged further into
+   * the edge they are already pressed against - a bubble dragged further into
    * the margin it is already touching has nowhere to go and reads as stuck.
    */
   direction: 1 | -1 = 1,
@@ -120,7 +120,7 @@ export function useSwipeToReply(
         /*
          * Direction decides who owns this pointer, and the decision is made
          * once. A drag that started vertically stays the scroller's for its
-         * whole life, even if it curves — otherwise a diagonal flick would hand
+         * whole life, even if it curves - otherwise a diagonal flick would hand
          * the thread over mid-scroll. A drag the wrong way is not this gesture
          * either, and is dropped rather than clamped to zero, so it cannot
          * become a swipe by curving back.

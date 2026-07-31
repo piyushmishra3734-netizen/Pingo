@@ -8,7 +8,7 @@ import { useStories } from './StoryContext.js';
  * Who counts as a close friend.
  *
  * One-directional and private: nobody is told they are on the list, and nobody
- * can read it but its owner. That is the whole reason the feature is usable —
+ * can read it but its owner. That is the whole reason the feature is usable  - 
  * a list people could see would be a public ranking of one's friendships.
  *
  * Writes on every tick rather than on a Save. This is a setting, not a form:

@@ -4,14 +4,14 @@ import { useState } from 'react';
 /**
  * Sharing a link to a profile.
  *
- * The sheet that used to live here — a plain black-on-white QR with a link
- * under it — has been replaced by `QrCodeSheet`, which is the branded surface
+ * The sheet that used to live here - a plain black-on-white QR with a link
+ * under it - has been replaced by `QrCodeSheet`, which is the branded surface
  * and carries the same three actions. What is left is the two pieces that had
  * nothing to do with the picture: the canonical form of a profile link, and the
  * inline share row the post viewer uses.
  *
- * Native share is the only one of the three that might be missing —
- * `navigator.share` is absent on most desktop browsers — so it falls back to
+ * Native share is the only one of the three that might be missing  - 
+ * `navigator.share` is absent on most desktop browsers - so it falls back to
  * copying rather than being shown as a button that does nothing.
  */
 

@@ -11,7 +11,7 @@ import { MessageText } from './MessageText.js';
  *
  * An ordinary photo shows itself; a view-limited one shows a cover until it is
  * opened, because the whole point of a limit is that seeing it costs something.
- * They are one component because they are one message kind — splitting them
+ * They are one component because they are one message kind - splitting them
  * would mean two bubbles that have to agree on caption, corners and timestamp.
  *
  * ## The picture is the message
@@ -45,7 +45,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
     try {
       const view = await service.openPhoto(message.id);
       // Undefined means the views are used up, which reads the same as never
-      // having had any — the thread does not explain which.
+      // having had any - the thread does not explain which.
       if (!view) setSpent(true);
       else {
         setUrl(view.url);
@@ -79,7 +79,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
         ) : !limited ? (
           /*
            * An unlimited photo with no URL is one whose signing has not landed
-           * — a slow round trip, or one that failed. It is emphatically not a
+           * - a slow round trip, or one that failed. It is emphatically not a
            * view-once cover, which is what it used to render: an ordinary photo
            * inviting you to spend a view it does not have.
            */
@@ -113,7 +113,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
                     {spent
                       ? 'Photo expired'
                       : mine
-                        ? 'View once — tap to see yours'
+                        ? 'View once - tap to see yours'
                         : 'Tap to view once'}
                   </span>
                 </>
@@ -124,7 +124,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
 
         {/*
           Only for the recipient, and only while it means something. Telling the
-          sender how many views *they* have left is nonsense — their own photo
+          sender how many views *they* have left is nonsense - their own photo
           never counts against the limit.
         */}
         {limited && !mine && viewsLeft !== undefined && viewsLeft > 0 && (

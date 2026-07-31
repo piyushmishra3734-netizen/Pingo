@@ -28,7 +28,7 @@ import { VoiceNote } from './VoiceNote.js';
  * Corner shaping does the grouping work: a run of messages from one author keeps
  * square-ish corners where it meets its neighbours and rounds fully at the ends,
  * so a cluster reads as one utterance. The timestamp appears once per cluster,
- * on the last bubble — repeating it on every line is the fastest way to make a
+ * on the last bubble - repeating it on every line is the fastest way to make a
  * thread look cluttered.
  */
 
@@ -41,7 +41,7 @@ export interface MessageBubbleProps {
   showMeta: boolean;
   /**
    * Spread onto the bubble. Supplied by `MessageMenu`, which owns every way of
-   * opening the context menu — docs/13 § 4.5.
+   * opening the context menu - docs/13 § 4.5.
    */
   trigger?: Record<string, unknown>;
   /** Reactions, rendered beneath. Passed in so the bubble stays presentational. */
@@ -50,7 +50,7 @@ export interface MessageBubbleProps {
    * The message this one answers, already resolved by the thread.
    *
    * Absent when this is not a reply, or when the original is not in the loaded
-   * page — the quote is then simply not drawn, because a placeholder saying
+   * page - the quote is then simply not drawn, because a placeholder saying
    * "message unavailable" is noise for something the reader can scroll to.
    */
   replyTo?: Message;
@@ -64,7 +64,7 @@ export interface MessageBubbleProps {
  * What a quoted message reads as in one line.
  *
  * A Ping or sticker has no text worth quoting, so it is named rather than shown
- * — quoting a sticker's emoji fallback would look like the person typed it.
+ * - quoting a sticker's emoji fallback would look like the person typed it.
  */
 export function quoteText(message: Message): string {
   if (message.deleted) return 'This message was deleted';
@@ -80,7 +80,7 @@ export function quoteText(message: Message): string {
 }
 
 /**
- * Corner radii per cluster position. The 6px inner corner is the "seam" — small
+ * Corner radii per cluster position. The 6px inner corner is the "seam" - small
  * enough to read as joined, large enough to stay in the rounded design language.
  */
 const SHAPE = {
@@ -113,7 +113,7 @@ export function MessageBubble({
      * Which way this bubble comes in from.
      *
      * Held once rather than branched at each of the five places a bubble is
-     * rendered — a voice note, a photo, a sticker and a tombstone are all
+     * rendered - a voice note, a photo, a sticker and a tombstone are all
      * bubbles, and they were all rising from below identically.
      */
     const arrive = mine ? 'animate-bubble-in-mine' : 'animate-bubble-in';
@@ -127,7 +127,7 @@ export function MessageBubble({
    *
    * WhatsApp's answer, and the right one: the bubble stays on its author's side
    * at its place in time, because "something was here and is gone" is itself
-   * information — silently removing the message would edit the past instead.
+   * information - silently removing the message would edit the past instead.
    * Italic and muted so it never reads as text somebody wrote.
    */
   if (message.deleted) {
@@ -147,7 +147,7 @@ export function MessageBubble({
           {/*
             The deletion's own time, not the send time, and labelled.
             The tombstone keeps its original place in the thread, so an
-            unlabelled later time would read as a message out of sequence —
+            unlabelled later time would read as a message out of sequence  - 
             "Deleted" is what makes it a different kind of fact.
           */}
           <span
@@ -161,7 +161,7 @@ export function MessageBubble({
     );
   }
 
-  // System notices are not bubbles at all — they are centred captions.
+  // System notices are not bubbles at all - they are centred captions.
   if (message.system) {
     return (
       <div className="py-2 text-center">
@@ -193,7 +193,7 @@ export function MessageBubble({
   }
 
   /*
-   * A photo is the message, so it gets no bubble either — its caption gets one
+   * A photo is the message, so it gets no bubble either - its caption gets one
    * of its own underneath. Before the Ping branch because the two are mutually
    * exclusive and this is the commoner of the pair.
    */
@@ -268,7 +268,7 @@ export function MessageBubble({
         className={cn(
           'group relative max-w-[68%] min-w-0',
           arrive,
-          // Focusable for the keyboard openers, never outlined by a press —
+          // Focusable for the keyboard openers, never outlined by a press  - 
           // the menu appearing is the feedback.
           'outline-none',
           // Media-bearing bubbles need more room than a line of text.
@@ -282,7 +282,7 @@ export function MessageBubble({
             mine
               ? 'bg-brand-gradient text-white shadow-brand'
               // Incoming bubbles are white on the near-white page, so they need a
-              // shadow to read at all — Soft White against Background is only two
+              // shadow to read at all - Soft White against Background is only two
               // steps of luminance apart and disappears entirely without one.
               : 'bg-surface text-ink shadow-sm',
             // A failed send desaturates and outlines, rather than turning red.
@@ -332,7 +332,7 @@ export function MessageBubble({
              * A file you cannot open is a filename.
              *
              * This rendered the name and size and nothing else, so a sent
-             * document was a dead card — the one failure mode this codebase
+             * document was a dead card - the one failure mode this codebase
              * keeps producing. `download` asks for the original name back,
              * because the storage key is a uuid and saving `9f3c-…` helps
              * nobody.
@@ -382,7 +382,7 @@ export function MessageBubble({
               <MessageText body={message.body} mine={mine} />
               {message.editedAt && (
                 /*
-                 * Inside the bubble, on the edited message itself — not with
+                 * Inside the bubble, on the edited message itself - not with
                  * the cluster timestamp, which appears once per run and would
                  * leave three of four edited messages unmarked. Trailing the
                  * text is WhatsApp's placement and the reason it works: you
@@ -452,7 +452,7 @@ export function MessageBubble({
               {formatTime(message.createdAt)}
             </span>
 
-            {/* "Edited" lives in the bubble now — see above. */}
+            {/* "Edited" lives in the bubble now - see above. */}
             {mine && <DeliveryIndicator status={message.status} />}
           </div>
         )}

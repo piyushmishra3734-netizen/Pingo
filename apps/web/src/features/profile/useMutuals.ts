@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
  *
  * ## This is convenience, not enforcement
  *
- * The actual gate is in the database — stories are RLS-filtered and snaps go
+ * The actual gate is in the database - stories are RLS-filtered and snaps go
  * through policies. Hiding a button the server would refuse anyway is the point
  * here: telling someone *why* they cannot call, instead of letting them try and
  * fail.
@@ -30,7 +30,7 @@ export function useMutuals(): Set<string> | undefined {
         if (active) setIds(new Set(list));
       })
       .catch(() => {
-        // An empty set on failure, not `undefined` forever — otherwise a
+        // An empty set on failure, not `undefined` forever - otherwise a
         // transient error leaves every gated control stuck in loading.
         if (active) setIds(new Set());
       });

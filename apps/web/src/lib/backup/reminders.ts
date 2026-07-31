@@ -3,7 +3,7 @@
  *
  * Pure decisions, no storage and no React, so the escalation can be tested
  * without a browser. The behaviour worth getting right is not the first
- * reminder — it is the third.
+ * reminder - it is the third.
  *
  * ## Escalating, because a repeated no is an answer
  *
@@ -55,7 +55,7 @@ export function intervalAfter(dismissals: number): ReminderInterval {
  * Should the reminder card be on screen?
  *
  * `backupEnabled` short-circuits everything. A user who has turned backup on
- * must never see a reminder about turning it on, whatever the timers say —
+ * must never see a reminder about turning it on, whatever the timers say  - 
  * that is the bug this argument exists to make impossible.
  */
 export function shouldShowReminder(

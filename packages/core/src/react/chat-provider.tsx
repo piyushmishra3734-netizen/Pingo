@@ -1,12 +1,12 @@
 /**
- * ChatProvider — the composition root for data.
+ * ChatProvider - the composition root for data.
  *
  * This is the *only* place in the product that knows which ChatService
  * implementation is in use. Screens receive a `ChatService`; they never import
  * `MockChatService`. Swapping in a real backend is a one-line change here.
  *
- * The provider owns the state that more than one screen needs — the signed-in
- * user, the conversation list, connection status — and keeps it current from the
+ * The provider owns the state that more than one screen needs - the signed-in
+ * user, the conversation list, connection status - and keeps it current from the
  * push event stream. Per-thread message state is deliberately *not* here; it
  * lives in `useMessages` so that opening a conversation doesn't re-render the
  * whole app.
@@ -36,7 +36,7 @@ interface ChatContextValue {
   connection: ConnectionState;
   /** False until the first load of user + conversations settles. */
   ready: boolean;
-  /** Total unread across all conversations — drives the dock badge. */
+  /** Total unread across all conversations - drives the dock badge. */
   totalUnread: number;
   refresh: () => Promise<void>;
 }
@@ -87,7 +87,7 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
      *
      * Measured before this change: the home screen waited 2311.8ms at the
      * median for three network calls to settle, and first-interaction landed
-     * within 3ms of that — so the main thread was idle the whole time and the
+     * within 3ms of that - so the main thread was idle the whole time and the
      * wait was purely the network. Reading the same three things back from the
      * sealed cache is one decrypt.
      *

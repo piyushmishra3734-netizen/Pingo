@@ -7,7 +7,7 @@
  *
  * ## Nothing here transfers history
  *
- * Every figure comes from an aggregate count — `Prefer: count=exact` with
+ * Every figure comes from an aggregate count - `Prefer: count=exact` with
  * `Range: 0-0`, which returns a header and no rows. The source interface is
  * shaped so that it *cannot* return rows: the methods return `number`. A
  * preflight that downloaded the account to measure the account would be worse
@@ -18,7 +18,7 @@
  *
  * It is returned as a range and labelled as one. A single number presented as
  * exact and then missed by a third is worse than a range that contains the
- * answer — the user makes the same decision either way, and only one of the two
+ * answer - the user makes the same decision either way, and only one of the two
  * survives being wrong.
  */
 
@@ -79,7 +79,7 @@ export interface PreflightSummary {
   documents: number;
   voiceNotes: number;
   /**
-   * Estimated size of the encrypted archive — messages only.
+   * Estimated size of the encrypted archive - messages only.
    *
    * Deliberately not the same field as `mediaBytes`. The archive does not
    * contain media in v1, and a summary that added them together would quote a
@@ -90,7 +90,7 @@ export interface PreflightSummary {
   mediaBytes: number;
   /** Messages still to download. Zero when backfill has already finished. */
   toDownload: number;
-  /** No history at all — a new account, not a failed measurement. */
+  /** No history at all - a new account, not a failed measurement. */
   empty: boolean;
   /** One or more counts failed; the rest are still usable. */
   partial: boolean;
@@ -103,7 +103,7 @@ export interface PreflightSummary {
  * Bytes per message when there is nothing to measure.
  *
  * From the archive measurements: 10,000 messages serialised to 3.6 MB. Used
- * only on a device with an empty row store — which is exactly the first backup,
+ * only on a device with an empty row store - which is exactly the first backup,
  * so it is the most likely path rather than a corner.
  */
 export const ASSUMED_BYTES_PER_MESSAGE = 360;
@@ -154,7 +154,7 @@ export function estimateArchiveBytes(messages: number, sample: LocalSample): Siz
  *
  * A backup that cannot start because the *video* count timed out would be a
  * poor trade. The field falls back to zero and is named in `unavailable`, so
- * the UI can show what it knows and say what it does not — which is also why
+ * the UI can show what it knows and say what it does not - which is also why
  * `partial` exists rather than the caller inferring it from a zero.
  */
 async function counted(
@@ -174,7 +174,7 @@ async function counted(
 /**
  * Measure the account without downloading it.
  *
- * The counts run concurrently — they are independent, and a preflight that
+ * The counts run concurrently - they are independent, and a preflight that
  * takes six round trips in sequence is a visible pause before a button that has
  * not done anything yet.
  */
@@ -199,7 +199,7 @@ export async function runPreflight(
   /*
    * What is left, not what exists.
    *
-   * Clamped at zero because local can legitimately exceed the server — a
+   * Clamped at zero because local can legitimately exceed the server - a
    * message deleted for everyone after this device stored it, or history the
    * server has since expired. A negative "still to download" would be nonsense
    * shown to a user whose backup is in the best possible state.
@@ -268,7 +268,7 @@ export function formatPreflight(summary: PreflightSummary): string {
 
   rows.push([
     'Estimated size',
-    `${formatBytes(summary.archive.bytes)} (${formatBytes(summary.archive.low)}–${formatBytes(summary.archive.high)})`,
+    `${formatBytes(summary.archive.bytes)} (${formatBytes(summary.archive.low)}-${formatBytes(summary.archive.high)})`,
   ]);
 
   const width = Math.max(...rows.map(([label]) => label.length));

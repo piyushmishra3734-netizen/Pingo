@@ -11,7 +11,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * Chats.
  *
  * **Font Size is live.** It sets the root font size, and because every size in
- * the product is expressed in rem, the whole app resizes proportionally — not
+ * the product is expressed in rem, the whole app resizes proportionally - not
  * just message text. Changing it here rescales this page while you look at it,
  * which is the point: you are reading the result at the size you picked.
  *

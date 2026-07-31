@@ -14,7 +14,7 @@ import { useCallback, useState } from 'react';
  * These are deliberate, one-off acts on a list the user is looking at, and the
  * service already pushes a `conversation:updated` the instant the write lands.
  * An optimistic archive that un-archives itself a moment later is worse than one
- * that takes a beat — the row would leave and come back, which reads as the app
+ * that takes a beat - the row would leave and come back, which reads as the app
  * having changed its mind.
  */
 

@@ -7,12 +7,12 @@ import { AppLogo } from '../../components/AppLogo.js';
 import { readLastMethod } from '../../features/auth/last-method.js';
 
 /**
- * Log In — [docs/01 § 13.1](../../../../../docs/01-onboarding-auth.md#131-method-selection).
+ * Log In - [docs/01 § 13.1](../../../../../docs/01-onboarding-auth.md#131-method-selection).
  *
  * The returning-user twin of Welcome, and a triage screen for the same reason:
  * no gradient button, because there is no single thing the user came here to do.
  *
- * The one behaviour that differs from Welcome is the ordering — § 13.1 moves the
+ * The one behaviour that differs from Welcome is the ordering - § 13.1 moves the
  * **last-used method to the top and captions it `Last used`**. Rows also carry no
  * captions here: a returning user does not need to be told Google is fastest.
  */

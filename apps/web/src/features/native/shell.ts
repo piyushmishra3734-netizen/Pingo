@@ -12,7 +12,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
  * The requirement is one UI everywhere, and the fastest way to lose that is to
  * let `if (isNative)` spread through components. Every screen in this app is
  * already correct on a phone; what a native shell changes is not *what* is
- * drawn but how the OS behaves around it — the splash, the status bar, the
+ * drawn but how the OS behaves around it - the splash, the status bar, the
  * hardware back button, the keyboard.
  *
  * So all of that lives here, runs once at startup, and no component ever learns
@@ -21,7 +21,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
  * ## On the web this does nothing at all
  *
  * `Capacitor.isNativePlatform()` is false in a browser and every call below is
- * skipped. The web build is unchanged — same bundle, same behaviour — which is
+ * skipped. The web build is unchanged - same bundle, same behaviour - which is
  * what stops "add mobile" from quietly becoming a second product.
  */
 
@@ -71,7 +71,7 @@ export async function initNativeShell(onBack: () => boolean): Promise<() => void
   /*
    * The hardware back button, on Android.
    *
-   * Without this it exits the app from anywhere — including from inside a
+   * Without this it exits the app from anywhere - including from inside a
    * conversation, which is the single most jarring thing an Android app can do.
    * The callback returns whether it handled the press; if nothing did and there
    * is no history left, backgrounding is the correct behaviour rather than
@@ -87,8 +87,8 @@ export async function initNativeShell(onBack: () => boolean): Promise<() => void
   /*
    * The keyboard's height, published as a CSS variable.
    *
-   * Android's WebView resize is unreliable across manufacturers — Samsung and
-   * Xiaomi in particular report it late or not at all — so the composer cannot
+   * Android's WebView resize is unreliable across manufacturers - Samsung and
+   * Xiaomi in particular report it late or not at all - so the composer cannot
    * rely on the viewport shrinking. A variable the layout can read is the one
    * mechanism that behaves the same on every device.
    */

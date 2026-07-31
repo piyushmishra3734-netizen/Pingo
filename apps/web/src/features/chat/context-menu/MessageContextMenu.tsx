@@ -6,7 +6,7 @@ import { Overlay } from '../../../components/Overlay.js';
 /**
  * The context menu shell: dim, lift, and where things sit.
  *
- * Implements docs/13 § 2 — anchoring, flipping and adaptive reach. The
+ * Implements docs/13 § 2 - anchoring, flipping and adaptive reach. The
  * reaction bar and the action list are passed in; this owns only the geometry,
  * because that is the part every one of them has to agree on.
  *
@@ -25,7 +25,7 @@ const LIFT_PX = 3;
 /**
  * Below this fraction of the viewport is comfortable for a thumb.
  *
- * docs/13 § 2.2 — on a 6.7–6.9" phone the top third is out of range, so
+ * docs/13 § 2.2 - on a 6.7-6.9" phone the top third is out of range, so
  * anything resting above this line gets pulled down toward the hand.
  */
 const REACH_LINE = 0.55;
@@ -70,7 +70,7 @@ export function MessageContextMenu({
        * Scrolling the menu is not scrolling away from it.
        *
        * Level 2 is a scrolling sheet, and capture-phase listening sees its
-       * scroll too — so without this, reaching the bottom of the sheet closes
+       * scroll too - so without this, reaching the bottom of the sheet closes
        * the thing you were reaching into.
        */
       const target = event.target;
@@ -100,7 +100,7 @@ export function MessageContextMenu({
    * Level 1 is four rows; Level 2 is a scrolling sheet several times taller,
    * and it replaces Level 1 in place. Placing both from one estimate put the
    * bottom of Level 2 past the bottom of the screen, where Edit and Delete
-   * could not be reached at all — the panel scrolls internally, but nothing
+   * could not be reached at all - the panel scrolls internally, but nothing
    * inside the viewport was scrollable to bring them up. So the size feeds back
    * into placement, and switching level re-places.
    */
@@ -129,13 +129,13 @@ export function MessageContextMenu({
         onPointerDown={onDismiss}
         className={cn(
           'fixed inset-0 z-400',
-          // 5–10% dim, and deliberately no blur. docs/13 § 2.
+          // 5-10% dim, and deliberately no blur. docs/13 § 2.
           'bg-ink/[0.08]',
           'animate-fade-in',
         )}
         style={{ animationDuration: `${ENTER_MS}ms` }}
       >
-        {/* Reactions above, actions below — or swapped when the menu flips. */}
+        {/* Reactions above, actions below - or swapped when the menu flips. */}
         <div
           // Taps inside act; only the scrim dismisses.
           onPointerDown={(event) => event.stopPropagation()}
@@ -246,7 +246,7 @@ const REACTIONS_HEIGHT = 48;
  * Six 40px targets plus gaps and padding.
  *
  * Its width is measured all the same, because it is the panel most likely to be
- * wider than the phone it is on — six touch targets in a row against a 360px
+ * wider than the phone it is on - six touch targets in a row against a 360px
  * screen leaves very little margin, and this is the one that was overhanging.
  */
 const REACTIONS_ESTIMATE: Size = { height: REACTIONS_HEIGHT, width: 268 };
@@ -256,10 +256,10 @@ const REACTIONS_ESTIMATE: Size = { height: REACTIONS_HEIGHT, width: 268 };
  *
  * Three rules from docs/13 § 2, applied in order:
  *
- *   1. Reactions above the bubble, actions below — the default.
+ *   1. Reactions above the bubble, actions below - the default.
  *   2. Near the bottom, the action list flips above so it stays on screen.
  *   3. Adaptive reach: if the whole arrangement rests above the reach line, it
- *      slides down toward the thumb — but never so far that the bubble leaves
+ *      slides down toward the thumb - but never so far that the bubble leaves
  *      the screen, because the spatial tie is the point.
  *
  * A message taller than the viewport has no useful edge, so both groups
@@ -276,7 +276,7 @@ function place(
    *
    * On a phone `window.innerHeight` includes the strip under a collapsing URL
    * bar and ignores the keyboard entirely, so placing against it puts the
-   * bottom of the menu underneath browser chrome — which is the "off screen on
+   * bottom of the menu underneath browser chrome - which is the "off screen on
    * mobile" case. `visualViewport` is what is actually visible.
    */
   const visual = window.visualViewport;
@@ -319,7 +319,7 @@ function place(
    * Horizontal clamp, per panel.
    *
    * Each starts at the bubble's left edge, and an outgoing bubble sits against
-   * the right side of the thread — so anything wider than the bubble hangs off
+   * the right side of the thread - so anything wider than the bubble hangs off
    * the screen. This is why the menu ran off the edge on a phone: the two
    * panels are different widths, and clamping both by the action panel's width
    * left the reaction bar free to overhang.

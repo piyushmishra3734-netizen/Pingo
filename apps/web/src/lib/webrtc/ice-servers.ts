@@ -10,7 +10,7 @@ import { getSupabaseClient } from '../supabase/client.js';
  * behind a credential.
  *
  * That credential must never reach the bundle. Everything Vite exposes to the
- * browser — anything `VITE_`-prefixed — is readable by opening devtools, and a
+ * browser - anything `VITE_`-prefixed - is readable by opening devtools, and a
  * long-lived TURN credential sitting there is an open relay: anyone can lift it
  * and push their own traffic through, on your bill, until you notice. This is
  * not theoretical; it is the single most common way people get a surprise
@@ -18,16 +18,16 @@ import { getSupabaseClient } from '../supabase/client.js';
  *
  * So the secret lives server-side in the `turn-credentials` Edge Function, and
  * the browser asks for a credential that expires. If the function is not
- * deployed the app degrades to STUN-only — which is exactly where it was before
+ * deployed the app degrades to STUN-only - which is exactly where it was before
  * TURN existed, and still connects for most people.
  *
  * ## What TURN actually buys
  *
  * STUN only *tells* two peers their public addresses; the media still travels
  * directly. Behind symmetric NAT or a corporate firewall there is no direct path
- * to find, and roughly 10–20% of real-world networks are like that. TURN relays
+ * to find, and roughly 10-20% of real-world networks are like that. TURN relays
  * the media through a server that both sides can reach. It is slower and costs
- * money, which is why it is the fallback and not the default — ICE tries direct
+ * money, which is why it is the fallback and not the default - ICE tries direct
  * routes first and only relays when nothing else works.
  */
 
@@ -67,7 +67,7 @@ const FAILURE_CACHE_MS = 5 * 60_000;
 /**
  * ICE servers for a new peer connection.
  *
- * Never rejects. A failure here means no TURN, not no call — degrading to STUN
+ * Never rejects. A failure here means no TURN, not no call - degrading to STUN
  * connects for most people, and failing the call outright would be a worse
  * outcome than the one this function exists to improve.
  */
@@ -95,7 +95,7 @@ async function fetchIceServers(): Promise<RTCIceServer[]> {
      * STUN stays in the list alongside TURN, deliberately.
      *
      * ICE gathers candidates from every server it is given and picks the
-     * cheapest working path — direct if there is one, relayed only if not.
+     * cheapest working path - direct if there is one, relayed only if not.
      * Dropping STUN here would force every call onto the relay and turn a
      * fallback into the bill.
      */

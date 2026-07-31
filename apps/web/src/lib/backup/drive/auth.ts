@@ -2,7 +2,7 @@
  * Getting a Drive token, and nothing else.
  *
  * This is the only part of Drive backup that differs by platform. Everything
- * downstream — chunking, encryption, upload, integrity, restore — is plain
+ * downstream - chunking, encryption, upload, integrity, restore - is plain
  * HTTPS and identical inside the Android WebView and a browser, so it lives in
  * one implementation that cannot drift between them.
  *
@@ -44,7 +44,7 @@ export interface DriveAuth {
   /**
    * Ask for Drive access, showing whatever consent UI the platform provides.
    *
-   * Called from a user gesture — enabling Drive backup — never on a timer.
+   * Called from a user gesture - enabling Drive backup - never on a timer.
    */
   authorize(): Promise<DriveToken>;
 

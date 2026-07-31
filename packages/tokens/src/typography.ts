@@ -31,42 +31,42 @@ export const fontWeight = {
  * looking loose.
  */
 export const textStyle = {
-  /** 56 / Bold — splash and onboarding headlines only. Used sparingly. */
+  /** 56 / Bold - splash and onboarding headlines only. Used sparingly. */
   display: {
     fontSize: '3.5rem',
     lineHeight: '1.05',
     fontWeight: fontWeight.bold,
     letterSpacing: '-0.02em',
   },
-  /** 32 / SemiBold — screen titles. */
+  /** 32 / SemiBold - screen titles. */
   h1: {
     fontSize: '2rem',
     lineHeight: '1.18',
     fontWeight: fontWeight.semibold,
     letterSpacing: '-0.015em',
   },
-  /** 20 / Medium — section headers, conversation names. */
+  /** 20 / Medium - section headers, conversation names. */
   h2: {
     fontSize: '1.25rem',
     lineHeight: '1.3',
     fontWeight: fontWeight.medium,
     letterSpacing: '-0.01em',
   },
-  /** 16 / Regular — the workhorse. Message text, list rows, settings labels. */
+  /** 16 / Regular - the workhorse. Message text, list rows, settings labels. */
   body: {
     fontSize: '1rem',
     lineHeight: '1.5',
     fontWeight: fontWeight.regular,
     letterSpacing: '0',
   },
-  /** 16 / Medium — body copy that needs to carry slightly more weight. */
+  /** 16 / Medium - body copy that needs to carry slightly more weight. */
   bodyStrong: {
     fontSize: '1rem',
     lineHeight: '1.5',
     fontWeight: fontWeight.medium,
     letterSpacing: '0',
   },
-  /** 12 / Regular — timestamps, metadata, helper text. */
+  /** 12 / Regular - timestamps, metadata, helper text. */
   caption: {
     fontSize: '0.75rem',
     lineHeight: '1.35',

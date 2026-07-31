@@ -38,7 +38,7 @@ const LIVE_KEYS = ['identity:v1', 'database:v1', 'device-id'] as const;
  * This used to call `localClear()`, and that was a bad mistake with a real
  * consequence: the `keys` store holds the device identity, so signing a second
  * account in wiped the *first* account's private key. Every message already
- * encrypted to it became permanently unreadable on that device — which is
+ * encrypted to it became permanently unreadable on that device - which is
  * exactly the "Sent before you added this device" placeholder appearing over a
  * message that had arrived perfectly well. The reasoning was that a shared
  * device should not leak one person's data to the next; the reasoning was
@@ -66,7 +66,7 @@ async function switchAccount(previous: string, next: string): Promise<void> {
    * store arrived with milestone 2, after this function was written, and
    * nothing pointed at the gap. The rows survived an account switch sealed
    * under the outgoing account's parked database key, so they were unreadable
-   * rather than exposed — but they were another person's messages sitting in
+   * rather than exposed - but they were another person's messages sitting in
    * this account's store, and they came back the moment that key was restored.
    *
    * Found by building an archive on a real device: 50 of 52 records would not
@@ -98,7 +98,7 @@ async function switchAccount(previous: string, next: string): Promise<void> {
  * Idempotent by primary key, so a reload updates `last_seen_at` rather than
  * accumulating rows. Failure is swallowed deliberately: not publishing means
  * other people cannot encrypt *to* this device yet, which is a degraded state,
- * not a broken one — the app still reads and sends. Blocking sign-in on it
+ * not a broken one - the app still reads and sends. Blocking sign-in on it
  * would turn a sync hiccup into a login failure.
  */
 export function publishDeviceKey(client: PingoSupabaseClient, userId: string): Promise<void> {
@@ -107,7 +107,7 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
      * Whose device is this?
      *
      * Now that signing out leaves the keys in place, the same browser can see
-     * a second account sign in — a shared laptop, or someone switching between
+     * a second account sign in - a shared laptop, or someone switching between
      * their own two accounts. Handing the new account the previous one's
      * identity would republish that device under a new owner and quietly move
      * a key between people, which is the sort of thing that is obvious only
@@ -148,7 +148,7 @@ export interface Keying {
   /**
    * Every device that should be able to read messages here, the sender's own
    * included. Leaving those out would mean writing messages you cannot read
-   * back — the sent thread would go blank on reload, which is a spectacular
+   * back - the sent thread would go blank on reload, which is a spectacular
    * way to lose a conversation.
    */
   devices: RecipientDevice[];
@@ -157,7 +157,7 @@ export interface Keying {
    *
    * The distinction that matters. Encrypting for the devices that happen to
    * exist would produce a message the other side is cryptographically unable
-   * to open — not a downgrade, which is at least readable, but mail nobody can
+   * to open - not a downgrade, which is at least readable, but mail nobody can
    * deliver. A conversation becomes encrypted when everyone in it can read it,
    * and not one message sooner.
    */
@@ -166,8 +166,8 @@ export interface Keying {
    * One wrap recipient per member who has enabled Secure Backup.
    *
    * Additional recipients, never a substitute for a device. A recovery key
-   * does not make a conversation encryptable — `everyoneReady` is decided by
-   * devices alone, exactly as before — it only means that a member who later
+   * does not make a conversation encryptable - `everyoneReady` is decided by
+   * devices alone, exactly as before - it only means that a member who later
    * loses every device can still read what was sent while they had one.
    *
    * Members without Secure Backup contribute nothing, so their envelopes are
@@ -230,7 +230,7 @@ export async function conversationKeying(
    * A failed recovery lookup is not a failed send.
    *
    * Errors propagate for devices because *not known* must never be read as
-   * *nobody has keys* — that is how a blip becomes a message in the clear.
+   * *nobody has keys* - that is how a blip becomes a message in the clear.
    * Recovery is different: it adds a recipient rather than deciding whether to
    * encrypt at all. Losing it costs recoverability of this one message and
    * changes nothing about who can read it, so a message that would otherwise
@@ -264,7 +264,7 @@ export interface SealedBody {
  * Conversations known to have carried an encrypted message.
  *
  * A one-way latch. Nothing ever removes an entry, because the property it
- * records — this conversation has been encrypted at least once — cannot stop
+ * records - this conversation has been encrypted at least once - cannot stop
  * being true.
  */
 const encrypted = new Set<string>();
@@ -273,7 +273,7 @@ const encrypted = new Set<string>();
  * Has this conversation ever carried a `v1` message?
  *
  * Asked of the server only when the in-memory latch has not already been set,
- * and only when a plaintext send is on the table — so the happy path never pays
+ * and only when a plaintext send is on the table - so the happy path never pays
  * for it. A tab opened fresh has an empty latch, which is exactly the case that
  * needs the server's memory rather than its own.
  */
@@ -312,7 +312,7 @@ async function hasEncryptedHistory(
  *
  * Once a conversation has carried a single encrypted message, that door shuts
  * for good. A send that cannot be encrypted then **throws** rather than
- * quietly reverting — a thread that silently drops back to plaintext is the
+ * quietly reverting - a thread that silently drops back to plaintext is the
  * worst failure this system can have, because it looks exactly like a thread
  * that is working.
  */
@@ -336,7 +336,7 @@ export async function sealBody(
    * Devices first, then recovery keys, in one envelope.
    *
    * Recovery is an extra wrap of the same content key, not a second copy of the
-   * message and not a different cipher — one more ECDH per enrolled member and
+   * message and not a different cipher - one more ECDH per enrolled member and
    * no format change, because the `keys` map was always keyed by opaque id.
    *
    * This is not retroactive and cannot be. A message sent before a member
@@ -395,8 +395,8 @@ export async function openRow(row: MessageRow): Promise<boolean> {
  *
  * The return value exists because of a real incident: a message that had
  * arrived perfectly well was seen turning into the placeholder. The server
- * copy was fine — the ciphertext and a wrap for that device were both present
- * — so the failure was local and, in principle, temporary.
+ * copy was fine - the ciphertext and a wrap for that device were both present
+ * - so the failure was local and, in principle, temporary.
  *
  * What made it permanent was the cache. `openRow` writes the placeholder into
  * `row.body`, and the page is then sealed to disk as if it were the message.
@@ -431,7 +431,7 @@ export interface StoredRow {
  * Writes one page of messages as individual rows.
  *
  * Called after the blob is written, and never instead of it. A failure here
- * must not affect what the user sees, so it resolves rather than throwing —
+ * must not affect what the user sees, so it resolves rather than throwing  - 
  * the row store is a shadow copy under evaluation, not a source of truth.
  */
 export async function writeMessageRows(
@@ -555,7 +555,7 @@ export async function sealRecord(value: unknown): Promise<SealedRecord> {
  *
  * The cache predates encryption, so every existing device holds plaintext
  * records written by an older build. An earlier draft of this module simply
- * tolerated them — read them back as-is and let them be replaced whenever that
+ * tolerated them - read them back as-is and let them be replaced whenever that
  * conversation next happened to be opened. Checking in the browser showed what
  * that means in practice: a conversation nobody reopens keeps its readable
  * copy on disk indefinitely. For a feature whose entire claim is that the disk
@@ -583,7 +583,7 @@ export function purgeUnsealedCache(): Promise<void> {
  *
  * Distinct from the purge above, which removes values that were never sealed.
  * These *are* sealed, correctly, under a database key this device no longer
- * holds — rows left behind when an account switch failed to clear
+ * holds - rows left behind when an account switch failed to clear
  * `message-rows`, which it did for as long as that store existed. They are
  * unreadable rather than exposed, but they are another account's messages
  * sitting in this one's store, and they made an archive carry two records out
@@ -651,7 +651,7 @@ export async function openRecord<T>(stored: unknown): Promise<T | undefined> {
     );
     return JSON.parse(new TextDecoder().decode(plaintext)) as T;
   } catch {
-    // The database key was regenerated — a cleared origin, a new sign-in. The
+    // The database key was regenerated - a cleared origin, a new sign-in. The
     // cache is an optimisation, so a miss costs a network round trip.
     return undefined;
   }

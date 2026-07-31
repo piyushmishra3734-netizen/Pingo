@@ -1,7 +1,7 @@
 /**
  * The camera boundary.
  *
- * Contracts only — no WebGL, no MediaPipe, no DOM. `apps/web` implements these;
+ * Contracts only - no WebGL, no MediaPipe, no DOM. `apps/web` implements these;
  * a future native client implements the same names over Metal and the MediaPipe
  * native SDK, and every filter definition and screen above stays put.
  *
@@ -10,9 +10,9 @@
  * **Adding a filter, an AR effect or an AI feature must not touch the engine.**
  * So the engine knows about three registries and nothing else:
  *
- *   filters   — a shader pass, described as data
- *   vision    — a tracker that emits landmarks or a mask
- *   effects   — something drawn *using* vision output
+ *   filters   - a shader pass, described as data
+ *   vision    - a tracker that emits landmarks or a mask
+ *   effects   - something drawn *using* vision output
  *
  * A new effect is a new entry. The engine iterates; it never switches on a name.
  */
@@ -49,7 +49,7 @@ export interface FilterDefinition {
   fragmentShader: string;
   params?: FilterParam[];
   /**
-   * Where the shader came from, and under what licence. Required — a filter
+   * Where the shader came from, and under what licence. Required - a filter
    * with no provenance cannot be shipped, and this is the field that stops one
    * from being added without it.
    */
@@ -70,7 +70,7 @@ export interface Attribution {
 /** One filter in a user's chain: which filter, how strong, what settings. */
 export interface FilterInstance {
   filterId: string;
-  /** 0–1. Blends the pass against its input, so every filter fades uniformly. */
+  /** 0-1. Blends the pass against its input, so every filter fades uniformly. */
   intensity: number;
   params?: Record<string, number>;
 }
@@ -95,13 +95,13 @@ export interface Landmark {
 /**
  * What the trackers produced for one frame.
  *
- * Every field is optional because tasks are enabled independently — a chain
+ * Every field is optional because tasks are enabled independently - a chain
  * that only needs a background mask should not pay for face tracking.
  */
 export interface VisionFrame {
   /** 478 points per face when the face mesh is running. */
   faces?: Landmark[][];
-  /** Named expression weights, 0–1, e.g. `mouthSmileLeft`. */
+  /** Named expression weights, 0-1, e.g. `mouthSmileLeft`. */
   blendshapes?: Record<string, number>[];
   hands?: Landmark[][];
   /** Recognised gesture per hand, e.g. `Thumb_Up`. */
@@ -125,7 +125,7 @@ export interface VisionTaskDefinition {
 // ---------------------------------------------------------------------------
 
 /**
- * Something drawn on top using vision output — a mask, a particle system, a
+ * Something drawn on top using vision output - a mask, a particle system, a
  * pair of glasses pinned to a face.
  *
  * Deliberately *not* a shader pass: effects need the landmark data and often

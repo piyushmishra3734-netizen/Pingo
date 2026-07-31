@@ -7,7 +7,7 @@ import { capturePointer, releasePointer } from './pointer-capture.js';
  * A conversation row you can swipe either way to act on.
  *
  * Two directions with different weights, which is the whole design: swiping
- * right is the reversible one — pin, unpin — and swiping left holds the ones
+ * right is the reversible one - pin, unpin - and swiping left holds the ones
  * you might not want to do by accident. Both reveal their action from
  * underneath, so the row moving *is* the affordance and nothing has to be
  * labelled until it is already half-visible.
@@ -15,7 +15,7 @@ import { capturePointer, releasePointer } from './pointer-capture.js';
  * ## Why one action per direction rather than a tray of them
  *
  * A tray of three buttons revealed by a swipe means a swipe, a look, an aim and
- * a tap — four steps for something a full swipe does in one. The extra actions
+ * a tap - four steps for something a full swipe does in one. The extra actions
  * are not lost: they live in the long-press selection mode, which is the
  * surface built for choosing between many things.
  *
@@ -101,7 +101,7 @@ export function SwipeableRow({ right, left, enabled = true, children }: Swipeabl
           return;
         }
 
-        // Nothing to reveal that way — leave the pointer to the scroller.
+        // Nothing to reveal that way - leave the pointer to the scroller.
         if ((dx > 0 && !right) || (dx < 0 && !left)) {
           start.current = undefined;
           return;
@@ -160,7 +160,7 @@ export function SwipeableRow({ right, left, enabled = true, children }: Swipeabl
        *
        * A live region that narrated every pixel of travel would talk over the
        * row itself. This says "Release to archive" at the moment releasing
-       * would do that, which is the one instant the information is useful — and
+       * would do that, which is the one instant the information is useful - and
        * it is the only way a screen-reader user gets told what a swipe is
        * about to do, since the revealed track is decorative.
        */

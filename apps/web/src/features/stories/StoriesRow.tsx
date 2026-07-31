@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 /**
  * The story rail at the top of the chat list.
  *
- * Horizontal, scrollable, people not posts — five stories from one person is
+ * Horizontal, scrollable, people not posts - five stories from one person is
  * one circle that opens as a sequence. Order is decided in `StoryContext`: you,
  * then friends, then everybody else.
  *
@@ -20,7 +20,7 @@ import { useRef, useState } from 'react';
  * | Green | posted to close friends |
  *
  * Green outranks the other two, because it is about *who the story is for*
- * rather than whether you have watched it — being let into somebody's close
+ * rather than whether you have watched it - being let into somebody's close
  * friends is the more interesting fact and it survives being seen. A watched
  * close story dims to a softer green rather than dropping to grey, so the band
  * still reads while the "already seen" signal still lands.
@@ -180,8 +180,8 @@ function MyCircle({
     /*
       A wrapper, so the plus can be its own button.
 
-      Once you have a story the ring has to do two jobs — open what you posted,
-      and add another — and a button cannot contain a button. Previously the
+      Once you have a story the ring has to do two jobs - open what you posted,
+      and add another - and a button cannot contain a button. Previously the
       second job simply disappeared: the plus was rendered only when there was
       no story, so posting one removed the only way to post a second from here.
     */
@@ -269,7 +269,7 @@ function MyCircle({
           'hover:scale-110 active:scale-95',
           /*
             The 44px target sits outside the badge, so it does not swallow the
-            ring around it — the tile is the bigger, more likely tap and must
+            ring around it - the tile is the bigger, more likely tap and must
             stay reachable right up to the badge's edge.
           */
           'after:absolute after:-inset-2 after:content-[""]',
@@ -306,7 +306,7 @@ function StoryRing({
           67px across: a 56px avatar, 5px of inner gap, 6px of ring.
 
           The band is what says "there is a story here", so it is the part that
-          got thicker — 3px rather than 2.5px. Growing the avatar instead made
+          got thicker - 3px rather than 2.5px. Growing the avatar instead made
           the whole rail shout; the ring is the signal, and the face is just
           what it surrounds.
         */
@@ -329,7 +329,7 @@ function StoryRing({
         The inner ring separates the avatar from the band.
 
         `grid`, and it has to be. As a plain inline span this box formed a line
-        box around the avatar, and the avatar is `inline-flex` — so it sat on the
+        box around the avatar, and the avatar is `inline-flex` - so it sat on the
         text baseline with descender space beneath it. That made the ring 65
         wide and 72 tall: a visible ellipse, and the bug behind "oval ring".
         `block` does not fix it, because a block still lays its inline child out

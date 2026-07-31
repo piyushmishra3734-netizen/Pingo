@@ -3,8 +3,8 @@
  *
  * ## Where these live, and why it is not the database
  *
- * All of it is stored on the device. That is the right home for most of it —
- * theme, font size, which camera opens first — and it is an *honest* home for
+ * All of it is stored on the device. That is the right home for most of it  - 
+ * theme, font size, which camera opens first - and it is an *honest* home for
  * the rest, because nothing on the server reads these yet.
  *
  * Two groups will move when there is something to enforce them:
@@ -69,7 +69,7 @@ export interface ChatPreferences {
    * Live: whether an archived chat stays archived when a message arrives.
    *
    * Resolved by comparing `archivedAt` against the newest message rather than by
-   * writing anything, so both answers are pure functions of state — nothing has
+   * writing anything, so both answers are pure functions of state - nothing has
    * to be running at the moment a message lands, and changing this re-sorts the
    * list that already exists instead of only applying from now on.
    */

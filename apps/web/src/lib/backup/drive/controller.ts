@@ -7,7 +7,7 @@
  * browser. A state machine in a component is one that gets verified by hand,
  * once, on the happy path.
  *
- * Nothing here reaches Drive directly — it drives a `GoogleDriveBackupTarget`,
+ * Nothing here reaches Drive directly - it drives a `GoogleDriveBackupTarget`,
  * which is the same object the verification suites exercise.
  */
 import { openRecord, sealRecord } from '../../crypto/session.js';
@@ -121,7 +121,7 @@ function describe(cause: unknown): { message: string; needsReconnect: boolean } 
   /*
    * A TypeError is not proof of being offline.
    *
-   * `fetch` rejects with one when the network is gone — and so does any
+   * `fetch` rejects with one when the network is gone - and so does any
    * ordinary bug in the code above it. Reporting both as "no connection" sent
    * a real investigation looking at CSP, CORS and service workers for an
    * exception that had nothing to do with the network: a direct fetch from the
@@ -141,10 +141,10 @@ function describe(cause: unknown): { message: string; needsReconnect: boolean } 
   }
 
   if (cause instanceof Error) {
-    return { message: `Backup failed — ${cause.name}: ${cause.message}`, needsReconnect: false };
+    return { message: `Backup failed - ${cause.name}: ${cause.message}`, needsReconnect: false };
   }
 
-  return { message: `Backup failed — ${String(cause)}`, needsReconnect: false };
+  return { message: `Backup failed - ${String(cause)}`, needsReconnect: false };
 }
 
 export class DriveBackupController {
@@ -272,7 +272,7 @@ export class DriveBackupController {
    *
    * Two backups running together would race for the same generation number and
    * could interleave their chunk uploads under names the other is about to
-   * commit — a way to corrupt the very thing being protected. The lock is held
+   * commit - a way to corrupt the very thing being protected. The lock is held
    * by the controller rather than the button, because a disabled button is a
    * suggestion and a second tab, a background trigger and a manual press are
    * three ways to arrive here at once.
@@ -350,8 +350,8 @@ export class DriveBackupController {
      * The sealed recovery package, mirrored to Drive alongside the archive.
      *
      * Without it Drive holds an archive nobody can open. The server keeps a
-     * copy but deliberately will not hand it back — that is the request the
-     * recovery request flow exists to slow down — so a device that has never
+     * copy but deliberately will not hand it back - that is the request the
+     * recovery request flow exists to slow down - so a device that has never
      * seen this account has no other way to obtain the key. Measured on the
      * first real backup: chunks, manifest and HEAD were all in appDataFolder
      * and `pingo.recovery.json` was not.

@@ -1,8 +1,8 @@
 /**
  * Google Drive AppData, over plain HTTPS.
  *
- * Identical in the Android WebView and in a browser — only the token above it
- * differs — so there is one implementation of the part that can be wrong in
+ * Identical in the Android WebView and in a browser - only the token above it
+ * differs - so there is one implementation of the part that can be wrong in
  * interesting ways: resuming a half-finished upload, telling a dead token from
  * a dead network, and never overwriting something newer.
  *
@@ -48,7 +48,7 @@ export class DriveClient {
    * `this.http(...)` invokes it with `this` set to the client and the browser
    * refuses: "Failed to execute 'fetch' on 'Window': Illegal invocation". Every
    * verification suite injected its own transport, so the default was never
-   * once executed and no test could have caught it — the first real backup did,
+   * once executed and no test could have caught it - the first real backup did,
    * immediately.
    */
   constructor(
@@ -65,7 +65,7 @@ export class DriveClient {
    * did not know. `auth` is the only thing that knows whether access still
    * exists, so it is asked every time rather than remembered.
    *
-   * The cost is one call per request into a layer that does its own caching —
+   * The cost is one call per request into a layer that does its own caching  - 
    * Android's returns a cached grant, the web's returns a stored token. The
    * benefit is that revocation takes effect immediately, which is the whole
    * point of a disconnect button.

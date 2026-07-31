@@ -1,5 +1,5 @@
 /**
- * PINGO web — stylesheet entry point.
+ * PINGO web - stylesheet entry point.
  *
  * Order matters: Tailwind first, then the design system's theme, then the small
  * number of global base rules. Almost everything else is a utility on a
@@ -109,7 +109,7 @@
  *
  * Grows from where the finger landed and fades as it goes, so the row
  * acknowledges the touch before the page has begun to change. Deliberately
- * slower than a press state and deliberately soft-edged — a hard circle reads
+ * slower than a press state and deliberately soft-edged - a hard circle reads
  * as Material, and this is meant to read as glass.
  */
 @keyframes settings-ripple {

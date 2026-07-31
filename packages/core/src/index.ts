@@ -1,5 +1,5 @@
 /**
- * @pingo/core — domain model, service boundary and React bindings.
+ * @pingo/core - domain model, service boundary and React bindings.
  *
  * Contains no styling and no platform assumptions beyond React, so apps/web and
  * a future apps/mobile can share all of it.
@@ -8,7 +8,7 @@
 // Domain
 export type * from './types.js';
 
-// Service boundary — data
+// Service boundary - data
 export type {
   ChatService,
   StartupSnapshot,
@@ -21,7 +21,7 @@ export type {
 } from './chat-service.js';
 export { MockChatService, type MockChatServiceOptions } from './mock-chat-service.js';
 
-// Service boundary — identity
+// Service boundary - identity
 export type {
   AuthService,
   SavedAccountSummary,
@@ -34,7 +34,7 @@ export type {
 } from './auth-service.js';
 export { AuthError } from './auth-service.js';
 
-// Service boundary — display identity
+// Service boundary - display identity
 export type {
   ProfileService,
   Profile,
@@ -58,7 +58,7 @@ export {
   canShareMedia,
 } from './profile-service.js';
 
-// Service boundary — ephemeral posts
+// Service boundary - ephemeral posts
 export type {
   StoryService,
   Story,
@@ -72,7 +72,7 @@ export type {
 } from './story-service.js';
 export { STORY_REACTIONS, STORY_PHOTO_MS, STORY_AUDIENCES } from './story-service.js';
 
-// Service boundary — voice and video
+// Service boundary - voice and video
 export type {
   CallService,
   CallServiceOptions,

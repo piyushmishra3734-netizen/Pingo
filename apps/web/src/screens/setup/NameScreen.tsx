@@ -7,14 +7,14 @@ import { useProfileSetup } from '../../features/profile/ProfileSetupFlow.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
- * Setup, step 1 — the name.
+ * Setup, step 1 - the name.
  *
  *   What should people call you?
  *
  * Required, and framed as a question rather than a form label: "Name" invites a
  * legal name, "what should people call you" invites the true answer. Real names
  * are not required and never have been
- * ([docs/01 § 9.2](../../../../../docs/01-onboarding-auth.md#92-name-username-bio)) —
+ * ([docs/01 § 9.2](../../../../../docs/01-onboarding-auth.md#92-name-username-bio))  - 
  * what matters is that *something* is there, because a nameless account is
  * unusable for everyone who talks to it.
  *
@@ -60,7 +60,7 @@ export function NameScreen() {
           if (event.key === 'Enter') submit();
         }}
         placeholder="Piyush"
-        // Names are proper nouns, so capitalise — but never autocorrect one.
+        // Names are proper nouns, so capitalise - but never autocorrect one.
         autoCapitalize="words"
         autoCorrect="off"
         spellCheck={false}

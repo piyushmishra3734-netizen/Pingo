@@ -7,7 +7,7 @@ import { Navigate, Outlet } from 'react-router-dom';
  * Keeps a half-finished account out of the product.
  *
  * Signing up creates the *account*; the setup steps create the **profile**. In
- * between there is a real state — signed in, but with no name and no handle —
+ * between there is a real state - signed in, but with no name and no handle  - 
  * and a user in it cannot be shown to anyone they talk to.
  *
  * This guard is what resolves that state, and it matters beyond the happy path:
@@ -31,7 +31,7 @@ export function RequireProfile({ children }: { children?: ReactNode }) {
   const { profile, ready } = useProfile();
 
   // `ready` false, or a read that failed and left the profile unknown. Waiting
-  // is right either way — treating "unknown" as "missing" would push a complete
+  // is right either way - treating "unknown" as "missing" would push a complete
   // user back through setup on nothing more than a flaky connection.
   if (!ready || profile === undefined) return <Resolving />;
 

@@ -5,8 +5,8 @@ import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.j
 /**
  * Help.
  *
- * Two things a support conversation always needs — what build you are on and
- * which account you are — and a copy button, because the alternative is asking
+ * Two things a support conversation always needs - what build you are on and
+ * which account you are - and a copy button, because the alternative is asking
  * someone to transcribe a UUID by hand.
  *
  * No FAQ and no contact form: neither exists, and a "Contact Support" row that
@@ -33,7 +33,7 @@ export function HelpScreen() {
         title="Diagnostics"
         note="Paste this into any support conversation. It contains no message content."
       >
-        <InfoRow label="Account ID" value={session?.user.id.slice(0, 8) ?? '—'} />
+        <InfoRow label="Account ID" value={session?.user.id.slice(0, 8) ?? ' - '} />
         <InfoRow
           label="Copy diagnostics"
           value="Copy"
@@ -42,7 +42,7 @@ export function HelpScreen() {
       </Group>
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        There is no support inbox yet, so there is no “Contact Support” button here — it
+        There is no support inbox yet, so there is no “Contact Support” button here - it
         would open nothing. It appears the day there is somewhere for it to go.
       </p>
     </SettingsPage>

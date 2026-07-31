@@ -5,8 +5,8 @@ import { cn } from '../utils/cn.js';
 /**
  * The surface family: Card, GlassPanel and Badge.
  *
- * Grouped in one file because they are all answers to the same question — how
- * something sits above the page — and keeping the elevation decisions adjacent
+ * Grouped in one file because they are all answers to the same question - how
+ * something sits above the page - and keeping the elevation decisions adjacent
  * is what stops them drifting apart.
  */
 
@@ -67,7 +67,7 @@ export interface GlassPanelProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * Liquid glass, for chrome that floats over content — the dock, sticky headers.
+ * Liquid glass, for chrome that floats over content - the dock, sticky headers.
  *
  * Used sparingly and only where something scrolls behind it. Glass over a static
  * background is just a tinted box paying the cost of a backdrop filter.

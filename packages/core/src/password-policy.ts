@@ -1,5 +1,5 @@
 /**
- * Password rules — the product's, not the backend's.
+ * Password rules - the product's, not the backend's.
  *
  * Lives in core beside `format.ts` for the same reason: these are decisions from
  * [docs/01 § 8](../../../docs/01-onboarding-auth.md#8-create-password), and they
@@ -26,7 +26,7 @@ export interface PasswordAssessment {
   /** True only when every requirement is met. Gates the Continue button. */
   valid: boolean;
   strength: PasswordStrength;
-  /** 0–4, for the four-segment meter. */
+  /** 0-4, for the four-segment meter. */
   score: number;
   /** The meter's caption: `Weak` · `Fair` · `Good` · `Strong`. */
   strengthLabel: string;
@@ -37,7 +37,7 @@ export const MIN_PASSWORD_LENGTH = 10;
 
 /**
  * The blueprint calls for a breached-password list, which is a server-side
- * dataset — k-anonymity range queries against a corpus of millions, not
+ * dataset - k-anonymity range queries against a corpus of millions, not
  * something to ship in a bundle.
  *
  * This is the client-side half: the handful of passwords common enough that
@@ -73,7 +73,7 @@ function isCommon(password: string): boolean {
   if (COMMON_PASSWORDS.has(normalised)) return true;
 
   // A single repeated character or a straight keyboard run is common in spirit
-  // even when it is not in the list — `aaaaaaaaaa` passes a length check and
+  // even when it is not in the list - `aaaaaaaaaa` passes a length check and
   // nothing else.
   if (/^(.)\1+$/.test(normalised)) return true;
   if (/^(0123456789|1234567890|abcdefghij)/.test(normalised)) return true;
@@ -84,7 +84,7 @@ function isCommon(password: string): boolean {
 /**
  * Assess a password against the live checklist.
  *
- * Called on every keystroke, so it stays cheap — no async, no network.
+ * Called on every keystroke, so it stays cheap - no async, no network.
  */
 export function assessPassword(password: string): PasswordAssessment {
   const requirements: PasswordRequirement[] = [
@@ -112,7 +112,7 @@ export function assessPassword(password: string): PasswordAssessment {
   /*
    * Strength is not the checklist. A password can satisfy all three rules and
    * still be short, so length beyond the minimum and character variety both
-   * earn credit — otherwise the meter would jump to full the instant the last
+   * earn credit - otherwise the meter would jump to full the instant the last
    * box ticks and stop telling the user anything.
    */
   let score = 0;
@@ -132,7 +132,7 @@ export function assessPassword(password: string): PasswordAssessment {
 }
 
 /**
- * Structural email validation — § 6.1, *"structural only on this screen"*.
+ * Structural email validation - § 6.1, *"structural only on this screen"*.
  *
  * Existence is proven by the code that gets sent to it, so this rejects only
  * what could not possibly be an address. Anything cleverer produces false
@@ -147,7 +147,7 @@ export function isStructurallyValidEmail(email: string): boolean {
 }
 
 /**
- * Structural phone validation — § 6.2, *"disabled until structurally valid for
+ * Structural phone validation - § 6.2, *"disabled until structurally valid for
  * that country"*.
  *
  * Takes the full E.164 string (`+919876543210`), which is what the backend
@@ -156,7 +156,7 @@ export function isStructurallyValidEmail(email: string): boolean {
  * Length is checked as a range rather than per-country: national number lengths
  * run from 4 to 14 digits across the ITU plan, and a per-country table would be
  * wrong more often than it was right without a real metadata library. Being
- * permissive here is the correct direction — a number that is genuinely wrong
+ * permissive here is the correct direction - a number that is genuinely wrong
  * fails at the backend, whereas a valid number wrongly rejected by our own
  * regex leaves the user with no way forward at all.
  */

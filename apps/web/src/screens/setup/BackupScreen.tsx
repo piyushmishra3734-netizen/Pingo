@@ -8,7 +8,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
- * Setup, step 5 — Secure Backup.
+ * Setup, step 5 - Secure Backup.
  *
  * Offered here because this is the only moment when "only future messages will
  * be recoverable" costs the user nothing: there are no past messages yet. The
@@ -18,7 +18,7 @@ import { SETUP_PROGRESS } from './progress.js';
  * ## Skipping is a real option, and stays one
  *
  * Nothing here is required to finish setup, and declining leaves no package and
- * no local state — Settings offers exactly this again, through the same
+ * no local state - Settings offers exactly this again, through the same
  * component, whenever they want it. A recovery key belongs to somebody who
  * asked for one; enrolling people by default would hand every account a secret
  * they never chose to keep.

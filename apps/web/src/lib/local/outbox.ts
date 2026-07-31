@@ -9,7 +9,7 @@ import { STORE, localAll, localDelete, localSet } from './db.js';
  * ## Why an outbox rather than a retry
  *
  * A failed send that only lives in React state is lost the moment the tab is
- * closed — and a message typed on a train, in a tunnel, is exactly the message
+ * closed - and a message typed on a train, in a tunnel, is exactly the message
  * somebody assumes was sent. Persisting the intent is the difference between
  * "we will send this when we can" and "that never happened".
  *
@@ -17,15 +17,15 @@ import { STORE, localAll, localDelete, localSet } from './db.js';
  *
  * Entries carry the time they were queued and are flushed oldest first, one at
  * a time. Sending them in parallel would be faster and would deliver a
- * conversation out of order, which is worse than slow — the server stamps
+ * conversation out of order, which is worse than slow - the server stamps
  * `created_at` on arrival, so whatever order they land in is the order they are
  * read in forever.
  *
  * ## Sent once, or not at all
  *
  * An entry is deleted only after the send resolves. If the app dies mid-flush
- * the entry survives and is retried, which risks a duplicate; the alternative —
- * deleting first — risks silently losing the message. A duplicate is visible
+ * the entry survives and is retried, which risks a duplicate; the alternative  - 
+ * deleting first - risks silently losing the message. A duplicate is visible
  * and annoying, a loss is invisible and unrecoverable, so this errs toward the
  * one you can see.
  */
@@ -42,8 +42,8 @@ export interface OutboxEntry {
 /**
  * How many times an entry is retried before it is set aside.
  *
- * Not infinite. A message the server refuses — a conversation the user was
- * removed from, a body that violates a constraint — would otherwise be retried
+ * Not infinite. A message the server refuses - a conversation the user was
+ * removed from, a body that violates a constraint - would otherwise be retried
  * on every reconnect forever, blocking everything queued behind it.
  */
 const MAX_ATTEMPTS = 5;
@@ -59,7 +59,7 @@ export async function enqueue(draft: OutgoingMessage): Promise<OutboxEntry> {
    * Sealed like everything else on disk.
    *
    * A queued message is the one case where plaintext genuinely has to rest
-   * locally — it has not been encrypted for anybody yet, because the recipient
+   * locally - it has not been encrypted for anybody yet, because the recipient
    * list is read at send time. That makes the database key the only thing
    * standing between an unsent message and whoever picks the device up.
    */
@@ -93,7 +93,7 @@ async function fail(entry: OutboxEntry): Promise<void> {
  * Sends everything queued, in order, stopping at the first refusal.
  *
  * Stopping matters. If the network dropped again halfway through, every
- * remaining entry would fail too — and marking them all as attempted would burn
+ * remaining entry would fail too - and marking them all as attempted would burn
  * five reconnections' worth of retries on one bad moment. So a failure ends the
  * pass and the rest keep their attempts for next time.
  *

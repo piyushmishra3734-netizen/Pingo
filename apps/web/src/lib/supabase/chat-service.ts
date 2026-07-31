@@ -16,9 +16,9 @@
  * | --- | --- |
  * | Conversations, messages, sending, unread, realtime | **Real** |
  * | Contacts, user lookup, search | **Real**, from `profiles` |
- * | Presence | Not built — everyone reads as offline |
- * | Reactions, typing | Not persisted — no-ops, see below |
- * | Calls, gallery, moments, notifications | Empty — no tables yet |
+ * | Presence | Not built - everyone reads as offline |
+ * | Reactions, typing | Not persisted - no-ops, see below |
+ * | Calls, gallery, moments, notifications | Empty - no tables yet |
  * | Settings | In memory for the session only |
  *
  * A no-op that silently claims success is the kind of thing that gets
@@ -102,7 +102,7 @@ function toUser(row: ProfileRow, lastSeenAt?: number): User {
     handle: row.username,
     avatarUrl: row.avatar_url ?? undefined,
     /*
-     * Offline until Realtime says otherwise — a green dot that means nothing is
+     * Offline until Realtime says otherwise - a green dot that means nothing is
      * worse than no dot at all.
      *
      * `lastSeenAt` is when one of this person's devices last opened PINGO, read
@@ -121,7 +121,7 @@ function toUser(row: ProfileRow, lastSeenAt?: number): User {
  * Postgres timestamps, including the two that are not dates.
  *
  * `infinity` is how "muted forever" is stored, and `Date.parse` returns NaN for
- * it — which would silently become "muted until an invalid date" and compare
+ * it - which would silently become "muted until an invalid date" and compare
  * false against every clock, quietly unmuting the chat.
  */
 function parseTimestamp(value: string): number {
@@ -134,7 +134,7 @@ function parseTimestamp(value: string): number {
  * The attachment a row carries, if any.
  *
  * Voice notes and documents both become attachments, because the bubble already
- * renders those. Both leave the URL empty for the signing pass to fill in — a
+ * renders those. Both leave the URL empty for the signing pass to fill in - a
  * page signs one bucket per request rather than one row at a time.
  */
 function toAttachments(row: MessageRow): Attachment[] {
@@ -173,8 +173,8 @@ function toAttachments(row: MessageRow): Attachment[] {
  *
  * The functions raise custom SQLSTATEs rather than messages, so the rule lives
  * in one place and every client says the same thing about it. Mapping them here
- * rather than showing `error.message` also stops a Postgres string — schema
- * names, function names, a hint about granting privileges — from reaching a
+ * rather than showing `error.message` also stops a Postgres string - schema
+ * names, function names, a hint about granting privileges - from reaching a
  * screen.
  */
 const GROUP_ERRORS: Record<string, string> = {
@@ -201,7 +201,7 @@ const EPOCH = '1970-01-01T00:00:00Z';
 /**
  * Folds changed messages into a cached page.
  *
- * Replace by id, append what is new, and keep the page in creation order —
+ * Replace by id, append what is new, and keep the page in creation order  - 
  * changes arrive ordered by `updated_at`, which for an edited message says
  * nothing about where it belongs on screen.
  *
@@ -235,13 +235,13 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     /*
      * `sent` is the honest ceiling. Delivery and read receipts need per-recipient
      * tracking this schema does not have, so claiming `delivered` would be
-     * inventing a fact — except for the one case we *can* prove: the recipient's
+     * inventing a fact - except for the one case we *can* prove: the recipient's
      * own read cursor has passed it.
      */
     status: readAt !== undefined && Date.parse(row.created_at) <= readAt ? 'read' : 'sent',
     /*
      * A voice note arrives as an audio attachment rather than as a field of its
-     * own, because the bubble already renders one — a parallel `voice` shape
+     * own, because the bubble already renders one - a parallel `voice` shape
      * would be a second thing meaning the same thing. The URL is empty until
      * `#signMedia` fills it in, one pass per page rather than one per row.
      */
@@ -251,7 +251,7 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
     ...(row.reply_to_id ? { replyToId: row.reply_to_id } : {}),
     // The row survives deletion so replies quoting it keep an anchor. The
     // server already emptied the body; this is what draws the tombstone, and
-    // the timestamp is the deletion's own — see `Message.deletedAt`.
+    // the timestamp is the deletion's own - see `Message.deletedAt`.
     ...(row.deleted_at
       ? { deleted: true, deletedAt: Date.parse(row.deleted_at) }
       : {}),
@@ -261,7 +261,7 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
       ? { sticker: { id: row.id, url: row.media_url } }
       : {}),
     /*
-     * A Ping carries no URL — see `PingRef`. `gone` folds together exhausted,
+     * A Ping carries no URL - see `PingRef`. `gone` folds together exhausted,
      * saved and expired, because the thread should not tell you which.
      */
     ...(row.kind === 'snap'
@@ -303,7 +303,7 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
      * Not keyed on `kind`, unlike everything above it.
      *
      * A story reply is a text message that happens to carry a tag, so there is
-     * no kind to match on — the presence of `storyId` in `meta` is the whole
+     * no kind to match on - the presence of `storyId` in `meta` is the whole
      * signal.
      */
     ...((row.meta as { storyId?: string } | null)?.storyId
@@ -318,7 +318,7 @@ function toMessage(row: MessageRow, readAt: number | undefined): Message {
  * A ceiling rather than a target: the loop exists to absorb messages hidden
  * after the database limit, and hiding a whole page of them is not a case worth
  * an unbounded read. Reaching this returns a short page, which the caller reads
- * as the end of history — wrong, but bounded, and better than a loop that can
+ * as the end of history - wrong, but bounded, and better than a loop that can
  * run forever against a thread somebody has emptied for themselves.
  */
 const MAX_PAGE_READS = 5;
@@ -365,7 +365,7 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   follow_accepted: { body: 'accepted your follow request' },
   message: { body: 'sent you a message' },
   ping: { body: 'sent you a Ping' },
-  // The sender's two. Never "photo received" — a Ping is not a photo, and the
+  // The sender's two. Never "photo received" - a Ping is not a photo, and the
   // word is the whole point of the feature having a name.
   ping_opened: { body: 'opened your Ping' },
   ping_replayed: { body: 'replayed your Ping' },
@@ -386,7 +386,7 @@ export class SupabaseChatService implements ChatService {
   /**
    * The backing store for `Message.reactions`. docs/13 § 8.1.
    *
-   * Not a second model — every `Message.reactions` handed to the UI is derived
+   * Not a second model - every `Message.reactions` handed to the UI is derived
    * from here, so there is one authoritative client state rather than two that
    * can disagree.
    */
@@ -476,8 +476,8 @@ export class SupabaseChatService implements ChatService {
      * The channel is (re)opened when a session exists, never in the constructor.
      *
      * Realtime enforces RLS on its own stream, which means the socket has to
-     * carry the user's JWT. This service is constructed at app mount — before
-     * auth has resolved — so a channel opened here would subscribe as the
+     * carry the user's JWT. This service is constructed at app mount - before
+     * auth has resolved - so a channel opened here would subscribe as the
      * anonymous role and silently receive nothing at all. Not an error, not a
      * failed subscription: just permanent silence, which is the hardest kind of
      * bug to notice.
@@ -500,7 +500,7 @@ export class SupabaseChatService implements ChatService {
         this.#presenceHub.start(current.session.user.id);
         /*
          * Reclaims storage for snaps nobody opened. The migration documents
-         * this as the client's job when pg_cron is not scheduled — and until
+         * this as the client's job when pg_cron is not scheduled - and until
          * now nothing did it, so expired images stayed on the server forever.
          * Fire and forget: it is housekeeping, not part of signing in.
          */
@@ -541,7 +541,7 @@ export class SupabaseChatService implements ChatService {
    * Realtime enforces RLS on its own stream, so this subscribes to *all*
    * message inserts and the server filters to the ones this user may see. A
    * per-conversation channel would mean subscribing and unsubscribing on every
-   * navigation, and would miss messages in threads not currently open — which
+   * navigation, and would miss messages in threads not currently open - which
    * is exactly when the list badge needs to move.
    */
   #closeChannel(): void {
@@ -566,7 +566,7 @@ export class SupabaseChatService implements ChatService {
            * Signed before it is announced.
            *
            * A photo arriving over the socket has a storage path and no URL, and
-           * this echo races the signed copy that `sendMessage` returns — the
+           * this echo races the signed copy that `sendMessage` returns - the
            * hook de-duplicates by id, so whichever lands first wins. When the
            * socket won, the sender's own photo rendered as an unopened cover.
            */
@@ -590,7 +590,7 @@ export class SupabaseChatService implements ChatService {
        *
        * Both are `update`s on an existing row rather than inserts, so without
        * this the other side of the conversation keeps reading the old text
-       * until it reloads — which is precisely the case an "Edited" marker
+       * until it reloads - which is precisely the case an "Edited" marker
        * exists to prevent. The row carries no reactions, so they come from the
        * cache rather than being wiped by the update.
        */
@@ -657,7 +657,7 @@ export class SupabaseChatService implements ChatService {
        * conversations the user is in, so no client-side check is needed.
        */
       /*
-       * Reactions, live — applied as a delta rather than triggering a re-read.
+       * Reactions, live - applied as a delta rather than triggering a re-read.
        * docs/13 § 8.3: the payload carries the row, not the operation, so a
        * confirmation of our own change is matched on the user id and compared
        * against the newest pending intent.
@@ -672,7 +672,7 @@ export class SupabaseChatService implements ChatService {
        *
        * Groups broke it. A rename, a new group picture and a member joining are
        * all changes with no message attached, so the list had no way to hear
-       * about any of them — which is why a group appeared only after a reload.
+       * about any of them - which is why a group appeared only after a reload.
        */
       .on(
         'postgres_changes',
@@ -686,7 +686,7 @@ export class SupabaseChatService implements ChatService {
       /*
        * The roster, live.
        *
-       * An INSERT naming me is the moment I am *in* a group — there is no other
+       * An INSERT naming me is the moment I am *in* a group - there is no other
        * signal for it, because nothing is sent to the conversation when
        * somebody is added. A DELETE naming me is being removed, and has to take
        * the row out of my list rather than re-reading a conversation I can no
@@ -710,7 +710,7 @@ export class SupabaseChatService implements ChatService {
         (payload) => {
           /*
            * `old` carries only the primary key under the default replica
-           * identity — which is exactly the two columns needed here, because
+           * identity - which is exactly the two columns needed here, because
            * the key is (conversation_id, user_id).
            */
           const row = payload.old as { conversation_id?: string; user_id?: string };
@@ -735,7 +735,7 @@ export class SupabaseChatService implements ChatService {
        *
        * The stream that was missing. `last_read_at` was fetched once, when the
        * thread opened, so the second tick could only ever appear on a *later*
-       * visit — you had to leave the conversation and come back to find out
+       * visit - you had to leave the conversation and come back to find out
        * that the person you were talking to had read you.
        *
        * RLS on `conversation_members` is already "members of that
@@ -826,7 +826,7 @@ export class SupabaseChatService implements ChatService {
    * When each of these people last had PINGO open.
    *
    * `device_keys.last_seen_at` is written every time a session starts, one row
-   * per device, so the answer for a person is the newest across their devices —
+   * per device, so the answer for a person is the newest across their devices  - 
    * a phone left closed for a week must not drag down a laptop used an hour
    * ago. The table is world-readable by design (it holds public halves only),
    * so this needs no policy of its own.
@@ -866,7 +866,7 @@ export class SupabaseChatService implements ChatService {
        * One preview and one unread count per conversation, from the database.
        *
        * This used to be "the newest 200 messages across everything", filtered
-       * per conversation in JavaScript — which holds only while the total stays
+       * per conversation in JavaScript - which holds only while the total stays
        * under two hundred. Past that the 200 all belong to the busiest one or
        * two threads, every other conversation matches nothing, and the list
        * says "No messages yet" about a conversation full of messages. The
@@ -893,7 +893,7 @@ export class SupabaseChatService implements ChatService {
      * Which lists each conversation is filed under.
      *
      * RLS scopes `chat_list_members` to lists this user owns, so this needs no
-     * filter of its own — and could not see anyone else's filing if it tried.
+     * filter of its own - and could not see anyone else's filing if it tried.
      */
     const { data: listRows } = await this.#client
       .from('chat_list_members')
@@ -932,7 +932,7 @@ export class SupabaseChatService implements ChatService {
 
     return rows
       /*
-       * A chat the member deleted is not in their list at all — not archived,
+       * A chat the member deleted is not in their list at all - not archived,
        * not empty, absent. It returns on its own when something newer arrives,
        * which is what `deleted` in the preview already accounts for.
        */
@@ -960,7 +960,7 @@ export class SupabaseChatService implements ChatService {
          *
          * The furthest reader wins. In a group that means two ticks appear when
          * the first person reads it, which matches what the thread's "Seen by"
-         * line counts from — a row cannot express "three of six", and pretending
+         * line counts from - a row cannot express "three of six", and pretending
          * a group behaves like a direct chat is better than saying nothing until
          * the last straggler catches up.
          */
@@ -978,7 +978,7 @@ export class SupabaseChatService implements ChatService {
            *
            * Checked in that order rather than merged: a group that has had its
            * picture removed must fall back to nothing, not to whichever member
-           * happens to sort first — which would give the group a face belonging
+           * happens to sort first - which would give the group a face belonging
            * to somebody who might later leave it.
            */
           ...(row.avatar_url
@@ -1032,7 +1032,7 @@ export class SupabaseChatService implements ChatService {
     const { data } = await this.#client.from('profiles').select('*').eq('id', id).maybeSingle();
 
     if (!data) {
-      // Signed in without a profile — the setup flow's job, not this one's.
+      // Signed in without a profile - the setup flow's job, not this one's.
       return {
         id,
         name: '',
@@ -1045,7 +1045,7 @@ export class SupabaseChatService implements ChatService {
     return { ...toUser(data), presence: { state: 'online', lastSeenAt: Date.now() }, settings: this.#settings };
   }
 
-  /** In memory for this session — there is no settings table yet. */
+  /** In memory for this session - there is no settings table yet. */
   async updateSettings(settings: Partial<UserSettings>): Promise<CurrentUser> {
     this.#settings = { ...this.#settings, ...settings };
     return this.getCurrentUser();
@@ -1059,7 +1059,7 @@ export class SupabaseChatService implements ChatService {
      *
      * Not cache-first: a stale list shown ahead of a fresh one makes every
      * launch flash the wrong unread counts. This tries the network, and falls
-     * back only when it fails — so an offline launch opens on the conversations
+     * back only when it fails - so an offline launch opens on the conversations
      * you had rather than on an empty screen with an error.
      */
     try {
@@ -1096,7 +1096,7 @@ export class SupabaseChatService implements ChatService {
 
   /*
    * Every one of these writes to `conversation_members` for this user only, so
-   * RLS on `user_id = auth.uid()` is what makes them safe — there is no way to
+   * RLS on `user_id = auth.uid()` is what makes them safe - there is no way to
    * express "archive it for them" and no code path that would want to.
    */
 
@@ -1127,7 +1127,7 @@ export class SupabaseChatService implements ChatService {
       patch.archived_at = flags.archived ? new Date().toISOString() : null;
       /*
        * Archiving un-pins. The pinned section sits above the main list, so a
-       * pinned-and-archived chat would have to be in two places at once — and
+       * pinned-and-archived chat would have to be in two places at once - and
        * the pin limit would be spent on something the user has put away.
        */
       if (flags.archived) patch.pinned = false;
@@ -1152,7 +1152,7 @@ export class SupabaseChatService implements ChatService {
 
     /*
      * Both timestamps. `cleared_at` hides the history, `deleted_at` hides the
-     * row — a chat that only cleared would sit in the list looking empty, and
+     * row - a chat that only cleared would sit in the list looking empty, and
      * one that only "deleted" would come back with its whole history intact the
      * moment anyone replied.
      */
@@ -1181,7 +1181,7 @@ export class SupabaseChatService implements ChatService {
   /**
    * Updates this user's membership rows, and refuses to succeed quietly.
    *
-   * An `update` filtered by RLS does not error — it matches nothing and returns
+   * An `update` filtered by RLS does not error - it matches nothing and returns
    * 200. So an archive that the policy declines, or one aimed at a conversation
    * the user is not in, would look exactly like an archive that worked, and the
    * row would spring back on the next refresh with no explanation. Asking for
@@ -1207,7 +1207,7 @@ export class SupabaseChatService implements ChatService {
     for (const id of conversationIds) {
       const conversation = await this.getConversation(id);
       if (conversation) this.#emit({ type: 'conversation:updated', conversation });
-      // Gone from this member's list — archived away, or deleted.
+      // Gone from this member's list - archived away, or deleted.
       else this.#emit({ type: 'conversation:removed', conversationId: id });
     }
   }
@@ -1305,7 +1305,7 @@ export class SupabaseChatService implements ChatService {
     /*
      * Only the newest page is cached, and only that page is served offline.
      *
-     * A `before` cursor is a request for history that is not held locally —
+     * A `before` cursor is a request for history that is not held locally  - 
      * answering it from a cache of the newest fifty would hand back the wrong
      * messages and let the caller believe it had paged. So paging simply fails
      * offline, which the thread already renders as "no more history".
@@ -1317,7 +1317,7 @@ export class SupabaseChatService implements ChatService {
      *
      * The old path refetched fifty messages every time a conversation was
      * opened, whether or not anything had happened in it. This asks a single
-     * indexed question instead — and for a quiet conversation the answer is
+     * indexed question instead - and for a quiet conversation the answer is
      * zero rows, so opening it costs one small query rather than a page of
      * history and a page of decryption.
      *
@@ -1393,7 +1393,7 @@ export class SupabaseChatService implements ChatService {
          * Milestone 2: the same page, written again as individual rows.
          *
          * Beside the blob rather than instead of it. Nothing reads these for
-         * display yet — they exist so the two representations can be compared
+         * display yet - they exist so the two representations can be compared
          * on real data before anything depends on the new one. A storage
          * migration nobody can check is one that loses messages quietly.
          *
@@ -1408,7 +1408,7 @@ export class SupabaseChatService implements ChatService {
 
         /*
          * Seed the cursor from what was just stored, so the next open can take
-         * the delta path. Set only when the page decrypted completely — a
+         * the delta path. Set only when the page decrypted completely - a
          * cursor implies the local copy is trustworthy, and claiming that over
          * a page with a placeholder in it would let the delta path skip past
          * the very message that failed.
@@ -1432,8 +1432,8 @@ export class SupabaseChatService implements ChatService {
   /**
    * The last completed load, from disk. Sealed, like everything else here.
    *
-   * Costs one IndexedDB read and one AES-GCM decrypt — measured at 0.41ms for
-   * a comparable record — against a median 2311.8ms for the three network
+   * Costs one IndexedDB read and one AES-GCM decrypt - measured at 0.41ms for
+   * a comparable record - against a median 2311.8ms for the three network
    * calls it stands in for. That ratio is the entire point of this method.
    */
   async cachedStartup(): Promise<StartupSnapshot | undefined> {
@@ -1456,7 +1456,7 @@ export class SupabaseChatService implements ChatService {
       await localGet<unknown>(STORE.messages, conversationId),
     );
 
-    // An empty array is not worth rendering — it looks like an empty chat, and
+    // An empty array is not worth rendering - it looks like an empty chat, and
     // an empty chat that turns out to have fifty messages is a worse first
     // frame than a brief spinner.
     return cached && cached.length > 0 ? cached : undefined;
@@ -1470,7 +1470,7 @@ export class SupabaseChatService implements ChatService {
    * deletion. So a single `updated_at > cursor` returns new messages *and*
    * messages whose text changed, which is the whole reason that column exists.
    *
-   * Returns `undefined` when the answer cannot be trusted — no cursor yet, an
+   * Returns `undefined` when the answer cannot be trusted - no cursor yet, an
    * error, or a full page of changes, which means more remain and merging a
    * partial answer would leave a hole no later sync would notice. The caller
    * falls back to a normal fetch, which is slower and always correct.
@@ -1530,7 +1530,7 @@ export class SupabaseChatService implements ChatService {
     /*
      * What I deleted for myself.
      *
-     * RLS cannot filter this — the row is still legitimately mine to read, and
+     * RLS cannot filter this - the row is still legitimately mine to read, and
      * the other people in the thread must keep seeing it. So the hiding is a
      * join the client does, and the cache keeps a live removal from reappearing
      * when the thread is reopened.
@@ -1563,7 +1563,7 @@ export class SupabaseChatService implements ChatService {
      * Keep reading until the page is full, or the thread runs out.
      *
      * The hidden filter runs after the database limit, so a raw page of 50
-     * containing two of my own deletions yields 48 — and a caller deciding
+     * containing two of my own deletions yields 48 - and a caller deciding
      * "fewer than asked for means there is no more history" would stop early
      * and lose everything before it. Filling the page here keeps that test
      * true, which is what the whole pagination contract rests on.
@@ -1594,7 +1594,7 @@ export class SupabaseChatService implements ChatService {
      * Reactions for the whole page in one query.
      *
      * `Message.reactions` is the single source of truth, so the bar renders
-     * from the model and never asks the server what the current state is — the
+     * from the model and never asks the server what the current state is - the
      * shape already carries all three things it needs: grouped by emoji, count
      * from `userIds.length`, and "mine" from whether my id is in there.
      */
@@ -1622,12 +1622,12 @@ export class SupabaseChatService implements ChatService {
   }
 
   /**
-   * Reconciles one incoming reaction change. docs/13 § 8.2–8.3.
+   * Reconciles one incoming reaction change. docs/13 § 8.2-8.3.
    *
-   * For somebody else's change there is nothing to reconcile — apply it. For
+   * For somebody else's change there is nothing to reconcile - apply it. For
    * our own, it is a confirmation, and the three cases are: it matches the
    * newest intent (clear pending), it does not but something newer is still in
-   * flight (ignore — that echo is still coming), or nothing is pending (the
+   * flight (ignore - that echo is still coming), or nothing is pending (the
    * server has the truth and we do not).
    */
   async #onReactionChange(
@@ -1678,7 +1678,7 @@ export class SupabaseChatService implements ChatService {
    * Re-emits a message from the cache, without reading it back.
    *
    * docs/13 § 8.1: no reads after a successful toggle. The row itself has not
-   * changed — only its reactions have — so re-fetching it would be asking the
+   * changed - only its reactions have - so re-fetching it would be asking the
    * server to repeat something we already know.
    */
   #emitFromCache(messageId: MessageId, base: Message): void {
@@ -1715,7 +1715,7 @@ export class SupabaseChatService implements ChatService {
    * Puts a snap in the private bucket and returns its **path**, not a URL.
    *
    * A signed URL stored on the message would be a copy the viewer keeps, and
-   * the two-view limit would mean nothing. The path is useless on its own — a
+   * the two-view limit would mean nothing. The path is useless on its own - a
    * URL is minted per view by `openPing`, and minting it is what spends one.
    */
   async #uploadSnap(image: Blob): Promise<string> {
@@ -1755,7 +1755,7 @@ export class SupabaseChatService implements ChatService {
       .filter((row) => row.kind === 'photo' && row.photo_path && !row.view_limit)
       .map((row) => row.photo_path!);
 
-    // No photos on this page still leaves the voice pass to run — returning
+    // No photos on this page still leaves the voice pass to run - returning
     // here outright would silently skip it for any thread of only voice notes.
     if (paths.length === 0) return this.#signVoice(rows, messages);
 
@@ -1904,7 +1904,7 @@ export class SupabaseChatService implements ChatService {
     if (error || !row?.path) return undefined;
 
     /*
-     * A minute. The URL only has to survive the fetch that follows it — anything
+     * A minute. The URL only has to survive the fetch that follows it - anything
      * longer is a window in which a shared link still works after the Ping is
      * supposed to be gone.
      */
@@ -1936,7 +1936,7 @@ export class SupabaseChatService implements ChatService {
     /*
      * Queued rather than refused when there is no connection.
      *
-     * The message still appears in the thread — emitted below as `sending` —
+     * The message still appears in the thread - emitted below as `sending`  - 
      * and goes out on reconnect. Without this, a message typed in a tunnel is
      * lost with the tab, and that is exactly the message somebody assumes was
      * sent.
@@ -1981,7 +1981,7 @@ export class SupabaseChatService implements ChatService {
      *
      * One or two goes down the ephemeral path: its own bucket, a path rather
      * than a URL on the row, and `open_ping` as the only way to the bytes.
-     * `null` is Keep in Chat, which *is* a photo message — so it takes the
+     * `null` is Keep in Chat, which *is* a photo message - so it takes the
      * photo path rather than teaching the ephemeral one to never expire.
      */
     const keptPing = draft.ping && draft.ping.views === null ? draft.ping : undefined;
@@ -2002,7 +2002,7 @@ export class SupabaseChatService implements ChatService {
     /*
      * Encrypted here, at the last moment before the row leaves.
      *
-     * Everything above this line — uploads, ping paths, expiry — is about
+     * Everything above this line - uploads, ping paths, expiry - is about
      * media, which this phase does not encrypt yet. The body does, and doing it
      * at the insert rather than at the top of `sendMessage` means the offline
      * queue holds plaintext it can re-seal on flush, when the recipient list
@@ -2034,7 +2034,7 @@ export class SupabaseChatService implements ChatService {
         ...(draft.event ? { kind: 'event' as const, meta: draft.event } : {}),
         ...(draft.call ? { kind: 'call' as const, meta: draft.call } : {}),
         /*
-         * A story reply stays an ordinary text message — no `kind` of its own.
+         * A story reply stays an ordinary text message - no `kind` of its own.
          *
          * That is the point: the product has no story comments, and giving the
          * reply its own kind would be the first step towards inventing them.
@@ -2084,7 +2084,7 @@ export class SupabaseChatService implements ChatService {
      * The row that came back holds the ciphertext this method just wrote, and
      * the sender already has the plaintext in hand. Putting it back is both
      * cheaper than a decrypt and immune to the one failure that would matter
-     * here — a sender who cannot read their own message the instant they send
+     * here - a sender who cannot read their own message the instant they send
      * it has no way to tell that from the message not sending.
      */
     data.body = draft.body;
@@ -2097,7 +2097,7 @@ export class SupabaseChatService implements ChatService {
     /*
      * Emitted here, not left to Realtime.
      *
-     * `useMessages` sets no state of its own — its `send` awaits this and waits
+     * `useMessages` sets no state of its own - its `send` awaits this and waits
      * for `message:new` to put the bubble on screen. Relying on the socket to
      * echo our own insert would make sending look broken whenever realtime is
      * slow, reconnecting, or switched off. The hook de-duplicates by id, so the
@@ -2115,7 +2115,7 @@ export class SupabaseChatService implements ChatService {
     /*
      * Through the function rather than straight at the column.
      *
-     * The cursor and its history have to move together — a client that updated
+     * The cursor and its history have to move together - a client that updated
      * `last_read_at` on its own would leave no record of *when* it caught up,
      * and the message-info screen would have nothing to show. Doing both in one
      * `security definer` call also means the cursor cannot be set to a time the
@@ -2250,7 +2250,7 @@ export class SupabaseChatService implements ChatService {
   /**
    * Re-reads a group and tells the app.
    *
-   * A roster change is not a message, so nothing on the socket announces it —
+   * A roster change is not a message, so nothing on the socket announces it  - 
    * without this, promoting somebody leaves the screen you did it from showing
    * the roles as they were.
    */
@@ -2259,7 +2259,7 @@ export class SupabaseChatService implements ChatService {
    *
    * Each message is re-emitted on success so the bubble that has been sitting
    * at 'sending' since a tunnel becomes a real message with the server's own
-   * id and timestamp — otherwise the thread would hold a ghost that never
+   * id and timestamp - otherwise the thread would hold a ghost that never
    * resolves and a duplicate would arrive beside it over realtime.
    */
   async #flushOutbox(): Promise<void> {
@@ -2307,7 +2307,7 @@ export class SupabaseChatService implements ChatService {
     }));
   }
 
-  /** Not persisted — typing needs a realtime presence channel, not a table. */
+  /** Not persisted - typing needs a realtime presence channel, not a table. */
   async setTyping(conversationId: ConversationId, typing: boolean): Promise<void> {
     await this.#presenceHub.setTyping(conversationId, typing);
   }
@@ -2355,7 +2355,7 @@ export class SupabaseChatService implements ChatService {
     return { ...base, reactions: this.#reactions.get(messageId) ?? [] };
   }
 
-  /** The row only — reactions come from the cache, never from a re-read. */
+  /** The row only - reactions come from the cache, never from a re-read. */
   async #messageRow(messageId: MessageId): Promise<Message> {
     const { data, error } = await this.#client
       .from('messages')
@@ -2373,7 +2373,7 @@ export class SupabaseChatService implements ChatService {
 
   /*
    * Every one of these delegates the *rule* to the database. Who may edit, who
-   * may delete for everyone, who may pin — all of it is enforced there, so a
+   * may delete for everyone, who may pin - all of it is enforced there, so a
    * client that gets it wrong is refused rather than obeyed.
    */
 
@@ -2458,7 +2458,7 @@ export class SupabaseChatService implements ChatService {
      *
      * For everyone, the row is still there with an empty body and a
      * `deleted_at`, which every reader renders as a tombstone. For me, the row
-     * is untouched and a `hidden_messages` entry says I should not see it — a
+     * is untouched and a `hidden_messages` entry says I should not see it - a
      * `message:updated` carrying the unchanged row would leave it on screen,
      * which is how this quietly did nothing before.
      */
@@ -2536,7 +2536,7 @@ export class SupabaseChatService implements ChatService {
   async reportMessage(messageId: MessageId): Promise<void> {
     const me = await this.#userId();
     // Duplicates are a unique-constraint violation, and re-reporting is not an
-    // error worth showing anyone — it means the same thing as reporting once.
+    // error worth showing anyone - it means the same thing as reporting once.
     await this.#client
       .from('message_reports')
       .insert({ message_id: messageId, reporter_id: me });
@@ -2574,7 +2574,7 @@ export class SupabaseChatService implements ChatService {
      *
      * `.map(toUser)` hands the callback (value, index, array), so the moment
      * `toUser` grew a second parameter the array index started arriving as
-     * `lastSeenAt` — and the first contact in the list reported "last seen
+     * `lastSeenAt` - and the first contact in the list reported "last seen
      * Jan 1", the epoch, rendered with total confidence.
      */
     const rows = data ?? [];
@@ -2633,7 +2633,7 @@ export class SupabaseChatService implements ChatService {
   }): Promise<void> {
     /*
      * Sent as an ordinary message, so it lands in the thread, reaches the other
-     * end over realtime, and updates the conversation list — all the machinery
+     * end over realtime, and updates the conversation list - all the machinery
      * a call log needs already exists for messages.
      */
     await this.sendMessage({
@@ -2658,7 +2658,7 @@ export class SupabaseChatService implements ChatService {
     return [];
   }
 
-  /** No notifications table — push is delivered, not stored, for now. */
+  /** No notifications table - push is delivered, not stored, for now. */
   /**
    * The feed, with actor names resolved.
    *
@@ -2787,7 +2787,7 @@ export class SupabaseChatService implements ChatService {
   /**
    * Opens (or reuses) a direct conversation with someone.
    *
-   * Not on `ChatService` yet — starting a conversation is a Phase 3 screen that
+   * Not on `ChatService` yet - starting a conversation is a Phase 3 screen that
    * does not exist. It is here because the RPC does, and because the first
    * thing anyone will want to do with this service is talk to somebody.
    */
@@ -2802,7 +2802,7 @@ export class SupabaseChatService implements ChatService {
      * Announce it before returning.
      *
      * The RPC creates the conversation server-side, but the client's list is
-     * whatever it last fetched — so navigating straight to `/chats/{id}` found
+     * whatever it last fetched - so navigating straight to `/chats/{id}` found
      * no conversation and rendered nothing. The caller had done everything
      * right and landed on an empty screen.
      *

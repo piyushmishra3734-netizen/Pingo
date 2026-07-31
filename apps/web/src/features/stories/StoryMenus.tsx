@@ -14,7 +14,7 @@ import {
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 
 /**
- * The `⋯` on a story — two different menus for two different situations.
+ * The `⋯` on a story - two different menus for two different situations.
  *
  * Your own story is a thing you can manage: take it down, keep a copy, see who
  * watched it. Somebody else's is a thing you can pass on or step away from.

@@ -1,5 +1,5 @@
 /**
- * AuthProvider — the composition root for identity.
+ * AuthProvider - the composition root for identity.
  *
  * Sits above `ChatProvider` and knows nothing about it. The two boundaries stay
  * separate on purpose: auth answers *who is signed in*, `ChatService` answers
@@ -74,7 +74,7 @@ export function AuthProvider({ children, service, onAuthenticated }: AuthProvide
 
     /*
      * Subscribe before the first read. The other order has a window where a
-     * session established between the read and the subscription is missed —
+     * session established between the read and the subscription is missed  - 
      * rare, but it presents as a sign-in that silently does nothing.
      */
     const unsubscribe = service.onSessionChange(apply);
@@ -100,7 +100,7 @@ export function AuthProvider({ children, service, onAuthenticated }: AuthProvide
 
   const signOut = useCallback(async () => {
     await service.signOut();
-    // Not set optimistically — `onSessionChange` is the single source of truth,
+    // Not set optimistically - `onSessionChange` is the single source of truth,
     // so every tab transitions on the same event.
   }, [service]);
 

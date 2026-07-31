@@ -7,7 +7,7 @@ import { AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
 
 /**
- * Log In — the address.
+ * Log In - the address.
  *
  * § 13.2's wireframe opens with the identity already known (`+91 98765 43210
  * Change`), so the blueprint implies this step without drawing it. It reuses

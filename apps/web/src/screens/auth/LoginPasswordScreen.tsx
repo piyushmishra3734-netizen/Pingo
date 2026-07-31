@@ -10,7 +10,7 @@ import { writeLastMethod } from '../../features/auth/last-method.js';
 import { ALREADY_REGISTERED_MESSAGE, authErrorMessage } from '../../features/auth/messages.js';
 
 /**
- * Log In — [docs/01 § 13.2](../../../../../docs/01-onboarding-auth.md#132-password).
+ * Log In - [docs/01 § 13.2](../../../../../docs/01-onboarding-auth.md#132-password).
  *
  * The details in that section are the whole design, and each is a decision:
  *
@@ -35,7 +35,7 @@ import { ALREADY_REGISTERED_MESSAGE, authErrorMessage } from '../../features/aut
  * § 13.2 puts **Forgot password?** above the primary action. It is not here: the
  * triage it opens (§ 14) offers an email reset link, the Emergency Password
  * (§ 15) and Contact Support (§ 16), and none of those exist yet. A link to a
- * screen that cannot help is worse than its absence — it spends the user's trust
+ * screen that cannot help is worse than its absence - it spends the user's trust
  * at the exact moment they are already stuck.
  */
 
@@ -118,7 +118,7 @@ export function LoginPasswordScreen() {
       message={
         lockedOut ? (
           <AuthMessage>
-            Too many attempts. Try again in {clock} — this protects your account.
+            Too many attempts. Try again in {clock} - this protects your account.
           </AuthMessage>
         ) : (
           error && <AuthMessage>{error}</AuthMessage>
@@ -137,7 +137,7 @@ export function LoginPasswordScreen() {
         </Button>
       }
     >
-      {/* The identity recap — caption, with Change back to the identifier step. */}
+      {/* The identity recap - caption, with Change back to the identifier step. */}
       <div className="mb-6 flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-caption text-text-secondary">
           {formatIdentity(identity)}

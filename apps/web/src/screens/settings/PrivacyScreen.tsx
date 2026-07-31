@@ -13,7 +13,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * ## The honest note at the bottom is the most important thing on this page
  *
  * Every control here saves a real preference, and **none of it is enforced
- * yet** — there is no server code that refuses a call or hides a profile. A
+ * yet** - there is no server code that refuses a call or hides a profile. A
  * privacy screen that implies protection it does not provide is worse than no
  * screen at all, so the page says so once, plainly, at the end.
  *
@@ -82,14 +82,14 @@ export function PrivacyScreen() {
       </Group>
 
       <Group
-        note="Screenshot detection is not possible on the web — no browser reports it. This stays off until PINGO has a native app that can."
+        note="Screenshot detection is not possible on the web - no browser reports it. This stays off until PINGO has a native app that can."
       >
         <InfoRow label="Blocked Users" value="None" />
       </Group>
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">
         These are saved on this device. Apart from Read Receipts, none are enforced by the
-        server yet — they take effect when the rules behind them are built. PINGO does not
+        server yet - they take effect when the rules behind them are built. PINGO does not
         claim end-to-end encryption; see Security overview when it lands.
       </p>
     </SettingsPage>

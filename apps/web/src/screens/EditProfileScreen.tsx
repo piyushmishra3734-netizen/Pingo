@@ -9,14 +9,14 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
  * Editing your own profile: photo, name, username, bio.
  *
  * Exactly the four things a profile is, and nothing else. Settings, privacy and
- * account controls live on the settings screen — putting one of them here
+ * account controls live on the settings screen - putting one of them here
  * because it is "profile-ish" is how a form becomes a second settings screen.
  *
  * ## Why the username is checked while typing but written on save
  *
  * Availability is advisory: two people can pass the check in the same second,
  * and the unique index is the real arbiter. Checking as you type is so the
- * answer arrives before the Save button does, not so the answer can be trusted —
+ * answer arrives before the Save button does, not so the answer can be trusted  - 
  * `update` still handles `username_taken` coming back from the database.
  *
  * ## Why nothing is written until Save
@@ -46,7 +46,7 @@ export function EditProfileScreen() {
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Loaded once the profile arrives, and only then — seeding from an undefined
+  // Loaded once the profile arrives, and only then - seeding from an undefined
   // profile would blank the form for anyone who lands here on a slow connection.
   useEffect(() => {
     if (!profile) return;

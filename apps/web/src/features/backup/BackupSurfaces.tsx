@@ -124,7 +124,7 @@ export function BackupReminderCard({ ux }: { ux: BackupUx }) {
  *
  * This is the screen the whole feature exists for, and the one a user meets on
  * the worst day they will have with the product. It says what was found and
- * offers to bring it back — it does not ask them to prove anything.
+ * offers to bring it back - it does not ask them to prove anything.
  */
 export function BackupFoundCard({ ux }: { ux: BackupUx }) {
   const navigate = useNavigate();
@@ -145,14 +145,14 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
       {/*
         Where it is, when it was, how big.
         Concrete facts are what make an offer to overwrite a device believable,
-        and each is shown only when actually known — a device that has not
+        and each is shown only when actually known - a device that has not
         connected Drive yet has no date or size, and inventing one to look
         confident would be the wrong kind of reassurance.
       */}
       <dl className="pt-2 text-caption text-text-secondary">
         <div className="flex justify-between py-0.5">
           <dt>Google Drive</dt>
-          <dd>{ux.backupWhen ?? '—'}</dd>
+          <dd>{ux.backupWhen ?? ' - '}</dd>
         </div>
         {ux.backupSize ? (
           <div className="flex justify-between py-0.5">

@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../utils/cn.js';
 
 /**
- * Chip — the filter pills on the home screen (All · Unread · Groups · Favorites).
+ * Chip - the filter pills on the home screen (All · Unread · Groups · Favorites).
  *
  * Selection is shown with a brand-tinted wash and brand text, not a solid fill.
  * A solid fill would make the selected chip compete with the primary button for
@@ -17,7 +17,7 @@ import { cn } from '../utils/cn.js';
 export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   children: ReactNode;
   selected?: boolean;
-  /** Trailing count. Hidden at zero — an empty filter needs no badge. */
+  /** Trailing count. Hidden at zero - an empty filter needs no badge. */
   count?: number;
 }
 
@@ -40,7 +40,7 @@ export function Chip({
         'font-sans text-caption font-medium',
         'focus-ring transition-all duration-instant ease-standard',
         // 32px reads right in a filter row; 32px under a thumb does not. The
-        // overlay reaches 44×44 without the chip growing — same trick, and the
+        // overlay reaches 44×44 without the chip growing - same trick, and the
         // same reason, as IconButton.
         'touch-target',
         'active:scale-[0.96]',
@@ -68,7 +68,7 @@ export function Chip({
 
 /**
  * Wrapper for a row of chips. Owns the horizontal scroll behaviour so the row
- * never wraps to a second line on narrow screens — a wrapping filter row makes
+ * never wraps to a second line on narrow screens - a wrapping filter row makes
  * the header height jump as filters change.
  */
 export function ChipGroup({

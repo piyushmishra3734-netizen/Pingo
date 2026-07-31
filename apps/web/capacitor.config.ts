@@ -5,7 +5,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  *
  * ## One codebase, five targets
  *
- * Capacitor does not port the app — it hosts it. The same `dist` that
+ * Capacitor does not port the app - it hosts it. The same `dist` that
  * Cloudflare serves is loaded by a native shell on Android and iOS, so there is
  * no second UI, no platform-specific screen and nothing to keep in sync. A
  * change to a React component is a change to every platform at once, which is
@@ -31,7 +31,7 @@ const config: CapacitorConfig = {
    *
    * This matters more than it looks. Supabase auth, WebRTC and the service
    * worker all key off the origin, and Capacitor's default on Android is
-   * `http://localhost`, which is a *non-secure* origin — `getUserMedia` and
+   * `http://localhost`, which is a *non-secure* origin - `getUserMedia` and
    * therefore the entire camera and calling stack simply do not exist there.
    * `https` makes the WebView treat it as a secure context, which is the
    * difference between a working camera and an API that returns undefined.
@@ -53,7 +53,7 @@ const config: CapacitorConfig = {
 
   ios: {
     /*
-     * PINGO draws its own safe-area padding already — every screen uses
+     * PINGO draws its own safe-area padding already - every screen uses
      * `env(safe-area-inset-*)`. Letting the WebView inset as well would double
      * it, which on a notched phone is a visibly wrong header.
      */
@@ -67,7 +67,7 @@ const config: CapacitorConfig = {
      *
      * `serverClientId` is the **Web** OAuth client ID, and putting the Android
      * one here is the mistake that costs an afternoon. The Android client
-     * authorises the app — Google matches it on package name and signing
+     * authorises the app - Google matches it on package name and signing
      * certificate, and it holds no secret, which is why it is never named in
      * code at all. What Supabase will accept is a token issued for *its*
      * client, so Google is asked for one addressed to the web client and hands
@@ -86,8 +86,8 @@ const config: CapacitorConfig = {
       /*
        * Hidden by the app, not by a timer.
        *
-       * A fixed duration is either too short — the splash disappears onto a
-       * blank screen while React mounts — or too long, which is dead time on
+       * A fixed duration is either too short - the splash disappears onto a
+       * blank screen while React mounts - or too long, which is dead time on
        * every launch. The app calls `hide()` when it has something to show.
        */
       launchAutoHide: false,
@@ -99,7 +99,7 @@ const config: CapacitorConfig = {
     Keyboard: {
       /*
        * The composer sits against the keyboard by design, and the layout is a
-       * flex column with one scroll region — so the web layout already handles
+       * flex column with one scroll region - so the web layout already handles
        * this correctly. Resizing the native WebView on top of that fights it.
        */
       resize: 'native',

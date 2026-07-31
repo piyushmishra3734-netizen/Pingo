@@ -28,7 +28,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  * that is not what the product calls it: a profile counts *Friends*, and the
  * thing that produces one is both people agreeing. A button that says "Follow"
  * above a number that says "Friends" makes the reader do a translation, and
- * they will get it wrong — "following" reads one-way, which is exactly the
+ * they will get it wrong - "following" reads one-way, which is exactly the
  * thing PINGO's gate is not.
  *
  * ## Accepting is not adding back
@@ -112,7 +112,7 @@ export function FollowButton({
       /*
        * Only ending a friendship asks. Withdrawing a request you sent is
        * undoing your own action a moment later, and adding somebody is not
-       * destructive at all — a dialog on either would be the kind of noise
+       * destructive at all - a dialog on either would be the kind of noise
        * that trains people to tap through the one that matters.
        */
       if (state === 'mutual') {
@@ -128,7 +128,7 @@ export function FollowButton({
       await run(() => {
         if (state === 'incoming') return service.acceptFollow(userId);
         if (state === 'none' || state === 'follower') return service.requestFollow(userId);
-        // Requested, following, mutual — all undo to the same thing.
+        // Requested, following, mutual - all undo to the same thing.
         return service.removeFollow(userId);
       });
     })();

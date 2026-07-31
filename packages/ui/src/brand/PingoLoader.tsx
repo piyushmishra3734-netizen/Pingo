@@ -7,14 +7,14 @@ import { cn } from '../utils/cn.js';
  *
  * The old loader took the brand dot and flew it in a circle around the P. Two
  * problems, and the second is the real one. It looked like a spinner wearing a
- * logo — the most generic gesture in software, dressed up. And it *animated the
+ * logo - the most generic gesture in software, dressed up. And it *animated the
  * mark*: the dot is part of the logo, and moving a piece of a logo around the
  * rest of it is the one thing a mark is not allowed to do.
  *
  * A ping is what the product is named after and what a sonar pulse actually
  * looks like: something leaves, expands, fades, and another follows. It says
  * "reaching out, waiting for an answer", which is precisely what loading *is*
- * here — and it belongs to PINGO in a way a rotating arc never could.
+ * here - and it belongs to PINGO in a way a rotating arc never could.
  *
  * ## Why the rings are staggered rather than synchronised
  *
@@ -25,7 +25,7 @@ import { cn } from '../utils/cn.js';
  * ## The dot at the centre does not move
  *
  * It pulses very slightly and stays put. Everything that travels is a ring
- * *emitted by* it, so the brand element itself is never in motion — which is
+ * *emitted by* it, so the brand element itself is never in motion - which is
  * the rule the old one broke.
  *
  * Reduced motion gets a still dot and no rings. Not a slower animation: someone

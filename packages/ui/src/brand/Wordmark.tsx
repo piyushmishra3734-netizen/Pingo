@@ -4,7 +4,7 @@ import { cn } from '../utils/cn.js';
  * The PINGO wordmark.
  *
  * Set in the brand face at wide tracking, with the purple dot sitting above the
- * I as its tittle — the detail that ties the wordmark to the monogram and to
+ * I as its tittle - the detail that ties the wordmark to the monogram and to
  * every dot state in the product.
  *
  * Rendered as text rather than an SVG outline so it stays selectable, scales with
@@ -53,7 +53,7 @@ export function Wordmark({
       {/*
         The dot is centred on the I's glyph, not its advance width. Letter-spacing
         is appended to the right of each glyph, so `left-1/2` lands half a tracking
-        unit too far right — hence the -0.17em correction (half of 0.34em).
+        unit too far right - hence the -0.17em correction (half of 0.34em).
       */}
       <span className="relative" aria-hidden>
         I

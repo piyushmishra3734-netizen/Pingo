@@ -25,7 +25,7 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
    * Reaches the `<input>` itself, past the wrapper this component draws.
    *
    * Named rather than the bare `ref` so it is unambiguous which element it
-   * lands on. Needed where focus is part of the interaction design — a rejected
+   * lands on. Needed where focus is part of the interaction design - a rejected
    * password returns focus with its content selected, so the next keystroke
    * replaces it (docs/01 § 13.2).
    */

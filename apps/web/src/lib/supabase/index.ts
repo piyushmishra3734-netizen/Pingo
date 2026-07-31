@@ -1,5 +1,5 @@
 /**
- * Supabase integration — public surface.
+ * Supabase integration - public surface.
  *
  * Import from `@/lib/supabase`, never from the files inside it, so the internal
  * layout can change without touching consumers.
@@ -7,13 +7,13 @@
  * ## Status: auth is live; data is not
  *
  * `SupabaseAuthService` implements `@pingo/core`'s `AuthService` and is injected
- * once in `App.tsx`. No screen or component may import from this directory —
+ * once in `App.tsx`. No screen or component may import from this directory  - 
  * see the boundary note in `client.ts`.
  *
  * | Area | Status |
  * | --- | --- |
- * | Auth — Email | **Implemented**, `auth-service.ts`, per docs/01 § 6 · § 8 · § 13 |
- * | Auth — Google · Phone | Not yet. A `google` / `phone` member beside `email` |
+ * | Auth - Email | **Implemented**, `auth-service.ts`, per docs/01 § 6 · § 8 · § 13 |
+ * | Auth - Google · Phone | Not yet. A `google` / `phone` member beside `email` |
  * | Database access | Not yet. `SupabaseChatService implements ChatService` |
  * | Storage (media) | Not yet. Behind the attachment pipeline, per docs/10 |
  * | Realtime | Not yet. Mapped onto `ChatEvent`, per docs/07 § 5 |

@@ -5,7 +5,7 @@ import { extendTailwindMerge } from 'tailwind-merge';
  * Class composition for PINGO.
  *
  * `twMerge` has to be taught our theme. Out of the box it recognises Tailwind's
- * stock scale, so `text-sm` is a font size — but it has no way to know that
+ * stock scale, so `text-sm` is a font size - but it has no way to know that
  * `text-body` is one too. It falls back to reading `text-body` as a *colour*,
  * decides it conflicts with `text-white`, and drops the colour. The visible
  * result is white labels turning near-black on the gradient button, and captions
@@ -31,7 +31,7 @@ const twMerge = extendTailwindMerge({
  *
  * Without the merge step, a `className` prop passed into a component would sit
  * alongside the component's own classes and lose to whichever CSS rule happened
- * to be declared later. With it, the call site reliably overrides the default —
+ * to be declared later. With it, the call site reliably overrides the default  - 
  * which is what makes these components safe to reuse.
  */
 export function cn(...inputs: ClassValue[]): string {

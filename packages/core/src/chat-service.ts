@@ -3,7 +3,7 @@
  *
  * Everything the UI needs from a backend goes through this interface. Nothing in
  * apps/web imports a concrete implementation except one line at the composition
- * root — which is what makes swapping `MockChatService` for a real socket
+ * root - which is what makes swapping `MockChatService` for a real socket
  * client a single-file change rather than a refactor.
  *
  * Design notes:
@@ -37,7 +37,7 @@ import type {
 /** A draft outgoing message, before the service assigns it an id and timestamp. */
 export interface OutgoingMessage {
   conversationId: ConversationId;
-  /** For a sticker this is its emoji or name — the text fallback. */
+  /** For a sticker this is its emoji or name - the text fallback. */
   body: string;
   replyToId?: MessageId;
   /** Makes this a sticker message rather than a text one. */
@@ -52,7 +52,7 @@ export interface OutgoingMessage {
    *
    * One or two views is an ephemeral Ping: the server hands out the bytes only
    * through `openPing`, and calling it is what spends the view. `null` is
-   * *Keep in Chat*, which is an ordinary photo message — it stays in the thread
+   * *Keep in Chat*, which is an ordinary photo message - it stays in the thread
    * and can be reopened freely.
    *
    * They are two different storage behaviours because they are two different
@@ -67,7 +67,7 @@ export interface OutgoingMessage {
    *
    * `viewLimit` absent means it stays in the chat and can be reopened freely;
    * a number makes it openable that many times per recipient. One control, one
-   * concept — rather than a photo feature and a separate disappearing-photo
+   * concept - rather than a photo feature and a separate disappearing-photo
    * feature that behave differently for no reason a user could name.
    */
   photo?: { image: Blob; viewLimit?: number };
@@ -94,7 +94,7 @@ export interface OutgoingMessage {
   /**
    * The three structured kinds.
    *
-   * None of them needs storage — each is a few fields — so they travel as the
+   * None of them needs storage - each is a few fields - so they travel as the
    * shape the bubble will render rather than as bytes to be fetched later.
    */
   location?: { lat: number; lng: number; label?: string };
@@ -104,7 +104,7 @@ export interface OutgoingMessage {
   /**
    * Marks an ordinary message as a reply to a story.
    *
-   * A story reply *is* a private message — the product has no story comments,
+   * A story reply *is* a private message - the product has no story comments,
    * and inventing them would make a thing posted for a day into something with
    * a public thread attached. So this changes nothing about how the message is
    * sent or read; it records which story prompted it, which is what lets the
@@ -130,7 +130,7 @@ export interface ReadReceipt {
 /**
  * One person's answer for one particular message.
  *
- * `readAt` absent means they have not read it yet — which the message-info
+ * `readAt` absent means they have not read it yet - which the message-info
  * screen shows as plainly as it shows the ones who have, because "still waiting
  * on Priya" is half of what anybody opens that screen to find out.
  */
@@ -149,13 +149,13 @@ export type ChatEvent =
   | { type: 'message:new'; message: Message }
   | { type: 'message:updated'; message: Message }
   /**
-   * Gone from *this* reader's thread only — "delete for me". Deleting for
+   * Gone from *this* reader's thread only - "delete for me". Deleting for
    * everyone is an update, not this, because the row survives as a tombstone.
    */
   | { type: 'message:removed'; messageId: MessageId }
   | { type: 'conversation:updated'; conversation: Conversation }
   /**
-   * Gone from this member's list — deleted, or archived out of view.
+   * Gone from this member's list - deleted, or archived out of view.
    *
    * Not "the conversation ended": the membership survives and the row returns
    * when something newer arrives. The list is what changed, not the chat.
@@ -167,7 +167,7 @@ export type ChatEvent =
    *
    * The half of delivery that used to travel only on a page load. Without it a
    * second tick could not appear while you were watching the thread it belonged
-   * to — you had to leave the conversation and come back to learn that the
+   * to - you had to leave the conversation and come back to learn that the
    * person you were talking to had read you, which is the one moment a receipt
    * exists for.
    */
@@ -216,15 +216,15 @@ export interface ChatService {
    * and corrects itself with the second, which is the difference between a
    * chat that opens and a chat that loads.
    *
-   * Resolves `undefined` when nothing is cached — a first visit, a cleared
+   * Resolves `undefined` when nothing is cached - a first visit, a cleared
    * origin, or a device whose database key has been regenerated.
    */
   cachedMessages(conversationId: ConversationId): Promise<Message[] | undefined>;
   /**
    * Everything the first frame needs, straight from disk.
    *
-   * The home screen cannot render from a conversation list alone — it needs to
-   * know who you are and who the other participants are — so this returns the
+   * The home screen cannot render from a conversation list alone - it needs to
+   * know who you are and who the other participants are - so this returns the
    * three together or not at all. Splitting them would only allow a state
    * where two thirds of a screen can be drawn, which is not a screen.
    *
@@ -241,7 +241,7 @@ export interface ChatService {
   /**
    * Spends one view and returns a short-lived URL for the image.
    *
-   * Calling this **is** the view — there is no separate "confirm" step, because
+   * Calling this **is** the view - there is no separate "confirm" step, because
    * a client that could decline to confirm could watch a Ping forever. Returns
    * undefined once it is gone, which is the same answer for exhausted,
    * downloaded and expired.
@@ -254,7 +254,7 @@ export interface ChatService {
    * The order matters: the blob is returned first and the server copy is only
    * dropped once it is in hand, so a failed save does not lose the Ping.
    *
-   * Saving goes to the device, never to a PINGO server — that is the whole
+   * Saving goes to the device, never to a PINGO server - that is the whole
    * point of the exchange, and it is why this destroys rather than archives.
    */
   savePing(messageId: MessageId): Promise<Blob | undefined>;
@@ -262,7 +262,7 @@ export interface ChatService {
   /**
    * Spends one view of a limited photo and returns a URL for it.
    *
-   * Unlimited photos never reach here — they carry their URL already. Returns
+   * Unlimited photos never reach here - they carry their URL already. Returns
    * undefined once the reader has used their views up, which is the same answer
    * as "there was never anything to see".
    */
@@ -282,7 +282,7 @@ export interface ChatService {
    * Who has read one particular message, and when they did.
    *
    * Distinct from `listReceipts` because a watermark cannot say *when* it
-   * passed a given message — only that it has. This resolves the moment.
+   * passed a given message - only that it has. This resolves the moment.
    */
   messageReceipts(messageId: MessageId): Promise<MessageReceipt[]>;
 
@@ -292,7 +292,7 @@ export interface ChatService {
    * Sets any combination of a conversation's per-member flags.
    *
    * Takes a list rather than one id because multi-select is the normal case on
-   * this screen — archiving eleven chats should be one round trip, not eleven,
+   * this screen - archiving eleven chats should be one round trip, not eleven,
    * and eleven separate calls would also mean eleven chances to half-succeed.
    *
    * Every flag here is private to the caller. Archiving does not move the chat
@@ -338,7 +338,7 @@ export interface ChatService {
   editMessage(messageId: MessageId, body: string): Promise<void>;
 
   /**
-   * `forEveryone` is a request, not an instruction — the server refuses it
+   * `forEveryone` is a request, not an instruction - the server refuses it
    * outside the window or on someone else's message, and hides it for you
    * instead of failing.
    */
@@ -347,7 +347,7 @@ export interface ChatService {
   /** Per person. Returns the new state so the menu can label itself. */
   toggleStar(messageId: MessageId): Promise<boolean>;
 
-  /** Per conversation — a pin is a statement to the room, not a private note. */
+  /** Per conversation - a pin is a statement to the room, not a private note. */
   togglePin(messageId: MessageId): Promise<boolean>;
 
   /** Stored; delivery needs a scheduler. See the migration. */
@@ -365,7 +365,7 @@ export interface ChatService {
    *
    * Idempotent, and that is the whole point: "message Anaya" must reach the
    * same thread every time, not make a second empty one beside the first. The
-   * uniqueness check belongs in the database — two taps racing each other
+   * uniqueness check belongs in the database - two taps racing each other
    * cannot both win there, whereas a client-side "does one exist?" can.
    */
   startDirectConversation(otherUserId: UserId): Promise<ConversationId>;
@@ -380,7 +380,7 @@ export interface ChatService {
   /**
    * Makes a group and returns it. The creator is its first admin.
    *
-   * Rejects a member who is not a mutual follow — before anything is written,
+   * Rejects a member who is not a mutual follow - before anything is written,
    * so a refused member never leaves a half-made group behind.
    */
   createGroup(input: {
@@ -392,14 +392,14 @@ export interface ChatService {
   /** Admin only. Every id must be a mutual follow of the person adding. */
   addGroupMembers(conversationId: ConversationId, memberIds: UserId[]): Promise<void>;
 
-  /** Admin only, and never yourself — leaving has its own door. */
+  /** Admin only, and never yourself - leaving has its own door. */
   removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void>;
 
   /**
    * Leaves, handing the group on if you were the last admin.
    *
    * The alternative is a room nobody can rename, add to or remove from, ever
-   * again — promotion needs an admin, and there would not be one.
+   * again - promotion needs an admin, and there would not be one.
    */
   leaveGroup(conversationId: ConversationId): Promise<void>;
 
@@ -471,7 +471,7 @@ export interface ChatService {
   /** Unread count for the badge. One number, not a list to be counted. */
   unreadNotifications(): Promise<number>;
 
-  /** Marks the whole feed read — one statement, not a write per row. */
+  /** Marks the whole feed read - one statement, not a write per row. */
   markAllNotificationsRead(): Promise<void>;
 
   // -- Search --------------------------------------------------------------

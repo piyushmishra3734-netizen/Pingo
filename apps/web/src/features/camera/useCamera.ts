@@ -18,7 +18,7 @@ import { getFilter } from './filters/registry.js';
  * ## Why the preview is a canvas and not a `<video>`
  *
  * The filter has to be in the photo, not just on the screen. Drawing the raw
- * video to a 2D canvas and capturing that gives an unfiltered shot — which is
+ * video to a 2D canvas and capturing that gives an unfiltered shot - which is
  * what the old screen did, and why the filter registry sat unused. Here the
  * video is a texture, `GLPipeline` renders the chain into a canvas, and the
  * canvas is *both* what you see and what gets captured. One source of truth.
@@ -30,7 +30,7 @@ import { getFilter } from './filters/registry.js';
  * a blank image. Enabling that flag costs a full-frame copy on every frame,
  * forever, to serve a button pressed once. Instead a capture request is queued
  * and serviced immediately after the next `render()`, while the buffer is still
- * intact — no flag, no per-frame cost.
+ * intact - no flag, no per-frame cost.
  */
 
 export type CameraStatus = 'starting' | 'ready' | 'unavailable';
@@ -74,7 +74,7 @@ export function useCamera(chain: FilterInstance[], enabled = true): UseCamera {
 
   /*
    * The chain is read by the render loop, which is started once and must not be
-   * restarted when the selected filter changes — tearing down and rebuilding
+   * restarted when the selected filter changes - tearing down and rebuilding
    * the GL context on every tap would drop frames visibly. A ref lets the loop
    * see the newest value without being a dependency.
    */
@@ -148,7 +148,7 @@ export function useCamera(chain: FilterInstance[], enabled = true): UseCamera {
            * Rebuild when the canvas element changes.
            *
            * Leaving the live stage unmounts this canvas, and returning to it
-           * mounts a *new* element — but the pipeline still holds a WebGL
+           * mounts a *new* element - but the pipeline still holds a WebGL
            * context bound to the old, detached one. Rendering then goes
            * somewhere invisible while `capture()` still reads the old canvas,
            * so the preview is blank and the photo comes out fine. That is
@@ -230,7 +230,7 @@ export function useCamera(chain: FilterInstance[], enabled = true): UseCamera {
      * State is set optimistically and the hardware is asked in the background.
      *
      * A slider that waits for `applyConstraints` to resolve before moving feels
-     * broken — the round trip is tens of milliseconds and the user is dragging.
+     * broken - the round trip is tens of milliseconds and the user is dragging.
      * If the camera declines, the next `readCapabilities` corrects it.
      */
     setZoom: (value: number) => {

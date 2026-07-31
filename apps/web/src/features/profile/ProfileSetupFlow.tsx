@@ -12,7 +12,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
  *
  * **At the username step**, not at the end. Name and username are the two
  * required fields, so the moment both exist there is a complete profile worth
- * saving — and a user who closes the tab on the photo screen keeps their
+ * saving - and a user who closes the tab on the photo screen keeps their
  * account instead of losing it.
  *
  * Photo and notifications are then *edits* to a profile that already exists,

@@ -1,7 +1,7 @@
 /**
  * PINGO domain model.
  *
- * These types are the contract between the UI and whatever is behind it — mock
+ * These types are the contract between the UI and whatever is behind it - mock
  * data today, a real backend tomorrow. They are transport-agnostic on purpose:
  * no REST shapes, no socket envelopes, no ORM leakage.
  *
@@ -92,7 +92,7 @@ export interface AudioAttachment extends AttachmentBase {
   /** Seconds. */
   duration: number;
   /**
-   * Normalised amplitudes in the range 0–1, one per waveform bar. Precomputed
+   * Normalised amplitudes in the range 0-1, one per waveform bar. Precomputed
    * rather than analysed client-side: decoding audio to draw a waveform is
    * wasteful and janky on a list of many notes.
    */
@@ -136,7 +136,7 @@ export interface Message {
    *
    * The row survives so the thread keeps its shape and replies quoting it keep
    * an anchor; `body` is empty and the tombstone is what a reader sees. Not a
-   * system message — it stays on its author's side of the thread, because who
+   * system message - it stays on its author's side of the thread, because who
    * deleted it is part of what happened.
    */
   deleted?: boolean;
@@ -144,7 +144,7 @@ export interface Message {
    * When it was removed, which is not when it was sent.
    *
    * A tombstone keeps its place in the thread but its interesting moment is the
-   * deletion — "this was taken back, just now" is a different fact from "this
+   * deletion - "this was taken back, just now" is a different fact from "this
    * was sent at 8pm", and the thread shows the one that changed.
    */
   deletedAt?: number;
@@ -165,12 +165,12 @@ export interface Message {
   /**
    * A photo taken in the camera, already flattened with its filter and edits.
    *
-   * Like a sticker, this replaces the bubble rather than decorating it — the
+   * Like a sticker, this replaces the bubble rather than decorating it - the
    * picture is the message. `body` stays a short label so notifications and the
    * conversation list have something to say without loading the image.
    *
    * Deliberately carries **no URL**. A Ping can be opened once or twice and then never
-   * again, and a URL sitting in the message would be a copy the viewer keeps —
+   * again, and a URL sitting in the message would be a copy the viewer keeps  - 
    * which would make the limit decorative. The bytes are fetched through
    * `ChatService.openPing`, and asking is what spends the view.
    */
@@ -194,8 +194,8 @@ export interface Message {
   /**
    * A finished call, sitting in the thread where it happened.
    *
-   * Calls are stored as messages rather than in a table of their own — see the
-   * call-history migration — so this is what the thread and the Calls screen
+   * Calls are stored as messages rather than in a table of their own - see the
+   * call-history migration - so this is what the thread and the Calls screen
    * both render from.
    */
   call?: CallLogRef;
@@ -203,7 +203,7 @@ export interface Message {
   /**
    * Present when this message was sent as a reply to a story.
    *
-   * The bubble is an ordinary one — the reply is just a message — but knowing
+   * The bubble is an ordinary one - the reply is just a message - but knowing
    * it answers a story is what lets the thread say so, instead of showing a
    * remark about a picture nobody in the conversation can see any more.
    */
@@ -241,7 +241,7 @@ export interface EventRef {
   location?: string;
 }
 
-/** A photo message's picture. Like a Ping, it carries no URL — see `PhotoRef.url`. */
+/** A photo message's picture. Like a Ping, it carries no URL - see `PhotoRef.url`. */
 export interface PhotoRef {
   /**
    * How many times each recipient may open it. Absent means without limit.
@@ -269,7 +269,7 @@ export interface PhotoRef {
 /**
  * What a client may know about a Ping without having opened it.
  *
- * `gone` covers every way a Ping ends — views spent, saved, or expired —
+ * `gone` covers every way a Ping ends - views spent, saved, or expired  - 
  * because from the thread's point of view they are the same state, and
  * distinguishing them would only tell the viewer things about the other person.
  */
@@ -281,7 +281,7 @@ export interface PingRef {
   /**
    * How many views the sender allowed: 1 or 2.
    *
-   * Shown before opening, so the decision to look is an informed one — a single
+   * Shown before opening, so the decision to look is an informed one - a single
    * view is a different thing to accept than two, and finding that out
    * afterwards is too late.
    */
@@ -307,7 +307,7 @@ export interface StickerRef {
 
 /**
  * Three kinds, one list. A community is distinguished from a group by scale and
- * by having channels, but it still appears in the same conversation list — the
+ * by having channels, but it still appears in the same conversation list - the
  * product should feel like one surface, not three inboxes.
  */
 export type ConversationKind = 'direct' | 'group' | 'community';
@@ -324,7 +324,7 @@ export interface Conversation {
    *
    * A subset of `participantIds` rather than a flag on each participant,
    * because almost every screen wants the roster and only the group's own
-   * screens want the roles — and a list of two ids is cheaper to compare than
+   * screens want the roles - and a list of two ids is cheaper to compare than
    * a list of objects that changes identity whenever anything else does.
    */
   adminIds?: UserId[];
@@ -334,7 +334,7 @@ export interface Conversation {
   /** Pinned conversations sort above everything else. */
   pinned: boolean;
   /**
-   * Muted right now. Derived from `mutedUntil`, never stored — an expired mute
+   * Muted right now. Derived from `mutedUntil`, never stored - an expired mute
    * is unmuted the instant it expires, with nothing to run and clear it.
    */
   muted: boolean;
@@ -342,7 +342,7 @@ export interface Conversation {
    * When the mute lifts. Absent means not muted; `Infinity` means never.
    *
    * Carried separately from `muted` so a row can say *how long* rather than
-   * only whether — "Muted until 8:00 pm" is the sentence that helps.
+   * only whether - "Muted until 8:00 pm" is the sentence that helps.
    */
   mutedUntil?: number;
   favorite: boolean;
@@ -364,7 +364,7 @@ export interface Conversation {
   /**
    * Consecutive days both people have sent a message, direct chats only.
    *
-   * **Absent means no streak, and the UI shows nothing at all** — not a zero,
+   * **Absent means no streak, and the UI shows nothing at all** - not a zero,
    * not an empty badge. A streak is a reward; rendering "🔥0" would turn it
    * into a scoreboard nobody asked to be on.
    */
@@ -372,7 +372,7 @@ export interface Conversation {
 }
 
 /**
- * A user's own way of grouping chats — "Work", "Family".
+ * A user's own way of grouping chats - "Work", "Family".
  *
  * Private to its owner. Two people may both have a "Work" list and they have
  * nothing to do with each other.
@@ -387,7 +387,7 @@ export interface ChatList {
 /**
  * The per-member flags a conversation carries.
  *
- * All optional, so a caller states only what it is changing — passing the full
+ * All optional, so a caller states only what it is changing - passing the full
  * set every time would mean every caller having to know the current values of
  * the flags it does not care about.
  */
@@ -395,7 +395,7 @@ export interface ConversationFlags {
   pinned?: boolean;
   /**
    * When the mute should lift: a timestamp, `Infinity` for always, or `null` to
-   * unmute. Not a boolean — `true` cannot say for how long, and every product
+   * unmute. Not a boolean - `true` cannot say for how long, and every product
    * that starts with one ends up adding a deadline column beside it.
    */
   mutedUntil?: number | null;

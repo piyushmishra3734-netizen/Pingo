@@ -8,7 +8,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
 
 /**
- * Filing chats into the user's own lists — "Work", "Family".
+ * Filing chats into the user's own lists - "Work", "Family".
  *
  * ## Checkboxes, not a picker
  *
@@ -21,7 +21,7 @@ import { Overlay } from '../../components/Overlay.js';
  *
  * Filing four chats where two are already in "Work" is ambiguous, and the honest
  * answer is a third state. Tapping a mixed row files *all* of them, because the
- * reason anyone opens this with a mixed selection is to make them consistent —
+ * reason anyone opens this with a mixed selection is to make them consistent  - 
  * and the second tap unfiles all of them, so the round trip is still reachable.
  */
 
@@ -31,7 +31,7 @@ export interface ChatListsSheetProps {
    *
    * Ids rather than the conversations themselves, because filing one changes
    * its `listIds` and the sheet has to see that. Handed the objects, it would
-   * hold whatever they looked like when the menu was tapped — the tick would
+   * hold whatever they looked like when the menu was tapped - the tick would
    * never appear, even though the count beside it went up.
    */
   selectedIds: string[];
@@ -150,7 +150,7 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
     if (busy) return;
 
     /*
-     * The chats in it are untouched — only the grouping goes. Saying so is the
+     * The chats in it are untouched - only the grouping goes. Saying so is the
      * difference between a moment's hesitation and a real fright, and it is why
      * this dialog names what survives rather than warning about what does not.
      */

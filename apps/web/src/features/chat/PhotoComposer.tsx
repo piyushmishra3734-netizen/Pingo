@@ -10,7 +10,7 @@ import { Overlay } from '../../components/Overlay.js';
  *
  * ## One at a time, with the rest on a shelf
  *
- * Multi-select is normal — nobody picks one holiday photo — but editing several
+ * Multi-select is normal - nobody picks one holiday photo - but editing several
  * at once is not a thing anyone does. So the batch is a filmstrip and exactly
  * one picture is being worked on, which keeps the editor identical to the
  * single-photo case rather than growing a second mode for "many".
@@ -24,7 +24,7 @@ import { Overlay } from '../../components/Overlay.js';
  *
  * ## View limit is a property of the send
  *
- * "Keep in chat" or "View once" — the same control the schema models, so there
+ * "Keep in chat" or "View once" - the same control the schema models, so there
  * is no separate disappearing-photo feature with rules of its own.
  */
 
@@ -50,7 +50,7 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
    * Pictures already flattened, by position.
    *
    * Kept so moving along the filmstrip and back does not lose the drawing on
-   * the one you left — the editor is remounted per picture, and its state goes
+   * the one you left - the editor is remounted per picture, and its state goes
    * with it.
    */
   const [edited, setEdited] = useState<Record<number, Blob>>({});

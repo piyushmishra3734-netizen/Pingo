@@ -22,7 +22,7 @@ import { useSpeaker } from './useSpeaker.js';
  * ## Why the `<audio>` lives here
  *
  * Remote audio has to be attached to a media element to play, and that element
- * must outlive whatever screen started the call — otherwise navigating away
+ * must outlive whatever screen started the call - otherwise navigating away
  * mid-call cuts the audio. One element at the root, never unmounted, is the
  * simplest thing that cannot break that way.
  *
@@ -48,7 +48,7 @@ interface CallContextValue {
   /**
    * Video only, and both are video-only on purpose.
    *
-   * Remote *audio* never comes through here — it stays on the root `<audio>`
+   * Remote *audio* never comes through here - it stays on the root `<audio>`
    * element below, which outlives every screen. Attaching the same stream to a
    * second unmuted element would play the peer twice.
    */
@@ -67,7 +67,7 @@ interface CallContextValue {
   /**
    * Speaker mode: the other person, amplified.
    *
-   * On means the other person is amplified — see `useSpeaker`. Absent only
+   * On means the other person is amplified - see `useSpeaker`. Absent only
    * where Web Audio will not start, in which case the call still plays at
    * normal volume and no dead toggle is offered.
    */
@@ -76,7 +76,7 @@ interface CallContextValue {
    * The line being spoken after a call that did not connect.
    *
    * Present only while the announcement is playing. Shown as text at the same
-   * time, so the information never depends on the audio arriving — a muted
+   * time, so the information never depends on the audio arriving - a muted
    * device or a browser with no voices still tells the user what happened.
    */
   failureNotice: string | undefined;
@@ -108,7 +108,7 @@ export function CallProvider({
     /*
      * Signing out closes the channel; nothing else does.
      *
-     * In particular the cleanup below only drops the listener — it must not
+     * In particular the cleanup below only drops the listener - it must not
      * disconnect. StrictMode runs mount → cleanup → mount in development, and a
      * disconnect in that cleanup tears down the channel the second mount is in
      * the middle of opening, leaving a signed-in user with no way to be called.
@@ -178,7 +178,7 @@ export function CallProvider({
           kind,
           noiseSuppression,
           hdVideo,
-          // Only meaningful on a video call, and only as a starting position —
+          // Only meaningful on a video call, and only as a starting position  - 
           // the user can turn the camera on the moment they are connected.
           cameraOff: kind === 'video' && !cameraOnByDefault,
         });
@@ -257,7 +257,7 @@ export function CallProvider({
    * Re-renders when the *contents* of a stream change, not just its identity.
    *
    * `ontrack` fires once per track and hands over the same `MediaStream` object
-   * every time, so `setRemoteStream` after the second track is a no-op — React
+   * every time, so `setRemoteStream` after the second track is a no-op - React
    * compares by identity and bails out. On a video call the audio track arrives
    * first, which meant the picture never appeared even though the track was
    * right there. Listening to the stream itself is what makes the UI notice.
@@ -286,7 +286,7 @@ export function CallProvider({
    * The one stream the root `<audio>` element plays.
    *
    * A direct call has exactly one, and it is this. A group call plays the rest
-   * through their own elements below — one element cannot play four people, and
+   * through their own elements below - one element cannot play four people, and
    * mixing them here would mean building an audio graph to solve a problem the
    * DOM already solves.
    */
@@ -308,8 +308,8 @@ export function CallProvider({
    * Ringing, driven by call state rather than by the actions around it.
    *
    * Starting the tone inside `startCall` and stopping it inside `answer` and
-   * `hangUp` would mean every future way a call can end — declined, busy,
-   * unanswered, network failure — is a new place that has to remember to stop
+   * `hangUp` would mean every future way a call can end - declined, busy,
+   * unanswered, network failure - is a new place that has to remember to stop
    * the sound. Derived from state, there is exactly one rule: it rings while
    * the call is waiting to connect, and never otherwise.
    */
@@ -321,7 +321,7 @@ export function CallProvider({
    *
    * One-to-one only, and deliberately absent in a group: it amplifies one
    * element, and a room has one per person. A toggle that made one of four
-   * people louder would be worse than no toggle — the contract already allows
+   * people louder would be worse than no toggle - the contract already allows
    * this to be undefined, and the UI hides it rather than offering a lie.
    */
   const speaker = useSpeaker(
@@ -355,7 +355,7 @@ export function CallProvider({
   useEffect(() => {
     if (!failure) return;
 
-    // Busy tone first, then the sentence over the top of it — the order every
+    // Busy tone first, then the sentence over the top of it - the order every
     // network uses, and the reason the tone alone is enough for most people.
     const tone = startRinging('busy');
     void announce(failure).finally(() => setFailure(undefined));
@@ -411,7 +411,7 @@ export function CallProvider({
       localStream,
       remoteStreams,
       startGroupCall,
-      // Not read above — it is here so a track appearing inside an unchanged
+      // Not read above - it is here so a track appearing inside an unchanged
       // stream still produces a new context value. See the effect above.
       streamVersion,
       error,
@@ -430,7 +430,7 @@ export function CallProvider({
       {/*
         Everyone else on a group call, one element each.
 
-        Outside the overlay on purpose — these outlive any screen, exactly as
+        Outside the overlay on purpose - these outlive any screen, exactly as
         the element above does. Mounted inside the call UI they would stop
         playing the moment the overlay unmounted for a re-render, which is a
         call that goes silent for no visible reason.
@@ -448,7 +448,7 @@ export function CallProvider({
  * These are genuinely different problems with different fixes, and a single
  * "could not start the call" sends someone hunting through browser settings for
  * a permission they already granted. `NotFoundError` in particular means the
- * hardware is not there at all — nothing about PINGO will fix it.
+ * hardware is not there at all - nothing about PINGO will fix it.
  *
  * The wording says "microphone or camera" because one `getUserMedia` asks for
  * both and the rejection does not say which one was the problem. Naming only
@@ -488,7 +488,7 @@ function PeerAudio({ stream }: { stream: MediaStream }) {
       ref={(element) => {
         if (!element) return;
         element.srcObject = stream;
-        // Already an interaction by this point — they answered or placed it.
+        // Already an interaction by this point - they answered or placed it.
         void element.play().catch(() => undefined);
       }}
     />

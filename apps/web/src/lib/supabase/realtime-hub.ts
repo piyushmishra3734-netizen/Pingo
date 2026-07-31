@@ -8,7 +8,7 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
  * Stories, posts, profiles, follows and the conversation list all want to know
  * when their table changes. Each opening its own Realtime channel would mean
  * five subscriptions, five join round trips and five things to tear down on
- * sign-out — and Realtime bills and rate-limits by channel, so the cost is real
+ * sign-out - and Realtime bills and rate-limits by channel, so the cost is real
  * rather than tidy-mindedness.
  *
  * More importantly, `postgres_changes` bindings must all be declared *before*
@@ -18,7 +18,7 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
  *
  * ## Deliberately not the chat service's channel
  *
- * That one carries the contract `ChatService` promises — messages, receipts,
+ * That one carries the contract `ChatService` promises - messages, receipts,
  * conversations. A story appearing is not a chat event and putting it on that
  * stream would mean `ChatEvent` growing a `story:changed` member, which is the
  * service boundary leaking. Two channels, each with one job.
@@ -26,8 +26,8 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
  * ## What it does not do
  *
  * It does not interpret rows. A handler gets the change and decides what to do
- * with it, which is almost always "reload the thing I own". That is coarse —
- * one story appearing re-reads the rail — but it is correct by construction,
+ * with it, which is almost always "reload the thing I own". That is coarse  - 
+ * one story appearing re-reads the rail - but it is correct by construction,
  * and a wrong incremental update is much worse than a redundant fetch.
  */
 
@@ -67,7 +67,7 @@ class RealtimeHub {
   /**
    * Attaches a handler and returns the detach.
    *
-   * Opening the channel is lazy — nothing subscribes until something is
+   * Opening the channel is lazy - nothing subscribes until something is
    * actually listening, so a signed-out visitor on the welcome screen never
    * opens a socket.
    */
@@ -83,8 +83,8 @@ class RealtimeHub {
       /*
        * The channel stays open when the last handler goes.
        *
-       * React unmounts and remounts constantly — StrictMode does it twice on
-       * purpose — and closing the socket on every empty moment would mean
+       * React unmounts and remounts constantly - StrictMode does it twice on
+       * purpose - and closing the socket on every empty moment would mean
        * rejoining on every navigation, with a window in the middle where
        * changes are missed. It closes on sign-out, which is the only time it is
        * genuinely not wanted.
@@ -118,7 +118,7 @@ class RealtimeHub {
             try {
               handler(change);
             } catch {
-              // Swallowed on purpose — see above.
+              // Swallowed on purpose - see above.
             }
           }
         },

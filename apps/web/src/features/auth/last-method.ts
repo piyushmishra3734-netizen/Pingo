@@ -9,7 +9,7 @@ import type { AuthMethodKind } from '@pingo/core';
  * not guessing costs one every time.
  *
  * With only the email door open this changes nothing on screen, and it is here
- * anyway — it is the piece that would otherwise be forgotten the day Google
+ * anyway - it is the piece that would otherwise be forgotten the day Google
  * lands, when the ordering starts to matter and nobody remembers the rule.
  *
  * Device-local, never sent anywhere: it is a UI preference, and *which* method

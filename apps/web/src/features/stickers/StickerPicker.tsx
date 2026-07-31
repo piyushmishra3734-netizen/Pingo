@@ -21,7 +21,7 @@ import { useStickers } from './StickerContext.js';
  * ## Search spans every pack
  *
  * Categories are per-pack; search is not. Someone looking for 🔥 does not know
- * or care which pack it came from, so the results are flat and ranked — an
+ * or care which pack it came from, so the results are flat and ranked - an
  * exact emoji match first, then name, then keywords.
  */
 
@@ -145,7 +145,7 @@ export function StickerPicker({ onSelect }: StickerPickerProps) {
 
       {/*
         CC-BY packs require visible credit, and the honest place for it is where
-        the assets are — not a legal page nobody opens.
+        the assets are - not a legal page nobody opens.
       */}
       {packs.length > 0 && (
         <p className="border-t border-divider px-3 py-2 text-[0.6875rem] text-text-tertiary">

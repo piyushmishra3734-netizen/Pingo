@@ -2,7 +2,7 @@
  * Presentation helpers shared by web and (later) native.
  *
  * These live in core rather than in the UI package because the formatting rules
- * are product decisions, not styling decisions — "yesterday" instead of a date,
+ * are product decisions, not styling decisions - "yesterday" instead of a date,
  * relative times that stop being relative after a week, and so on.
  */
 
@@ -23,7 +23,7 @@ function calendarDaysAgo(ms: number, now = Date.now()): number {
   return Math.round((startOfDay(now) - startOfDay(ms)) / DAY);
 }
 
-/** "11:30 AM" — the timestamp shown beside a message. */
+/** "11:30 AM" - the timestamp shown beside a message. */
 export function formatTime(ms: number): string {
   return new Date(ms).toLocaleTimeString(undefined, {
     hour: 'numeric',
@@ -32,7 +32,7 @@ export function formatTime(ms: number): string {
 }
 
 /**
- * When something *happened to* a message — an edit, a deletion.
+ * When something *happened to* a message - an edit, a deletion.
  *
  * Not `formatTime`, because these are the one timestamp in a thread that can
  * disagree with its position. A message sits under the day divider it was sent
@@ -86,7 +86,7 @@ export function formatDayDivider(ms: number, now = Date.now()): string {
   });
 }
 
-/** "0:12" / "1:24:00" — voice notes and call durations. */
+/** "0:12" / "1:24:00" - voice notes and call durations. */
 export function formatDuration(seconds: number): string {
   const total = Math.max(0, Math.round(seconds));
   const h = Math.floor(total / 3600);
@@ -130,7 +130,7 @@ export function formatPresence(user: User, now = Date.now()): string {
  * The one-line preview under a conversation title.
  *
  * Attachment-only messages get a description rather than blank space, and group
- * messages are prefixed with the sender — both visible on the branding board.
+ * messages are prefixed with the sender - both visible on the branding board.
  */
 export function messagePreview(
   message: Message | undefined,
@@ -142,7 +142,7 @@ export function messagePreview(
 
   /*
    * A deleted message has an empty body, so without this it fell through to the
-   * generic "Message" — the list saying nothing about the one thing that just
+   * generic "Message" - the list saying nothing about the one thing that just
    * happened to the thread.
    */
   if (message.deleted) {
@@ -186,7 +186,7 @@ export function messagePreview(
 
   if (message.system) return text;
 
-  // Only group and community threads need attribution — in a direct chat the
+  // Only group and community threads need attribution - in a direct chat the
   // other party is already the row's title.
   if (conversation.kind !== 'direct') {
     const author =

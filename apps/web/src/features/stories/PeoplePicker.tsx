@@ -5,8 +5,8 @@ import { useMemo, useState } from 'react';
 /**
  * A searchable list of people with ticks.
  *
- * Three sheets need exactly this — close friends, hide-my-story-from, and the
- * audience for a specific-people story — and they differ only in what a tick
+ * Three sheets need exactly this - close friends, hide-my-story-from, and the
+ * audience for a specific-people story - and they differ only in what a tick
  * means. Building it three times would be three subtly different search boxes
  * and three chances for one of them to forget the empty state.
  *

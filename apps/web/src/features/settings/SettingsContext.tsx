@@ -22,7 +22,7 @@ import {
  * Appearance and font size write `data-*` attributes and a root font size onto
  * `<html>`, and `packages/tokens` does the rest by overriding the same tokens
  * every component already reads. No component subscribes to this context to
- * restyle itself — the CSS cascade does the work, which is why changing accent
+ * restyle itself - the CSS cascade does the work, which is why changing accent
  * retints buttons, rings, chips, bubbles and focus outlines in one frame
  * without a single re-render.
  *
@@ -36,7 +36,7 @@ const LEGACY_APPEARANCE_KEY = 'pingo:appearance';
 
 interface SettingsContextValue {
   preferences: Preferences;
-  /** Shorthand — appearance is read far more often than anything else. */
+  /** Shorthand - appearance is read far more often than anything else. */
   appearance: AppearanceSettings;
   updateAppearance: (changes: Partial<AppearanceSettings>) => void;
   /** Patches one group, e.g. `update('privacy', { readReceipts: false })`. */
@@ -128,14 +128,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     /*
      * Font size is set on the root in px, and every size in the product is in
-     * rem — so one property resizes the whole app proportionally rather than
+     * rem - so one property resizes the whole app proportionally rather than
      * just the message text.
      */
     root.style.fontSize = FONT_SCALE[preferences.chats.fontSize];
 
     /*
-     * Keeps browser chrome — the address bar on Android, the status bar on iOS
-     * — matching the page. Without it a dark app sits under a white bar, which
+     * Keeps browser chrome - the address bar on Android, the status bar on iOS
+     * - matching the page. Without it a dark app sits under a white bar, which
      * is the single most obvious sign of a theme bolted on afterwards.
      */
     document

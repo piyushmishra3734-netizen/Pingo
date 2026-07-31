@@ -1,12 +1,12 @@
 /**
- * @pingo/ui — the PINGO component library.
+ * @pingo/ui - the PINGO component library.
  *
  * Every component here is a direct expression of the branding board. Screens are
  * assembled from these; no screen reaches for a raw colour, radius or shadow.
  *
  * Layering, outermost first:
- *   brand/      identity — the monogram, wordmark, app icon, the dot
- *   primitives/ interaction — buttons, fields, chips, toggles, surfaces
+ *   brand/      identity - the monogram, wordmark, app icon, the dot
+ *   primitives/ interaction - buttons, fields, chips, toggles, surfaces
  *   icons/      one 24×24 rounded 2px-stroke family
  */
 

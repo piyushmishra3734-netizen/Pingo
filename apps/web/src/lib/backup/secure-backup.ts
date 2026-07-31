@@ -3,8 +3,8 @@
  *
  * Enrolment is deliberately two steps. `begin` generates the code and the key
  * material and writes nothing anywhere; `complete` is what reaches the network.
- * Anything that happens between them — the user closing the sheet, backing out,
- * never writing the code down — leaves no trace, which is the only honest
+ * Anything that happens between them - the user closing the sheet, backing out,
+ * never writing the code down - leaves no trace, which is the only honest
  * meaning of "cancel" for an operation whose whole point is that the user has
  * kept a secret.
  *
@@ -37,7 +37,7 @@ export interface SecureBackupState {
   /**
    * A copy of the sealed package, so the code can be tested without restoring.
    *
-   * The server deliberately will not hand this back — `package` is not
+   * The server deliberately will not hand this back - `package` is not
    * selectable by any client role, because "give me the blob that opens all
    * history" is the request the recovery request flow exists to slow down. That
    * leaves no way to answer "does the code I wrote down actually work?", which
@@ -146,7 +146,7 @@ export class EnrolmentError extends Error {
  * Step two: publish the package, then prove it took.
  *
  * The read-back is not ceremony. `put` resolving means the write was accepted,
- * not that a later reader will find it — an RLS policy that silently filtered
+ * not that a later reader will find it - an RLS policy that silently filtered
  * the row, or a target that accepted and dropped it, both look like success
  * from here. Enrolment that cannot be confirmed is reported as failure, because
  * the alternative is a switch that says "on" over nothing.
@@ -234,7 +234,7 @@ export type RecoveryTestResult =
  * package, and throws the resulting key away. No message is decrypted, no
  * device identity changes, nothing is written. The only thing that changes is
  * that the user now knows whether the words they wrote down are the words that
- * work — which is worth far more before a phone is lost than after.
+ * work - which is worth far more before a phone is lost than after.
  *
  * A target that can return the package is preferred, because it tests the copy
  * that would actually be used. The server cannot, by design, so the sealed

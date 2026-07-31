@@ -8,17 +8,17 @@ import { AuthError, type AuthErrorCode } from '@pingo/core';
  * improvises. The tone rules come from docs/01 and are worth restating, because
  * they are easy to undo one well-meant edit at a time:
  *
- * - **Never blame.** "That password doesn't match" — not "incorrect password".
+ * - **Never blame.** "That password doesn't match" - not "incorrect password".
  * - **Never confirm or deny that an account exists** *at sign-in*. § 13.2: an
  *   unknown identity and a wrong password produce the same message. Telling a
  *   stranger "no account with this number" is an enumeration oracle.
- * - **Say what is happening and why.** § 13.2 surfaces rate limiting honestly —
+ * - **Say what is happening and why.** § 13.2 surfaces rate limiting honestly  - 
  *   a user who does not know they are throttled assumes the app is broken.
  * - **Never a blocking dialog** (§ 19). Every one of these is an inline caption.
  *
  * `identity_exists` is the deliberate exception to the second rule. It only
  * happens at *sign-up*, where § 17 requires routing the user to Log In rather
- * than silently creating a second account — and a duplicate account in a
+ * than silently creating a second account - and a duplicate account in a
  * messaging product is unrecoverable, because the wrong one holds the
  * conversations. The trade is made knowingly and only in that one direction.
  */
@@ -41,7 +41,7 @@ function formatCountdown(seconds: number): string {
 }
 
 /**
- * @param context which screen is asking — the same code reads differently under
+ * @param context which screen is asking - the same code reads differently under
  * a password field than beneath a Google row.
  */
 export function authErrorMessage(
@@ -57,7 +57,7 @@ export function authErrorMessage(
 
     case 'invalid_credentials':
       // § 13.2's copy, minus its "or recover your account" clause: account
-      // recovery (§ 14–16) is not built yet, and pointing at a path that does
+      // recovery (§ 14-16) is not built yet, and pointing at a path that does
       // not exist is worse than saying less.
       return "That password doesn't match. Try again.";
 
@@ -68,16 +68,16 @@ export function authErrorMessage(
       /*
        * An operator's problem wearing a user's clothes: the backend wants a
        * confirmation step this product does not have. It happens to accounts
-       * created while "Confirm email" was still on — their password is correct
+       * created while "Confirm email" was still on - their password is correct
        * and they still cannot get in.
        *
        * So the copy does the one thing that helps: **tells them it is not their
        * password**, so they stop retyping it and stop resetting it. The fix is a
        * dashboard action, and naming it here would only hand a user an
-       * instruction they cannot act on — that detail goes to the console for
+       * instruction they cannot act on - that detail goes to the console for
        * whoever is actually looking (see `assertSession`).
        */
-      return "Your password is fine — this account just can't be signed into yet. Try another method, or use a new one.";
+      return "Your password is fine - this account just can't be signed into yet. Try another method, or use a new one.";
 
     case 'provider_disabled':
       return 'That sign-in method is switched off for this project.';
@@ -95,13 +95,13 @@ export function authErrorMessage(
 
     case 'cancelled':
       // The user backed out of a consent screen. § 19: "nothing created,
-      // nothing said" — so this is near-silent by design.
+      // nothing said" - so this is near-silent by design.
       return '';
 
     case 'rate_limited':
       return retryAfter
-        ? `Too many attempts. Try again in ${formatCountdown(retryAfter)} — this protects your account.`
-        : 'Too many attempts. Wait a few minutes and try again — this protects your account.';
+        ? `Too many attempts. Try again in ${formatCountdown(retryAfter)} - this protects your account.`
+        : 'Too many attempts. Wait a few minutes and try again - this protects your account.';
 
     default:
       return context === 'oauth'

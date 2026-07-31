@@ -6,21 +6,21 @@ import { useNavigate } from 'react-router-dom';
 import { AppLogo } from '../../components/AppLogo.js';
 
 /**
- * Welcome — [docs/01 § 4](../../../../../docs/01-onboarding-auth.md#4-welcome).
+ * Welcome - [docs/01 § 4](../../../../../docs/01-onboarding-auth.md#4-welcome).
  *
  * A **triage screen**, and § 4.1 is emphatic that it therefore has no gradient
  * button: there is no single thing the user came here to do, so nothing is
  * elevated. Equal weight, honest captions, user decides. Elevating Google would
  * be the obvious move and the wrong one for a product whose thesis is privacy.
  *
- * No carousel and no feature tour, per § 4.2 — a user who taps a method has
+ * No carousel and no feature tour, per § 4.2 - a user who taps a method has
  * already decided, and a tour delays them to reassure us rather than them.
  *
  * ## Why the rows are data
  *
  * `METHODS` is the blueprint's list in the blueprint's order; the service says
  * which of them it can actually open. A method the service does not implement is
- * **absent, not present-and-broken** — adding a fourth door is an entry here and
+ * **absent, not present-and-broken** - adding a fourth door is an entry here and
  * an entry in `supportedMethods`, with no change to the rendering below. That is
  * § 20.2's *auth methods are a list, not a type*, made literal.
  *
@@ -31,7 +31,7 @@ import { AppLogo } from '../../components/AppLogo.js';
 interface MethodRow {
   kind: AuthMethodKind;
   label: string;
-  /** Only where it says something true and useful — § 4.2. */
+  /** Only where it says something true and useful - § 4.2. */
   caption?: string;
   icon: ReactNode;
   path: string;
@@ -41,9 +41,9 @@ const METHODS: MethodRow[] = [
   {
     kind: 'google',
     label: 'Continue with Google',
-    caption: 'Fastest — no password',
+    caption: 'Fastest - no password',
     icon: <GoogleMark />,
-    // Both doors share one interstitial — see `GoogleConnectingScreen`.
+    // Both doors share one interstitial - see `GoogleConnectingScreen`.
     path: '/auth/google',
   },
   {
@@ -58,7 +58,7 @@ const METHODS: MethodRow[] = [
     label: 'Continue with Phone',
     caption: 'Helps friends find you',
     // The branding board's own phone glyph, already in `@pingo/ui`. An earlier
-    // pass drew a keypad here instead — a second icon for an idea the set had
+    // pass drew a keypad here instead - a second icon for an idea the set had
     // covered, in a family whose whole point is consistency.
     icon: <PhoneIcon size={20} />,
     path: '/signup/phone',
@@ -79,7 +79,7 @@ export function SignUpMethodScreen() {
         aria-hidden
       />
 
-      {/* ≥ 35% of the viewport stays empty — § 4.2. `justify-center` is what holds it. */}
+      {/* ≥ 35% of the viewport stays empty - § 4.2. `justify-center` is what holds it. */}
       <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-10 px-6 py-12">
         <div className="flex flex-col items-center">
           <AppLogo size={64} alt="" />
@@ -113,7 +113,7 @@ export function SignUpMethodScreen() {
           </ListGroup>
 
           {/*
-            § 4.3 — stated before the choice rather than discovered in a consent
+            § 4.3 - stated before the choice rather than discovered in a consent
             dialog. Tied to the row's presence: no Google row, no claim about
             Google.
           */}
@@ -139,7 +139,7 @@ export function SignUpMethodScreen() {
 }
 
 /**
- * The official Google "G" — § 4.2 notes it is the only third-party mark in the
+ * The official Google "G" - § 4.2 notes it is the only third-party mark in the
  * product, and their brand terms require the four-colour original rather than a
  * monochrome redraw in our own icon style.
  */

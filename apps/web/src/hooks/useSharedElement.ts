@@ -18,7 +18,7 @@ import { useLayoutEffect, type RefObject } from 'react';
  * the hand-off is a frame late.
  *
  * Here the *real* header avatar is transformed back to where the source was and
- * that transform is animated away — FLIP, across a route change instead of
+ * that transform is animated away - FLIP, across a route change instead of
  * across a re-render. There is only ever one avatar, and it is the one that
  * stays.
  *
@@ -67,7 +67,7 @@ function takeSharedElement(key: string): DOMRect | undefined {
 /**
  * Flies `ref` in from wherever `key` was last seen, if that was just now.
  *
- * A no-op when there is no hand-off waiting, which is most of the time — the
+ * A no-op when there is no hand-off waiting, which is most of the time - the
  * thread opened from a notification, a deep link or a reload has nothing to
  * travel from and simply appears.
  */
@@ -96,7 +96,7 @@ export function useSharedElement(
     const dy = from.top + from.height / 2 - (to.top + to.height / 2);
     const scale = from.width / to.width;
 
-    // Nothing worth animating — the two are in the same place, which happens on
+    // Nothing worth animating - the two are in the same place, which happens on
     // desktop when the header sits directly over the row that opened it.
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2 && Math.abs(scale - 1) < 0.05) return;
 

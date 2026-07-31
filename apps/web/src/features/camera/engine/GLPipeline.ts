@@ -7,8 +7,8 @@ import type { FilterDefinition, FilterInstance, FilterParam } from '@pingo/core'
  *
  * GPUImage3 is the reference for this design and it **cannot run here**: it is
  * Swift and Metal, iOS and macOS only, with no web distribution of any kind.
- * What is portable is its *architecture* — a directed chain of single-pass
- * shaders, each reading the previous output — and its shaders, which are
+ * What is portable is its *architecture* - a directed chain of single-pass
+ * shaders, each reading the previous output - and its shaders, which are
  * BSD-3-Clause and so may be adapted with attribution.
  *
  * So this file is the chain runner, and `filters/` holds shaders adapted from
@@ -19,7 +19,7 @@ import type { FilterDefinition, FilterInstance, FilterParam } from '@pingo/core'
  * ## Ping-pong
  *
  * Two framebuffers, swapped every pass. A chain of any length needs exactly two
- * textures — allocating one per filter is the usual first mistake and it runs
+ * textures - allocating one per filter is the usual first mistake and it runs
  * a device out of memory at about eight passes.
  *
  * The last pass renders to the canvas instead of a framebuffer, so there is no
@@ -43,7 +43,7 @@ void main() {
  */
 function buildFragmentShader(body: string, params: FilterParam[] = []): string {
   /*
-   * The filter's own parameters — declared here only if the body has not
+   * The filter's own parameters - declared here only if the body has not
    * already declared them itself.
    *
    * Both styles exist in `filters/`. Most shaders declare their own uniforms;
@@ -110,7 +110,7 @@ export class GLPipeline {
   #targets: [Target, Target] | undefined;
   #size = { width: 0, height: 0 };
 
-  /** Compiled lazily and kept — recompiling a shader per frame is the slow path. */
+  /** Compiled lazily and kept - recompiling a shader per frame is the slow path. */
   readonly #programs = new Map<string, CompiledFilter>();
 
   constructor(canvas: HTMLCanvasElement) {
@@ -278,7 +278,7 @@ export class GLPipeline {
   /**
    * Runs the chain and leaves the result on the canvas.
    *
-   * An empty chain still draws — through the passthrough filter — so the
+   * An empty chain still draws - through the passthrough filter - so the
    * preview never goes black just because no effect is selected.
    */
   render(chain: FilterInstance[], resolve: (id: string) => FilterDefinition | undefined): void {

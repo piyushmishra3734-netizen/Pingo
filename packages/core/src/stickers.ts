@@ -5,7 +5,7 @@
  *
  * The requirement is that new packs can be added **without modifying the app**,
  * so a pack is a JSON manifest fetched at runtime. Adding one means publishing a
- * manifest and registering its URL — no build, no deploy, no import.
+ * manifest and registering its URL - no build, no deploy, no import.
  *
  * The packs that ship with PINGO use the identical shape and are loaded through
  * the identical path, which is the only way to be sure the dynamic path
@@ -63,7 +63,7 @@ export interface StickerPackAttribution {
   /**
    * SPDX where possible.
    *
-   * `CC-BY-4.0` is allowed — attribution only, no share-alike — but
+   * `CC-BY-4.0` is allowed - attribution only, no share-alike - but
    * `CC-BY-SA-4.0` is deliberately absent: share-alike would propagate to
    * PINGO, which is the opposite of the permissive requirement.
    */
@@ -81,7 +81,7 @@ export interface StickerPack {
   stickers: Sticker[];
 }
 
-/** A pack before its stickers are fetched — enough to render its tab. */
+/** A pack before its stickers are fetched - enough to render its tab. */
 export interface StickerPackSource {
   id: string;
   name: string;
@@ -112,7 +112,7 @@ export function isValidPack(value: unknown): value is StickerPack {
 /**
  * Ranked search across every loaded pack.
  *
- * Name matches beat keywords, and an exact emoji match beats both — typing 🔥
+ * Name matches beat keywords, and an exact emoji match beats both - typing 🔥
  * should find the fire sticker before anything merely tagged "hot".
  */
 export function searchStickers(packs: StickerPack[], query: string): Sticker[] {

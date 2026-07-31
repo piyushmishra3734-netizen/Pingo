@@ -12,13 +12,13 @@
  *   - RNNoise consumes exactly **480 samples** (10 ms at 48 kHz) per frame.
  *
  * 480 is not a multiple of 128, so samples are accumulated on the way in and
- * released on the way out. That costs one frame of latency — 10 ms, inaudible —
+ * released on the way out. That costs one frame of latency - 10 ms, inaudible  - 
  * and is the only correct way to bridge the two.
  *
  * ## Scaling
  *
  * Web Audio works in floats from −1 to 1; RNNoise expects the int16 *range* as
- * floats, −32768 to 32767. Skipping the scale does not fail loudly — it
+ * floats, −32768 to 32767. Skipping the scale does not fail loudly - it
  * produces audio that is technically processed and audibly untouched, which is
  * the worst kind of bug.
  *
@@ -26,7 +26,7 @@
  *
  * The WASM is instantiated from bytes passed in `processorOptions`. An
  * AudioWorklet has no `fetch` and no dynamic `import`, so the main thread must
- * hand it the compiled module — see `rnnoise.ts`.
+ * hand it the compiled module - see `rnnoise.ts`.
  */
 
 const FRAME_SIZE = 480;
@@ -50,7 +50,7 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
   #init(wasmModule) {
     try {
       // Emscripten's minimal import surface. RNNoise itself is pure
-      // computation — no syscalls — so an empty env plus memory is enough.
+      // computation - no syscalls - so an empty env plus memory is enough.
       const memory = new WebAssembly.Memory({ initial: 256, maximum: 1024 });
       const instance = new WebAssembly.Instance(wasmModule, {
         env: {

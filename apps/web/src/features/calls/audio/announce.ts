@@ -64,7 +64,7 @@ export function announce(failure: CallFailure): Promise<void> {
   });
 }
 
-/** Stops anything still being said — a new call must not talk over itself. */
+/** Stops anything still being said - a new call must not talk over itself. */
 export function stopAnnouncing(): void {
   try {
     window.speechSynthesis?.cancel();

@@ -12,7 +12,7 @@
  * An event is a name from a fixed list and a millisecond timestamp. There is no
  * properties bag, because a properties bag is how privacy-respecting analytics
  * stops being privacy-respecting: one conversation id, aggregated over a week,
- * reconstructs who talks to whom. `record` cannot carry one — there is nowhere
+ * reconstructs who talks to whom. `record` cannot carry one - there is nowhere
  * to put it.
  *
  * ## Nothing leaves the device in this stage

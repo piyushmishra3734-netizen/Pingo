@@ -13,7 +13,7 @@ import { useState } from 'react';
  * because a thing posted for a day should not grow a public conversation
  * attached to it that outlives it.
  *
- * So a reaction is not a new concept — it is a one-emoji message, sent the way
+ * So a reaction is not a new concept - it is a one-emoji message, sent the way
  * every other message is sent, tagged with the story so the thread can say what
  * it is answering.
  *
@@ -21,7 +21,7 @@ import { useState } from 'react';
  *
  * Sending from inside the viewer keeps the story on screen while you type,
  * which is the whole reason you are replying. The spec's "reply opens the
- * existing chat" is honoured by the message landing in exactly that chat — and
+ * existing chat" is honoured by the message landing in exactly that chat - and
  * a confirmation offers to go there, rather than the viewer throwing you into
  * a different screen mid-story.
  */

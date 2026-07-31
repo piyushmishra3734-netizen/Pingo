@@ -7,14 +7,14 @@ import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
- * Setup, step 3 — the photo.
+ * Setup, step 3 - the photo.
  *
  *   Add Profile Photo
  *   ◉
  *   Take Photo · Choose Gallery · Skip
  *
  * **The photo is optional and the screen says so.** The default is the live
- * monogram with its real deterministic gradient — presented as *a default*, not
+ * monogram with its real deterministic gradient - presented as *a default*, not
  * an empty slot ([docs/01 § 9.1](../../../../../docs/01-onboarding-auth.md#91-the-photo-is-optional--and-the-design-says-so)).
  * Most drop-off at a photo step is people who do not have one they like, and
  * removing that pressure is worth more than a filled avatar.
@@ -24,7 +24,7 @@ import { SETUP_PROGRESS } from './progress.js';
  * On the web both buttons are file inputs; the difference is `capture="user"`,
  * which asks the OS for the front camera. **On a phone that opens the camera. On
  * a desktop browser it opens the file picker**, because there is no camera
- * intent to hand off to — the button is kept rather than hidden, so the flow
+ * intent to hand off to - the button is kept rather than hidden, so the flow
  * matches the phone it was designed for, and it degrades to something that
  * still works rather than to an error.
  *
@@ -66,7 +66,7 @@ export function PhotoScreen() {
     setError(undefined);
     setUploading(true);
 
-    // Shown immediately, from the local file — the upload does not gate it.
+    // Shown immediately, from the local file - the upload does not gate it.
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     objectUrl.current = URL.createObjectURL(file);
     setPreview(objectUrl.current);
@@ -97,7 +97,7 @@ export function PhotoScreen() {
             Continue
           </Button>
           {/*
-            A text button, never hidden — § 2.1 lists the photo as skippable and
+            A text button, never hidden - § 2.1 lists the photo as skippable and
             requires skips to be visible rather than tucked away.
           */}
           <Button variant="text" size="lg" block onClick={next} disabled={uploading}>
@@ -122,7 +122,7 @@ export function PhotoScreen() {
         </div>
 
         <p className="mt-6 max-w-[19rem] text-center text-body text-text-secondary">
-          Add a photo — or keep your monogram, it looks good.
+          Add a photo - or keep your monogram, it looks good.
         </p>
 
         <div className="mt-7 flex w-full flex-col gap-3">

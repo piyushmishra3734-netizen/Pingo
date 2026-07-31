@@ -26,7 +26,7 @@ import { archiveLines, buildArchive } from '../../lib/backup/archive-builder.js'
 /**
  * Secure Backup.
  *
- * The enrolment sequence is not written here — it is `EnrolmentFlow`, shared
+ * The enrolment sequence is not written here - it is `EnrolmentFlow`, shared
  * with onboarding, so the warning and the two-step order cannot drift between
  * the two places that offer the same operation.
  *
@@ -34,7 +34,7 @@ import { archiveLines, buildArchive } from '../../lib/backup/archive-builder.js'
  *
  * It opens the package with the entered code and throws the key away. Nothing
  * is decrypted, nothing is written, no identity changes. The question it
- * answers — "are the words I wrote down the words that work?" — is only useful
+ * answers - "are the words I wrote down the words that work?" - is only useful
  * before the phone is lost, and almost nothing offers it.
  */
 export function SecureBackupScreen() {
@@ -64,8 +64,8 @@ export function SecureBackupScreen() {
 
   /*
    * Built lazily and kept for the life of the screen. Constructing the auth
-   * object does not authorise anything — the picker appears only when Connect
-   * is pressed — so this is safe to do before the user has asked.
+   * object does not authorise anything - the picker appears only when Connect
+   * is pressed - so this is safe to do before the user has asked.
    */
   const driveAuth = useMemo(() => (isNative ? new NativeDriveAuth() : new WebDriveAuth()), [isNative]);
   const driveTarget = useMemo(() => new GoogleDriveBackupTarget(driveAuth), [driveAuth]);
@@ -110,7 +110,7 @@ export function SecureBackupScreen() {
   /*
    * Nothing here is awaited by the render path. Backup and restore run in the
    * controller and report through the subscription, so the rest of PINGO stays
-   * usable while a multi-megabyte archive moves — navigating away does not
+   * usable while a multi-megabyte archive moves - navigating away does not
    * cancel it and does not block a conversation from opening.
    */
   const busyDrive =
@@ -123,7 +123,7 @@ export function SecureBackupScreen() {
 
   /*
    * Restore needs the recovery private key, which only the code can produce, so
-   * the code is asked for here and used once. It is never stored — not in state
+   * the code is asked for here and used once. It is never stored - not in state
    * beyond this call, not on disk.
    */
   const confirmRestore = async () => {
@@ -168,7 +168,7 @@ export function SecureBackupScreen() {
    * Recovery on a device that has never held this account's keys.
    *
    * The package comes from Drive rather than from here, because here has
-   * nothing — that is the situation. The server holds the same bytes and will
+   * nothing - that is the situation. The server holds the same bytes and will
    * not return them, deliberately, so Drive is the only path from a lost phone
    * to readable history.
    */
@@ -201,7 +201,7 @@ export function SecureBackupScreen() {
       });
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? `Restore failed — ${cause.message}` : 'Restore failed.');
+      setError(cause instanceof Error ? `Restore failed - ${cause.message}` : 'Restore failed.');
     }
   };
 
@@ -272,21 +272,21 @@ export function SecureBackupScreen() {
     <SettingsPage title="Secure Backup">
       <Group title="Status">
         <InfoRow label="Status" value={enabled ? '✅ Enabled' : 'Not enabled'} />
-        <InfoRow label="Recovery Version" value={local ? `v${local.version}` : '—'} />
+        <InfoRow label="Recovery Version" value={local ? `v${local.version}` : ' - '} />
         <InfoRow
           label="Backup Target"
-          value={status?.targets.map((t) => t.label).join(', ') || '—'}
+          value={status?.targets.map((t) => t.label).join(', ') || ' - '}
         />
         <InfoRow
           label="Last Backup"
-          value={local?.lastBackupAt ? new Date(local.lastBackupAt).toLocaleString() : '—'}
+          value={local?.lastBackupAt ? new Date(local.lastBackupAt).toLocaleString() : ' - '}
         />
         {/*
           Masked, always. The code exists on paper or in the user's head; a
           screen that could redisplay it would make every unlocked phone a copy
           of it.
         */}
-        <InfoRow label="Recovery Code" value={enabled ? '••••••••••••' : '—'} />
+        <InfoRow label="Recovery Code" value={enabled ? '••••••••••••' : ' - '} />
       </Group>
 
       {/*
@@ -332,7 +332,7 @@ export function SecureBackupScreen() {
         The device that most needs restore is the one that has nothing.
 
         Everything below the status block used to be gated on local enrolment
-        state, which a reinstalled or replaced device never has — so the screen
+        state, which a reinstalled or replaced device never has - so the screen
         offered "Enable Secure Backup" and no way back to the history sitting in
         Drive. Measured by wiping the database: new device identity, empty
         stores, account still enrolled server-side, and not one control that
@@ -418,7 +418,7 @@ export function SecureBackupScreen() {
         <Group title="Test Recovery">
           <p className="px-4 pt-3 text-sm text-muted">
             Checks that your recovery code opens your backup. Nothing is restored and nothing
-            changes — it only tells you whether the code works.
+            changes - it only tells you whether the code works.
           </p>
 
           {testing ? (
@@ -464,12 +464,12 @@ export function SecureBackupScreen() {
           {result ? (
             <p className={`px-4 pb-3 text-sm ${result.ok ? 'text-success' : 'text-danger'}`}>
               {result.ok
-                ? `PASS — your code opens recovery package v${result.version} (${
+                ? `PASS - your code opens recovery package v${result.version} (${
                     result.source === 'target' ? 'checked against the stored copy' : 'checked on this device'
                   }). Nothing was restored.`
                 : result.reason === 'no-package'
                   ? 'No recovery package is available to test on this device.'
-                  : 'FAIL — that code did not open your recovery package.'}
+                  : 'FAIL - that code did not open your recovery package.'}
             </p>
           ) : null}
         </Group>
@@ -480,16 +480,16 @@ export function SecureBackupScreen() {
           <InfoRow label="Status" value={driveLabel} />
           <InfoRow
             label="Last Backup"
-            value={drive?.lastBackupAt ? new Date(drive.lastBackupAt).toLocaleString() : '—'}
+            value={drive?.lastBackupAt ? new Date(drive.lastBackupAt).toLocaleString() : ' - '}
           />
-          <InfoRow label="Backup Size" value={drive?.bytes ? formatBytes(drive.bytes) : '—'} />
+          <InfoRow label="Backup Size" value={drive?.bytes ? formatBytes(drive.bytes) : ' - '} />
           <InfoRow
             label="Current Generation"
-            value={drive?.generation ? `g${drive.generation}` : '—'}
+            value={drive?.generation ? `g${drive.generation}` : ' - '}
           />
           <InfoRow
             label="Last Successful Backup"
-            value={drive?.lastSuccessAt ? new Date(drive.lastSuccessAt).toLocaleString() : '—'}
+            value={drive?.lastSuccessAt ? new Date(drive.lastSuccessAt).toLocaleString() : ' - '}
           />
           {/*
             Kept even after a later success. "It works now" and "it failed on
@@ -500,7 +500,7 @@ export function SecureBackupScreen() {
             label="Last Failure"
             value={
               drive?.lastFailure
-                ? `${new Date(drive.lastFailure.at).toLocaleString()} — ${drive.lastFailure.reason}`
+                ? `${new Date(drive.lastFailure.at).toLocaleString()} - ${drive.lastFailure.reason}`
                 : 'None'
             }
           />
@@ -549,7 +549,7 @@ export function SecureBackupScreen() {
               {/*
                 Every action that conflicts with work in flight is disabled from
                 one flag, so a second backup cannot be started from the screen.
-                The controller holds the real lock — a disabled button is a
+                The controller holds the real lock - a disabled button is a
                 courtesy, not a guarantee, and a background trigger does not
                 look at buttons.
               */}

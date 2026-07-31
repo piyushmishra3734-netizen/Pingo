@@ -5,7 +5,7 @@ import { useId } from 'react';
 import { COUNTRIES, flagFor, type Country } from './countries.js';
 
 /**
- * The phone number field — § 6.2.
+ * The phone number field - § 6.2.
  *
  * A country pill beside the number, exactly as the wireframe draws it, and the
  * two together assemble the E.164 string the backend wants.
@@ -15,7 +15,7 @@ import { COUNTRIES, flagFor, type Country } from './countries.js';
  * **The pill is a `<select>`, not a searchable bottom sheet.** The sheet is the
  * right answer at 250 countries; at the curated list in `countries.ts` it would
  * be a search box over one screenful. The native control also brings keyboard
- * navigation, type-ahead and platform pickers for free — on a phone it already
+ * navigation, type-ahead and platform pickers for free - on a phone it already
  * *is* a bottom sheet. It is styled as the pill from the wireframe, so the
  * affordance the design specifies is unchanged.
  *
@@ -31,7 +31,7 @@ import { COUNTRIES, flagFor, type Country } from './countries.js';
 export interface PhoneFieldProps {
   country: Country;
   onCountryChange: (country: Country) => void;
-  /** National digits only — no dial code, no punctuation. */
+  /** National digits only - no dial code, no punctuation. */
   digits: string;
   onDigitsChange: (digits: string) => void;
   disabled?: boolean;

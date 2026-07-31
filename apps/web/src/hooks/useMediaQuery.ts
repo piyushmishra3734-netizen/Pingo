@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 /**
  * Subscribe to a CSS media query from JavaScript.
  *
- * Used only where layout *structure* changes, never for styling — a size that
+ * Used only where layout *structure* changes, never for styling - a size that
  * merely changes padding or type belongs in a Tailwind breakpoint. Here it
  * decides whether the chats route renders one pane or two, which is a different
  * component tree, not a different set of classes.

@@ -11,7 +11,7 @@ import { VitePWA } from 'vite-plugin-pwa';
  *
  * The camera, the microphone and WebRTC all require a *secure context*. The
  * browser grants that to `localhost` as a special case, which is why everything
- * works on this machine over plain HTTP — but a phone reaching
+ * works on this machine over plain HTTP - but a phone reaching
  * `http://192.168.x.x:5173` is not localhost, so `navigator.mediaDevices` is
  * simply `undefined` there. Not a permission prompt, not an error: the API does
  * not exist. Serving over HTTPS is the only thing that fixes it.
@@ -29,7 +29,7 @@ export default defineConfig({
      * What makes PINGO installable at all.
      *
      * Before this there was no manifest and no service worker, which meant
-     * `beforeinstallprompt` never fired anywhere — no browser on any platform
+     * `beforeinstallprompt` never fired anywhere - no browser on any platform
      * offered to install it. A page with an apple-mobile-web-app meta tag and
      * nothing else is not a PWA; it is a website that has read about them.
      */
@@ -37,7 +37,7 @@ export default defineConfig({
       /*
        * The service worker updates itself and takes over immediately.
        *
-       * The alternative — waiting for every tab to close — means somebody who
+       * The alternative - waiting for every tab to close - means somebody who
        * keeps PINGO open for days runs an old build indefinitely, and a chat
        * app is exactly the kind of thing people never close. `autoUpdate` plus
        * `skipWaiting` costs a reload at an awkward moment; the alternative
@@ -47,7 +47,7 @@ export default defineConfig({
       includeAssets: ['pingo-icon.png', 'pingo-maskable.png', 'pingo-wordmark.png'],
 
       manifest: {
-        name: 'PINGO — Connect. Privately.',
+        name: 'PINGO. Connect. Privately.',
         // What fits under a home-screen icon. Anything longer is truncated by
         // the launcher, which is worse than choosing the short form yourself.
         short_name: 'PINGO',
@@ -110,8 +110,8 @@ export default defineConfig({
          *
          * Workbox matches routes in registration order and the generated worker
          * registers the navigateFallback route *before* anything in
-         * `runtimeCaching`. So the NetworkFirst navigation route below — added
-         * precisely to stop stale HTML — never ran once: every navigation was
+         * `runtimeCaching`. So the NetworkFirst navigation route below - added
+         * precisely to stop stale HTML - never ran once: every navigation was
          * answered from the precache, which meant a deploy could not be seen
          * until the worker updated and the page was loaded again.
          *
@@ -138,7 +138,7 @@ export default defineConfig({
              *
              * Measured, not assumed: with the shell served from precache, a
              * browser that already had PINGO open loaded the *previous*
-             * bundle even though the new one was live — the HTML came from
+             * bundle even though the new one was live - the HTML came from
              * disk, so it referenced the old hashed assets, and the fresh
              * service worker could only take effect the load after that. For
              * ordinary features a visit of lag is invisible. For a fix to the
@@ -147,7 +147,7 @@ export default defineConfig({
              *
              * Three seconds, then fall back to the cached shell. Long enough
              * that a slow connection still gets the current build, short
-             * enough that a dead one still opens — which is the offline
+             * enough that a dead one still opens - which is the offline
              * guarantee, kept.
              */
             urlPattern: ({ request }) => request.mode === 'navigate',
@@ -157,7 +157,7 @@ export default defineConfig({
               networkTimeoutSeconds: 3,
               /*
                * Every route stores under one key, because every route is the
-               * same document — this is a single-page app and the server hands
+               * same document - this is a single-page app and the server hands
                * back the identical shell for `/chats` and for a deep link into
                * a conversation.
                *
@@ -179,7 +179,7 @@ export default defineConfig({
              * Supabase is deliberately never cached.
              *
              * Messages, stories and Pings are the whole product and they are
-             * *supposed* to expire — a cached Ping is a Ping that outlived its
+             * *supposed* to expire - a cached Ping is a Ping that outlived its
              * view limit, which is the one promise this app cannot break. So
              * the network is the only source, and offline means the app opens
              * and shows what it already had in memory, not that it serves
@@ -220,7 +220,7 @@ export default defineConfig({
     /*
      * Bound to every interface so a phone on the same Wi-Fi can reach it.
      * Without this Vite listens on 127.0.0.1 only and the LAN address refuses
-     * the connection — which reads as "the server is down" from the phone.
+     * the connection - which reads as "the server is down" from the phone.
      */
     host: true,
   },

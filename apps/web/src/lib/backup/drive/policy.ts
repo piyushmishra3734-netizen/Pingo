@@ -11,7 +11,7 @@
  * the app is in the background with nobody present. The web cannot without our
  * server holding a credential that reads the user's Drive, which is a worse
  * trade than asking again. So on the web a backup runs when the user asks, or
- * while the tab is open — and the screen says exactly that rather than
+ * while the tab is open - and the screen says exactly that rather than
  * promising something that will silently never happen.
  */
 export type BackupTrigger = 'manual' | 'background' | 'periodic';
@@ -43,7 +43,7 @@ export function policyFor(isNative: boolean): BackupPolicy {
 /**
  * Should an automatic backup run now?
  *
- * Manual always runs — a user who pressed the button has asked, and refusing
+ * Manual always runs - a user who pressed the button has asked, and refusing
  * because a timer has not elapsed would be the app arguing with them.
  */
 export function shouldBackup(

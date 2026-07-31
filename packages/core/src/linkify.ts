@@ -14,8 +14,8 @@
  *
  * So three things are linked and nothing else:
  *
- *   1. Anything with an explicit `http://` or `https://` — unambiguous.
- *   2. Anything starting `www.` — unambiguous by convention.
+ *   1. Anything with an explicit `http://` or `https://` - unambiguous.
+ *   2. Anything starting `www.` - unambiguous by convention.
  *   3. A bare domain whose suffix is in `COMMON_TLDS` below.
  *
  * The third is the compromise. People do type `pingochat.pages.dev` with no
@@ -26,7 +26,7 @@
  * ## Only `http` and `https` are ever produced
  *
  * `javascript:`, `data:` and friends are not matched by any branch, and a bare
- * domain is prefixed with `https://` rather than passed through — so nothing
+ * domain is prefixed with `https://` rather than passed through - so nothing
  * here can produce a URL scheme that executes.
  */
 
@@ -39,7 +39,7 @@ export interface LinkSegment {
   kind: 'link';
   /** As typed, so the message still reads the way it was written. */
   value: string;
-  /** Always absolute and always http(s) — safe to put in an `href`. */
+  /** Always absolute and always http(s) - safe to put in an `href`. */
   href: string;
 }
 
@@ -49,7 +49,7 @@ export type MessageSegment = TextSegment | LinkSegment;
  * Suffixes a bare domain may end in to be treated as a link.
  *
  * Short on purpose. Every entry here is a string that people type meaning "a
- * website" far more often than they type it meaning anything else — which is
+ * website" far more often than they type it meaning anything else - which is
  * why `js`, `txt`, `md`, `sh` and `py` are absent despite being real TLDs or
  * looking like them.
  */
@@ -62,8 +62,8 @@ const COMMON_TLDS = [
 /**
  * One pass, three alternatives, in order of confidence.
  *
- * The bare-domain branch requires the TLD to be followed by a boundary — a
- * slash, a query, or the end of the token — so `example.com` matches and
+ * The bare-domain branch requires the TLD to be followed by a boundary - a
+ * slash, a query, or the end of the token - so `example.com` matches and
  * `example.community` does not match as `example.com` + `munity`.
  */
 const LINK = new RegExp(
@@ -72,7 +72,7 @@ const LINK = new RegExp(
      * 1. Email, and it has to come first.
      *
      * Otherwise the bare-domain branch matches the half after the `@` and
-     * `write to me@example.com` turns into a link to example.com — a message
+     * `write to me@example.com` turns into a link to example.com - a message
      * that looks helpful and sends the reader somewhere they did not ask to go.
      */
     '[a-z0-9._%+-]+@[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.[a-z]{2,}',
@@ -86,7 +86,7 @@ const LINK = new RegExp(
   'gi',
 );
 
-/** An address rather than a location — the only thing that gets `mailto:`. */
+/** An address rather than a location - the only thing that gets `mailto:`. */
 const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}$/i;
 
 /**
@@ -94,7 +94,7 @@ const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}$/i;
  *
  * "Have a look at example.com." should link `example.com`, not `example.com.`.
  * Closing brackets are trimmed only when unbalanced, because plenty of real
- * URLs — Wikipedia's especially — legitimately contain them.
+ * URLs - Wikipedia's especially - legitimately contain them.
  */
 function trimTrailing(match: string): string {
   let end = match.length;
@@ -136,7 +136,7 @@ export function linkify(text: string): MessageSegment[] {
     const start = match.index;
     const value = trimTrailing(raw);
 
-    // Entirely punctuation after trimming — not a link at all.
+    // Entirely punctuation after trimming - not a link at all.
     if (!value) continue;
 
     if (start > cursor) {

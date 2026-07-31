@@ -11,7 +11,7 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
  *
  * Two gestures on one target, which is only acceptable because they mean
  * obviously different things: looking, and altering. The hold is offered on your
- * own profile alone — there is nothing to alter on somebody else's, so there it
+ * own profile alone - there is nothing to alter on somebody else's, so there it
  * is a plain button that opens the picture.
  *
  * ## Why a hold and not a small pencil badge
@@ -27,7 +27,7 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
  * The picture opens with the viewer's own fade rather than flying from its
  * position on the page. A genuine shared-element animation needs the source and
  * destination in one layout, and the viewer is portalled to `document.body`
- * precisely so it cannot be clipped by an ancestor's transform — the two
+ * precisely so it cannot be clipped by an ancestor's transform - the two
  * requirements are in direct conflict. A fade that always works beats a flight
  * that lands in the wrong place whenever the page has scrolled.
  */

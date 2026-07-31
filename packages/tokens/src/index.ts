@@ -1,5 +1,5 @@
 /**
- * @pingo/tokens — the PINGO design system, expressed as data.
+ * @pingo/tokens - the PINGO design system, expressed as data.
  *
  * The branding board is the source of truth; this package is its machine-readable
  * form. Two consumers, one definition:

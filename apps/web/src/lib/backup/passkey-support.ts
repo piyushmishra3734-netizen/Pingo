@@ -3,13 +3,13 @@
  *
  * Stage 2 measures and nothing else. The tempting way to learn whether PRF
  * works is to create a credential with the extension and read `prf.enabled`
- * back — but that enrols a passkey on the user's account, which is exactly what
+ * back - but that enrols a passkey on the user's account, which is exactly what
  * this stage is not allowed to do. So this asks the platform instead of
  * experimenting on it.
  *
  * `PublicKeyCredential.getClientCapabilities()` is the honest source: it
  * reports extension support directly and creates nothing. Where it is missing
- * the answer is genuinely unknown rather than false, and this says so — an
+ * the answer is genuinely unknown rather than false, and this says so - an
  * unknown recorded as "no" would quietly remove passkeys from platforms that
  * support them, and an unknown recorded as "yes" would promise recovery that
  * cannot happen.
@@ -21,7 +21,7 @@ export type Support = 'yes' | 'no' | 'unknown';
 export interface PasskeyCapabilities {
   /** The API exists at all. */
   webauthn: Support;
-  /** A built-in authenticator — Touch ID, Windows Hello, Android screen lock. */
+  /** A built-in authenticator - Touch ID, Windows Hello, Android screen lock. */
   platformAuthenticator: Support;
   /** Passkeys the platform can offer without being told which one. */
   discoverableCredentials: Support;

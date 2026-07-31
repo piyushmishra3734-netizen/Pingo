@@ -17,7 +17,7 @@ import { useMutuals } from '../profile/useMutuals.js';
  * ## The order is the whole feature
  *
  * Pinned first, then whoever you have spoken to most recently, then groups.
- * That is not a preference — it is what makes the screen disappear. The person
+ * That is not a preference - it is what makes the screen disappear. The person
  * you are about to Ping is almost always somebody you were talking to a minute
  * ago, and if they are the first row nobody ever reaches the search box.
  *

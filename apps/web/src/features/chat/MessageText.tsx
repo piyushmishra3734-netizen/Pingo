@@ -41,8 +41,8 @@ export function MessageText({ body, mine, className }: MessageTextProps) {
             target="_blank"
             /*
              * `noopener` stops the opened page reaching back through
-             * `window.opener`; `noreferrer` keeps this app's URL — which
-             * contains a conversation id — out of the destination's logs.
+             * `window.opener`; `noreferrer` keeps this app's URL - which
+             * contains a conversation id - out of the destination's logs.
              */
             rel="noopener noreferrer"
             // The bubble opens the context menu on long press and the row

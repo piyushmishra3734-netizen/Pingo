@@ -18,7 +18,7 @@ import { useStoryPlayer } from './useStoryPlayer.js';
  * Fullscreen story playback.
  *
  * Tap right to advance, tap left to go back, hold to pause, swipe down to
- * close, and a segmented bar shows where you are — the grammar everyone already
+ * close, and a segmented bar shows where you are - the grammar everyone already
  * knows, so there is nothing to learn. Running off the end of one person starts
  * the next, which is what makes a rail feel like a rail rather than a set of
  * separate things you keep having to go back to.
@@ -28,7 +28,7 @@ import { useStoryPlayer } from './useStoryPlayer.js';
  * The first version used two invisible buttons over the media. That cannot
  * express hold-to-pause or swipe-to-close: a button fires on release and knows
  * nothing about how long it was held or how far the finger moved. So the media
- * is a single pointer surface and the gesture is classified on release — far
+ * is a single pointer surface and the gesture is classified on release - far
  * enough down and it was a dismissal, held long enough and it was a pause and
  * never a tap, otherwise which third it landed on decides.
  *
@@ -133,7 +133,7 @@ export function StoryViewer({
    * exactly what was actually looked at.
    *
    * Keyed on the id, never the object. A story object is rebuilt whenever
-   * anything about the rail changes — including by this very call — so
+   * anything about the rail changes - including by this very call - so
    * depending on its identity means marking the same story seen forever.
    */
   const storyId = story?.id;
@@ -231,7 +231,7 @@ export function StoryViewer({
     if (held > HOLD_MS || movedY > 12 || movedX > 12) return;
 
     const bounds = event.currentTarget.getBoundingClientRect();
-    // The left third goes back and the rest advances — the proportion every
+    // The left third goes back and the rest advances - the proportion every
     // thumb already expects.
     if (event.clientX - bounds.left < bounds.width / 3) player.previous();
     else player.next();
@@ -282,7 +282,7 @@ export function StoryViewer({
    * Sharing goes to a chat, not to the OS.
    *
    * The spec's destinations are a friend and a group, which are both inside the
-   * product — handing the URL to the system share sheet would be a different
+   * product - handing the URL to the system share sheet would be a different
    * feature that happens to share the word. The sheet also enforces the rule
    * that a close-friends or specific-people story cannot be passed on at all.
    */
@@ -416,7 +416,7 @@ export function StoryViewer({
                   'transition-colors duration-instant hover:bg-white/20',
                 )}
               >
-                Seen by — tap for insights
+                Seen by - tap for insights
               </button>
             ) : (
               <StoryActions
@@ -496,7 +496,7 @@ export function StoryViewer({
  * its picture arrived. On a fast connection those are the same instant and
  * nothing looks wrong. On a slow one the five seconds run out while the image
  * is still downloading, the viewer advances, and the story is marked seen and
- * gone — the user watched an empty screen and then lost the story entirely.
+ * gone - the user watched an empty screen and then lost the story entirely.
  *
  * The player already had the mechanism: `hold()` is the counted pause that
  * long-press uses. Loading is simply another reason to wait, and because the
@@ -505,7 +505,7 @@ export function StoryViewer({
  *
  * ## Held before the first frame, not after
  *
- * The hold is taken during render — in a ref, synchronously — rather than in an
+ * The hold is taken during render - in a ref, synchronously - rather than in an
  * effect. An effect runs after paint, which leaves one frame where the clock is
  * already ticking, and that frame is exactly when a cached image would have
  * resolved. Taking it late also means a story that loads instantly briefly
@@ -562,7 +562,7 @@ function StoryImage({
           /*
            * Resolved either way. `decode()` rejects on a detached or replaced
            * image, and treating that as "never ready" would hang the story
-           * forever behind a spinner — which is a worse failure than starting
+           * forever behind a spinner - which is a worse failure than starting
            * the clock a frame early.
            */
           void event.currentTarget.decode().catch(() => undefined).finally(done);
@@ -611,7 +611,7 @@ function StoryVideo({
       playsInline
       /*
        * Muted, and deliberately. Autoplay with sound is refused by every
-       * browser, so an unmuted story would simply not start — and a story that
+       * browser, so an unmuted story would simply not start - and a story that
        * needs a tap before it plays is a story most people never see.
        */
       muted
@@ -621,7 +621,7 @@ function StoryVideo({
   );
 }
 
-/** "now", "3m", "5h" — a story never lives long enough to need more. */
+/** "now", "3m", "5h" - a story never lives long enough to need more. */
 function ago(createdAt: number): string {
   const minutes = Math.floor((Date.now() - createdAt) / 60_000);
   if (minutes < 1) return 'now';

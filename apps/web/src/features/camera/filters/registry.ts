@@ -5,7 +5,7 @@ import type { FilterDefinition } from '@pingo/core';
  *
  * Every shader here is adapted from an existing, permissively licensed project.
  * Nothing is invented where something proven exists, and **every entry carries
- * its provenance** — `attribution` is required by the type, so a filter cannot
+ * its provenance** - `attribution` is required by the type, so a filter cannot
  * be added without recording where it came from.
  *
  * Sources, all licence-verified against the GitHub API:
@@ -17,14 +17,14 @@ import type { FilterDefinition } from '@pingo/core';
  * | PixiJS filters | MIT | Chain/blend conventions |
  * | glsl-lut (mattdesl) | MIT | LUT sampling maths |
  *
- * GPUImage3 itself cannot execute in a browser — it is Swift and Metal — but
+ * GPUImage3 itself cannot execute in a browser - it is Swift and Metal - but
  * its shaders are BSD-3-Clause source and the maths ports directly to GLSL.
  * That is the honest way to "use GPUImage3" on the web.
  *
  * ## Adding one
  *
  * Append an entry. The engine reads this array and nothing else, so a new
- * filter needs no change to `GLPipeline`, the camera screen, or the UI — the
+ * filter needs no change to `GLPipeline`, the camera screen, or the UI - the
  * params render themselves from `params`.
  */
 
@@ -139,7 +139,7 @@ export const FILTERS: FilterDefinition[] = [
      * Rec. 709 luma, not a flat average of the channels.
      *
      * An average makes a pure red and a pure green the same shade of grey,
-     * which is not how eyes work — green carries most of perceived brightness.
+     * which is not how eyes work - green carries most of perceived brightness.
      * These are the weights every broadcast standard uses, and they are why
      * this looks like black-and-white film rather than a washed-out photo.
      */
@@ -232,7 +232,7 @@ export const FILTERS: FilterDefinition[] = [
     name: 'Cinematic',
     category: 'colour',
     /*
-     * Teal shadows, orange highlights — the split-tone every action film
+     * Teal shadows, orange highlights - the split-tone every action film
      * grades towards, because skin sits in the highlights and its complement
      * is what makes it pop.
      */
@@ -279,7 +279,7 @@ export const FILTERS: FilterDefinition[] = [
      *
      * Bilateral rather than Gaussian on purpose: it weights neighbours by
      * colour distance as well as position, so it softens skin *without*
-     * dissolving the eyes and mouth — which is the difference between a beauty
+     * dissolving the eyes and mouth - which is the difference between a beauty
      * filter and a smear. The tap count is a deliberate trade for 60fps on a
      * phone; the full separable version is far more expensive.
      */
@@ -297,7 +297,7 @@ export const FILTERS: FilterDefinition[] = [
             if (x == 0 && y == 0) continue;
             vec2 offset = vec2(float(x), float(y)) * step;
             vec4 sampled = texture(u_texture, uv + offset);
-            // Closer in colour, higher the weight — edges survive.
+            // Closer in colour, higher the weight - edges survive.
             float distance = length(sampled.rgb - colour.rgb);
             float weight = exp(-distance * distance * sharpness);
             total += sampled * weight;
@@ -324,7 +324,7 @@ export const FILTERS: FilterDefinition[] = [
      * new "look" becomes a new PNG rather than a new shader, which is how every
      * commercial filter pack is actually built.
      *
-     * The LUT texture binds to `u_mask` — the pipeline's second sampler — so no
+     * The LUT texture binds to `u_mask` - the pipeline's second sampler - so no
      * new uniform plumbing is needed for it.
      */
     fragmentShader: `
@@ -350,7 +350,7 @@ export const FILTERS: FilterDefinition[] = [
     name: 'Blur background',
     category: 'stylise',
     /*
-     * Needs MediaPipe's selfie segmentation — declared here, and the engine
+     * Needs MediaPipe's selfie segmentation - declared here, and the engine
      * refuses to run the pass until that capability is on. That declaration is
      * what lets a vision-dependent effect live in the same registry as a plain
      * colour filter without the renderer knowing the difference.

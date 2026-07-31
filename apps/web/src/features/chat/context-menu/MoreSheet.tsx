@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 /**
  * Level 2: the categorised sheet behind `More`.
  *
- * docs/13 § 1.2 — the category headers never move and never hide, which is what
+ * docs/13 § 1.2 - the category headers never move and never hide, which is what
  * lets a returning thumb find Star without reading. What sits *inside* a
  * category may come and go freely, because the header above it is the landmark.
  *
@@ -13,7 +13,7 @@ import { useMemo } from 'react';
  *
  * docs/13 § 3: hide what was never yours, explain what expired.
  *
- * Delete-for-everyone on someone else's message is hidden — you never had it,
+ * Delete-for-everyone on someone else's message is hidden - you never had it,
  * so you will not look for it. Nothing here expires any more: editing and
  * deleting your own message have no time limit, because what protects a reader
  * is knowing the message changed, and both changes are marked. `disabledReason`
@@ -21,7 +21,7 @@ import { useMemo } from 'react';
  *
  * ## Contextual AI
  *
- * § 4 — no header, no fixed position, present only when the message earns it.
+ * § 4 - no header, no fixed position, present only when the message earns it.
  * That is what keeps it invisible rather than merely optional: four permanent
  * extra rows would be the AI tab again, scattered.
  */
@@ -41,7 +41,7 @@ interface Category {
 
 export interface MoreSheetProps {
   message: Message;
-  /** Whether the viewer wrote it — decides what was ever theirs to do. */
+  /** Whether the viewer wrote it - decides what was ever theirs to do. */
   mine: boolean;
   onBack: () => void;
   onDone: () => void;
@@ -77,7 +77,7 @@ export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetP
       /*
        * No time limit. The window was removed because the thing that protects a
        * reader is knowing a message changed, not the change becoming impossible
-       * — and every edit is marked, every delete leaves a tombstone.
+       * - and every edit is marked, every delete leaves a tombstone.
        */
       edit.push({ label: 'Edit', onSelect: run(actions.edit) });
     }
@@ -117,7 +117,7 @@ export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetP
 
   /*
    * The AI group sits above the fixed categories, has no header, and is absent
-   * when nothing applies. § 4 — Translate only on text that is not the reader's
+   * when nothing applies. § 4 - Translate only on text that is not the reader's
    * language, Speak only where there is something to read aloud.
    */
   const ai = useMemo<Item[]>(() => {
@@ -202,7 +202,7 @@ function Group({ items }: { items: Item[] }) {
  * Deliberately crude: if the text carries script the reader's locale does not
  * use, offering a translation is obviously useful. Anything subtler needs real
  * language detection, and guessing wrong here shows a Translate row on a
- * message that plainly does not need one — which is the noise § 4 exists to
+ * message that plainly does not need one - which is the noise § 4 exists to
  * prevent.
  */
 function isForeign(text: string): boolean {

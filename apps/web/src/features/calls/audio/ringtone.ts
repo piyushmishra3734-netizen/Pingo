@@ -5,7 +5,7 @@
  *
  * Every recognisable ringtone is somebody's copyright, and a generic one still
  * means shipping and decoding an asset for a sound that is two sine waves and a
- * timer. The classic telephone ring *is* two sine waves — so it is generated,
+ * timer. The classic telephone ring *is* two sine waves - so it is generated,
  * which costs nothing to download, cannot be mis-licensed, and stays in tune at
  * any sample rate.
  *
@@ -20,14 +20,14 @@
  * Ringback and busy are the network's own tones, reproduced rather than
  * imitated. The ringtone is not one: both ends once played the same 440+480 Hz
  * pair differing only in rhythm, so with a phone face-down an incoming call and
- * an outgoing one sounded alike — the one moment the difference matters most.
+ * an outgoing one sounded alike - the one moment the difference matters most.
  *
  * ## Autoplay
  *
  * An `AudioContext` created before a user gesture starts suspended. Placing a
  * call is a gesture, so the caller's ringback always plays. An *incoming* call
  * is not, so on a page the user has not touched the context stays suspended and
- * this makes no sound — the browser's rule, not a bug here. `resume()` is
+ * this makes no sound - the browser's rule, not a bug here. `resume()` is
  * attempted anyway, because a page that has been interacted with once is
  * allowed.
  */
@@ -45,7 +45,7 @@ interface Cadence {
  * Loudness, and why these numbers are not small.
  *
  * The first values were chosen against headphones on a quiet desk and were far
- * too quiet on a phone at arm's length — a ring nobody hears is a missed call.
+ * too quiet on a phone at arm's length - a ring nobody hears is a missed call.
  *
  * These sit above where clipping would normally start, which is only safe
  * because of the limiter in `startRinging`. Without it, a gain this high would
@@ -75,7 +75,7 @@ const CADENCES: Record<RingKind, Cadence> = {
  *
  * The incoming ringtone is not. A caller and a callee were hearing the same
  * 440+480 Hz pair differing only in rhythm, so an incoming call and an outgoing
- * one sounded alike with the phone face-down — the one moment the difference
+ * one sounded alike with the phone face-down - the one moment the difference
  * matters most. So an incoming call plays a short rising figure instead: a
  * musical phrase reads instantly as "answer me" rather than "waiting".
  */
@@ -84,7 +84,7 @@ const VOICES: Record<RingKind, number[][]> = {
   busy: [[480, 620]],
   /*
    * A short major-pentatonic phrase, played one note per beat and looping with
-   * a rest — the shape almost every stock ringtone has, because a pentatonic
+   * a rest - the shape almost every stock ringtone has, because a pentatonic
    * run has no dissonant interval and so cannot sound wrong however it is cut
    * off. Each note is a root plus its octave and a soft fifth, which is what
    * gives it a bell's body instead of a test tone's thinness.
@@ -133,7 +133,7 @@ export function startRinging(kind: RingKind): Ringer {
    *
    * Each note stacks three partials and rings on past its beat, so two or three
    * overlap at any moment. Their amplitudes sum before the output, and once
-   * that sum passes 1.0 the waveform is clipped flat — which is heard as a
+   * that sum passes 1.0 the waveform is clipped flat - which is heard as a
    * buzz, not as volume. Raising the gain alone therefore stops making the ring
    * louder and starts making it worse.
    *
@@ -173,7 +173,7 @@ export function startRinging(kind: RingKind): Ringer {
        *
        * The network tones sustain because that is what a telephone exchange
        * does. A melody that sustains each note into the next has no rhythm and
-       * sounds like a stuck chord, so this decays the way anything hit does —
+       * sounds like a stuck chord, so this decays the way anything hit does  - 
        * which is also what makes it read as a ringtone rather than an alarm.
        */
       envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration * 2.4);

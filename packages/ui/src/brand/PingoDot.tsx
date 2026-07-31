@@ -1,7 +1,7 @@
 import { cn } from '../utils/cn.js';
 
 /**
- * The purple dot — PINGO's brand element, used on its own.
+ * The purple dot - PINGO's brand element, used on its own.
  *
  * The board assigns it five jobs: online indicator, typing animation, loading
  * state, notification badge and live status. Because they are all the same dot,
@@ -11,7 +11,7 @@ import { cn } from '../utils/cn.js';
  */
 
 export type DotState =
-  /** Present but inert — a static mark. */
+  /** Present but inert - a static mark. */
   | 'idle'
   /** A slow breath. Never a blink: blinking demands attention. */
   | 'online'

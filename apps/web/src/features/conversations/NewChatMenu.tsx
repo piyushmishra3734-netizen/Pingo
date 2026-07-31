@@ -8,7 +8,7 @@ import { Sheet } from '../../components/Sheet.js';
  *
  * It used to go straight to the contact list, which was right while starting a
  * chat was the only thing you could start. Now there are two, and a `+` that
- * silently picks one of them makes the other undiscoverable — there is nowhere
+ * silently picks one of them makes the other undiscoverable - there is nowhere
  * else a group could plausibly be created from.
  *
  * Two rows and no more. A menu that grows past about four entries stops being a

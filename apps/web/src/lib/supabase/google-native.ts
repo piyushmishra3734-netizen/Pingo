@@ -19,7 +19,7 @@ import type { PingoSupabaseClient } from './client.js';
  *
  * ## The audience problem, which is the whole reason this is subtle
  *
- * The Android OAuth client authorises *this app* — it is matched on package
+ * The Android OAuth client authorises *this app* - it is matched on package
  * name and signing certificate and holds no secret. But the ID token it
  * produces has to be accepted by Supabase, and Supabase only trusts tokens
  * issued for **its own** client. So the native sign-in is told a
@@ -33,7 +33,7 @@ import type { PingoSupabaseClient } from './client.js';
  * ## `signInWithIdToken`, not a session we assemble
  *
  * The plugin hands back an ID token and nothing more. Supabase verifies it
- * against Google's keys and issues its own session — so the account, its RLS
+ * against Google's keys and issues its own session - so the account, its RLS
  * identity and its refresh cycle are produced exactly as they are on the web.
  * Nothing here fabricates a session, and the token never becomes one client
  * side.
@@ -42,7 +42,7 @@ import type { PingoSupabaseClient } from './client.js';
  * is why `start()` still returns nothing and why no screen had to change.
  */
 
-/** The *Web* client ID. See the audience note above — not the Android one. */
+/** The *Web* client ID. See the audience note above - not the Android one. */
 const SERVER_CLIENT_ID = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID?.trim();
 
 export class SupabaseNativeGoogleAuth implements OAuthAuth {
@@ -55,7 +55,7 @@ export class SupabaseNativeGoogleAuth implements OAuthAuth {
    *
    * `GoogleAuth.initialize` touches native code, and doing it while the app is
    * still starting delays first paint to prepare something most launches never
-   * use — nobody signs in twice.
+   * use - nobody signs in twice.
    */
   #init(): void {
     if (this.#ready) return;
@@ -64,7 +64,7 @@ export class SupabaseNativeGoogleAuth implements OAuthAuth {
       clientId: SERVER_CLIENT_ID,
       /*
        * The same three as the web flow. A scope we do not need is a scope we do
-       * not ask for, and the two doors must not differ in what they request —
+       * not ask for, and the two doors must not differ in what they request  - 
        * a person signing in on a phone should not grant more than on a laptop.
        */
       scopes: ['openid', 'email', 'profile'],

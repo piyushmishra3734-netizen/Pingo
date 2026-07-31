@@ -13,10 +13,10 @@ import { COUNTRIES } from './countries.js';
  *
  * One context serves email and phone, which is what lets `CreatePasswordScreen`
  * and `LoginPasswordScreen` each exist once instead of twice. The screens never
- * branch on `kind` for behaviour — only for the label they show back to the user.
+ * branch on `kind` for behaviour - only for the label they show back to the user.
  *
  * Not in the URL. `/signup/password?email=…` would put an address or a phone
- * number in browser history, referrers and any analytics that records paths —
+ * number in browser history, referrers and any analytics that records paths  - 
  * and the privacy rules forbid personal data in query strings.
  *
  * The cost is that a hard refresh mid-flow loses it. That is handled honestly: a
@@ -80,7 +80,7 @@ export function useIdentityFlow(): IdentityFlowValue {
 }
 
 /**
- * How an identifier is shown back to the user — the recap line in § 13.2.
+ * How an identifier is shown back to the user - the recap line in § 13.2.
  *
  * Phone numbers get spaced after the country code so a long run of digits is
  * scannable; addresses are shown as typed, because breaking one up would make it
@@ -90,7 +90,7 @@ export function useIdentityFlow(): IdentityFlowValue {
  * A regex cannot do this: dial codes are a variable-length prefix code, so
  * `+919876543210` reads as `+91` (India) or `+919…` depending only on which
  * codes exist. Guessing with `\d{1,3}` renders `+91 98765 43210` as
- * `+919 87654 3210` — the country wrong and every group shifted by one.
+ * `+919 87654 3210` - the country wrong and every group shifted by one.
  */
 export function formatIdentity(identity: Identity): string {
   if (identity.kind === 'email') return identity.value;

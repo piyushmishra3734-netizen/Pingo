@@ -41,7 +41,7 @@ import { useConversationActions } from './useConversationActions.js';
 import { useUnmuteConfirm } from './useUnmuteConfirm.js';
 
 /**
- * The conversation list — header, search, filters, rows, selection.
+ * The conversation list - header, search, filters, rows, selection.
  *
  * The header is sticky and glass-backed so the wordmark stays put while rows
  * scroll beneath it, which is what keeps a long list feeling anchored. In
@@ -51,7 +51,7 @@ import { useUnmuteConfirm } from './useUnmuteConfirm.js';
  * ## Archived chats are not in `conversations`
  *
  * They are partitioned out here, once, rather than filtered at each of the four
- * places that read the list. Everything downstream — filters, counts, search —
+ * places that read the list. Everything downstream - filters, counts, search  - 
  * therefore describes the main list without having to remember to exclude them.
  */
 
@@ -174,7 +174,7 @@ export function ConversationList({
   /** Single selection unlocks the actions that only mean anything for one chat. */
   const only = selected.length === 1 ? selected[0] : undefined;
 
-  /** Runs an action, then leaves selection mode — the job is done. */
+  /** Runs an action, then leaves selection mode - the job is done. */
   const andClose = (work: Promise<void> | void) => {
     void Promise.resolve(work).then(clearSelection);
   };
@@ -265,7 +265,7 @@ export function ConversationList({
 
                 {/*
                   Single-selection only. "Chat info" for four chats has no
-                  meaning, and docs/13 § 3 applies here too — hide what was
+                  meaning, and docs/13 § 3 applies here too - hide what was
                   never available rather than offering it and refusing.
                 */}
                 {only && (
@@ -372,7 +372,7 @@ export function ConversationList({
 
               {/*
                 Custom lists continue the same row rather than getting their own.
-                They are filters — a second row would imply a second kind of
+                They are filters - a second row would imply a second kind of
                 thing and spend permanent vertical space saying so.
               */}
               {lists.map((list) => (
@@ -427,7 +427,7 @@ export function ConversationList({
              * The story rail scrolls away with the rows rather than pinning to
              * the header. Stories are the day's news; the conversations are why
              * the screen exists. Hidden while searching, filtering or selecting
-             * — all three are "find me a conversation", and the rail answers
+             * - all three are "find me a conversation", and the rail answers
              * none of them.
              */
             !searching && filter === 'all' && !activeList && !selectionMode ? (

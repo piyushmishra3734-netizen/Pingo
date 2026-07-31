@@ -1,4 +1,4 @@
-# PINGO — crawl rules for public marketing surfaces.
+# PINGO. crawl rules for public marketing surfaces.
 # App shells behind sign-in are still reachable via SPA fallback; they are not
 # listed in the sitemap and add little index value.
 

@@ -3,13 +3,13 @@
  *
  * Supabase keeps exactly one session, under `pingo.auth.session`. Switching
  * accounts therefore means keeping the others somewhere of our own and putting
- * the chosen one back into that slot — which is all this file does.
+ * the chosen one back into that slot - which is all this file does.
  *
  * ## What is stored, and the honest cost
  *
  * A saved account holds a refresh token. That is the same class of secret the
  * app already keeps for the signed-in account, so this is not a new *kind* of
- * exposure — but it is five times as much of it. Somebody with the device and
+ * exposure - but it is five times as much of it. Somebody with the device and
  * an unlocked browser can reach every saved account, not just the current one.
  *
  * That is the trade every app with account switching makes, and it is worth
@@ -74,7 +74,7 @@ export function savedAccounts(): SavedAccount[] {
  * Records the account that is signed in now.
  *
  * Called on every successful sign-in and whenever the session refreshes, so
- * the stored token stays usable — a saved account whose refresh token has
+ * the stored token stays usable - a saved account whose refresh token has
  * expired is a face in a list that fails when tapped, which is worse than not
  * offering it.
  */

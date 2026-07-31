@@ -15,10 +15,10 @@ import { NavLink } from 'react-router-dom';
 import { useNotifications } from '../features/notifications/NotificationContext.js';
 
 /**
- * The floating navigation dock — "Glass effect. Floating. Always accessible."
+ * The floating navigation dock - "Glass effect. Floating. Always accessible."
  *
  * Five destinations: Chats, Calls, Camera, Communities, Profile. Camera sits in
- * the middle because it is the one *creating* action among four browsing ones —
+ * the middle because it is the one *creating* action among four browsing ones  - 
  * the same reason it is centred in every camera-first product.
  *
  * Five is the ceiling. Settings is reached from the Chats header and from
@@ -29,7 +29,7 @@ import { useNotifications } from '../features/notifications/NotificationContext.
  * pill: the brand element already means "here, now" everywhere else in the
  * product, so reusing it costs the user nothing to learn.
  *
- * It floats above content on every size — phone and desktop alike — which is what
+ * It floats above content on every size - phone and desktop alike - which is what
  * keeps the two platforms feeling like one product.
  */
 
@@ -96,7 +96,7 @@ export function Dock() {
 
                   It used to cross-fade: the old dot faded out while the new one
                   faded in, so at the midpoint there were two half-dots and no
-                  sense of having gone anywhere. Now it also *arrives* — dropping
+                  sense of having gone anywhere. Now it also *arrives* - dropping
                   the last couple of pixels into place and widening briefly, so
                   the eye is pulled to where you now are rather than being left
                   to notice which of two marks survived.
@@ -123,7 +123,7 @@ export function Dock() {
 
                 {/*
                   Notifications hang off Profile, and the dock is the one thing
-                  on screen everywhere — which is the point. A dot rather than a
+                  on screen everywhere - which is the point. A dot rather than a
                   count: the number is on the screen it leads to, and two
                   numbers side by side on one bar is a scoreboard.
                 */}

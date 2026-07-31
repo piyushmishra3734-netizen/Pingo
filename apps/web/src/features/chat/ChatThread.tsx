@@ -85,7 +85,7 @@ export function ChatThread({
   const { startCall, startGroupCall } = useCall();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
-  /** Pictures chosen but not yet sent — the composer owns them until then. */
+  /** Pictures chosen but not yet sent - the composer owns them until then. */
   const [pending, setPending] = useState<File[]>();
   const documentRef = useRef<HTMLInputElement>(null);
   /** Which of the three small attach sheets is open, if any. */
@@ -106,13 +106,13 @@ export function ChatThread({
    *
    * The header's own avatar is transformed back to where the row's was and the
    * transform animated away, so there is one avatar rather than a clone flying
-   * over everything. Silent when nothing was pressed — a thread opened from a
+   * over everything. Silent when nothing was pressed - a thread opened from a
    * notification or a reload has nothing to travel from.
    */
   const headerAvatar = useRef<HTMLSpanElement>(null);
   /*
    * The ref goes on a wrapper rather than on `Avatar` itself, which is not a
-   * forwardRef — and making it one to satisfy a navigation transition would
+   * forwardRef - and making it one to satisfy a navigation transition would
    * push a concern about routing down into a primitive that has nothing to do
    * with it.
    */
@@ -161,7 +161,7 @@ export function ChatThread({
    * A direct call needs a mutual follow; a group call does not.
    *
    * `mutuals` is undefined while loading, so the buttons are not briefly
-   * disabled on first render — a control that flickers to disabled reads as
+   * disabled on first render - a control that flickers to disabled reads as
    * broken rather than as loading.
    *
    * The rule for a direct call is that a stranger must not be able to make your
@@ -169,7 +169,7 @@ export function ChatThread({
    * added by a friend or you walked in through a link, and either way you
    * agreed to be in the room. Requiring friendship *inside* the room would mean
    * a group of six where four people can be called and two cannot, which is not
-   * a privacy rule — it is a broken button.
+   * a privacy rule - it is a broken button.
    */
   const isGroup = conversation.kind !== 'direct';
   const canCall = isGroup
@@ -179,7 +179,7 @@ export function ChatThread({
   /**
    * Why calling is unavailable, in a sentence. Undefined when it is available.
    *
-   * The rule itself is not new — calls have always needed a mutual follow — but
+   * The rule itself is not new - calls have always needed a mutual follow - but
    * it was expressed only as a greyed-out icon, which reads as the feature
    * being broken rather than as a condition the user can do something about.
    */
@@ -195,7 +195,7 @@ export function ChatThread({
   const [callNotice, setCallNotice] = useState<string>();
 
   /**
-   * Places the call this thread is for — one person, or the whole room.
+   * Places the call this thread is for - one person, or the whole room.
    *
    * One function rather than a ternary at each of the three call sites, because
    * the three sites are the voice button, the video button and the menu, and
@@ -234,7 +234,7 @@ export function ChatThread({
    *
    * Only under the *last* message, and only while it is still mine. A reply is
    * a stronger acknowledgement than a receipt, so once they answer, the line
-   * goes — leaving it there would be telling you something their own message
+   * goes - leaving it there would be telling you something their own message
    * already told you, and it would stack up down a long thread as a row of
    * receipts for messages nobody is waiting on any more.
    *
@@ -310,13 +310,13 @@ export function ChatThread({
    *
    * ## Keyed on the newest message, not on the cluster count
    *
-   * This used to depend on `groups.length`, which is the number of *clusters* —
+   * This used to depend on `groups.length`, which is the number of *clusters*  - 
    * and consecutive messages from one person inside five minutes are one
    * cluster. So a burst of four moved this number once. The reader's cursor
    * advanced for the first message and then stopped, and the sender watched one
    * message turn to "Seen" while the next three stayed on a single tick
    * forever. Leaving the chat and coming back fixed it, because that remounts
-   * and re-runs this — which is exactly the workaround people found.
+   * and re-runs this - which is exactly the workaround people found.
    *
    * The last message's id is the honest key: it changes when, and only when,
    * something new arrives at the bottom. `messages.length` would also do it,
@@ -398,7 +398,7 @@ export function ChatThread({
           The identity block goes wherever "who is this?" is answered: a
           person's profile in a direct chat, the group's own info in a group.
           It used to be a link in both cases, and in a group it pointed at
-          `/chats` — so the one place a group's roster could plausibly be
+          `/chats` - so the one place a group's roster could plausibly be
           reached bounced you back to the list you came from.
         */}
         <Identity
@@ -433,7 +433,7 @@ export function ChatThread({
               {conversation.title}
             </span>
             {/*
-              Typing replaces the presence line rather than sitting beside it —
+              Typing replaces the presence line rather than sitting beside it  - 
               same rule as the conversation list.
             */}
             {isTyping ? (
@@ -453,7 +453,7 @@ export function ChatThread({
           {/*
             Present and pressable even when calling is not available, because a
             dimmed icon cannot say *why*. Pressing one states the reason where
-            there is room for a sentence — the menu — which is the difference
+            there is room for a sentence - the menu - which is the difference
             between "this app's calling is broken" and "you two do not follow
             each other yet". Hiding them instead would make the feature look
             absent rather than conditional.
@@ -826,7 +826,7 @@ export function ChatThread({
  * The header's identity block: a link to a profile, or a button to group info.
  *
  * One component rather than two branches at the call site, because the two
- * differ only in what happens when you press them — everything visual, the
+ * differ only in what happens when you press them - everything visual, the
  * avatar, the name, the presence line, is shared, and duplicating it to change
  * the wrapper is how the two drift apart.
  */

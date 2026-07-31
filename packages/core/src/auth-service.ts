@@ -4,18 +4,18 @@
  * The second data boundary in PINGO, and it follows the same rule as
  * `ChatService`: screens depend on this interface, never on a concrete
  * implementation. Supabase lives behind `SupabaseAuthService` in `apps/web`, and
- * swapping it — or running a fake in tests — is a one-line change at the
+ * swapping it - or running a fake in tests - is a one-line change at the
  * composition root.
  *
  * ## Shape follows the identity model
  *
  * [docs/01 § 1](../../../docs/01-onboarding-auth.md#1-identity-model--one-account-three-doors):
  * *one account, three doors.* Not three account types. So the methods are grouped
- * per door — `service.email.signIn(...)` — rather than flattened into
+ * per door - `service.email.signIn(...)` - rather than flattened into
  * `signInWithEmail` / `signInWithGoogle` / `signInWithPhone`. Adding a fourth
  * door later is a new member here, not a reshaped call site
  * ([§ 20.2](../../../docs/01-onboarding-auth.md#202-architectural-seams-in-packagescore)
- * — *auth methods are a list, not a type*).
+ * - *auth methods are a list, not a type*).
  *
  * ## There is no OTP in this product
  *
@@ -26,8 +26,8 @@
  * The consequence is worth stating plainly, because it is a security decision and
  * not merely a simplification: **an address or number is no longer proven to
  * belong to the person signing up.** § 1 called that proof the point of the code.
- * Anything that depends on it — contact discovery by phone (§ 12), the email
- * reset link in the recovery triage (§ 14) — needs a verification step of its own
+ * Anything that depends on it - contact discovery by phone (§ 12), the email
+ * reset link in the recovery triage (§ 14) - needs a verification step of its own
  * before it can be trusted, and cannot assume the identifier on the account was
  * ever checked.
  */
@@ -47,7 +47,7 @@ export type AuthMethodKind = 'email' | 'google' | 'phone';
  * The signed-in identity.
  *
  * Deliberately thin: id, the contact points, and which doors are attached.
- * Display identity — name, username, photo, bio — is *profile* data and belongs
+ * Display identity - name, username, photo, bio - is *profile* data and belongs
  * to `ChatService`, not here. Keeping them apart is what stops the auth layer
  * from growing into a second user store.
  */
@@ -55,7 +55,7 @@ export interface AuthUser {
   id: string;
   email?: string;
   phone?: string;
-  /** Attached sign-in methods. Never empty — § 1.1 rule 2. */
+  /** Attached sign-in methods. Never empty - § 1.1 rule 2. */
   methods: AuthMethodKind[];
   createdAt: number;
 }
@@ -74,9 +74,9 @@ export interface AuthSession {
  * rewords something.
  */
 export type AuthErrorCode =
-  /** Wrong password, or no such account. Deliberately indistinguishable — § 13.2. */
+  /** Wrong password, or no such account. Deliberately indistinguishable - § 13.2. */
   | 'invalid_credentials'
-  /** Sign-up hit an identifier that already has an account — § 17 routes to Log In. */
+  /** Sign-up hit an identifier that already has an account - § 17 routes to Log In. */
   | 'identity_exists'
   /**
    * The account exists but its identifier was never confirmed, and the backend
@@ -84,7 +84,7 @@ export type AuthErrorCode =
    * has no confirmation step to send them to.
    */
   | 'identity_unconfirmed'
-  /** The door is closed at the backend — the provider is switched off. */
+  /** The door is closed at the backend - the provider is switched off. */
   | 'provider_disabled'
   | 'signup_disabled'
   /** Too many attempts. `retryAfterSeconds` carries the countdown when known. */
@@ -99,7 +99,7 @@ export type AuthErrorCode =
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode;
-  /** Present on `rate_limited`, so the UI can show a real countdown — § 13.2. */
+  /** Present on `rate_limited`, so the UI can show a real countdown - § 13.2. */
   readonly retryAfterSeconds?: number;
 
   constructor(code: AuthErrorCode, message: string, retryAfterSeconds?: number) {
@@ -114,7 +114,7 @@ export class AuthError extends Error {
  * A door opened with an identifier and a password.
  *
  * Email and phone differ only in what the identifier *is*, so they share one
- * interface. That is not a shortcut — it is why `CreatePasswordScreen` and
+ * interface. That is not a shortcut - it is why `CreatePasswordScreen` and
  * `LoginPasswordScreen` each exist once instead of twice, and why adding a
  * third identifier type would need no new screens at all.
  */
@@ -122,21 +122,21 @@ export interface PasswordAuth {
   /**
    * Creates the account and signs in.
    *
-   * @throws `AuthError` with `identity_exists` when the identifier is taken —
+   * @throws `AuthError` with `identity_exists` when the identifier is taken  - 
    * § 17 requires routing to Log In rather than creating a second account, which
    * is unrecoverable in a messaging product because the wrong account holds the
    * conversations.
    */
   signUp(identifier: string, password: string): Promise<AuthSession>;
 
-  /** The returning-user path — § 13.2. */
+  /** The returning-user path - § 13.2. */
   signIn(identifier: string, password: string): Promise<AuthSession>;
 }
 
 /**
  * A door opened by a third party.
  *
- * `start` hands off to the provider and **does not resolve with a session** —
+ * `start` hands off to the provider and **does not resolve with a session**  - 
  * the browser leaves the page. The session arrives through `onSessionChange`
  * when the provider redirects back, which is why nothing awaits a return value
  * here.
@@ -171,14 +171,14 @@ export interface AuthService {
   getSession(): Promise<AuthSession | null>;
 
   /**
-   * Push, not polling — a token refresh, a sign-out in another tab, or the
+   * Push, not polling - a token refresh, a sign-out in another tab, or the
    * OAuth redirect landing all arrive here.
    */
   onSessionChange(listener: (session: AuthSession | null) => void): Unsubscribe;
 
   signOut(): Promise<void>;
   /**
-   * Erases everything this device holds — cached chats, the outbox, and the
+   * Erases everything this device holds - cached chats, the outbox, and the
    * device keys that decrypt end-to-end encrypted messages.
    *
    * Separate from `signOut` on purpose. Signing out ends a session and is

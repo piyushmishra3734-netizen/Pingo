@@ -10,27 +10,27 @@ import { useEffect, useRef, useState } from 'react';
  * A Ping can be opened once or twice, whichever the sender chose. If the URL
  * arrived with the message, the viewer would hold a copy that outlives every
  * view and the limit would be theatre. So the bubble starts closed and asks the
- * server for the image — and asking is what spends the view. The count is
+ * server for the image - and asking is what spends the view. The count is
  * server-side; nothing here can be edited to get another look.
  *
  * ## Why it does not look like a photo
  *
  * A Ping is a different promise to a picture in a chat, and looking like one
  * would be a lie told by the layout. It is a card that has to be *decided*
- * about, and it says how many views it costs before you spend one — a single
+ * about, and it says how many views it costs before you spend one - a single
  * view is a different thing to accept than two, and finding that out afterwards
  * is too late.
  *
  * ## What happens on reload
  *
  * The open image is deliberately not persisted anywhere. Navigate away and the
- * Ping is closed again — with whatever views the server says are left. If they
+ * Ping is closed again - with whatever views the server says are left. If they
  * are gone, opening it returns nothing and the bubble says so.
  *
  * ## Saving
  *
  * Saving goes to the device, never to a PINGO server, and it is a decision
- * rather than a side effect of looking — so it is its own button. Once the file
+ * rather than a side effect of looking - so it is its own button. Once the file
  * is on the device the server copy is destroyed: the receiver keeps it, the app
  * does not. That is why a saved Ping does not reappear in the thread or in any
  * gallery. There is nothing left to show.
@@ -117,7 +117,7 @@ export function PingBubble({
         <span className="text-caption">
           {/*
             The sender is told it arrived; the receiver is told it is spent.
-            Neither learns anything about the other — "opened at 4:12" would be
+            Neither learns anything about the other - "opened at 4:12" would be
             a fact about a person, and this is not a read receipt.
           */}
           {mine ? 'Ping delivered' : 'Ping opened'}

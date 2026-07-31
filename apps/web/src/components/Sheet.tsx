@@ -8,7 +8,7 @@ import { Overlay } from './Overlay.js';
 /**
  * The bottom sheet, once.
  *
- * The chat list grew four of these — mute, delete, lists, conversation menu —
+ * The chat list grew four of these - mute, delete, lists, conversation menu  - 
  * and each one re-implemented the same four things: a portal, a scrim that
  * closes on tap, focus moved in and handed back, and Escape. The profile module
  * needs five more, and nine copies of that is nine chances for one of them to
@@ -21,7 +21,7 @@ import { Overlay } from './Overlay.js';
  * ## Why a portal
  *
  * Anything with a `transform`, `filter` or `backdrop-filter` on an ancestor
- * becomes the containing block for `position: fixed` inside it — and the app
+ * becomes the containing block for `position: fixed` inside it - and the app
  * shell has all three. A sheet rendered in place ends up clipped to whatever
  * card it was declared in, which is how the photo editor once opened 100px
  * short of the bottom of the screen. Rendering into `document.body` is what
@@ -40,7 +40,7 @@ export interface SheetProps {
    * Puts the sheet above the full-screen layers rather than beside them.
    *
    * Ordinary sheets sit at `z-500`, which is above the app and below the post
-   * viewer, the photo viewer and a call — all of which are `z-1000` and are all
+   * viewer, the photo viewer and a call - all of which are `z-1000` and are all
    * places a confirmation can be asked *from*. A confirm rendered at the normal
    * height would open behind the very thing that opened it.
    */
@@ -65,7 +65,7 @@ export function Sheet({
    * Focus goes to the panel, unless something inside asked for it first.
    *
    * React runs a child's effects before its parent's, so a sheet whose content
-   * carries `autoFocus` had focus taken back off it a frame later — the caption
+   * carries `autoFocus` had focus taken back off it a frame later - the caption
    * editor opened with the cursor nowhere. Honouring the attribute here means
    * a form sheet lands in its field and a menu sheet still lands on the dialog,
    * which is the right answer for each.
@@ -79,7 +79,7 @@ export function Sheet({
    * Escape, and who else gets to hear it.
    *
    * An elevated sheet is by definition on top of something that also listens
-   * for Escape — the post viewer, the photo viewer, a conversation menu. Two
+   * for Escape - the post viewer, the photo viewer, a conversation menu. Two
    * window listeners both fire, so one Escape would dismiss the confirmation
    * *and* close the thing that asked the question, which is a strange way to
    * answer "no".

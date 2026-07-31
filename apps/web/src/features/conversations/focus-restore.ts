@@ -10,7 +10,7 @@ import { useEffect, useRef } from 'react';
  * thing that opened the sheet is a row in an overflow menu, inside a selection
  * bar that the action itself dismisses. By the time the sheet closes, the
  * button focus should return to has been unmounted, and calling `focus()` on a
- * detached node does nothing at all — quietly, with focus landing on `<body>`.
+ * detached node does nothing at all - quietly, with focus landing on `<body>`.
  *
  * A keyboard user then restarts from the top of the page, which is the exact
  * failure the restore was meant to prevent. So this checks the node is still in

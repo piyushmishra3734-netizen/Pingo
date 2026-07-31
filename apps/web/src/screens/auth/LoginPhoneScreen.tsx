@@ -9,7 +9,7 @@ import { PhoneField, toE164 } from '../../features/auth/PhoneField.js';
 import { defaultCountry } from '../../features/auth/countries.js';
 
 /**
- * Log In — the number.
+ * Log In - the number.
  *
  * The phone twin of `LoginEmailScreen`, reusing § 6.2's field so the number is
  * entered the same way whether the user is joining or returning. Same rule

@@ -15,14 +15,14 @@ import { useEffect, useRef, useState } from 'react';
  * What the header becomes while chats are selected.
  *
  * It replaces the normal bar in place rather than sliding in over it, so the
- * screen does not appear to gain a layer — you are in the same list, doing
+ * screen does not appear to gain a layer - you are in the same list, doing
  * something to part of it.
  *
  * ## Three actions, then everything else
  *
  * Pin, Archive and Delete are here because they account for almost every reason
  * anyone multi-selects chats. The rest are real, and they are one tap away
- * behind `⋯` — putting eleven icons in a row would make the three that matter
+ * behind `⋯` - putting eleven icons in a row would make the three that matter
  * as hard to find as the eight that do not.
  *
  * ## Why the actions are stateful rather than fixed

@@ -7,7 +7,7 @@ import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.j
  *
  * Real numbers, from the browser. `navigator.storage.estimate()` reports what
  * this origin is actually using, and Clear Cache actually deletes the Cache
- * Storage entries — so the figure moves afterwards.
+ * Storage entries - so the figure moves afterwards.
  *
  * The breakdown by kind (media, voice, video) is **not** shown, because the
  * browser does not expose it. Inventing a split would be the kind of made-up
@@ -50,15 +50,15 @@ export function StorageScreen() {
         title="On this device"
         note="Reported by your browser for this site. It includes cached files and offline data."
       >
-        <InfoRow label="Used" value={usage ? formatBytes(usage.used) : '—'} />
-        <InfoRow label="Available" value={usage ? formatBytes(usage.quota) : '—'} />
+        <InfoRow label="Used" value={usage ? formatBytes(usage.used) : ' - '} />
+        <InfoRow label="Available" value={usage ? formatBytes(usage.quota) : ' - '} />
       </Group>
 
       <Group
         title="Cache"
         note={
           cleared
-            ? 'Cleared. Your account and messages are untouched — only cached files were removed.'
+            ? 'Cleared. Your account and messages are untouched - only cached files were removed.'
             : 'Removes cached files only. You stay signed in and nothing is deleted from your account.'
         }
       >

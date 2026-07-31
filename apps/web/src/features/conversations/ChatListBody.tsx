@@ -23,7 +23,7 @@ import type { ConversationActions } from './useConversationActions.js';
  * The scrolling part of the chat list: archived shelf, pinned section, rows.
  *
  * Split out of `ConversationList` because that file now owns a header with two
- * modes, three sheets and a filter — and the part that renders rows had become
+ * modes, three sheets and a filter - and the part that renders rows had become
  * the hardest thing to find in it.
  *
  * ## Pinned chats are a section, not a sort order
@@ -51,7 +51,7 @@ export interface ChatListBodyProps {
   onCancelSelection: () => void;
   actions: ConversationActions;
   onDeleteRequest: (conversations: Conversation[]) => void;
-  /** Rendered above the rows — the story rail, when it applies. */
+  /** Rendered above the rows - the story rail, when it applies. */
   header?: React.ReactNode;
   empty: React.ReactNode;
 }
@@ -74,7 +74,7 @@ export function ChatListBody({
 }: ChatListBodyProps) {
   /*
    * Collapsed by default, and the state is local rather than persisted. The
-   * shelf is a door, not a preference — leaving it open across sessions would
+   * shelf is a door, not a preference - leaving it open across sessions would
    * put archived chats back in the main list by another name.
    */
   const [showArchived, setShowArchived] = useState(false);
@@ -84,7 +84,7 @@ export function ChatListBody({
    *
    * Leaving selection swaps every row from an `option` back to a link, so the
    * element that had focus stops existing and the browser drops focus on
-   * `<body>` — a keyboard user is returned to the top of the page by the act of
+   * `<body>` - a keyboard user is returned to the top of the page by the act of
    * pressing Escape. Deselecting the last row has the same effect, since that
    * also ends selection mode.
    *
@@ -102,7 +102,7 @@ export function ChatListBody({
    * before and after and animates the difference away.
    *
    * Keyed on the order rather than the conversations themselves: the rows
-   * re-render constantly — a timestamp ticking over, a typing indicator — and
+   * re-render constantly - a timestamp ticking over, a typing indicator - and
    * only a change in *sequence* is a reorder worth animating.
    */
   const listRef = useRef<HTMLDivElement>(null);
@@ -234,7 +234,7 @@ export function ChatListBody({
       {/*
         The archived shelf sits above everything, including pinned chats. It is
         a door out of this list rather than a row in it, so it does not compete
-        with the chats for position — and it is absent entirely when there is
+        with the chats for position - and it is absent entirely when there is
         nothing behind it, because an empty door is furniture.
       */}
       {archived.length > 0 && !selectionMode && (

@@ -17,7 +17,7 @@ import { useCall } from '../features/calls/CallProvider.js';
  * Call history.
  *
  * Deliberately a log, not a dialler. The board's dock puts calls one tap away, and
- * what a user wants there is almost always "call the person I just spoke to" —
+ * what a user wants there is almost always "call the person I just spoke to"  - 
  * so each row's own call buttons are the primary action.
  *
  * A missed call is marked with brand-coloured text and a rotated arrow glyph, not
@@ -115,7 +115,7 @@ export function CallsScreen() {
                   </div>
 
                   {/*
-                    Calling back needs someone to call — a group entry has no
+                    Calling back needs someone to call - a group entry has no
                     single peer, so its button stays inert until group calls do.
                     The kind mirrors the logged call: you get back what you had.
                   */}

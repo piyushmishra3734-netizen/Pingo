@@ -18,7 +18,7 @@ import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
  * Deliberately app-level rather than a fourth provider in `@pingo/core`:
  * stories are one screen's data plus a handful of actions, and everything that
  * touches them lives here. If a mobile client ever needs the same state this
- * moves — until then, a provider in core would be architecture bought on
+ * moves - until then, a provider in core would be architecture bought on
  * speculation.
  *
  * ## Ordering is decided here, once
@@ -49,7 +49,7 @@ interface StoryContextValue {
 const StoryContext = createContext<StoryContextValue | undefined>(undefined);
 
 /**
- * You, then friends, then the rest — and within each band, unseen first.
+ * You, then friends, then the rest - and within each band, unseen first.
  *
  * The bands are the product rule. Unseen-first *inside* a band is what makes
  * the rail answer "what is new" without anybody counting: watched circles sink,
@@ -114,13 +114,13 @@ export function StoryProvider({
   /*
    * Somebody's story going up or coming down, without a reload.
    *
-   * The rail is the one surface where being stale is most obvious — stories
+   * The rail is the one surface where being stale is most obvious - stories
    * expire in a day, so a rail that only updates when the app is reopened is
    * describing a window that has already moved.
    *
    * A whole re-read rather than patching the row in: a story arriving changes
    * ordering (unseen first, inside bands), the author's ring state and whether
-   * they appear at all — and getting one of those wrong is worse than the extra
+   * they appear at all - and getting one of those wrong is worse than the extra
    * fetch. `refresh` already coalesces into a single pair of requests.
    */
   useEffect(() => {
@@ -141,7 +141,7 @@ export function StoryProvider({
    * It used to rebuild the array unconditionally, and that was an infinite
    * loop. The viewer marks a story seen in an effect keyed on the story; the
    * patch made a new story object; the new object re-fired the effect; which
-   * marked it seen again. The symptom was not an error — it was a progress bar
+   * marked it seen again. The symptom was not an error - it was a progress bar
    * that never moved and a tab that eventually stopped responding, because
    * React was re-rendering as fast as it could.
    *

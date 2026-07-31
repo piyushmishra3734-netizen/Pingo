@@ -8,13 +8,13 @@ import { ONBOARDED_KEY, hasOnboarded } from '../features/auth/onboarded.js';
  * Splash.
  *
  * The supplied artwork, shown full screen. Nothing is drawn on top of it and
- * nothing is reconstructed — `public/pingo-splash.jpg` is the screen.
+ * nothing is reconstructed - `public/pingo-splash.jpg` is the screen.
  *
  * ## Why the image is contained, not cropped
  *
  * The artwork is 16:9 with the wordmark running across its middle third. Under
- * `object-fit: cover` a portrait phone would keep only a narrow vertical band —
- * about 500px of the 1600px width — which slices the wordmark down to "NG".
+ * `object-fit: cover` a portrait phone would keep only a narrow vertical band  - 
+ * about 500px of the 1600px width - which slices the wordmark down to "NG".
  * So it is `contain`, on a ground sampled from the artwork's own edges, and the
  * mark survives at every aspect ratio.
  *
@@ -22,7 +22,7 @@ import { ONBOARDED_KEY, hasOnboarded } from '../features/auth/onboarded.js';
  *
  * It never waits for the session check. If auth has not resolved by the time
  * the timer fires, this routes to Home and lets Home show its own loading
- * state — a splash that waits for the network is a splash that hangs on a bad
+ * state - a splash that waits for the network is a splash that hangs on a bad
  * connection ([11 § 1.1](../../../../docs/11-performance-budget.md#11-the-splash-is-a-ceiling-not-a-spinner)).
  *
  * | Condition | Destination |
@@ -44,7 +44,7 @@ export function SplashScreen() {
 
   /*
    * Read through a ref so the timer sees the latest status without restarting
-   * every time it changes — a `status` dependency would reset the dwell on each
+   * every time it changes - a `status` dependency would reset the dwell on each
    * transition and make the splash outstay its ceiling.
    */
   const statusRef = useRef(status);
@@ -76,7 +76,7 @@ export function SplashScreen() {
         Two pieces of artwork, one per shape of screen.
 
         The landscape image is 16:9 and was the only one, so a portrait phone
-        got it letterboxed with empty bands above and below — the desktop
+        got it letterboxed with empty bands above and below - the desktop
         splash, on mobile. The official mobile artwork is portrait and is used
         as drawn; neither file is recomposed here, they are simply chosen
         between.
@@ -90,7 +90,7 @@ export function SplashScreen() {
         <source media="(orientation: portrait)" srcSet="/pingo-splash-mobile.png" />
         <img
           src="/pingo-splash.jpg"
-          alt="PINGO — Connect. Privately."
+          alt="PINGO. Connect. Privately."
           width={1600}
           height={900}
           decoding="async"
@@ -106,7 +106,7 @@ export function SplashScreen() {
 /**
  * Re-exported from its new home in `features/auth/onboarded.ts`.
  *
- * The flag outgrew this screen — the guards and the auth provider both need it —
+ * The flag outgrew this screen - the guards and the auth provider both need it  - 
  * but it is still exported here so nothing that imported it has to change.
  */
 export { ONBOARDED_KEY };

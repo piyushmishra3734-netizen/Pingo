@@ -3,13 +3,13 @@ import { useEffect, useRef } from 'react';
 import { useAppearance } from '../settings/SettingsContext.js';
 
 /**
- * The emoji picker — emoji-mart (MIT).
+ * The emoji picker - emoji-mart (MIT).
  *
  * ## Why the vanilla build rather than `@emoji-mart/react`
  *
  * The React wrapper declares `react@"^16.8 || ^17 || ^18"` and PINGO is on 19,
  * so installing it warns and pins the project to an unmaintained bound. The
- * wrapper is also barely more than what is below — it mounts the vanilla Picker
+ * wrapper is also barely more than what is below - it mounts the vanilla Picker
  * into a ref on mount. Using the core directly removes the peer conflict and
  * the dependency at the same time.
  *
@@ -66,7 +66,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
       if (host.current) host.current.innerHTML = '';
       picker?.remove?.();
     };
-    // Rebuilt on theme change — emoji-mart bakes the theme in at construction.
+    // Rebuilt on theme change - emoji-mart bakes the theme in at construction.
   }, [onSelect, onClose, resolvedTheme]);
 
   return <div ref={host} className="emoji-picker-host" />;

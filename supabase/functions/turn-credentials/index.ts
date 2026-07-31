@@ -4,7 +4,7 @@
  * This function exists for one reason: **the TURN secret must never reach the
  * browser.** A TURN server relays media, so its credential is worth money to
  * whoever finds it. Ship a long-lived one in the bundle and you have published
- * an open relay — anyone can extract it from devtools and push their traffic
+ * an open relay - anyone can extract it from devtools and push their traffic
  * through your server until the bill arrives.
  *
  * Here the secret stays in Edge Function environment variables, and the browser
@@ -21,7 +21,7 @@
  * | Self-hosted coturn | `TURN_PROVIDER=coturn`, `TURN_URLS`, `TURN_STATIC_AUTH_SECRET` |
  *
  * Cloudflare's dashboard labels the first value "TURN Token ID" while its docs
- * call it `TURN_KEY_ID`. Same string, two names — so `CF_TURN_TOKEN_ID` is
+ * call it `TURN_KEY_ID`. Same string, two names - so `CF_TURN_TOKEN_ID` is
  * accepted as an alias, because guessing wrong here fails silently and looks
  * exactly like "TURN just doesn't work".
  *
@@ -91,7 +91,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     console.error('turn-credentials failed', cause);
 
     /*
-     * `reason` is diagnostic, never secret — a status code and which env var to
+     * `reason` is diagnostic, never secret - a status code and which env var to
      * look at. The client ignores it entirely and falls back to STUN; it exists
      * so misconfiguration is visible from a browser console instead of only in
      * Edge Function logs.
@@ -154,8 +154,8 @@ async function cloudflareIceServers(): Promise<IceServer[]> {
      * The two ways this goes wrong are worth telling apart, because both look
      * identical from the app (no TURN) and the fix is different:
      *
-     *   401/403 — the API token is wrong.
-     *   404     — the token is fine but the key id is wrong. Easy to hit, since
+     *   401/403 - the API token is wrong.
+     *   404     - the token is fine but the key id is wrong. Easy to hit, since
      *             the dashboard and the docs call that value different things.
      *
      * Only the status is reported. Neither secret goes anywhere near a browser.
@@ -182,7 +182,7 @@ async function cloudflareIceServers(): Promise<IceServer[]> {
  *
  * The username is `<unix-expiry>:<user-id>` and the credential is
  * `base64(HMAC-SHA1(secret, username))`. coturn recomputes exactly that on
- * arrival, so it can validate a credential it has never seen and never stored —
+ * arrival, so it can validate a credential it has never seen and never stored  - 
  * no shared database, no synchronisation, and nothing to revoke because the
  * timestamp in the username does the expiring.
  */
@@ -212,7 +212,7 @@ async function coturnIceServers(userId: string): Promise<IceServer[]> {
 
   return [
     {
-      // Comma-separated in config, a list here — one coturn deployment usually
+      // Comma-separated in config, a list here - one coturn deployment usually
       // exposes UDP, TCP and TLS ports, and all of them should be offered.
       urls: urls.split(',').map((url) => url.trim()).filter(Boolean),
       username,
@@ -230,7 +230,7 @@ function corsHeaders(request: Request): HeadersInit {
      * A fixed list breaks the moment the client sends a header it does not
      * name, and the failure is opaque: the browser reports "Failed to fetch"
      * with no clue which header was the problem. That is exactly what happened
-     * here — the Supabase client is configured with an `x-pingo-client` header
+     * here - the Supabase client is configured with an `x-pingo-client` header
      * for log attribution, the preflight refused it, and the call looked like a
      * network outage. Reflecting whatever the browser asks for cannot drift.
      *

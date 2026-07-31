@@ -21,7 +21,7 @@ import { useCallback, useRef } from 'react';
  * How long a finger must rest. docs/13 § 6.
  *
  * 500ms, matching iMessage and Instagram. The doc originally said 120ms, which
- * was the *recognition latency* budget rather than the hold — at 120ms every
+ * was the *recognition latency* budget rather than the hold - at 120ms every
  * ordinary tap opens the menu. Past about a second users assume the gesture
  * failed and lift off, so the window is narrower than it looks.
  */
@@ -44,7 +44,7 @@ export interface LongPressHandlers {
 }
 
 /**
- * @param onLongPress Given the point the finger was on — docs/13 § 2.3 anchors
+ * @param onLongPress Given the point the finger was on - docs/13 § 2.3 anchors
  * to the touch point for messages taller than the viewport, so the coordinate
  * has to survive, not just the fact of the press.
  */
@@ -71,7 +71,7 @@ export function useLongPress(
       timer.current = setTimeout(() => {
         timer.current = undefined;
         /*
-         * Soft impact on recognition. docs/13 § 5 — the hand should know the
+         * Soft impact on recognition. docs/13 § 5 - the hand should know the
          * press landed before the eyes do, which is most of why a long press
          * feels responsive rather than slow.
          */

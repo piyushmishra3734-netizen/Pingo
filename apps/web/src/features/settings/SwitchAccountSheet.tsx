@@ -9,19 +9,19 @@ import { MAX_ACCOUNTS } from '../../lib/supabase/accounts.js';
 /**
  * Switching accounts, in one tap.
  *
- * The whole value of this is that it is fast and certain — a list of faces,
+ * The whole value of this is that it is fast and certain - a list of faces,
  * tap one, you are them. Anything that makes it feel like signing in again
  * defeats the point, so there is no confirmation step on switching: it is
  * reversible by tapping the previous face, which is a better safety net than a
  * dialog nobody reads.
  *
  * Removing an account *does* confirm, because that one is not reversible from
- * here — it needs a full sign-in to undo.
+ * here - it needs a full sign-in to undo.
  */
 export interface SwitchAccountSheetProps {
   onClose: () => void;
   currentUserId: string | undefined;
-  /** Summaries only — refresh tokens never reach a component. */
+  /** Summaries only - refresh tokens never reach a component. */
   accounts: SavedAccountSummary[];
   onSwitch: (userId: string) => Promise<void>;
   onForget: (userId: string) => void;
@@ -117,7 +117,7 @@ export function SwitchAccountSheet({
 
         <div className="px-3 pt-2">
           <Button variant="secondary" size="lg" block disabled={full} onClick={onAddAccount}>
-            {full ? `Limit reached — ${MAX_ACCOUNTS} accounts` : 'Add account'}
+            {full ? `Limit reached - ${MAX_ACCOUNTS} accounts` : 'Add account'}
           </Button>
           {full && (
             <p className="pt-2 text-center text-caption text-text-secondary">

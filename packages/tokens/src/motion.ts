@@ -4,20 +4,20 @@
  * "No unnecessary animations" and "smooth motion feels natural" together imply
  * a specific discipline: motion exists only to explain a change of state, and
  * it never overshoots. There are deliberately no spring, bounce or elastic
- * easings in this file — adding one would contradict the brand.
+ * easings in this file - adding one would contradict the brand.
  *
  * Everything here is fast. Anything above ~320ms starts to feel like the
  * interface is making the user wait, which is the opposite of calm.
  */
 
 export const duration = {
-  /** 120ms — colour and opacity on hover/press. Should feel instantaneous. */
+  /** 120ms - colour and opacity on hover/press. Should feel instantaneous. */
   instant: '120ms',
-  /** 180ms — the default. Small transforms, chip selection, toggles. */
+  /** 180ms - the default. Small transforms, chip selection, toggles. */
   quick: '180ms',
-  /** 240ms — entering elements: bubbles, sheets, route transitions. */
+  /** 240ms - entering elements: bubbles, sheets, route transitions. */
   base: '240ms',
-  /** 320ms — full-screen transitions. The slowest motion in the product. */
+  /** 320ms - full-screen transitions. The slowest motion in the product. */
   slow: '320ms',
   /** Ambient, looping brand motion: the typing and loading dots. */
   ambient: '1400ms',
@@ -25,7 +25,7 @@ export const duration = {
 
 export const easing = {
   /**
-   * The house curve — a strong ease-out. Motion starts immediately and settles
+   * The house curve - a strong ease-out. Motion starts immediately and settles
    * gently, which is what makes an interface feel responsive rather than slow.
    * Used for anything entering or responding to direct input.
    */
@@ -47,8 +47,8 @@ export const transition = {
 } as const;
 
 /**
- * Press feedback. A 2% inward scale is enough to register as tactile — the
- * "premium physical object" feel — without looking like a game button.
+ * Press feedback. A 2% inward scale is enough to register as tactile - the
+ * "premium physical object" feel - without looking like a game button.
  */
 export const press = {
   scale: 0.98,

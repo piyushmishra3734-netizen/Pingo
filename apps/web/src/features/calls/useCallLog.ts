@@ -7,8 +7,8 @@ import { useEffect, useRef } from 'react';
  *
  * ## Why this watches the call disappear rather than hooking the actions
  *
- * A call ends in at least six ways — hung up, declined, unanswered, busy,
- * failed, cancelled — and only two of them are actions the user takes here. A
+ * A call ends in at least six ways - hung up, declined, unanswered, busy,
+ * failed, cancelled - and only two of them are actions the user takes here. A
  * log written from `hangUp` would miss the rest, and adding a write beside each
  * new ending is how a log ends up with holes nobody notices for months.
  *
@@ -19,7 +19,7 @@ import { useEffect, useRef } from 'react';
  *
  * The entry is an ordinary message, so the callee receives it over realtime
  * like anything else. Both ends writing would put two rows in the thread for
- * one call — and for a declined call, two rows that disagree.
+ * one call - and for a declined call, two rows that disagree.
  */
 
 /** What the service's end reason means for the log. */
@@ -55,7 +55,7 @@ export function useCallLog(call: Call | undefined): void {
      *
      * Resolved from the peer rather than carried on the call, because a call is
      * a peer-to-peer thing and does not otherwise need to know about
-     * conversations. Nothing is logged if there is no thread yet — a call to
+     * conversations. Nothing is logged if there is no thread yet - a call to
      * someone you have never messaged has nowhere to be written.
      */
     const conversation = conversations.find(

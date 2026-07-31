@@ -13,7 +13,7 @@ import { useIsDesktop } from '../hooks/useMediaQuery.js';
  *   1. It holds the session gate. Screens can assume `currentUser` exists, which
  *      removes a loading branch from every one of them.
  *   2. It owns the bottom inset for the floating dock. A screen that scrolls
- *      would otherwise end with its last row trapped under the glass — so the
+ *      would otherwise end with its last row trapped under the glass - so the
  *      padding is applied here, once.
  *
  * An open chat thread on a phone is the one exception: it manages its own bottom
@@ -50,7 +50,7 @@ export function AppShell() {
   /**
    * The screen a path belongs to, ignoring what is open *within* it.
    *
-   * `/chats` and `/chats/:id` are one screen — the list and a thread are two
+   * `/chats` and `/chats/:id` are one screen - the list and a thread are two
    * views of the same place, and on desktop they are literally on screen
    * together. Everything else keys on its first segment, so moving between
    * tabs still animates.
@@ -68,7 +68,7 @@ export function AppShell() {
    * coming back from the left, so the motion agrees with the gesture that
    * caused it. When it does not, the app feels like it is guessing.
    *
-   * `navigationType` is what the router already knows — POP is the back button
+   * `navigationType` is what the router already knows - POP is the back button
    * or a swipe back, PUSH and REPLACE are going somewhere. No history stack of
    * our own to keep in sync, which is the usual way this goes wrong.
    */
@@ -90,7 +90,7 @@ export function AppShell() {
           actually looks like.
 
           Keying on the full path was too fine. Opening a second chat changed
-          the key, so the whole thread — header, scroller, composer — was torn
+          the key, so the whole thread - header, scroller, composer - was torn
           down and rebuilt, replaying the screen animation and re-running every
           load. It read as the app reloading itself just to move one row over.
           Switching conversations is a change of *content*, and the thread

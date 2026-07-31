@@ -15,7 +15,7 @@ import { useStories } from './StoryContext.js';
  * ## Three steps, and the third is not optional
  *
  * Source, edit, audience. The audience step is where the module's whole privacy
- * story either happens or does not — a "post" button that skipped it would make
+ * story either happens or does not - a "post" button that skipped it would make
  * `friends` the only audience anyone ever used, and the four we built would be
  * a settings screen nobody visits.
  *
@@ -26,7 +26,7 @@ import { useStories } from './StoryContext.js';
  *
  * `SnapEditor` composites onto a canvas from a still image. Drawing on video
  * means compositing per frame and re-encoding, which is a different pipeline
- * with a different cost — not a flag on this one. A video story therefore goes
+ * with a different cost - not a flag on this one. A video story therefore goes
  * straight to the details step, where the caption, place and link still apply.
  * Better an honest gap than an editor whose tools silently do nothing.
  */
@@ -336,7 +336,7 @@ export function StoryComposer({
  * Accepts what people actually type.
  *
  * Nobody types `https://`. Without this, "pingochat.pages.dev" would be stored
- * as a relative URL and open as a path on our own origin — a link that appears
+ * as a relative URL and open as a path on our own origin - a link that appears
  * to work and goes somewhere else entirely.
  */
 function normaliseLink(input: string): string {

@@ -10,8 +10,8 @@ import type { BackupTarget } from '../../lib/backup/target.js';
 /**
  * Enrolling in Secure Backup, once, for everywhere that offers it.
  *
- * Onboarding and Settings present this differently — one is a step in a flow
- * the user is being walked through, the other is a page they went looking for —
+ * Onboarding and Settings present this differently - one is a step in a flow
+ * the user is being walked through, the other is a page they went looking for  - 
  * but the *operation* is identical, and the parts that must not drift are the
  * warning, the two-step order, and what happens when somebody backs out. Two
  * copies of that would eventually disagree, and the copy that quietly stopped
@@ -92,11 +92,11 @@ export function EnrolmentFlow({
           </p>
           <p className="px-4 text-sm text-muted">
             You will get a 12-word recovery code. It is the only thing that can unlock your
-            backup — nobody at PINGO can reset it or read your messages. Write it down somewhere
+            backup - nobody at PINGO can reset it or read your messages. Write it down somewhere
             safe.
           </p>
           <button type="button" className="px-4 py-3 text-left text-accent" onClick={showCode}>
-            I understand — show my recovery code
+            I understand - show my recovery code
           </button>
           <button type="button" className="px-4 py-3 text-left text-muted" onClick={onCancel}>
             {cancelLabel}
@@ -117,7 +117,7 @@ export function EnrolmentFlow({
             className="px-4 py-3 text-left text-accent disabled:opacity-50"
             onClick={enable}
           >
-            {busy ? 'Enabling…' : 'I have written it down — enable Secure Backup'}
+            {busy ? 'Enabling…' : 'I have written it down - enable Secure Backup'}
           </button>
           <button type="button" className="px-4 py-3 text-left text-muted" onClick={abandon}>
             {cancelLabel}

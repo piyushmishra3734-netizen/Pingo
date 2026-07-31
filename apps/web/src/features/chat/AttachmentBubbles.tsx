@@ -20,7 +20,7 @@ import { Link } from 'react-router-dom';
  *
  * A static map needs a keyed tile service, a reverse-geocoded address needs a
  * geocoder, and a real calendar entry needs the device's. Each is a dependency
- * with its own key, cost and privacy story — sending coordinates to a third
+ * with its own key, cost and privacy story - sending coordinates to a third
  * party to draw a thumbnail is a decision, not a detail. So each card carries
  * the fact and hands off to whatever the reader already uses: their maps app,
  * their chat, their calendar.
@@ -116,7 +116,7 @@ export function ContactBubble({ contact, mine }: { contact: ContactRef; mine: bo
   /*
    * A shared PINGO user opens their chat, which is an in-app route and cannot
    * be an external link. Someone with no account is a name on a card and
-   * nothing to open — the arrow is still there, but it goes nowhere, so it is
+   * nothing to open - the arrow is still there, but it goes nowhere, so it is
    * dropped rather than left as a promise.
    */
   if (!contact.userId) {
@@ -209,7 +209,7 @@ export function EventBubble({ event, mine }: { event: EventRef; mine: boolean })
  * call log must never do.
  *
  * The arrow points the way the call went, so direction is legible without
- * reading — which is what makes a column of these scannable.
+ * reading - which is what makes a column of these scannable.
  */
 export function CallBubble({
   call,

@@ -8,7 +8,7 @@ import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
 import { SIGNUP_PROGRESS } from './progress.js';
 
 /**
- * Sign-up, step 1 (email) —
+ * Sign-up, step 1 (email)  - 
  * [docs/01 § 6.1](../../../../../docs/01-onboarding-auth.md#61-email-address).
  *
  * **Validation is structural only**, as § 6.1 requires. Anything cleverer
@@ -16,7 +16,7 @@ import { SIGNUP_PROGRESS } from './progress.js';
  * whether an address is real.
  *
  * It no longer sends anything. The subtitle promising a code is gone with the
- * code — a screen that says "we'll send a code to confirm it's yours" and then
+ * code - a screen that says "we'll send a code to confirm it's yours" and then
  * does not is worse than one that says nothing.
  *
  * It also does **not** say whether the address is already registered. § 6.1

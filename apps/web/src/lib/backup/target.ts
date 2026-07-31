@@ -1,7 +1,7 @@
 /**
  * Where a recovery package can be kept.
  *
- * There is exactly one target today — the PINGO server — and Google Drive is
+ * There is exactly one target today - the PINGO server - and Google Drive is
  * meant to become a second one without anything above this file changing. So
  * the interface is written for the general case now, while there is only one
  * implementation to keep honest, rather than discovered later by refactoring

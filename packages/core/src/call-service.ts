@@ -1,7 +1,7 @@
 /**
  * The CallService boundary.
  *
- * WebRTC on the web is the **browser's own API** — `RTCPeerConnection` — so
+ * WebRTC on the web is the **browser's own API** - `RTCPeerConnection` - so
  * there is nothing to install. `webrtc-sdk/webrtc` is a fork of native
  * libwebrtc for iOS, Android and desktop; it has no place in a web build.
  *
@@ -21,7 +21,7 @@ export type CallState =
   | 'dialling'
   /** Incoming, not yet answered. */
   | 'ringing'
-  /** Negotiating after an answer — media not flowing yet. */
+  /** Negotiating after an answer - media not flowing yet. */
   | 'connecting'
   | 'connected'
   /** Was connected, lost the network, trying to recover. */
@@ -49,7 +49,7 @@ export type CallKind = 'voice' | 'video';
  *
  * Carries an id and a state and no name, on purpose: the app already resolves
  * ids to people everywhere else, and a name copied in here would be a second
- * copy to keep current — it would go stale the moment somebody edits their
+ * copy to keep current - it would go stale the moment somebody edits their
  * profile mid-call.
  */
 export interface CallParticipant {
@@ -74,11 +74,11 @@ export interface Call {
    * Upgrading a voice call to video mid-conversation means renegotiating SDP
    * while media is flowing; it is a real feature, not a variation on this one,
    * and it is deliberately not built. A `video` call whose camera is switched
-   * off is still a video call — see `cameraOff`.
+   * off is still a video call - see `cameraOff`.
    */
   kind: CallKind;
   state: CallState;
-  /** Epoch ms the call connected. Absent until it does — this is the timer's zero. */
+  /** Epoch ms the call connected. Absent until it does - this is the timer's zero. */
   connectedAt?: number;
   endReason?: CallEndReason;
   /** True while the local microphone is muted. */
@@ -107,7 +107,7 @@ export type CallEvent =
    * One peer's media, ready to attach to an output element.
    *
    * Carries the id because a mesh has one of these per person, and a stream
-   * with no name attached cannot be put in the right tile — or stopped when
+   * with no name attached cannot be put in the right tile - or stopped when
    * that one person leaves.
    */
   | { type: 'call:remote-stream'; stream: MediaStream; userId: string }
@@ -116,7 +116,7 @@ export type CallEvent =
   /**
    * This device's own camera, for the self-preview.
    *
-   * Emitted separately because it is never played back — feeding your own
+   * Emitted separately because it is never played back - feeding your own
    * microphone to a speaker is how you get feedback howl. The UI must attach
    * this to a *muted* video element and nothing else.
    */
@@ -133,7 +133,7 @@ export interface CallServiceOptions {
   noiseSuppression?: boolean;
 
   /**
-   * Voice or video. Ignored by `answer`, which always matches what was offered —
+   * Voice or video. Ignored by `answer`, which always matches what was offered  - 
    * answering a video call with audio only would leave the caller staring at a
    * frame that never arrives.
    */
@@ -165,7 +165,7 @@ export interface CallService {
    * ## A mesh, not a conference server
    *
    * Each person holds one `RTCPeerConnection` per other person, so media goes
-   * directly between them and PINGO never sees a frame — the same privacy
+   * directly between them and PINGO never sees a frame - the same privacy
    * property a direct call has, kept. The cost is that upload grows with the
    * room: sending to five people means encoding and uploading five times. That
    * is fine for the size of group anyone actually calls and would not be for a
@@ -175,8 +175,8 @@ export interface CallService {
    * ## Friendship is not checked
    *
    * A direct call needs a mutual follow, because it is a stranger making your
-   * phone ring. Being in a group is already the consent — you were either added
-   * by a friend or walked in through a link — so a group call reaches everybody
+   * phone ring. Being in a group is already the consent - you were either added
+   * by a friend or walked in through a link - so a group call reaches everybody
    * in it whether or not they know each other.
    */
   callGroup(
@@ -196,7 +196,7 @@ export interface CallService {
   /**
    * Flips between the front and rear camera.
    *
-   * Resolves to the facing mode actually in use — a device with one camera
+   * Resolves to the facing mode actually in use - a device with one camera
    * stays where it is rather than failing.
    */
   switchCamera(callId: string): Promise<'user' | 'environment'>;

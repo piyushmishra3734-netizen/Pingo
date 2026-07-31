@@ -3,7 +3,7 @@
  *
  * ## Why IndexedDB and not localStorage
  *
- * `localStorage` is synchronous — every read blocks the main thread — and caps
+ * `localStorage` is synchronous - every read blocks the main thread - and caps
  * at about 5MB of strings. A conversation history is neither small nor worth
  * blocking a render for. IndexedDB is asynchronous, holds structured values
  * without serialising by hand, and is measured in hundreds of megabytes.
@@ -33,7 +33,7 @@ const DB_NAME = 'pingo';
  * The `keys` store was added at version 1 without this being raised, so every
  * device that had ever opened PINGO already held a version-1 database without
  * it. The store was therefore never created, `deviceIdentity` could not
- * persist, and a fresh keypair was minted on every page load — one dead
+ * persist, and a fresh keypair was minted on every page load - one dead
  * `device_keys` row per visit, and a database key that was gone before the
  * cache it sealed could be read back.
  *
@@ -58,7 +58,7 @@ export const STORE = {
   /** Unsent text per conversation, saved as you type. */
   drafts: 'drafts',
   /**
-   * This device's keys — identity and database — as non-extractable handles.
+   * This device's keys - identity and database - as non-extractable handles.
    *
    * Cleared on sign-out with everything else, which is correct: the identity
    * belongs to that session's account, and a new sign-in publishes a new device
@@ -70,7 +70,7 @@ export const STORE = {
    * as of the last successful load.
    *
    * One record rather than three, because the first frame needs all of it or
-   * none of it — a list with no current user renders nothing useful, so there
+   * none of it - a list with no current user renders nothing useful, so there
    * is no value in being able to read the pieces apart.
    */
   meta: 'meta',
@@ -80,7 +80,7 @@ export const STORE = {
    *
    * Keys are `conversationId|paddedCreatedAt|messageId`, which sorts
    * chronologically as a string, so a range over one conversation is a single
-   * indexed read. The key is deliberately plaintext and the value sealed — a
+   * indexed read. The key is deliberately plaintext and the value sealed - a
    * range query has to be answerable without decrypting anything to find out
    * what to decrypt, and the server already knows every id and timestamp in
    * that key.
@@ -144,7 +144,7 @@ function openAt(version?: number): Promise<IDBDatabase | undefined> {
  * Opens the database and guarantees every store in `STORE` exists.
  *
  * The guarantee is checked rather than assumed. A missing store is not a
- * theoretical case — it is what happens to every existing device the moment a
+ * theoretical case - it is what happens to every existing device the moment a
  * store is added, and the symptom is silent: reads and writes fail into the
  * harmless-value path and the feature simply never works. So if anything is
  * missing after the open, this reopens one version higher, which is the only
@@ -161,7 +161,7 @@ function openDatabase(): Promise<IDBDatabase | undefined> {
     const missing = Object.values(STORE).filter((name) => !db.objectStoreNames.contains(name));
     if (missing.length === 0) return db;
 
-    // A database already at or above DB_VERSION but short a store — someone
+    // A database already at or above DB_VERSION but short a store - someone
     // added one without raising the constant, or a newer tab got there first.
     const next = db.version + 1;
     db.close();
@@ -213,7 +213,7 @@ export function localAll<T>(store: StoreName): Promise<T[]> {
  *
  * The cap is applied by the cursor rather than after the fact, so opening a
  * conversation with ten thousand cached messages reads fifty records instead
- * of ten thousand — which is the entire reason for storing them separately.
+ * of ten thousand - which is the entire reason for storing them separately.
  */
 export async function localRange<T>(
   store: StoreName,
@@ -281,8 +281,8 @@ export async function localEntries<T>(store: StoreName): Promise<Array<[string, 
  * Ask the browser not to evict this origin.
  *
  * Without it, storage is "best-effort": under disk pressure the browser may
- * discard the whole origin, taking the sealed cache, the outbox, and — because
- * they live in the same database — this device's keys. Losing keys silently is
+ * discard the whole origin, taking the sealed cache, the outbox, and - because
+ * they live in the same database - this device's keys. Losing keys silently is
  * indistinguishable from a reinstall, and after it there is no way to read
  * encrypted history back.
  *
@@ -305,7 +305,7 @@ export async function requestPersistentStorage(): Promise<boolean> {
   }
 }
 
-/** Wipes everything. Called on sign-out — one device, one account's cache. */
+/** Wipes everything. Called on sign-out - one device, one account's cache. */
 export async function localClear(): Promise<void> {
   for (const name of Object.values(STORE)) {
     await withStore(name, 'readwrite', (s) => s.clear());

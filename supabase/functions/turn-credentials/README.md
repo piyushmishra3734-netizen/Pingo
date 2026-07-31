@@ -3,7 +3,7 @@
 Mints short-lived TURN credentials so the secret never reaches the browser.
 
 Without TURN, calls connect over STUN alone. That works on most home and mobile
-networks and fails behind symmetric NAT or a corporate firewall — roughly 10–20%
+networks and fails behind symmetric NAT or a corporate firewall - roughly 10-20%
 of real-world networks. TURN relays the media for those cases.
 
 **Until this function is deployed and configured, PINGO runs STUN-only and calls
@@ -12,14 +12,14 @@ still work for most people.** Nothing breaks; some calls just fail to connect.
 ## Why the credential is not in `.env`
 
 Anything Vite exposes to the browser (`VITE_*`) is readable from devtools. A
-long-lived TURN credential there is an open relay — anyone can lift it and push
+long-lived TURN credential there is an open relay - anyone can lift it and push
 their own traffic through your server, on your bill. Hence: secret server-side,
 expiring credential to the client.
 
 ## Status
 
 Deployed and reachable from the app. It currently returns `{"iceServers": []}`
-because no provider secrets are set — so calls run STUN-only until Option A
+because no provider secrets are set - so calls run STUN-only until Option A
 below is finished.
 
 ## Deploy
@@ -37,12 +37,12 @@ opaque `TypeError: Failed to fetch`. It is also not the protection it sounds
 like: that gateway check is satisfied by the **anon key**, which ships in the
 bundle and every visitor has. The real check is `verifyUser()` inside the
 function, which asks the Auth API whether the token belongs to a signed-in user
-— verified: anon key gets `401 Sign in required`, a real session gets through.
+ -  verified: anon key gets `401 Sign in required`, a real session gets through.
 
 Then set the secrets for **one** of the two backends below. The client cannot
 tell them apart.
 
-## Option A — Cloudflare Realtime TURN
+## Option A - Cloudflare Realtime TURN
 
 Managed, nothing to run. Free for the first 1,000 GB of egress per month, then
 $0.05/GB, shared with Cloudflare's SFU. See
@@ -50,7 +50,7 @@ $0.05/GB, shared with Cloudflare's SFU. See
 
 1. Cloudflare dashboard → **Realtime** → **TURN Keys** → create a key.
 2. Copy the key id and its API token.
-3. Set the secrets — **run this yourself, so the token stays with you**:
+3. Set the secrets - **run this yourself, so the token stays with you**:
 
 ```bash
 pnpm supabase secrets set \
@@ -62,7 +62,7 @@ pnpm supabase secrets set \
 
 Or paste them in the dashboard: Edge Functions → **Secrets**.
 
-## Option B — self-hosted coturn
+## Option B - self-hosted coturn
 
 Cheaper at volume, and yours. Needs a VPS with a public IP and open ports.
 
@@ -73,7 +73,7 @@ listening-port=3478
 tls-listening-port=5349
 
 # The REST API scheme. `static-auth-secret` is the same string the Edge
-# Function signs with — that shared secret is the whole authentication scheme,
+# Function signs with - that shared secret is the whole authentication scheme,
 # so it must never appear anywhere a browser can read.
 use-auth-secret
 static-auth-secret=<a long random string>
@@ -94,7 +94,7 @@ denied-peer-ip=192.168.0.0-192.168.255.255
 denied-peer-ip=172.16.0.0-172.31.255.255
 ```
 
-Open UDP+TCP 3478, TCP 5349, and the relay range (default UDP 49152–65535).
+Open UDP+TCP 3478, TCP 5349, and the relay range (default UDP 49152-65535).
 
 ```bash
 supabase secrets set \
@@ -123,5 +123,5 @@ call and check the selected candidate pair:
 ```
 
 `resolveIceServers()` caches for the credential's lifetime, and caches a
-STUN-only result for 5 minutes on failure — so after deploying, a call placed
+STUN-only result for 5 minutes on failure - so after deploying, a call placed
 within the next few minutes may still be STUN-only. Reload to clear it.

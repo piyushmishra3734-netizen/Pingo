@@ -13,7 +13,7 @@
  *    network round trip; a dark-mode user would watch the app flash white on
  *    every launch while it loaded their preference.
  *
- * Account-level settings — who can call you, notification routing — belong in
+ * Account-level settings - who can call you, notification routing - belong in
  * the database, because they govern what the *server* does. These four govern
  * only what this screen looks like.
  */
@@ -66,8 +66,8 @@ export const ACCENT_SWATCHES: Record<Exclude<AccentName, 'custom'>, string> = {
  * the search results are generated from the same array, so a setting that is
  * findable is a setting that exists.
  *
- * `keywords` carry the words a user would actually type — "night" for dark
- * mode, "colour" for accent — which is the whole difference between a search
+ * `keywords` carry the words a user would actually type - "night" for dark
+ * mode, "colour" for accent - which is the whole difference between a search
  * box and a useful one.
  */
 export interface SettingsEntry {
@@ -242,7 +242,7 @@ function entry(
 /**
  * Ranked matches for a query.
  *
- * Label matches beat keyword matches, and a prefix beats a substring — so
+ * Label matches beat keyword matches, and a prefix beats a substring - so
  * typing "the" surfaces **Theme** above anything that merely mentions it. Empty
  * query returns nothing rather than everything: the index below the box is
  * already the full list.

@@ -10,7 +10,7 @@ import { useStories } from './StoryContext.js';
  * An account-level list rather than a per-story one, which is what the control
  * actually means: you do not decide afresh every time whether a colleague sees
  * this. It applies to every story, including one addressed to somebody by name
- * — hiding is the stronger statement, and `can_see_story()` enforces that
+ * - hiding is the stronger statement, and `can_see_story()` enforces that
  * order at the database.
  *
  * ## The other half of privacy is not here

@@ -11,7 +11,7 @@ import { useInstall } from './useInstall.js';
  *
  * ## Home only, and above the dock
  *
- * Sitting on every screen would make it furniture — the thing people learn to
+ * Sitting on every screen would make it furniture - the thing people learn to
  * look past, which is the fate of every banner that follows you. Home is where
  * somebody arrives, and it is the one screen where an offer is not interrupting
  * something.
@@ -24,14 +24,14 @@ import { useInstall } from './useInstall.js';
  * a launch announcement most people would miss entirely.
  *
  * It is held in component state rather than storage, which is what makes a
- * refresh bring it back — there is nothing to remember and nothing to clear.
+ * refresh bring it back - there is nothing to remember and nothing to clear.
  * The cost is real and worth naming: somebody who closes it every session will
  * keep seeing it. That is the trade being made on purpose.
  *
  * ## It never raises the browser's install prompt
  *
  * It used to, and that was wrong. PINGO is not a Progressive Web App and does
- * not want to be saved as a shortcut — the Android and iOS builds are real
+ * not want to be saved as a shortcut - the Android and iOS builds are real
  * store applications. Offering "Add to Home Screen" would teach people to
  * install the thing PINGO is deliberately not.
  *
@@ -60,7 +60,7 @@ export function InstallBanner() {
    *
    * The banner announces that native apps are coming. Showing it to somebody
    * already reading it *in* the Android app would be absurd, and
-   * `display-mode: standalone` does not reliably match in a Capacitor WebView —
+   * `display-mode: standalone` does not reliably match in a Capacitor WebView  - 
    * so the platform is asked directly rather than inferred from a media query.
    */
   if (isNative() || dismissed || method === 'installed') return null;

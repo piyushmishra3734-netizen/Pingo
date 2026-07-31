@@ -6,7 +6,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 /**
  * Logging out, with the question in front of it.
  *
- * Two screens offer it — Settings and Account — and both used to sign out on
+ * Two screens offer it - Settings and Account - and both used to sign out on
  * the tap. It sits in a list of navigation rows on one of them, which is the
  * worst possible place for an action that ends the session: a thumb reaching
  * for "Help" lands one row away.
@@ -19,7 +19,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  * ## What it says, and what it does not
  *
  * It names what is kept, not what is lost. "Your chats stay on this device" is
- * the fact somebody hesitating actually wants, and it is true — messages live
+ * the fact somebody hesitating actually wants, and it is true - messages live
  * on the server and come back on the next sign-in. A warning about losing
  * things would be both frightening and wrong.
  */
@@ -31,7 +31,7 @@ export function useSignOut(): () => Promise<void> {
     const go = await confirm({
       title: 'Log out of PINGO?',
       description:
-        'Your chats stay where they are — you will need to sign in again to reach them.',
+        'Your chats stay where they are - you will need to sign in again to reach them.',
       confirmLabel: 'Log out',
     });
     if (!go) return;

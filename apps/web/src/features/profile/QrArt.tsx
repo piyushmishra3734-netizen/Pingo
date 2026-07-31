@@ -17,7 +17,7 @@ import { encodeQr, type QrLevel } from './qr.js';
  *   the page surface. Scanners threshold the image to black and white and rely
  *   on the *light* modules being genuinely light; a dark-mode QR on a dark card
  *   inverts that relationship and a good number of readers simply refuse it.
- *   The card is what adapts to the theme — the code inside it does not.
+ *   The card is what adapts to the theme - the code inside it does not.
  * - **The gradient runs across the whole code, not per module.** One
  *   `linearGradient` over the full square keeps every module far from the
  *   background in luminance. Per-module colouring, or a gradient that reaches
@@ -32,7 +32,7 @@ import { encodeQr, type QrLevel } from './qr.js';
  * ## The finder patterns are drawn by hand
  *
  * The three corner squares are what a scanner locates first, so they are the
- * one place rounding is genuinely risky — and also the place it does the most
+ * one place rounding is genuinely risky - and also the place it does the most
  * for how the code looks. They are drawn as a rounded ring plus a rounded
  * centre at their exact specified geometry (7 modules outer, 3 modules inner,
  * one clear module between), rather than as rounded versions of each module,
@@ -41,7 +41,7 @@ import { encodeQr, type QrLevel } from './qr.js';
  * ## The logo is damage, and is budgeted as such
  *
  * Level H recovers about 30% of a code. The logo plate is 22% of the width,
- * which is 4.8% of the area — a fifth of the budget, leaving the rest for what
+ * which is 4.8% of the area - a fifth of the budget, leaving the rest for what
  * a camera actually adds: angle, motion blur, glare, a cheap sensor. The mark
  * itself is capped at 18% of the width as specified, and the plate is larger
  * than the mark so the logo never lands on a live module.
@@ -56,7 +56,7 @@ const QUIET = 4;
 /**
  * The white plate behind the logo, as a fraction of the code's width.
  *
- * Slightly larger than the mark so the logo never touches a module — a scanner
+ * Slightly larger than the mark so the logo never touches a module - a scanner
  * reading a module that is half-covered is worse off than one reading a module
  * that is cleanly absent, because absence is what the error correction is
  * designed to reconstruct.
@@ -147,7 +147,7 @@ export function QrArt({
       </defs>
 
       {/*
-        White, always, in both themes. See the note at the top of this file —
+        White, always, in both themes. See the note at the top of this file  - 
         this is the single most load-bearing rule in the component.
       */}
       <rect width={span} height={span} rx={span * 0.06} fill="#FFFFFF" />
@@ -158,7 +158,7 @@ export function QrArt({
 
           The inset (0.08 of a module each side) is what makes neighbouring
           modules read as separate dots rather than a blob, and it is small
-          enough that a scanner still samples ink at every module centre —
+          enough that a scanner still samples ink at every module centre  - 
           which is the only place it looks.
         */}
         {dots.map(({ x, y }) => (
@@ -215,8 +215,8 @@ export function QrArt({
             The official mark, unmodified.
 
             An `<image>` of the real artwork rather than a redrawing of it: the
-            logo is a fixed asset and approximating it in paths — which an
-            earlier version of this file did — produces something that is nearly
+            logo is a fixed asset and approximating it in paths - which an
+            earlier version of this file did - produces something that is nearly
             the logo, which is worse than not having one.
           */}
           <image

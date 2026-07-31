@@ -10,7 +10,7 @@
  * Who may see a story is decided by `can_see_story()` inside the read policy.
  * That is deliberate: this code runs in the user's browser, where they can edit
  * it, so a filter here would be a suggestion. An expired story, a story for
- * close friends only, a story hidden from you — none of them are *reachable*
+ * close friends only, a story hidden from you - none of them are *reachable*
  * through the API, rather than merely being left out of a list.
  *
  * The one thing filtered here is muted authors, and only because muting is the
@@ -36,7 +36,7 @@ const STORY_BUCKET = 'stories';
  * How long a signed story URL lives.
  *
  * An hour. A story is watched once for a few seconds, but the rail holds a
- * dozen thumbnails that may sit on screen while somebody reads their chats — a
+ * dozen thumbnails that may sit on screen while somebody reads their chats - a
  * shorter life would turn the row into grey circles without anybody doing
  * anything.
  */
@@ -111,8 +111,8 @@ export class SupabaseStoryService implements StoryService {
     const { data: rows, error } = await this.#client
       .from('stories')
       .select('*')
-      // Live only. Expired rows are readable *by their author* — that is the
-      // archive — so this list has to exclude them explicitly.
+      // Live only. Expired rows are readable *by their author* - that is the
+      // archive - so this list has to exclude them explicitly.
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: true });
 
@@ -146,11 +146,11 @@ export class SupabaseStoryService implements StoryService {
 
     for (const row of rows) {
       // Muting is the viewer's own preference, so it is applied here rather
-      // than in a policy — the story is one they are entitled to see.
+      // than in a policy - the story is one they are entitled to see.
       if (muted.has(row.author_id)) continue;
 
       const profile = profileById.get(row.author_id);
-      // A story whose author has no profile cannot be rendered — skip rather
+      // A story whose author has no profile cannot be rendered - skip rather
       // than show a nameless circle.
       if (!profile) continue;
 
@@ -173,8 +173,8 @@ export class SupabaseStoryService implements StoryService {
           latestAt: story.createdAt,
           isFriend: friends.has(row.author_id),
           /*
-           * Seeing a `close` story *is* what being on the list means — the
-           * policy already refused everybody else — so there is nothing further
+           * Seeing a `close` story *is* what being on the list means - the
+           * policy already refused everybody else - so there is nothing further
            * to ask before turning the ring green.
            */
           closeFriends: story.audience === 'close',
@@ -233,7 +233,7 @@ export class SupabaseStoryService implements StoryService {
          *
          * `media_url` only still exists for rows written before the bucket
          * became private. Writing a public URL now would produce a link that
-         * does not resolve, which is worse than an obviously absent one — the
+         * does not resolve, which is worse than an obviously absent one - the
          * reader falls back to it only when there is no path.
          */
         media_url: '',
@@ -260,7 +260,7 @@ export class SupabaseStoryService implements StoryService {
 
       if (audienceError) {
         /*
-         * A custom story whose audience failed to write is visible to nobody —
+         * A custom story whose audience failed to write is visible to nobody  - 
          * except its author, who would see it in their own rail and reasonably
          * assume it had gone out. Removing it is the honest outcome.
          */
@@ -289,7 +289,7 @@ export class SupabaseStoryService implements StoryService {
         updated_at: new Date().toISOString(),
       },
       urls,
-      // Your own story is seen by definition — you just made it.
+      // Your own story is seen by definition - you just made it.
       new Set([data.id]),
       new Set(),
     );
@@ -315,7 +315,7 @@ export class SupabaseStoryService implements StoryService {
     const { error } = await this.#client.from('stories').delete().eq('id', storyId);
     if (error) throw error;
 
-    // After the row, not before — a delete that fails must not leave a story
+    // After the row, not before - a delete that fails must not leave a story
     // pointing at media that has already gone.
     if (existing?.media_path) {
       await this.#client.storage.from(STORY_BUCKET).remove([existing.media_path]);
@@ -460,7 +460,7 @@ export class SupabaseStoryService implements StoryService {
    * Everyone the signed-in user is mutual with.
    *
    * Worked out here rather than borrowed from `SupabaseProfileService`, because
-   * the alternative is one service reaching into another — and a story rail
+   * the alternative is one service reaching into another - and a story rail
    * that breaks when the profile service changes shape is a worse coupling than
    * eight lines of set intersection.
    */

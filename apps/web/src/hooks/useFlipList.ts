@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
  * ## What it is fixing
  *
  * When a message arrives, its conversation jumps to the top of the list and
- * every row below shuffles down — instantly, in one frame. Nothing tells you
+ * every row below shuffles down - instantly, in one frame. Nothing tells you
  * *which* row moved or where it came from, so a list you were reading
  * rearranges itself under your eyes and you have to find your place again.
  * It is the single most common moment in the product and the least explained.
@@ -46,7 +46,7 @@ export function useFlipList(
   container: RefObject<HTMLElement | null>,
   /**
    * The ordered ids, joined. Passed as a string so the effect compares by value
-   * rather than by array identity — a parent re-render that produces an
+   * rather than by array identity - a parent re-render that produces an
    * equivalent array must not replay the animation.
    */
   order: string,
@@ -64,7 +64,7 @@ export function useFlipList(
      * Measured in one pass before anything is written.
      *
      * Interleaving reads and writes here would force a synchronous layout per
-     * row — the classic layout thrash, and on a long list it is the difference
+     * row - the classic layout thrash, and on a long list it is the difference
      * between a smooth reorder and a visible stall.
      */
     for (const node of nodes) {

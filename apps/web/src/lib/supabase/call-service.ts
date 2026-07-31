@@ -34,7 +34,7 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
  * ## ICE
  *
  * The server list is resolved per call by `resolveIceServers()`, not hard-coded
- * here — TURN credentials expire, so they cannot be a constant. See that module
+ * here - TURN credentials expire, so they cannot be a constant. See that module
  * for why the secret is never in this bundle.
  */
 
@@ -55,7 +55,7 @@ type SignalPayload =
   | { kind: 'hangup'; callId: string; from: string; reason: CallEndReason }
   /*
    * Group calls. Three extra signals, and each exists because a mesh has to
-   * *discover* its members — a direct call knows both ends from the first
+   * *discover* its members - a direct call knows both ends from the first
    * message and a room does not.
    *
    * `invite` carries no SDP. On a direct call the offer rides along with the
@@ -99,7 +99,7 @@ interface PeerLink {
    * Set *synchronously*, which is the entire point. `signalingState` does not
    * leave `stable` until `setLocalDescription` resolves, so two discoveries of
    * the same peer arriving in the same tick both pass a state check and both
-   * send an offer — the second arrives at a peer who is already
+   * send an offer - the second arrives at a peer who is already
    * `have-remote-offer` and is thrown away.
    *
    * That is not hypothetical: it happened on the first three-way run of this
@@ -108,7 +108,7 @@ interface PeerLink {
    * gone the other way the surviving offer would have been the rejected one,
    * and that leg would have stayed silent for the whole call.
    *
-   * Both discoveries are legitimate and both must be handled — when two people
+   * Both discoveries are legitimate and both must be handled - when two people
    * answer at once, each learns about the other through a `join` *and* through
    * the `here` that answers their own. This is what makes the second one a
    * no-op instead of a second offer.
@@ -132,7 +132,7 @@ export class SupabaseCallService implements CallService {
    * One connection per other person, keyed by their id.
    *
    * A direct call is a mesh of one. That is the whole reason this replaced the
-   * single `#peerConnection` rather than sitting beside it — two code paths for
+   * single `#peerConnection` rather than sitting beside it - two code paths for
    * "talk to somebody" is how the second one rots, and the direct call is the
    * one that gets exercised every day.
    */
@@ -173,7 +173,7 @@ export class SupabaseCallService implements CallService {
    *
    * Both properties matter. React's StrictMode mounts every effect twice in
    * development, so `connect()` is called, torn down, and called again while the
-   * first call's `await` is still in flight — without the in-flight guard that
+   * first call's `await` is still in flight - without the in-flight guard that
    * leaves two channels on one topic, and the second join hangs forever behind
    * the first. This is the same failure the chat service hit; the shape of the
    * fix is the same.
@@ -204,7 +204,7 @@ export class SupabaseCallService implements CallService {
            * `private` is the whole reason this is safe.
            *
            * A public Realtime topic is readable by anyone holding the anon key,
-           * which every visitor does — so on a public `call:{userId}` topic a
+           * which every visitor does - so on a public `call:{userId}` topic a
            * stranger could watch your call setup and inject offers. Private
            * topics are gated by RLS on `realtime.messages`, and the policies in
            * `20260726140000_call_signalling.sql` say: you may only *read* your
@@ -213,7 +213,7 @@ export class SupabaseCallService implements CallService {
           private: true,
           broadcast: {
             /*
-             * Not decorative. `self: false` — the default — silently drops
+             * Not decorative. `self: false` - the default - silently drops
              * signals that arrive over Realtime's HTTP broadcast endpoint,
              * which is exactly how `#send` publishes. Verified in the browser:
              * identical send, received with `self: true`, dropped without it.
@@ -240,7 +240,7 @@ export class SupabaseCallService implements CallService {
    * The peer's topic, held for the length of one call.
    *
    * Publishing needs a channel object but not a subscription, so this is never
-   * joined — `httpSend` posts to Realtime's REST endpoint and returns. It is
+   * joined - `httpSend` posts to Realtime's REST endpoint and returns. It is
    * cached rather than created per signal because `client.channel()` registers
    * every object it makes, and a call sends a dozen ICE candidates.
    */
@@ -255,7 +255,7 @@ export class SupabaseCallService implements CallService {
      * This used to hold a single channel and rebuild it whenever the
      * destination changed, which was free when there was only ever one
      * destination. A mesh interleaves candidates to four people, so that cache
-     * would miss on essentially every send — tearing down and re-registering a
+     * would miss on essentially every send - tearing down and re-registering a
      * channel per ICE candidate, and stalling connection setup exactly when
      * candidates matter most.
      */
@@ -277,7 +277,7 @@ export class SupabaseCallService implements CallService {
 
   #closeOutbound(): void {
     /*
-     * Removed by topic, and the topic is always the *peer's* — never this
+     * Removed by topic, and the topic is always the *peer's* - never this
      * user's own. That matters: `removeChannel` leaves the topic on the shared
      * socket, so removing a same-topic twin would silently unsubscribe the
      * listening channel and leave the user unreachable. (Observed exactly that
@@ -293,7 +293,7 @@ export class SupabaseCallService implements CallService {
         /*
          * An offer for the call we are already on is a new leg of the mesh,
          * not somebody ringing. Checked before the busy test, or every person
-         * joining a group call would be told the room was busy — by the room.
+         * joining a group call would be told the room was busy - by the room.
          */
         if (this.#call?.id === signal.callId && this.#inCall()) {
           await this.#answerOffer(signal.from, signal.callId, signal.sdp);
@@ -322,7 +322,7 @@ export class SupabaseCallService implements CallService {
           cameraOff: true,
         };
 
-        // Held until the user answers — the offer is useless before then.
+        // Held until the user answers - the offer is useless before then.
         this.#pendingOffer = signal.sdp;
         this.#emit({ type: 'call:incoming', call: this.#call });
         this.#armRingTimeout();
@@ -330,7 +330,7 @@ export class SupabaseCallService implements CallService {
       }
 
       /*
-       * A group ring. No SDP — see the note on the signal type.
+       * A group ring. No SDP - see the note on the signal type.
        *
        * The roster travels with the invite so a joiner knows the room without
        * asking a server for it, which is what keeps the mesh serverless.
@@ -446,7 +446,7 @@ export class SupabaseCallService implements CallService {
 
       case 'hangup':
         if (this.#call?.id !== signal.callId) return;
-        // In a room this is one person going — including the `busy` a phone
+        // In a room this is one person going - including the `busy` a phone
         // already on another call sends back. It is never the room ending.
         if (this.#call.participants) this.#dropPeer(signal.from);
         else this.#teardown(signal.reason);
@@ -459,7 +459,7 @@ export class SupabaseCallService implements CallService {
   /** Candidates that arrived before their leg existed, keyed by sender. */
   #earlyCandidates = new Map<string, RTCIceCandidateInit[]>();
 
-  /** True once we have media open — i.e. we are in the room, not just ringing. */
+  /** True once we have media open - i.e. we are in the room, not just ringing. */
   #inCall(): boolean {
     return Boolean(this.#localStream) && this.#call?.state !== 'ringing';
   }
@@ -468,13 +468,13 @@ export class SupabaseCallService implements CallService {
    * Which side of a pair creates the offer.
    *
    * Both ends run this and reach opposite answers, so exactly one offers. Any
-   * total order over the two ids would do — the point is that it is decided by
+   * total order over the two ids would do - the point is that it is decided by
    * *who they are* rather than by who spoke first, because who spoke first is
    * precisely what two people joining at the same instant cannot agree on.
    *
    * Without it, both sides offer, both set a local description, and both reject
    * the other's offer for being in the wrong signalling state. That is glare,
-   * and in a mesh it is not a rare race — it is what happens every time two
+   * and in a mesh it is not a rare race - it is what happens every time two
    * people answer the same ring together.
    */
   #shouldOffer(peerUserId: string): boolean {
@@ -489,7 +489,7 @@ export class SupabaseCallService implements CallService {
 
     // Already negotiating or negotiated. The flag is checked as well as the
     // signalling state because the state lags an offer that is still being
-    // built — see `PeerLink.negotiating`.
+    // built - see `PeerLink.negotiating`.
     if (link.negotiating || link.connection.signalingState !== 'stable') return;
     link.negotiating = true;
 
@@ -565,7 +565,7 @@ export class SupabaseCallService implements CallService {
      * The browser's own DSP, requested explicitly.
      *
      * These three constraints are what "echo cancellation, noise suppression"
-     * means on the web — WebRTC ships them, and they are free and always on the
+     * means on the web - WebRTC ships them, and they are free and always on the
      * fast path. RNNoise below is an *addition* to this, never a replacement.
      */
     const raw = await navigator.mediaDevices.getUserMedia({
@@ -580,7 +580,7 @@ export class SupabaseCallService implements CallService {
     /*
      * Held separately from the stream that gets sent.
      *
-     * With RNNoise on, the transmitted stream is the worklet's *output* — a
+     * With RNNoise on, the transmitted stream is the worklet's *output* - a
      * different object whose tracks are not the microphone. Stopping only that
      * one leaves the real microphone open and the browser's recording indicator
      * lit after the call ends.
@@ -595,10 +595,10 @@ export class SupabaseCallService implements CallService {
       this.#cleanupAudio = cleanup;
 
       // RNNoise returns audio only, so the camera track is carried across by
-      // hand — otherwise turning on noise suppression would silently drop video.
+      // hand - otherwise turning on noise suppression would silently drop video.
       return new MediaStream([...stream.getAudioTracks(), ...raw.getVideoTracks()]);
     } catch {
-      // RNNoise failing must not fail the call — the browser's suppression is
+      // RNNoise failing must not fail the call - the browser's suppression is
       // still running, and a slightly noisier call beats no call.
       return raw;
     }
@@ -609,7 +609,7 @@ export class SupabaseCallService implements CallService {
   /**
    * Adds the captured tracks to the connection and publishes the self-preview.
    *
-   * Shared by both legs — caller and callee do exactly the same thing here, and
+   * Shared by both legs - caller and callee do exactly the same thing here, and
    * when they drifted apart earlier it was the callee that quietly lost video.
    */
   #attachLocalTracks(link: PeerLink): void {
@@ -619,7 +619,7 @@ export class SupabaseCallService implements CallService {
     /*
      * The same tracks, added to every leg.
      *
-     * One capture, N encodings — which is the mesh's real cost and the reason
+     * One capture, N encodings - which is the mesh's real cost and the reason
      * it is right for a handful of people and wrong for a hundred. Sharing the
      * track object rather than re-opening the camera per peer is what keeps it
      * to one capture: mute and camera-off then apply everywhere at once,
@@ -638,8 +638,8 @@ export class SupabaseCallService implements CallService {
   /**
    * Opens one leg of the mesh, or hands back the one already open.
    *
-   * Idempotent because discovery can name the same person twice — a `join` and
-   * a `here` can cross on the wire — and building a second connection to
+   * Idempotent because discovery can name the same person twice - a `join` and
+   * a `here` can cross on the wire - and building a second connection to
    * somebody you are already talking to gets you two of their voice.
    */
   #link(peerUserId: string, callId: string): PeerLink {
@@ -684,7 +684,7 @@ export class SupabaseCallService implements CallService {
    *
    * This is where a mesh stops behaving like a direct call. On a direct call a
    * failed connection *is* a failed call, so the old code tore everything down
-   * — correct for one peer, and catastrophic for five: one person's flaky
+   * - correct for one peer, and catastrophic for five: one person's flaky
    * network would end the call for the whole room. Here a leg failing removes
    * that person and nothing else, and the call itself is only as ended as the
    * roster is empty.
@@ -758,7 +758,7 @@ export class SupabaseCallService implements CallService {
   /**
    * Removes one person from the mesh, leaving the call standing.
    *
-   * Their tile goes quiet rather than disappearing — `left`, not deleted — so a
+   * Their tile goes quiet rather than disappearing - `left`, not deleted - so a
    * grid of four does not re-flow under everyone's eyes the instant somebody's
    * train enters a tunnel.
    */
@@ -801,8 +801,8 @@ export class SupabaseCallService implements CallService {
     /*
      * Everything after the emit is torn down on failure.
      *
-     * The emit has to come first — it is what puts "Calling…" on screen while
-     * the microphone opens — but that means a refused or missing microphone
+     * The emit has to come first - it is what puts "Calling…" on screen while
+     * the microphone opens - but that means a refused or missing microphone
      * leaves a call the UI is showing and the service no longer believes in.
      * Without this the user is stranded on a call screen for a call that never
      * started. Rethrown, because the caller still needs to say why.
@@ -891,7 +891,7 @@ export class SupabaseCallService implements CallService {
       this.#iceServers = iceServers;
       if (this.#call.cameraOff) this.#applyCameraOff(true);
 
-      // The self-preview, which otherwise appears only once a leg is built —
+      // The self-preview, which otherwise appears only once a leg is built  - 
       // and on a group call the first leg may be twenty seconds away.
       if (stream.getVideoTracks().length > 0) {
         this.#emit({ type: 'call:local-stream', stream });
@@ -901,8 +901,8 @@ export class SupabaseCallService implements CallService {
        * The state deliberately stays `dialling`.
        *
        * The caller counts as being in the room from the moment they place the
-       * call — `#inCall()` tests for media plus "not still ringing", and
-       * `dialling` satisfies both — so an early `join` is answered without
+       * call - `#inCall()` tests for media plus "not still ringing", and
+       * `dialling` satisfies both - so an early `join` is answered without
        * having to advance anything here.
        *
        * Advancing to `connecting` would have been the obvious thing and would
@@ -935,7 +935,7 @@ export class SupabaseCallService implements CallService {
   async answer(callId: string, options?: CallServiceOptions): Promise<void> {
     if (!this.#call || this.#call.id !== callId) return;
 
-    // A group ring carries no offer, so there is nothing to answer — there is a
+    // A group ring carries no offer, so there is nothing to answer - there is a
     // room to announce yourself to. See `#answerGroup`.
     if (this.#call.participants) return this.#answerGroup(callId, options);
 
@@ -951,7 +951,7 @@ export class SupabaseCallService implements CallService {
      * Torn down on failure, exactly as in `call()`.
      *
      * Without this a refused or missing camera leaves the call stuck on
-     * "Connecting…" forever — the state was already advanced, no media ever
+     * "Connecting…" forever - the state was already advanced, no media ever
      * arrives, and the ring timeout has been cleared so nothing will ever end
      * it. Observed on a machine with no capture hardware.
      */
@@ -991,7 +991,7 @@ export class SupabaseCallService implements CallService {
    * room, which is what lets a mesh work without a conference server.
    *
    * The announcement goes to everyone who was *invited*, not to everyone who
-   * has answered — we cannot know the latter, and that is precisely the thing
+   * has answered - we cannot know the latter, and that is precisely the thing
    * being discovered.
    */
   async #answerGroup(callId: string, options?: CallServiceOptions): Promise<void> {
@@ -1003,7 +1003,7 @@ export class SupabaseCallService implements CallService {
      * Everyone invited, which already includes whoever placed the call.
      *
      * `peer.userId` is the *conversation* on a group call, not the host, so
-     * there is no separate person to tell — reading it as one would have sent
+     * there is no separate person to tell - reading it as one would have sent
      * every announcement to a topic nobody listens on.
      */
     const roster = this.#call.participants.map((participant) => participant.userId);
@@ -1027,7 +1027,7 @@ export class SupabaseCallService implements CallService {
        * Announced only once media is open.
        *
        * A `here` can come back within milliseconds and an offer straight after
-       * it, and `#link` attaches the local tracks as it builds the connection —
+       * it, and `#link` attaches the local tracks as it builds the connection  - 
        * announcing first would race a leg into existence with nothing to send
        * down it, and that leg would be silent for the rest of the call.
        */
@@ -1063,7 +1063,7 @@ export class SupabaseCallService implements CallService {
     if (!this.#call) return [];
     const roster = this.#call.participants?.map((participant) => participant.userId) ?? [];
     // The host is in `peer` on a group call, and `peer` is the *conversation*
-    // there — so the roster is the list, and a direct call is just peer.
+    // there - so the roster is the list, and a direct call is just peer.
     return this.#call.participants
       ? [...new Set([...roster, ...this.#peers.keys()])]
       : [this.#call.peer.userId];
@@ -1117,7 +1117,7 @@ export class SupabaseCallService implements CallService {
   setMuted(callId: string, muted: boolean): void {
     if (this.#call?.id !== callId) return;
     // Disabling the track keeps the connection up and stops sending audio,
-    // which is what mute means — stopping the track would end the call's media.
+    // which is what mute means - stopping the track would end the call's media.
     for (const track of this.#localStream?.getAudioTracks() ?? []) {
       track.enabled = !muted;
     }
@@ -1133,7 +1133,7 @@ export class SupabaseCallService implements CallService {
   /**
    * Disables the camera track rather than stopping it.
    *
-   * A stopped track cannot be restarted — turning the camera back on would mean
+   * A stopped track cannot be restarted - turning the camera back on would mean
    * a fresh `getUserMedia` and a renegotiation. Disabling transmits black
    * frames at almost no bitrate and flips back instantly, which is what every
    * other client does too.
@@ -1187,7 +1187,7 @@ export class SupabaseCallService implements CallService {
     this.#rawTracks = [...this.#rawTracks.filter((t) => t.kind !== 'video'), track];
 
     // The self-preview is bound to the stream object, but re-emitting tells the
-    // UI to re-attach — some browsers freeze the last frame otherwise.
+    // UI to re-attach - some browsers freeze the last frame otherwise.
     if (this.#localStream) {
       this.#emit({ type: 'call:local-stream', stream: this.#localStream });
     }
@@ -1214,7 +1214,7 @@ export class SupabaseCallService implements CallService {
     /*
      * Both sets, and `#rawTracks` is the one that matters.
      *
-     * With RNNoise on, `#localStream` holds the worklet's output — stopping only
+     * With RNNoise on, `#localStream` holds the worklet's output - stopping only
      * those leaves the real microphone and camera running, and the browser keeps
      * showing the recording indicator after the call has ended.
      */
@@ -1226,7 +1226,7 @@ export class SupabaseCallService implements CallService {
     this.#cleanupAudio?.();
     this.#cleanupAudio = undefined;
 
-    // Every leg, and the map emptied — a mesh that keeps one connection open
+    // Every leg, and the map emptied - a mesh that keeps one connection open
     // after the call ends keeps a microphone flowing down it.
     for (const [userId, link] of this.#peers) {
       link.connection.close();

@@ -12,19 +12,19 @@ import { authErrorMessage } from '../../features/auth/messages.js';
 import { SIGNUP_PROGRESS } from './progress.js';
 
 /**
- * Sign-up, step 2 —
+ * Sign-up, step 2  - 
  * [docs/01 § 8](../../../../../docs/01-onboarding-auth.md#8-create-password).
  *
  * **This screen creates the account.** With verification gone it is the last
  * step of sign-up, so Continue is the moment the identifier and the password
- * are sent together — which is also why it can fail in ways § 8 never had to
+ * are sent together - which is also why it can fail in ways § 8 never had to
  * consider, and why it carries a message slot the wireframe does not show.
  *
  * One screen serves both doors. The identifier came from `IdentityFlow` and is
  * only read for the recap line and to pick which service to call; nothing else
  * here branches on email versus phone.
  *
- * **There is no confirm field**, per § 8.1 — the reveal toggle solves the typo
+ * **There is no confirm field**, per § 8.1 - the reveal toggle solves the typo
  * problem a confirm field exists for, without doubling the typing or fighting a
  * password manager that fills one box and not the other.
  *
@@ -59,12 +59,12 @@ export function CreatePasswordScreen() {
       await service[identity.kind].signUp(identity.value, password);
       writeLastMethod(identity.kind);
       // Phase 2 ends at Home. Profile Setup, Theme, Notifications and Contacts
-      // (§ 9–12) slot in between here and `/chats` when they are built.
+      // (§ 9-12) slot in between here and `/chats` when they are built.
       navigate('/chats', { replace: true });
     } catch (cause) {
       /*
        * § 17: an identifier that already has an account never creates a second
-       * one — that is unrecoverable in a messaging product, because the wrong
+       * one - that is unrecoverable in a messaging product, because the wrong
        * account holds the conversations. Route to Log In with the identifier
        * carried across, so the user continues rather than starts again.
        */

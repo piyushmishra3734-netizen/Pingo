@@ -26,12 +26,12 @@ import { useSignOut } from '../features/settings/useSignOut.js';
 import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
 
 /**
- * Settings — the index.
+ * Settings - the index.
  *
  * ## Search is the fastest path, so it sits above everything
  *
  * Twelve sections is more than anyone scans. The field searches the registry in
- * `@pingo/core`, which is the *same* data the pages are built from — so a
+ * `@pingo/core`, which is the *same* data the pages are built from - so a
  * setting that exists is a setting that is findable, and there is no second
  * list to forget to update.
  *
@@ -41,7 +41,7 @@ import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
  * ## Sections with no page yet still appear
  *
  * The index is the map of the product, and hiding what has not been built makes
- * the map wrong. Unbuilt sections are listed and marked `Soon` — visible, and
+ * the map wrong. Unbuilt sections are listed and marked `Soon` - visible, and
  * honest about not accepting a tap they cannot honour.
  */
 
@@ -183,7 +183,7 @@ export function SettingsScreen() {
               {/*
                 Above Logout, deliberately. They sit next to each other because
                 both are "leave this account", and switching is the one people
-                actually mean most of the time — putting it second would make
+                actually mean most of the time - putting it second would make
                 the destructive option the first thing a thumb reaches.
               */}
               <SettingsRow
@@ -218,7 +218,7 @@ export function SettingsScreen() {
         onAddAccount={() => {
           /*
            * Adding an account is signing in, and signing in replaces the
-           * session — which is fine, because the one being replaced is already
+           * session - which is fine, because the one being replaced is already
            * saved. Coming back through the switcher restores it in a tap.
            */
           setSwitcherOpen(false);

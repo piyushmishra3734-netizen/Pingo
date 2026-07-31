@@ -3,7 +3,7 @@ import { useId } from 'react';
 import { cn } from '../utils/cn.js';
 
 /**
- * Toggle — the switch from the board, in its on and off states.
+ * Toggle - the switch from the board, in its on and off states.
  *
  * Built on a real `<button role="switch">` rather than a styled checkbox, which
  * gives correct semantics without fighting native rendering. The knob moves with

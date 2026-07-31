@@ -8,7 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
  *
  * It used to live inside the chat list, which meant the badge only existed on
  * the one screen that rendered it. A notification arriving while the user was
- * on Camera or Profile was invisible until they navigated back — the count was
+ * on Camera or Profile was invisible until they navigated back - the count was
  * correct and nobody could see it.
  *
  * Held here, one subscription serves every screen, and the number survives
@@ -18,7 +18,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
  *
  * A `notification:new` event bumps the count without asking the server, because
  * the event *is* the notification. Marking read goes the other way and resets
- * to zero locally — the screen that does it has just read everything, so there
+ * to zero locally - the screen that does it has just read everything, so there
  * is nothing to reconcile.
  */
 

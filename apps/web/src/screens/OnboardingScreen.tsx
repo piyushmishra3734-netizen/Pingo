@@ -6,7 +6,7 @@ import { AppLogo } from '../components/AppLogo.js';
 import { applyPageSeo } from '../lib/seo.js';
 
 /**
- * Welcome — the first screen a new user sees, after the splash.
+ * Welcome - the first screen a new user sees, after the splash.
  *
  * One screen, one action. The three-panel carousel that used to live here is
  * gone: this replaces it, per the flow spec.
@@ -24,9 +24,9 @@ import { applyPageSeo } from '../lib/seo.js';
  * ## Two things worth knowing
  *
  * **There is no Log In button.** The spec ends at Get Started, so nothing else
- * is here. A returning user who signs out still reaches Log In — the splash
+ * is here. A returning user who signs out still reaches Log In - the splash
  * routes them there directly once the device has onboarded
- * ([§ 3](../../../../docs/01-onboarding-auth.md#3-splash)) — but on a *fresh*
+ * ([§ 3](../../../../docs/01-onboarding-auth.md#3-splash)) - but on a *fresh*
  * device there is no visible way back to an existing account. Worth revisiting
  * the day someone reinstalls.
  *
@@ -39,7 +39,7 @@ export function OnboardingScreen() {
   useEffect(
     () =>
       applyPageSeo({
-        title: 'Welcome to PINGO — Private messaging',
+        title: 'Welcome to PINGO. Private messaging',
         description:
           'Welcome to PINGO. Private, fast, beautiful messaging with disappearing Pings, expiring stories, and a three-post profile. Get started free.',
         path: '/welcome',
@@ -80,7 +80,7 @@ export function OnboardingScreen() {
           {/*
             Sits under the action it qualifies, so the agreement is read in the
             same glance as the button that constitutes it. Links are public
-            pages — not auth-gated settings screens.
+            pages - not auth-gated settings screens.
           */}
           <p className="mt-5 text-center text-caption text-text-tertiary">
             By continuing you agree to our{' '}

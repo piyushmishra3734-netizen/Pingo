@@ -10,13 +10,13 @@
  *     --schema public \
  *     > apps/web/src/lib/supabase/types.ts
  *
- * If a type here is wrong, the migration is the source of truth — fix the
+ * If a type here is wrong, the migration is the source of truth - fix the
  * schema, not the type.
  *
  * ## Everything here is a `type`, never an `interface`
  *
  * postgrest-js constrains the schema to `Record<string, GenericTable>`, and an
- * `interface` does not satisfy an index-signature constraint — only a type alias
+ * `interface` does not satisfy an index-signature constraint - only a type alias
  * gets an implicit one. Declare any of these as an interface and the constraint
  * silently fails, every table resolves to `never`, and `insert()` starts
  * reporting "'id' does not exist in type 'never[]'" from deep inside the
@@ -26,7 +26,7 @@
 /** One row of `public.profiles`. */
 export type ProfileRow = {
   id: string;
-  /** Always lowercase, 3–20 of `[a-z0-9_]`. Enforced by a check constraint. */
+  /** Always lowercase, 3-20 of `[a-z0-9_]`. Enforced by a check constraint. */
   username: string;
   display_name: string;
   /** Null means the monogram, which is a real default rather than a gap. */
@@ -106,7 +106,7 @@ export type ConversationMemberRow = {
   favorite: boolean;
   /** Null is unmuted; a timestamp is until then; Postgres infinity is always. */
   muted_until: string | null;
-  /** Out of the main list. Per member — the other side's copy does not move. */
+  /** Out of the main list. Per member - the other side's copy does not move. */
   archived_at: string | null;
   /** Deliberately unread, which no read cursor can express. */
   marked_unread: boolean;
@@ -373,7 +373,7 @@ export type Database = {
       /**
        * The account recovery package, and the public half senders wrap to.
        *
-       * Only three columns are selectable — the migration revokes `select` on
+       * Only three columns are selectable - the migration revokes `select` on
        * the table and grants it back for `user_id`, `public_key` and `version`
        * individually. `package` is deliberately absent from `Row` here: it is
        * not readable through this client at all, and typing it as though it
@@ -545,12 +545,12 @@ export type Database = {
       /** Streak days per direct conversation, for the signed-in user only. */
       unread_notifications: { Args: Record<string, never>; Returns: number };
       mark_notifications_read: { Args: Record<string, never>; Returns: undefined };
-      /** Add, swap or remove in one statement — see the reactions migration. */
+      /** Add, swap or remove in one statement - see the reactions migration. */
       toggle_reaction: { Args: { target: string; symbol: string }; Returns: undefined };
       /**
        * Ownership is enforced server-side; the edit window was removed.
        *
-       * The body is re-sealed by the caller, so the envelope travels with it —
+       * The body is re-sealed by the caller, so the envelope travels with it  - 
        * the server holds no keys and cannot encrypt on anyone's behalf. The
        * two-argument form still exists for tabs loaded before that change, but
        * refuses encrypted rows rather than writing plaintext into one.
@@ -666,7 +666,7 @@ export type Database = {
       };
       /**
        * Who has read one message. One row per other member, `read_at` null for
-       * the ones who have not — "still waiting on Priya" is half the answer.
+       * the ones who have not - "still waiting on Priya" is half the answer.
        */
       message_receipts: {
         Args: { msg: string };
@@ -709,7 +709,7 @@ export type Database = {
         Args: { conv: string; title: string; avatar_url: string | null };
         Returns: undefined;
       };
-      /** Idempotent — returns the live code rather than minting a second. */
+      /** Idempotent - returns the live code rather than minting a second. */
       group_invite_code: {
         Args: { conv: string };
         Returns: string;

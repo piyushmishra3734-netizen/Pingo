@@ -2,7 +2,7 @@
   "name": "pingo",
   "version": "0.1.0",
   "private": true,
-  "description": "PINGO — Connect. Privately. A calm, premium communication platform.",
+  "description": "PINGO. Connect. Privately. A calm, premium communication platform.",
   "scripts": {
     "dev": "pnpm --filter @pingo/web dev",
     "build": "pnpm --filter @pingo/web build",

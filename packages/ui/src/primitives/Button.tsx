@@ -5,7 +5,7 @@ import { PingoDot } from '../brand/PingoDot.js';
 import { cn } from '../utils/cn.js';
 
 /**
- * Button — the three variants on the branding board.
+ * Button - the three variants on the branding board.
  *
  *   primary   gradient fill, brand glow. One per view; it is the answer to
  *             "what should I do here?"
@@ -60,7 +60,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   text: cn('text-brand hover:bg-hover', 'active:scale-[0.96]'),
 };
 
-/** `text` buttons get tighter padding — they are labels, not surfaces. */
+/** `text` buttons get tighter padding - they are labels, not surfaces. */
 const SIZE: Record<ButtonSize, string> = {
   sm: 'h-9 px-4 text-caption rounded-md',
   md: 'h-11 px-5 text-body rounded-md',
@@ -133,7 +133,7 @@ export function Button({
 /**
  * A square, icon-only button for chrome: headers, composers, the dock.
  *
- * Separate from `Button` because the constraints are different — it must stay
+ * Separate from `Button` because the constraints are different - it must stay
  * square, it must never contain text, and it *requires* an accessible label,
  * which the type signature enforces.
  */
@@ -175,7 +175,7 @@ export function IconButton({
         'focus-ring transition-all duration-instant ease-standard',
         // The visual size stays; the hit area reaches 44×44. A row of 44px
         // buttons in a header looks heavy, and a 40px target under a thumb is
-        // a miss — this is how both are true at once.
+        // a miss - this is how both are true at once.
         'touch-target',
         'active:scale-[0.96]',
         'disabled:pointer-events-none disabled:opacity-45',

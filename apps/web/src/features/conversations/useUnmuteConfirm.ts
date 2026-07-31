@@ -5,8 +5,8 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 /**
  * Turning notifications back on, with the question in front of it.
  *
- * Three surfaces offer unmute — the thread's `⋯`, the chat list's selection
- * menu, and a person's profile — and all three used to do it on the tap. The
+ * Three surfaces offer unmute - the thread's `⋯`, the chat list's selection
+ * menu, and a person's profile - and all three used to do it on the tap. The
  * hook exists so all three ask the same question in the same words, because a
  * confirmation that is worded differently in different places reads as a
  * different question and stops being one people trust.
@@ -19,7 +19,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  * point of muting. The question is the reminder that something is about to
  * start making noise again.
  *
- * The copy says what will happen rather than asking whether they are sure —
+ * The copy says what will happen rather than asking whether they are sure  - 
  * "this chat can notify you again" is the fact; "are you sure" is not.
  */
 export function useUnmuteConfirm(): (count: number, name?: string) => Promise<boolean> {

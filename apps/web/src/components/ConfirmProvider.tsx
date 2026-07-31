@@ -18,7 +18,7 @@ import { Sheet, SheetCancel } from './Sheet.js';
  * A confirmation is a question in the middle of a function, not a thing on a
  * page. Written as a component, every caller needs a piece of state, a pending
  * value to remember *what* was being deleted, two handlers, and a branch in its
- * JSX — perhaps fifteen lines to ask one question. Six callers means six
+ * JSX - perhaps fifteen lines to ask one question. Six callers means six
  * slightly different dialogs, and the seventh forgets entirely.
  *
  * As a promise it is the shape the code already has:
@@ -33,15 +33,15 @@ import { Sheet, SheetCancel } from './Sheet.js';
  *
  * ## What it is for, and what it is not
  *
- * Anything that destroys something the user has — messages, posts, comments,
- * a photo, a friendship, their session — and the handful of reversible acts
+ * Anything that destroys something the user has - messages, posts, comments,
+ * a photo, a friendship, their session - and the handful of reversible acts
  * that still change how the app behaves towards a person: unmuting a chat, and
  * unblocking someone. Those two get `tone: 'normal'` rather than the red
  * button, because they are decisions rather than losses.
  *
  * Not for the ordinary ones. Pin, favourite, archive and mark-as-read are all a
  * single tap to undo, and a product that asks twice about everything teaches
- * people to confirm without reading — which is how the important question gets
+ * people to confirm without reading - which is how the important question gets
  * waved through too.
  *
  * ## Why cancelling resolves rather than rejects
@@ -55,7 +55,7 @@ export interface ConfirmOptions {
   title: string;
   /** What actually happens. Say the consequence, not "This cannot be undone." */
   description?: string;
-  /** The button. Never "OK" — it says the action, so it can be read at a glance. */
+  /** The button. Never "OK" - it says the action, so it can be read at a glance. */
   confirmLabel: string;
   /** `danger` is red and the default; `normal` for a heavy but harmless choice. */
   tone?: 'danger' | 'normal';
@@ -80,7 +80,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           /*
            * A second question while one is open answers the first with "no".
            * Without this the earlier promise never settles, and whatever was
-           * awaiting it is stuck forever — a leak that only shows up as a
+           * awaiting it is stuck forever - a leak that only shows up as a
            * button that stopped responding.
            */
           previous?.settle(false);

@@ -12,7 +12,7 @@ import { StoryPrivacySheet } from './StoryPrivacySheet.js';
  *
  * The spec asks for delete and archive. Adding another, editing the close
  * friends list and reaching the privacy settings are here too, because this is
- * the only place a person is already thinking about their own story — putting
+ * the only place a person is already thinking about their own story - putting
  * "who sees my stories" three screens away in Settings is how a privacy control
  * ends up never being found.
  *
@@ -20,7 +20,7 @@ import { StoryPrivacySheet } from './StoryPrivacySheet.js';
  *
  * "Delete current story" is unambiguous when there is one. With several, the
  * newest is the one the circle is showing and the one somebody has just decided
- * against — and anything older is reachable from the viewer's own menu, one
+ * against - and anything older is reachable from the viewer's own menu, one
  * story at a time, where you can see what you are removing.
  */
 

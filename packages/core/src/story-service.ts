@@ -1,7 +1,7 @@
 /**
  * The StoryService boundary.
  *
- * Stories are ephemeral posts — media that expires. That makes them neither
+ * Stories are ephemeral posts - media that expires. That makes them neither
  * profile data (which persists) nor conversation data (which is addressed to
  * someone), so they get their own boundary rather than being wedged into a
  * service whose contract they would contradict.
@@ -12,7 +12,7 @@
  * produce a private message in the thread with that person, so both go through
  * `ChatService.sendMessage` with `storyReply` set. Putting them here would mean
  * a second way to send a message, with its own bugs, for something the chat
- * already does — and it would quietly invent a "story comment", which this
+ * already does - and it would quietly invent a "story comment", which this
  * product does not have.
  */
 
@@ -44,10 +44,10 @@ export interface Story {
   authorUsername: string;
   authorAvatarUrl?: string;
   kind: StoryKind;
-  /** Short-lived and signed. Do not cache it — re-read the story instead. */
+  /** Short-lived and signed. Do not cache it - re-read the story instead. */
   mediaUrl: string;
   caption?: string;
-  /** Free text, as typed. Not geocoded — a geocoder is a dependency with a key. */
+  /** Free text, as typed. Not geocoded - a geocoder is a dependency with a key. */
   location?: string;
   /** An http(s) link the viewer can open. */
   linkUrl?: string;
@@ -99,7 +99,7 @@ export interface StoryDraft {
   linkUrl?: string;
 }
 
-/** One person who watched a story. Owner-only — see `listViewers`. */
+/** One person who watched a story. Owner-only - see `listViewers`. */
 export interface StoryViewer {
   userId: string;
   username: string;
@@ -126,7 +126,7 @@ export interface StoryService {
   /**
    * Live stories the signed-in user may see, grouped by author.
    *
-   * Already filtered by audience — the database decides, not this list — and
+   * Already filtered by audience - the database decides, not this list - and
    * with muted authors dropped. Ordering is the caller's business.
    */
   listStoryGroups(): Promise<StoryGroup[]>;
@@ -185,7 +185,7 @@ export interface StoryService {
   /**
    * Authors whose stories the signed-in user has muted, as ids.
    *
-   * Entirely the muter's business — the author is never told, and their circle
+   * Entirely the muter's business - the author is never told, and their circle
    * simply stops appearing in the rail.
    */
   listMutedAuthors(): Promise<string[]>;
@@ -201,7 +201,7 @@ export type StoryReaction = (typeof STORY_REACTIONS)[number];
 /**
  * How long one photo story is shown before the next.
  *
- * Five seconds, which is what every story product has converged on — long
+ * Five seconds, which is what every story product has converged on - long
  * enough to read a caption, short enough that a queue of six is not a
  * commitment. A video runs for its own length instead; a timer that cuts a
  * video off mid-sentence is worse than one that waits.

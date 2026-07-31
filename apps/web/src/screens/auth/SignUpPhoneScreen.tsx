@@ -10,19 +10,19 @@ import { defaultCountry } from '../../features/auth/countries.js';
 import { SIGNUP_PROGRESS } from './progress.js';
 
 /**
- * Sign-up, step 1 (phone) —
+ * Sign-up, step 1 (phone)  - 
  * [docs/01 § 6.2](../../../../../docs/01-onboarding-auth.md#62-phone-number).
  *
  * The § 6.2 wireframe without its verification step. Continue is disabled until
  * the number is structurally valid, the country defaults from device locale
- * (never IP — that reveals travel), and there is **no shake on error**.
+ * (never IP - that reveals travel), and there is **no shake on error**.
  *
  * ## What is lost with the code, stated plainly
  *
  * § 6.2's verification proved the number belonged to the person signing up.
  * Without it, a number on an account is a claim, not a fact. Contact discovery
  * (§ 12) matches people *by* phone number, so building it on unverified numbers
- * would let anyone be found as anyone — that feature needs its own verification
+ * would let anyone be found as anyone - that feature needs its own verification
  * step before it ships, and cannot lean on this screen.
  */
 export function SignUpPhoneScreen() {

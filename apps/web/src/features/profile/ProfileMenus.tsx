@@ -23,8 +23,8 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
  *
  * The header used to carry a "Settings" text button, which spent a permanent
  * slot on a destination the dock already reaches. The menu holds it alongside
- * the two things that genuinely belong to this screen — editing the profile and
- * sharing it — and gives the header back to the profile itself.
+ * the two things that genuinely belong to this screen - editing the profile and
+ * sharing it - and gives the header back to the profile itself.
  */
 
 export function MyProfileMenu({
@@ -50,7 +50,7 @@ export function MyProfileMenu({
           The only way to post once the grid is full.
 
           The empty slots in the grid are the obvious route to a first, second
-          and third post — and they are gone by definition when there are three,
+          and third post - and they are gone by definition when there are three,
           which left the replace flow with nothing to trigger it. This is the
           entry that is always there, and it says which of the two things it is
           about to do.

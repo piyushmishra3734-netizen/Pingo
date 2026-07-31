@@ -9,7 +9,7 @@ import { Sheet } from '../../../components/Sheet.js';
  *
  * ## Why this replaced a `window.alert`
  *
- * Info used to be `window.alert('Sent …\nStatus: read')` — a Chrome dialog with
+ * Info used to be `window.alert('Sent …\nStatus: read')` - a Chrome dialog with
  * Chrome's typography, Chrome's button, and no way to tell you the one thing
  * anybody opens message info to find out: *which* of the six people in the
  * group have actually seen it. It also blocked the page, which for a chat
@@ -20,7 +20,7 @@ import { Sheet } from '../../../components/Sheet.js';
  * A group lists every other member whether they have read it or not, because
  * "still waiting on Priya" is the half of the answer a list of readers cannot
  * give. The unread sit under their own heading rather than being dropped, and
- * the order — read first, newest read at the top — puts the fresh news where
+ * the order - read first, newest read at the top - puts the fresh news where
  * the eye lands.
  *
  * ## What a time here means

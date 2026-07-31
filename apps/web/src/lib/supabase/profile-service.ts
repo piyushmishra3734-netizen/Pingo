@@ -10,7 +10,7 @@
  *
  * None of the writes below pass a user id. They do not need to: the policies
  * check `auth.uid() = id`, so an attempt to write someone else's row fails at
- * the database rather than at a condition in this file. That is deliberate —
+ * the database rather than at a condition in this file. That is deliberate  - 
  * a client-side check is a suggestion, and this code runs in the user's browser
  * where they can edit it.
  */
@@ -45,7 +45,7 @@ const PHOTO_BUCKET = 'photos';
  * How long a signed image URL lives.
  *
  * An hour rather than the minute chat photos get. A profile is looked at, put
- * down and looked at again — a URL that dies while the tab is still open would
+ * down and looked at again - a URL that dies while the tab is still open would
  * turn the grid into broken images on nothing more than a coffee break.
  */
 const IMAGE_URL_TTL_SECONDS = 60 * 60;
@@ -60,7 +60,7 @@ function toProfile(row: ProfileRow): Profile {
     displayName: row.display_name,
     avatarUrl: row.avatar_url ?? undefined,
     // Empty and null both mean "not set", and only one of them should reach the
-    // UI — otherwise an empty string renders as a bio-shaped gap.
+    // UI - otherwise an empty string renders as a bio-shaped gap.
     bio: row.bio?.trim() ? row.bio : undefined,
     createdAt: Date.parse(row.created_at),
   };
@@ -89,7 +89,7 @@ function rethrow(error: unknown): never {
     if (isUniqueViolation(error as { code?: string })) {
       throw new ProfileError('username_taken', 'That username is taken.');
     }
-    // 23514 is a check-constraint violation — the format rules in the migration.
+    // 23514 is a check-constraint violation - the format rules in the migration.
     if ((error as { code?: string }).code === '23514') {
       throw new ProfileError('username_invalid', 'That username is not allowed.');
     }
@@ -136,7 +136,7 @@ export class SupabaseProfileService implements ProfileService {
    * By handle, or by id when the argument looks like one.
    *
    * The shape of the string decides, because a uuid can never be a valid
-   * username — the format check forbids the hyphens — so there is no input
+   * username - the format check forbids the hyphens - so there is no input
    * that could be read either way.
    */
   async find(handleOrId: string): Promise<Profile | null> {
@@ -227,14 +227,14 @@ export class SupabaseProfileService implements ProfileService {
     /*
      * Typed as the table's own Update shape rather than a loose record.
      * postgrest rejects excess properties, so a `Record<string, …>` here fails
-     * to compile — and that strictness is worth keeping: it means a typo in a
+     * to compile - and that strictness is worth keeping: it means a typo in a
      * column name is a build error, not a silent no-op at runtime.
      */
     /*
      * Keyed on whether the property is *present*, not on whether it is defined.
      *
      * `avatarUrl` and `bio` are optional, so the only way to say "clear this" is
-     * to pass the key with `undefined` — and a `!== undefined` test reads that
+     * to pass the key with `undefined` - and a `!== undefined` test reads that
      * as "not mentioned" and leaves the old value in place. Removing a profile
      * photo did nothing at all for exactly that reason.
      *
@@ -266,7 +266,7 @@ export class SupabaseProfileService implements ProfileService {
     const userId = await this.requireUserId();
 
     /*
-     * The user's id is the folder, which is what the storage policy checks —
+     * The user's id is the folder, which is what the storage policy checks  - 
      * `(storage.foldername(name))[1] = auth.uid()`. The timestamp defeats CDN
      * caching, so a replaced photo appears immediately instead of showing the
      * old one until the cache expires.
@@ -304,7 +304,7 @@ export class SupabaseProfileService implements ProfileService {
    *
    * `or(...)` fetches the row I own and the row they own together, because the
    * answer depends on both and two round trips could see them in different
-   * states — accept arriving between them would report `following` for a pair
+   * states - accept arriving between them would report `following` for a pair
    * that is already mutual.
    */
   async followState(userId: string): Promise<FollowState> {
@@ -353,8 +353,8 @@ export class SupabaseProfileService implements ProfileService {
   async acceptFollow(userId: string): Promise<FollowState> {
     const me = await this.requireUserId();
 
-    // Their row, not mine. RLS also enforces this — the policy only lets the
-    // followee update — so a mistake here fails rather than granting access.
+    // Their row, not mine. RLS also enforces this - the policy only lets the
+    // followee update - so a mistake here fails rather than granting access.
     const { error } = await this.client
       .from('follows')
       .update({ status: 'accepted', responded_at: new Date().toISOString() })
@@ -365,7 +365,7 @@ export class SupabaseProfileService implements ProfileService {
     return this.followState(userId);
   }
 
-  /** Unfollow, withdraw, or reject — all of them delete a row. */
+  /** Unfollow, withdraw, or reject - all of them delete a row. */
   async removeFollow(userId: string): Promise<FollowState> {
     const me = await this.requireUserId();
 
@@ -385,7 +385,7 @@ export class SupabaseProfileService implements ProfileService {
    * Both directions once, intersected here.
    *
    * Postgres could answer this with a self-join, but that would need another
-   * `security definer` function to see past RLS on the other person's row —
+   * `security definer` function to see past RLS on the other person's row  - 
    * and RLS already returns every row that involves me, which is exactly the
    * input this needs. Two lists and a set beat a new database surface.
    */
@@ -416,7 +416,7 @@ export class SupabaseProfileService implements ProfileService {
    *
    * This read `profiles!follows_follower_id_fkey(*)` and always failed with a
    * 400. PostgREST resolves an embed by following a declared foreign key, and
-   * `follows.follower_id` points at `auth.users` — there is no key from
+   * `follows.follower_id` points at `auth.users` - there is no key from
    * `follows` to `profiles` for it to follow, so the relationship named there
    * never existed. Every caller wrapped this in a `catch`, so it looked like a
    * user with no pending requests rather than like a query that could not run.
@@ -459,7 +459,7 @@ export class SupabaseProfileService implements ProfileService {
    * The three numbers, from one function call.
    *
    * A `security definer` function rather than three queries, because two of the
-   * three are invisible under RLS for anyone but yourself — someone else's
+   * three are invisible under RLS for anyone but yourself - someone else's
    * group memberships are theirs, and `follows` only ever returns rows the
    * caller is part of. Asking directly would report "0 friends, 0 groups" on
    * every profile in the product except your own.
@@ -496,7 +496,7 @@ export class SupabaseProfileService implements ProfileService {
    * Signs a batch of post images in one request.
    *
    * Separate from the row read because `createSignedUrls` takes paths and knows
-   * nothing about posts — and because a post whose image has gone missing
+   * nothing about posts - and because a post whose image has gone missing
    * should still render its caption rather than disappear from the grid.
    */
   private async signPosts(rows: PostRow[]): Promise<Map<string, string>> {
@@ -512,7 +512,7 @@ export class SupabaseProfileService implements ProfileService {
     /*
      * Both halves are nullable on the entry: an object that could not be signed
      * comes back carrying an error instead, and neither a `null` key nor a
-     * `null` URL is any use to the grid. Dropped rather than kept as a blank —
+     * `null` URL is any use to the grid. Dropped rather than kept as a blank  - 
      * a post whose image is missing renders as a caption, not as a dead tile.
      */
     const pairs: [string, string][] = [];
@@ -527,7 +527,7 @@ export class SupabaseProfileService implements ProfileService {
    *
    * Three small reads rather than a view or a set of aggregate columns. A
    * profile holds at most three posts, so this is bounded at a few dozen rows
-   * however popular they are — and counts kept on the post row would be a
+   * however popular they are - and counts kept on the post row would be a
    * second source of truth that drifts the first time a delete races a like.
    */
   private async decoratePosts(rows: PostRow[]): Promise<Post[]> {
@@ -741,8 +741,8 @@ export class SupabaseProfileService implements ProfileService {
 
     const joined = data as unknown as PostCommentRow & { profiles: ProfileRow | null };
     if (!joined.profiles) {
-      // Cannot happen — the row was just written by this user, whose profile
-      // exists — but the join is nullable in the type and guessing a name here
+      // Cannot happen - the row was just written by this user, whose profile
+      // exists - but the join is nullable in the type and guessing a name here
       // would be worse than saying the read failed.
       throw new ProfileError('unknown', 'Comment posted, but could not be shown.');
     }
@@ -851,8 +851,8 @@ export class SupabaseProfileService implements ProfileService {
 
     /*
      * Blocking also drops the follow in both directions. Leaving it would mean
-     * a blocked person still counts as a friend — still inside the mutual gate
-     * that opens calls and stories — which is the opposite of what the word
+     * a blocked person still counts as a friend - still inside the mutual gate
+     * that opens calls and stories - which is the opposite of what the word
      * means to the person who pressed it.
      */
     const { error: unfollowError } = await this.client
@@ -870,7 +870,7 @@ export class SupabaseProfileService implements ProfileService {
 
     /*
      * No `.select()`. Reports have an insert policy and deliberately no select
-     * policy — moderation reads them with the service key and nothing in the
+     * policy - moderation reads them with the service key and nothing in the
      * app reads them back. Asking for the row would return nothing and make a
      * successful report look like a failure.
      */
@@ -907,7 +907,7 @@ function toPost(
     createdAt: created,
     /*
      * A second of slack. `updated_at` is set by a trigger on every write, and
-     * the insert itself counts as one — so a brand new post has two timestamps
+     * the insert itself counts as one - so a brand new post has two timestamps
      * that differ by microseconds, and an exact comparison would mark every
      * post "edited" the moment it was published.
      */

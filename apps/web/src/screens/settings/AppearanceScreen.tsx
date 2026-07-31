@@ -14,7 +14,7 @@ import { useAppearance } from '../../features/settings/SettingsContext.js';
 /**
  * Appearance.
  *
- * Every control here changes the product **immediately** — there is no Save
+ * Every control here changes the product **immediately** - there is no Save
  * button and no preview pane, because the whole app is the preview. Tapping
  * Dark repaints the screen you are standing on, which is the only honest way to
  * choose a theme: you are looking at the result while you decide.
@@ -58,7 +58,7 @@ export function AppearanceScreen() {
           title="Dark Mode"
           hint={
             appearance.theme === 'auto'
-              ? `Following your device — currently ${resolvedTheme}.`
+              ? `Following your device - currently ${resolvedTheme}.`
               : undefined
           }
         >
@@ -155,14 +155,14 @@ export function AppearanceScreen() {
 
         <Group title="Glass Intensity">
           {/*
-            A live glass panel over a patterned ground — the only way to judge
+            A live glass panel over a patterned ground - the only way to judge
             blur is against something worth blurring.
           */}
           <div className="relative overflow-hidden rounded-lg bg-brand-gradient p-5">
             <div className="glass-surface rounded-md px-4 py-3">
               <p className="text-body text-ink">Glass</p>
               <p className="text-caption text-text-secondary">
-                {appearance.glass === 0 ? 'Off — solid surfaces' : `${appearance.glass}%`}
+                {appearance.glass === 0 ? 'Off - solid surfaces' : `${appearance.glass}%`}
               </p>
             </div>
           </div>
@@ -251,7 +251,7 @@ function ChoiceCard({
 }
 
 /**
- * A miniature chat screen — header, two bubbles, dock.
+ * A miniature chat screen - header, two bubbles, dock.
  *
  * Hard-coded colours, uniquely in this codebase: the Light card must look light
  * *while the app is dark*, so it cannot read the live tokens the way everything

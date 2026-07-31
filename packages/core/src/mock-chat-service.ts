@@ -1,5 +1,5 @@
 /**
- * MockChatService — an in-memory ChatService.
+ * MockChatService - an in-memory ChatService.
  *
  * This is not a stub that returns fixtures. It models the *behaviour* a real
  * backend has, because that behaviour is what the UI has to be correct against:
@@ -81,8 +81,8 @@ export interface MockChatServiceOptions {
    * Whether to start with the demo conversations.
    *
    * `false` gives a genuinely empty account, which is what a real person sees
-   * the moment they finish signing up. That state has its own design — Home's
-   * welcome ([docs/01 § 10](../../../docs/01-onboarding-auth.md)) — and it is
+   * the moment they finish signing up. That state has its own design - Home's
+   * welcome ([docs/01 § 10](../../../docs/01-onboarding-auth.md)) - and it is
    * unreachable while the mock hands every new user four seeded threads with
    * strangers in them.
    *
@@ -308,7 +308,7 @@ export class MockChatService implements ChatService {
 
   /*
    * Pings are not simulated. The whole point of the feature is a server that
-   * forgets on a schedule, and there is no honest way to fake that in memory —
+   * forgets on a schedule, and there is no honest way to fake that in memory  - 
    * a mock that always returned an image would make the view limit look broken,
    * and one that never did would make every Ping look expired.
    */
@@ -342,7 +342,7 @@ export class MockChatService implements ChatService {
   // difference: the creator is an admin, roles change, links are idempotent and
   // revocable, and leaving hands the group on rather than stranding it.
   //
-  // The one rule this cannot enforce is the friend gate — the mock has no
+  // The one rule this cannot enforce is the friend gate - the mock has no
   // follow graph to ask, and inventing one here would be a second answer to a
   // question the real service already answers from the database. So it accepts
   // whoever it is given. The rule is real and lives in `create_group`.
@@ -545,7 +545,7 @@ export class MockChatService implements ChatService {
   // -- conversation management ----------------------------------------------
 
   /*
-   * In memory, and shaped exactly like the real thing — including the parts
+   * In memory, and shaped exactly like the real thing - including the parts
    * that are easy to get wrong, such as archiving un-pinning and marking read
    * clearing the count. A mock that skips those lets a screen look correct here
    * and be wrong against Supabase.
@@ -700,7 +700,7 @@ export class MockChatService implements ChatService {
    * Finds the existing direct thread, or makes one in memory.
    *
    * The same idempotence the real service gets from a unique index, done here
-   * by search — so the styleguide behaves like the app rather than piling up a
+   * by search - so the styleguide behaves like the app rather than piling up a
    * new empty conversation on every tap.
    */
   async startDirectConversation(otherUserId: UserId): Promise<ConversationId> {
@@ -792,7 +792,7 @@ export class MockChatService implements ChatService {
   /*
    * The mock keeps these in memory so the styleguide behaves. Ownership is the
    * only rule either one has, and it lives in the database where it cannot be
-   * talked out of — there is no time limit on editing or deleting.
+   * talked out of - there is no time limit on editing or deleting.
    */
   async editMessage(messageId: MessageId, body: string): Promise<void> {
     const message = this.#findMessage(messageId);
@@ -804,7 +804,7 @@ export class MockChatService implements ChatService {
 
   /*
    * The two deletes are genuinely different outcomes, so the mock keeps them
-   * different too — a mock that collapses them would let a screen look correct
+   * different too - a mock that collapses them would let a screen look correct
    * here and be wrong against Supabase.
    */
   async deleteMessage(messageId: MessageId, forEveryone = false): Promise<void> {

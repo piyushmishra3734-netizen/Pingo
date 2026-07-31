@@ -13,7 +13,7 @@ import { Sheet, SheetCancel } from '../../components/Sheet.js';
  *
  * So the three existing posts are shown as they are, and picking one says which
  * goes. Nothing is deleted until the new picture has been through the editor and
- * uploaded — `replacePost` swaps the image on the chosen row rather than
+ * uploaded - `replacePost` swaps the image on the chosen row rather than
  * deleting and re-creating, so a failed upload cannot leave a profile with two.
  */
 

@@ -14,7 +14,7 @@ import { useProfileSetup } from '../../features/profile/ProfileSetupFlow.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
- * Setup, step 2 — the handle.
+ * Setup, step 2 - the handle.
  *
  *   Choose Username
  *   @piyush
@@ -31,7 +31,7 @@ import { SETUP_PROGRESS } from './progress.js';
  *
  * Two people can pass the same check in the same second. The unique index is
  * the real arbiter, so `create` can still fail with `username_taken` even after
- * a green tick — and when it does, this screen recovers in place with fresh
+ * a green tick - and when it does, this screen recovers in place with fresh
  * suggestions rather than treating it as an error.
  *
  * **This step writes the profile row.** Name and username are the two required
@@ -82,7 +82,7 @@ export function UsernameScreen() {
           setSuggestions(free ? [] : await service.suggestUsernames(username));
         } catch {
           // A failed check is not a taken name. Left unknown so the user can
-          // still press Continue — the write is the real check anyway.
+          // still press Continue - the write is the real check anyway.
           if (id === requestId.current) setAvailable(undefined);
         } finally {
           if (id === requestId.current) setChecking(false);
@@ -176,7 +176,7 @@ export function UsernameScreen() {
         aria-live="polite"
       >
         {!wellFormed
-          ? '3–20 characters. Letters, numbers and underscores.'
+          ? '3-20 characters. Letters, numbers and underscores.'
           : checking
             ? `pingo.chat/${username}`
             : available === true

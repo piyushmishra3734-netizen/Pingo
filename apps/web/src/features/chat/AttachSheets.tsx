@@ -10,7 +10,7 @@ import { useReturnFocus } from '../conversations/focus-restore.js';
  *
  * Each is deliberately the smallest thing that produces a real message: a
  * position, a person, a title and a time. None of them is a screen, because
- * none of them is a task — they are one field's worth of decision reached from
+ * none of them is a task - they are one field's worth of decision reached from
  * a menu, and a full page for that would be heavier than the thing itself.
  */
 
@@ -82,7 +82,7 @@ const PRIMARY = cn(
 /**
  * Sharing where you are.
  *
- * The browser's own permission prompt is the only gate — there is no in-app
+ * The browser's own permission prompt is the only gate - there is no in-app
  * "may we?" first, because two prompts for one decision is worse than one, and
  * the browser's is the one that actually controls access.
  */
@@ -118,7 +118,7 @@ export function LocationSheet({
         );
       },
       // A fix good enough to point at a building, and no waiting past ten
-      // seconds — a location that arrives after the conversation moved on is
+      // seconds - a location that arrives after the conversation moved on is
       // not worth the spinner.
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
     );
@@ -157,7 +157,7 @@ export function LocationSheet({
  *
  * People you already have conversations with, because that is who this app
  * knows about. The device's address book needs the Contact Picker API, which
- * exists on one browser on one platform — offering it as the primary path would
+ * exists on one browser on one platform - offering it as the primary path would
  * make the feature absent for most people, and offering both would be two
  * pickers for one idea.
  */

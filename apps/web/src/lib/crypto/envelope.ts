@@ -17,7 +17,7 @@ import { fromBase64, importPublicKey, toBase64 } from './keys.js';
  *
  * The HKDF step is not optional. Raw ECDH output is a point on a curve, not a
  * uniform key, and feeding it straight into AES is the classic mistake in
- * hand-rolled protocols — it usually works, which is why it survives review.
+ * hand-rolled protocols - it usually works, which is why it survives review.
  */
 
 /** Bound into HKDF so a key derived here cannot be replayed into another use. */
@@ -53,7 +53,7 @@ async function wrapKeyFor(
 
   /*
    * ECDH gives shared bits; HKDF turns them into a key. `deriveBits` then a
-   * separate import is deliberate — `deriveKey` straight to AES-GCM would skip
+   * separate import is deliberate - `deriveKey` straight to AES-GCM would skip
    * the HKDF step and derive the wrapping key directly from the curve output.
    */
   const shared = await crypto.subtle.deriveBits(
@@ -80,7 +80,7 @@ async function wrapKeyFor(
   );
 
   /*
-   * The content key has to be extractable to be wrapped — its bytes are what
+   * The content key has to be extractable to be wrapped - its bytes are what
    * gets encrypted. That is safe because those bytes only ever exist inside
    * this function and end up encrypted before they leave it. The *identity* and
    * *database* keys, which are long-lived, are not extractable.
@@ -104,7 +104,7 @@ export async function encryptMessage(
      * Nobody has published a key yet, so there is no one to encrypt to. Falling
      * back to plaintext would be the single worst failure this system can have:
      * silent, invisible, and indistinguishable from working. The caller decides
-     * what to do — currently, send as legacy, which is at least honest about
+     * what to do - currently, send as legacy, which is at least honest about
      * what it is.
      */
     throw new Error('No recipient devices to encrypt for.');
@@ -149,7 +149,7 @@ export async function encryptMessage(
  * Reads a message this device was a recipient of.
  *
  * Returns `undefined` rather than throwing when the envelope holds no wrap for
- * this device — that is not an error, it is a message sent before this device
+ * this device - that is not an error, it is a message sent before this device
  * existed, and the difference matters to what the UI shows. A thrown error
  * would become a broken bubble; a known absence becomes a sentence.
  */

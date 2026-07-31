@@ -1,7 +1,7 @@
 /**
  * Drive authorisation on Android, through the native account picker.
  *
- * No browser, no address bar, no tab switch — the same sheet WhatsApp shows.
+ * No browser, no address bar, no tab switch - the same sheet WhatsApp shows.
  * This reuses the plugin already wired for sign-in (`google-native.ts`), asking
  * it for the Drive scope at the moment Drive backup is enabled rather than at
  * sign-in, so a user who never turns backup on is never asked for their Drive.
@@ -72,7 +72,7 @@ export class NativeDriveAuth implements DriveAuth {
     } catch (cause) {
       /*
        * A dismissed picker and a certificate mismatch are indistinguishable
-       * from here — the SDK reports both as a generic failure — so this says
+       * from here - the SDK reports both as a generic failure - so this says
        * what the user can act on rather than guessing.
        */
       throw new DriveAuthError(

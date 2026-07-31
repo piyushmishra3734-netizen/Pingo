@@ -9,14 +9,14 @@ import { Sheet, SheetCancel } from '../../components/Sheet.js';
  *
  * ## Why this sends a link and not the picture
  *
- * Forwarding the media would make a copy that outlives the story — the whole
+ * Forwarding the media would make a copy that outlives the story - the whole
  * point of which is that it does not outlive the day. Worse, it would route
  * round the audience: a close-friends story handed to somebody outside the list
  * would arrive as bytes with no rule attached. So a share is a message pointing
  * at the author, and whoever receives it sees the story only if the story's own
  * audience already allowed it.
  *
- * That is also why there are no repost chains. There is nothing to re-share —
+ * That is also why there are no repost chains. There is nothing to re-share  - 
  * only the same link, which anybody could have sent.
  *
  * ## What "the audience permits it" means here
@@ -73,7 +73,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
         [...chosen].map((conversationId) =>
           service.sendMessage({
             conversationId,
-            body: `${story.authorName}'s story — ${link}`,
+            body: `${story.authorName}'s story - ${link}`,
           }),
         ),
       );
@@ -107,7 +107,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
   return (
     <Sheet
       title="Share this story"
-      description="Sends a link to their profile — not a copy of the picture."
+      description="Sends a link to their profile - not a copy of the picture."
       onClose={onClose}
       elevated
     >

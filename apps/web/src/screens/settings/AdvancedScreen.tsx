@@ -4,7 +4,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
 /**
  * Advanced.
  *
- * **Debug Logs is real** — it turns console logging on and off for this device,
+ * **Debug Logs is real** - it turns console logging on and off for this device,
  * which is exactly what it says. The other three are flags with no features
  * behind them yet; they are stored so that when an experiment ships it has a
  * switch already, rather than needing one bolted on.
@@ -25,7 +25,7 @@ export function AdvancedScreen() {
           checked={a.debugLogs}
           onChange={(debugLogs) => {
             update('advanced', { debugLogs });
-            // Applied immediately — the point of a debug switch is the next thing
+            // Applied immediately - the point of a debug switch is the next thing
             // you do, not the next time you launch.
             (window as unknown as { __pingoDebug?: boolean }).__pingoDebug = debugLogs;
           }}

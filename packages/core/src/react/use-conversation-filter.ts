@@ -23,12 +23,12 @@ export const conversationFilters = FILTERS;
  * How many conversations may be pinned at once.
  *
  * Three, matching WhatsApp. The cap is what keeps the pinned section meaning
- * "these three matter" — an uncapped one drifts into a second inbox, and then
+ * "these three matter" - an uncapped one drifts into a second inbox, and then
  * the ordering it was supposed to fix is back.
  *
  * Here rather than in `types.ts` because the barrel re-exports that module with
  * `export type *`, so a runtime constant declared there is unreachable by
- * design — it typechecks at the definition and fails at every call site.
+ * design - it typechecks at the definition and fails at every call site.
  */
 export const PIN_LIMIT = 3;
 
@@ -37,13 +37,13 @@ export const PIN_LIMIT = 3;
  *
  * Three, and no more. "8 hours" covers a night's sleep and a working day,
  * "1 week" covers a holiday, and "Always" covers the group chat you have given
- * up on — a longer menu is a longer decision about something nobody wants to
+ * up on - a longer menu is a longer decision about something nobody wants to
  * spend a decision on.
  */
 export const MUTE_DURATIONS: { label: string; ms: number }[] = [
   { label: '8 hours', ms: 8 * 60 * 60 * 1000 },
   { label: '1 week', ms: 7 * 24 * 60 * 60 * 1000 },
-  // Not a large number — the real thing, so nothing has to guess whether a
+  // Not a large number - the real thing, so nothing has to guess whether a
   // date far in the future was meant as forever.
   { label: 'Always', ms: Number.POSITIVE_INFINITY },
 ];

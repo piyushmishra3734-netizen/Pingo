@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 /**
  * Level 1: the four actions that are always there.
  *
- * docs/13 § 1.2 and § 2.1 — Reply, Copy, Forward, More, in that order, never
+ * docs/13 § 1.2 and § 2.1 - Reply, Copy, Forward, More, in that order, never
  * reordered by frequency. The order is the feature: a menu that rearranges
  * itself destroys the muscle memory it was trying to reward.
  *
@@ -48,7 +48,7 @@ export function MessageActions({
   const copy = async () => {
     /*
      * A Ping has no text and a sticker's text is its emoji, so `body` is what
-     * gets copied in every case — it is the message's text fallback by design.
+     * gets copied in every case - it is the message's text fallback by design.
      */
     try {
       await navigator.clipboard.writeText(message.body);

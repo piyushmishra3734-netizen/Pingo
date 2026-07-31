@@ -13,7 +13,7 @@ import { HeartIcon, ImageIcon, PlusIcon, Skeleton, cn } from '@pingo/ui';
  *
  * A profile with one post shows one picture and two dashed squares. Instagram
  * would show one picture and a lot of white. The dashed squares say what the
- * product allows — three, no more — and give the second and third posts an
+ * product allows - three, no more - and give the second and third posts an
  * obvious place to be added from. On somebody else's profile they are absent,
  * because how many slots they have left is not information about them.
  */
@@ -88,7 +88,7 @@ export function PostGrid({
   );
 }
 
-/** Nothing posted, and nowhere for a dashed square to help — someone else's. */
+/** Nothing posted, and nowhere for a dashed square to help - someone else's. */
 export function PostsEmpty({ name }: { name: string }) {
   return (
     <div className="rounded-lg bg-surface px-6 py-14 text-center shadow-sm">

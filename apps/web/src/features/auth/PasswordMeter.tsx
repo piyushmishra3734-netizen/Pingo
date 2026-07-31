@@ -2,7 +2,7 @@ import type { PasswordAssessment } from '@pingo/core';
 import { CheckIcon, cn } from '@pingo/ui';
 
 /**
- * The strength meter and live checklist —
+ * The strength meter and live checklist  - 
  * [docs/01 § 8](../../../../../docs/01-onboarding-auth.md#8-create-password).
  *
  * The one rule worth stating twice: **unmet items are never red.** A requirement
@@ -10,7 +10,7 @@ import { CheckIcon, cn } from '@pingo/ui';
  * colouring it as one turns a half-typed field into a screen full of failures.
  * Met items get a brand check; unmet ones stay hollow and quiet.
  *
- * The judgement — what counts as met, what counts as strong — lives in
+ * The judgement - what counts as met, what counts as strong - lives in
  * `assessPassword` in `@pingo/core`. This file only draws the result.
  */
 
@@ -75,7 +75,7 @@ export function PasswordMeter({ assessment }: { assessment: PasswordAssessment }
             </span>
 
             {/* The visual state is colour and a glyph; this is its text equivalent. */}
-            <span className="sr-only">{requirement.met ? '— met' : '— not yet met'}</span>
+            <span className="sr-only">{requirement.met ? ' -  met' : ' -  not yet met'}</span>
           </li>
         ))}
       </ul>

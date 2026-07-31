@@ -7,7 +7,7 @@
  * oldest-first and persists what it finds, so a two-year account stops producing
  * a two-week backup.
  *
- * Everything is injected — the source, the sink, the cursor store — because the
+ * Everything is injected - the source, the sink, the cursor store - because the
  * interesting failures here are a hostile or confused server, and those are
  * reproducible only when the server is something the test controls.
  *
@@ -23,7 +23,7 @@
  * ## Completion is arithmetic, not a feeling
  *
  * A walk ends with an audit record that says what was expected, what arrived,
- * and whether those agree — see `BackfillAudit`. "It finished without throwing"
+ * and whether those agree - see `BackfillAudit`. "It finished without throwing"
  * is not evidence, and this module is built on the assumption that the server
  * may be wrong.
  */
@@ -57,7 +57,7 @@ export interface BackfillCursor {
    *
    * This anchors every later count. Without it, messages arriving during a long
    * backfill inflate the expected total, and a walk that fetched everything it
-   * set out to fetch looks short — a false alarm on the most ordinary event
+   * set out to fetch looks short - a false alarm on the most ordinary event
    * there is, someone sending a message while the backup runs.
    */
   anchorId?: string;
@@ -69,7 +69,7 @@ export interface BackfillCursor {
   duplicates?: number;
   /** Pages re-requested after a failure. */
   retries?: number;
-  /** Time spent walking, summed across runs — not wall-clock since the start. */
+  /** Time spent walking, summed across runs - not wall-clock since the start. */
   elapsedMs?: number;
   startedAt?: number;
 }
@@ -162,7 +162,7 @@ export type BackfillVerdict =
  * What happened to one conversation, in numbers that can be checked.
  *
  * Contains no message content, no text, no sender, no timestamps of individual
- * messages — only counts, and a `ref` that stands in for the conversation id
+ * messages - only counts, and a `ref` that stands in for the conversation id
  * (see `redactAudit`). A user can send this to support without sending their
  * chat history, which is the only version of an audit log worth shipping in an
  * end-to-end encrypted product.
@@ -179,7 +179,7 @@ export interface BackfillAudit {
   downloaded: number;
   /** Rows the server sent that were already held. */
   duplicates: number;
-  /** `downloaded + duplicates` — everything the server actually handed over. */
+  /** `downloaded + duplicates` - everything the server actually handed over. */
   seen: number;
   /** `seen - expectedFinal`. Zero is the expected answer; negative is a shortfall. */
   discrepancy: number;
@@ -268,7 +268,7 @@ export function formatAuditLog(
 /**
  * Does the arithmetic agree that this conversation is whole?
  *
- * The protocol confirmation — a count of zero older than the cursor — and this
+ * The protocol confirmation - a count of zero older than the cursor - and this
  * check come from the same endpoint on purpose. A server that is merely wrong
  * usually satisfies one and not the other, so requiring *both* turns a single
  * inconsistent source into a contradiction with itself. Requiring only one, as
@@ -282,14 +282,14 @@ export function formatAuditLog(
  *
  * The second clause is the one that catches a bad count rather than a bad page.
  * The anchored range is fixed at the newest message the walk started from, so it
- * can only ever *shrink* — deletions remove from it, and arrivals are newer than
+ * can only ever *shrink* - deletions remove from it, and arrivals are newer than
  * the anchor and outside it. A range that grew means the count is wrong, and a
  * count that is wrong here is the input to the decision that history has ended.
  *
  * ## What this cannot catch, stated plainly
  *
- * A count endpoint that is wrong *consistently* — reporting a total that agrees
- * with the range that agrees with what was delivered — satisfies every check
+ * A count endpoint that is wrong *consistently* - reporting a total that agrees
+ * with the range that agrees with what was delivered - satisfies every check
  * here, because counts are the only evidence available and all of it comes from
  * one place. The independent check is §9's proof, which compares the local row
  * store against the server afresh before any archive is written.
@@ -327,7 +327,7 @@ async function walkConversation(
    * The anchored expectation, taken once and then carried.
    *
    * Asked before the first page so it describes the account as the walk found
-   * it. On resume the stored figure is reused — re-asking would fold every
+   * it. On resume the stored figure is reused - re-asking would fold every
    * message sent since into the total and make a finished walk look short.
    */
   if (cursor.expected === undefined) {
@@ -355,7 +355,7 @@ async function walkConversation(
   /*
    * A hard ceiling on pages per conversation.
    *
-   * Every other exit from this loop depends on the server being honest — that a
+   * Every other exit from this loop depends on the server being honest - that a
    * page advances, or that a count eventually reaches zero. A server that is
    * wrong in the right way can satisfy both forever, and the first version of
    * this loop did exactly that against a stalling stand-in: it hung the suite
@@ -418,7 +418,7 @@ async function walkConversation(
        * caught. A page whose oldest row is *newer* than the cursor is plainly
        * out of order; a page whose oldest row is the same one we already have
        * looks fine on timestamps and never terminates. The identity check is
-       * the one that matters — timestamps can legitimately tie.
+       * the one that matters - timestamps can legitimately tie.
        */
       if (
         cursor.oldestFetchedId !== undefined &&
@@ -439,7 +439,7 @@ async function walkConversation(
 
       cursor = {
         ...cursor,
-        // Set once, from the newest row of the first page — the anchor every
+        // Set once, from the newest row of the first page - the anchor every
         // later count is measured against.
         anchorId: cursor.anchorId ?? page[0]!.id,
         oldestFetchedId: oldest.id,
@@ -456,7 +456,7 @@ async function walkConversation(
      * The only thing that ends a walk.
      *
      * Asked after every page, including a full one, so a conversation whose
-     * length is an exact multiple of the page size still terminates — and asked
+     * length is an exact multiple of the page size still terminates - and asked
      * after a *short* page rather than assuming it meant the end, which is the
      * failure this whole module is shaped around.
      */
@@ -466,7 +466,7 @@ async function walkConversation(
        * The protocol says done. Now check whether the numbers agree.
        *
        * Re-counted against the anchor rather than against nothing, so messages
-       * that arrived during the walk are excluded — they are newer than where
+       * that arrived during the walk are excluded - they are newer than where
        * this walk started and belong to delta sync, not here.
        */
       expectedFinal =
@@ -559,7 +559,7 @@ function auditFor(
  * Walk every conversation that is not already finished.
  *
  * Cancellation is cooperative and checked between pages, so stopping leaves the
- * cursors describing exactly what was written — the run is abandoned, never the
+ * cursors describing exactly what was written - the run is abandoned, never the
  * progress.
  */
 export async function runBackfill(
@@ -645,7 +645,7 @@ export async function runBackfill(
       /*
        * One bad conversation does not abandon the rest. The run continues and
        * reports it, because a single unreachable thread should not cost somebody
-       * the backup of everything else — and the completeness proof will refuse
+       * the backup of everything else - and the completeness proof will refuse
        * to archive anyway while it is short.
        */
       const reason = cause instanceof Error ? cause.message : 'failed';

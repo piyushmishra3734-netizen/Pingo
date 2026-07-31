@@ -11,14 +11,14 @@ import type {
 /**
  * Tracking, on MediaPipe.
  *
- * MediaPipe is the tracking engine — face mesh, hands, gestures and selfie
+ * MediaPipe is the tracking engine - face mesh, hands, gestures and selfie
  * segmentation all come from `@mediapipe/tasks-vision` (Apache-2.0), which is
  * Google's own WebAssembly build. None of this is reimplemented.
  *
  * ## Everything is lazy, and that is the point
  *
- * Each task is a separate model download — roughly 3 MB for the face mesh, 2 MB
- * for hands, 1 MB for segmentation — and the WASM runtime is another 8 MB. A
+ * Each task is a separate model download - roughly 3 MB for the face mesh, 2 MB
+ * for hands, 1 MB for segmentation - and the WASM runtime is another 8 MB. A
  * camera that loaded all of it on open would cost 15 MB before showing a
  * preview.
  *
@@ -81,7 +81,7 @@ export const VISION_TASKS: VisionTaskDefinition[] = [
 ];
 
 /**
- * Model locations — our own origin.
+ * Model locations - our own origin.
  *
  * These came from Google's CDN, which is what the MediaPipe docs use, and the
  * note that used to sit here said they should be self-hosted before production.
@@ -90,7 +90,7 @@ export const VISION_TASKS: VisionTaskDefinition[] = [
  * The first is the one that comment made: a camera that stops working when a
  * third-party CDN is blocked stops working in exactly the places people care
  * about privacy most. The second only became visible when the privacy policy
- * was written — turning on a face filter contacted Google, so the policy had to
+ * was written - turning on a face filter contacted Google, so the policy had to
  * name them as a third party for a reason that had nothing to do with the
  * product's actual dependencies.
  *
@@ -107,7 +107,7 @@ export const VISION_TASKS: VisionTaskDefinition[] = [
 /**
  * Where the models are fetched from at runtime.
  *
- * On the web they are same-origin files, served from PINGO's own domain — which
+ * On the web they are same-origin files, served from PINGO's own domain - which
  * is the whole point of having self-hosted them.
  *
  * Inside the Android app they are deliberately *not* bundled. Forty megabytes
@@ -144,7 +144,7 @@ const MODELS = {
  *
  * Both the SIMD and non-SIMD builds are here. MediaPipe picks between them by
  * probing what the browser supports, and shipping only the SIMD one would mean
- * an older device fetching a 404 and losing camera effects entirely — a silent
+ * an older device fetching a 404 and losing camera effects entirely - a silent
  * failure on precisely the hardware least able to explain itself.
  */
 const WASM_ROOT = `${ASSET_ORIGIN}/vision/wasm`;
@@ -156,7 +156,7 @@ const WASM_ROOT = `${ASSET_ORIGIN}/vision/wasm`;
  * runtime and the dynamic `import()` below still keeps the 8 MB WASM out of the
  * main bundle. A structural interface was tried first and is wrong: MediaPipe's
  * own types are precise, and widening the frame parameter to `unknown` breaks
- * contravariance — the task no longer satisfies the interface meant to describe
+ * contravariance - the task no longer satisfies the interface meant to describe
  * it.
  */
 type Runner = FaceLandmarker | HandLandmarker | GestureRecognizer | ImageSegmenter;
@@ -225,7 +225,7 @@ export class VisionPipeline {
           baseOptions: { modelAssetPath: MODELS.face, delegate: 'GPU' },
           runningMode: 'VIDEO',
           numFaces: 1,
-          // Only computed when asked for — it is measurable extra work per frame.
+          // Only computed when asked for - it is measurable extra work per frame.
           outputFaceBlendshapes: capability === 'face-blendshapes',
         });
         this.#runners.set(capability, runner);
@@ -270,7 +270,7 @@ export class VisionPipeline {
   /**
    * Runs every enabled tracker against one frame.
    *
-   * `timestamp` must increase monotonically — MediaPipe's VIDEO mode uses it to
+   * `timestamp` must increase monotonically - MediaPipe's VIDEO mode uses it to
    * order frames and throws on a value it has already seen, which is the usual
    * cause of a tracker that works once and then stops.
    */
@@ -333,7 +333,7 @@ export class VisionPipeline {
         }
       } catch {
         // One tracker failing must not stop the others, and must not stop the
-        // preview — a dropped frame of landmarks is invisible; a frozen camera
+        // preview - a dropped frame of landmarks is invisible; a frozen camera
         // is not.
       }
     }

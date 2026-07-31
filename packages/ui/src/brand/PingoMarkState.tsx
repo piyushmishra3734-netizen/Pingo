@@ -2,7 +2,7 @@ import { cn } from '../utils/cn.js';
 import { markGeometry } from './PingoMark.js';
 
 /**
- * The monogram in each of its live states — the "dot animations" row on the
+ * The monogram in each of its live states - the "dot animations" row on the
  * branding board.
  *
  * The letter never changes; only the dot does. Recording is the single exception,
@@ -33,7 +33,7 @@ export interface PingoMarkStateProps {
   label?: string;
 }
 
-/** Centre of the P's bowl — the point the loading dot orbits. */
+/** Centre of the P's bowl - the point the loading dot orbits. */
 const BOWL_CENTER = { x: 18.5, y: 17 } as const;
 const ORBIT_RADIUS = 13;
 

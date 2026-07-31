@@ -3,7 +3,7 @@ import { PauseIcon, PlayIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * A voice note: play control, waveform, duration — as shown on the board.
+ * A voice note: play control, waveform, duration - as shown on the board.
  *
  * The waveform is precomputed in the data layer, so this component only draws it.
  * Bars fill left-to-right as playback advances, which makes the waveform double
@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react';
  *
  * When the attachment carries a URL an `<audio>` element drives everything and
  * the bars follow its `timeupdate`. The seeded notes in the styleguide have no
- * file behind them, so those still run on the original timer — otherwise every
+ * file behind them, so those still run on the original timer - otherwise every
  * demo note would be a dead control. Both paths share all of the markup below.
  */
 
@@ -185,7 +185,7 @@ export function VoiceNote({ attachment, tone = 'incoming', className }: VoiceNot
                  * Flexible width, capped at 3px. Fixed-width bars could not shrink,
                  * so on a narrow phone the waveform overflowed its container and
                  * ran into the duration label. Letting the bars compress keeps the
-                 * whole waveform visible — and therefore proportional — at any width.
+                 * whole waveform visible - and therefore proportional - at any width.
                  */
                 'min-w-[2px] max-w-[3px] flex-1 rounded-full',
                 'transition-colors duration-instant ease-standard',

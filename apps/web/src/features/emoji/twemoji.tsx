@@ -6,7 +6,7 @@ import { useMemo } from 'react';
  * ## The problem this solves
  *
  * Native emoji are drawn by the operating system, so 😂 is a different picture
- * on iOS, Android, Windows and Linux — and in a messaging product that means
+ * on iOS, Android, Windows and Linux - and in a messaging product that means
  * two people looking at the same message see different things. Skin tones and
  * newer emoji fare worse: an unsupported codepoint renders as a blank box.
  *
@@ -14,7 +14,7 @@ import { useMemo } from 'react';
  *
  * ## Licence, and the attribution it requires
  *
- * `@twemoji/api` is published as **"MIT AND CC-BY-4.0"** — the code is MIT, the
+ * `@twemoji/api` is published as **"MIT AND CC-BY-4.0"** - the code is MIT, the
  * *graphics* are CC-BY-4.0. CC-BY is permissive but not attribution-free:
  * shipping these images obliges PINGO to credit Twitter/the Twemoji project
  * somewhere visible. That belongs in Settings → Help → About before release.
@@ -24,7 +24,7 @@ import { useMemo } from 'react';
  * `twemoji.parse()` takes an element and rewrites its `innerHTML`, which in
  * React means either `dangerouslySetInnerHTML` or fighting the reconciler. This
  * walks the string instead and returns React nodes, so message bodies stay
- * ordinary text that React owns — no HTML injection surface, no lost updates.
+ * ordinary text that React owns - no HTML injection surface, no lost updates.
  */
 
 /** jsDelivr mirror of the Twemoji SVG assets, pinned so a release cannot shift. */
@@ -92,7 +92,7 @@ export function Twemoji({ text, className }: { text: string; className?: string 
             draggable={false}
             /*
              * `1em` and the small negative baseline shift make the image sit on
-             * the text baseline at whatever size the surrounding type is — the
+             * the text baseline at whatever size the surrounding type is - the
              * detail that separates inline emoji from pasted-in pictures.
              */
             className="inline-block h-[1.15em] w-[1.15em] select-none align-[-0.18em]"

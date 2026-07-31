@@ -15,7 +15,7 @@
  *
  * Newline-delimited JSON: a header, then one line per record, then a footer
  * carrying the count. Conversations, their messages, the row store and the sync
- * metadata — everything a device needs to show history without asking the
+ * metadata - everything a device needs to show history without asking the
  * server. Media is deliberately excluded: it is the bulk of the bytes and none
  * of the conversation, and it can be fetched again.
  *
@@ -109,8 +109,8 @@ export async function* archiveLines(
        * should not cost somebody every other conversation they have.
        *
        * Skipping quietly is the dangerous part, and it was. On a real device
-       * 50 of 52 records failed to open — rows left behind by an account
-       * switch, sealed under a key this device no longer held — and the archive
+       * 50 of 52 records failed to open - rows left behind by an account
+       * switch, sealed under a key this device no longer held - and the archive
        * reported success having carried almost nothing. The count travels in
        * the footer now, and the caller is expected to look at it.
        */
@@ -198,7 +198,7 @@ export async function buildArchive(
     /*
      * The footer carries the real counts. Counting every line would include the
      * header and footer and, far worse, would not know how many records the
-     * source declined to open — which is the number that says whether this
+     * source declined to open - which is the number that says whether this
      * archive is worth having.
      */
     if (line.length > 0 && line[0] === 0x7b) {
@@ -271,7 +271,7 @@ export interface RestoreStats {
  * Where a restore puts things.
  *
  * Injected because the sealed IndexedDB store is a browser thing and this logic
- * is not — the same reason the enrolment state store is injected. Verification
+ * is not - the same reason the enrolment state store is injected. Verification
  * supplies an in-memory one and exercises the real chunking, the real carry
  * across boundaries and the real crypto.
  */

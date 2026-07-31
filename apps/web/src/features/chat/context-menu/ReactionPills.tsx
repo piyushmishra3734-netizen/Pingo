@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
  * Reactions as they sit under a message.
  *
  * One pill per emoji, count beside it, yours marked. Tapping your own removes
- * it; tapping another swaps — the same rule as the bar, so the two surfaces
+ * it; tapping another swaps - the same rule as the bar, so the two surfaces
  * never disagree about what a tap means.
  *
  * ## Why a pill lingers after it hits zero

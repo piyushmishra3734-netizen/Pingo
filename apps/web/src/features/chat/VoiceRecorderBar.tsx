@@ -6,7 +6,7 @@ import type { VoiceRecorder } from './useVoiceRecorder.js';
 /**
  * What the composer becomes while a voice note is being recorded.
  *
- * ## Tap to start, tap to send — not hold-to-talk
+ * ## Tap to start, tap to send - not hold-to-talk
  *
  * Hold-to-talk is what phones do, and it is miserable everywhere else: it means
  * a mouse button held down for a minute, and on touch it fails whenever a
@@ -17,7 +17,7 @@ import type { VoiceRecorder } from './useVoiceRecorder.js';
  *
  * ## Cancel is as large as send
  *
- * Discarding is the commoner outcome — most recordings are restarted — so it
+ * Discarding is the commoner outcome - most recordings are restarted - so it
  * gets a real target rather than a small × in a corner.
  */
 

@@ -23,7 +23,7 @@ import { profileLink } from './ShareProfileSheet.js';
  * white plate and deliberately still: anything animating over or around a QR
  * gives a rolling-shutter camera a moving target, and a code that has to be
  * held steady for a second longer is a worse code however good it looks.
- * The entrance — fade and scale, once — is over before anyone points a camera.
+ * The entrance - fade and scale, once - is over before anyone points a camera.
  *
  * ## Three actions, because they are three situations
  *
@@ -76,7 +76,7 @@ export function QrCodeSheet({
    * Saves the card as a PNG.
    *
    * The SVG is serialised and drawn to a canvas rather than screenshotting the
-   * DOM, which keeps it dependency-free and gives a crisp result at any size —
+   * DOM, which keeps it dependency-free and gives a crisp result at any size  - 
    * vectors rasterise at whatever scale we ask for, so this exports at 3× and
    * stays sharp when somebody prints it.
    */
@@ -104,7 +104,7 @@ export function QrCodeSheet({
 
       // White under everything: a PNG with a transparent background saved to a
       // camera roll shows on whatever the viewer's app uses, which for a QR can
-      // be black — and that is the one thing that must never happen to it.
+      // be black - and that is the one thing that must never happen to it.
       context.fillStyle = '#FFFFFF';
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -144,7 +144,7 @@ export function QrCodeSheet({
           )}
         >
           {/*
-            The glow. Behind the card, blurred, and static — see the note at the
+            The glow. Behind the card, blurred, and static - see the note at the
             top. `-z-10` keeps it strictly under the white plate so it can never
             tint the code itself.
           */}

@@ -4,7 +4,7 @@ import { ChevronRightIcon } from '../icons/index.js';
 import { cn } from '../utils/cn.js';
 
 /**
- * ListRow — the settings-row pattern from the board: icon, label, chevron.
+ * ListRow - the settings-row pattern from the board: icon, label, chevron.
  *
  * Renders as a `<button>` when given `onClick` and a `<div>` otherwise, because a
  * row holding a toggle is not itself clickable and should not be announced as a
@@ -106,7 +106,7 @@ export function ListRow({
  * Groups rows into one card with hairline dividers.
  *
  * Dividers are drawn between children with a selector rather than per-row, so a
- * group never ends with a stray line — a small detail that separates a tidy
+ * group never ends with a stray line - a small detail that separates a tidy
  * settings screen from a sloppy one.
  */
 export function ListGroup({

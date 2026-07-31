@@ -168,7 +168,7 @@ export const messagesByConversation: Record<string, Message[]> = {
       id: 'm-r1',
       conversationId: 'c-rohit',
       authorId: 'u-me',
-      body: 'Pushed the auth changes — can you take a look when you get a minute?',
+      body: 'Pushed the auth changes - can you take a look when you get a minute?',
       createdAt: todayAt(10, 12),
       status: 'read',
       attachments: [],
@@ -365,7 +365,7 @@ export const calls: CallRecord[] = [
 ];
 
 /**
- * Gallery items use CSS gradients rather than image files — see the note at the
+ * Gallery items use CSS gradients rather than image files - see the note at the
  * top of this file. `url` carries a gradient string the UI renders as a
  * background, which keeps the layout, aspect ratios and interactions fully
  * exercisable without shipping binary assets.

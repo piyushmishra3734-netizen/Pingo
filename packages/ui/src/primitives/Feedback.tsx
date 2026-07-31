@@ -45,7 +45,7 @@ export function Skeleton({ className, circle = false, style }: SkeletonProps) {
   );
 }
 
-/** The conversation-list skeleton: avatar, title, preview — the real row's shape. */
+/** The conversation-list skeleton: avatar, title, preview - the real row's shape. */
 export function ConversationSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-1" role="status" aria-label="Loading conversations">

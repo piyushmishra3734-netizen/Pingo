@@ -10,14 +10,14 @@ import { Overlay } from '../../../components/Overlay.js';
  * A native prompt is the browser's dialog, not PINGO's: it carries the origin
  * in its title bar, ignores every token in the design system, cannot be styled
  * or animated, blocks the whole page while it is up, and on several mobile
- * browsers is suppressed outright — so on the platform this product is mostly
+ * browsers is suppressed outright - so on the platform this product is mostly
  * used on, Edit silently did nothing at all.
  *
  * ## Why a centred dialog and not an inline field
  *
  * Editing in place inside the bubble reads better on paper, but the bubble is
  * right-aligned, sized to its content and possibly two lines from the bottom of
- * the screen — so the field would jump around, and on a phone the keyboard
+ * the screen - so the field would jump around, and on a phone the keyboard
  * would cover the thing being edited about half the time. A dialog above the
  * keyboard is the boring answer that always works.
  */
@@ -71,7 +71,7 @@ export function EditMessageSheet({ body, onCancel, onSave }: EditMessageSheetPro
           onKeyDown={(event) => {
             if (event.key === 'Escape') onCancel();
             /*
-             * Enter saves, Shift+Enter breaks the line — the same contract as the
+             * Enter saves, Shift+Enter breaks the line - the same contract as the
              * composer, because this is the same act. Learning one rule for
              * writing a message and a different one for fixing it is the kind of
              * inconsistency people notice without being able to name.

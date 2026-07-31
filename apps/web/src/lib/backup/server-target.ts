@@ -42,7 +42,7 @@ export class ServerBackupTarget implements BackupTarget {
      *
      * `package` is not selectable by any client role, on purpose, and the
      * column-level grants that achieve that also deny the table-level
-     * privileges PostgREST's upsert wants — measured, the first time this ran
+     * privileges PostgREST's upsert wants - measured, the first time this ran
      * against the real database: 403, 42501, permission denied. Granting them
      * back would expose the blob that opens an account's history, so the write
      * goes through a definer function that re-states the same checks.

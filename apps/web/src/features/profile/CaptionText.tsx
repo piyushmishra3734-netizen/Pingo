@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
  *
  * ## Why this is not `MessageText`
  *
- * A message carries links and nothing else — a chat has no hashtags and an
+ * A message carries links and nothing else - a chat has no hashtags and an
  * @name in a message is a name, not a route. A caption has all three, and two
  * of them navigate inside the app rather than out of it, so they cannot be
  * anchors. Sharing one component would mean a prop that switches half its
@@ -21,7 +21,7 @@ import { Link } from 'react-router-dom';
  *
  * ## What counts as a mention
  *
- * `@` followed by the same characters a username can contain — 3 to 20 of
+ * `@` followed by the same characters a username can contain - 3 to 20 of
  * `[a-z0-9_]`. Deliberately not "any word after an @", so an email address that
  * survived linkify, or a caption reading "meet me @ 6", stays plain text.
  *
@@ -65,7 +65,7 @@ export function CaptionText({
 
           /*
            * A hashtag is styled but does not navigate. PINGO has no search over
-           * tags and no explore surface to land on, so a link would go nowhere —
+           * tags and no explore surface to land on, so a link would go nowhere  - 
            * and a hashtag that looks tappable and is not is worse than one that
            * simply reads as a hashtag.
            */

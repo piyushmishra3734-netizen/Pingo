@@ -3,7 +3,7 @@ import type { PresenceState, UserId } from '@pingo/core';
 import type { PingoSupabaseClient } from './client.js';
 
 /**
- * Who is online, and who is typing — both over Realtime, neither in the database.
+ * Who is online, and who is typing - both over Realtime, neither in the database.
  *
  * ## Why nothing is stored
  *
@@ -11,7 +11,7 @@ import type { PingoSupabaseClient } from './client.js';
  * "online" outlives the tab that wrote it: close the laptop lid and the database
  * still insists you are there, because the write that would correct it never
  * happens. Realtime Presence is tied to the *socket* instead, so hanging up the
- * connection is what marks you away — including the cases nobody writes code
+ * connection is what marks you away - including the cases nobody writes code
  * for, like a phone losing signal.
  *
  * Typing is the same argument at a shorter timescale. Persisting a flag that is
@@ -20,7 +20,7 @@ import type { PingoSupabaseClient } from './client.js';
  *
  * ## Two channels, not one
  *
- * Presence is global — one channel, everyone. Typing is per conversation, and
+ * Presence is global - one channel, everyone. Typing is per conversation, and
  * broadcasting every keystroke in the app to every user so each client can
  * discard 99% of it is the kind of thing that works fine until it does not.
  */
@@ -107,7 +107,7 @@ export class PresenceHub {
          * `self: true` is load-bearing, and the reason typing did not work.
          *
          * A keystroke usually arrives before the channel has finished joining,
-         * so `send()` falls back to Realtime's HTTP broadcast endpoint — and
+         * so `send()` falls back to Realtime's HTTP broadcast endpoint - and
          * with `self` at its default the client discards what arrives that way.
          * The call signalling channel hit exactly this; the fix is the same.
          * Echoing our own typing back is harmless, because the handler below
@@ -135,7 +135,7 @@ export class PresenceHub {
    *
    * Throttled, because a keypress handler fires per character and a socket
    * message per character is a lot of traffic to say one thing. Stopping is
-   * always sent immediately — a late "still typing" is harmless, a late "stopped"
+   * always sent immediately - a late "still typing" is harmless, a late "stopped"
    * leaves the indicator up.
    */
   async setTyping(conversationId: string, typing: boolean): Promise<void> {
@@ -159,7 +159,7 @@ export class PresenceHub {
    *
    * A client that closes mid-sentence never sends the stopping signal, so the
    * indicator would stay up forever. Every signal carries an expiry and this
-   * sweeps past them — the timeout is the correctness mechanism, not a fallback.
+   * sweeps past them - the timeout is the correctness mechanism, not a fallback.
    */
   #startSweeper(): void {
     this.#sweeper ??= setInterval(() => {

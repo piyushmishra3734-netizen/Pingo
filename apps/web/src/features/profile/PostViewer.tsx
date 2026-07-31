@@ -32,7 +32,7 @@ import { Overlay } from '../../components/Overlay.js';
  *
  * The grid shows three posts and only one is ever open. Loading every post's
  * comments to display a number would be three requests for something nobody has
- * asked to read yet — the count comes from the post, and the comments
+ * asked to read yet - the count comes from the post, and the comments
  * themselves arrive when the viewer does.
  */
 
@@ -77,7 +77,7 @@ export function PostViewer({
    * Focus moves in once, on open, and never again.
    *
    * Combining this with the key handler below meant it re-ran whenever
-   * `showComments` changed or the parent re-rendered — and since `onClose` is
+   * `showComments` changed or the parent re-rendered - and since `onClose` is
    * an inline arrow, that was every render. Opening the comments therefore
    * pulled focus back to this button a beat after the input had taken it, so
    * typing went nowhere and Enter pressed Close instead of posting the comment.
@@ -142,7 +142,7 @@ export function PostViewer({
        * This caught silently at first, on the theory that leaving the text in
        * the box was recovery enough. It is not: a comment that was rejected by
        * the server looks exactly like one that was never sent, and the first
-       * real failure here — a broken embed returning 400 — was invisible from
+       * real failure here - a broken embed returning 400 - was invisible from
        * the screen. A press that does nothing has to say so.
        */
       setCommentError('That comment did not post. Try again.');
@@ -324,7 +324,7 @@ export function PostViewer({
           <p className="text-caption text-white/50">
             {/*
               The full date, not "3 days ago". A post is permanent and there are
-              only three of them — when it was put up is a fact about the person,
+              only three of them - when it was put up is a fact about the person,
               and a relative time hides it behind arithmetic.
             */}
             <time dateTime={posted.toISOString()}>

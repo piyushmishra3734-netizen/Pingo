@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *
  * Every track is stopped on finish, on cancel and on unmount. A `MediaStream`
  * left open keeps the browser's recording indicator lit and, on a phone, keeps
- * the microphone claimed against other apps — the kind of thing a user reads as
+ * the microphone claimed against other apps - the kind of thing a user reads as
  * "this app is listening to me", and they would be right.
  *
  * ## Peaks are taken here, once
@@ -27,7 +27,7 @@ const MAX_SECONDS = 300;
 export interface Recording {
   blob: Blob;
   seconds: number;
-  /** Normalised 0–1, one per bar. */
+  /** Normalised 0-1, one per bar. */
   waveform: number[];
 }
 
@@ -35,7 +35,7 @@ export interface VoiceRecorder {
   recording: boolean;
   /** Seconds elapsed, updated about ten times a second. */
   elapsed: number;
-  /** Live input level, 0–1, so the UI can show the mic is hearing something. */
+  /** Live input level, 0-1, so the UI can show the mic is hearing something. */
   level: number;
   error: string | undefined;
   start: () => Promise<void>;

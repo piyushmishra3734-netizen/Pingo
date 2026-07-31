@@ -2,7 +2,7 @@
  * Drive authorisation in a browser.
  *
  * Google Identity Services, token flow, in a popup. Requested when the user
- * enables Drive backup and never at sign-in — the ID token that authenticates
+ * enables Drive backup and never at sign-in - the ID token that authenticates
  * the session and the access token that reaches Drive are different artefacts
  * for different purposes, and bundling them would ask every user for their
  * Drive at signup.
@@ -81,7 +81,7 @@ async function loadGis(): Promise<GoogleIdentity> {
  * Holding it only in memory made connecting useless: the grant survived, the
  * token did not, and the screen went on saying "Connected" from persisted state
  * while every backup failed with "access expired". Measured against real Google
- * — connect succeeded, one reload later Backup Now could not reach Drive at all.
+ * - connect succeeded, one reload later Backup Now could not reach Drive at all.
  *
  * Sealed with the device database key like every other record. It is a bearer
  * token for `drive.appdata` and nothing else, it expires within the hour, and

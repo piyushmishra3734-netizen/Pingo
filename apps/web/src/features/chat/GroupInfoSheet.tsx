@@ -6,7 +6,7 @@ import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 
 /**
- * Group info — who is in it, who runs it, and how to get somebody else in.
+ * Group info - who is in it, who runs it, and how to get somebody else in.
  *
  * ## Admin controls appear, they do not grey out
  *
@@ -19,7 +19,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  * ## Promotion is one tap, and it is confirmed
  *
  * WhatsApp makes it one tap; this keeps that. But it also asks first, in line
- * with the rest of the app — making somebody an admin hands them the power to
+ * with the rest of the app - making somebody an admin hands them the power to
  * remove you, and that is not a thing to do by brushing a list.
  *
  * ## The link is not shown until it is asked for
@@ -59,7 +59,7 @@ export function GroupInfoSheet({
       id === currentUser?.id ? currentUser : users.find((u) => u.id === id),
     )
     .filter((u): u is User => Boolean(u))
-    // Admins first, then alphabetical — the people who can act on your behalf
+    // Admins first, then alphabetical - the people who can act on your behalf
     // are the ones you came here to find.
     .sort((a, b) => {
       const rank = Number(adminIds.includes(b.id)) - Number(adminIds.includes(a.id));

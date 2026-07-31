@@ -16,7 +16,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  *
  * ## Why it duplicates the chat list's selection menu
  *
- * It does not duplicate it — it reaches it from the other direction. On a phone
+ * It does not duplicate it - it reaches it from the other direction. On a phone
  * you hold a row in the list; on a desktop the list may not even be the thing
  * you are looking at, and holding a row to archive the chat you already have
  * open is a strange way round. Both surfaces call the same
@@ -131,7 +131,7 @@ export function ConversationMenu({
           <Item
             label={
               conversation.muted
-                ? (formatMuteUntil(conversation.mutedUntil) ?? 'Muted') + ' — unmute'
+                ? (formatMuteUntil(conversation.mutedUntil) ?? 'Muted') + ' - unmute'
                 : 'Mute notifications'
             }
             onSelect={() => {
@@ -164,7 +164,7 @@ export function ConversationMenu({
           <Divider />
 
           {/*
-            Confirmed, unlike pin, favourite, archive and mark-as-read above —
+            Confirmed, unlike pin, favourite, archive and mark-as-read above  - 
             those are all one tap to undo. Clearing a thread is not, and it sits
             directly above Delete chat where a thumb aiming for one can find the
             other.

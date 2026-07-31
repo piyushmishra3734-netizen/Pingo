@@ -5,8 +5,8 @@ import { cn } from '../utils/cn.js';
 /**
  * The base every PINGO icon is drawn on.
  *
- * The branding board specifies one icon style — rounded, 2px stroke, minimal,
- * consistent — so those properties are set here once rather than repeated on
+ * The branding board specifies one icon style - rounded, 2px stroke, minimal,
+ * consistent - so those properties are set here once rather than repeated on
  * every glyph. Individual icons supply geometry only, which is what guarantees
  * they stay consistent as the set grows.
  *

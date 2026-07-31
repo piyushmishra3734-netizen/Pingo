@@ -23,7 +23,7 @@ import {
  * exactly like a remote one would be.
  *
  * That is deliberate. If built-in packs were imported as modules, the dynamic
- * path would be untested code — and the first genuinely remote pack would be
+ * path would be untested code - and the first genuinely remote pack would be
  * the thing that discovered it was broken.
  *
  * ## Adding a pack
@@ -78,7 +78,7 @@ async function fetchPack(source: StickerPackSource): Promise<StickerPack | undef
 
     /*
      * Validated, not trusted. A manifest can come from anywhere, and one
-     * missing its licence is not a pack that renders badly — it is a pack that
+     * missing its licence is not a pack that renders badly - it is a pack that
      * must not render at all.
      */
     if (!isValidPack(data)) return undefined;
@@ -135,7 +135,7 @@ export function StickerProvider({ children }: { children: ReactNode }) {
       try {
         localStorage.setItem(RECENT_KEY, JSON.stringify(next));
       } catch {
-        // Non-fatal — recents are a convenience, not state anything depends on.
+        // Non-fatal - recents are a convenience, not state anything depends on.
       }
       return next;
     });

@@ -7,7 +7,7 @@ import { useLongPress } from './useLongPress.js';
  *
  * docs/13 § 4.5: the component is one, only the trigger differs by platform,
  * and no behaviour differs with it. Two implementations would be two sets of
- * bugs — and the one that gets tested less is always the one people use more.
+ * bugs - and the one that gets tested less is always the one people use more.
  *
  * | Platform | Trigger | Opens |
  * | --- | --- | --- |
@@ -21,7 +21,7 @@ import { useLongPress } from './useLongPress.js';
  *
  * Tapping a message offers the reaction bar and nothing else; holding it offers
  * the bar and the actions beneath. Reacting is by far the most common thing
- * anyone does to a message, and it is also the most reversible — so it gets the
+ * anyone does to a message, and it is also the most reversible - so it gets the
  * cheapest gesture, and the half-second hold is reserved for the actions that
  * change something.
  *
@@ -35,7 +35,7 @@ import { useLongPress } from './useLongPress.js';
  * A click is how you interact with everything on a desktop, so making it open a
  * reaction bar would fire constantly by accident. The hover `⋯` is already the
  * cheap opener there. Per § 4.5 this is a difference in *trigger*, which the
- * table above is for — the menu and its behaviour stay identical.
+ * table above is for - the menu and its behaviour stay identical.
  *
  * ## Why right-click anchors to the cursor
  *
@@ -57,7 +57,7 @@ export interface MenuOpen {
  * How far a finger may travel and still count as a tap.
  *
  * Wider than the long press's own tolerance, because this is judged at release
- * over the whole gesture rather than continuously — and a tap that scrolled the
+ * over the whole gesture rather than continuously - and a tap that scrolled the
  * thread a little should not also open something.
  */
 const TAP_SLOP_PX = 12;
@@ -85,13 +85,13 @@ export interface MenuTriggers {
  * Whether a tap landed on something that already does its own job.
  *
  * A bubble is not always inert. It can hold a voice note's play button and seek
- * bar, a link, a photo's cover, a reaction pill — and tapping any of those was
+ * bar, a link, a photo's cover, a reaction pill - and tapping any of those was
  * also opening the reaction bar over the top, because the tap bubbled up to the
  * trigger. On a phone that made a voice note nearly unplayable: every press of
  * play summoned the emoji row.
  *
  * Checked here rather than by adding `stopPropagation` to each control, so a
- * control added later cannot forget. Only the *reaction* tap is suppressed —
+ * control added later cannot forget. Only the *reaction* tap is suppressed  - 
  * long press, right-click and the keyboard openers still work anywhere on the
  * bubble, because those are deliberate and unambiguous.
  */
@@ -196,7 +196,7 @@ export function useMessageMenu(): MenuTriggers {
       },
       /*
        * Focusable, so the keyboard openers can reach it at all. A message is
-       * not a control, so it is in the tab order only as a target — nothing
+       * not a control, so it is in the tab order only as a target - nothing
        * about it activates on Enter.
        */
       tabIndex: 0,

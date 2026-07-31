@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
  *
  * Installing is not one thing. Chrome on Android and Edge on Windows raise a
  * real prompt the page can trigger. Safari on iOS has no such API and never
- * will — installing there is a manual trip through the share sheet, and the
+ * will - installing there is a manual trip through the share sheet, and the
  * only useful thing a page can do is say so precisely. Firefox on desktop does
  * not install web apps at all.
  *
@@ -27,7 +27,7 @@ export type Platform = 'android' | 'ios' | 'windows' | 'macos' | 'other';
 export type InstallMethod =
   /** The browser will raise its own prompt; `install()` triggers it. */
   | 'prompt'
-  /** No API. The user must be told the steps — see the download page. */
+  /** No API. The user must be told the steps - see the download page. */
   | 'manual'
   /** Already running as an installed app. Nothing to offer. */
   | 'installed';
@@ -42,7 +42,7 @@ export interface InstallState {
 /**
  * The event Chromium fires when it decides a site is installable.
  *
- * Not in TypeScript's DOM library, because it is not a standard — which is
+ * Not in TypeScript's DOM library, because it is not a standard - which is
  * itself the reason `method` exists rather than the whole feature assuming it.
  */
 interface BeforeInstallPromptEvent extends Event {
@@ -62,7 +62,7 @@ export function detectPlatform(): Platform {
    * iPadOS reports itself as a Mac.
    *
    * Since iPadOS 13 the user agent is desktop Safari's, so an iPad is
-   * indistinguishable from a MacBook by string alone — and telling an iPad user
+   * indistinguishable from a MacBook by string alone - and telling an iPad user
    * to install from the Dock is nonsense. A touch-capable "Mac" is an iPad;
    * Apple does not make a touchscreen laptop.
    */
@@ -96,7 +96,7 @@ export function useInstall(): InstallState {
        * Prevented, and kept.
        *
        * Chromium fires this instead of showing its own mini-infobar, and the
-       * event is only usable once — letting it through means the browser shows
+       * event is only usable once - letting it through means the browser shows
        * its own bar at the bottom of the screen and the page can never offer
        * installing again. Holding it is what lets the banner ask at a moment
        * that makes sense.

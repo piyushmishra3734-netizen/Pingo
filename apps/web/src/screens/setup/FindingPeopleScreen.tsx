@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthScreen } from '../../features/auth/AuthScreen.js';
 
 /**
- * Setup, last step — who else is here.
+ * Setup, last step - who else is here.
  *
  *   Finding people…
  *   █████████
@@ -15,7 +15,7 @@ import { AuthScreen } from '../../features/auth/AuthScreen.js';
  * ## This is not contact matching, and the copy does not pretend it is
  *
  * The spec asked for "3 Friends Found", which means matching an address book.
- * **The web has no address-book API** — a browser cannot read contacts, at all —
+ * **The web has no address-book API** - a browser cannot read contacts, at all  - 
  * so a screen claiming to have found *friends* would be claiming something it
  * did not do.
  *
@@ -24,14 +24,14 @@ import { AuthScreen } from '../../features/auth/AuthScreen.js';
  * empty result says so rather than inventing a number.
  *
  * Real contact matching needs a native shell (React Native or Capacitor) and a
- * device-side matching step — [§ 12](../../../../../docs/01-onboarding-auth.md#12-contacts)
+ * device-side matching step - [§ 12](../../../../../docs/01-onboarding-auth.md#12-contacts)
  * promises the address book is never uploaded, and that promise is only
  * keepable on-device.
  *
  * ## The progress bar is honest too
  *
  * It fills while the query is in flight and stops when the answer arrives. It
- * is not a timed animation pretending to search — if the query returns in 80ms
+ * is not a timed animation pretending to search - if the query returns in 80ms
  * the bar completes in 80ms.
  */
 
@@ -129,7 +129,7 @@ export function FindingPeopleScreen() {
         <p className="mt-8 text-body text-text-secondary">
           {failed
             ? "We couldn't check just now. You can find people any time from search."
-            : "You're early — nobody else is here yet. Invite someone, or find them by username later."}
+            : "You're early - nobody else is here yet. Invite someone, or find them by username later."}
         </p>
       )}
     </AuthScreen>

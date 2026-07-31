@@ -3,13 +3,13 @@
  *
  * `setPointerCapture` and `releasePointerCapture` both raise `NotFoundError`
  * when the pointer is no longer active, and optional-calling them (`?.`) only
- * guards a *missing method* — not a throwing one.
+ * guards a *missing method* - not a throwing one.
  *
  * That distinction is the whole reason this file exists. An exception thrown
  * here lands inside a pointer handler, so the release path aborts before it can
  * commit the gesture or reset the element: the swipe silently does nothing and
  * the row stays stuck half-open with no way back. The pointer really can go away
- * mid-gesture — the browser takes the gesture over for a scroll or a back-swipe,
+ * mid-gesture - the browser takes the gesture over for a scroll or a back-swipe,
  * or a `pointercancel` beats the `pointerup` to it.
  *
  * Shared by the chat-row swipe and the message swipe so the two gestures cannot

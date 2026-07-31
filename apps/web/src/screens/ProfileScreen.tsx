@@ -52,7 +52,7 @@ import { useConfirm } from '../components/ConfirmProvider.js';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 
 /**
- * Profile — yours at `/profile`, anyone else's at `/profile/:handle`.
+ * Profile - yours at `/profile`, anyone else's at `/profile/:handle`.
  *
  * One component for both, because the page *is* the same page: the same photo,
  * the same three numbers, the same posts. What differs is the action row and
@@ -65,7 +65,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
  * absence is the point rather than an omission: a one-way follow in PINGO is a
  * request, not a relationship, and an audience size is a number that changes how
  * people behave about the thing they are posting. Friends is the count of mutual
- * follows — people who agreed, both ways.
+ * follows - people who agreed, both ways.
  *
  * ## Why the Media tab is only on your own profile
  *
@@ -73,7 +73,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
  * one person. A Media tab on somebody else's profile could only ever be empty or
  * wrong, and an always-empty tab that says "private" is a placeholder wearing a
  * lock. So the tab bar has two tabs on your own profile and one on everybody
- * else's — which is also what a reader expects, because the private half of a
+ * else's - which is also what a reader expects, because the private half of a
  * page does not exist on a page that is not yours.
  */
 
@@ -187,7 +187,7 @@ export function ProfileScreen() {
    * A profile that keeps up with itself.
    *
    * Every number and every word on this screen came from one fetch on mount, so
-   * a bio edited on a phone, a post added, a follow accepted — none of it
+   * a bio edited on a phone, a post added, a follow accepted - none of it
    * arrived until the screen was left and re-entered. On your *own* profile
    * that is the strangest version of it: you change something, come back, and
    * the app shows you the old answer about yourself.
@@ -195,8 +195,8 @@ export function ProfileScreen() {
    * The filters matter as much as the subscriptions. `profiles` is readable by
    * everyone, so its stream carries every edit on PINGO; without narrowing to
    * the person being looked at, every stranger's bio change would refetch this
-   * screen. `follows` has no id to match on — either side of the row can be
-   * this person — so it re-reads the counts and nothing else.
+   * screen. `follows` has no id to match on - either side of the row can be
+   * this person - so it re-reads the counts and nothing else.
    */
   useEffect(() => {
     if (!personId) return;
@@ -308,7 +308,7 @@ export function ProfileScreen() {
      * Both directions ask, and neither pretends to be the other.
      *
      * Blocking is the destructive one and gets the red button. Unblocking
-     * gives something back — but it is still a decision about somebody the
+     * gives something back - but it is still a decision about somebody the
      * user once chose to shut out, and "did you mean to let them back in?" is
      * a fair question to put once. It is the calm button, not the red one.
      */
@@ -322,7 +322,7 @@ export function ProfileScreen() {
       : await confirm({
           title: `Unblock ${person.displayName}?`,
           description:
-            'They will be able to message you again. Being friends is not restored — either of you can ask.',
+            'They will be able to message you again. Being friends is not restored - either of you can ask.',
           tone: 'normal',
           confirmLabel: 'Unblock',
         });
@@ -446,7 +446,7 @@ export function ProfileScreen() {
 
           {/*
             `h2`, not `h1`. `ScreenHeader` already contributes the page's one
-            `h1`, and measuring the rendered page turned up two of them — which
+            `h1`, and measuring the rendered page turned up two of them - which
             leaves a screen reader with no single answer to "what is this page".
             Styled as `text-h1` because it is still the largest thing here.
           */}
@@ -490,7 +490,7 @@ export function ProfileScreen() {
             <div className="mt-5 flex w-full max-w-xs flex-col items-center gap-2">
               {/*
                 Not friends yet, so the request comes first and is the primary
-                action. Messaging stays available regardless — PINGO's rule is
+                action. Messaging stays available regardless - PINGO's rule is
                 that anyone can message anyone, and a request you cannot send is
                 a product nobody can start using.
               */}
@@ -761,7 +761,7 @@ export function ProfileScreen() {
  * One of the three numbers.
  *
  * `dd` before `dt` in the markup so the number sits above its label visually,
- * while the pair still reads as one definition — "Posts, 3" — to a screen
+ * while the pair still reads as one definition - "Posts, 3" - to a screen
  * reader, which walks the list in document order within each group.
  */
 function Stat({ label, value }: { label: string; value: number | undefined }) {
@@ -770,7 +770,7 @@ function Stat({ label, value }: { label: string; value: number | undefined }) {
       <dt className="sr-only">{label}</dt>
       <dd className="text-h2 font-semibold text-ink tabular-nums">
         {value === undefined ? (
-          <span className="text-text-tertiary">—</span>
+          <span className="text-text-tertiary"> - </span>
         ) : (
           <AnimatedCount value={value} />
         )}

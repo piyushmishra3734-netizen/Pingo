@@ -11,8 +11,8 @@ import { useStories } from '../features/stories/StoryContext.js';
  * ## Private, and it says so
  *
  * The archive is the one place in the product holding things that were meant to
- * be temporary. Nobody else can read it — the read policy simply stops hiding
- * an expired story from its own author — but a page full of your old posts is
+ * be temporary. Nobody else can read it - the read policy simply stops hiding
+ * an expired story from its own author - but a page full of your old posts is
  * exactly the surface where somebody assumes the wrong thing and shares their
  * screen, so it carries a lock and a sentence rather than relying on the user
  * to have read a migration.

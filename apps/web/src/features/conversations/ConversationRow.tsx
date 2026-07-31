@@ -26,7 +26,7 @@ import { useLongPress } from '../chat/context-menu/useLongPress.js';
  * One row in the conversation list.
  *
  * The information hierarchy is doing real work here. A row has to answer three
- * questions at a glance — who, what, and does it need me — so:
+ * questions at a glance - who, what, and does it need me - so:
  *
  *   - Unread rows set the title to medium weight and the preview to full-strength
  *     ink. Read rows drop the preview to secondary. Weight carries the state, not
@@ -99,7 +99,7 @@ export function ConversationRow({
       */}
       {/*
         Wrapped, because `Avatar` renders only the props it declares and a
-        stray `data-` attribute on it goes nowhere — verified on the deployed
+        stray `data-` attribute on it goes nowhere - verified on the deployed
         build, where the selector matched zero elements and the transition was
         silently doing nothing.
       */}
@@ -110,7 +110,7 @@ export function ConversationRow({
         /*
           The partner's photo for a direct chat, the conversation's own for a
           group. Without this every row rendered a monogram even for people who
-          had set a picture — the avatar was there, its source was not.
+          had set a picture - the avatar was there, its source was not.
         */
         src={partner?.avatarUrl ?? conversation.avatarUrl}
         size="md"
@@ -157,7 +157,7 @@ export function ConversationRow({
           {/*
             Three markers in a fixed order, all at tertiary weight so none of
             them competes with the title or the unread badge. A favourite is the
-            quietest of the three — it is a filter you set once, not a state
+            quietest of the three - it is a filter you set once, not a state
             that changes, so it is a hollow star rather than a filled one and it
             sits first, furthest from the timestamp the eye lands on.
           */}
@@ -228,7 +228,7 @@ export function ConversationRow({
           {hasUnread && (
             <Badge
               count={conversation.unreadCount}
-              // Muted threads still count, but quietly — that is what mute means.
+              // Muted threads still count, but quietly - that is what mute means.
               tone={conversation.muted ? 'neutral' : 'brand'}
               className="shrink-0"
               srSuffix="unread messages"
@@ -243,7 +243,7 @@ export function ConversationRow({
     'group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left',
     /*
       Colour *and* transform. It was colour only, so the most-tapped element in
-      the product acknowledged a press by changing shade and nothing else —
+      the product acknowledged a press by changing shade and nothing else  - 
       which on a touch screen reads as the tap not having landed.
 
       Two durations on purpose: the tint at 120ms because colour should keep up
@@ -258,7 +258,7 @@ export function ConversationRow({
     /*
       One declaration, two curves.
 
-      Two `transition-*` utilities do not compose — they both set
+      Two `transition-*` utilities do not compose - they both set
       `transition-property`, so the second replaces the first and its timing
       function goes with it. Measured on the deployed build: the row reported
       the standard curve and the spring was nowhere. An arbitrary value is the
@@ -276,7 +276,7 @@ export function ConversationRow({
   /*
    * A tick on the left, and the row lifts slightly.
    *
-   * The lift is what stops a selected row reading as merely "hovered" — the
+   * The lift is what stops a selected row reading as merely "hovered" - the
    * tint alone is the same colour the active desktop row already uses, so
    * without it the two states would be indistinguishable in the two-pane layout.
    */
@@ -321,12 +321,12 @@ export function ConversationRow({
         Measured on the way out, while the row is still on screen.
 
         It has to happen here rather than in the thread, because on a phone this
-        row unmounts before the thread mounts — there is no instant where both
+        row unmounts before the thread mounts - there is no instant where both
         exist, and nothing left to read a position from afterwards.
 
         Placed *after* the spread and calling through to it: `longPress` also
         binds `onPointerDown`, and a second one in the JSX silently replaces it
-        rather than adding to it — which would have cost the row its long press.
+        rather than adding to it - which would have cost the row its long press.
       */
       onPointerDown={(event) => {
         longPress.onPointerDown?.(event);

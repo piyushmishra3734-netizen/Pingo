@@ -22,7 +22,7 @@ import { fromBase64, toBase64 } from './keys.js';
 export const KDF = 'pbkdf2-sha256-600000';
 const PBKDF2_ITERATIONS = 600_000;
 
-/** 128 bits — twelve words. */
+/** 128 bits - twelve words. */
 const ENTROPY_BITS = 128;
 
 export interface RecoveryPackage {
@@ -43,7 +43,7 @@ export interface RecoveryPackage {
  * and guards everything here; 128 bits from `crypto.getRandomValues` is not.
  * The wordlist is BIP-39 rather than something bespoke because it is widely
  * reviewed, the words are unambiguous spoken and written, and it carries a
- * checksum — which turns the commonest failure from "wrong key, no
+ * checksum - which turns the commonest failure from "wrong key, no
  * explanation" into "word seven is not a word".
  */
 export function generateRecoveryCode(): string {
@@ -73,7 +73,7 @@ export function normaliseRecoveryCode(code: string): string {
  *
  * Returned as indices so the UI can mark the offending box rather than
  * rejecting twelve words as a unit. A code that fails only its checksum has no
- * single bad word — the words are all real and their order or content is not —
+ * single bad word - the words are all real and their order or content is not  - 
  * so that case returns an empty list and the caller says so differently.
  */
 export function unknownWords(code: string): number[] {
@@ -90,8 +90,8 @@ export function unknownWords(code: string): number[] {
  * Turns the code into a wrapping key.
  *
  * PBKDF2 rather than Argon2id, deliberately and reversibly. With a generated
- * 128-bit code the entropy is doing all the work — brute force is infeasible
- * at any iteration count — and memory-hardness defends against weak *human*
+ * 128-bit code the entropy is doing all the work - brute force is infeasible
+ * at any iteration count - and memory-hardness defends against weak *human*
  * secrets, which this design never allows because it never lets anyone choose
  * one. `KDF` names the choice in every stored package, so Argon2id can arrive
  * later without orphaning a single existing user.
@@ -118,7 +118,7 @@ async function wrappingKey(code: string, salt: ArrayBuffer): Promise<CryptoKey> 
  * Creates the recovery key and the package that carries it.
  *
  * The returned `publicKey` is what senders wrap message content keys to. The
- * returned `privateKey` is already non-extractable — the exportable instance
+ * returned `privateKey` is already non-extractable - the exportable instance
  * existed only inside this function and is gone by the time it returns.
  */
 export async function createRecoveryKey(
@@ -189,9 +189,9 @@ export class RecoveryError extends Error {
 /**
  * Opens a package and returns the recovery key, non-extractable.
  *
- * `seenVersion` is the rollback defence. A server cannot forge a package — it
+ * `seenVersion` is the rollback defence. A server cannot forge a package - it
  * has no code to encrypt one under, and GCM refuses anything it did not
- * produce — but it can replay a package the user has already superseded, and
+ * produce - but it can replay a package the user has already superseded, and
  * strand them on a key they rotated away from. Refusing a version this device
  * has already passed closes that, and costs one integer.
  */

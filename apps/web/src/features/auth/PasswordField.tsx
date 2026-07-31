@@ -6,13 +6,13 @@ import { useRef, useState, type PointerEvent, type Ref } from 'react';
  * [docs/01 § 8](../../../../../docs/01-onboarding-auth.md#8-create-password).
  *
  * The blueprint asks for two different gestures on the same control: **held to
- * reveal on touch, toggled on desktop.** That is not a quirk — on a phone the
+ * reveal on touch, toggled on desktop.** That is not a quirk - on a phone the
  * password is exposed to whoever is standing behind you, so it should be visible
  * only while a thumb is deliberately holding it there. With a mouse, holding a
  * button while typing with the other hand is impossible, so it toggles.
  *
  * `pointerType` tells the two apart at the moment of interaction, which is more
- * reliable than a media query — a touchscreen laptop is both.
+ * reliable than a media query - a touchscreen laptop is both.
  *
  * There is deliberately **no confirm field** (§ 8.1).
  */

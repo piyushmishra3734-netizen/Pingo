@@ -3,7 +3,7 @@
  *
  * ## One file per weight would be four files; this is one
  *
- * Google serves Space Grotesk as a *variable* font — the same file answered the
+ * Google serves Space Grotesk as a *variable* font - the same file answered the
  * request for 400, 500, 600 and 700, which is how you can tell. So the weight
  * is a range rather than a value, and every weight in the product comes out of
  * one 22KB download instead of four separate ones.
@@ -56,7 +56,7 @@
 }
 
 /**
- * PINGO — Tailwind v4 theme.
+ * PINGO. Tailwind v4 theme.
  *
  * This file is the CSS face of `@pingo/tokens`. Every value here mirrors a
  * value in the TypeScript token modules; the TS side exists so React Native can
@@ -170,7 +170,7 @@
      material. `spring` carries slightly past and settles back, which is the
      entire difference between "it moved" and "it is a thing".
 
-     `liquid` is the long tail without the overshoot — for surfaces too large
+     `liquid` is the long tail without the overshoot - for surfaces too large
      to bounce without looking silly. A sheet the size of the screen springing
      is a trampoline; a sheet that glides and settles is glass. */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -209,7 +209,7 @@
   /* A long press, in progress.
 
      Long-press opens story management, and until now it gave nothing back
-     until it had already fired — so the gesture was invisible to anyone who
+     until it had already fired - so the gesture was invisible to anyone who
      did not already know it existed, and a press abandoned halfway looked
      identical to one that never started. Squeezing over the hold's own
      duration says "something is happening, keep going", and lets a press be
@@ -280,7 +280,7 @@
 /* two entrance animations used for content.                                   */
 /* -------------------------------------------------------------------------- */
 
-/** Online / live: a slow breath. Never a blink — blinking demands attention. */
+/** Online / live: a slow breath. Never a blink - blinking demands attention. */
 @keyframes dot-pulse {
   0%,
   100% {
@@ -512,7 +512,7 @@
  * The board's #6D7CFF → #A16EFF at 135°. Primary actions and outgoing bubbles.
  *
  * Drawn from variables rather than literals so the accent setting can retint the
- * whole product. The defaults below are the board's values exactly — changing
+ * whole product. The defaults below are the board's values exactly - changing
  * accent overrides the two stops, nothing else.
  */
 @utility bg-brand-gradient {
@@ -544,7 +544,7 @@
   position: relative;
 
   /*
-   * The specular edge — what separates glass from frosted plastic.
+   * The specular edge - what separates glass from frosted plastic.
    *
    * Real glass is brightest where it curves away at the top. A hairline of
    * light along the upper edge is all it takes; the eye reads thickness from
@@ -554,7 +554,7 @@
    *
    * It was an inset shadow, and it never appeared. `GlassPanel` puts
    * `shadow-lg` on the same element for elevation, and `box-shadow` is one
-   * property — the utility replaced the specular outright rather than adding to
+   * property - the utility replaced the specular outright rather than adding to
    * it. Measured on the deployed build: the dock's computed shadow had no inset
    * layer at all.
    *
@@ -585,14 +585,14 @@
  * a stop. Any one of them alone is a scale transform wearing a costume.
  *
  * The brighten is `filter`, not a colour change, so it works over whatever
- * happens to be behind the glass — which is the whole point of the material.
+ * happens to be behind the glass - which is the whole point of the material.
  */
 @utility glass-press {
   /*
    * Colour is in this list on purpose.
    *
    * This declares the `transition` shorthand, and a `transition-colors`
-   * utility beside it does not merge — it replaces the whole thing, spring and
+   * utility beside it does not merge - it replaces the whole thing, spring and
    * all. Measured on the deployed build: the dock came back with
    * `cubic-bezier(0.32, 0.72, 0, 1)`, the standard curve, because the colour
    * utility had won. So this owns every property the control animates and
@@ -612,7 +612,7 @@
 
 /**
  * Keyboard focus only. `:focus-visible` means pointer users never see a ring,
- * while keyboard users always do — the outline is offset so it reads as a halo
+ * while keyboard users always do - the outline is offset so it reads as a halo
  * around the control rather than a border on it.
  */
 /**
@@ -625,7 +625,7 @@
  *
  * So `duration-instant`, `duration-quick` and `duration-base` had been emitting
  * nothing at all. Over a hundred transitions across the app were silently
- * falling back to Tailwind's default 150ms — close enough to the intended
+ * falling back to Tailwind's default 150ms - close enough to the intended
  * values that nothing looked broken, which is exactly why it survived.
  *
  * Declared here rather than by renaming the tokens, because `--animate-*` reads
@@ -657,8 +657,8 @@
 /**
  * Extends a control's hit area to 44×44 without changing how big it looks.
  *
- * The icon buttons are 40px, which is right visually — the row of them in a
- * header would look heavy at 44 — but short of the 44×44 that WCAG 2.5.5 asks
+ * The icon buttons are 40px, which is right visually - the row of them in a
+ * header would look heavy at 44 - but short of the 44×44 that WCAG 2.5.5 asks
  * for and that a thumb actually wants. An invisible overlay is the standard
  * answer: the target grows, the design does not move, and nothing reflows
  * because the pseudo-element is absolutely positioned.
@@ -703,7 +703,7 @@
 /* -------------------------------------------------------------------------- */
 /* Appearance                                                                 */
 /*                                                                            */
-/* Four user-facing choices — theme, accent, motion, glass — each expressed as */
+/* Four user-facing choices - theme, accent, motion, glass - each expressed as */
 /* a data attribute on <html> and each doing its work by overriding the same   */
 /* tokens every component already reads. Nothing below is a new colour system; */
 /* it is the existing one, repointed.                                          */
@@ -819,7 +819,7 @@
 /* is not "none": transitions still happen, fast enough to feel instant but    */
 /* slow enough that a state change is still visible rather than a jump-cut.    */
 /*                                                                            */
-/* `prefers-reduced-motion` still wins over all three — an OS-level request is */
+/* `prefers-reduced-motion` still wins over all three - an OS-level request is */
 /* not a preference this menu gets to override.                                */
 
 :root[data-motion='smooth'] {
@@ -839,7 +839,7 @@
 /* ---- Glass --------------------------------------------------------------- */
 /*                                                                            */
 /* Blur and panel opacity move together. At 0% the panel becomes a plain solid */
-/* surface — `backdrop-filter` is switched off entirely rather than set to 0,  */
+/* surface - `backdrop-filter` is switched off entirely rather than set to 0,  */
 /* because a live filter that blurs by nothing still costs a compositor layer  */
 /* on every scroll.                                                            */
 

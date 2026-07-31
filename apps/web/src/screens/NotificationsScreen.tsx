@@ -46,7 +46,7 @@ export function NotificationsScreen() {
    * Answering happens here rather than on a separate screen.
    *
    * A notification that only tells you to go somewhere else to act on it is a
-   * signpost, not a notification — and the request screen still exists for
+   * signpost, not a notification - and the request screen still exists for
    * anyone who wants the full list.
    */
   const respond = async (item: AppNotification, accept: boolean) => {
@@ -72,7 +72,7 @@ export function NotificationsScreen() {
    * Bumped whenever a notification row changes, to re-run the load below.
    *
    * The screen used to fetch once on mount, so anything arriving while it was
-   * open stayed invisible until it was navigated away from and back — which is
+   * open stayed invisible until it was navigated away from and back - which is
    * the worst case for this particular screen, because sitting on it is exactly
    * what somebody does when they are waiting for something.
    */

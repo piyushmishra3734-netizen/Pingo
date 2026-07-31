@@ -6,14 +6,14 @@
  * An R2 bucket can be exposed directly, and that would hand out a URL nobody
  * would want to type and no control over how the file arrives. This gives a
  * branded address, forces the download rather than letting a browser guess, and
- * keeps the storage private — the bucket is reachable only through this.
+ * keeps the storage private - the bucket is reachable only through this.
  *
  * ## One filename, forever
  *
  * The Worker always serves the object named `PINGO.apk`. Publishing a new
  * version is `wrangler r2 object put` and nothing else: no deploy, no edit to
  * the website, no link to update. A versioned filename would move the URL every
- * release and break whatever was pointing at it — which is exactly how the
+ * release and break whatever was pointing at it - which is exactly how the
  * previous channel broke.
  */
 
@@ -54,11 +54,11 @@ export default {
      * Range requests are honoured, and only when actually made.
      *
      * A dropped connection on a mobile network is normal, and without range
-     * support a resumed download restarts from zero — on 24 MB over a poor
+     * support a resumed download restarts from zero - on 24 MB over a poor
      * signal that can mean it never finishes.
      *
      * Handing R2 the whole header set unconditionally made it answer every
-     * plain GET with a 206 and a Content-Range, which is a lie — nobody
+     * plain GET with a 206 and a Content-Range, which is a lie - nobody
      * requested a partial response. Android's download manager is entitled to
      * reject that, and a downloader that refuses the file outright is a worse
      * failure than one that cannot resume.
@@ -73,7 +73,7 @@ export default {
       return new Response('No build has been published yet.', { status: 404 });
     }
 
-    // `body` is absent when `onlyIf` matched — the client already has it.
+    // `body` is absent when `onlyIf` matched - the client already has it.
     if (!('body' in object) || !object.body) {
       return new Response(null, { status: 304, headers: headersFor(object) });
     }

@@ -14,7 +14,7 @@ import { useConfirm } from '../../../components/ConfirmProvider.js';
 /**
  * The whole context menu, assembled.
  *
- * One component, four ways in — docs/13 § 4.5. It owns the two things that
+ * One component, four ways in - docs/13 § 4.5. It owns the two things that
  * cross the pieces: which level is showing, and whether a reaction is in
  * flight, because both the bar and the pills need to know.
  *
@@ -32,7 +32,7 @@ export interface MessageMenuProps {
   onForward: (message: Message) => void;
   /** The bubble, rendered again inside the menu so it can be lifted. */
   children: React.ReactNode;
-  /** The same bubble in the thread — hidden while the menu holds a copy. */
+  /** The same bubble in the thread - hidden while the menu holds a copy. */
   render: (
     handlers: ReturnType<typeof useMessageMenu>['handlers'] & { hidden: boolean },
   ) => React.ReactNode;
@@ -64,7 +64,7 @@ export function MessageMenu({
       setError(undefined);
       try {
         await service.toggleReaction(message.id, emoji);
-        // Light, and only once it landed — a haptic on tap would confirm
+        // Light, and only once it landed - a haptic on tap would confirm
         // something that had not happened yet.
         navigator.vibrate?.(4);
       } catch {
@@ -86,14 +86,14 @@ export function MessageMenu({
    *
    * Without this the `➕` on a reactions-only bar leads nowhere, and a tap
    * would be a dead end for anyone who realises mid-gesture that they wanted an
-   * action after all — which would teach people to hold every time and undo the
+   * action after all - which would teach people to hold every time and undo the
    * point of the cheap gesture.
    */
   const [promoted, setPromoted] = useState(false);
 
   /*
    * A tap asked for reactions only. The actions are not hidden from it so much
-   * as never requested — holding is what asks for them, and offering them
+   * as never requested - holding is what asks for them, and offering them
    * anyway would make the two gestures identical.
    */
   const reactionsOnly = menu.open?.mode === 'reactions' && !promoted;
@@ -105,7 +105,7 @@ export function MessageMenu({
       setError(why);
       window.setTimeout(() => setError(undefined), 2200);
     },
-    // Opening the editor is the menu's job, not Level 2's — Level 2 only knows
+    // Opening the editor is the menu's job, not Level 2's - Level 2 only knows
     // which row was pressed. Info is the same shape, for the same reason.
     () => setEditing(true),
     () => setInfo(true),
@@ -204,8 +204,8 @@ export function MessageMenu({
  * Level 2's handlers.
  *
  * Split by where the work happens, because that is the only distinction that
- * matters here: the server owns anything with a rule attached — the edit
- * window, who may delete for everyone — and the platform owns the rest.
+ * matters here: the server owns anything with a rule attached - the edit
+ * window, who may delete for everyone - and the platform owns the rest.
  *
  * Nothing is optimistic. These are deliberate, one-off actions, and a star that
  * appears and then un-appears is worse than one that takes a moment.

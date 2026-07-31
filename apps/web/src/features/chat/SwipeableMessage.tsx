@@ -9,7 +9,7 @@ import { useSwipeToReply } from './context-menu/useSwipeToReply.js';
  * bubble stays presentational, which is what lets the context menu render a
  * second copy of it without inheriting a live gesture. And pointer events
  * bubble, so the long press on the bubble and the swipe out here can both watch
- * the same pointer without either one having to know about the other — the long
+ * the same pointer without either one having to know about the other - the long
  * press cancels itself at 10px of drift, the swipe engages at 12, and the
  * ordering falls out of that rather than out of coordination code.
  */
@@ -21,7 +21,7 @@ export interface SwipeableMessageProps {
   onReply: () => void;
   /** Which side of the thread this message is on, so the icon sits opposite it. */
   mine: boolean;
-  /** Off where there is nothing to reply to — a tombstone, a failed send. */
+  /** Off where there is nothing to reply to - a tombstone, a failed send. */
   enabled?: boolean;
   children: React.ReactNode;
 }

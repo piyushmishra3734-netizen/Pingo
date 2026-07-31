@@ -23,15 +23,15 @@ export const space = {
 } as const;
 
 /**
- * Corner radii. "Rounded shapes feel friendlier than sharp edges" — so there is
+ * Corner radii. "Rounded shapes feel friendlier than sharp edges" - so there is
  * no 0 and no 2px in this scale. The smallest corner in PINGO is 8px.
  */
 export const radius = {
-  sm: '0.5rem', // 8  — chips, badges, small controls
-  md: '0.875rem', // 14 — inputs, list-row hover targets
-  lg: '1.25rem', // 20 — cards, message bubbles
-  xl: '1.75rem', // 28 — sheets, large panels, the dock
-  '2xl': '2.25rem', // 36 — app icon, hero surfaces
+  sm: '0.5rem', // 8  - chips, badges, small controls
+  md: '0.875rem', // 14 - inputs, list-row hover targets
+  lg: '1.25rem', // 20 - cards, message bubbles
+  xl: '1.75rem', // 28 - sheets, large panels, the dock
+  '2xl': '2.25rem', // 36 - app icon, hero surfaces
   pill: '9999px', // buttons, search fields, avatars
 } as const;
 
@@ -40,7 +40,7 @@ export const radius = {
  *
  * Shadows are tinted with the brand blue rather than neutral black. Black
  * shadows on a near-white background read as dirt; a blue-violet shadow reads
- * as light. Opacities stay low — depth should be felt, not seen.
+ * as light. Opacities stay low - depth should be felt, not seen.
  */
 export const shadow = {
   none: 'none',
@@ -52,7 +52,7 @@ export const shadow = {
   lg: '0 4px 12px rgba(16, 17, 20, 0.05), 0 16px 40px rgba(92, 108, 255, 0.10)',
   /** Modals and sheets. */
   xl: '0 8px 24px rgba(16, 17, 20, 0.06), 0 32px 72px rgba(92, 108, 255, 0.14)',
-  /** Primary buttons — a coloured glow that ties the action to the brand. */
+  /** Primary buttons - a coloured glow that ties the action to the brand. */
   brand: '0 4px 14px rgba(109, 124, 255, 0.32)',
   brandPressed: '0 2px 6px rgba(109, 124, 255, 0.28)',
 } as const;

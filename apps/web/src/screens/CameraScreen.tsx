@@ -12,12 +12,12 @@ import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.
 import { useStories } from '../features/stories/StoryContext.js';
 
 /**
- * Camera — shoot, filter, edit, then send a Ping or add to your story.
+ * Camera - shoot, filter, edit, then send a Ping or add to your story.
  *
  * Four stages, and the screen is only ever in one:
  *
  *   live    filtered preview, hardware controls, shutter
- *   filter  pick a look — for *every* image, however it arrived
+ *   filter  pick a look - for *every* image, however it arrived
  *   edit    draw and text
  *   send    how many views, who gets it, or add it to your story
  *
@@ -33,7 +33,7 @@ import { useStories } from '../features/stories/StoryContext.js';
  *
  * Zoom, torch, focus and exposure are camera capabilities, not app features.
  * Support is genuinely uneven across browsers and devices, so each control is
- * hidden unless this specific camera reports it — a slider that silently does
+ * hidden unless this specific camera reports it - a slider that silently does
  * nothing is worse than no slider.
  */
 
@@ -55,7 +55,7 @@ export function CameraScreen() {
   const [shot, setShot] = useState<{ blob: Blob; url: string } | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  /** Chosen together and committed once — see `PingRecipients`. */
+  /** Chosen together and committed once - see `PingRecipients`. */
   const [recipients, setRecipients] = useState<Set<string>>(new Set());
   /** Two is the default: long enough to look twice, short enough to be a Ping. */
   const [views, setViews] = useState<PingViews>(2);
@@ -509,7 +509,7 @@ export function CameraScreen() {
               </span>
               <p className="mt-6 text-body text-white">No camera here.</p>
               <p className="mt-2 text-caption text-white/60">
-                Pick a photo instead — filters and editing work exactly the same.
+                Pick a photo instead - filters and editing work exactly the same.
               </p>
             </div>
           </div>
@@ -567,7 +567,7 @@ export function CameraScreen() {
 
       {/*
         Always shown, camera or not. The live preview cannot render a filter
-        without a stream, but the filter itself still applies to the still — so
+        without a stream, but the filter itself still applies to the still - so
         hiding the rail here would hide a feature that works.
       */}
       <FilterRail selected={filterId} onSelect={setFilterId} disabled={!ready} />
@@ -737,7 +737,7 @@ function SendAction({
       className={cn(
         // `min-h-11` rather than padding alone: at `py-2.5` on caption text
         // these came out 36px tall, which is under the 44px bar the rest of the
-        // product holds itself to — and they sit directly above the send
+        // product holds itself to - and they sit directly above the send
         // button, where a thumb aiming for one can find the other.
         'focus-ring min-h-11 flex-1 rounded-full bg-surface px-4 text-caption font-medium text-ink',
         'shadow-sm transition-transform duration-instant active:scale-[0.98]',

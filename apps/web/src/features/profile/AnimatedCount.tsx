@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
  * ## Why the DOM text is the final number from the first frame
  *
  * A screen reader announcing "0, 1, 4, 9, 17, 24 friends" is not a nicer
- * experience than "24 friends" — it is a worse one, and it is what `aria-live`
+ * experience than "24 friends" - it is a worse one, and it is what `aria-live`
  * on a ticking number produces. So the accessible name is set once, to the
  * destination, and the animation happens in a decorative span beside it.
  *
@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react';
  * across a fixed duration means every number on the row lands together, which
  * is the only reason to animate them at all.
  *
- * Reduced motion skips it entirely — not a shorter animation, none.
+ * Reduced motion skips it entirely - not a shorter animation, none.
  */
 
 const DURATION_MS = 620;

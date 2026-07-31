@@ -22,7 +22,7 @@ import { useMutuals } from '../features/profile/useMutuals.js';
  * ## Only friends are listed, and the screen says why
  *
  * Adding somebody to a group reaches into their app without asking, so it takes
- * a mutual follow — the same test stories use. The alternative would be a full
+ * a mutual follow - the same test stories use. The alternative would be a full
  * contact list with two thirds of it refusing to be tapped, which teaches
  * nothing except that the app is unreliable.
  *
@@ -35,7 +35,7 @@ import { useMutuals } from '../features/profile/useMutuals.js';
  *
  * A group cannot be created without one, so the cursor starts in that field.
  * That is not enough on its own: people go to the list first, pick somebody,
- * and press the button — and the first version answered by staying `disabled`
+ * and press the button - and the first version answered by staying `disabled`
  * under a label that read "Create with 1", which is a control that looks
  * finished and does nothing. The button is now always pressable and says what
  * it is missing.
@@ -74,7 +74,7 @@ export function NewGroupScreen() {
    *
    * `useMutuals` returns `undefined` while it is still asking, and treating
    * that as "no friends" would flash the empty state at everybody on every
-   * load — which reads as having no friends rather than as loading.
+   * load - which reads as having no friends rather than as loading.
    */
   const friends = useMemo(() => {
     if (!people || !mutuals) return undefined;
@@ -110,7 +110,7 @@ export function NewGroupScreen() {
      * Say why, rather than going quiet.
      *
      * This button used to be `disabled` until the group had a name, while its
-     * label still counted the people you had picked — so choosing somebody made
+     * label still counted the people you had picked - so choosing somebody made
      * it read "Create with 1" and do nothing, with no hint anywhere that a name
      * was what it was waiting for. Picking people is the part that feels like
      * the work, so it is exactly the moment you press it and find it dead.
@@ -203,12 +203,12 @@ export function NewGroupScreen() {
             /*
              * Not a dead end. A group can be made empty and filled from a link,
              * which is the only route open to someone whose friends list is
-             * empty — saying so here is the difference between a rule and a wall.
+             * empty - saying so here is the difference between a rule and a wall.
              */
             description={
               query.trim()
                 ? 'Only friends can be added directly.'
-                : 'Make the group anyway, then share its invite link — anyone can join with it, friend or not.'
+                : 'Make the group anyway, then share its invite link - anyone can join with it, friend or not.'
             }
           />
         ) : (
@@ -268,7 +268,7 @@ export function NewGroupScreen() {
         {/*
           Beside the button, not at the top of the list.
 
-          It used to render above the friends, which is a scrolling region — so
+          It used to render above the friends, which is a scrolling region - so
           the answer to "why did nothing happen?" could be sitting several
           screens above the button that did nothing. This footer is pinned, so
           the reason appears exactly where the press did.

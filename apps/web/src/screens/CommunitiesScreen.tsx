@@ -34,7 +34,7 @@ export function CommunitiesScreen() {
    * The whole directory, not just people already in a conversation.
    *
    * `useChat().users` is a cache built from threads that exist, so searching it
-   * could only ever find someone you had already messaged — which made the
+   * could only ever find someone you had already messaged - which made the
    * search field look broken for exactly the case it is for. `listContacts()`
    * reads `profiles`, so everyone on PINGO is findable.
    */
@@ -55,7 +55,7 @@ export function CommunitiesScreen() {
          * This used to fall back to the cached roster silently. When the fetch
          * failed the Contacts section simply did not render, which looks
          * exactly like "there is nobody here" and exactly like "search is
-         * broken" — three different causes, one indistinguishable screen.
+         * broken" - three different causes, one indistinguishable screen.
          */
         if (active) {
           setDirectoryError(cause instanceof Error ? cause.message : 'Could not load people.');
@@ -87,7 +87,7 @@ export function CommunitiesScreen() {
        * Shown, not swallowed.
        *
        * This had only a `finally`, so a failing RPC cleared the spinner and
-       * left the screen exactly as it was — indistinguishable from the button
+       * left the screen exactly as it was - indistinguishable from the button
        * doing nothing at all, which is how it was reported. The reason is
        * surfaced because it is the difference between "not signed in",
        * "function missing" and "network", and guessing between those from a

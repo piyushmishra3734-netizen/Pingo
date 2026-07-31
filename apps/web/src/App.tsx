@@ -76,7 +76,7 @@ import { UsernameScreen } from './screens/setup/UsernameScreen.js';
  * This is the one file that names concrete implementations. `SupabaseAuthService`
  * is constructed here and injected into `AuthProvider`; every screen below
  * depends on `@pingo/core`'s `AuthService` interface and could not name Supabase
- * if it wanted to. `ChatService` keeps the same arrangement, still on its mock —
+ * if it wanted to. `ChatService` keeps the same arrangement, still on its mock  - 
  * identity is real, message data is not, and the two boundaries move
  * independently by design.
  *
@@ -85,12 +85,12 @@ import { UsernameScreen } from './screens/setup/UsernameScreen.js';
  * | Group | Guard | Screens |
  * | --- | --- | --- |
  * | Pre-session | `RequireGuest` | Welcome, Log In, both identifier steps, both password steps |
- * | Google | none — see below | The § 5.1 interstitial |
+ * | Google | none - see below | The § 5.1 interstitial |
  * | The product | `RequireAuth` | Everything inside `AppShell` |
  *
  * Sign-up and log-in are both `IdentityFlow` layouts: an identifier step, then a
  * password step that reads what the first one collected. Both are guarded now
- * that no step creates a session before its last action — the mid-flow
+ * that no step creates a session before its last action - the mid-flow
  * authenticated state that once forced sign-up to stay open is gone with the
  * verification step.
  *
@@ -108,7 +108,7 @@ export function App() {
   /*
    * Constructed once, lazily. A module-scope `new SupabaseAuthService()` would
    * run `getSupabaseClient()` at import time and take the whole bundle down on a
-   * missing environment variable — the failure mode `client.ts` was written to
+   * missing environment variable - the failure mode `client.ts` was written to
    * avoid.
    */
   const [services] = useState(() => {
@@ -137,7 +137,7 @@ export function App() {
    * Read-only diagnostics, reachable from the console.
    *
    * `deltaReport` and `rowStoreReport` were both written to be inspected on a
-   * real device with real data rather than argued about — that is what their
+   * real device with real data rather than argued about - that is what their
    * comments say. Neither had a caller and neither was exposed, so in a built
    * bundle there was no way to read either, and milestone 3 could not be
    * diagnosed from the deployed app at all (see docs/performance-baseline.md
@@ -196,7 +196,7 @@ export function App() {
     */
     <SettingsProvider>
     {/*
-      Outside auth, because logging out is one of the things it asks about — a
+      Outside auth, because logging out is one of the things it asks about - a
       confirmation that unmounts with the session could not survive its own
       question.
     */}
@@ -217,7 +217,7 @@ export function App() {
       <ProfileProvider service={services.profile}>
         {/*
           Real conversations and messages, over Realtime. The mock is gone from
-          the running app — `MockChatService` stays in `@pingo/core` for the
+          the running app - `MockChatService` stays in `@pingo/core` for the
           styleguide and for tests, which is what it was always for.
         */}
         <StickerProvider>
@@ -237,7 +237,7 @@ export function App() {
               Public, and outside every guard.
 
               These were nested under `RequireGuest`, which exists to bounce a
-              *signed-in* visitor to Home — so tapping "Learn more" from the
+              *signed-in* visitor to Home - so tapping "Learn more" from the
               install banner sent the user straight back to the chat list, and
               the Terms and Privacy links in the footer did the same thing.
 
@@ -293,7 +293,7 @@ export function App() {
 
             {/*
               Profile setup. Signed in, but deliberately *not* behind
-              `RequireProfile` — these are the screens that create the profile,
+              `RequireProfile` - these are the screens that create the profile,
               so requiring one would be a loop.
             */}
             <Route element={<RequireAuth />}>
@@ -329,7 +329,7 @@ export function App() {
                   <Route path="/profile" element={<ProfileScreen />} />
                   {/* Before `:handle`, or "edit" would be read as a username. */}
                   <Route path="/profile/edit" element={<EditProfileScreen />} />
-                  {/* Accepts a handle or a user id — see `ProfileService.find`. */}
+                  {/* Accepts a handle or a user id - see `ProfileService.find`. */}
                   <Route path="/profile/:handle" element={<ProfileScreen />} />
                   {/* Private, and owner-only by the read policy rather than by this route. */}
                   <Route path="/stories/archive" element={<StoryArchiveScreen />} />
@@ -376,7 +376,7 @@ export function App() {
 /**
  * Shown when the Supabase client cannot be built at all.
  *
- * An operator's problem, not a user's — a missing `.env` — so it says exactly
+ * An operator's problem, not a user's - a missing `.env` - so it says exactly
  * what is wrong instead of rendering a blank page and leaving the message in a
  * console nobody has open.
  */

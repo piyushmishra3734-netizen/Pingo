@@ -11,7 +11,7 @@
  *
  * The archive is built from this database, so restoring it writes the same
  * records back under the same natural keys. The values are re-sealed and
- * therefore differ byte for byte — new IV each time — but decrypt to what was
+ * therefore differ byte for byte - new IV each time - but decrypt to what was
  * already there. That makes the round trip a genuine exercise of the write
  * path without being destructive, and it is exactly the idempotence claim
  * being checked.
@@ -70,7 +70,7 @@ function heapUsed(): number | undefined {
 /**
  * Build from the real database, restore back into it, and report.
  *
- * `recoveryPublicKey` is any P-256 SPKI — the caller can pass a throwaway, since
+ * `recoveryPublicKey` is any P-256 SPKI - the caller can pass a throwaway, since
  * this is checking the pipeline rather than the account's real recovery key.
  */
 export async function archiveSelfTest(

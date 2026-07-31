@@ -1,7 +1,7 @@
 /**
  * Camera hardware controls, via `MediaStreamTrack` constraints.
  *
- * Zoom, torch, focus and exposure are not things a web app implements — they
+ * Zoom, torch, focus and exposure are not things a web app implements - they
  * are things the *camera* does, and the browser exposes them as constrainable
  * properties on the video track. Applying a constraint asks the hardware; a
  * software zoom would be a crop, and a software "flash" would be a white
@@ -10,7 +10,7 @@
  * ## Everything here is optional, and that is the hard part
  *
  * Support is genuinely uneven: Chrome on Android exposes most of it, Safari on
- * iOS almost none, and desktop webcams vary by driver. So nothing is assumed —
+ * iOS almost none, and desktop webcams vary by driver. So nothing is assumed  - 
  * `readCapabilities` reports what this specific device actually offers, and the
  * UI hides a control rather than showing one that silently does nothing.
  *
@@ -66,7 +66,7 @@ export function readCapabilities(track: MediaStreamTrack | undefined): CameraCap
 /**
  * Applies one constraint, and never throws.
  *
- * A rejected constraint means this camera cannot do it — which is information,
+ * A rejected constraint means this camera cannot do it - which is information,
  * not a failure. Letting it propagate would take down a capture for the sake of
  * a zoom the hardware declined.
  */
@@ -94,7 +94,7 @@ export const setExposure = (track: MediaStreamTrack | undefined, value: number) 
  *
  * A stills flash fires once at capture; a `getUserMedia` stream has no shutter,
  * so the only honest equivalent is the lamp staying on. That is why the modes
- * are On and Off — an "Auto" that cannot measure the scene would be a guess
+ * are On and Off - an "Auto" that cannot measure the scene would be a guess
  * dressed as a feature.
  */
 export const setTorch = (track: MediaStreamTrack | undefined, on: boolean) =>
