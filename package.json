@@ -28,7 +28,8 @@
     "verify:drive-streaming": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-streaming.ts",
     "verify:backup-ux": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-backup-ux.ts",
     "verify:key-isolation": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-key-isolation.ts",
-    "verify:backfill": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-backfill.ts"
+    "verify:backfill": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-backfill.ts",
+    "verify:preflight": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-preflight.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

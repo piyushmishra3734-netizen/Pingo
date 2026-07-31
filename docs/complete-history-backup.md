@@ -187,23 +187,54 @@ Shown before anything is fetched, so the user consents to the cost:
 
 ```
 Ready to Back Up
-  Chats            412
-  Messages      38,204
-  Media          1.2 GB          (v2)
-  Documents         86
-  Photos         2,310
-  Videos           148
-  Estimated size  47 MB
+  Chats           412
+  Messages        38,204
+  Photos          2,310
+  Videos          148
+  Documents       86
+  Voice notes     431
+  Estimated size  15 MB (12 MB–17 MB)
+  Media           1.2 GB (not included yet)
 ```
 
 Counts come from aggregate queries with `Prefer: count=exact` and `Range: 0-0`,
 which return a count header and no rows — cheap, and no history is transferred
-to produce the estimate. Size is estimated from the measured ratio: sealing adds
-16 bytes per chunk, so archive size is essentially plaintext size, and plaintext
-size per message is known from the row store's own average.
+to produce the estimate. Seven aggregate queries for the whole account, not one
+per conversation. The source interface returns `number`, so it cannot hand back
+rows even by mistake: a preflight that downloaded the account in order to
+measure the account would defeat its own purpose, and making that structurally
+impossible is cheaper than remembering not to do it.
 
-**The estimate is labelled an estimate.** A number presented as exact and then
-missed by 30% is worse than a range.
+**The estimate is measured, not assumed.** Bytes per message come from the local
+row store's own average, because an account of one-word replies and one of
+pasted logs differ by more than an order of magnitude and the device already
+holds the evidence. `ASSUMED_BYTES_PER_MESSAGE` (360, from the archive
+measurements) is used only when there are no local rows — which is the first
+backup, so it is the common path rather than a corner, and the summary says when
+it was used.
+
+**The estimate is labelled an estimate**, and returned as a range. A number
+presented as exact and then missed by a third is worse than a range that
+contains the answer. The band widens when the sample is thin — quoting a
+confident figure derived from eleven messages is the failure being avoided.
+
+**Media is counted and excluded from the same summary.** `mediaBytes` is a
+separate field from the archive estimate and is rendered "not included yet",
+because v1 does not upload media (§5) and a total that added them would quote a
+number for something PINGO is not going to send.
+
+**One failed count degrades a figure, not the backup.** Each count is
+independent; a failure names itself in `unavailable`, sets `partial`, and the
+rest of the summary stands. The distinction that matters is between an account
+with no history and an account that could not be measured — both show zero and
+they need opposite words, so `empty` requires the count to have *succeeded*.
+Congratulating someone on a backup of a history that was never measured is the
+failure that separation exists to prevent.
+
+**What is left, not what exists.** `toDownload` subtracts what the device
+already holds, clamped at zero, so a user who backed up yesterday is not told
+they are about to download their whole history again — and one whose local store
+legitimately exceeds the server is not shown a negative amount of work.
 
 ### 3.1 Progress
 
@@ -405,7 +436,7 @@ next begins.
 | # | Module | Verified against |
 | --- | --- | --- |
 | 1 | `backfill.ts` | happy path · interruption · resume · duplicate pages · missing pages · **short-page attack** · corrupted cursor · network failure · server inconsistency · cancellation · incorrect server counts · counts changing mid-walk · deletions mid-walk · arrivals mid-walk · duplicate ids · out-of-order pages · audit redaction |
-| 2 | `preflight.ts` | counts match a known fixture · estimate within tolerance · zero-history account · count query failure |
+| 2 | `preflight.ts` | counts match a known fixture · estimate within tolerance · measured vs assumed average · thin sample widens the range · zero-history account · count query failure · total outage · empty vs unmeasured · media excluded from the estimate · no per-conversation queries |
 | 3 | completeness proof | proven · short by one · short in one conversation only · local exceeds server · cursor incomplete · retry resumes |
 | 4 | backup verification | all checks pass · missing chunk · wrong size · bad digest · wrong generation · header mismatch · rollback on failure |
 | 5 | archive integration | end to end on a wiped device, the way cross-device recovery was proven |
