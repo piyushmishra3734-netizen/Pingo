@@ -102,7 +102,13 @@ export function CallProvider({
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // The Calls settings screen drives the media, so its toggles are not decorative.
-  const { noiseCancellation: noiseSuppression, hdVideo, cameraOnByDefault } = preferences.calls;
+  const {
+    noiseCancellation: noiseSuppression,
+    echoCancellation,
+    hdAudio,
+    hdVideo,
+    cameraOnByDefault,
+  } = preferences.calls;
 
   useEffect(() => {
     /*
@@ -177,6 +183,8 @@ export function CallProvider({
         const started = await service.call(peerUserId, {
           kind,
           noiseSuppression,
+          echoCancellation,
+          hdAudio,
           hdVideo,
           // Only meaningful on a video call, and only as a starting position  - 
           // the user can turn the camera on the moment they are connected.
@@ -189,7 +197,7 @@ export function CallProvider({
         setError(mediaMessage(cause));
       }
     },
-    [service, noiseSuppression, hdVideo, cameraOnByDefault],
+    [service, noiseSuppression, echoCancellation, hdAudio, hdVideo, cameraOnByDefault],
   );
 
   /**
@@ -211,6 +219,8 @@ export function CallProvider({
         const started = await service.callGroup(conversationId, participantIds, {
           kind,
           noiseSuppression,
+          echoCancellation,
+          hdAudio,
           hdVideo,
           cameraOff: kind === 'video' && !cameraOnByDefault,
         });
@@ -219,7 +229,7 @@ export function CallProvider({
         setError(mediaMessage(cause));
       }
     },
-    [service, noiseSuppression, hdVideo, cameraOnByDefault],
+    [service, noiseSuppression, echoCancellation, hdAudio, hdVideo, cameraOnByDefault],
   );
 
   const answer = useCallback(async () => {
@@ -227,11 +237,16 @@ export function CallProvider({
     setError(undefined);
     try {
       // No `kind` here: the offer decides whether this is a video call.
-      await service.answer(call.id, { noiseSuppression, hdVideo });
+      await service.answer(call.id, {
+        noiseSuppression,
+        echoCancellation,
+        hdAudio,
+        hdVideo,
+      });
     } catch (cause) {
       setError(mediaMessage(cause));
     }
-  }, [service, call, noiseSuppression, hdVideo]);
+  }, [service, call, noiseSuppression, echoCancellation, hdAudio, hdVideo]);
 
   const decline = useCallback(async () => {
     if (call) await service.decline(call.id);

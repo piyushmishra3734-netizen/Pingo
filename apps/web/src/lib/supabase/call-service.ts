@@ -9,6 +9,7 @@ import type {
   CallState,
 } from '@pingo/core';
 
+import { boostAudioSender, speechAudioConstraints } from '../audio/capture.js';
 import { resolveIceServers } from '../webrtc/ice-servers.js';
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
@@ -562,18 +563,22 @@ export class SupabaseCallService implements CallService {
 
   async #openMedia(kind: CallKind, options?: CallServiceOptions): Promise<MediaStream> {
     /*
-     * The browser's own DSP, requested explicitly.
+     * Same speech capture for voice and video.
      *
-     * These three constraints are what "echo cancellation, noise suppression"
-     * means on the web - WebRTC ships them, and they are free and always on the
-     * fast path. RNNoise below is an *addition* to this, never a replacement.
+     * Video calls used to *feel* clearer because the peer connection was
+     * already carrying more media capacity; voice-only and notes were left on
+     * minimal constraints. One path keeps them even - 48 kHz mono speech with
+     * the browser's AEC/NS/AGC, then optional RNNoise on top.
      */
     const raw = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
+      audio: speechAudioConstraints({
+        echoCancellation: options?.echoCancellation !== false,
+        // Browser NS stays on even when RNNoise is requested - RNNoise is a
+        // second pass, not a replacement (see rnnoise.ts).
         noiseSuppression: true,
         autoGainControl: true,
-      },
+        hd: options?.hdAudio !== false,
+      }),
       video: kind === 'video' ? this.#videoConstraints(options) : false,
     });
 
@@ -586,6 +591,7 @@ export class SupabaseCallService implements CallService {
      * lit after the call ends.
      */
     this.#rawTracks = raw.getTracks();
+    this.#hdAudio = options?.hdAudio !== false;
 
     if (!options?.noiseSuppression) return raw;
 
@@ -603,6 +609,9 @@ export class SupabaseCallService implements CallService {
       return raw;
     }
   }
+
+  /** Whether this call requested HD audio (bitrate + sample rate). */
+  #hdAudio = true;
 
   #rawTracks: MediaStreamTrack[] = [];
 
@@ -628,6 +637,11 @@ export class SupabaseCallService implements CallService {
     for (const track of stream.getTracks()) {
       const sender = link.connection.addTrack(track, stream);
       if (track.kind === 'video') link.videoSender = sender;
+      if (track.kind === 'audio') {
+        // Lift Opus bitrate and prefer the speech codec - voice-only used to
+        // sit on browser defaults while video calls negotiated a richer path.
+        boostAudioSender(link.connection, sender, this.#hdAudio);
+      }
     }
 
     if (stream.getVideoTracks().length > 0) {
@@ -1235,6 +1249,7 @@ export class SupabaseCallService implements CallService {
     this.#peers.clear();
 
     this.#facing = 'user';
+    this.#hdAudio = true;
     this.#iceServers = [];
     this.#earlyCandidates.clear();
     this.#pendingOffer = undefined;

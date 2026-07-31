@@ -133,6 +133,17 @@ export interface CallServiceOptions {
   noiseSuppression?: boolean;
 
   /**
+   * Browser echo cancellation. Default on when omitted.
+   */
+  echoCancellation?: boolean;
+
+  /**
+   * Prefer higher Opus bitrate and 48 kHz capture. Default on when omitted.
+   * Mirrors the Calls → HD Audio setting.
+   */
+  hdAudio?: boolean;
+
+  /**
    * Voice or video. Ignored by `answer`, which always matches what was offered  - 
    * answering a video call with audio only would leave the caller staring at a
    * frame that never arrives.

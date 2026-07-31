@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  preferredVoiceMimeType,
+  speechAudioConstraints,
+  VOICE_AUDIO_BITRATE,
+} from '../../lib/audio/capture.js';
+
 /**
  * Recording a voice note.
  *
@@ -9,6 +15,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * left open keeps the browser's recording indicator lit and, on a phone, keeps
  * the microphone claimed against other apps - the kind of thing a user reads as
  * "this app is listening to me", and they would be right.
+ *
+ * ## Capture quality matches calls
+ *
+ * Same speech constraints and Opus bitrate target as voice/video calls, so a
+ * note does not sound thinner than a call on the same microphone.
  *
  * ## Peaks are taken here, once
  *
@@ -86,22 +97,25 @@ export function useVoiceRecorder(): VoiceRecorder {
     setError(undefined);
     try {
       const media = await navigator.mediaDevices.getUserMedia({
-        // Voice, not music: the browser's own cleanup is better than anything
-        // worth writing here, and it is free.
-        audio: { echoCancellation: true, noiseSuppression: true },
+        // Same speech path as calls - 48 kHz mono + browser AEC/NS/AGC.
+        audio: speechAudioConstraints({ hd: true }),
       });
       stream.current = media;
 
-      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) =>
-        MediaRecorder.isTypeSupported(type),
+      const mimeType = preferredVoiceMimeType();
+      const mediaRecorder = new MediaRecorder(
+        media,
+        mimeType
+          ? { mimeType, audioBitsPerSecond: VOICE_AUDIO_BITRATE }
+          : { audioBitsPerSecond: VOICE_AUDIO_BITRATE },
       );
-
-      const mediaRecorder = new MediaRecorder(media, mimeType ? { mimeType } : undefined);
       chunks.current = [];
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunks.current.push(event.data);
       };
-      mediaRecorder.start();
+      // Timeslice keeps the encoder fed; some engines under-encode a single
+      // stop-only blob on long takes.
+      mediaRecorder.start(250);
       recorder.current = mediaRecorder;
       startedAt.current = Date.now();
 
@@ -119,8 +133,10 @@ export function useVoiceRecorder(): VoiceRecorder {
        * A live level, so the button can show the microphone is hearing
        * something. Without it a silent recording looks identical to a broken
        * one, and the user finds out only after sending.
+       *
+       * 48 kHz matches capture so the meter graph does not resample mush.
        */
-      const context = new AudioContext();
+      const context = new AudioContext({ sampleRate: 48_000 });
       audioContext.current = context;
       const analyser = context.createAnalyser();
       analyser.fftSize = 256;
