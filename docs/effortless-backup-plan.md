@@ -303,3 +303,153 @@ message or re-sealing existing archives is out of scope by construction.
 Each stage ships with verification in the existing style, and stage 5 is
 verified the way cross-device recovery already was: wipe the database, restore
 from Drive on a device that has never held the key.
+
+---
+
+# Part II — two backup modes
+
+Supersedes the single-mode assumption above. The passkey design in §2 is
+unchanged and becomes one half of Private Backup; §0's constraint is unchanged
+and is what forces the two modes to differ honestly.
+
+## 9. The finding that shapes both modes
+
+`sealBody` wraps every message's content key **to the recovery public key** as
+well as to each device (`session.ts:348`). That is what makes history
+recoverable at all — and it means the recovery *private* key does not merely
+open archives. It opens **every message envelope this account has ever been a
+recipient of**, including messages sitting on the server right now.
+
+So the obvious implementation of Simple Backup — put the recovery private key in
+Drive so restore is automatic — would hand Google the ability to decrypt live
+message traffic, not just backups. The blast radius would be the entire account,
+forever, and no UI copy could honestly describe that as "your backup is in
+Drive".
+
+**Therefore Simple Backup never touches the account recovery key.** It uses a
+separate key whose only job is sealing archives:
+
+```
+recovery keypair    per account   opens archives AND every message envelope
+archive keypair     per account   opens archives only          ← Simple mode uses this
+```
+
+Both modes seal archives to a public key; only Private mode's private half is
+protected by something the user holds. Confining Simple mode to the archive key
+turns "Google can read your backup" from a sentence that is technically false
+into one that is exactly true.
+
+## 10. Mode 1 — Simple Backup
+
+**Trust model:** Google. Not PINGO.
+
+The archive private key is stored in `appDataFolder` beside the archive. Anyone
+who can sign into that Google account can open the backup, which is what makes
+restore automatic and is the whole trade.
+
+| Property | Simple |
+| --- | --- |
+| PINGO can decrypt backups | **no** — the key is never sent to us |
+| Google can decrypt backups | **yes** — it holds the key |
+| Google can decrypt live messages | **no** — the archive key is not a message recipient |
+| Survives losing every device | yes, with the Google account |
+| User must remember anything | no |
+
+**What the UI must say, without euphemism:** *"Google can access this backup.
+Anyone who can sign in to your Google account can read these chats."* Not
+"secured by Google", not "encrypted in Drive". If that sentence is
+uncomfortable, the honest response is to choose Private, not to soften the
+wording.
+
+## 11. Mode 2 — Private Backup
+
+**Trust model:** the user alone.
+
+The recovery private key is wrapped under a KEK that PINGO never sees:
+
+```
+passkey    KEK = HKDF(PRF(salt))          §2.4, unchanged
+password   KEK = PBKDF2(password, salt)   the existing primitive, new secret
+```
+
+The twelve-word code is retired as a *user-facing* concept in both modes. The
+password path reuses `recovery.ts` exactly — only where the input comes from
+changes, which is why that half is small.
+
+| Property | Private |
+| --- | --- |
+| PINGO can decrypt backups | **no** |
+| Google can decrypt backups | **no** — it holds ciphertext and a wrapped key |
+| Survives losing every device | only with the passkey or the password |
+| User must remember anything | a password, or nothing if the passkey syncs |
+
+**What the UI must say:** *"Only you can open this backup. If you lose your
+passkey and password, your chats cannot be recovered — not by anyone, including
+us."* That sentence is the feature, and it must not be softened either.
+
+## 12. Switching modes
+
+The invariant that makes this safe is the one already relied on: **archives are
+sealed to a public key, and switching modes changes only how the private half is
+protected.** No archive is ever re-sealed, so no archive is ever orphaned.
+
+Because Simple and Private use different keypairs (§9), switching is a rewrap
+plus one archive re-key, done in an order that never leaves the user with
+nothing.
+
+**Simple → Private**
+
+1. Derive a KEK from the new passkey or password.
+2. Wrap the **recovery** private key under it; store the wrap.
+3. Verify the wrap opens.
+4. The next backup seals to the recovery key.
+5. **Only then** delete the archive key from Drive.
+
+Older archives stay readable by the archive key until step 5, and the newest
+generation is readable by the recovery key from step 4. Both exist for one
+generation, deliberately.
+
+**Private → Simple**
+
+1. Unwrap the recovery key with the passkey or password. The user must still
+   have one; if they do not, the switch is refused rather than silently losing
+   history.
+2. Generate an archive keypair and store the private half in `appDataFolder`.
+3. The next backup seals to the archive key.
+4. Keep the recovery wraps. Removing them buys nothing and would make the
+   reverse switch impossible.
+
+**Rollback:** each direction is the other's inverse, and both leave the previous
+generation intact for one cycle. A switch interrupted at any step leaves a
+restorable backup, because the deletion is always last.
+
+## 13. Risks
+
+- **Simple mode is a real reduction and must not be sold as anything else.**
+  Google holds the key. This is WhatsApp's classic model and is defensible — but
+  only while the interface says so plainly.
+- **Switching Private to Simple downgrades other people's messages too.** The
+  history being handed to Google includes what correspondents sent in
+  confidence. Nothing in the design can prevent that; it belongs in the confirm
+  step rather than in a footnote.
+- **Losing a passkey with no password set loses everything.** Private mode
+  should encourage a password *as well as* a passkey, not instead of one.
+- **Two modes double the restore paths**, and restore is the path that matters
+  on the worst day somebody has with the product. Both need the wiped-device
+  test before either ships.
+
+## 14. Required changes
+
+| Area | Change |
+| --- | --- |
+| Crypto | Archive keypair, separate from recovery. Password KEK beside the passkey KEK. |
+| Server | `backup_mode` per account, non-secret, so a new device knows what to ask for. `recovery_wraps` for passkey wraps. |
+| Drive | `pingo.archivekey.json` in Simple mode only; absent in Private. |
+| UI | Mode chooser at setup; Settings → Chat Backup showing the current mode and the switch; honest disclosure on both. |
+| Verification | Both restore paths on a wiped device; both switch directions; interrupted switches. |
+
+## 15. What does not change
+
+The archive format, chunking, generations, atomic commit, resumable upload, the
+message envelope, device identity, and the `BackupTarget` interface. Two modes
+change which key opens an archive, and nothing about how an archive is made.
