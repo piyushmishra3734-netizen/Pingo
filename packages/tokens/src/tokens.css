@@ -263,6 +263,14 @@
      centre, because that is the edge it is anchored to. */
   --animate-panel-in: panel-in var(--duration-base) var(--ease-liquid) backwards;
 
+  /* In-app message toast motion (Instagram-style path, PINGO glass).
+
+     Enter: full slide down from above the slot.
+     Exit:  full slide up the same path.
+     The next banner only mounts after exit finishes - never two at once. */
+  --animate-toast-in: toast-in 360ms var(--ease-liquid) backwards;
+  --animate-toast-out: toast-out 300ms var(--ease-exit) forwards;
+
   /* ---- Layout ----------------------------------------------------------- */
   --breakpoint-sm: 480px;
   --breakpoint-md: 768px;
@@ -373,6 +381,36 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/**
+ * Slide down into place - full self height so it reads as a banner arriving
+ * from the top edge, not a fade.
+ */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-110%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * Slide up and out the same path it came from.
+ * Next message waits until this finishes (320ms budget in the component).
+ */
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-110%);
   }
 }
 

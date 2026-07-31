@@ -10,6 +10,7 @@ import { markOnboarded } from './features/auth/onboarded.js';
 import { CallOverlay } from './features/calls/CallOverlay.js';
 import { ConfirmProvider } from './components/ConfirmProvider.js';
 import { CallProvider } from './features/calls/CallProvider.js';
+import { MessageToastProvider } from './features/notifications/MessageToastProvider.js';
 import { NotificationProvider } from './features/notifications/NotificationContext.js';
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
@@ -54,6 +55,7 @@ import { SecureBackupScreen } from './screens/settings/SecureBackupScreen.js';
 import { StorageScreen } from './screens/settings/StorageScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
 import { SplashScreen } from './screens/SplashScreen.js';
+import { ToastFeelLab } from './screens/dev/ToastFeelLab.js';
 import { CreatePasswordScreen } from './screens/auth/CreatePasswordScreen.js';
 import { GoogleConnectingScreen } from './screens/auth/GoogleConnectingScreen.js';
 import { LoginEmailScreen } from './screens/auth/LoginEmailScreen.js';
@@ -230,6 +232,12 @@ export function App() {
         <NotificationProvider>
         <CallProvider service={services.call}>
         <BrowserRouter>
+          {/*
+            Inside the router (needs location + navigate) and CallProvider
+            (suppresses banners during a live call). Portal host for floating
+            message toasts when a new message arrives outside the open thread.
+          */}
+          <MessageToastProvider>
           <Routes>
             <Route path="/" element={<SplashScreen />} />
 
@@ -249,6 +257,13 @@ export function App() {
             <Route path="/download" element={<DownloadScreen />} />
             <Route path="/terms" element={<TermsScreen />} />
             <Route path="/privacy" element={<PrivacyPolicyScreen />} />
+            {/*
+              Dev-only pressure test for floating message banners. Unauthenticated
+              on purpose so the lab opens without a session. Not linked from UI.
+            */}
+            {import.meta.env.DEV && (
+              <Route path="/dev/toast-lab" element={<ToastFeelLab />} />
+            )}
 
             {/* Pre-session. A signed-in visitor is sent to Home. */}
             <Route element={<RequireGuest />}>
@@ -357,6 +372,7 @@ export function App() {
             */}
             <Route path="*" element={<Navigate to="/chats" replace />} />
           </Routes>
+          </MessageToastProvider>
         </BrowserRouter>
         <CallOverlay />
         {/* Renders nothing. Keeps this session’s own profile live everywhere. */}
