@@ -799,6 +799,27 @@ export function ChatThread({
         )}
       </div>
 
+      {/*
+        Jump control lives between thread and composer - not inside the
+        bordered composer strip, so it never rides a full-width "patti".
+        One slot: New Messages wins over Latest.
+      */}
+      {jumpChipMode && (
+        <div className="pointer-events-none relative z-20 -mt-3 mb-1 flex justify-center px-3">
+          <div className="pointer-events-auto">
+            {jumpChipMode === 'new' && newSession ? (
+              <ThreadJumpChip
+                mode="new"
+                count={newSession.count}
+                onClick={jumpToNewMessages}
+              />
+            ) : (
+              <ThreadJumpChip mode="latest" onClick={jumpToLatest} />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ---- Composer ----------------------------------------------------- */}
       <div
         className={cn(
@@ -808,21 +829,6 @@ export function ChatThread({
         )}
       >
         <div className="mx-auto w-full max-w-3xl">
-          {/*
-            One chip slot: New Messages wins over Latest. Never both.
-            Attached to the composer stack, centred, same craft as reply chrome.
-          */}
-          {jumpChipMode === 'new' && newSession && (
-            <ThreadJumpChip
-              mode="new"
-              count={newSession.count}
-              onClick={jumpToNewMessages}
-            />
-          )}
-          {jumpChipMode === 'latest' && (
-            <ThreadJumpChip mode="latest" onClick={jumpToLatest} />
-          )}
-
           {replyTo && (
             /*
              * Sits directly on the composer, not floating over the thread: what

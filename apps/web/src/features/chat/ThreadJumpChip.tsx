@@ -3,11 +3,11 @@ import { cn } from '@pingo/ui';
 /**
  * Single slot above the composer for thread navigation.
  *
- * Two labels, one control:
- *   - `latest` — jump to the bottom
- *   - `new`    — jump to the first unread of this away session
+ * Text-only control - no pill, no glass bubble, no full-width bar. A quiet
+ * label with a soft brand wash and a hint of glow so it stays findable without
+ * reading as a second UI chrome strip.
  *
- * New Messages always wins when both would apply; the parent never mounts two.
+ * Modes: `latest` (bottom) · `new` (first unread). Parent shows one or none.
  */
 
 export type ThreadJumpMode = 'latest' | 'new';
@@ -30,21 +30,25 @@ export function ThreadJumpChip({ mode, count = 0, onClick, className }: ThreadJu
         : `${count > 99 ? '99 or more' : count} new messages. Jump to unread.`;
 
   return (
-    <div className={cn('mb-2 flex justify-center', className)}>
+    <div className={cn('flex justify-center', className)}>
       <button
         type="button"
         onClick={onClick}
         aria-label={aria}
         className={cn(
-          'focus-ring inline-flex items-center gap-1.5 rounded-full',
-          'glass-surface px-3 py-1.5 shadow-sm',
-          'text-caption font-medium text-ink',
-          'transition-[opacity,transform] duration-base ease-liquid',
+          'focus-ring inline-flex items-center gap-1 rounded-md px-2 py-1',
+          // No glass pill / shadow strip - just type with a soft brand wash.
+          'text-caption font-medium text-brand',
+          'bg-brand/10',
+          // Quiet glow - findable, not a lamp.
+          'shadow-[0_0_16px_rgba(92,108,255,0.22)]',
+          'transition-[opacity,transform,box-shadow,background-color] duration-base ease-liquid',
           'motion-safe:animate-[fade-in_var(--duration-base)_var(--ease-liquid)_both]',
-          'hover:bg-hover active:scale-[0.98]',
+          'hover:bg-brand/14 hover:shadow-[0_0_20px_rgba(92,108,255,0.3)]',
+          'active:scale-[0.98]',
         )}
       >
-        <span aria-hidden className="text-text-secondary">
+        <span aria-hidden className="opacity-80">
           ↓
         </span>
         <span>{label}</span>
