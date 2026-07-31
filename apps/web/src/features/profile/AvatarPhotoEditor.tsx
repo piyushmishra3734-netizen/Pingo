@@ -1,23 +1,38 @@
-import { Button, CheckIcon, PingoDot, cn } from '@pingo/ui';
+import {
+  Button,
+  CameraFlipIcon,
+  CheckIcon,
+  CloseIcon,
+  IconButton,
+  MoreIcon,
+  PingoDot,
+  TrashIcon,
+  cn,
+} from '@pingo/ui';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
+import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 
 /**
  * Instagram-style circular crop for a profile photo.
  *
- * Opens after a file is chosen; nothing is uploaded until Save. Cancel discards
- * every transform (with a confirm when the crop has been moved). Built from the
- * same Overlay / Button / Confirm vocabulary as the rest of PINGO.
+ * Hierarchy (learned from Instagram, styled as PINGO):
+ *   crop stage is the hero
+ *   → one quiet "Choose another photo" link
+ *   → Cancel | Save as the only primary pair
+ *
+ * Rotate, reset and remove live in a ••• sheet so they never compete with Save.
  */
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 const OUTPUT_SIZE = 1024;
 const JPEG_QUALITY = 0.95;
-/** Brief ✓ after upload so Save feels finished, not cut off. Instagram-paced. */
 const SUCCESS_MS = 180;
+/** Zoom badge stays visible while zooming, then fades. */
+const ZOOM_HINT_MS = 1000;
 
 type Phase = 'edit' | 'uploading' | 'success';
 
@@ -31,10 +46,6 @@ export interface AvatarPhotoEditorProps {
   onCancel: () => void;
   onSave: (file: File) => void | Promise<void>;
   onChooseAnother: () => void;
-  /**
-   * When the account already has a profile photo, show "Remove photo". Omitting
-   * it (setup with monogram only) keeps the footer to choose / cancel / save.
-   */
   onRemove?: () => void | Promise<void>;
 }
 
@@ -58,6 +69,8 @@ export function AvatarPhotoEditor({
   const [dragging, setDragging] = useState(false);
   const [phase, setPhase] = useState<Phase>('edit');
   const [ready, setReady] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [zoomHint, setZoomHint] = useState(false);
   const busy = phase !== 'edit';
 
   const pointers = useRef(new Map<number, Point>());
@@ -65,8 +78,8 @@ export function AvatarPhotoEditor({
     { point: Point; offset: Point; distance: number; zoom: number } | undefined
   >(undefined);
   const lastTap = useRef(0);
+  const zoomHideTimer = useRef<number | undefined>(undefined);
 
-  // Latest transform for Escape without re-binding every pan frame.
   const dirtyRef = useRef(false);
   dirtyRef.current =
     zoom !== MIN_ZOOM ||
@@ -74,14 +87,34 @@ export function AvatarPhotoEditor({
     offset.y !== 0 ||
     rotation !== 0;
 
+  const flashZoom = useCallback(() => {
+    setZoomHint(true);
+    if (zoomHideTimer.current !== undefined) {
+      window.clearTimeout(zoomHideTimer.current);
+    }
+    zoomHideTimer.current = window.setTimeout(() => {
+      setZoomHint(false);
+      zoomHideTimer.current = undefined;
+    }, ZOOM_HINT_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (zoomHideTimer.current !== undefined) {
+        window.clearTimeout(zoomHideTimer.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
 
     const measure = () => {
       const { width, height } = stage.getBoundingClientRect();
-      const side = Math.min(width, height) * 0.82;
-      setCropPx(Math.max(200, Math.floor(side)));
+      // Larger crop share - footer is slimmer now, so the circle can own the stage.
+      const side = Math.min(width, height) * 0.86;
+      setCropPx(Math.max(220, Math.floor(side)));
     };
 
     measure();
@@ -96,6 +129,8 @@ export function AvatarPhotoEditor({
     setRotation(0);
     setReady(false);
     setPhase('edit');
+    setZoomHint(false);
+    setToolsOpen(false);
   }, [src]);
 
   const requestClose = useCallback(async () => {
@@ -112,22 +147,36 @@ export function AvatarPhotoEditor({
     onCancel();
   }, [busy, confirm, onCancel]);
 
+  const applyZoom = useCallback(
+    (next: number) => {
+      const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
+      setZoom(clamped);
+      flashZoom();
+      return clamped;
+    },
+    [flashZoom],
+  );
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (busy) return;
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (toolsOpen) {
+          setToolsOpen(false);
+          return;
+        }
         void requestClose();
         return;
       }
       if (event.key === '+' || event.key === '=') {
         event.preventDefault();
-        setZoom((z) => Math.min(MAX_ZOOM, Math.round((z + 0.15) * 100) / 100));
+        setZoom((z) => applyZoom(z + 0.15));
         return;
       }
       if (event.key === '-' || event.key === '_') {
         event.preventDefault();
-        setZoom((z) => Math.max(MIN_ZOOM, Math.round((z - 0.15) * 100) / 100));
+        setZoom((z) => applyZoom(z - 0.15));
         return;
       }
       if (event.key === '0') {
@@ -135,6 +184,7 @@ export function AvatarPhotoEditor({
         setZoom(MIN_ZOOM);
         setOffset({ x: 0, y: 0 });
         setRotation(0);
+        flashZoom();
         return;
       }
       if (event.key === 'r' || event.key === 'R') {
@@ -145,7 +195,7 @@ export function AvatarPhotoEditor({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [requestClose, busy]);
+  }, [applyZoom, busy, flashZoom, requestClose, toolsOpen]);
 
   const axesSwapped = rotation % 180 !== 0;
   const coverScale =
@@ -203,6 +253,7 @@ export function AvatarPhotoEditor({
       if (now - lastTap.current < 280) {
         setZoom(MIN_ZOOM);
         setOffset({ x: 0, y: 0 });
+        flashZoom();
         lastTap.current = 0;
       } else {
         lastTap.current = now;
@@ -233,6 +284,7 @@ export function AvatarPhotoEditor({
           ),
         );
         setZoom(nextZoom);
+        flashZoom();
         setOffset(clampOffset(gesture.current.offset, nextZoom, rotation));
       }
       return;
@@ -274,7 +326,7 @@ export function AvatarPhotoEditor({
     event.preventDefault();
     const delta = event.deltaY > 0 ? -0.12 : 0.12;
     setZoom((z) => {
-      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta));
+      const next = applyZoom(z + delta);
       setOffset((o) => clampOffset(o, next, rotation));
       return next;
     });
@@ -320,7 +372,6 @@ export function AvatarPhotoEditor({
     try {
       const file = await exportCrop();
       await onSave(file);
-      // Brief ✓ so the close does not feel like the process was cut mid-air.
       setPhase('success');
       await new Promise((resolve) => {
         window.setTimeout(resolve, SUCCESS_MS);
@@ -333,6 +384,7 @@ export function AvatarPhotoEditor({
 
   const remove = async () => {
     if (!onRemove || busy) return;
+    setToolsOpen(false);
     const go = await confirm({
       title: 'Remove your photo?',
       description: 'Your monogram takes its place. You can add a new one any time.',
@@ -353,19 +405,12 @@ export function AvatarPhotoEditor({
     }
   };
 
-  const statusLabel =
-    phase === 'uploading'
-      ? 'Uploading…'
-      : phase === 'success'
-        ? 'Done'
-        : `${Math.round(zoom * 100)}%`;
-
   const hintLabel =
     phase === 'uploading'
       ? 'Uploading your photo…'
       : phase === 'success'
         ? 'Photo updated'
-        : 'Pinch or scroll to zoom. Drag to position. Double-tap to reset.';
+        : 'Pinch to zoom · Drag to move';
 
   return (
     <Overlay>
@@ -376,22 +421,60 @@ export function AvatarPhotoEditor({
         aria-busy={phase === 'uploading' || undefined}
         className="fixed inset-0 z-1000 flex flex-col bg-page"
       >
+        {/* ---- header: title · tools · close --------------------------- */}
         <header
           className={cn(
-            'shrink-0 glass-surface border-x-0 border-t-0 border-b-line',
-            'px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3',
+            'shrink-0 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2',
           )}
         >
-          <div className="mx-auto flex w-full max-w-lg items-center justify-between gap-3">
-            <h1 id={titleId} className="text-h2 text-ink">
+          <div className="mx-auto flex w-full max-w-lg items-center gap-1">
+            <h1 id={titleId} className="min-w-0 flex-1 truncate px-1 text-h2 text-ink">
               Move and scale
             </h1>
-            <p className="text-caption text-text-secondary" aria-live="polite">
-              {statusLabel}
-            </p>
+
+            <div className="relative flex shrink-0 items-center gap-0.5">
+              {/* Zoom only while actively zooming - fades after ZOOM_HINT_MS. */}
+              <p
+                aria-live="polite"
+                className={cn(
+                  'pointer-events-none absolute right-full mr-2 whitespace-nowrap',
+                  'rounded-full bg-surface/90 px-2.5 py-1 text-caption tabular-nums text-text-secondary shadow-sm',
+                  'transition-opacity duration-quick ease-standard',
+                  phase === 'edit' && zoomHint ? 'opacity-100' : 'opacity-0',
+                )}
+              >
+                {Math.round(zoom * 100)}%
+              </p>
+
+              {(phase === 'uploading' || phase === 'success') && (
+                <p className="mr-1 text-caption text-text-secondary" aria-live="polite">
+                  {phase === 'uploading' ? 'Uploading…' : 'Done'}
+                </p>
+              )}
+
+              <IconButton
+                label="More tools"
+                variant="ghost"
+                size="md"
+                disabled={busy}
+                onClick={() => setToolsOpen(true)}
+              >
+                <MoreIcon size={22} />
+              </IconButton>
+              <IconButton
+                label="Close"
+                variant="ghost"
+                size="md"
+                disabled={busy}
+                onClick={() => void requestClose()}
+              >
+                <CloseIcon size={22} />
+              </IconButton>
+            </div>
           </div>
         </header>
 
+        {/* ---- stage --------------------------------------------------- */}
         <div
           ref={stageRef}
           className="relative min-h-0 flex-1 touch-none overflow-hidden bg-sunken"
@@ -439,7 +522,17 @@ export function AvatarPhotoEditor({
                     '0 0 0 9999px color-mix(in srgb, var(--color-page) 72%, transparent)',
                 }}
               />
-              <div className="absolute inset-0 rounded-full ring-2 ring-brand/55" />
+              {/*
+                Quiet guide ring: 1px light edge + soft brand glow.
+                Heavy blue rings pull focus off the face inside the circle.
+              */}
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  boxShadow:
+                    'inset 0 0 0 1px rgba(255,255,255,0.88), 0 0 0 1px rgba(92,108,255,0.18), 0 0 24px rgba(92,108,255,0.12)',
+                }}
+              />
               {phase === 'uploading' && (
                 <div className="absolute inset-0 grid place-items-center rounded-full bg-surface/55">
                   <PingoDot state="loading" size={9} label="Uploading" />
@@ -466,102 +559,100 @@ export function AvatarPhotoEditor({
           )}
         </div>
 
+        {/* ---- footer: choose · Cancel | Save -------------------------- */}
         <footer
           className={cn(
-            'shrink-0 glass-surface border-x-0 border-b-0 border-t-line',
-            'px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]',
+            'shrink-0 border-t border-line bg-page',
+            'px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]',
           )}
         >
-          <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
-            <p className="text-center text-caption text-text-secondary" aria-live="polite">
+          <div className="mx-auto flex w-full max-w-md flex-col items-stretch gap-5">
+            <p
+              className="text-center text-caption text-text-secondary"
+              aria-live="polite"
+            >
               {hintLabel}
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setRotation((r) => (r + 90) % 360);
-                  setOffset({ x: 0, y: 0 });
-                }}
-                disabled={!ready || busy}
-              >
-                Rotate
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setZoom(MIN_ZOOM);
-                  setOffset({ x: 0, y: 0 });
-                  setRotation(0);
-                }}
-                disabled={!ready || busy}
-              >
-                Reset
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={onChooseAnother}
+              disabled={busy}
+              className={cn(
+                'focus-ring self-center rounded-full px-3 py-1.5',
+                'text-caption font-medium text-brand',
+                'transition-colors duration-instant hover:bg-hover',
+                'disabled:pointer-events-none disabled:opacity-45',
+              )}
+            >
+              Choose another photo
+            </button>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
               <Button
                 type="button"
                 variant="secondary"
                 size="lg"
                 block
-                onClick={onChooseAnother}
+                onClick={() => void requestClose()}
                 disabled={busy}
               >
-                Choose another photo
+                Cancel
               </Button>
-
-              {onRemove && (
-                <Button
-                  type="button"
-                  variant="text"
-                  size="lg"
-                  block
-                  onClick={() => void remove()}
-                  disabled={busy}
-                  className="text-danger hover:bg-danger-soft"
-                >
-                  Remove photo
-                </Button>
-              )}
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Button
-                  type="button"
-                  variant="text"
-                  size="lg"
-                  block
-                  onClick={() => void requestClose()}
-                  disabled={busy}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  block
-                  loading={phase === 'uploading'}
-                  disabled={!ready || busy}
-                  onClick={() => void save()}
-                >
-                  {phase === 'uploading'
-                    ? 'Uploading…'
-                    : phase === 'success'
-                      ? 'Done'
-                      : 'Save'}
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="primary"
+                size="lg"
+                block
+                loading={phase === 'uploading'}
+                disabled={!ready || busy}
+                onClick={() => void save()}
+              >
+                {phase === 'uploading'
+                  ? 'Uploading…'
+                  : phase === 'success'
+                    ? 'Done'
+                    : 'Save'}
+              </Button>
             </div>
           </div>
         </footer>
       </div>
+
+      {toolsOpen && (
+        <Sheet title="Photo tools" hideTitle onClose={() => setToolsOpen(false)} elevated>
+          <div className="flex flex-col gap-1">
+            <SheetItem
+              icon={<CameraFlipIcon size={20} />}
+              label="Rotate"
+              onClick={() => {
+                setRotation((r) => (r + 90) % 360);
+                setOffset({ x: 0, y: 0 });
+                setToolsOpen(false);
+              }}
+            />
+            <SheetItem
+              label="Reset"
+              onClick={() => {
+                setZoom(MIN_ZOOM);
+                setOffset({ x: 0, y: 0 });
+                setRotation(0);
+                flashZoom();
+                setToolsOpen(false);
+              }}
+            />
+            {onRemove && (
+              <SheetItem
+                icon={<TrashIcon size={20} />}
+                label="Remove photo"
+                tone="danger"
+                onClick={() => void remove()}
+              />
+            )}
+            <SheetCancel onClick={() => setToolsOpen(false)} />
+          </div>
+        </Sheet>
+      )}
     </Overlay>
   );
 }
