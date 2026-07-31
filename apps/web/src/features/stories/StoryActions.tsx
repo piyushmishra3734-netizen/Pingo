@@ -21,7 +21,7 @@ import { useState } from 'react';
  *
  * Sending from inside the viewer keeps the story on screen while you type,
  * which is the whole reason you are replying. The spec's "reply opens the
- * existing chat" is honoured by the message landing in exactly that chat - and
+ * existing chat" is honoured by the message landing in exactly that chat, and
  * a confirmation offers to go there, rather than the viewer throwing you into
  * a different screen mid-story.
  */

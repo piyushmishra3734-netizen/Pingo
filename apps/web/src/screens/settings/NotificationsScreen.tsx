@@ -37,7 +37,7 @@ export function NotificationsScreen() {
         <Group
           note={
             permission === 'denied'
-              ? 'Your browser is blocking notifications for this site. Turn them back on in its site settings - nothing here can override that.'
+              ? 'Your browser is blocking notifications for this site. Turn them back on in its site settings, nothing here can override that.'
               : undefined
           }
         >

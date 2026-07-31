@@ -37,7 +37,7 @@ export const MIN_PASSWORD_LENGTH = 10;
 
 /**
  * The blueprint calls for a breached-password list, which is a server-side
- * dataset - k-anonymity range queries against a corpus of millions, not
+ * dataset, k-anonymity range queries against a corpus of millions, not
  * something to ship in a bundle.
  *
  * This is the client-side half: the handful of passwords common enough that
@@ -84,7 +84,7 @@ function isCommon(password: string): boolean {
 /**
  * Assess a password against the live checklist.
  *
- * Called on every keystroke, so it stays cheap - no async, no network.
+ * Called on every keystroke, so it stays cheap, no async, no network.
  */
 export function assessPassword(password: string): PasswordAssessment {
   const requirements: PasswordRequirement[] = [

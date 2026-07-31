@@ -31,7 +31,7 @@ export function useSignOut(): () => Promise<void> {
     const go = await confirm({
       title: 'Log out of PINGO?',
       description:
-        'Your chats stay where they are - you will need to sign in again to reach them.',
+        'Your chats stay where they are, you will need to sign in again to reach them.',
       confirmLabel: 'Log out',
     });
     if (!go) return;

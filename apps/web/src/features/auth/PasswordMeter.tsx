@@ -75,7 +75,7 @@ export function PasswordMeter({ assessment }: { assessment: PasswordAssessment }
             </span>
 
             {/* The visual state is colour and a glyph; this is its text equivalent. */}
-            <span className="sr-only">{requirement.met ? ' -  met' : ' -  not yet met'}</span>
+            <span className="sr-only">{requirement.met ? 'met' : 'not yet met'}</span>
           </li>
         ))}
       </ul>

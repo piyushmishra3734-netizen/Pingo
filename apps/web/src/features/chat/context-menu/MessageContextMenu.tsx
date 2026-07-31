@@ -319,7 +319,7 @@ function place(
    * Horizontal clamp, per panel.
    *
    * Each starts at the bubble's left edge, and an outgoing bubble sits against
-   * the right side of the thread - so anything wider than the bubble hangs off
+   * the right side of the thread, so anything wider than the bubble hangs off
    * the screen. This is why the menu ran off the edge on a phone: the two
    * panels are different widths, and clamping both by the action panel's width
    * left the reaction bar free to overhang.

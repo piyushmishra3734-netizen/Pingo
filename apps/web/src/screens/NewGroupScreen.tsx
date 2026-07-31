@@ -208,7 +208,7 @@ export function NewGroupScreen() {
             description={
               query.trim()
                 ? 'Only friends can be added directly.'
-                : 'Make the group anyway, then share its invite link - anyone can join with it, friend or not.'
+                : 'Make the group anyway, then share its invite link, anyone can join with it, friend or not.'
             }
           />
         ) : (

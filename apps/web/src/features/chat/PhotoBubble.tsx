@@ -113,7 +113,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
                     {spent
                       ? 'Photo expired'
                       : mine
-                        ? 'View once - tap to see yours'
+                        ? 'View once, tap to see yours'
                         : 'Tap to view once'}
                   </span>
                 </>

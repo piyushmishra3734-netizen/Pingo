@@ -27,7 +27,7 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
  * The picture opens with the viewer's own fade rather than flying from its
  * position on the page. A genuine shared-element animation needs the source and
  * destination in one layout, and the viewer is portalled to `document.body`
- * precisely so it cannot be clipped by an ancestor's transform - the two
+ * precisely so it cannot be clipped by an ancestor's transform, the two
  * requirements are in direct conflict. A fade that always works beats a flight
  * that lands in the wrong place whenever the page has scrolled.
  */
@@ -79,7 +79,7 @@ export function ProfileAvatar({
   const onPointerMove = (event: React.PointerEvent) => {
     if (!origin.current) return;
     // A hold that drifts is a scroll starting, not a hold.
-    const moved = Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y);
+    const moved = Math.hypot(event.clientX, origin.current.x, event.clientY, origin.current.y);
     if (moved > 10) clear();
   };
 

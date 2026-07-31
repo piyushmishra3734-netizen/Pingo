@@ -31,7 +31,7 @@ import { useInstall } from './useInstall.js';
  * ## It never raises the browser's install prompt
  *
  * It used to, and that was wrong. PINGO is not a Progressive Web App and does
- * not want to be saved as a shortcut - the Android and iOS builds are real
+ * not want to be saved as a shortcut, the Android and iOS builds are real
  * store applications. Offering "Add to Home Screen" would teach people to
  * install the thing PINGO is deliberately not.
  *

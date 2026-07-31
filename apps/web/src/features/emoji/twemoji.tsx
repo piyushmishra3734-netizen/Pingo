@@ -24,7 +24,7 @@ import { useMemo } from 'react';
  * `twemoji.parse()` takes an element and rewrites its `innerHTML`, which in
  * React means either `dangerouslySetInnerHTML` or fighting the reconciler. This
  * walks the string instead and returns React nodes, so message bodies stay
- * ordinary text that React owns - no HTML injection surface, no lost updates.
+ * ordinary text that React owns, no HTML injection surface, no lost updates.
  */
 
 /** jsDelivr mirror of the Twemoji SVG assets, pinned so a release cannot shift. */

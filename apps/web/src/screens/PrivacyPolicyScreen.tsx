@@ -40,7 +40,7 @@ const SECTIONS: Section[] = [
     title: 'The short version',
     body: [
       'PINGO stores what it needs to deliver your messages and nothing that exists to profile you. There is no advertising, no analytics, no tracking SDK and no third party we sell anything to.',
-      'The one thing we want you to notice rather than skim: your messages are encrypted in transit and at rest, but they are not end-to-end encrypted. PINGO could technically read them. We do not, and nothing in the product does - but that is a policy, not a mathematical guarantee, and you should know which of the two you are relying on.',
+      'The one thing we want you to notice rather than skim: your messages are encrypted in transit and at rest, but they are not end-to-end encrypted. PINGO could technically read them. We do not, and nothing in the product does, but that is a policy, not a mathematical guarantee, and you should know which of the two you are relying on.',
     ],
   },
   {
@@ -76,7 +76,7 @@ const SECTIONS: Section[] = [
     id: 'ephemeral',
     title: 'Things that are deleted',
     body: [
-      'Pings are opened a fixed number of times. Once the views are spent, the path to the media is cleared and the file is removed from storage - the row survives in the conversation so the thread makes sense, but the picture is gone.',
+      'Pings are opened a fixed number of times. Once the views are spent, the path to the media is cleared and the file is removed from storage. The row survives in the conversation so the thread makes sense, but the picture is gone.',
       'Stories expire 24 hours after posting.',
       'Deleting a message deletes it. Deleting your account removes your profile, messages, media and connections.',
     ],
@@ -106,7 +106,7 @@ const SECTIONS: Section[] = [
     title: 'Things that used to be third parties',
     body: [
       'Two contacts have been removed rather than disclosed, because the better answer to "who else sees this?" is "nobody".',
-      'The typeface came from Google Fonts, so Google received an IP address for every visitor on every cold load - before sign-in, before anything. It is now served from PINGO’s own servers.',
+      'The typeface came from Google Fonts, so Google received an IP address for every visitor on every cold load, before sign-in, before anything. It is now served from PINGO’s own servers.',
       'The camera’s face, hand and gesture tracking downloaded its models from Google, so turning on a filter announced itself. Those forty megabytes now come from PINGO too. The tracking always ran on your device and no image ever left it; what left was a request saying somebody was about to use a filter, which was a small thing to leak and an unnecessary one.',
     ],
   },
@@ -147,7 +147,7 @@ export function PrivacyPolicyScreen() {
   useEffect(
     () =>
       applyPageSeo({
-        title: 'Privacy Policy - PINGO',
+        title: 'Privacy Policy | PINGO',
         description:
           'Privacy Policy for PINGO: what we collect, how messages and media are handled, and who can access your account data. Written from the live product schema.',
         path: '/privacy',

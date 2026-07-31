@@ -68,16 +68,16 @@ export function authErrorMessage(
       /*
        * An operator's problem wearing a user's clothes: the backend wants a
        * confirmation step this product does not have. It happens to accounts
-       * created while "Confirm email" was still on - their password is correct
+       * created while "Confirm email" was still on, their password is correct
        * and they still cannot get in.
        *
        * So the copy does the one thing that helps: **tells them it is not their
        * password**, so they stop retyping it and stop resetting it. The fix is a
        * dashboard action, and naming it here would only hand a user an
-       * instruction they cannot act on - that detail goes to the console for
+       * instruction they cannot act on, that detail goes to the console for
        * whoever is actually looking (see `assertSession`).
        */
-      return "Your password is fine - this account just can't be signed into yet. Try another method, or use a new one.";
+      return "Your password is fine, this account just can't be signed into yet. Try another method, or use a new one.";
 
     case 'provider_disabled':
       return 'That sign-in method is switched off for this project.';
@@ -101,7 +101,7 @@ export function authErrorMessage(
     case 'rate_limited':
       return retryAfter
         ? `Too many attempts. Try again in ${formatCountdown(retryAfter)} - this protects your account.`
-        : 'Too many attempts. Wait a few minutes and try again - this protects your account.';
+        : 'Too many attempts. Wait a few minutes and try again. This protects your account.';
 
     default:
       return context === 'oauth'

@@ -186,7 +186,7 @@ export function messagePreview(
 
   if (message.system) return text;
 
-  // Only group and community threads need attribution - in a direct chat the
+  // Only group and community threads need attribution, in a direct chat the
   // other party is already the row's title.
   if (conversation.kind !== 'direct') {
     const author =

@@ -14,7 +14,7 @@ import { Overlay } from '../../components/Overlay.js';
  *
  * `touch-action: pinch-zoom` gives the browser's own zoom, which pans the whole
  * page and cannot be told that dragging down means "close". Once one of the two
- * gestures has to be ours, both do - a browser zoom fighting a JavaScript drag
+ * gestures has to be ours, both do, a browser zoom fighting a JavaScript drag
  * is how a viewer ends up half-dismissed and stuck.
  *
  * ## The two gestures never overlap
@@ -25,7 +25,7 @@ import { Overlay } from '../../components/Overlay.js';
  * a drag makes every zoom start with a lurch.
  *
  * A drag only dismisses while the picture is at its natural size. Once zoomed
- * in, one finger pans instead - otherwise moving down to look at the bottom of
+ * in, one finger pans instead, otherwise moving down to look at the bottom of
  * a photo would throw it off the screen.
  */
 

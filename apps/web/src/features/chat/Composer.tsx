@@ -80,7 +80,7 @@ export function Composer({
    * Emoji and stickers used to be separate buttons opening separate panels,
    * which meant two icons to learn and two things that could each be the open
    * one. They are two drawers of the same cupboard, so they share a panel and
-   * emoji is the default - it is what the button is reached for nine times out
+   * emoji is the default, it is what the button is reached for nine times out
    * of ten.
    */
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -365,7 +365,7 @@ export function Composer({
           onPointerCancel={() => {
             if (holdTimer.current) window.clearTimeout(holdTimer.current);
             holdTimer.current = undefined;
-            // The gesture was taken away - a notification, a system sheet. The
+            // The gesture was taken away, a notification, a system sheet. The
             // take is dropped rather than sent half-finished.
             if (heldRef.current) {
               heldRef.current = false;
@@ -377,7 +377,7 @@ export function Composer({
         </IconButton>
       ) : (
         /*
-         * No handler means this surface does not take voice notes - the
+         * No handler means this surface does not take voice notes, the
          * styleguide, for one. Saying so beats a button that looks available
          * and does nothing, which is what this was before recording existed.
          */
@@ -401,7 +401,7 @@ export function Composer({
  * A segmented strip rather than a row of icons, because the tabs are a choice
  * between two whole surfaces and the current one has to be obvious without
  * looking at what is underneath. Absent entirely when the surface takes no
- * stickers - one tab is not a choice.
+ * stickers, one tab is not a choice.
  */
 function PickerTabs({
   tab,

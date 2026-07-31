@@ -73,7 +73,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
  * one person. A Media tab on somebody else's profile could only ever be empty or
  * wrong, and an always-empty tab that says "private" is a placeholder wearing a
  * lock. So the tab bar has two tabs on your own profile and one on everybody
- * else's - which is also what a reader expects, because the private half of a
+ * else's, which is also what a reader expects, because the private half of a
  * page does not exist on a page that is not yours.
  */
 
@@ -195,8 +195,8 @@ export function ProfileScreen() {
    * The filters matter as much as the subscriptions. `profiles` is readable by
    * everyone, so its stream carries every edit on PINGO; without narrowing to
    * the person being looked at, every stranger's bio change would refetch this
-   * screen. `follows` has no id to match on - either side of the row can be
-   * this person - so it re-reads the counts and nothing else.
+   * screen. `follows` has no id to match on, either side of the row can be
+   * this person, so it re-reads the counts and nothing else.
    */
   useEffect(() => {
     if (!personId) return;
@@ -322,7 +322,7 @@ export function ProfileScreen() {
       : await confirm({
           title: `Unblock ${person.displayName}?`,
           description:
-            'They will be able to message you again. Being friends is not restored - either of you can ask.',
+            'They will be able to message you again. Being friends is not restored. Either of you can ask.',
           tone: 'normal',
           confirmLabel: 'Unblock',
         });

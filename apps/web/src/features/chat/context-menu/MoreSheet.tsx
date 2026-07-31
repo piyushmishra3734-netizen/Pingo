@@ -202,7 +202,7 @@ function Group({ items }: { items: Item[] }) {
  * Deliberately crude: if the text carries script the reader's locale does not
  * use, offering a translation is obviously useful. Anything subtler needs real
  * language detection, and guessing wrong here shows a Translate row on a
- * message that plainly does not need one - which is the noise § 4 exists to
+ * message that plainly does not need one, which is the noise § 4 exists to
  * prevent.
  */
 function isForeign(text: string): boolean {

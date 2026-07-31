@@ -48,7 +48,7 @@ export function MessageActions({
   const copy = async () => {
     /*
      * A Ping has no text and a sticker's text is its emoji, so `body` is what
-     * gets copied in every case - it is the message's text fallback by design.
+     * gets copied in every case, it is the message's text fallback by design.
      */
     try {
       await navigator.clipboard.writeText(message.body);

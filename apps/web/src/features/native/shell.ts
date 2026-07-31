@@ -87,8 +87,8 @@ export async function initNativeShell(onBack: () => boolean): Promise<() => void
   /*
    * The keyboard's height, published as a CSS variable.
    *
-   * Android's WebView resize is unreliable across manufacturers - Samsung and
-   * Xiaomi in particular report it late or not at all - so the composer cannot
+   * Android's WebView resize is unreliable across manufacturers, Samsung and
+   * Xiaomi in particular report it late or not at all, so the composer cannot
    * rely on the viewport shrinking. A variable the layout can read is the one
    * mechanism that behaves the same on every device.
    */

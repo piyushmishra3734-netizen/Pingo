@@ -162,7 +162,7 @@ export function AppearanceScreen() {
             <div className="glass-surface rounded-md px-4 py-3">
               <p className="text-body text-ink">Glass</p>
               <p className="text-caption text-text-secondary">
-                {appearance.glass === 0 ? 'Off - solid surfaces' : `${appearance.glass}%`}
+                {appearance.glass === 0 ? 'Off, solid surfaces' : `${appearance.glass}%`}
               </p>
             </div>
           </div>

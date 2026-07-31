@@ -204,8 +204,8 @@ export function MessageMenu({
  * Level 2's handlers.
  *
  * Split by where the work happens, because that is the only distinction that
- * matters here: the server owns anything with a rule attached - the edit
- * window, who may delete for everyone - and the platform owns the rest.
+ * matters here: the server owns anything with a rule attached, the edit
+ * window, who may delete for everyone, and the platform owns the rest.
  *
  * Nothing is optimistic. These are deliberate, one-off actions, and a star that
  * appears and then un-appears is worse than one that takes a moment.

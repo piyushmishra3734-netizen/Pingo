@@ -140,7 +140,7 @@ function ChevronLeft() {
 /**
  * The inline caption beneath a failed or blocked step.
  *
- * `role="alert"` so a screen reader announces it without moving focus - the
+ * `role="alert"` so a screen reader announces it without moving focus, the
  * field keeps focus so the user can simply correct and retry.
  */
 export function AuthMessage({

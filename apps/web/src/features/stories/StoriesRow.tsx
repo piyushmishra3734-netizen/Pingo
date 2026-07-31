@@ -269,7 +269,7 @@ function MyCircle({
           'hover:scale-110 active:scale-95',
           /*
             The 44px target sits outside the badge, so it does not swallow the
-            ring around it - the tile is the bigger, more likely tap and must
+            ring around it, the tile is the bigger, more likely tap and must
             stay reachable right up to the badge's edge.
           */
           'after:absolute after:-inset-2 after:content-[""]',

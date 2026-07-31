@@ -50,7 +50,7 @@ const LEVEL_M: Record<number, Capacity> = {
 };
 
 /**
- * Error correction level H - thirty per cent recoverable.
+ * Error correction level H, thirty per cent recoverable.
  *
  * Added for the branded code, and it is not decoration: a logo sitting in the
  * middle of a QR is *damage*. Every module it covers is a module the scanner
@@ -58,7 +58,7 @@ const LEVEL_M: Record<number, Capacity> = {
  * error correction reconstructs what it hides.
  *
  * Measured rather than assumed. Decoded with jsQR against a perfect raster,
- * level M survives the logo too - up to 30% of the width blanked. That is not
+ * level M survives the logo too, up to 30% of the width blanked. That is not
  * the argument for H, because a perfect raster is not what a phone gets. The
  * budget has to cover the logo *and* everything a camera adds on top of it:
  * angle, motion blur, glare, a cheap sensor, a screen at half brightness. H
@@ -67,8 +67,8 @@ const LEVEL_M: Record<number, Capacity> = {
  *
  * ## Version 5 is deliberately missing
  *
- * At level H its blocks are unequal - two of eleven data codewords and two of
- * twelve - and `interleave` below assumes one block size, as versions 1 to 6 at
+ * At level H its blocks are unequal, two of eleven data codewords and two of
+ * twelve, and `interleave` below assumes one block size, as versions 1 to 6 at
  * level M all do. Rather than grow a second group for one version nothing needs,
  * a payload that would have wanted 5 takes 6. A larger version is always a
  * legal encoding of the same text; it is a slightly denser picture and nothing
@@ -86,7 +86,7 @@ export type QrLevel = 'M' | 'H';
 
 const LEVELS: Record<QrLevel, Record<number, Capacity>> = { M: LEVEL_M, H: LEVEL_H };
 
-/** The two format-info bits for each level. Not in numeric order - the spec's. */
+/** The two format-info bits for each level. Not in numeric order, the spec's. */
 const LEVEL_BITS: Record<QrLevel, number> = { M: 0b00, H: 0b10 };
 
 const MAX_VERSION = 6;

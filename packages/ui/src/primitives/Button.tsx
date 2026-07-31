@@ -60,7 +60,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   text: cn('text-brand hover:bg-hover', 'active:scale-[0.96]'),
 };
 
-/** `text` buttons get tighter padding - they are labels, not surfaces. */
+/** `text` buttons get tighter padding, they are labels, not surfaces. */
 const SIZE: Record<ButtonSize, string> = {
   sm: 'h-9 px-4 text-caption rounded-md',
   md: 'h-11 px-5 text-body rounded-md',

@@ -117,7 +117,7 @@ export function EnrolmentFlow({
             className="px-4 py-3 text-left text-accent disabled:opacity-50"
             onClick={enable}
           >
-            {busy ? 'Enabling…' : 'I have written it down - enable Secure Backup'}
+            {busy ? 'Enabling…' : 'I have written it down. Enable Secure Backup'}
           </button>
           <button type="button" className="px-4 py-3 text-left text-muted" onClick={abandon}>
             {cancelLabel}

@@ -33,7 +33,7 @@ export function HelpScreen() {
         title="Diagnostics"
         note="Paste this into any support conversation. It contains no message content."
       >
-        <InfoRow label="Account ID" value={session?.user.id.slice(0, 8) ?? ' - '} />
+        <InfoRow label="Account ID" value={session?.user.id.slice(0, 8) ?? '-'} />
         <InfoRow
           label="Copy diagnostics"
           value="Copy"

@@ -282,7 +282,7 @@ export function StoryViewer({
    * Sharing goes to a chat, not to the OS.
    *
    * The spec's destinations are a friend and a group, which are both inside the
-   * product - handing the URL to the system share sheet would be a different
+   * product, handing the URL to the system share sheet would be a different
    * feature that happens to share the word. The sheet also enforces the rule
    * that a close-friends or specific-people story cannot be passed on at all.
    */
@@ -416,7 +416,7 @@ export function StoryViewer({
                   'transition-colors duration-instant hover:bg-white/20',
                 )}
               >
-                Seen by - tap for insights
+                Seen by (tap for insights)
               </button>
             ) : (
               <StoryActions

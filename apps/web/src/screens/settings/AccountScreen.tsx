@@ -197,7 +197,7 @@ export function AccountScreen() {
 
       <Group
         title="Sign-in methods"
-        note="Changing one of these has to re-authenticate first, which is not built yet - so these are shown, not editable."
+        note="Changing one of these has to re-authenticate first, which is not built yet, so these are shown, not editable."
       >
         <InfoRow label="Phone" value={session?.user.phone ?? 'Not added'} />
         <InfoRow label="Email" value={session?.user.email ?? 'Not added'} />

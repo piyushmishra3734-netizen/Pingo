@@ -131,7 +131,7 @@ export function ConversationMenu({
           <Item
             label={
               conversation.muted
-                ? (formatMuteUntil(conversation.mutedUntil) ?? 'Muted') + ' - unmute'
+                ? (formatMuteUntil(conversation.mutedUntil) ?? 'Muted') + ' · unmute'
                 : 'Mute notifications'
             }
             onSelect={() => {

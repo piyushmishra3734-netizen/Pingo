@@ -86,7 +86,7 @@ const PLATFORMS: PlatformCard[] = [
     name: 'Android',
     icon: '🤖',
     status: 'available',
-    method: 'A real installable app - its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
+    method: 'A real installable app: its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
     requirements: 'Android 7 or newer. Allow install from unknown sources once.',
   },
   {
@@ -145,7 +145,7 @@ const BENEFITS = [
   },
   {
     title: 'Full screen on a phone',
-    body: 'The whole display, with the status bar tinted to match - not a page inside a browser.',
+    body: 'The whole display, with the status bar tinted to match. Not a page inside a browser.',
   },
   {
     title: 'Camera and microphone',
@@ -171,10 +171,10 @@ const BENEFITS = [
 const GUIDES: { key: Platform; title: string; steps: string[] }[] = [
   {
     key: 'android',
-    title: 'Android - install it now',
+    title: 'Android: install it now',
     steps: [
       'Tap “Download for Android” at the top of this page, on the phone itself. It comes from PINGO’s GitHub releases.',
-      'Open the file on the phone. Android will ask permission to install from this source - allow it once.',
+      'Open the file on the phone. Android will ask permission to install from this source. Allow it once.',
       'Tap Install. PINGO appears in your app drawer with its own icon.',
       'Open it. No browser, no address bar. Sign in and everything works exactly as it does on the web.',
       'The Play Store listing comes later; nothing about the app changes when it does.',
@@ -218,7 +218,7 @@ const FAQ = [
   },
   {
     q: 'Is my data encrypted?',
-    a: 'Everything travels over HTTPS, and calls are peer-to-peer and encrypted by WebRTC - PINGO never sees a frame of them. Messages are encrypted in transit and at rest on the server, which means PINGO could technically read them; they are not yet end-to-end encrypted, and we would rather say so than imply otherwise.',
+    a: 'Everything travels over HTTPS, and calls are peer-to-peer and encrypted by WebRTC. PINGO never sees a frame of them. Messages are encrypted in transit and at rest on the server, which means PINGO could technically read them; they are not yet end-to-end encrypted, and we would rather say so than imply otherwise.',
   },
   {
     q: 'How do I update the app?',

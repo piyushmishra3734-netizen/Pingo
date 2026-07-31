@@ -66,7 +66,7 @@ export function Toggle({
           'pointer-events-none absolute left-0.5 block rounded-full bg-white shadow-sm',
           'transition-transform duration-quick ease-standard',
           size === 'sm' ? 'size-5' : 'size-6',
-          // Travel = track width − knob − (2 × inset).
+          // Travel = track width - knob - (2 × inset).
           checked
             ? size === 'sm'
               ? 'translate-x-4'

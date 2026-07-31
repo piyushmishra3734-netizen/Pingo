@@ -17,8 +17,8 @@
  *
  * ## Scaling
  *
- * Web Audio works in floats from −1 to 1; RNNoise expects the int16 *range* as
- * floats, −32768 to 32767. Skipping the scale does not fail loudly - it
+ * Web Audio works in floats from -1 to 1; RNNoise expects the int16 *range* as
+ * floats, -32768 to 32767. Skipping the scale does not fail loudly - it
  * produces audio that is technically processed and audibly untouched, which is
  * the worst kind of bug.
  *

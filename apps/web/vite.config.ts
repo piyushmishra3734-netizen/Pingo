@@ -20,8 +20,28 @@ import { VitePWA } from 'vite-plugin-pwa';
  * "Advanced → Proceed". That is expected and safe on your own network; it is a
  * warning about identity, not about encryption.
  */
+/**
+ * Em/en dashes leak into the product from AI-flavoured copy and from third-party
+ * packages (notably @supabase debug strings). They read as synthetic on screen.
+ * Strip them from every module at transform time so production never ships one.
+ */
+function stripEmDashes() {
+  const re = /[\u2012\u2013\u2014\u2015\u2212]/g;
+  return {
+    name: 'strip-em-dashes',
+    enforce: 'pre' as const,
+    transform(code: string) {
+      if (!re.test(code)) return null;
+      // reset lastIndex after test()
+      re.lastIndex = 0;
+      return { code: code.replace(re, '-'), map: null };
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    stripEmDashes(),
     react(),
     tailwindcss(),
     basicSsl(),
@@ -157,7 +177,7 @@ export default defineConfig({
               networkTimeoutSeconds: 3,
               /*
                * Every route stores under one key, because every route is the
-               * same document - this is a single-page app and the server hands
+               * same document, this is a single-page app and the server hands
                * back the identical shell for `/chats` and for a deep link into
                * a conversation.
                *
@@ -179,7 +199,7 @@ export default defineConfig({
              * Supabase is deliberately never cached.
              *
              * Messages, stories and Pings are the whole product and they are
-             * *supposed* to expire - a cached Ping is a Ping that outlived its
+             * *supposed* to expire, a cached Ping is a Ping that outlived its
              * view limit, which is the one promise this app cannot break. So
              * the network is the only source, and offline means the app opens
              * and shows what it already had in memory, not that it serves

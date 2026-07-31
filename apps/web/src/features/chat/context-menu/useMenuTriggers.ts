@@ -57,7 +57,7 @@ export interface MenuOpen {
  * How far a finger may travel and still count as a tap.
  *
  * Wider than the long press's own tolerance, because this is judged at release
- * over the whole gesture rather than continuously - and a tap that scrolled the
+ * over the whole gesture rather than continuously, and a tap that scrolled the
  * thread a little should not also open something.
  */
 const TAP_SLOP_PX = 12;
@@ -85,7 +85,7 @@ export interface MenuTriggers {
  * Whether a tap landed on something that already does its own job.
  *
  * A bubble is not always inert. It can hold a voice note's play button and seek
- * bar, a link, a photo's cover, a reaction pill - and tapping any of those was
+ * bar, a link, a photo's cover, a reaction pill, and tapping any of those was
  * also opening the reaction bar over the top, because the tap bubbled up to the
  * trigger. On a phone that made a voice note nearly unplayable: every press of
  * play summoned the emoji row.
@@ -169,7 +169,7 @@ export function useMessageMenu(): MenuTriggers {
         if (claimed.current || !origin) return;
         if (event.pointerType === 'mouse') return;
 
-        const drift = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
+        const drift = Math.hypot(event.clientX, origin.x, event.clientY, origin.y);
         if (drift > TAP_SLOP_PX) return;
 
         // The tap was aimed at something inside the bubble that does its own job.

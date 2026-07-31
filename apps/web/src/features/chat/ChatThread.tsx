@@ -179,7 +179,7 @@ export function ChatThread({
   /**
    * Why calling is unavailable, in a sentence. Undefined when it is available.
    *
-   * The rule itself is not new - calls have always needed a mutual follow - but
+   * The rule itself is not new, calls have always needed a mutual follow, but
    * it was expressed only as a greyed-out icon, which reads as the feature
    * being broken rather than as a condition the user can do something about.
    */

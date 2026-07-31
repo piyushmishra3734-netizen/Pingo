@@ -142,7 +142,7 @@ export function PostViewer({
        * This caught silently at first, on the theory that leaving the text in
        * the box was recovery enough. It is not: a comment that was rejected by
        * the server looks exactly like one that was never sent, and the first
-       * real failure here - a broken embed returning 400 - was invisible from
+       * real failure here, a broken embed returning 400, was invisible from
        * the screen. A press that does nothing has to say so.
        */
       setCommentError('That comment did not post. Try again.');

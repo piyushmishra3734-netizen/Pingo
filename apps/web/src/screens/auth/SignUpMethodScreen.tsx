@@ -41,9 +41,9 @@ const METHODS: MethodRow[] = [
   {
     kind: 'google',
     label: 'Continue with Google',
-    caption: 'Fastest - no password',
+    caption: 'Fastest, no password',
     icon: <GoogleMark />,
-    // Both doors share one interstitial - see `GoogleConnectingScreen`.
+    // Both doors share one interstitial, see `GoogleConnectingScreen`.
     path: '/auth/google',
   },
   {

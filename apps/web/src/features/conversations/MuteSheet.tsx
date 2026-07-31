@@ -64,7 +64,7 @@ export function MuteSheet({ count, onCancel, onChoose }: MuteSheetProps) {
             Mute {count === 1 ? 'this chat' : `${count} chats`}
           </h2>
           <p className="mt-1.5 text-caption text-text-secondary">
-            You'll still see new messages in the list - they just won't notify you.
+            You'll still see new messages in the list, they just won't notify you.
           </p>
 
           <div className="mt-4 flex flex-col gap-1.5">

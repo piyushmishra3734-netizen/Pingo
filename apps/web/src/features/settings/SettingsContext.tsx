@@ -128,13 +128,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     /*
      * Font size is set on the root in px, and every size in the product is in
-     * rem - so one property resizes the whole app proportionally rather than
+     * rem, so one property resizes the whole app proportionally rather than
      * just the message text.
      */
     root.style.fontSize = FONT_SCALE[preferences.chats.fontSize];
 
     /*
-     * Keeps browser chrome - the address bar on Android, the status bar on iOS
+     * Keeps browser chrome, the address bar on Android, the status bar on iOS
      * - matching the page. Without it a dark app sits under a white bar, which
      * is the single most obvious sign of a theme bolted on afterwards.
      */

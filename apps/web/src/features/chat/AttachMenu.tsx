@@ -80,7 +80,7 @@ export function AttachMenu({
            * `rotate`, not `transform`.
            *
            * Tailwind v4's rotate utilities set the standalone `rotate` property,
-           * so a transition list naming `transform` does not cover them - the
+           * so a transition list naming `transform` does not cover them, the
            * turn was snapping instantly with no animation at all.
            */
           'text-text-secondary transition-[rotate,color,background-color]',
@@ -89,7 +89,7 @@ export function AttachMenu({
           /*
            * 45°, not 135°.
            *
-           * A plus has four-fold symmetry, so both land on the same cross - but
+           * A plus has four-fold symmetry, so both land on the same cross, but
            * 135° travels three times as far to get there, and in the same
            * duration that is three times the angular speed. It read as a spin
            * rather than a turn. The shorter arc over a slightly longer duration

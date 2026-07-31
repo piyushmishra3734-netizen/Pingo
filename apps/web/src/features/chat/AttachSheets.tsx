@@ -157,7 +157,7 @@ export function LocationSheet({
  *
  * People you already have conversations with, because that is who this app
  * knows about. The device's address book needs the Contact Picker API, which
- * exists on one browser on one platform - offering it as the primary path would
+ * exists on one browser on one platform, offering it as the primary path would
  * make the feature absent for most people, and offering both would be two
  * pickers for one idea.
  */

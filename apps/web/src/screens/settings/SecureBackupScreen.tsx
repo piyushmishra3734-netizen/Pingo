@@ -272,21 +272,21 @@ export function SecureBackupScreen() {
     <SettingsPage title="Secure Backup">
       <Group title="Status">
         <InfoRow label="Status" value={enabled ? '✅ Enabled' : 'Not enabled'} />
-        <InfoRow label="Recovery Version" value={local ? `v${local.version}` : ' - '} />
+        <InfoRow label="Recovery Version" value={local ? `v${local.version}` : '-'} />
         <InfoRow
           label="Backup Target"
-          value={status?.targets.map((t) => t.label).join(', ') || ' - '}
+          value={status?.targets.map((t) => t.label).join(', ') || '-'}
         />
         <InfoRow
           label="Last Backup"
-          value={local?.lastBackupAt ? new Date(local.lastBackupAt).toLocaleString() : ' - '}
+          value={local?.lastBackupAt ? new Date(local.lastBackupAt).toLocaleString() : '-'}
         />
         {/*
           Masked, always. The code exists on paper or in the user's head; a
           screen that could redisplay it would make every unlocked phone a copy
           of it.
         */}
-        <InfoRow label="Recovery Code" value={enabled ? '••••••••••••' : ' - '} />
+        <InfoRow label="Recovery Code" value={enabled ? '••••••••••••' : '-'} />
       </Group>
 
       {/*
@@ -469,7 +469,7 @@ export function SecureBackupScreen() {
                   }). Nothing was restored.`
                 : result.reason === 'no-package'
                   ? 'No recovery package is available to test on this device.'
-                  : 'FAIL - that code did not open your recovery package.'}
+                  : 'FAIL: that code did not open your recovery package.'}
             </p>
           ) : null}
         </Group>
@@ -480,16 +480,16 @@ export function SecureBackupScreen() {
           <InfoRow label="Status" value={driveLabel} />
           <InfoRow
             label="Last Backup"
-            value={drive?.lastBackupAt ? new Date(drive.lastBackupAt).toLocaleString() : ' - '}
+            value={drive?.lastBackupAt ? new Date(drive.lastBackupAt).toLocaleString() : '-'}
           />
-          <InfoRow label="Backup Size" value={drive?.bytes ? formatBytes(drive.bytes) : ' - '} />
+          <InfoRow label="Backup Size" value={drive?.bytes ? formatBytes(drive.bytes) : '-'} />
           <InfoRow
             label="Current Generation"
-            value={drive?.generation ? `g${drive.generation}` : ' - '}
+            value={drive?.generation ? `g${drive.generation}` : '-'}
           />
           <InfoRow
             label="Last Successful Backup"
-            value={drive?.lastSuccessAt ? new Date(drive.lastSuccessAt).toLocaleString() : ' - '}
+            value={drive?.lastSuccessAt ? new Date(drive.lastSuccessAt).toLocaleString() : '-'}
           />
           {/*
             Kept even after a later success. "It works now" and "it failed on

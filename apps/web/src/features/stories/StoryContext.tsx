@@ -18,7 +18,7 @@ import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
  * Deliberately app-level rather than a fourth provider in `@pingo/core`:
  * stories are one screen's data plus a handful of actions, and everything that
  * touches them lives here. If a mobile client ever needs the same state this
- * moves - until then, a provider in core would be architecture bought on
+ * moves, until then, a provider in core would be architecture bought on
  * speculation.
  *
  * ## Ordering is decided here, once
@@ -49,7 +49,7 @@ interface StoryContextValue {
 const StoryContext = createContext<StoryContextValue | undefined>(undefined);
 
 /**
- * You, then friends, then the rest - and within each band, unseen first.
+ * You, then friends, then the rest, and within each band, unseen first.
  *
  * The bands are the product rule. Unseen-first *inside* a band is what makes
  * the rail answer "what is new" without anybody counting: watched circles sink,
@@ -120,7 +120,7 @@ export function StoryProvider({
    *
    * A whole re-read rather than patching the row in: a story arriving changes
    * ordering (unseen first, inside bands), the author's ring state and whether
-   * they appear at all - and getting one of those wrong is worse than the extra
+   * they appear at all, and getting one of those wrong is worse than the extra
    * fetch. `refresh` already coalesces into a single pair of requests.
    */
   useEffect(() => {

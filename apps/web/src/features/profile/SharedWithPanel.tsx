@@ -18,7 +18,7 @@ import { ImageIcon, UsersIcon, cn } from '@pingo/ui';
  * ## Why a row is dropped rather than shown as zero
  *
  * "Mutual Groups 0" is a fact about nothing. Each line appears only when it has
- * something to say, and if none of them do the panel is absent entirely - which
+ * something to say, and if none of them do the panel is absent entirely, which
  * is the honest state for two people who have just met.
  */
 

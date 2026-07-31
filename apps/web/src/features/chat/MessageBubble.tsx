@@ -41,7 +41,7 @@ export interface MessageBubbleProps {
   showMeta: boolean;
   /**
    * Spread onto the bubble. Supplied by `MessageMenu`, which owns every way of
-   * opening the context menu - docs/13 § 4.5.
+   * opening the context menu, docs/13 § 4.5.
    */
   trigger?: Record<string, unknown>;
   /** Reactions, rendered beneath. Passed in so the bubble stays presentational. */
@@ -50,7 +50,7 @@ export interface MessageBubbleProps {
    * The message this one answers, already resolved by the thread.
    *
    * Absent when this is not a reply, or when the original is not in the loaded
-   * page - the quote is then simply not drawn, because a placeholder saying
+   * page, the quote is then simply not drawn, because a placeholder saying
    * "message unavailable" is noise for something the reader can scroll to.
    */
   replyTo?: Message;
@@ -282,7 +282,7 @@ export function MessageBubble({
             mine
               ? 'bg-brand-gradient text-white shadow-brand'
               // Incoming bubbles are white on the near-white page, so they need a
-              // shadow to read at all - Soft White against Background is only two
+              // shadow to read at all, Soft White against Background is only two
               // steps of luminance apart and disappears entirely without one.
               : 'bg-surface text-ink shadow-sm',
             // A failed send desaturates and outlines, rather than turning red.
@@ -332,7 +332,7 @@ export function MessageBubble({
              * A file you cannot open is a filename.
              *
              * This rendered the name and size and nothing else, so a sent
-             * document was a dead card - the one failure mode this codebase
+             * document was a dead card, the one failure mode this codebase
              * keeps producing. `download` asks for the original name back,
              * because the storage key is a uuid and saving `9f3c-…` helps
              * nobody.

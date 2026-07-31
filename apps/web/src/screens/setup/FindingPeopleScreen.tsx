@@ -129,7 +129,7 @@ export function FindingPeopleScreen() {
         <p className="mt-8 text-body text-text-secondary">
           {failed
             ? "We couldn't check just now. You can find people any time from search."
-            : "You're early - nobody else is here yet. Invite someone, or find them by username later."}
+            : "You're early, nobody else is here yet. Invite someone, or find them by username later."}
         </p>
       )}
     </AuthScreen>

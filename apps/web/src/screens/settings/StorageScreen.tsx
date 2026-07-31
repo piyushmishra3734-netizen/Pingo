@@ -50,15 +50,15 @@ export function StorageScreen() {
         title="On this device"
         note="Reported by your browser for this site. It includes cached files and offline data."
       >
-        <InfoRow label="Used" value={usage ? formatBytes(usage.used) : ' - '} />
-        <InfoRow label="Available" value={usage ? formatBytes(usage.quota) : ' - '} />
+        <InfoRow label="Used" value={usage ? formatBytes(usage.used) : '-'} />
+        <InfoRow label="Available" value={usage ? formatBytes(usage.quota) : '-'} />
       </Group>
 
       <Group
         title="Cache"
         note={
           cleared
-            ? 'Cleared. Your account and messages are untouched - only cached files were removed.'
+            ? 'Cleared. Your account and messages are untouched, only cached files were removed.'
             : 'Removes cached files only. You stay signed in and nothing is deleted from your account.'
         }
       >

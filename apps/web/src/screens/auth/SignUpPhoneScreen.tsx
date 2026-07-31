@@ -22,7 +22,7 @@ import { SIGNUP_PROGRESS } from './progress.js';
  * § 6.2's verification proved the number belonged to the person signing up.
  * Without it, a number on an account is a claim, not a fact. Contact discovery
  * (§ 12) matches people *by* phone number, so building it on unverified numbers
- * would let anyone be found as anyone - that feature needs its own verification
+ * would let anyone be found as anyone, that feature needs its own verification
  * step before it ships, and cannot lean on this screen.
  */
 export function SignUpPhoneScreen() {

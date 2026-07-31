@@ -168,7 +168,7 @@ export const messagesByConversation: Record<string, Message[]> = {
       id: 'm-r1',
       conversationId: 'c-rohit',
       authorId: 'u-me',
-      body: 'Pushed the auth changes - can you take a look when you get a minute?',
+      body: 'Pushed the auth changes, can you take a look when you get a minute?',
       createdAt: todayAt(10, 12),
       status: 'read',
       attachments: [],

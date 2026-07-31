@@ -82,7 +82,7 @@ export function PrivacyScreen() {
       </Group>
 
       <Group
-        note="Screenshot detection is not possible on the web - no browser reports it. This stays off until PINGO has a native app that can."
+        note="Screenshot detection is not possible on the web, no browser reports it. This stays off until PINGO has a native app that can."
       >
         <InfoRow label="Blocked Users" value="None" />
       </Group>
