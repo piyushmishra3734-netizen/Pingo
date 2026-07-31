@@ -117,6 +117,68 @@ completed conversation is skipped entirely. There is no separate resume state to
 keep consistent, which is the reason to put the cursor in the same store as the
 rows it describes.
 
+### 2.5 The audit log
+
+A backup system must never rest on "it succeeded". Every walk produces a record
+that says, in numbers, *why* the local store is believed complete:
+
+```
+Conversation  Expected  Downloaded  Duplicates  Retried  Complete  Duration  Verdict
+------------  --------  ----------  ----------  -------  --------  --------  --------
+8829dfd9      120       120         0           0        yes       4.1s      complete
+1f4ac0b2      3204      3199        12          2        no        91.2s     count-mismatch
+
+1f4ac0b2: 5 messages were never delivered; 2 pages were retried
+```
+
+**The completeness invariant.** A conversation is marked complete only when both
+hold:
+
+1. the server confirms nothing is older than the cursor — the protocol
+   confirmation, and
+2. `downloaded + duplicates >= expectedFinal`, and `expectedFinal <= expected` —
+   the arithmetic.
+
+Both, not either. The two answers come from the same endpoint, so requiring both
+turns a single wrong count into a contradiction *with itself*; accepting either
+alone would let whichever answer happens to be wrong carry the decision.
+
+**Why `expectedFinal` is anchored.** The expectation is fixed to the newest
+message the walk started from. Messages arriving mid-backfill are newer than
+that anchor, outside the range, and belong to delta sync — without the anchor, a
+walk that fetched everything it set out to fetch looks short every time somebody
+sends a message during a backup.
+
+**Why the range may only shrink.** Deletions remove from the anchored range;
+arrivals cannot add to it. So `expectedFinal > expected` is impossible for a
+truthful server and is treated as a bad count, not a surprise.
+
+**Why `>=` and not `==`.** A message deleted for everyone after this device
+fetched it leaves local holding more than the server admits to. Holding more is
+never the failure — it is the point. Holding less is.
+
+| Event during a walk | Effect | Verdict |
+| --- | --- | --- |
+| Messages arrive | outside the anchored range | complete |
+| Messages deleted after fetch | `discrepancy > 0`, noted | complete |
+| Messages deleted before fetch | both counts fall together | complete |
+| Server repeats rows | counted as duplicates, noted | complete |
+| Range count wrong, total honest | shortfall detected | **count-mismatch** |
+| Total under-reported at start | range appears to grow | **count-mismatch** |
+
+**What it cannot catch, stated plainly.** A count endpoint that is wrong
+*consistently* — total agreeing with range agreeing with what was delivered —
+satisfies every check here, because counts are the only evidence and all of it
+comes from one source. The independent check is §9's proof, which compares the
+local row store against the server afresh before any archive is written.
+
+**Privacy.** The audit holds counts and verdicts only: no message id, text,
+sender, or per-message timestamp. The conversation id is replaced by a short
+stable `ref`, and `formatAuditLog` redacts by default, so a user pasting their
+audit into a bug report cannot leak history by not noticing an option. Verified
+by asserting no message-shaped field survives into either the record or the
+rendered table.
+
 ---
 
 ## 3. The preflight summary
@@ -214,7 +276,7 @@ cleanly, and simply not contain the messages.
 
 | Area | Change |
 | --- | --- |
-| New | `backfill.ts` — cursors, the paging loop, end-of-history confirmation |
+| New | `backfill.ts` — cursors, the paging loop, end-of-history confirmation, the audit log |
 | New | `preflight.ts` — counts and size estimate from aggregate queries |
 | Changed | `archiveLines` — unchanged in shape; it simply finds a complete row store |
 | Changed | Backup UI — preflight summary, four-stage progress |
@@ -342,7 +404,7 @@ next begins.
 
 | # | Module | Verified against |
 | --- | --- | --- |
-| 1 | `backfill.ts` | happy path · interruption · resume · duplicate pages · missing pages · **short-page attack** · corrupted cursor · network failure · server inconsistency · cancellation |
+| 1 | `backfill.ts` | happy path · interruption · resume · duplicate pages · missing pages · **short-page attack** · corrupted cursor · network failure · server inconsistency · cancellation · incorrect server counts · counts changing mid-walk · deletions mid-walk · arrivals mid-walk · duplicate ids · out-of-order pages · audit redaction |
 | 2 | `preflight.ts` | counts match a known fixture · estimate within tolerance · zero-history account · count query failure |
 | 3 | completeness proof | proven · short by one · short in one conversation only · local exceeds server · cursor incomplete · retry resumes |
 | 4 | backup verification | all checks pass · missing chunk · wrong size · bad digest · wrong generation · header mismatch · rollback on failure |
