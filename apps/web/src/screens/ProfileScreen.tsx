@@ -32,6 +32,7 @@ import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
+import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { CaptionText } from '../features/profile/CaptionText.js';
 import { FollowButton } from '../features/profile/FollowButton.js';
 import { MediaEmpty, MediaGrid, MediaSkeleton } from '../features/profile/MediaGrid.js';
@@ -240,6 +241,8 @@ export function ProfileScreen() {
 
   const postFileRef = useRef<HTMLInputElement>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
+  /** Object URL for the avatar crop editor; nothing uploads until Save. */
+  const [avatarEditorSrc, setAvatarEditorSrc] = useState<string>();
   /** Set when the file picker was opened to replace one specific post. */
   const replaceTarget = useRef<Post | undefined>(undefined);
 
@@ -375,17 +378,44 @@ export function ProfileScreen() {
     }
   };
 
-  const changeAvatar = async (file: File) => {
+  const openAvatarEditor = (file: File) => {
+    if (avatarEditorSrc) URL.revokeObjectURL(avatarEditorSrc);
+    setAvatarEditorSrc(URL.createObjectURL(file));
+  };
+
+  const closeAvatarEditor = () => {
+    if (avatarEditorSrc) URL.revokeObjectURL(avatarEditorSrc);
+    setAvatarEditorSrc(undefined);
+  };
+
+  const saveAvatarCrop = async (file: File) => {
     try {
       const url = await profiles.uploadAvatar(file);
       await updateMine({ avatarUrl: url });
+      // Editor flashes ✓ then closes via onCancel.
     } catch {
-      // Nothing changed, and the previous photo is still on screen.
+      // Keep the editor open so they can try again or cancel.
+      throw new Error('upload failed');
     }
   };
 
   return (
     <div className="h-full overflow-y-auto">
+      {avatarEditorSrc && (
+        <AvatarPhotoEditor
+          src={avatarEditorSrc}
+          onCancel={closeAvatarEditor}
+          onChooseAnother={() => avatarFileRef.current?.click()}
+          onSave={(file) => void saveAvatarCrop(file)}
+          {...(person.avatarUrl
+            ? {
+                onRemove: async () => {
+                  await updateMine({ avatarUrl: undefined });
+                },
+              }
+            : {})}
+        />
+      )}
       <ScreenHeader
         title={isSelf ? 'Profile' : person.displayName}
         showBack
@@ -440,7 +470,7 @@ export function ProfileScreen() {
               const file = event.target.files?.[0];
               // Cleared so choosing the same file twice still fires a change.
               event.target.value = '';
-              if (file) void changeAvatar(file);
+              if (file) openAvatarEditor(file);
             }}
           />
 

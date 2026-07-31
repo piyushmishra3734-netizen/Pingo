@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 
 /**
  * Editing your own profile: photo, name, username, bio.
@@ -35,9 +36,11 @@ export function EditProfileScreen() {
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
-  /** The chosen file, held until Save so cancelling uploads nothing. */
+  /** Cropped file from the editor, held until form Save so nothing uploads early. */
   const [photo, setPhoto] = useState<File>();
   const [removePhoto, setRemovePhoto] = useState(false);
+  /** Object URL for the file currently open in the crop editor. */
+  const [editorSrc, setEditorSrc] = useState<string>();
 
   const [available, setAvailable] = useState<boolean>();
   const [checking, setChecking] = useState(false);
@@ -61,6 +64,22 @@ export function EditProfileScreen() {
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
+
+  useEffect(() => {
+    return () => {
+      if (editorSrc) URL.revokeObjectURL(editorSrc);
+    };
+  }, [editorSrc]);
+
+  const openEditor = (file: File) => {
+    if (editorSrc) URL.revokeObjectURL(editorSrc);
+    setEditorSrc(URL.createObjectURL(file));
+  };
+
+  const closeEditor = () => {
+    if (editorSrc) URL.revokeObjectURL(editorSrc);
+    setEditorSrc(undefined);
+  };
 
   const handle = normaliseUsername(username);
   const unchangedHandle = handle === profile?.username;
@@ -138,6 +157,26 @@ export function EditProfileScreen() {
 
   return (
     <div className="h-full overflow-y-auto">
+      {editorSrc && (
+        <AvatarPhotoEditor
+          src={editorSrc}
+          onCancel={closeEditor}
+          onChooseAnother={() => fileRef.current?.click()}
+          onSave={(file) => {
+            // Editor flashes ✓ then calls onCancel to unmount.
+            setPhoto(file);
+            setRemovePhoto(false);
+          }}
+          {...(profile.avatarUrl || photo
+            ? {
+                onRemove: () => {
+                  setPhoto(undefined);
+                  setRemovePhoto(true);
+                },
+              }
+            : {})}
+        />
+      )}
       <ScreenHeader
         title="Edit profile"
         showBack
@@ -160,11 +199,9 @@ export function EditProfileScreen() {
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (!file) return;
-              setPhoto(file);
-              setRemovePhoto(false);
               // Cleared so choosing the same file twice still fires a change.
               event.target.value = '';
+              if (file) openEditor(file);
             }}
           />
 

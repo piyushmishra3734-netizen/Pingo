@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
+import { AvatarPhotoEditor } from '../../features/profile/AvatarPhotoEditor.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
@@ -13,27 +14,16 @@ import { SETUP_PROGRESS } from './progress.js';
  *   ◉
  *   Take Photo · Choose Gallery · Skip
  *
+ * Choosing a file opens the circular crop editor. Upload only runs after Save
+ * in the editor - cancel discards the pick and leaves the monogram alone.
+ *
  * **The photo is optional and the screen says so.** The default is the live
  * monogram with its real deterministic gradient - presented as *a default*, not
  * an empty slot ([docs/01 § 9.1](../../../../../docs/01-onboarding-auth.md#91-the-photo-is-optional--and-the-design-says-so)).
- * Most drop-off at a photo step is people who do not have one they like, and
- * removing that pressure is worth more than a filled avatar.
- *
- * ## Take Photo, honestly
- *
- * On the web both buttons are file inputs; the difference is `capture="user"`,
- * which asks the OS for the front camera. **On a phone that opens the camera. On
- * a desktop browser it opens the file picker**, because there is no camera
- * intent to hand off to - the button is kept rather than hidden, so the flow
- * matches the phone it was designed for, and it degrades to something that
- * still works rather than to an error.
- *
- * The profile row already exists by now, so this is an update. Skip leaves it
- * exactly as it is.
  */
 
 /** Guards the upload path and the storage bill. */
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = 8 * 1024 * 1024;
 
 export function PhotoScreen() {
   const navigate = useNavigate();
@@ -43,30 +33,37 @@ export function PhotoScreen() {
   const cameraRef = useRef<HTMLInputElement>(null);
 
   const [preview, setPreview] = useState<string | undefined>(profile?.avatarUrl);
+  const [editorSrc, setEditorSrc] = useState<string>();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  // A blob URL is a document-lifetime resource; without this the preview leaks
-  // for as long as the tab is open.
   const objectUrl = useRef<string | undefined>(undefined);
   useEffect(() => {
     return () => {
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+      if (editorSrc) URL.revokeObjectURL(editorSrc);
     };
-  }, []);
+  }, [editorSrc]);
 
-  const choose = async (file: File | undefined) => {
-    if (!file) return;
-
+  const openEditor = (file: File) => {
     if (file.size > MAX_BYTES) {
-      setError('That image is over 5 MB. Try a smaller one.');
+      setError('That image is over 8 MB. Try a smaller one.');
       return;
     }
-
     setError(undefined);
-    setUploading(true);
+    if (editorSrc) URL.revokeObjectURL(editorSrc);
+    setEditorSrc(URL.createObjectURL(file));
+  };
 
-    // Shown immediately, from the local file - the upload does not gate it.
+  const closeEditor = () => {
+    if (editorSrc) URL.revokeObjectURL(editorSrc);
+    setEditorSrc(undefined);
+  };
+
+  const commitCrop = async (file: File) => {
+    setUploading(true);
+    setError(undefined);
+
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     objectUrl.current = URL.createObjectURL(file);
     setPreview(objectUrl.current);
@@ -75,9 +72,11 @@ export function PhotoScreen() {
       const url = await service.uploadAvatar(file);
       await update({ avatarUrl: url });
       setPreview(url);
+      // Editor shows ✓ then closes via onCancel.
     } catch {
       setError("That didn't upload. Try again, or skip for now.");
       setPreview(profile?.avatarUrl);
+      throw new Error('upload failed');
     } finally {
       setUploading(false);
     }
@@ -86,83 +85,116 @@ export function PhotoScreen() {
   const next = () => navigate('/setup/permissions', { replace: true });
 
   return (
-    <AuthScreen
-      progress={SETUP_PROGRESS.photo}
-      title="Add Profile Photo"
-      showBack={false}
-      message={error && <AuthMessage>{error}</AuthMessage>}
-      footer={
-        <div className="flex flex-col gap-3">
-          <Button variant="primary" size="lg" block onClick={next} disabled={uploading}>
-            Continue
-          </Button>
-          {/*
-            A text button, never hidden - § 2.1 lists the photo as skippable and
-            requires skips to be visible rather than tucked away.
-          */}
-          <Button variant="text" size="lg" block onClick={next} disabled={uploading}>
-            Skip
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex flex-col items-center">
-        <div className="relative">
-          <Avatar
-            name={profile?.displayName ?? 'PINGO'}
-            id={profile?.id}
-            src={preview}
-            size="2xl"
+    <>
+      {editorSrc && (
+        <AvatarPhotoEditor
+          src={editorSrc}
+          onCancel={closeEditor}
+          onChooseAnother={() => galleryRef.current?.click()}
+          onSave={(file) => void commitCrop(file)}
+          {...(profile?.avatarUrl || preview
+            ? {
+                onRemove: async () => {
+                  setUploading(true);
+                  setError(undefined);
+                  try {
+                    await update({ avatarUrl: undefined });
+                    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+                    objectUrl.current = undefined;
+                    setPreview(undefined);
+                  } catch {
+                    setError("Couldn't remove that photo. Try again.");
+                    throw new Error('remove failed');
+                  } finally {
+                    setUploading(false);
+                  }
+                },
+              }
+            : {})}
+        />
+      )}
+
+      <AuthScreen
+        progress={SETUP_PROGRESS.photo}
+        title="Add Profile Photo"
+        showBack={false}
+        message={error && <AuthMessage>{error}</AuthMessage>}
+        footer={
+          <div className="flex flex-col gap-3">
+            <Button variant="primary" size="lg" block onClick={next} disabled={uploading}>
+              Continue
+            </Button>
+            <Button variant="text" size="lg" block onClick={next} disabled={uploading}>
+              Skip
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col items-center">
+          <div className="relative">
+            <Avatar
+              name={profile?.displayName ?? 'PINGO'}
+              id={profile?.id}
+              src={preview}
+              size="2xl"
+            />
+            {uploading && (
+              <span className="absolute inset-0 grid place-items-center rounded-full bg-surface/70">
+                <PingoDot state="loading" size={7} label="Uploading" />
+              </span>
+            )}
+          </div>
+
+          <p className="mt-6 max-w-[19rem] text-center text-body text-text-secondary">
+            Add a photo, or keep your monogram. It looks good.
+          </p>
+
+          <div className="mt-7 flex w-full flex-col gap-3">
+            <Button
+              variant="secondary"
+              size="lg"
+              block
+              disabled={uploading}
+              onClick={() => cameraRef.current?.click()}
+            >
+              Take Photo
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              block
+              disabled={uploading}
+              onClick={() => galleryRef.current?.click()}
+            >
+              Choose Gallery
+            </Button>
+          </div>
+
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) openEditor(file);
+            }}
           />
-          {uploading && (
-            <span className="absolute inset-0 grid place-items-center rounded-full bg-surface/70">
-              <PingoDot state="loading" size={7} label="Uploading" />
-            </span>
-          )}
+          <input
+            ref={galleryRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) openEditor(file);
+            }}
+          />
         </div>
-
-        <p className="mt-6 max-w-[19rem] text-center text-body text-text-secondary">
-          Add a photo - or keep your monogram, it looks good.
-        </p>
-
-        <div className="mt-7 flex w-full flex-col gap-3">
-          <Button
-            variant="secondary"
-            size="lg"
-            block
-            disabled={uploading}
-            onClick={() => cameraRef.current?.click()}
-          >
-            Take Photo
-          </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            block
-            disabled={uploading}
-            onClick={() => galleryRef.current?.click()}
-          >
-            Choose Gallery
-          </Button>
-        </div>
-
-        {/* Both hidden: the buttons above are the affordance. */}
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="user"
-          className="hidden"
-          onChange={(event) => void choose(event.target.files?.[0])}
-        />
-        <input
-          ref={galleryRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(event) => void choose(event.target.files?.[0])}
-        />
-      </div>
-    </AuthScreen>
+      </AuthScreen>
+    </>
   );
 }
