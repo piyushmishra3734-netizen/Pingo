@@ -45,10 +45,14 @@ export function BackupPrompt({ ux }: { ux: BackupUx }) {
      */
     <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50 p-4 pb-28">
       <div className="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-lg">
-        <h2 className="text-lg font-semibold text-ink">Protect your chats with Google Drive?</h2>
+        {/*
+          Short, and about what the user keeps rather than what they might lose.
+          "Only you can read them" is the one security claim, and it stays a
+          sentence a person can act on rather than a word they have to learn.
+        */}
+        <h2 className="text-lg font-semibold text-ink">Protect your chats</h2>
         <p className="pt-2 text-sm text-muted">
-          Keep your chats if you lose your phone or switch to a new one. Your chats stay
-          encrypted — only you can read them.
+          Back up securely to Google Drive. Only you can read them.
         </p>
 
         {/* The design system's primary, so the fill matches every other one. */}
@@ -84,9 +88,15 @@ export function BackupReminderCard({ ux }: { ux: BackupUx }) {
     <section className="mx-3 mb-2 rounded-xl bg-surface p-3 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-ink">Your chats aren&rsquo;t backed up</p>
+          {/*
+            An offer, not an accusation. "Your chats aren't backed up" tells
+            someone they have already failed at something; this tells them what
+            they can have.
+          */}
+          <p className="text-sm font-medium text-ink">Protect your chats</p>
           <p className="pt-0.5 text-caption text-text-secondary">
-            Turn on backup so you don&rsquo;t lose them if you change phones.
+            Turn on Google Drive backup so you don&rsquo;t lose your messages if you switch
+            phones.
           </p>
         </div>
         {/*
@@ -131,6 +141,26 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
       <p className="pt-1 text-caption text-text-secondary">
         We found your chats in Google Drive. Restore them to this device?
       </p>
+
+      {/*
+        Where it is, when it was, how big.
+        Concrete facts are what make an offer to overwrite a device believable,
+        and each is shown only when actually known — a device that has not
+        connected Drive yet has no date or size, and inventing one to look
+        confident would be the wrong kind of reassurance.
+      */}
+      <dl className="pt-2 text-caption text-text-secondary">
+        <div className="flex justify-between py-0.5">
+          <dt>Google Drive</dt>
+          <dd>{ux.backupWhen ?? '—'}</dd>
+        </div>
+        {ux.backupSize ? (
+          <div className="flex justify-between py-0.5">
+            <dt>Size</dt>
+            <dd>{ux.backupSize}</dd>
+          </div>
+        ) : null}
+      </dl>
       <Button
         block
         size="sm"

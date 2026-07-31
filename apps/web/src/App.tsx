@@ -158,6 +158,11 @@ export function App() {
        * nothing about the two functions that actually touch storage and the
        * device key. Reads, writes back what it read, reports numbers.
        */
+      /* Stage 2: capability measurement only. Creates no credential. */
+      passkeySupport: async () => {
+        const { measurePasskeySupport } = await import('./lib/backup/passkey-support.js');
+        return measurePasskeySupport();
+      },
       archiveSelfTest: async (chunkSize?: number) => {
         const [{ archiveSelfTest }] = await Promise.all([import('./lib/backup/self-test.js')]);
         const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [

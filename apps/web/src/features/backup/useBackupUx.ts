@@ -28,6 +28,21 @@ import {
 } from '../../lib/backup/reminders.js';
 import { record } from '../../lib/backup/ux-telemetry.js';
 
+/** "Today", "Yesterday", or a date. Nobody wants a timestamp here. */
+function relativeDay(at: number, now = Date.now()): string {
+  const days = Math.floor((new Date(now).setHours(0,0,0,0) - new Date(at).setHours(0,0,0,0)) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return new Date(at).toLocaleDateString();
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const REMINDER_KEY = 'backup-reminders';
 
 export interface BackupUx {
@@ -41,6 +56,10 @@ export interface BackupUx {
   showPrompt: boolean;
   /** The recurring home card. */
   showReminder: boolean;
+  /** "Yesterday", when a previous backup time is known on this device. */
+  backupWhen?: string;
+  /** "52.5 MB", when known. */
+  backupSize?: string;
 
   markPromptShown: () => Promise<void>;
   promptEnable: () => Promise<void>;
@@ -82,6 +101,7 @@ export function useBackupUx(): BackupUx {
    *
    * Once open, these stay open until the user answers.
    */
+  const [driveMeta, setDriveMeta] = useState<{ at?: number; bytes?: number }>({});
   const [promptOpen, setPromptOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
 
@@ -98,6 +118,12 @@ export function useBackupUx(): BackupUx {
        */
       setRestoreAvailable(!status.local && (status.targets.some((t) => t.present) ?? false));
       setReminders(stored);
+
+      // Whatever this device already knows about the last backup, for the card.
+      const drive = await openRecord<{ lastSuccessAt?: number; bytes?: number }>(
+        await localGet<unknown>(STORE.meta, 'drive-backup'),
+      );
+      setDriveMeta({ at: drive?.lastSuccessAt, bytes: drive?.bytes });
 
       /*
        * Decide once, from what was on disk before this session touched it.
@@ -140,6 +166,8 @@ export function useBackupUx(): BackupUx {
      * Shown once, and only when there is nothing to restore — a device with a
      * backup waiting should be offered the backup, not asked to make one.
      */
+    backupWhen: driveMeta.at ? relativeDay(driveMeta.at) : undefined,
+    backupSize: driveMeta.bytes ? formatSize(driveMeta.bytes) : undefined,
     showPrompt: ready && promptOpen,
     showReminder: ready && reminderOpen,
 
