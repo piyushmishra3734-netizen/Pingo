@@ -7,33 +7,29 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 /**
  * The profile photo.
  *
- * ## Tap opens it, hold changes it
+ * ## Hold to view (Instagram-style)
  *
- * Two gestures on one target, which is only acceptable because they mean
- * obviously different things: looking, and altering. The hold is offered on your
- * own profile alone - there is nothing to alter on somebody else's, so there it
- * is a plain button that opens the picture.
+ * A short tap does not open the full picture - that surprised people who only
+ * meant to rest a finger on the page. A deliberate hold expands the photo to
+ * full screen, which is the same gesture people already know from Instagram.
  *
- * ## Why a hold and not a small pencil badge
+ * ## Changing your own photo
  *
- * A badge on the avatar is a 20px target on the one element people are most
- * likely to tap by accident, and it is permanently on screen for an action taken
- * roughly twice a year. The hold costs nothing visually, and the same actions
- * are also in Edit profile, which is where anyone who does not discover the hold
- * will look. Nothing is only reachable by gesture.
+ * Hold-to-view owns the long press when a photo exists. Add / change / remove
+ * still live in Edit profile, and when there is no photo yet a hold (or tap)
+ * opens the add sheet so an empty avatar is not a dead control.
  *
  * ## Why there is no shared-element transition
  *
- * The picture opens with the viewer's own fade rather than flying from its
- * position on the page. A genuine shared-element animation needs the source and
- * destination in one layout, and the viewer is portalled to `document.body`
- * precisely so it cannot be clipped by an ancestor's transform, the two
- * requirements are in direct conflict. A fade that always works beats a flight
- * that lands in the wrong place whenever the page has scrolled.
+ * The viewer is portalled to `document.body` so it cannot be clipped by an
+ * ancestor transform. That layout split rules out a true shared-element flight;
+ * a fade that always works beats a flight that lands wrong after scroll.
  */
 
-/** How long a press has to last to mean "change this". */
+/** How long a press must last to mean "show the photo". */
 const HOLD_MS = 480;
+/** Drift past this cancels the hold - it is a scroll, not a press. */
+const MOVE_CANCEL_PX = 10;
 
 export function ProfileAvatar({
   name,
@@ -59,38 +55,58 @@ export function ProfileAvatar({
   const held = useRef(false);
   const origin = useRef<{ x: number; y: number } | undefined>(undefined);
 
-  const clear = () => {
-    if (timer.current) window.clearTimeout(timer.current);
+  const clearTimer = () => {
+    if (timer.current !== undefined) window.clearTimeout(timer.current);
     timer.current = undefined;
   };
 
   const onPointerDown = (event: React.PointerEvent) => {
-    if (!isSelf) return;
+    // Nothing to hold for: other people with no photo.
+    if (!src && !isSelf) return;
+
     held.current = false;
     origin.current = { x: event.clientX, y: event.clientY };
+    clearTimer();
+
     timer.current = window.setTimeout(() => {
       held.current = true;
-      setMenu(true);
-      // The press has become a different gesture; say so the way a phone does.
-      navigator.vibrate?.(8);
+      if (src) {
+        // Instagram: press-and-hold expands the profile photo.
+        setViewing(true);
+        navigator.vibrate?.(8);
+      } else if (isSelf) {
+        // Empty avatar: hold still offers "Add photo".
+        setMenu(true);
+        navigator.vibrate?.(8);
+      }
     }, HOLD_MS);
   };
 
   const onPointerMove = (event: React.PointerEvent) => {
-    if (!origin.current) return;
-    // A hold that drifts is a scroll starting, not a hold.
-    const moved = Math.hypot(event.clientX, origin.current.x, event.clientY, origin.current.y);
-    if (moved > 10) clear();
+    if (!origin.current || timer.current === undefined) return;
+    const moved = Math.hypot(
+      event.clientX - origin.current.x,
+      event.clientY - origin.current.y,
+    );
+    if (moved > MOVE_CANCEL_PX) clearTimer();
+  };
+
+  const onPointerUp = () => {
+    clearTimer();
+    origin.current = undefined;
   };
 
   const onClick = () => {
-    clear();
-    // The hold already opened the menu; the click that follows it is noise.
+    clearTimer();
+    // The hold already opened the viewer or the add sheet; the click after is noise.
     if (held.current) {
       held.current = false;
       return;
     }
-    if (src) setViewing(true);
+    // Tap never opens the full photo. Empty own avatar: short path to add one.
+    if (isSelf && !src) {
+      setMenu(true);
+    }
   };
 
   return (
@@ -100,18 +116,17 @@ export function ProfileAvatar({
         onClick={onClick}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={clear}
-        onPointerCancel={clear}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         onContextMenu={(event) => {
-          // A long press on a touch screen also fires the browser's own context
-          // menu, which would land on top of ours.
-          if (isSelf) event.preventDefault();
+          // Long-press would open the browser menu over our viewer / sheet.
+          if (src || isSelf) event.preventDefault();
         }}
         aria-label={
           src
             ? isSelf
-              ? 'Your profile photo. Tap to view, hold to change.'
-              : `${name}'s profile photo`
+              ? 'Your profile photo. Hold to view full size. Change it from Edit profile.'
+              : `${name}'s profile photo. Hold to view full size.`
             : isSelf
               ? 'Add a profile photo'
               : `${name} has no profile photo`
