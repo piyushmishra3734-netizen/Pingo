@@ -80,6 +80,26 @@ export function ToastFeelLab() {
     setActive(live);
   }, []);
 
+  const clearActive = useCallback(
+    (id: string) => {
+      if (exitTimerRef.current) {
+        clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = undefined;
+      }
+      if (activeRef.current?.id === id) {
+        activeRef.current = undefined;
+        setActive(undefined);
+      }
+      const next = pendingRef.current;
+      pendingRef.current = undefined;
+      if (next) {
+        note(`next   after leave`);
+        window.setTimeout(() => showNext(next), MESSAGE_TOAST_EXIT_MS > 0 ? 500 : 500);
+      }
+    },
+    [note, showNext],
+  );
+
   const beginExit = useCallback(
     (id: string) => {
       const current = activeRef.current;
@@ -87,23 +107,10 @@ export function ToastFeelLab() {
       const leaving: LiveToast = { ...current, motion: 'exit' };
       activeRef.current = leaving;
       setActive(leaving);
-
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
-      exitTimerRef.current = setTimeout(() => {
-        exitTimerRef.current = undefined;
-        if (activeRef.current?.id === id) {
-          activeRef.current = undefined;
-          setActive(undefined);
-        }
-        const next = pendingRef.current;
-        pendingRef.current = undefined;
-        if (next) {
-          note(`next   after leave`);
-          requestAnimationFrame(() => showNext(next));
-        }
-      }, MESSAGE_TOAST_EXIT_MS);
+      exitTimerRef.current = setTimeout(() => clearActive(id), MESSAGE_TOAST_EXIT_MS + 120);
     },
-    [note, showNext],
+    [clearActive],
   );
 
   const present = useCallback(
@@ -263,13 +270,15 @@ export function ToastFeelLab() {
               toast={active}
               motion={active.motion}
               durationMs={MESSAGE_TOAST_DURATION_MS}
-              onOpen={(id) => {
-                note(`open ${id}`);
-                beginExit(id);
+              onOpen={(conversationId) => {
+                note(`open ${conversationId}`);
+                // Toast already glided down - just clear.
+                activeRef.current = undefined;
+                setActive(undefined);
               }}
               onDismiss={(id) => {
                 note(`dismiss ${id}`);
-                beginExit(id);
+                clearActive(id);
               }}
             />
           </div>

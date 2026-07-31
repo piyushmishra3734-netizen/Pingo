@@ -91,7 +91,10 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const scheduleNextAfterGap = useCallback(() => {
-    clearGapTimer();
+    // Already waiting to show the next - do not stack timers.
+    if (gapTimerRef.current !== undefined) return;
+    if (!pendingRef.current) return;
+
     // Read pending when the gap ends so a newer message during the pause still wins.
     gapTimerRef.current = setTimeout(() => {
       gapTimerRef.current = undefined;
@@ -99,13 +102,38 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
       pendingRef.current = undefined;
       if (next) showNext(next);
     }, MESSAGE_TOAST_GAP_MS);
-  }, [clearGapTimer, showNext]);
+  }, [showNext]);
 
+  /**
+   * Banner finished leaving (gesture or animation). Unmount and maybe show next.
+   * Idempotent - toast transitionend + safety timer may both call this.
+   */
+  const clearActive = useCallback(
+    (id: string) => {
+      if (exitTimerRef.current !== undefined) {
+        clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = undefined;
+      }
+
+      const current = activeRef.current;
+      if (current && current.id === id) {
+        activeRef.current = undefined;
+        setActive(undefined);
+      }
+
+      // Only advance the queue when this banner is gone (or already gone).
+      if (!current || current.id === id) {
+        scheduleNextAfterGap();
+      }
+    },
+    [scheduleNextAfterGap],
+  );
+
+  /** Parent-driven leave (new message queued, etc.) - toast plays continuous exit. */
   const beginExit = useCallback(
     (id: string) => {
       const current = activeRef.current;
       if (!current || current.id !== id) return;
-      // Already leaving - keep pending; exit timer already owns the sequence.
       if (current.motion === 'exit') return;
 
       clearGapTimer();
@@ -114,21 +142,14 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
       activeRef.current = leaving;
       setActive(leaving);
 
+      // Safety if the toast never reports transition end.
       if (exitTimerRef.current !== undefined) clearTimeout(exitTimerRef.current);
       exitTimerRef.current = setTimeout(() => {
         exitTimerRef.current = undefined;
-
-        // Unmount only after the slide-up animation budget has finished.
-        const still = activeRef.current;
-        if (still && still.id === id) {
-          activeRef.current = undefined;
-          setActive(undefined);
-        }
-
-        scheduleNextAfterGap();
-      }, MESSAGE_TOAST_EXIT_MS);
+        clearActive(id);
+      }, MESSAGE_TOAST_EXIT_MS + 120);
     },
-    [clearGapTimer, scheduleNextAfterGap],
+    [clearActive, clearGapTimer],
   );
 
   const present = useCallback(
@@ -271,26 +292,39 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [service, ready, present]);
 
+  /**
+   * Toast finished its open glide (tap / swipe-down). Navigate immediately;
+   * the banner is already off-screen so we only clear state.
+   */
   const onOpen = useCallback(
     (conversationId: string) => {
+      if (pendingRef.current?.conversationId === conversationId) {
+        pendingRef.current = undefined;
+      }
+
       const current = activeRef.current;
       if (current && current.conversationId === conversationId) {
-        // Opening this chat: clear pending for it, leave, then maybe next.
-        if (pendingRef.current?.conversationId === conversationId) {
-          pendingRef.current = undefined;
+        if (exitTimerRef.current !== undefined) {
+          clearTimeout(exitTimerRef.current);
+          exitTimerRef.current = undefined;
         }
-        beginExit(current.id);
+        activeRef.current = undefined;
+        setActive(undefined);
       }
+
       navigate(`/chats/${conversationId}`);
+      // Other chats may still be pending.
+      scheduleNextAfterGap();
     },
-    [beginExit, navigate],
+    [navigate, scheduleNextAfterGap],
   );
 
+  /** Toast finished its dismiss glide (swipe-up / auto). */
   const onDismiss = useCallback(
     (id: string) => {
-      beginExit(id);
+      clearActive(id);
     },
-    [beginExit],
+    [clearActive],
   );
 
   return (
