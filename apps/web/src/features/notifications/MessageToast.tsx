@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 
@@ -16,9 +17,12 @@ import {
  * - Enters by sliding **down** from above
  * - Leaves by sliding **up** the same path
  * - One at a time: the next banner only enters after this one has fully left
- *   (timer, swipe, or open) - never two competing on screen
  *
- * Same chat updates the copy in place without replaying the slide.
+ * ## Gestures (same idea as Instagram's in-app banner)
+ *
+ * - **Tap** → open that chat
+ * - **Swipe up** → dismiss (stays gone - does not spring back)
+ * - **Swipe down** → open that chat
  */
 
 export type MessageToastMotion = 'enter' | 'update' | 'exit';
@@ -51,8 +55,21 @@ const DISMISS_MS = 3800;
 /** Full slide-up leave - next banner waits for this to finish. */
 const EXIT_MS = 320;
 
-/** Swipe-up distance that commits a dismiss. */
-const SWIPE_COMMIT_PX = 40;
+/**
+ * Pause after the old banner has fully left, before the next slides down.
+ * Reads as one cue finishing, then the next arriving - not a hard swap.
+ */
+const GAP_AFTER_EXIT_MS = 500;
+
+/** Swipe-up past this → dismiss (does not snap back). */
+const SWIPE_UP_DISMISS_PX = 28;
+/** Swipe-down past this → open the chat. */
+const SWIPE_DOWN_OPEN_PX = 36;
+/** Movement within this is treated as a tap, not a drag. */
+const TAP_SLOP_PX = 12;
+/** How far the banner may be pulled while tracking the finger. */
+const DRAG_UP_MAX = 140;
+const DRAG_DOWN_MAX = 72;
 
 export function MessageToast({
   toast,
@@ -72,11 +89,18 @@ export function MessageToast({
   const startedAtRef = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pointerStartY = useRef<number | undefined>(undefined);
+  const pointerStartTime = useRef(0);
   const dragYRef = useRef(0);
+  /** True when pointer-up already handled open/dismiss - skip the synthetic click. */
+  const gestureHandledRef = useRef(false);
 
   const dismiss = useCallback(() => {
     onDismiss(toast.id);
   }, [onDismiss, toast.id]);
+
+  const open = useCallback(() => {
+    onOpen(toast.conversationId);
+  }, [onOpen, toast.conversationId]);
 
   useEffect(() => {
     remainingRef.current = durationMs;
@@ -110,10 +134,6 @@ export function MessageToast({
     };
   }, [dismiss, dragging, exiting, hovering, paused, toast.generation]);
 
-  const open = () => {
-    onOpen(toast.conversationId);
-  };
-
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -125,8 +145,13 @@ export function MessageToast({
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === 'mouse') return;
+    if (exiting) return;
+    // Primary button only for mouse.
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    gestureHandledRef.current = false;
     pointerStartY.current = event.clientY;
+    pointerStartTime.current = Date.now();
     dragYRef.current = 0;
     setDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -135,45 +160,93 @@ export function MessageToast({
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerStartY.current === undefined) return;
     const delta = event.clientY - pointerStartY.current;
-    const next = Math.min(0, delta);
+    // Follow the finger both ways: up to dismiss, down to open.
+    const next = Math.max(-DRAG_UP_MAX, Math.min(DRAG_DOWN_MAX, delta));
     dragYRef.current = next;
     setDragY(next);
   };
 
-  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const endPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerStartY.current === undefined) return;
+
     const delta = dragYRef.current;
+    const elapsed = Math.max(1, Date.now() - pointerStartTime.current);
+    const velocity = delta / elapsed; // px/ms, negative = flick up
+
     pointerStartY.current = undefined;
     setDragging(false);
-    setDragY(0);
-    dragYRef.current = 0;
+
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
       // Already released.
     }
-    if (delta <= -SWIPE_COMMIT_PX) {
-      dismiss();
+
+    // Tap: almost no movement.
+    if (Math.abs(delta) < TAP_SLOP_PX) {
+      gestureHandledRef.current = true;
+      dragYRef.current = 0;
+      setDragY(0);
+      open();
+      return;
     }
+
+    // Swipe / flick up → dismiss and stay dismissed (no spring-back).
+    const flickedUp = velocity < -0.35 && delta < -12;
+    if (delta <= -SWIPE_UP_DISMISS_PX || flickedUp) {
+      gestureHandledRef.current = true;
+      dragYRef.current = 0;
+      setDragY(0);
+      dismiss();
+      return;
+    }
+
+    // Swipe down → open the conversation.
+    if (delta >= SWIPE_DOWN_OPEN_PX) {
+      gestureHandledRef.current = true;
+      dragYRef.current = 0;
+      setDragY(0);
+      open();
+      return;
+    }
+
+    // Incomplete gesture: settle back to rest.
+    dragYRef.current = 0;
+    setDragY(0);
+  };
+
+  const onClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    // Pointer path already opened or dismissed - avoid double navigation.
+    if (gestureHandledRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      gestureHandledRef.current = false;
+      return;
+    }
+    open();
   };
 
   const relative = formatRelativeShort(toast.createdAt);
   const showCount = toast.unreadCount > 1;
+
+  // While dragging up, fade with the finger so release-to-dismiss feels committed.
+  const dragOpacity =
+    dragY < 0 ? Math.max(0.25, 1 + dragY / 120) : dragY > 0 ? Math.max(0.85, 1 - dragY / 200) : 1;
 
   return (
     <div
       role="button"
       tabIndex={exiting ? -1 : 0}
       aria-hidden={exiting || undefined}
-      aria-label={`Message from ${toast.title}: ${toast.preview}. ${relative}.`}
-      onClick={exiting ? undefined : open}
+      aria-label={`Message from ${toast.title}: ${toast.preview}. ${relative}. Swipe up to dismiss, swipe down or tap to open.`}
+      onClick={exiting ? undefined : onClick}
       onKeyDown={exiting ? undefined : onKeyDown}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       onPointerDown={exiting ? undefined : onPointerDown}
       onPointerMove={exiting ? undefined : onPointerMove}
-      onPointerUp={exiting ? undefined : onPointerUp}
-      onPointerCancel={exiting ? undefined : onPointerUp}
+      onPointerUp={exiting ? undefined : endPointer}
+      onPointerCancel={exiting ? undefined : endPointer}
       className={cn(
         'pointer-events-auto relative w-full cursor-pointer select-none',
         // A touch under full banner width so side margins still breathe.
@@ -182,18 +255,22 @@ export function MessageToast({
         'px-3 py-2',
         'shadow-sm',
         'focus-ring outline-none',
-        'touch-pan-y',
+        // Own both vertical directions so the browser does not steal the swipe.
+        'touch-none',
         // Slide down in / slide up out. Update keeps the shell still.
         !exiting && !dragging && motion === 'enter' && 'motion-safe:animate-toast-in',
         exiting && 'pointer-events-none motion-safe:animate-toast-out',
         className,
       )}
       style={
-        dragging || dragY !== 0
+        // While exiting, leave transform to the CSS slide-up - do not pin a drag offset.
+        !exiting && (dragging || dragY !== 0)
           ? {
               transform: `translateY(${dragY}px)`,
-              opacity: Math.max(0.4, 1 + dragY / 100),
-              transition: dragging ? 'none' : undefined,
+              opacity: dragOpacity,
+              transition: dragging
+                ? 'none'
+                : 'transform 180ms var(--ease-exit), opacity 180ms var(--ease-exit)',
             }
           : undefined
       }
@@ -248,6 +325,7 @@ export function MessageToast({
 }
 
 export const MESSAGE_TOAST_EXIT_MS = EXIT_MS;
+export const MESSAGE_TOAST_GAP_MS = GAP_AFTER_EXIT_MS;
 export const MESSAGE_TOAST_DURATION_MS = DISMISS_MS;
 
 function formatRelativeShort(ms: number, now = Date.now()): string {

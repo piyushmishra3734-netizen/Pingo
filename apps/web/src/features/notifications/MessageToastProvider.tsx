@@ -20,6 +20,7 @@ import { usePreferences } from '../settings/SettingsContext.js';
 import {
   MESSAGE_TOAST_DURATION_MS,
   MESSAGE_TOAST_EXIT_MS,
+  MESSAGE_TOAST_GAP_MS,
   MessageToast,
   type MessageToastData,
   type MessageToastMotion,
@@ -31,11 +32,13 @@ import { isQuietHoursActive } from './quiet-hours.js';
  *
  * ## One at a time (Instagram-style sequence)
  *
- * - Slides **down** to arrive, **up** to leave
- * - Next message only enters after the current has fully left
- *   (auto-timer finished, swipe dismiss, or open chat)
- * - Same conversation: update in place, reset timer - no re-slide
- * - Different conversation while one is up: held as pending; shown after leave
+ * 1. Current slides **up** fully (exit animation)
+ * 2. **500ms** empty gap
+ * 3. Next slides **down**
+ *
+ * Never mounts the next banner while the previous is still on screen.
+ * Same conversation while visible: update copy in place (no re-slide).
+ * Different conversation while visible: start leave now, queue latest, then gap + enter.
  */
 
 interface LiveToast extends MessageToastData {
@@ -52,7 +55,8 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState<LiveToast | undefined>();
 
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  /** Latest different-chat message waiting for the current banner to leave. */
+  const gapTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** Latest message waiting for the current banner to fully leave (+ gap). */
   const pendingRef = useRef<MessageToastData | undefined>(undefined);
 
   const usersRef = useRef(users);
@@ -71,16 +75,40 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
   callRef.current = call;
   activeRef.current = active;
 
+  const clearGapTimer = useCallback(() => {
+    if (gapTimerRef.current !== undefined) {
+      clearTimeout(gapTimerRef.current);
+      gapTimerRef.current = undefined;
+    }
+  }, []);
+
   const showNext = useCallback((data: MessageToastData) => {
+    // Never mount while a banner is still on screen (visible or mid-exit).
+    if (activeRef.current) return;
     const live: LiveToast = { ...data, motion: 'enter' };
     activeRef.current = live;
     setActive(live);
   }, []);
 
+  const scheduleNextAfterGap = useCallback(() => {
+    clearGapTimer();
+    // Read pending when the gap ends so a newer message during the pause still wins.
+    gapTimerRef.current = setTimeout(() => {
+      gapTimerRef.current = undefined;
+      const next = pendingRef.current;
+      pendingRef.current = undefined;
+      if (next) showNext(next);
+    }, MESSAGE_TOAST_GAP_MS);
+  }, [clearGapTimer, showNext]);
+
   const beginExit = useCallback(
     (id: string) => {
       const current = activeRef.current;
-      if (!current || current.id !== id || current.motion === 'exit') return;
+      if (!current || current.id !== id) return;
+      // Already leaving - keep pending; exit timer already owns the sequence.
+      if (current.motion === 'exit') return;
+
+      clearGapTimer();
 
       const leaving: LiveToast = { ...current, motion: 'exit' };
       activeRef.current = leaving;
@@ -90,37 +118,25 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
       exitTimerRef.current = setTimeout(() => {
         exitTimerRef.current = undefined;
 
-        // Only clear if this is still the banner we dismissed.
+        // Unmount only after the slide-up animation budget has finished.
         const still = activeRef.current;
         if (still && still.id === id) {
           activeRef.current = undefined;
           setActive(undefined);
         }
 
-        // After a full slide-up, bring in the next message if one is waiting.
-        const next = pendingRef.current;
-        pendingRef.current = undefined;
-        if (next) {
-          // One frame free so the leave animation is not interrupted by remount.
-          requestAnimationFrame(() => {
-            showNext(next);
-          });
-        }
+        scheduleNextAfterGap();
       }, MESSAGE_TOAST_EXIT_MS);
     },
-    [showNext],
+    [clearGapTimer, scheduleNextAfterGap],
   );
 
   const present = useCallback(
     (data: MessageToastData) => {
       const current = activeRef.current;
 
-      // Same conversation while visible: update copy, refresh timer, no re-slide.
+      // Same conversation while fully visible: update copy, refresh timer, no re-slide.
       if (current && current.motion !== 'exit' && current.conversationId === data.conversationId) {
-        if (exitTimerRef.current !== undefined) {
-          clearTimeout(exitTimerRef.current);
-          exitTimerRef.current = undefined;
-        }
         const live: LiveToast = {
           ...current,
           ...data,
@@ -133,7 +149,7 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Same conversation as pending: merge into the queue item.
+      // Merge into pending if it is the same conversation already queued.
       if (
         pendingRef.current &&
         pendingRef.current.conversationId === data.conversationId
@@ -147,13 +163,27 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Something is showing or leaving: hold the latest other chat until free.
-      if (current) {
+      // Visible banner (not leaving): queue latest and start slide-up now.
+      // The next toast must not mount until leave + gap finish.
+      if (current && current.motion !== 'exit') {
+        pendingRef.current = data;
+        beginExit(current.id);
+        return;
+      }
+
+      // Currently sliding out: only update who is next; do not interrupt leave.
+      if (current && current.motion === 'exit') {
         pendingRef.current = data;
         return;
       }
 
-      // Empty slot - slide down in.
+      // Empty slot (and not mid-gap): slide down immediately.
+      // If a gap timer is running, retarget pending and wait for it.
+      if (gapTimerRef.current !== undefined) {
+        pendingRef.current = data;
+        return;
+      }
+
       if (exitTimerRef.current !== undefined) {
         clearTimeout(exitTimerRef.current);
         exitTimerRef.current = undefined;
@@ -161,7 +191,7 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
       pendingRef.current = undefined;
       showNext(data);
     },
-    [showNext],
+    [beginExit, showNext],
   );
 
   // Drop the banner when the user opens that conversation; show pending after leave.
@@ -183,6 +213,7 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return () => {
       if (exitTimerRef.current !== undefined) clearTimeout(exitTimerRef.current);
+      if (gapTimerRef.current !== undefined) clearTimeout(gapTimerRef.current);
       pendingRef.current = undefined;
     };
   }, []);
