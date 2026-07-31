@@ -37,14 +37,14 @@ export function ThreadJumpChip({ mode, count = 0, onClick, className }: ThreadJu
         aria-label={aria}
         className={cn(
           'focus-ring inline-flex items-center gap-1 rounded-md px-2 py-1',
-          // No glass pill / shadow strip - just type with a soft brand wash.
+          // No glass pill - type with a whisper of brand wash + barely-there glow.
           'text-caption font-medium text-brand',
-          'bg-brand/10',
-          // Quiet glow - findable, not a lamp.
-          'shadow-[0_0_16px_rgba(92,108,255,0.22)]',
+          'bg-brand/[0.06]',
+          // Felt more than seen - easy to miss until you need it.
+          'shadow-[0_0_10px_rgba(92,108,255,0.08)]',
           'transition-[opacity,transform,box-shadow,background-color] duration-base ease-liquid',
           'motion-safe:animate-[fade-in_var(--duration-base)_var(--ease-liquid)_both]',
-          'hover:bg-brand/14 hover:shadow-[0_0_20px_rgba(92,108,255,0.3)]',
+          'hover:bg-brand/[0.09] hover:shadow-[0_0_12px_rgba(92,108,255,0.12)]',
           'active:scale-[0.98]',
         )}
       >
