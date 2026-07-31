@@ -29,7 +29,12 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 const OUTPUT_SIZE = 1024;
-const JPEG_QUALITY = 0.95;
+/**
+ * PNG, not JPEG: the circle is the canonical photo. JPEG cannot store
+ * transparent corners, so a square encode would keep pixels that the circular
+ * editor never showed - and ImageViewer would reveal them full-screen.
+ */
+const OUTPUT_TYPE = 'image/png' as const;
 const SUCCESS_MS = 180;
 /** Zoom badge stays visible while zooming, then fades. */
 const ZOOM_HINT_MS = 1000;
@@ -332,6 +337,15 @@ export function AvatarPhotoEditor({
     });
   };
 
+  /**
+   * Encode exactly what the circular stage shows - nothing outside the disc.
+   *
+   * The editor viewport is a circle over a cover-zoomed image. Exporting the
+   * bounding square (the old path) kept the four corner regions that the mask
+   * had hidden; opening the photo full-screen then revealed them. Clip to the
+   * circle before draw, leave exterior transparent, and store PNG so those
+   * corners never exist in the asset everyone else loads.
+   */
   const exportCrop = async (): Promise<File> => {
     const img = imgRef.current;
     if (!img || natural.x === 0) throw new Error('Image not ready.');
@@ -342,11 +356,17 @@ export function AvatarPhotoEditor({
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas unavailable.');
 
-    ctx.fillStyle = '#F8F9FD';
-    ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+    // Transparent exterior - not a fill. A filled square would reintroduce
+    // "hidden" corner pixels as solid colour when the image is viewed large.
+    ctx.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(OUTPUT_SIZE / 2, OUTPUT_SIZE / 2, OUTPUT_SIZE / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
 
     const scale = OUTPUT_SIZE / cropPx;
-    ctx.save();
     ctx.translate(OUTPUT_SIZE / 2, OUTPUT_SIZE / 2);
     ctx.scale(scale, scale);
     ctx.translate(offset.x, offset.y);
@@ -358,12 +378,11 @@ export function AvatarPhotoEditor({
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error('Could not encode the photo.'))),
-        'image/jpeg',
-        JPEG_QUALITY,
+        OUTPUT_TYPE,
       );
     });
 
-    return new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    return new File([blob], `avatar-${Date.now()}.png`, { type: OUTPUT_TYPE });
   };
 
   const save = async () => {
