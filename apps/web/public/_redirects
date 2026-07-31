@@ -1,3 +1,11 @@
+# Google Search Console HTML verification.
+#
+# Cloudflare Pages "pretty URLs" 308-redirect /foo.html → /foo. Without an
+# explicit rewrite, the SPA catch-all below would answer /foo with index.html
+# and verification would fail. Both forms must serve the static token file.
+/google9eb59f0b9fa61b45.html  /google9eb59f0b9fa61b45.html  200
+/google9eb59f0b9fa61b45        /google9eb59f0b9fa61b45.html  200
+
 # SPA fallback.
 #
 # PINGO routes on the client with react-router: /chats, /settings/privacy and
