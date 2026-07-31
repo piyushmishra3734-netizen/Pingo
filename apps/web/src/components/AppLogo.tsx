@@ -36,13 +36,27 @@ export interface AppLogoProps {
    */
   alt?: string;
   className?: string;
+  /**
+   * Hint for LCP on public hero placements. Defaults to browser behaviour
+   * (`auto`); marketing heroes pass `high`.
+   */
+  fetchPriority?: 'high' | 'low' | 'auto';
 }
 
-export function AppLogo({ size = 72, alt = 'PINGO', className }: AppLogoProps) {
+export function AppLogo({
+  size = 72,
+  alt = 'PINGO',
+  className,
+  fetchPriority = 'auto',
+}: AppLogoProps) {
   return (
     <img
       src="/pingo-icon.png"
       alt={alt}
+      width={size}
+      height={size}
+      decoding="async"
+      fetchPriority={fetchPriority}
       /*
        * Both matter for a logo: dragging one out of the page is a stray
        * interaction nobody wants, and the browser's default selection

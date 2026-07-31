@@ -1,7 +1,9 @@
 import { Button } from '@pingo/ui';
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
+import { applyPageSeo } from '../lib/seo.js';
 
 /**
  * Welcome — the first screen a new user sees, after the splash.
@@ -28,12 +30,22 @@ import { AppLogo } from '../components/AppLogo.js';
  * device there is no visible way back to an existing account. Worth revisiting
  * the day someone reinstalls.
  *
- * **The legal line has no destinations yet.** It is deliberately plain text
- * rather than links: Terms and Privacy pages do not exist, and a link that goes
- * nowhere is worse than a sentence that does not pretend to.
+ * **Terms and Privacy are real destinations.** The legal line links to the
+ * public `/terms` and `/privacy` pages so the agreement is not a dead claim.
  */
 export function OnboardingScreen() {
   const navigate = useNavigate();
+
+  useEffect(
+    () =>
+      applyPageSeo({
+        title: 'Welcome to PINGO — Private messaging',
+        description:
+          'Welcome to PINGO. Private, fast, beautiful messaging with disappearing Pings, expiring stories, and a three-post profile. Get started free.',
+        path: '/welcome',
+      }),
+    [],
+  );
 
   return (
     <div className="relative flex h-full flex-col overflow-y-auto bg-brand-wash">
@@ -42,9 +54,9 @@ export function OnboardingScreen() {
         aria-hidden
       />
 
-      <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col px-6 pb-8 pt-10">
+      <main className="relative mx-auto flex w-full max-w-sm flex-1 flex-col px-6 pb-8 pt-10">
         <div className="flex flex-1 flex-col items-center justify-center text-center">
-          <AppLogo size={88} alt="" />
+          <AppLogo size={88} alt="" fetchPriority="high" />
 
           <h1 className="mt-9 text-h1 text-ink animate-rise">Welcome to PINGO</h1>
 
@@ -67,13 +79,22 @@ export function OnboardingScreen() {
 
           {/*
             Sits under the action it qualifies, so the agreement is read in the
-            same glance as the button that constitutes it.
+            same glance as the button that constitutes it. Links are public
+            pages — not auth-gated settings screens.
           */}
           <p className="mt-5 text-center text-caption text-text-tertiary">
-            By continuing you agree to our Terms and Privacy Policy.
+            By continuing you agree to our{' '}
+            <Link to="/terms" className="text-brand underline-offset-2 hover:underline">
+              Terms of Use
+            </Link>{' '}
+            and{' '}
+            <Link to="/privacy" className="text-brand underline-offset-2 hover:underline">
+              Privacy Policy
+            </Link>
+            .
           </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

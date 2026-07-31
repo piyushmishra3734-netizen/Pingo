@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
 import { useInstall, type Platform } from '../features/install/useInstall.js';
+import { applyPageSeo } from '../lib/seo.js';
 
 /**
  * The official Android download.
@@ -235,7 +236,7 @@ const FAQ = [
 
 export function DownloadScreen() {
   const navigate = useNavigate();
-  const { platform, method, install } = useInstall();
+  const { platform } = useInstall();
 
   /** The published build: how big it is, and which version. Undefined until known. */
   const [release, setRelease] = useState<{ size: string; tag: string }>();
@@ -261,26 +262,20 @@ export function DownloadScreen() {
 
   /*
    * This page is the one part of PINGO meant to be found by search, so it sets
-   * its own title and description rather than inheriting the app's. Undone on
-   * unmount so navigating back into the app does not leave the tab claiming to
-   * be a download page.
+   * its own title, description, canonical and social tags rather than
+   * inheriting the app's. Undone on unmount so navigating back into the app
+   * does not leave the tab claiming to be a download page.
    */
-  useEffect(() => {
-    const title = document.title;
-    const meta = document.querySelector('meta[name="description"]');
-    const description = meta?.getAttribute('content') ?? '';
-
-    document.title = 'Download PINGO — for Android, iPhone, Windows and Mac';
-    meta?.setAttribute(
-      'content',
-      'Install PINGO on Android, iPhone, iPad, Windows or Mac. Free, private messaging that opens instantly and works offline.',
-    );
-
-    return () => {
-      document.title = title;
-      meta?.setAttribute('content', description);
-    };
-  }, []);
+  useEffect(
+    () =>
+      applyPageSeo({
+        title: 'Download PINGO — for Android, iPhone, Windows and Mac',
+        description:
+          'Install PINGO on Android, iPhone, iPad, Windows or Mac. Free, private messaging that opens instantly and works offline.',
+        path: '/download',
+      }),
+    [],
+  );
 
   /*
    * There is no store listing yet, so the button explains rather than lies.
@@ -305,16 +300,27 @@ export function DownloadScreen() {
         <IconButton label="Back" variant="ghost" onClick={() => navigate(-1)}>
           <ChevronLeftIcon size={22} />
         </IconButton>
-        <h1 className="text-h2 text-ink">Download</h1>
+        {/* Chrome label only — the document H1 lives in the hero below. */}
+        <p className="text-h2 text-ink">Download</p>
       </header>
 
-      <div className="mx-auto w-full max-w-3xl px-5 pb-24">
+      <main className="mx-auto w-full max-w-3xl px-5 pb-24">
         {/* ---- hero ---------------------------------------------------- */}
-        <section className="flex flex-col items-center gap-5 pt-12 pb-14 text-center">
-          <AppLogo size={96} alt="" className="motion-safe:animate-qr-in" />
+        <section
+          className="flex flex-col items-center gap-5 pt-12 pb-14 text-center"
+          aria-labelledby="download-hero-title"
+        >
+          <AppLogo
+            size={96}
+            alt=""
+            fetchPriority="high"
+            className="motion-safe:animate-qr-in"
+          />
 
           <div>
-            <h2 className="text-h1 text-ink">Download PINGO</h2>
+            <h1 id="download-hero-title" className="text-h1 text-ink">
+              Download PINGO
+            </h1>
             <p className="mx-auto mt-3 max-w-md text-body text-text-secondary">
               Private messaging that lives on your device. Pings that disappear, stories
               that expire, and a profile that holds three posts — no feed, no follower
@@ -335,10 +341,10 @@ export function DownloadScreen() {
                 href={ANDROID_APK}
                 /*
                   No `download` attribute: it only works same-origin, and the
-                  file now lives on GitHub. Android downloads an APK by content
-                  type anyway, which GitHub serves correctly.
+                  file lives on a separate download origin. Android downloads
+                  an APK by content type, which the Worker serves correctly.
                 */
-                rel="noopener"
+                rel="noopener noreferrer"
                 className={cn(
                   'glass-press inline-flex items-center justify-center rounded-full',
                   'bg-brand-gradient px-6 py-3 text-body font-medium text-white',
@@ -354,8 +360,7 @@ export function DownloadScreen() {
             )}
             <p className="text-caption text-text-tertiary">
               {platform === 'android' ? (
-                <>
-                  Free{release ? ` · ${release.size}` : ''} · Android 7 and up ·</>
+                <>Free{release ? ` · ${release.size}` : ''} · Android 7 and up</>
               ) : (
                 'Free, and the full product runs in your browser today.'
               )}
@@ -364,7 +369,7 @@ export function DownloadScreen() {
         </section>
 
         {/* ---- platforms ----------------------------------------------- */}
-        <Section title="Every device you use">
+        <Section title="Every device you use" id="platforms">
           <ul className="grid gap-3 sm:grid-cols-2">
             {PLATFORMS.map((card) => (
               <li
@@ -381,7 +386,7 @@ export function DownloadScreen() {
                   <span aria-hidden className="text-h2">
                     {card.icon}
                   </span>
-                  <h4 className="flex-1 text-body font-medium text-ink">{card.name}</h4>
+                  <h3 className="flex-1 text-body font-medium text-ink">{card.name}</h3>
                   <span
                     className={cn(
                       'rounded-full px-2 py-0.5 text-caption',
@@ -401,52 +406,61 @@ export function DownloadScreen() {
         </Section>
 
         {/* ---- why install --------------------------------------------- */}
-        <Section title="Why install it">
+        <Section title="Why install it" id="why-install">
           <ul className="grid gap-4 sm:grid-cols-2">
             {BENEFITS.map((benefit) => (
               <li key={benefit.title} className="flex gap-3">
-                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand-subtle text-brand">
+                <span
+                  aria-hidden
+                  className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand-subtle text-brand"
+                >
                   <CheckIcon size={13} />
                 </span>
-                <span>
-                  <span className="block text-body font-medium text-ink">{benefit.title}</span>
-                  <span className="block text-caption text-text-secondary">{benefit.body}</span>
-                </span>
+                <div>
+                  <h3 className="text-body font-medium text-ink">{benefit.title}</h3>
+                  <p className="text-caption text-text-secondary">{benefit.body}</p>
+                </div>
               </li>
             ))}
           </ul>
         </Section>
 
         {/* ---- guides --------------------------------------------------- */}
-        <Section title="How to install">
+        <Section title="How to install" id="how-to-install">
           <div className="flex flex-col gap-4">
             {GUIDES.map((guide) => (
-              <div
+              <article
                 key={guide.key}
                 id={`guide-${guide.key}`}
                 className={cn(
                   'rounded-2xl border border-line bg-surface p-4',
                   guide.key === platform && 'ring-2 ring-brand',
                 )}
+                aria-labelledby={`guide-title-${guide.key}`}
               >
-                <h4 className="text-body font-medium text-ink">{guide.title}</h4>
+                <h3 id={`guide-title-${guide.key}`} className="text-body font-medium text-ink">
+                  {guide.title}
+                </h3>
                 <ol className="mt-2 flex flex-col gap-1.5">
                   {guide.steps.map((step, index) => (
                     <li key={step} className="flex gap-2.5 text-caption text-text-secondary">
-                      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-sunken text-text-tertiary tabular-nums">
+                      <span
+                        aria-hidden
+                        className="grid size-5 shrink-0 place-items-center rounded-full bg-sunken text-text-tertiary tabular-nums"
+                      >
                         {index + 1}
                       </span>
-                      {step}
+                      <span>{step}</span>
                     </li>
                   ))}
                 </ol>
-              </div>
+              </article>
             ))}
           </div>
         </Section>
 
         {/* ---- faq ------------------------------------------------------ */}
-        <Section title="Questions">
+        <Section title="Questions" id="faq">
           <div className="flex flex-col gap-2">
             {FAQ.map((item) => (
               <details
@@ -459,10 +473,10 @@ export function DownloadScreen() {
                 <summary
                   className={cn(
                     'cursor-pointer list-none text-body text-ink',
-                    'flex items-center justify-between gap-3 focus-ring',
+                    'flex items-center justify-between gap-3 focus-ring rounded-md',
                   )}
                 >
-                  {item.q}
+                  <span className="font-medium">{item.q}</span>
                   <span
                     aria-hidden
                     className="shrink-0 text-text-tertiary transition-transform duration-quick ease-spring group-open:rotate-45"
@@ -479,48 +493,55 @@ export function DownloadScreen() {
         {/* ---- footer ---------------------------------------------------- */}
         <footer className="mt-16 border-t border-line pt-6">
           {/*
-            Three links, and each goes where its label says.
-
-            Terms is public, because this page is read by people who do not have
-            an account and terms behind a sign-in wall cannot be read before
-            being agreed to.
-
-            "Privacy" used to point at `/settings/privacy`, which is the privacy
-            *settings* screen — a set of toggles, not a policy — and behind the
-            sign-in wall besides. It now points at the policy, which is public.
-
-            Contact is not here because it would be Support wearing a second
-            name, and there is still no separate contact address.
+            Public links only. Terms and Privacy are readable without a
+            session. Support used to point at /settings/help, which is
+            auth-gated and a soft 404 for crawlers and signed-out visitors.
           */}
-          <nav aria-label="Legal and support" className="flex flex-wrap gap-x-5 gap-y-2">
-            {[
-              { to: '/terms', label: 'Terms' },
-              { to: '/privacy', label: 'Privacy' },
-              { to: '/settings/help', label: 'Support' },
-            ].map((link) => (
-              <Link
-                key={link.label}
-                to={link.to}
-                className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
-              >
-                {link.label}
-              </Link>
-            ))}
+          <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link
+              to="/terms"
+              className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
+            >
+              Terms of Use
+            </Link>
+            <Link
+              to="/privacy"
+              className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              to="/terms#data"
+              className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
+            >
+              How data is handled
+            </Link>
           </nav>
           <p className="mt-4 text-caption text-text-tertiary">
             One engine, five platforms. The web version is live now; the store
             applications are in development.
           </p>
         </footer>
-      </div>
+      </main>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  id,
+  children,
+}: {
+  title: string;
+  id: string;
+  children: React.ReactNode;
+}) {
+  const headingId = `${id}-heading`;
   return (
-    <section className="pt-10">
-      <h3 className="mb-4 text-h2 text-ink">{title}</h3>
+    <section className="pt-10" id={id} aria-labelledby={headingId}>
+      <h2 id={headingId} className="mb-4 text-h2 text-ink">
+        {title}
+      </h2>
       {children}
     </section>
   );

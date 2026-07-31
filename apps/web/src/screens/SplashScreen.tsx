@@ -91,6 +91,10 @@ export function SplashScreen() {
         <img
           src="/pingo-splash.jpg"
           alt="PINGO — Connect. Privately."
+          width={1600}
+          height={900}
+          decoding="async"
+          fetchPriority="high"
           draggable={false}
           className="h-full w-full select-none object-cover animate-fade-in"
         />

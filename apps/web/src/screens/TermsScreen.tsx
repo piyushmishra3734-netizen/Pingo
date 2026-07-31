@@ -2,6 +2,8 @@ import { ChevronLeftIcon, IconButton, cn } from '@pingo/ui';
 import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
+import { applyPageSeo } from '../lib/seo.js';
+
 /**
  * Terms of use.
  *
@@ -139,13 +141,17 @@ export function TermsScreen() {
     document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth' });
   }, [hash]);
 
-  useEffect(() => {
-    const title = document.title;
-    document.title = 'Terms of Use — PINGO';
-    return () => {
-      document.title = title;
-    };
-  }, []);
+  useEffect(
+    () =>
+      applyPageSeo({
+        title: 'Terms of Use — PINGO',
+        description:
+          'Terms of Use for PINGO: private messaging, disappearing Pings, expiring stories, and a three-post profile shelf. Read before you create an account.',
+        path: '/terms',
+        type: 'article',
+      }),
+    [],
+  );
 
   return (
     <div className="h-full overflow-y-auto bg-page">
@@ -162,34 +168,57 @@ export function TermsScreen() {
         <h1 className="text-h2 text-ink">Terms of Use</h1>
       </header>
 
-      <article className="mx-auto w-full max-w-2xl px-5 pt-8 pb-24">
-        <p className="text-caption text-text-tertiary">Last updated {UPDATED}</p>
+      <main>
+        <article className="mx-auto w-full max-w-2xl px-5 pt-8 pb-24">
+          <p className="text-caption text-text-tertiary">Last updated {UPDATED}</p>
 
-        <div className="mt-8 flex flex-col gap-8">
-          {SECTIONS.map((section) => (
-            <section key={section.id} id={section.id} className="scroll-mt-24">
-              <h2 className="text-h2 text-ink">{section.title}</h2>
-              <div className="mt-2 flex flex-col gap-2">
-                {section.body.map((paragraph) => (
-                  <p key={paragraph} className="text-body text-text-secondary">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+          <div className="mt-8 flex flex-col gap-8">
+            {SECTIONS.map((section) => (
+              <section
+                key={section.id}
+                id={section.id}
+                className="scroll-mt-24"
+                aria-labelledby={`terms-${section.id}`}
+              >
+                <h2 id={`terms-${section.id}`} className="text-h2 text-ink">
+                  {section.title}
+                </h2>
+                <div className="mt-2 flex flex-col gap-2">
+                  {section.body.map((paragraph) => (
+                    <p key={paragraph} className="text-body text-text-secondary">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
 
-        <footer className="mt-12 border-t border-line pt-6">
-          <p className="text-caption text-text-tertiary">
-            Questions about any of this? The{' '}
-            <Link to="/settings/help" className="text-brand underline-offset-2 hover:underline">
-              Help screen
-            </Link>{' '}
-            has what support needs to answer them.
-          </p>
-        </footer>
-      </article>
+          <footer className="mt-12 border-t border-line pt-6">
+            <nav aria-label="Related policies" className="flex flex-wrap gap-x-5 gap-y-2">
+              <Link
+                to="/privacy"
+                className="text-caption text-brand underline-offset-2 hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                to="/download"
+                className="text-caption text-brand underline-offset-2 hover:underline"
+              >
+                Download PINGO
+              </Link>
+            </nav>
+            <p className="mt-4 text-caption text-text-tertiary">
+              For what is collected and who else touches it, read the{' '}
+              <Link to="/privacy" className="text-brand underline-offset-2 hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          </footer>
+        </article>
+      </main>
     </div>
   );
 }

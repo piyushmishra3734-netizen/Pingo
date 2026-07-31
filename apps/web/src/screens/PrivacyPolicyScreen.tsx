@@ -2,6 +2,8 @@ import { ChevronLeftIcon, IconButton, cn } from '@pingo/ui';
 import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
+import { applyPageSeo } from '../lib/seo.js';
+
 /**
  * The privacy policy.
  *
@@ -142,13 +144,17 @@ export function PrivacyPolicyScreen() {
     document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth' });
   }, [hash]);
 
-  useEffect(() => {
-    const title = document.title;
-    document.title = 'Privacy Policy — PINGO';
-    return () => {
-      document.title = title;
-    };
-  }, []);
+  useEffect(
+    () =>
+      applyPageSeo({
+        title: 'Privacy Policy — PINGO',
+        description:
+          'Privacy Policy for PINGO: what we collect, how messages and media are handled, and who can access your account data. Written from the live product schema.',
+        path: '/privacy',
+        type: 'article',
+      }),
+    [],
+  );
 
   return (
     <div className="h-full overflow-y-auto bg-page">
@@ -165,50 +171,70 @@ export function PrivacyPolicyScreen() {
         <h1 className="text-h2 text-ink">Privacy Policy</h1>
       </header>
 
-      <article className="mx-auto w-full max-w-2xl px-5 pt-8 pb-24">
-        <p className="text-caption text-text-tertiary">Last updated {UPDATED}</p>
+      <main>
+        <article className="mx-auto w-full max-w-2xl px-5 pt-8 pb-24">
+          <p className="text-caption text-text-tertiary">Last updated {UPDATED}</p>
 
-        <div className="mt-8 flex flex-col gap-8">
-          {SECTIONS.map((section) => (
-            <section key={section.id} id={section.id} className="scroll-mt-24">
-              <h2 className="text-h2 text-ink">{section.title}</h2>
+          <div className="mt-8 flex flex-col gap-8">
+            {SECTIONS.map((section) => (
+              <section
+                key={section.id}
+                id={section.id}
+                className="scroll-mt-24"
+                aria-labelledby={`privacy-${section.id}`}
+              >
+                <h2 id={`privacy-${section.id}`} className="text-h2 text-ink">
+                  {section.title}
+                </h2>
 
-              <div className="mt-2 flex flex-col gap-2">
-                {section.body.map((paragraph) => (
-                  <p key={paragraph} className="text-body text-text-secondary">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-
-              {section.list && (
-                <ul className="mt-3 flex flex-col gap-2">
-                  {section.list.map((item) => (
-                    <li key={item} className="flex gap-2.5 text-body text-text-secondary">
-                      <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" />
-                      {item}
-                    </li>
+                <div className="mt-2 flex flex-col gap-2">
+                  {section.body.map((paragraph) => (
+                    <p key={paragraph} className="text-body text-text-secondary">
+                      {paragraph}
+                    </p>
                   ))}
-                </ul>
-              )}
-            </section>
-          ))}
-        </div>
+                </div>
 
-        <footer className="mt-12 border-t border-line pt-6">
-          <p className="text-caption text-text-tertiary">
-            The{' '}
-            <Link to="/terms" className="text-brand underline-offset-2 hover:underline">
-              Terms of Use
-            </Link>{' '}
-            cover the rest.{' '}
-            <Link to="/settings/privacy" className="text-brand underline-offset-2 hover:underline">
-              Privacy settings
-            </Link>{' '}
-            are where you change who can see what.
-          </p>
-        </footer>
-      </article>
+                {section.list && (
+                  <ul className="mt-3 flex flex-col gap-2">
+                    {section.list.map((item) => (
+                      <li key={item} className="flex gap-2.5 text-body text-text-secondary">
+                        <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
+          </div>
+
+          <footer className="mt-12 border-t border-line pt-6">
+            <nav aria-label="Related policies" className="flex flex-wrap gap-x-5 gap-y-2">
+              <Link
+                to="/terms"
+                className="text-caption text-brand underline-offset-2 hover:underline"
+              >
+                Terms of Use
+              </Link>
+              <Link
+                to="/download"
+                className="text-caption text-brand underline-offset-2 hover:underline"
+              >
+                Download PINGO
+              </Link>
+            </nav>
+            <p className="mt-4 text-caption text-text-tertiary">
+              The{' '}
+              <Link to="/terms" className="text-brand underline-offset-2 hover:underline">
+                Terms of Use
+              </Link>{' '}
+              cover the rest. After you sign in, Privacy settings in the app is where you change
+              who can see what.
+            </p>
+          </footer>
+        </article>
+      </main>
     </div>
   );
 }

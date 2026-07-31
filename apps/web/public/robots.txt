@@ -1,0 +1,25 @@
+# PINGO — crawl rules for public marketing surfaces.
+# App shells behind sign-in are still reachable via SPA fallback; they are not
+# listed in the sitemap and add little index value.
+
+User-agent: *
+Allow: /
+Allow: /download
+Allow: /terms
+Allow: /privacy
+Allow: /welcome
+
+# Prefer the public marketing pages; product routes are session-bound shells.
+Disallow: /chats
+Disallow: /settings
+Disallow: /setup
+Disallow: /auth/
+Disallow: /camera
+Disallow: /calls
+Disallow: /communities
+Disallow: /notifications
+Disallow: /requests
+Disallow: /stories/
+Disallow: /join/
+
+Sitemap: https://pingochat.pages.dev/sitemap.xml
