@@ -22,7 +22,7 @@ import {
   cn,
 } from '@pingo/ui';
 import { CloseIcon } from '@pingo/ui';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useSharedElement } from '../../hooks/useSharedElement.js';
@@ -35,8 +35,10 @@ import { GroupInfoSheet } from './GroupInfoSheet.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
+import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
+import { ThreadJumpChip } from './ThreadJumpChip.js';
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -64,6 +66,12 @@ const FOLLOW_THRESHOLD = 120;
 
 /** How close to the top starts fetching the page before, in px. */
 const OLDER_THRESHOLD = 200;
+
+/**
+ * After jumping to the first unread, keep the divider visible this long so the
+ * eye can register the boundary before it fades.
+ */
+const DIVIDER_HOLD_MS = 600;
 
 export function ChatThread({
   conversation,
@@ -125,30 +133,77 @@ export function ChatThread({
   // would attach to whatever is open now.
   useEffect(() => setReplyTo(undefined), [conversation.id]);
 
+  // Reset jump / new-message session when switching threads.
+  useEffect(() => {
+    setAwayFromBottom(false);
+    setNewSession(undefined);
+    setDividerAtId(undefined);
+    lastTrackedNewestRef.current = undefined;
+    followingRef.current = true;
+    if (dividerHoldTimer.current !== undefined) {
+      window.clearTimeout(dividerHoldTimer.current);
+      dividerHoldTimer.current = undefined;
+    }
+  }, [conversation.id]);
+
+  useEffect(() => {
+    return () => {
+      if (dividerHoldTimer.current !== undefined) {
+        window.clearTimeout(dividerHoldTimer.current);
+      }
+    };
+  }, []);
+
   /** Resolves a quoted message against the loaded page. */
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
   const nameOf = (userId: string) =>
     userId === currentUser?.id ? 'You' : users.find((u) => u.id === userId)?.name;
 
-  /** Scrolls the original into view and marks it, for a beat. */
-  const jumpTo = (messageId: string) => {
-    const target = document.getElementById(`message-${messageId}`);
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // A flash rather than a lasting highlight: it answers "which one" and then
-    // gets out of the way.
-    target.animate(
-      [{ opacity: 1 }, { opacity: 0.45 }, { opacity: 1 }],
-      { duration: 600, easing: 'ease-in-out' },
-    );
-  };
+  const prefersReducedMotion = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }, []);
 
+  /** Scrolls the original into view and marks it, for a beat. */
+  const jumpTo = useCallback(
+    (messageId: string) => {
+      const target = document.getElementById(`message-${messageId}`);
+      if (!target) return;
+      target.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        block: 'center',
+      });
+      // A flash rather than a lasting highlight: it answers "which one" and then
+      // gets out of the way.
+      if (!prefersReducedMotion()) {
+        target.animate(
+          [{ opacity: 1 }, { opacity: 0.45 }, { opacity: 1 }],
+          { duration: 600, easing: 'ease-in-out' },
+        );
+      }
+    },
+    [prefersReducedMotion],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   /** Whether the user was at the bottom *before* this render's new content. */
   const followingRef = useRef(true);
+  /** React state mirror of followingRef so the jump chip can re-render. */
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
+
+  /**
+   * New-messages session: one pin, one count, while the reader is away.
+   * Cleared at the bottom or after jump-to-unread (divider may linger briefly).
+   */
+  const [newSession, setNewSession] = useState<
+    { firstId: string; count: number } | undefined
+  >();
+  /** Message id that currently hosts the in-thread "New Messages" divider. */
+  const [dividerAtId, setDividerAtId] = useState<string | undefined>();
+  const lastTrackedNewestRef = useRef<string | undefined>(undefined);
+  const dividerHoldTimer = useRef<number | undefined>(undefined);
 
   const partner =
     conversation.kind === 'direct'
@@ -267,7 +322,22 @@ export function ChatThread({
 
     const onScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      followingRef.current = distanceFromBottom < FOLLOW_THRESHOLD;
+      const following = distanceFromBottom < FOLLOW_THRESHOLD;
+      followingRef.current = following;
+      setAwayFromBottom(!following);
+
+      /*
+       * Back at the bottom: clear the new-messages session and divider.
+       * The jump chip hides because awayFromBottom is false.
+       */
+      if (following) {
+        setNewSession(undefined);
+        setDividerAtId(undefined);
+        if (dividerHoldTimer.current !== undefined) {
+          window.clearTimeout(dividerHoldTimer.current);
+          dividerHoldTimer.current = undefined;
+        }
+      }
 
       /*
        * Reaching the top asks for the page before.
@@ -330,6 +400,46 @@ export function ChatThread({
     void service.markConversationRead(conversation.id);
   }, [service, conversation.id, loading, newestMessageId]);
 
+  /*
+   * New-messages session while the reader is away from the bottom.
+   *
+   * Pins the first foreign message once, then only increments count. Never
+   * rescans the full thread for "first unread" on each render.
+   */
+  useEffect(() => {
+    if (loading || !newestMessageId) return;
+
+    const previous = lastTrackedNewestRef.current;
+    if (previous === newestMessageId) return;
+
+    if (previous === undefined) {
+      // First paint / open: establish the watermark without treating history as new.
+      lastTrackedNewestRef.current = newestMessageId;
+      return;
+    }
+
+    const prevIndex = messages.findIndex((m) => m.id === previous);
+    const start = prevIndex >= 0 ? prevIndex + 1 : Math.max(0, messages.length - 1);
+    const incoming = messages.slice(start);
+    lastTrackedNewestRef.current = newestMessageId;
+
+    if (followingRef.current) return;
+
+    const foreign = incoming.filter(
+      (m) => m.authorId !== currentUser?.id && !m.system && !m.deleted,
+    );
+    if (foreign.length === 0) return;
+
+    setNewSession((session) => {
+      if (!session) {
+        const firstId = foreign[0]!.id;
+        setDividerAtId(firstId);
+        return { firstId, count: foreign.length };
+      }
+      return { ...session, count: session.count + foreign.length };
+    });
+  }, [messages, newestMessageId, loading, currentUser?.id]);
+
   // Jump to the newest message when the thread opens, then follow smoothly.
   const openedRef = useRef(false);
   useEffect(() => {
@@ -346,9 +456,44 @@ export function ChatThread({
     }
 
     if (followingRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      bottomRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        block: 'end',
+      });
     }
-  }, [groups, loading, isTyping]);
+  }, [groups, loading, isTyping, prefersReducedMotion]);
+
+  const jumpChipMode =
+    newSession && newSession.count > 0
+      ? ('new' as const)
+      : awayFromBottom
+        ? ('latest' as const)
+        : undefined;
+
+  const jumpToLatest = useCallback(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      block: 'end',
+    });
+  }, [prefersReducedMotion]);
+
+  const jumpToNewMessages = useCallback(() => {
+    const session = newSession;
+    if (!session) return;
+
+    jumpTo(session.firstId);
+    // Chip becomes Latest (if still away) or Hidden once at bottom.
+    setNewSession(undefined);
+
+    // Keep the divider long enough to read the boundary, then fade it out.
+    if (dividerHoldTimer.current !== undefined) {
+      window.clearTimeout(dividerHoldTimer.current);
+    }
+    dividerHoldTimer.current = window.setTimeout(() => {
+      setDividerAtId(undefined);
+      dividerHoldTimer.current = undefined;
+    }, DIVIDER_HOLD_MS);
+  }, [jumpTo, newSession]);
 
   /**
    * Day dividers, computed once per render of the thread. Placed before the first
@@ -536,6 +681,7 @@ export function ChatThread({
                 )}
 
                 {cluster.map((message, index) => {
+                  const showNewDivider = dividerAtId === message.id;
                   const position =
                     cluster.length === 1
                       ? ('single' as const)
@@ -546,74 +692,76 @@ export function ChatThread({
                           : ('middle' as const);
 
                   return (
-                    <SwipeableMessage
-                      key={message.id}
-                      mine={message.authorId === currentUser?.id}
-                      // Nothing to answer on a tombstone, so the track stays inert.
-                      enabled={!message.deleted}
-                      onReply={() => setReplyTo(message)}
-                    >
-                    <MessageMenu
-                      message={message}
-                      mine={message.authorId === currentUser?.id}
-                      onReply={setReplyTo}
-                      onForward={() => undefined}
-                      children={
-                        <MessageBubble
-                          message={message}
-                          mine={message.authorId === currentUser?.id}
-                          position={position}
-                          showMeta={index === cluster.length - 1}
-                          replyTo={
-                            message.replyToId ? byId.get(message.replyToId) : undefined
-                          }
-                          replyToAuthor={
-                            message.replyToId
-                              ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
-                              : undefined
-                          }
-                        />
-                      }
-                      render={({ hidden, ...trigger }) => (
-                        <MessageBubble
-                          message={message}
-                          mine={message.authorId === currentUser?.id}
-                          position={position}
-                          // One timestamp per cluster, on its final message.
-                          showMeta={index === cluster.length - 1}
-                          replyTo={
-                            message.replyToId ? byId.get(message.replyToId) : undefined
-                          }
-                          replyToAuthor={
-                            message.replyToId
-                              ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
-                              : undefined
-                          }
-                          onJumpToReply={
-                            message.replyToId && byId.has(message.replyToId)
-                              ? () => jumpTo(message.replyToId!)
-                              : undefined
-                          }
-                          trigger={{
-                            ...trigger,
-                            // Hidden, not unmounted: the menu holds a copy at
-                            // the same coordinates, and removing this one would
-                            // collapse the thread underneath it.
-                            style: hidden ? { opacity: 0 } : undefined,
-                          }}
-                          reactions={
-                            <ReactionPills
-                              reactions={message.reactions}
-                              me={currentUser?.id}
-                              onToggle={(emoji) =>
-                                void service.toggleReaction(message.id, emoji).catch(() => undefined)
-                              }
-                            />
-                          }
-                        />
-                      )}
-                    />
-                    </SwipeableMessage>
+                    <div key={message.id}>
+                      {showNewDivider && <NewMessagesDivider />}
+                      <SwipeableMessage
+                        mine={message.authorId === currentUser?.id}
+                        // Nothing to answer on a tombstone, so the track stays inert.
+                        enabled={!message.deleted}
+                        onReply={() => setReplyTo(message)}
+                      >
+                      <MessageMenu
+                        message={message}
+                        mine={message.authorId === currentUser?.id}
+                        onReply={setReplyTo}
+                        onForward={() => undefined}
+                        children={
+                          <MessageBubble
+                            message={message}
+                            mine={message.authorId === currentUser?.id}
+                            position={position}
+                            showMeta={index === cluster.length - 1}
+                            replyTo={
+                              message.replyToId ? byId.get(message.replyToId) : undefined
+                            }
+                            replyToAuthor={
+                              message.replyToId
+                                ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
+                                : undefined
+                            }
+                          />
+                        }
+                        render={({ hidden, ...trigger }) => (
+                          <MessageBubble
+                            message={message}
+                            mine={message.authorId === currentUser?.id}
+                            position={position}
+                            // One timestamp per cluster, on its final message.
+                            showMeta={index === cluster.length - 1}
+                            replyTo={
+                              message.replyToId ? byId.get(message.replyToId) : undefined
+                            }
+                            replyToAuthor={
+                              message.replyToId
+                                ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
+                                : undefined
+                            }
+                            onJumpToReply={
+                              message.replyToId && byId.has(message.replyToId)
+                                ? () => jumpTo(message.replyToId!)
+                                : undefined
+                            }
+                            trigger={{
+                              ...trigger,
+                              // Hidden, not unmounted: the menu holds a copy at
+                              // the same coordinates, and removing this one would
+                              // collapse the thread underneath it.
+                              style: hidden ? { opacity: 0 } : undefined,
+                            }}
+                            reactions={
+                              <ReactionPills
+                                reactions={message.reactions}
+                                me={currentUser?.id}
+                                onToggle={(emoji) =>
+                                  void service.toggleReaction(message.id, emoji).catch(() => undefined)
+                                }
+                              />
+                            }
+                          />
+                        )}
+                      />
+                      </SwipeableMessage>
+                    </div>
                   );
                 })}
               </div>
@@ -660,6 +808,21 @@ export function ChatThread({
         )}
       >
         <div className="mx-auto w-full max-w-3xl">
+          {/*
+            One chip slot: New Messages wins over Latest. Never both.
+            Attached to the composer stack, centred, same craft as reply chrome.
+          */}
+          {jumpChipMode === 'new' && newSession && (
+            <ThreadJumpChip
+              mode="new"
+              count={newSession.count}
+              onClick={jumpToNewMessages}
+            />
+          )}
+          {jumpChipMode === 'latest' && (
+            <ThreadJumpChip mode="latest" onClick={jumpToLatest} />
+          )}
+
           {replyTo && (
             /*
              * Sits directly on the composer, not floating over the thread: what
