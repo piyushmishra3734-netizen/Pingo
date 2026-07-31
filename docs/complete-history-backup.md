@@ -235,3 +235,120 @@ cleanly, and simply not contain the messages.
 - **A short page misread as the end of history truncates every future backup
   silently.** The most dangerous failure in this document, and the reason §2.2
   confirms the end rather than inferring it.
+
+---
+
+## 9. Completeness proof
+
+A backup that quietly contains less than it claims is worse than a backup that
+fails, because it fails later and without warning. So the archive does not start
+until completeness has been *proven*, not assumed.
+
+### 9.1 The proof
+
+Per conversation, not merely in aggregate — a global total can balance while two
+conversations are individually wrong:
+
+```
+for each conversation:
+  serverCount   count=exact over messages the user may read
+  localCount    rows in message-rows for that conversation
+  cursor        backfill complete flag
+
+conversation is proven when   localCount >= serverCount   and cursor.complete
+account is proven when        every conversation is proven
+```
+
+### 9.2 Why `>=` rather than `==`
+
+Exact equality is the goal and the wrong gate. Local can legitimately exceed the
+server:
+
+- a message deleted for everyone after this device stored it,
+- a conversation cleared server-side while rows remain,
+- retention expiring history the device already holds — which becomes the normal
+  case once §6 lands, and is precisely the state a backup exists to preserve.
+
+Local holding *more* than the server is not a defect; it is the feature. What
+must never happen is the server holding something local does not, so the gate is
+"nothing on the server is unaccounted for", and the exact difference is reported
+either way so a surprising number is visible rather than swallowed.
+
+### 9.3 When the proof fails
+
+No archive is written. The user is told which conversations are short and by how
+much, and offered a retry that resumes from the cursors rather than starting
+again. A proof that cannot be completed after retry is a bug report with the
+numbers already in it.
+
+### 9.4 What the proof travels with
+
+The counts are written into the archive **header**, inside the encryption, so a
+restore can confirm it received what was promised:
+
+```json
+{"kind":"header","version":1,"completeness":{"conversations":412,"messages":38204,"provenAt":1785...}}
+```
+
+Deliberately not in the manifest. The manifest is plaintext to Google, and a
+message count is a finer-grained signal than the archive size it already sees.
+
+---
+
+## 10. Verified backup
+
+"Backup complete" is a claim about a remote object, and until it is read back it
+is a claim about an intention.
+
+### 10.1 What is verified, after HEAD commits
+
+| Check | Catches |
+| --- | --- |
+| HEAD generation equals the one just written | a lost or overwritten commit |
+| Manifest for that generation exists and parses | a half-committed generation |
+| Chunk count matches the manifest | a missing tail |
+| Every chunk file is present | a dropped upload Drive reported as fine |
+| Each chunk's size matches the manifest | a truncated body |
+| Each chunk's digest matches the manifest | corruption at rest |
+| Header decrypts and its completeness block matches the proof | an archive of the wrong account state |
+| Encryption metadata present — `epk`, per-chunk `iv` | a plaintext archive, which must be impossible and is checked anyway |
+
+Only when all pass does the UI say **Backup complete**. Anything else is a
+failure with a reason, and the previous generation is left in place — it is
+still the good backup until this one has earned the title.
+
+### 10.2 The cost, stated
+
+Digest verification requires downloading what was just uploaded, so a verified
+backup costs roughly double the bandwidth. That is the correct default for
+something whose entire value is being trustworthy on a day nobody planned for.
+Above a threshold the digest pass may sample rather than read every chunk; the
+structural checks always run in full, and the UI never claims more verification
+than was performed.
+
+### 10.3 Failure leaves the old backup alone
+
+Verification runs after the commit, so a failure means a bad generation is live.
+The response is to roll HEAD back to the previous generation rather than leave a
+pointer to something unverified — the same ordering discipline as everywhere
+else: nothing good is discarded until something better is proven.
+
+---
+
+## 11. Implementation order
+
+Each step ships with its own suite and is independently verifiable before the
+next begins.
+
+| # | Module | Verified against |
+| --- | --- | --- |
+| 1 | `backfill.ts` | happy path · interruption · resume · duplicate pages · missing pages · **short-page attack** · corrupted cursor · network failure · server inconsistency · cancellation |
+| 2 | `preflight.ts` | counts match a known fixture · estimate within tolerance · zero-history account · count query failure |
+| 3 | completeness proof | proven · short by one · short in one conversation only · local exceeds server · cursor incomplete · retry resumes |
+| 4 | backup verification | all checks pass · missing chunk · wrong size · bad digest · wrong generation · header mismatch · rollback on failure |
+| 5 | archive integration | end to end on a wiped device, the way cross-device recovery was proven |
+
+The short-page case is called an attack rather than an edge case on purpose. A
+server that returns a short page — through hidden messages, a hostile proxy, or
+a bug — must not be able to convince backfill that history has ended, because
+the resulting archive verifies perfectly and is silently incomplete.
