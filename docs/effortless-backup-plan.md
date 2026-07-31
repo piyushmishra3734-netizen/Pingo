@@ -453,3 +453,86 @@ restorable backup, because the deletion is always last.
 The archive format, chunking, generations, atomic commit, resumable upload, the
 message envelope, device identity, and the `BackupTarget` interface. Two modes
 change which key opens an archive, and nothing about how an archive is made.
+
+---
+
+# Part III — wording and the choice screen
+
+## 16. What each mode says to the user
+
+Softer than the first draft, and the same facts. "Google can access this backup"
+is true and reads like a warning label; the version below states the same thing
+as a consequence the user can reason about, which is what makes it act on them
+rather than at them.
+
+**Simple Backup**
+
+> Easy restore using your Google account.
+>
+> Your backup is protected by your Google account security.
+>
+> If someone gains access to your Google account, they may also be able to
+> access this backup.
+
+The third line is the disclosure and is not optional. It must stay adjacent to
+the choice, not behind a "learn more" — the whole point is that the trade is
+visible at the moment it is made.
+
+**Private Backup**
+
+> Maximum privacy.
+>
+> Only you can read your backups.
+>
+> If you lose your passkey or backup password, your chats cannot be recovered.
+
+Both third lines carry the cost of their mode. Neither may be softened, and a
+mode whose cost is uncomfortable to print is a mode that needs rethinking rather
+than rewording.
+
+## 17. The comparison, on the choice screen and in Settings
+
+Rendered with the check and cross icons from the design system, never emoji —
+emoji render differently on every platform and turn a security decision into
+something that looks like a marketing table.
+
+| | Simple | Private |
+| --- | :---: | :---: |
+| Easy restore | ✓ | ! needs passkey or password |
+| Google account is all you need | ✓ | ✗ |
+| Maximum privacy | ✗ | ✓ |
+| PINGO can read your backup | ✗ | ✗ |
+| Google can read your backup | ✓ | ✗ |
+
+Two rows are worth defending:
+
+- **"PINGO can read your backup" is ✗ in both.** That is the one guarantee that
+  does not vary by mode, and it is why the Simple row is a trade with Google
+  rather than a trade with us.
+- **"Google can read your backup" is ✓ for Simple**, stated as plainly in the
+  table as in the prose. A comparison that hedges here would be worse than no
+  comparison.
+
+## 18. Proving the separation rather than asserting it
+
+§9 rests on the archive key never being a message recipient. That is a property
+of code that will be written later by someone who may not have read §9, and
+comments do not enforce anything.
+
+`verify:key-isolation` therefore performs the attack. It seals a real message
+through `sealBody`, then tries to open every wrap in the envelope with the
+archive key — including by borrowing the recovery key's own id, which is the
+most likely shape of the mistake. Every attempt must fail, and the keys that
+should work are checked in the same run so the suite cannot pass by being
+broken.
+
+**The suite was verified to fail.** Registering the archive key as a recovery
+recipient — one line, and exactly the plausible error — turns it red and prints
+the recovered plaintext in the failure message:
+
+```
+FAIL  the archive key opens no wrap in the envelope
+      (OPENED recovery:b0000000-… → the thing Google must not be able to read)
+```
+
+A negative test that has never been seen to fail is decoration. This one has.
