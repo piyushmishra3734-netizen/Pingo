@@ -1,3 +1,4 @@
+import { Button } from '@pingo/ui';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -33,7 +34,16 @@ export function BackupPrompt({ ux }: { ux: BackupUx }) {
   if (!ux.showPrompt) return null;
 
   return (
-    <div className="fixed inset-0 z-200 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+    /*
+     * Centred, not bottom-anchored.
+     *
+     * Anchoring to the bottom put the sheet underneath the tab bar, which sits
+     * above it: the first screenshot of this dialog had "Not now" hidden behind
+     * the navigation. Centring clears it on every height, and the extra bottom
+     * padding keeps it clear on short screens where the bar is proportionally
+     * taller.
+     */
+    <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50 p-4 pb-28">
       <div className="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-lg">
         <h2 className="text-lg font-semibold text-ink">Protect your chats with Google Drive?</h2>
         <p className="pt-2 text-sm text-muted">
@@ -41,23 +51,20 @@ export function BackupPrompt({ ux }: { ux: BackupUx }) {
           encrypted — only you can read them.
         </p>
 
-        <button
-          type="button"
-          className="mt-4 w-full rounded-xl bg-accent px-4 py-3 text-center font-medium text-on-accent"
+        {/* The design system's primary, so the fill matches every other one. */}
+        <Button
+          block
+          className="mt-4"
           onClick={async () => {
             await ux.promptEnable();
             navigate('/settings/secure-backup');
           }}
         >
           Enable Backup
-        </button>
-        <button
-          type="button"
-          className="mt-2 w-full px-4 py-3 text-center text-muted"
-          onClick={() => void ux.promptNotNow()}
-        >
+        </Button>
+        <Button block variant="text" className="mt-2" onClick={() => void ux.promptNotNow()}>
           Not now
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -95,13 +102,9 @@ export function BackupReminderCard({ ux }: { ux: BackupUx }) {
           ✕
         </button>
       </div>
-      <button
-        type="button"
-        className="mt-2 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent"
-        onClick={() => navigate('/settings/secure-backup')}
-      >
+      <Button block size="sm" className="mt-2" onClick={() => navigate('/settings/secure-backup')}>
         Turn on backup
-      </button>
+      </Button>
     </section>
   );
 }
@@ -128,16 +131,17 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
       <p className="pt-1 text-caption text-text-secondary">
         We found your chats in Google Drive. Restore them to this device?
       </p>
-      <button
-        type="button"
-        className="mt-3 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent"
+      <Button
+        block
+        size="sm"
+        className="mt-3"
         onClick={() => {
           void record('backup.restore.accepted');
           navigate('/settings/secure-backup');
         }}
       >
         Restore chats
-      </button>
+      </Button>
       <button
         type="button"
         className="mt-1 w-full px-3 py-2 text-sm text-muted"
