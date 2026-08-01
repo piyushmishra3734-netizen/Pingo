@@ -319,9 +319,13 @@ export function SnapEditor({
 
   return (
     <div className="flex h-full flex-col bg-ink">
+      {/*
+        ~6–8px breathing room so the image is not hard against the viewport
+        edge. Function of the frame is unchanged.
+      */}
       <div
         ref={frameRef}
-        className="relative min-h-0 flex-1 touch-none overflow-hidden"
+        className="relative min-h-0 flex-1 touch-none overflow-hidden m-2 rounded-xl"
         onPointerDown={(event) => {
           if (tool !== 'draw') return;
           const point = toNormalised(event);
@@ -376,15 +380,26 @@ export function SnapEditor({
           type="button"
           aria-label="Discard snap"
           onClick={onCancel}
-          className="focus-ring absolute top-4 left-4 grid size-10 place-items-center rounded-full bg-black/40 text-white"
+          className={cn(
+            // ~10% smaller circle, ~15% softer fill - same placement.
+            'focus-ring absolute top-3 left-3 grid size-9 place-items-center',
+            'rounded-full bg-black/34 text-white backdrop-blur-sm',
+            'transition-colors duration-150 ease-standard',
+          )}
         >
-          <CloseIcon size={20} />
+          <CloseIcon size={18} />
         </button>
       </div>
 
       {/* ---- toolbar --------------------------------------------------- */}
-      <div className="shrink-0 space-y-3 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-center gap-2">
+      <div
+        className={cn(
+          'shrink-0 space-y-2.5 px-3 pt-2.5',
+          // +8px above browser chrome / home indicator so tools are not crowded.
+          'pb-[max(calc(1rem+8px),calc(env(safe-area-inset-bottom)+8px))]',
+        )}
+      >
+        <div className="scrollbar-none flex items-center justify-center gap-1 overflow-x-auto">
           <ToolButton active={tool === 'draw'} onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}>
             Draw
           </ToolButton>
@@ -439,7 +454,13 @@ export function SnapEditor({
         </div>
 
         {tool === 'emoji' && (
-          <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1">
+          <div
+            className={cn(
+              'flex items-center justify-center gap-1 overflow-x-auto pb-0.5',
+              // Calm fade only - no bounce when the strip opens.
+              'animate-fade-in [animation-duration:150ms]',
+            )}
+          >
             {QUICK_EMOJI.map((emoji) => (
               <button
                 key={emoji}
@@ -447,8 +468,8 @@ export function SnapEditor({
                 aria-label={`Add ${emoji}`}
                 onClick={() => addItem({ kind: 'emoji', value: emoji, colour })}
                 className={cn(
-                  'focus-ring grid size-10 shrink-0 place-items-center rounded-full text-[1.4rem]',
-                  'transition-transform duration-instant hover:bg-white/10 active:scale-125',
+                  'focus-ring grid size-9 shrink-0 place-items-center rounded-full text-[1.25rem]',
+                  'transition-colors duration-150 ease-standard hover:bg-white/10 active:opacity-80',
                 )}
               >
                 {emoji}
@@ -458,15 +479,22 @@ export function SnapEditor({
         )}
 
         {tool === 'sticker' && (
-          <StickerStrip
-            onPick={(sticker) =>
-              addItem({ kind: 'sticker', value: sticker.name, url: sticker.url, colour })
-            }
-          />
+          <div className="animate-fade-in [animation-duration:150ms]">
+            <StickerStrip
+              onPick={(sticker) =>
+                addItem({ kind: 'sticker', value: sticker.name, url: sticker.url, colour })
+              }
+            />
+          </div>
         )}
 
         {tool === 'crop' && (
-          <div className="flex items-center justify-center gap-2">
+          <div
+            className={cn(
+              'flex items-center justify-center gap-1',
+              'animate-fade-in [animation-duration:150ms]',
+            )}
+          >
             <ToolButton active={false} onClick={() => setCrop(undefined)}>
               Reset crop
             </ToolButton>
@@ -479,7 +507,7 @@ export function SnapEditor({
         {/* Caption, view limit - supplied by whoever is using the editor. */}
         {extras}
 
-        <div className="flex items-center justify-center gap-2.5">
+        <div className="flex items-center justify-center gap-2">
           {COLOURS.map((swatch) => (
             <button
               key={swatch}
@@ -489,8 +517,12 @@ export function SnapEditor({
               onClick={() => setColour(swatch)}
               style={{ backgroundColor: swatch }}
               className={cn(
-                'focus-ring size-7 rounded-full ring-2 transition-transform duration-instant',
-                colour === swatch ? 'scale-115 ring-white' : 'ring-white/30',
+                // ~2–3px smaller than size-7; equal gap-2; no scale bounce.
+                'focus-ring size-6 shrink-0 rounded-full',
+                'transition-[box-shadow,ring-color] duration-150 ease-standard',
+                colour === swatch
+                  ? 'ring-[1.5px] ring-white ring-offset-1 ring-offset-ink'
+                  : 'ring-1 ring-white/20',
               )}
             />
           ))}
@@ -502,12 +534,14 @@ export function SnapEditor({
           disabled={busy}
           className={cn(
             'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
-            'bg-white py-3.5 text-body font-medium text-ink',
-            'transition-transform duration-instant active:scale-[0.98]',
+            // ~6px shorter (py-3.5 → py-2.5), quieter shadow (~20% less lift).
+            'bg-white py-2.5 text-body font-medium text-ink',
+            'shadow-[0_2px_10px_rgba(0,0,0,0.18)]',
+            'transition-transform duration-150 ease-standard active:scale-[0.99]',
             'disabled:opacity-50',
           )}
         >
-          <CheckIcon size={18} />
+          <CheckIcon size={17} />
           {busy ? 'Working…' : doneLabel}
         </button>
       </div>
@@ -533,8 +567,13 @@ function ToolButton({
       disabled={disabled}
       aria-pressed={active}
       className={cn(
-        'focus-ring rounded-full px-4 py-2 text-caption font-medium transition-colors duration-instant',
-        active ? 'bg-white text-ink' : 'bg-white/12 text-white',
+        // ~12% shorter chips, less padding, soft edge - content, not chrome.
+        'focus-ring shrink-0 rounded-full px-3 py-1.5',
+        'text-[0.8125rem] font-medium leading-none',
+        'transition-colors duration-150 ease-standard',
+        active
+          ? 'bg-white text-ink'
+          : 'bg-white/[0.08] text-white/85 ring-1 ring-white/10',
         'disabled:opacity-40',
       )}
     >
