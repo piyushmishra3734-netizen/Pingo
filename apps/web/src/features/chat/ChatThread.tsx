@@ -31,6 +31,7 @@ import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer } from './Composer.js';
+import { EncryptionNotice } from './EncryptionNotice.js';
 import { GroupInfoSheet } from './GroupInfoSheet.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
@@ -819,6 +820,12 @@ export function ChatThread({
           </div>
         </div>
       )}
+
+      {/*
+        Under the typing area, above the composer - WhatsApp-style trust line.
+        Quiet enough to ignore; clear enough to reassure.
+      */}
+      <EncryptionNotice variant="thread" className="shrink-0 pt-1" />
 
       {/* ---- Composer ----------------------------------------------------- */}
       <div
