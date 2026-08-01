@@ -58,20 +58,28 @@ export function SharedWithPanel({ history }: { history: SharedHistory }) {
   return (
     <section
       aria-label="Shared with you"
-      className={cn('mt-5 overflow-hidden rounded-xl bg-surface shadow-sm')}
+      className={cn(
+        // Slightly closer to the hero (~10px less empty air than mt-5).
+        'mt-3.5 overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-line/40',
+      )}
     >
-      <h2 className="px-4 pt-3.5 pb-1 text-caption font-medium text-text-tertiary uppercase">
+      <h2 className="px-4 pt-4 pb-1.5 text-caption font-medium tracking-wide text-text-tertiary uppercase">
         Shared with you
       </h2>
 
-      <dl className="divide-y divide-line">
+      <dl className="divide-y divide-line/55">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-center gap-3 px-4 py-3">
-            <span className="shrink-0 text-text-tertiary" aria-hidden>
+          <div key={row.label} className="flex items-center gap-3 px-4 py-3.5">
+            <span
+              className="grid size-5 shrink-0 place-items-center text-text-tertiary"
+              aria-hidden
+            >
               {row.icon}
             </span>
-            <dt className="min-w-0 flex-1 truncate text-body text-text-secondary">{row.label}</dt>
-            <dd className="shrink-0 text-body font-medium text-ink">{row.value}</dd>
+            <dt className="min-w-0 flex-1 truncate text-body leading-snug text-text-secondary">
+              {row.label}
+            </dt>
+            <dd className="shrink-0 text-body font-medium leading-snug text-ink">{row.value}</dd>
           </div>
         ))}
       </dl>

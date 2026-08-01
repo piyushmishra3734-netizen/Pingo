@@ -92,9 +92,9 @@ export function PostGrid({
 export function PostsEmpty({ name }: { name: string }) {
   return (
     <div className="rounded-lg bg-surface px-6 py-14 text-center shadow-sm">
-      <ImageIcon size={26} className="mx-auto text-text-tertiary" />
+      <ImageIcon size={28} className="mx-auto text-text-tertiary" />
       <p className="mt-3 text-body text-text-secondary">{name} hasn't posted yet.</p>
-      <p className="mt-1 text-caption text-text-tertiary">
+      <p className="mt-1 text-caption text-text-tertiary/90">
         A PINGO profile holds three posts. Theirs are still to come.
       </p>
     </div>

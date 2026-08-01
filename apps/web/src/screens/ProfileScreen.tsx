@@ -425,21 +425,23 @@ export function ProfileScreen() {
             onClick={() => setMenuOpen(true)}
             aria-label={isSelf ? 'Profile menu' : `Options for ${person.displayName}`}
             className={cn(
-              // 40px drawn, 44px to hit. Measured at 390px: without this the
-              // menu was one of only two targets on the page under the bar.
+              // Same family as the back control: 40 drawn, 44 hit, same weight.
               'touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full',
               'text-text-secondary transition-colors duration-instant',
               'hover:bg-hover hover:text-ink active:scale-[0.96]',
             )}
           >
-            {isSelf ? <MenuIcon size={22} /> : <MoreIcon size={22} />}
+            {isSelf ? <MenuIcon size={20} /> : <MoreIcon size={20} />}
           </button>
         }
       />
 
       <div className="mx-auto w-full max-w-2xl px-5 pb-10">
-        {/* ---- identity ------------------------------------------------- */}
-        <div className="flex flex-col items-center pt-6">
+        {/*
+          Hero as one composition: avatar → name → handle → stats → actions,
+          with a single vertical rhythm rather than separate floating blocks.
+        */}
+        <div className="flex flex-col items-center pt-5">
           <ProfileAvatar
             name={person.displayName}
             id={person.id}
@@ -480,17 +482,17 @@ export function ProfileScreen() {
             leaves a screen reader with no single answer to "what is this page".
             Styled as `text-h1` because it is still the largest thing here.
           */}
-          <h2 className="mt-4 text-h1 text-ink">{person.displayName}</h2>
-          <p className="mt-0.5 text-body text-text-secondary">@{person.username}</p>
+          <h2 className="mt-2 text-h1 tracking-tight text-ink">{person.displayName}</h2>
+          <p className="mt-0.5 text-caption text-text-tertiary">@{person.username}</p>
 
           {person.bio && (
-            <p className="mt-3 max-w-sm text-center text-body text-text-secondary">
+            <p className="mt-2.5 max-w-sm text-center text-body text-text-secondary">
               <CaptionText text={person.bio} />
             </p>
           )}
 
-          {/* ---- the three numbers -------------------------------------- */}
-          <dl className="mt-5 grid w-full max-w-xs grid-cols-3">
+          {/* Stats sit in the hero stack, not a separate band. */}
+          <dl className="mt-3.5 grid w-full max-w-xs grid-cols-3">
             <Stat label="Posts" value={stats?.posts} />
             <Stat label="Friends" value={stats?.friends} />
             <Stat label="Groups" value={stats?.groups} />
@@ -498,7 +500,7 @@ export function ProfileScreen() {
 
           {/* ---- actions ------------------------------------------------ */}
           {isSelf ? (
-            <div className="mt-5 flex w-full max-w-xs items-center gap-2">
+            <div className="mt-4 flex w-full max-w-xs items-center gap-2">
               <Button
                 variant="secondary"
                 className="flex-1"
@@ -517,7 +519,7 @@ export function ProfileScreen() {
               </Button>
             </div>
           ) : (
-            <div className="mt-5 flex w-full max-w-xs flex-col items-center gap-2">
+            <div className="mt-4 flex w-full max-w-xs flex-col items-center gap-2">
               {/*
                 Not friends yet, so the request comes first and is the primary
                 action. Messaging stays available regardless - PINGO's rule is
@@ -531,24 +533,32 @@ export function ProfileScreen() {
               <div className="flex w-full items-center gap-2">
                 <Button
                   variant="primary"
-                  className="flex-1"
+                  className="h-11 flex-1"
                   leadingIcon={<ChatIcon size={16} />}
                   onClick={() => void openMessage()}
                 >
                   Message
                 </Button>
 
+                {/*
+                  Same height / radius family as Message, glass surface so they
+                  read as siblings of the primary rather than ghost chrome.
+                */}
                 <IconButton
                   label={
                     canCall
                       ? `Voice call ${person.displayName}`
                       : `Voice calls open up once you and ${person.displayName} both follow each other`
                   }
-                  variant="filled"
                   disabled={!canCall}
                   onClick={() => void startCall(person.id, person.displayName, 'voice')}
+                  className={cn(
+                    'size-11 shrink-0 rounded-md',
+                    'border border-line/70 bg-surface/90 text-ink shadow-sm',
+                    'hover:bg-hover hover:border-line-strong',
+                  )}
                 >
-                  <PhoneIcon size={20} />
+                  <PhoneIcon size={18} />
                 </IconButton>
 
                 <IconButton
@@ -557,11 +567,15 @@ export function ProfileScreen() {
                       ? `Video call ${person.displayName}`
                       : `Video calls open up once you and ${person.displayName} both follow each other`
                   }
-                  variant="filled"
                   disabled={!canCall}
                   onClick={() => void startCall(person.id, person.displayName, 'video')}
+                  className={cn(
+                    'size-11 shrink-0 rounded-md',
+                    'border border-line/70 bg-surface/90 text-ink shadow-sm',
+                    'hover:bg-hover hover:border-line-strong',
+                  )}
                 >
-                  <VideoIcon size={20} />
+                  <VideoIcon size={18} />
                 </IconButton>
               </div>
 
@@ -577,7 +591,11 @@ export function ProfileScreen() {
         {!isSelf && shared && <SharedWithPanel history={shared} />}
 
         {/* ---- tabs ----------------------------------------------------- */}
-        <div role="tablist" aria-label="Profile content" className="mt-7 flex border-b border-line">
+        <div
+          role="tablist"
+          aria-label="Profile content"
+          className="mt-6 flex border-b border-line/70"
+        >
           <TabButton id="posts" label="Posts" active={tab === 'posts'} onSelect={() => setTab('posts')} />
           {showMediaTab && (
             <TabButton id="media" label="Media" active={tab === 'media'} onSelect={() => setTab('media')} />
@@ -796,16 +814,17 @@ export function ProfileScreen() {
  */
 function Stat({ label, value }: { label: string; value: number | undefined }) {
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center text-center">
       <dt className="sr-only">{label}</dt>
-      <dd className="text-h2 font-semibold text-ink tabular-nums">
+      <dd className="text-h2 font-semibold tabular-nums leading-none text-ink">
         {value === undefined ? (
           <span className="text-text-tertiary"> - </span>
         ) : (
           <AnimatedCount value={value} />
         )}
       </dd>
-      <p aria-hidden className="text-caption text-text-secondary">
+      {/* ~2–3px under the number; quieter so the figure stays primary. */}
+      <p aria-hidden className="mt-1 text-caption leading-none text-text-tertiary">
         {label}
       </p>
     </div>
@@ -841,9 +860,10 @@ function TabButton({
       <span
         aria-hidden
         className={cn(
-          'absolute inset-x-0 -bottom-px h-0.5 rounded-full',
-          'transition-opacity duration-quick ease-standard',
-          active ? 'bg-brand opacity-100' : 'opacity-0',
+          'absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-brand',
+          // ~15–20% softer than a hard brand bar.
+          'transition-opacity duration-150 ease-standard',
+          active ? 'opacity-80' : 'opacity-0',
         )}
       />
     </button>
