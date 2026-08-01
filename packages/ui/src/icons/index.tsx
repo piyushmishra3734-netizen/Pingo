@@ -74,10 +74,12 @@ export const UserIcon = (props: IconProps) => (
   </IconBase>
 );
 
+/** Soft clapper bell - same family as the dock, a little quieter at the stroke. */
 export const BellIcon = (props: IconProps) => (
   <IconBase {...props}>
-    <path d="M18 15.5V11a6 6 0 1 0-12 0v4.5L4.7 17.4a.6.6 0 0 0 .5.9h13.6a.6.6 0 0 0 .5-.9L18 15.5Z" />
-    <path d="M10 21.2a2.4 2.4 0 0 0 4 0" />
+    <path d="M6.4 16.8h11.2c.9 0 1.4-1 0.9-1.7l-1-1.4V10.6a5.5 5.5 0 1 0-11 0v2.9l-1 1.4c-.5.7 0 1.7.9 1.7Z" />
+    <path d="M10 19.6a2.2 2.2 0 0 0 4 0" />
+    <path d="M12 4.2v1.1" />
   </IconBase>
 );
 
