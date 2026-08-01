@@ -30,6 +30,10 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
    * replaces it (docs/01 § 13.2).
    */
   inputRef?: Ref<HTMLInputElement>;
+  /** Optional weight on the label - primary fields read slightly stronger. */
+  labelClassName?: string;
+  /** Optional weight on the field wrapper for form hierarchy. */
+  fieldClassName?: string;
 }
 
 export function TextField({
@@ -40,6 +44,8 @@ export function TextField({
   trailing,
   shape = 'rounded',
   className,
+  labelClassName,
+  fieldClassName,
   id: providedId,
   inputRef,
   ...rest
@@ -49,11 +55,15 @@ export function TextField({
   const hintId = hint ? `${id}-hint` : undefined;
 
   return (
-    <div className="w-full">
+    <div className={cn('w-full', className)}>
       {label && (
         <label
           htmlFor={id}
-          className="mb-2 block text-caption font-medium text-text-secondary"
+          className={cn(
+            // 2–4px tighter than a full caption stack so form rhythm is dense.
+            'mb-1.5 block text-caption font-medium text-text-secondary',
+            labelClassName,
+          )}
         >
           {label}
         </label>
@@ -62,17 +72,18 @@ export function TextField({
       <div
         className={cn(
           'group flex items-center gap-2.5 bg-sunken',
-          'border border-transparent',
-          'transition-[background-color,border-color,box-shadow] duration-instant ease-standard',
+          'border border-line/40',
+          'transition-[background-color,border-color,box-shadow] duration-150 ease-standard',
           // Focus is expressed on the wrapper, since the real input is bare.
-          'focus-within:bg-surface focus-within:border-line-strong focus-within:shadow-sm',
-          shape === 'pill' ? 'rounded-full px-4 h-12' : 'rounded-md px-4 h-12',
-          invalid && 'border-danger/40 bg-danger-soft',
-          className,
+          'focus-within:bg-surface focus-within:border-brand/25 focus-within:shadow-sm',
+          shape === 'pill' ? 'rounded-full px-4 h-12' : 'rounded-xl px-4 h-12',
+          // Soft invalid - never a red wall.
+          invalid && 'border-danger/30 bg-danger-soft/80',
+          fieldClassName,
         )}
       >
         {leading && (
-          <span className="text-text-secondary shrink-0" aria-hidden>
+          <span className="text-text-tertiary shrink-0" aria-hidden>
             {leading}
           </span>
         )}
@@ -97,8 +108,8 @@ export function TextField({
         <p
           id={hintId}
           className={cn(
-            'mt-2 text-caption',
-            invalid ? 'text-danger' : 'text-text-secondary',
+            'mt-1.5 text-caption',
+            invalid ? 'text-danger/90' : 'text-text-tertiary',
           )}
         >
           {hint}
@@ -116,6 +127,7 @@ export function TextField({
  */
 export function SearchField({
   className,
+  fieldClassName,
   placeholder = 'Search...',
   ...rest
 }: Omit<TextFieldProps, 'leading' | 'shape' | 'type'>) {
@@ -125,7 +137,8 @@ export function SearchField({
       shape="pill"
       placeholder={placeholder}
       leading={<SearchIcon size={18} />}
-      className={cn('h-11', className)}
+      // Height lands on the field surface, not the outer stack.
+      fieldClassName={cn('h-11', fieldClassName, className)}
       {...rest}
     />
   );

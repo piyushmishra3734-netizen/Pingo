@@ -25,6 +25,12 @@ import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
  * A profile is a small form and every field is visible at once, so a per-field
  * autosave would mean four writes to change three things, and a half-applied
  * profile if the connection drops in the middle. One button, one write.
+ *
+ * ## One primary action
+ *
+ * Save lives at the bottom of the form - after the last field, under the thumb
+ * that finished typing. A second Save in the header is two primaries; the
+ * header stays navigation only.
  */
 
 const BIO_LIMIT = 200;
@@ -154,6 +160,7 @@ export function EditProfileScreen() {
   }
 
   const shownAvatar = removePhoto ? undefined : (preview ?? profile.avatarUrl);
+  const hasPhoto = Boolean(shownAvatar);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -177,20 +184,21 @@ export function EditProfileScreen() {
             : {})}
         />
       )}
-      <ScreenHeader
-        title="Edit profile"
-        showBack
-        action={
-          <Button variant="text" size="sm" onClick={() => void save()} disabled={!canSave}>
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-        }
-      />
 
-      <div className="mx-auto w-full max-w-md px-5 pb-10">
+      {/* Header is navigation only - one primary Save lives at the form foot. */}
+      <ScreenHeader title="Edit profile" showBack />
+
+      <div className="mx-auto w-full max-w-md px-5 pb-12">
         {/* ---- photo ---------------------------------------------------- */}
         <div className="flex flex-col items-center pt-6">
-          <Avatar name={displayName || profile.displayName} id={profile.id} src={shownAvatar} size="xl" />
+          <span className="rounded-full ring-[5px] ring-surface shadow-md">
+            <Avatar
+              name={displayName || profile.displayName}
+              id={profile.id}
+              src={shownAvatar}
+              size="xl"
+            />
+          </span>
 
           <input
             ref={fileRef}
@@ -205,46 +213,67 @@ export function EditProfileScreen() {
             }}
           />
 
-          <div className="mt-3 flex items-center gap-2">
+          {/*
+            Change / Remove as one action family - same height, radius and
+            surface language as the Profile Photo Editor, not two random chips.
+          */}
+          <div
+            className={cn(
+              'mt-4 flex items-center gap-1 rounded-full p-1',
+              'border border-line/50 bg-surface/90 shadow-sm',
+            )}
+          >
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
               className={cn(
-                'focus-ring flex items-center gap-1.5 rounded-full px-4 py-2',
-                'text-caption font-medium text-brand hover:bg-hover',
+                'focus-ring flex items-center gap-1.5 rounded-full px-3.5 py-2',
+                'text-caption font-medium text-brand',
+                'transition-colors duration-150 ease-standard hover:bg-selected',
               )}
             >
-              <CameraIcon size={16} />
-              {shownAvatar ? 'Change photo' : 'Add photo'}
+              <CameraIcon size={15} />
+              {hasPhoto ? 'Change photo' : 'Add photo'}
             </button>
 
-            {shownAvatar && (
-              <button
-                type="button"
-                onClick={() => {
-                  setPhoto(undefined);
-                  setRemovePhoto(true);
-                }}
-                className={cn(
-                  'focus-ring flex items-center gap-1.5 rounded-full px-4 py-2',
-                  'text-caption font-medium text-danger hover:bg-hover',
-                )}
-              >
-                <TrashIcon size={16} />
-                Remove
-              </button>
+            {hasPhoto && (
+              <>
+                <span className="h-4 w-px shrink-0 bg-line/70" aria-hidden />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhoto(undefined);
+                    setRemovePhoto(true);
+                  }}
+                  className={cn(
+                    'focus-ring flex items-center gap-1.5 rounded-full px-3.5 py-2',
+                    'text-caption font-medium text-text-secondary',
+                    'transition-colors duration-150 ease-standard',
+                    'hover:bg-hover hover:text-danger',
+                  )}
+                >
+                  <TrashIcon size={15} />
+                  Remove photo
+                </button>
+              </>
             )}
           </div>
         </div>
 
-        {/* ---- fields --------------------------------------------------- */}
-        <div className="mt-6 space-y-5">
+        {/*
+          Form hierarchy: Display name primary → Username secondary → Bio medium.
+          8pt rhythm between blocks (space-y-4 = 16).
+        */}
+        <div className="mt-8 space-y-4">
           <TextField
-            label="Name"
+            label="Display name"
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             maxLength={50}
+            autoComplete="name"
             invalid={displayName.length > 0 && !nameValid}
+            labelClassName="text-body font-medium text-ink"
+            fieldClassName="h-12 border-line/50 bg-surface shadow-sm"
             hint={
               displayName.trim().length === 0
                 ? 'People need something to call you.'
@@ -261,7 +290,10 @@ export function EditProfileScreen() {
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
+            autoComplete="username"
             invalid={username.length > 0 && (!handleValid || available === false)}
+            labelClassName="text-caption font-medium text-text-secondary"
+            fieldClassName="h-11"
             hint={
               username.length === 0
                 ? undefined
@@ -282,46 +314,61 @@ export function EditProfileScreen() {
           <div>
             <label
               htmlFor="profile-bio"
-              className="mb-2 block text-caption font-medium text-text-secondary"
+              className="mb-1.5 block text-caption font-medium text-text-tertiary"
             >
               Bio
             </label>
-            <textarea
-              id="profile-bio"
-              value={bio}
-              onChange={(event) => setBio(event.target.value.slice(0, BIO_LIMIT))}
-              rows={3}
-              placeholder="A line about you. Emoji, a link, whatever fits."
+            <div
               className={cn(
-                'focus-ring w-full resize-none rounded-lg bg-surface px-4 py-3',
-                'text-body text-ink placeholder:text-text-tertiary',
-              )}
-            />
-            <p
-              className={cn(
-                'mt-1.5 text-right text-caption',
-                bio.length >= BIO_LIMIT ? 'text-danger' : 'text-text-tertiary',
+                'relative rounded-xl border border-line/40 bg-sunken',
+                'transition-[background-color,border-color,box-shadow] duration-150 ease-standard',
+                'focus-within:border-brand/25 focus-within:bg-surface focus-within:shadow-sm',
               )}
             >
-              {bio.length}/{BIO_LIMIT}
-            </p>
+              <textarea
+                id="profile-bio"
+                value={bio}
+                onChange={(event) => setBio(event.target.value.slice(0, BIO_LIMIT))}
+                rows={4}
+                maxLength={BIO_LIMIT}
+                placeholder="A line about you. Emoji, a link, whatever fits."
+                className={cn(
+                  'w-full resize-none bg-transparent px-4 pt-3 pb-8',
+                  'text-body text-ink outline-none placeholder:text-text-tertiary',
+                )}
+              />
+              {/* Counter lives inside the field, bottom-right - not detached. */}
+              <p
+                className={cn(
+                  'pointer-events-none absolute right-3 bottom-2.5 text-caption tabular-nums',
+                  bio.length >= BIO_LIMIT ? 'text-danger/80' : 'text-text-tertiary',
+                )}
+              >
+                {bio.length}/{BIO_LIMIT}
+              </p>
+            </div>
           </div>
         </div>
 
         {error && (
-          <p role="alert" className="mt-4 text-center text-caption text-danger">
+          <p
+            role="alert"
+            className={cn(
+              'mt-4 rounded-xl border border-danger/20 bg-danger-soft/70',
+              'px-3.5 py-2.5 text-center text-caption text-danger/90',
+            )}
+          >
             {error}
           </p>
         )}
 
         {/*
-          A second Save at the bottom of the form, because on a phone the header
-          one is above the keyboard and out of reach of the thumb that just
-          finished typing the bio.
+          Single primary Save - after the last field, with calm breathing above
+          it. Keyboard: Tab through fields, then this button.
         */}
         <Button
           variant="primary"
-          className="mt-6 w-full"
+          className="mt-8 h-12 w-full"
           onClick={() => void save()}
           disabled={!canSave}
         >
