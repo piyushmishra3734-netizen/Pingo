@@ -11,11 +11,13 @@ import { HeartIcon, ImageIcon, PlusIcon, Skeleton, cn } from '@pingo/ui';
  *
  * ## Why the empty slots are visible on your own profile
  *
- * A profile with one post shows one picture and two dashed squares. Instagram
- * would show one picture and a lot of white. The dashed squares say what the
+ * A profile with one post shows one picture and two open slots. Instagram
+ * would show one picture and a lot of white. The open slots say what the
  * product allows - three, no more - and give the second and third posts an
  * obvious place to be added from. On somebody else's profile they are absent,
  * because how many slots they have left is not information about them.
+ *
+ * Empty slots use a soft glass surface rather than a dashed development box.
  */
 
 export function PostGrid({
@@ -77,24 +79,63 @@ export function PostGrid({
           aria-label="Add a post"
           className={cn(
             'focus-ring grid aspect-square place-items-center rounded-lg',
-            'border-2 border-dashed border-line text-text-tertiary',
-            'transition-colors duration-instant hover:border-brand hover:text-brand',
+            // Soft surface + thin border - not a dashed wireframe.
+            'border border-line/55 bg-surface/80 text-text-tertiary shadow-sm',
+            'transition-[border-color,color,background-color] duration-150 ease-standard',
+            'hover:border-brand/35 hover:bg-selected hover:text-brand',
           )}
         >
-          <PlusIcon size={22} />
+          <PlusIcon size={20} />
         </button>
       ))}
     </div>
   );
 }
 
-/** Nothing posted, and nowhere for a dashed square to help - someone else's. */
+/**
+ * Own profile, zero posts: a premium create moment rather than three empty
+ * squares that read as unfinished UI.
+ */
+export function OwnPostsEmpty({ onAdd }: { onAdd: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className={cn(
+        'focus-ring flex w-full flex-col items-center justify-center gap-3',
+        'rounded-xl border border-line/50 bg-surface/90 px-6 py-12 text-center shadow-sm',
+        'transition-[border-color,background-color,box-shadow] duration-150 ease-standard',
+        'hover:border-brand/30 hover:bg-selected/60 hover:shadow-md',
+      )}
+    >
+      <span
+        className={cn(
+          'grid size-12 place-items-center rounded-full',
+          'bg-brand/10 text-brand ring-1 ring-brand/15',
+        )}
+        aria-hidden
+      >
+        <PlusIcon size={22} />
+      </span>
+      <span className="space-y-1">
+        <span className="block text-body font-medium text-ink">Create your first post</span>
+        <span className="block text-caption text-text-tertiary">
+          A PINGO profile holds three. Start with one.
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/** Nothing posted, and nowhere for open slots to help - someone else's. */
 export function PostsEmpty({ name }: { name: string }) {
   return (
-    <div className="rounded-lg bg-surface px-6 py-14 text-center shadow-sm">
-      <ImageIcon size={28} className="mx-auto text-text-tertiary" />
-      <p className="mt-3 text-body text-text-secondary">{name} hasn't posted yet.</p>
-      <p className="mt-1 text-caption text-text-tertiary/90">
+    <div className="rounded-xl border border-line/40 bg-surface px-6 py-14 text-center shadow-sm">
+      <span className="mx-auto grid size-12 place-items-center rounded-full bg-sunken text-text-tertiary">
+        <ImageIcon size={26} />
+      </span>
+      <p className="mt-4 text-body font-medium text-ink">{name} hasn{"'"}t posted yet.</p>
+      <p className="mt-1.5 text-caption text-text-tertiary">
         A PINGO profile holds three posts. Theirs are still to come.
       </p>
     </div>

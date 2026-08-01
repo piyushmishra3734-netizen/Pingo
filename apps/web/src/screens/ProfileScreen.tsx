@@ -37,7 +37,12 @@ import { CaptionText } from '../features/profile/CaptionText.js';
 import { FollowButton } from '../features/profile/FollowButton.js';
 import { MediaEmpty, MediaGrid, MediaSkeleton } from '../features/profile/MediaGrid.js';
 import { PostComposer } from '../features/profile/PostComposer.js';
-import { PostGrid, PostGridSkeleton, PostsEmpty } from '../features/profile/PostGrid.js';
+import {
+  OwnPostsEmpty,
+  PostGrid,
+  PostGridSkeleton,
+  PostsEmpty,
+} from '../features/profile/PostGrid.js';
 import { PostViewer } from '../features/profile/PostViewer.js';
 import { MyProfileMenu, PersonMenu } from '../features/profile/ProfileMenus.js';
 import { ProfileAvatar } from '../features/profile/ProfileAvatar.js';
@@ -438,10 +443,10 @@ export function ProfileScreen() {
 
       <div className="mx-auto w-full max-w-2xl px-5 pb-10">
         {/*
-          Hero as one composition: avatar → name → handle → stats → actions,
-          with a single vertical rhythm rather than separate floating blocks.
+          Hero as one composition: avatar → name → handle/bio → stats → actions.
+          8pt rhythm (8 / 16 / 24 / 32) keeps the identity block unified.
         */}
-        <div className="flex flex-col items-center pt-5">
+        <div className={cn('flex flex-col items-center', isSelf ? 'pt-6' : 'pt-5')}>
           <ProfileAvatar
             name={person.displayName}
             id={person.id}
@@ -482,17 +487,20 @@ export function ProfileScreen() {
             leaves a screen reader with no single answer to "what is this page".
             Styled as `text-h1` because it is still the largest thing here.
           */}
-          <h2 className="mt-2 text-h1 tracking-tight text-ink">{person.displayName}</h2>
-          <p className="mt-0.5 text-caption text-text-tertiary">@{person.username}</p>
+          <h2 className="mt-1.5 text-h1 tracking-tight text-ink">{person.displayName}</h2>
 
-          {person.bio && (
-            <p className="mt-2.5 max-w-sm text-center text-body text-text-secondary">
-              <CaptionText text={person.bio} />
-            </p>
-          )}
+          {/* Handle + bio as one quiet identity group under the name. */}
+          <div className="mt-1 flex max-w-sm flex-col items-center gap-1.5">
+            <p className="text-caption text-text-tertiary">@{person.username}</p>
+            {person.bio && (
+              <p className="text-center text-body text-text-secondary">
+                <CaptionText text={person.bio} />
+              </p>
+            )}
+          </div>
 
           {/* Stats sit in the hero stack, not a separate band. */}
-          <dl className="mt-3.5 grid w-full max-w-xs grid-cols-3">
+          <dl className="mt-4 grid w-full max-w-xs grid-cols-3">
             <Stat label="Posts" value={stats?.posts} />
             <Stat label="Friends" value={stats?.friends} />
             <Stat label="Groups" value={stats?.groups} />
@@ -501,9 +509,13 @@ export function ProfileScreen() {
           {/* ---- actions ------------------------------------------------ */}
           {isSelf ? (
             <div className="mt-4 flex w-full max-w-xs items-center gap-2">
+              {/*
+                Edit is the primary identity action. Share is available but
+                quieter so the row has a clear first answer.
+              */}
               <Button
-                variant="secondary"
-                className="flex-1"
+                variant="primary"
+                className="h-11 flex-1"
                 leadingIcon={<EditIcon size={16} />}
                 onClick={() => navigate('/profile/edit')}
               >
@@ -511,7 +523,7 @@ export function ProfileScreen() {
               </Button>
               <Button
                 variant="secondary"
-                className="flex-1"
+                className="h-11 flex-1 border-line/60 bg-surface/90 shadow-none"
                 leadingIcon={<QrIcon size={16} />}
                 onClick={() => setSharing(true)}
               >
@@ -594,7 +606,11 @@ export function ProfileScreen() {
         <div
           role="tablist"
           aria-label="Profile content"
-          className="mt-6 flex border-b border-line/70"
+          className={cn(
+            'flex border-b border-line/60',
+            // 8pt: 32px from hero actions to content chrome.
+            isSelf ? 'mt-8' : 'mt-6',
+          )}
         >
           <TabButton id="posts" label="Posts" active={tab === 'posts'} onSelect={() => setTab('posts')} />
           {showMediaTab && (
@@ -613,6 +629,8 @@ export function ProfileScreen() {
             <PostGridSkeleton />
           ) : posts.length === 0 && !isSelf ? (
             <PostsEmpty name={person.displayName} />
+          ) : posts.length === 0 && isSelf ? (
+            <OwnPostsEmpty onAdd={startPost} />
           ) : (
             <PostGrid
               posts={posts}
@@ -860,10 +878,10 @@ function TabButton({
       <span
         aria-hidden
         className={cn(
-          'absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-brand',
-          // ~15–20% softer than a hard brand bar.
+          'absolute inset-x-6 -bottom-px h-0.5 rounded-full bg-brand',
+          // Calmer active mark: softer and not edge-to-edge.
           'transition-opacity duration-150 ease-standard',
-          active ? 'opacity-80' : 'opacity-0',
+          active ? 'opacity-70' : 'opacity-0',
         )}
       />
     </button>

@@ -133,8 +133,15 @@ export function ProfileAvatar({
         }
         className={cn(
           // Soft face plate: ring reads as depth, not a sticker on the page.
-          'focus-ring rounded-full ring-[3px] ring-surface shadow-sm',
+          'focus-ring rounded-full shadow-sm',
           'transition-transform duration-quick ease-standard active:scale-[0.97]',
+          /*
+            Own profile: a little more air and emphasis without growing the face
+            - "this is my identity" rather than a denser stranger portrait.
+          */
+          isSelf
+            ? 'ring-[5px] ring-surface p-0.5 shadow-md'
+            : 'ring-[3px] ring-surface',
         )}
       >
         <Avatar
