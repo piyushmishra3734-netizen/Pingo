@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
+import { PlatformLogo, type PlatformLogoId } from '../features/install/PlatformLogo.js';
 import { useInstall, type Platform } from '../features/install/useInstall.js';
 import { applyPageSeo } from '../lib/seo.js';
 
@@ -74,7 +75,8 @@ const STORE_NAME: Record<Platform, string> = {
 interface PlatformCard {
   key: Platform | 'web';
   name: string;
-  icon: string;
+  /** Official mark, not an emoji. */
+  logo: PlatformLogoId;
   status: 'available' | 'soon';
   method: string;
   requirements: string;
@@ -84,7 +86,7 @@ const PLATFORMS: PlatformCard[] = [
   {
     key: 'android',
     name: 'Android',
-    icon: '🤖',
+    logo: 'android',
     status: 'available',
     method: 'A real installable app: its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
     requirements: 'Android 7 or newer. Allow install from unknown sources once.',
@@ -92,7 +94,7 @@ const PLATFORMS: PlatformCard[] = [
   {
     key: 'ios',
     name: 'iPhone & iPad',
-    icon: '',
+    logo: 'ios',
     status: 'soon',
     method: 'A real App Store app, downloaded and installed like any other.',
     requirements: 'iOS or iPadOS 15 or newer.',
@@ -100,7 +102,7 @@ const PLATFORMS: PlatformCard[] = [
   {
     key: 'windows',
     name: 'Windows',
-    icon: '🪟',
+    logo: 'windows',
     status: 'soon',
     method: 'A signed desktop installer with its own window, taskbar icon and notifications.',
     requirements: 'Windows 10 or 11.',
@@ -108,7 +110,7 @@ const PLATFORMS: PlatformCard[] = [
   {
     key: 'macos',
     name: 'macOS',
-    icon: '💻',
+    logo: 'macos',
     status: 'soon',
     method: 'A signed .dmg that installs to Applications like any Mac app.',
     requirements: 'macOS 12 or newer.',
@@ -116,7 +118,7 @@ const PLATFORMS: PlatformCard[] = [
   {
     key: 'web',
     name: 'Web',
-    icon: '🌐',
+    logo: 'web',
     status: 'available',
     method: 'Nothing to install. The full product runs in any modern browser, right now.',
     requirements: 'Any browser from the last two years.',
@@ -375,17 +377,16 @@ export function DownloadScreen() {
               <li
                 key={card.key}
                 className={cn(
-                  'rounded-2xl border border-line bg-surface p-4',
-                  'transition-transform duration-quick ease-spring hover:-translate-y-0.5',
+                  'rounded-2xl border border-line bg-surface/90 p-4 shadow-sm',
+                  'transition-[transform,box-shadow] duration-quick ease-spring',
+                  'hover:-translate-y-0.5 hover:shadow-md',
                   // The visitor's own platform, marked. It is the only card that
                   // is about them.
-                  card.key === platform && 'ring-2 ring-brand',
+                  card.key === platform && 'ring-2 ring-brand shadow-md',
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <span aria-hidden className="text-h2">
-                    {card.icon}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <PlatformLogo platform={card.logo} size={40} />
                   <h3 className="flex-1 text-body font-medium text-ink">{card.name}</h3>
                   <span
                     className={cn(
