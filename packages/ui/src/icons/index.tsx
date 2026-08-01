@@ -74,12 +74,18 @@ export const UserIcon = (props: IconProps) => (
   </IconBase>
 );
 
-/** Soft clapper bell - same family as the dock, a little quieter at the stroke. */
+/**
+ * Notification bell.
+ *
+ * Same stroke family as Chat / Phone / Camera. Silhouette is a soft crown,
+ * full dome, quiet skirt into the rim and a light clapper - tuned so the dock
+ * slot has real optical mass instead of a thin stock alert glyph.
+ */
 export const BellIcon = (props: IconProps) => (
   <IconBase {...props}>
-    <path d="M6.4 16.8h11.2c.9 0 1.4-1 0.9-1.7l-1-1.4V10.6a5.5 5.5 0 1 0-11 0v2.9l-1 1.4c-.5.7 0 1.7.9 1.7Z" />
-    <path d="M10 19.6a2.2 2.2 0 0 0 4 0" />
-    <path d="M12 4.2v1.1" />
+    <path d="M12 3.35v.95" />
+    <path d="M18.55 16.55c-.65-.85-1-1.9-1-3V10.4a5.55 5.55 0 1 0-11.1 0v3.15c0 1.1-.35 2.15-1 3l-.35.45c-.4.5-.05 1.2.55 1.2h12.7c.6 0 .95-.7.55-1.2l-.35-.45Z" />
+    <path d="M10.2 20.05a2.1 2.1 0 0 0 3.6 0" />
   </IconBase>
 );
 

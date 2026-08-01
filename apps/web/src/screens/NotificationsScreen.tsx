@@ -386,7 +386,7 @@ function PremiumEmpty() {
             aria-hidden
             className="absolute inset-0 rounded-[1.35rem] bg-brand-gradient opacity-[0.12]"
           />
-          <BellIcon size={28} className="relative text-brand" strokeWidth={1.7} />
+          <BellIcon size={30} className="relative text-brand" />
         </div>
       </div>
 

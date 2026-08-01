@@ -101,7 +101,18 @@ export function Dock() {
           >
             {({ isActive }) => (
               <>
-                <Icon size={26} />
+                {/*
+                  Notifications gets a hair more weight optically: the bell's
+                  silhouette is lighter than chat/camera, so without this it
+                  reads as the cheap slot on the bar.
+                */}
+                <Icon
+                  size={to === '/notifications' ? 27 : 26}
+                  className={cn(
+                    to === '/notifications' &&
+                      (isActive ? 'text-brand drop-shadow-[0_0_10px_rgba(92,108,255,0.35)]' : undefined),
+                  )}
+                />
                 <span className="sr-only">{label}</span>
 
                 {/*

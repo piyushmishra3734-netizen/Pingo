@@ -321,10 +321,11 @@ export function ConversationList({
                     onClick={() => navigate('/notifications')}
                   >
                     <span className="relative">
-                      <BellIcon size={21} />
+                      <BellIcon size={22} />
                       <span
                         className={cn(
-                          'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-brand ring-2 ring-page',
+                          'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-dot',
+                          'shadow-[0_0_0_3px_rgba(139,93,255,0.16)] ring-2 ring-page',
                           'transition-opacity duration-quick',
                           unread > 0 ? 'opacity-100' : 'opacity-0',
                         )}
