@@ -890,7 +890,13 @@ export function ChatThread({
             }}
             attach={{
               gallery: () => galleryRef.current?.click(),
-              camera: () => navigate('/camera'),
+              /*
+                Pass this thread so the camera send stage already has a
+                recipient. Without it, open-from-chat lands on an empty picker
+                and Send stays disabled.
+              */
+              camera: () =>
+                navigate('/camera', { state: { conversationId: conversation.id } }),
               document: () => documentRef.current?.click(),
               location: () => setSheet('location'),
               contact: () => setSheet('contact'),

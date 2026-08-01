@@ -32,9 +32,14 @@ import { useMutuals } from '../profile/useMutuals.js';
 export interface PingRecipientsProps {
   selected: Set<string>;
   onToggle: (conversationId: string) => void;
+  /**
+   * Conversation opened from chat attach. Always listed and pre-selected even
+   * when mutuals are still loading or the direct-chat Ping gate would hide it.
+   */
+  lockedId?: string;
 }
 
-export function PingRecipients({ selected, onToggle }: PingRecipientsProps) {
+export function PingRecipients({ selected, onToggle, lockedId }: PingRecipientsProps) {
   const { conversations, users } = useChat();
   const { profile } = useProfile();
   const mutuals = useMutuals();
@@ -51,12 +56,18 @@ export function PingRecipients({ selected, onToggle }: PingRecipientsProps) {
 
     return conversations
       .filter((conversation) => {
-        if (conversation.archived) return false;
+        if (conversation.archived && conversation.id !== lockedId) return false;
+
+        // Always keep the thread the camera was opened from.
+        if (lockedId && conversation.id === lockedId) return true;
 
         // Groups are open to anyone in them; a direct chat needs the follow.
+        // While mutuals are loading (`undefined`), do not hide every direct
+        // chat - that left Send stuck on "Select someone" from chat attach.
         if (conversation.kind !== 'direct') return true;
+        if (mutuals === undefined) return true;
         const other = conversation.participantIds.find((id) => id !== profile?.id);
-        return Boolean(other && mutuals?.has(other));
+        return Boolean(other && mutuals.has(other));
       })
       .map((conversation) => {
         const partner = partnerOf(conversation);
@@ -68,22 +79,30 @@ export function PingRecipients({ selected, onToggle }: PingRecipientsProps) {
           at: conversation.updatedAt,
           avatarId: partner?.id ?? conversation.id,
           avatarUrl: partner?.avatarUrl ?? conversation.avatarUrl,
+          locked: conversation.id === lockedId,
         };
       })
       .filter((row) => !term || row.name.toLowerCase().includes(term))
       .sort((a, b) => {
-        // Anything already chosen stays put at the top, so a long list cannot
-        // scroll a selection out of sight and make it look undone.
+        // Locked / already chosen stay at the top.
+        const locked = Number(b.locked) - Number(a.locked);
+        if (locked !== 0) return locked;
         const picked = Number(selected.has(b.id)) - Number(selected.has(a.id));
         if (picked !== 0) return picked;
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         if (a.group !== b.group) return a.group ? 1 : -1;
         return b.at - a.at;
       });
-  }, [conversations, users, profile?.id, mutuals, query, selected]);
+  }, [conversations, users, profile?.id, mutuals, query, selected, lockedId]);
 
   return (
     <>
+      {lockedId && (
+        <p className="mb-2 text-caption text-text-secondary">
+          Sending to this chat. You can add more people below.
+        </p>
+      )}
+
       <SearchField
         value={query}
         onChange={(event) => setQuery(event.target.value)}
@@ -160,11 +179,22 @@ export function PingSendButton({
   count,
   busy,
   onSend,
+  lockedLabel,
 }: {
   count: number;
   busy: boolean;
   onSend: () => void;
+  /** When opened from a single chat, prefer a short "Send" label. */
+  lockedLabel?: string;
 }) {
+  const label = busy
+    ? 'Sending…'
+    : count === 0
+      ? 'Select someone'
+      : lockedLabel && count === 1
+        ? lockedLabel
+        : `Send to ${count}`;
+
   return (
     <button
       type="button"
@@ -178,7 +208,7 @@ export function PingSendButton({
       )}
     >
       <SendIcon size={19} />
-      {busy ? 'Sending…' : count === 0 ? 'Select someone' : `Send to ${count}`}
+      {label}
     </button>
   );
 }

@@ -1,7 +1,7 @@
 import { useChat, type FilterInstance } from '@pingo/core';
 import { CameraFlipIcon, CameraIcon, CheckIcon, GridIcon, PingoDot, cn } from '@pingo/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { filterStill } from '../features/camera/filterStill.js';
 import { FILTERS } from '../features/camera/filters/registry.js';
@@ -10,6 +10,9 @@ import { useCamera } from '../features/camera/useCamera.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
 import { useStories } from '../features/stories/StoryContext.js';
+
+/** Opened from a chat attach menu with this thread already chosen. */
+type CameraLocationState = { conversationId?: string };
 
 /**
  * Camera - shoot, filter, edit, then send a Ping or add to your story.
@@ -43,8 +46,16 @@ const TIMERS = [0, 3, 5, 10] as const;
 
 export function CameraScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { service: chat } = useChat();
   const { service: stories, refresh } = useStories();
+
+  /*
+   * When the attach menu opens the camera from a thread, that conversation is
+   * already the answer to "who". Pre-select it and, after send, go back there
+   * instead of dumping the user on a blank camera.
+   */
+  const lockedChatId = (location.state as CameraLocationState | null)?.conversationId;
 
   const fileRef = useRef<HTMLInputElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -56,7 +67,9 @@ export function CameraScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   /** Chosen together and committed once - see `PingRecipients`. */
-  const [recipients, setRecipients] = useState<Set<string>>(new Set());
+  const [recipients, setRecipients] = useState<Set<string>>(() =>
+    lockedChatId ? new Set([lockedChatId]) : new Set(),
+  );
   /** Two is the default: long enough to look twice, short enough to be a Ping. */
   const [views, setViews] = useState<PingViews>(2);
   /** Drives the confirmation, and the beat before returning to the camera. */
@@ -79,6 +92,17 @@ export function CameraScreen() {
     return () => URL.revokeObjectURL(shot.url);
   }, [shot]);
 
+  // Keep the locked chat selected if reset clears the set.
+  useEffect(() => {
+    if (!lockedChatId) return;
+    setRecipients((previous) => {
+      if (previous.has(lockedChatId)) return previous;
+      const next = new Set(previous);
+      next.add(lockedChatId);
+      return next;
+    });
+  }, [lockedChatId]);
+
   const show = (blob: Blob) => {
     setShot((previous) => {
       if (previous) URL.revokeObjectURL(previous.url);
@@ -89,7 +113,7 @@ export function CameraScreen() {
   const reset = () => {
     setShot(undefined);
     setOriginal(undefined);
-    setRecipients(new Set());
+    setRecipients(lockedChatId ? new Set([lockedChatId]) : new Set());
     setViews(2);
     setError(undefined);
     setFilterId('none');
@@ -200,7 +224,12 @@ export function CameraScreen() {
       setSentCount(recipients.size);
       await new Promise((resolve) => window.setTimeout(resolve, 900));
       setSentCount(0);
-      reset();
+      // From chat: return to that thread. From the dock: stay on camera.
+      if (lockedChatId) {
+        navigate(`/chats/${lockedChatId}`, { replace: true });
+      } else {
+        reset();
+      }
     } catch (cause) {
       setError(
         cause instanceof Error && cause.message
@@ -419,8 +448,12 @@ export function CameraScreen() {
 
             <PingRecipients
               selected={recipients}
+              lockedId={lockedChatId}
               onToggle={(id) =>
                 setRecipients((previous) => {
+                  // The chat you opened from stays selected - deselecting it
+                  // would re-break the "send back to this thread" path.
+                  if (lockedChatId && id === lockedChatId) return previous;
                   const next = new Set(previous);
                   if (next.has(id)) next.delete(id);
                   else next.add(id);
@@ -450,6 +483,7 @@ export function CameraScreen() {
               count={recipients.size}
               busy={busy}
               onSend={() => void sendPing()}
+              lockedLabel={lockedChatId ? 'Send' : undefined}
             />
           </div>
         </div>
