@@ -794,6 +794,12 @@ export function ChatThread({
               </div>
             )}
 
+            {/*
+              Sits under the typing indicator (never above it): short lock line
+              only. Not sticky above the composer.
+            */}
+            <EncryptionNotice />
+
             {/* Scroll anchor. */}
             <div ref={bottomRef} className="h-0" />
           </div>
@@ -820,12 +826,6 @@ export function ChatThread({
           </div>
         </div>
       )}
-
-      {/*
-        Under the typing area, above the composer - WhatsApp-style trust line.
-        Quiet enough to ignore; clear enough to reassure.
-      */}
-      <EncryptionNotice variant="thread" className="shrink-0 pt-1" />
 
       {/* ---- Composer ----------------------------------------------------- */}
       <div

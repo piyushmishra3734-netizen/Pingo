@@ -20,7 +20,6 @@ import {
 } from '@pingo/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { EncryptionNotice } from '../chat/EncryptionNotice.js';
 import { useFlipList } from '../../hooks/useFlipList.js';
 import { ConversationRow } from './ConversationRow.js';
 import { SwipeableRow } from './SwipeableRow.js';
@@ -357,12 +356,6 @@ export function ChatListBody({
           )}
 
           {rest.map((conversation, index) => row(conversation, pinned.length + index))}
-
-          {/*
-            WhatsApp-style footer: quiet trust line after the last chat, never
-            competing with rows or the dock.
-          */}
-          <EncryptionNotice variant="list" />
         </div>
       )}
     </div>
