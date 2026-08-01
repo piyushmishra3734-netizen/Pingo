@@ -136,31 +136,23 @@ export function ConversationRow({
           </span>
 
           {/*
-            The streak sits beside the name, so who you are keeping one with is
-            answered in the same glance as who the row is.
+            Markers at tertiary weight so none compete with the title or the
+            unread badge. A favourite is the quietest - a filter you set once -
+            so it sits furthest from the timestamp the eye lands on.
 
-            Rendered only when there is one. `streak` is absent rather than 0
-            when there is no streak, so this is a presence check and there is no
-            empty badge to design around.
+            Streak numbers used to ship with a fire emoji next to the name.
+            That read as a Snapchat-style unread signal and fought the purple
+            badge; the count still exists as a quiet tabular note when present.
           */}
           {conversation.streak !== undefined && (
             <span
-              className="flex shrink-0 items-center gap-0.5 text-caption font-medium text-ink tabular-nums"
+              className="shrink-0 text-caption tabular-nums text-text-tertiary"
               title={`${conversation.streak}-day streak`}
             >
-              <span aria-hidden>🔥</span>
               {conversation.streak}
-              <span className="sr-only">day streak</span>
+              <span className="sr-only">-day streak</span>
             </span>
           )}
-
-          {/*
-            Three markers in a fixed order, all at tertiary weight so none of
-            them competes with the title or the unread badge. A favourite is the
-            quietest of the three - it is a filter you set once, not a state
-            that changes, so it is a hollow star rather than a filled one and it
-            sits first, furthest from the timestamp the eye lands on.
-          */}
           {conversation.favorite && (
             <StarIcon size={12} className="shrink-0 text-text-tertiary" title="Favourite" />
           )}
@@ -177,9 +169,10 @@ export function ConversationRow({
             />
           )}
 
+          {/* Time stays top-right. Unread lives on the preview line below. */}
           <span
             className={cn(
-              'shrink-0 text-caption',
+              'shrink-0 text-caption tabular-nums',
               hasUnread ? 'font-medium text-brand' : 'text-text-tertiary',
             )}
           >
@@ -189,7 +182,7 @@ export function ConversationRow({
 
         <div className="mt-1 flex items-center gap-1.5">
           {isTyping ? (
-            <span className="flex items-center gap-2 text-caption text-brand">
+            <span className="min-w-0 flex-1 flex items-center gap-2 text-caption text-brand">
               <PingoDot state="typing" size={5} />
               {formatTypingLabel(conversation.typingUserIds, users)}
             </span>
@@ -225,10 +218,14 @@ export function ConversationRow({
             </>
           )}
 
+          {/*
+            Brand purple only - never an emoji. Muted threads stay quiet.
+            Aligns with the preview line so time (top) and need (bottom) split
+            cleanly for the eye.
+          */}
           {hasUnread && (
             <Badge
               count={conversation.unreadCount}
-              // Muted threads still count, but quietly - that is what mute means.
               tone={conversation.muted ? 'neutral' : 'brand'}
               className="shrink-0"
               srSuffix="unread messages"

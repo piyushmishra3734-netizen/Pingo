@@ -303,7 +303,17 @@ export function ConversationList({
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <AppWordmark height={22} as="h1" />
+              {/*
+                Whisper, not ghost. The mark was reading like a disabled control
+                (~20% presence); a gentle contrast lift and full opacity bring it
+                to about a third of the ink strength without competing with the
+                rows below.
+              */}
+              <AppWordmark
+                height={22}
+                as="h1"
+                className="[&_img]:opacity-[0.92] [&_img]:[filter:contrast(1.12)_saturate(1.08)]"
+              />
 
               <div className="flex items-center gap-0.5">
                 <IconButton
@@ -352,17 +362,22 @@ export function ConversationList({
               </div>
             </div>
 
-            <div className="mt-3.5">
+            {/*
+              Tighter rhythm between logo row → search → chips. Was ~14px gaps
+              (mt-3.5 / mt-3); ~6–8px keeps the top stack as one unit without
+              crowding the stories rail below.
+            */}
+            <div className="mt-2">
               <SearchField
                 inputRef={searchRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search"
-                aria-label="Search conversations"
+                placeholder="Search chats"
+                aria-label="Search chats"
               />
             </div>
 
-            <ChipGroup label="Filter conversations" className="mt-3">
+            <ChipGroup label="Filter conversations" className="mt-2">
               {conversationFilters.map((f) => (
                 <Chip
                   key={f}

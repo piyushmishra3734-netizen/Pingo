@@ -77,7 +77,16 @@ export function Dock() {
         'pb-[max(1.25rem,env(safe-area-inset-bottom))]',
       )}
     >
-      <GlassPanel className="pointer-events-auto flex items-center gap-1 p-2">
+      {/*
+        Dock glow ~15% quieter than default `shadow-lg` brand haze - luxury
+        chrome elevates without a purple halo. Layout and shape untouched.
+      */}
+      <GlassPanel
+        className={cn(
+          'pointer-events-auto flex items-center gap-1 p-2',
+          'shadow-[0_4px_12px_rgba(16,17,20,0.05),0_16px_40px_rgba(92,108,255,0.085)]',
+        )}
+      >
         {items.map(({ to, label, Icon, matchPrefix }) => (
           <NavLink
             key={to}

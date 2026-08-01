@@ -1,6 +1,12 @@
-import type { Conversation } from '@pingo/core';
+import {
+  formatConversationTimestamp,
+  messagePreview,
+  useChat,
+  type Conversation,
+} from '@pingo/core';
 import {
   ArchiveIcon,
+  Badge,
   ChatIcon,
   ChevronRightIcon,
   ConversationSkeleton,
@@ -12,7 +18,7 @@ import {
   UnarchiveIcon,
   cn,
 } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useFlipList } from '../../hooks/useFlipList.js';
 import { ConversationRow } from './ConversationRow.js';
@@ -159,6 +165,37 @@ export function ChatListBody({
     rows[Math.max(0, Math.min(next, rows.length - 1))]?.focus();
   };
 
+  const { currentUser, users } = useChat();
+
+  /*
+   * Most recently active archived chat - the shelf row should speak the same
+   * language as a conversation (preview + time), not a settings entry.
+   */
+  const latestArchived = useMemo(() => {
+    if (archived.length === 0) return undefined;
+    return archived.reduce((best, next) =>
+      next.updatedAt > best.updatedAt ? next : best,
+    );
+  }, [archived]);
+
+  const archivedUnread = useMemo(
+    () => archived.reduce((sum, c) => sum + c.unreadCount, 0),
+    [archived],
+  );
+
+  const archivePreview = useMemo(() => {
+    if (!latestArchived) return undefined;
+    const body = messagePreview(latestArchived.lastMessage, {
+      conversation: latestArchived,
+      currentUserId: currentUser?.id ?? '',
+      users,
+    });
+    if (body && body !== 'No messages yet') {
+      return `${latestArchived.title}: ${body}`;
+    }
+    return latestArchived.title;
+  }, [latestArchived, currentUser?.id, users]);
+
   if (!ready) return <ConversationSkeleton />;
 
   const pinned = conversations.filter((c) => c.pinned);
@@ -239,38 +276,63 @@ export function ChatListBody({
       */}
       {archived.length > 0 && !selectionMode && (
         <div className="mb-1">
+          {/*
+            Same shell as ConversationRow: avatar-sized circle, two text lines,
+            time top-right, unread on the preview line. A settings-style single
+            line made Archive feel like chrome rather than a chat.
+          */}
           <button
             type="button"
             onClick={() => setShowArchived((was) => !was)}
             aria-expanded={showArchived}
             className={cn(
-              'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
-              'text-left transition-colors duration-instant hover:bg-hover',
+              'group focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left',
+              'transition-colors duration-instant hover:bg-hover active:bg-pressed',
+              '[transition:background-color_120ms_var(--ease-standard),transform_180ms_var(--ease-spring)]',
+              'active:scale-[0.985]',
             )}
           >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-hover text-text-secondary">
-              <ArchiveIcon size={17} />
-            </span>
-            <span className="min-w-0 flex-1 text-body text-ink">Archived</span>
-
-            {/*
-              The count is the unread total, not the number of chats. An
-              archived chat you have read is exactly what archiving is for, and
-              counting it would make the shelf permanently demand attention.
-            */}
-            {archived.some((c) => c.unreadCount > 0) && (
-              <span className="shrink-0 text-caption font-medium text-text-secondary tabular-nums">
-                {archived.reduce((sum, c) => sum + c.unreadCount, 0)}
-              </span>
-            )}
-
-            <ChevronRightIcon
-              size={16}
+            <span
               className={cn(
-                'shrink-0 text-text-tertiary transition-transform duration-quick ease-standard',
-                showArchived && 'rotate-90',
+                'grid size-12 shrink-0 place-items-center rounded-full',
+                'bg-sunken text-text-secondary ring-1 ring-line/80',
               )}
-            />
+              aria-hidden
+            >
+              <ArchiveIcon size={20} />
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline gap-2">
+                <span className="min-w-0 flex-1 truncate text-body text-ink">Archived</span>
+                {latestArchived && (
+                  <span className="shrink-0 text-caption tabular-nums text-text-tertiary">
+                    {formatConversationTimestamp(latestArchived.updatedAt)}
+                  </span>
+                )}
+              </span>
+              <span className="mt-1 flex items-center gap-1.5">
+                <span className="min-w-0 flex-1 truncate text-caption text-text-secondary">
+                  {archivePreview ??
+                    `${archived.length} ${archived.length === 1 ? 'chat' : 'chats'}`}
+                </span>
+                {archivedUnread > 0 && (
+                  <Badge
+                    count={archivedUnread}
+                    tone="brand"
+                    className="shrink-0"
+                    srSuffix="unread in archive"
+                  />
+                )}
+                <ChevronRightIcon
+                  size={14}
+                  className={cn(
+                    'shrink-0 text-text-tertiary transition-transform duration-quick ease-standard',
+                    showArchived && 'rotate-90',
+                  )}
+                />
+              </span>
+            </span>
           </button>
 
           {showArchived && (

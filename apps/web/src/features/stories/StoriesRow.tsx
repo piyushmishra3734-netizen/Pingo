@@ -241,15 +241,21 @@ function MyCircle({
           one, so a second target for the same action would be two controls
           saying one thing.
         */}
+        {/*
+          Small floating add - ~25% smaller than the old 24px badge, parked a
+          couple of pixels into the upper-right so it reads as an action on the
+          circle rather than a second attached button.
+        */}
         {!group && (
           <span
             className={cn(
-              'absolute -right-0.5 -bottom-0.5 grid size-6 place-items-center',
+              'absolute -top-px -right-0.5 grid size-[1.125rem] place-items-center',
               'rounded-full bg-brand-gradient text-white ring-2 ring-page',
+              'shadow-sm',
             )}
             aria-hidden
           >
-            <PlusIcon size={14} />
+            <PlusIcon size={11} />
           </span>
         )}
       </span>
@@ -263,8 +269,8 @@ function MyCircle({
         onClick={onCreate}
         aria-label="Add another story"
         className={cn(
-          'absolute right-0 bottom-6 grid size-6 place-items-center',
-          'rounded-full bg-brand-gradient text-white ring-2 ring-page',
+          'absolute top-0.5 right-0.5 grid size-[1.125rem] place-items-center',
+          'rounded-full bg-brand-gradient text-white ring-2 ring-page shadow-sm',
           'focus-ring transition-transform duration-quick ease-standard',
           'hover:scale-110 active:scale-95',
           /*
@@ -272,10 +278,10 @@ function MyCircle({
             ring around it, the tile is the bigger, more likely tap and must
             stay reachable right up to the badge's edge.
           */
-          'after:absolute after:-inset-2 after:content-[""]',
+          'after:absolute after:-inset-2.5 after:content-[""]',
         )}
       >
-        <PlusIcon size={14} />
+        <PlusIcon size={11} />
       </button>
     )}
     </span>
