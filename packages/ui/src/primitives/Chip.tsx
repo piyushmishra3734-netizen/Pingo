@@ -45,10 +45,11 @@ export function Chip({
         'touch-target',
         'active:scale-[0.96]',
         selected
-          ? // ~10% quieter brand so the selected chip states choice without
-            // shouting over the conversation list beneath it.
-            'bg-selected text-brand/90'
-          : 'bg-sunken text-text-secondary hover:bg-hover hover:text-ink',
+          ? // Selected is the only chip at full brand strength so the eye
+            // lands on it first among equals.
+            'bg-selected text-brand'
+          : // Unselected ~6% quieter so weight separates without a redesign.
+            'bg-sunken/85 text-text-secondary/90 hover:bg-hover hover:text-ink',
         className,
       )}
       {...rest}
@@ -58,7 +59,7 @@ export function Chip({
         <span
           className={cn(
             'tabular-nums',
-            selected ? 'text-brand/60' : 'text-text-tertiary',
+            selected ? 'text-brand/75' : 'text-text-tertiary',
           )}
         >
           {count}

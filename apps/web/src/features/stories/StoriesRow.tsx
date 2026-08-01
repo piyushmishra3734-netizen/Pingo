@@ -61,7 +61,7 @@ export function StoriesRow({
 
   return (
     <div className="px-1">
-      <h2 className="px-3 pb-2 text-caption font-medium text-text-secondary">Stories</h2>
+      <h2 className="px-3 pb-1 text-caption font-medium text-text-secondary">Stories</h2>
 
       {/*
         `scrollbar-none` because a horizontal scrollbar under six circles is
@@ -70,7 +70,7 @@ export function StoriesRow({
         triggering the browser's own back gesture.
       */}
       <ul
-        className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pb-1"
+        className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pb-0"
         aria-label="Stories"
       >
         <li>
@@ -249,7 +249,8 @@ function MyCircle({
         {!group && (
           <span
             className={cn(
-              'absolute -top-px -right-0.5 grid size-[1.125rem] place-items-center',
+              // Another ~2px out to the right so it sits on the rim, not inside.
+              'absolute -top-px -right-1.5 grid size-[1.125rem] place-items-center',
               'rounded-full bg-brand-gradient text-white ring-2 ring-page',
               'shadow-sm',
             )}
@@ -269,7 +270,7 @@ function MyCircle({
         onClick={onCreate}
         aria-label="Add another story"
         className={cn(
-          'absolute top-0.5 right-0.5 grid size-[1.125rem] place-items-center',
+          'absolute top-0.5 -right-1 grid size-[1.125rem] place-items-center',
           'rounded-full bg-brand-gradient text-white ring-2 ring-page shadow-sm',
           'focus-ring transition-transform duration-quick ease-standard',
           'hover:scale-110 active:scale-95',

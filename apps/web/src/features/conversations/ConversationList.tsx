@@ -200,7 +200,8 @@ export function ConversationList({
       <header
         className={cn(
           'sticky top-0 z-100 shrink-0',
-          'glass-surface border-x-0 border-t-0 border-b-line',
+          // Divider under the chrome at ~70% of default line strength.
+          'glass-surface border-x-0 border-t-0 border-b border-b-line/70',
           'px-4 pt-4 pb-3',
           'pt-[max(1rem,env(safe-area-inset-top))]',
         )}
@@ -374,6 +375,11 @@ export function ConversationList({
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search chats"
                 aria-label="Search chats"
+                /*
+                  Border almost disappears: idle line ~8–10% softer than default
+                  line-strong, so the field is a recess rather than a box.
+                */
+                className="h-11 border-[rgba(16,17,20,0.045)] bg-sunken/90 focus-within:border-[rgba(16,17,20,0.08)]"
               />
             </div>
 
@@ -428,7 +434,7 @@ export function ConversationList({
       )}
 
       <div
-        className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
+        className="min-h-0 flex-1 overflow-y-auto px-2 pt-1 pb-2"
         role={selectionMode ? 'listbox' : undefined}
         aria-multiselectable={selectionMode ? true : undefined}
         aria-label={selectionMode ? 'Conversations, selecting' : undefined}
@@ -455,7 +461,7 @@ export function ConversationList({
              * none of them.
              */
             !searching && filter === 'all' && !activeList && !selectionMode ? (
-              <div className="pb-3">
+              <div className="pb-0.5">
                 <StoriesRow
                   groups={storyGroups}
                   currentUserId={profile?.id}

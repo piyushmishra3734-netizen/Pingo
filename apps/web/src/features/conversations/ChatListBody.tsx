@@ -306,7 +306,7 @@ export function ChatListBody({
               <span className="flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate text-body text-ink">Archived</span>
                 {latestArchived && (
-                  <span className="shrink-0 text-caption tabular-nums text-text-tertiary">
+                  <span className="shrink-0 text-caption tabular-nums text-ink/45">
                     {formatConversationTimestamp(latestArchived.updatedAt)}
                   </span>
                 )}

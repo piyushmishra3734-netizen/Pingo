@@ -169,11 +169,15 @@ export function ConversationRow({
             />
           )}
 
-          {/* Time stays top-right. Unread lives on the preview line below. */}
+          {/*
+            Time stays top-right. Unread lives on the preview line below.
+            Read timestamps ~5% brighter than tertiary so "1:20 PM" / "Wed"
+            stay readable without competing with the name.
+          */}
           <span
             className={cn(
               'shrink-0 text-caption tabular-nums',
-              hasUnread ? 'font-medium text-brand' : 'text-text-tertiary',
+              hasUnread ? 'font-medium text-brand' : 'text-ink/45',
             )}
           >
             {formatConversationTimestamp(conversation.updatedAt)}
