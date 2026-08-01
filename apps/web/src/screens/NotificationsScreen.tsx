@@ -120,6 +120,7 @@ export function NotificationsScreen() {
         if (!active) return;
         setItems(list);
         void service.markAllNotificationsRead();
+        // Badge only - not a load dependency (clear identity changes with unread).
         clear();
       })
       .catch(() => {
@@ -128,7 +129,8 @@ export function NotificationsScreen() {
     return () => {
       active = false;
     };
-  }, [service, version, clear]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear is a badge setter
+  }, [service, version]);
 
   const sections = useMemo(() => {
     if (!items?.length) return [] as { key: DayKey; items: AppNotification[] }[];
