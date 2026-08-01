@@ -169,6 +169,10 @@ export function CameraScreen() {
    */
   const sendPing = async () => {
     if (!shot || recipients.size === 0 || busy) return;
+    if (!shot.blob || shot.blob.size === 0) {
+      setError('No image to send. Retake the Ping.');
+      return;
+    }
     setBusy(true);
     setError(undefined);
 
@@ -189,20 +193,31 @@ export function CameraScreen() {
        * Long enough to see that it went, short enough that nobody is waiting.
        * Returning instantly makes a send feel like it may not have happened;
        * a dialog makes it feel like paperwork.
+       *
+       * `busy` used to stay true forever after a successful send - `reset()`
+       * never cleared it - so the next Ping or story attempt silently no-oped.
        */
       setSentCount(recipients.size);
-      window.setTimeout(() => {
-        setSentCount(0);
-        reset();
-      }, 900);
-    } catch {
-      setError("That didn't send. Try again.");
+      await new Promise((resolve) => window.setTimeout(resolve, 900));
+      setSentCount(0);
+      reset();
+    } catch (cause) {
+      setError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "That didn't send. Try again.",
+      );
+    } finally {
       setBusy(false);
     }
   };
 
   const postStory = async () => {
     if (!shot) return;
+    if (!shot.blob || shot.blob.size === 0) {
+      setError('No image to post. Retake first.');
+      return;
+    }
     setBusy(true);
     setError(undefined);
     try {
@@ -211,8 +226,12 @@ export function CameraScreen() {
       await stories.post({ media: shot.blob, kind: 'photo', audience: 'friends' });
       await refresh();
       navigate('/chats', { replace: true });
-    } catch {
-      setError("That didn't post. Try again.");
+    } catch (cause) {
+      setError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "That didn't post. Try again.",
+      );
     } finally {
       setBusy(false);
     }

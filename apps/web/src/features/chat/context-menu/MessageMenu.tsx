@@ -187,9 +187,13 @@ export function MessageMenu({
             setEditing(false);
             void service
               .editMessage(message.id, next)
-              .catch(() => {
-                setError('Edit failed');
-                window.setTimeout(() => setError(undefined), 2200);
+              .catch((cause: unknown) => {
+                setError(
+                  cause instanceof Error && cause.message
+                    ? cause.message
+                    : 'Edit failed',
+                );
+                window.setTimeout(() => setError(undefined), 3200);
               });
           }}
         />

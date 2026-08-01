@@ -1719,6 +1719,9 @@ export class SupabaseChatService implements ChatService {
    * URL is minted per view by `openPing`, and minting it is what spends one.
    */
   async #uploadSnap(image: Blob): Promise<string> {
+    if (!image || image.size === 0) {
+      throw new Error('No image to send.');
+    }
     const me = await this.#userId();
     const path = `${me}/${crypto.randomUUID()}.jpg`;
 
@@ -1726,11 +1729,14 @@ export class SupabaseChatService implements ChatService {
       .from(SNAP_BUCKET)
       .upload(path, image, { contentType: image.type || 'image/jpeg' });
 
-    if (error) throw error;
+    if (error) throw new Error(error.message || 'Could not upload the Ping.');
     return path;
   }
 
   async #uploadPhoto(image: Blob): Promise<string> {
+    if (!image || image.size === 0) {
+      throw new Error('No image to send.');
+    }
     const me = await this.#userId();
     // The uploader's id leads the path, which is what the storage policy checks.
     const path = `${me}/${crypto.randomUUID()}.jpg`;
@@ -1739,7 +1745,7 @@ export class SupabaseChatService implements ChatService {
       .from(PHOTO_BUCKET)
       .upload(path, image, { contentType: image.type || 'image/jpeg' });
 
-    if (error) throw error;
+    if (error) throw new Error(error.message || 'Could not upload the photo.');
     return path;
   }
 
@@ -2388,6 +2394,9 @@ export class SupabaseChatService implements ChatService {
    * send.
    */
   async editMessage(messageId: MessageId, body: string): Promise<void> {
+    const trimmed = body.trim();
+    if (!trimmed) throw new Error('Message cannot be empty.');
+
     /*
      * The conversation is read first because sealing needs the recipient list,
      * and `editMessage` is given only a message id. One keyed lookup is a
@@ -2399,10 +2408,10 @@ export class SupabaseChatService implements ChatService {
       .eq('id', messageId)
       .maybeSingle();
 
-    if (error) throw error;
-    if (!data) throw new Error(`No message ${messageId}`);
+    if (error) throw new Error(error.message || 'Could not load the message.');
+    if (!data) throw new Error('That message is no longer available.');
 
-    const sealed = await sealBody(this.#client, data.conversation_id, body);
+    const sealed = await sealBody(this.#client, data.conversation_id, trimmed);
 
     const { error: sealedError } = await this.#client.rpc('edit_message', {
       target: messageId,
@@ -2429,7 +2438,9 @@ export class SupabaseChatService implements ChatService {
        * whole change exists to remove. Refusing is the honest outcome: the edit
        * visibly does not happen, rather than silently destroying the message.
        */
-      if (sealedError.code !== 'PGRST202') throw sealedError;
+      if (sealedError.code !== 'PGRST202') {
+        throw new Error(sealedError.message || 'Could not save the edit.');
+      }
 
       if (sealed.encryption !== null) {
         throw new Error(
@@ -2441,10 +2452,34 @@ export class SupabaseChatService implements ChatService {
         target: messageId,
         new_body: sealed.body,
       });
-      if (legacyError) throw legacyError;
+      if (legacyError) {
+        throw new Error(legacyError.message || 'Could not save the edit.');
+      }
     }
 
-    this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
+    /*
+     * Prefer a fresh row, but never fail the whole edit because the re-read
+     * hiccuped - the RPC already committed. Emit a minimal update so the
+     * bubble still refreshes.
+     */
+    try {
+      this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
+    } catch {
+      this.#emit({
+        type: 'message:updated',
+        message: {
+          id: messageId,
+          conversationId: data.conversation_id,
+          authorId: await this.#userId(),
+          body: trimmed,
+          createdAt: Date.now(),
+          status: 'sent',
+          attachments: [],
+          reactions: [],
+          editedAt: Date.now(),
+        },
+      });
+    }
   }
 
   async deleteMessage(messageId: MessageId, forEveryone: boolean): Promise<void> {
