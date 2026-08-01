@@ -212,6 +212,10 @@ export class SupabaseStoryService implements StoryService {
   async post(draft: StoryDraft): Promise<Story> {
     const me = await this.#userId();
 
+    if (!draft.media || draft.media.size === 0) {
+      throw new Error('No media to post.');
+    }
+
     const extension = draft.kind === 'video' ? 'mp4' : 'jpg';
     // Per-user folder, which is what the storage policy checks.
     const path = `${me}/${crypto.randomUUID()}.${extension}`;
@@ -220,9 +224,12 @@ export class SupabaseStoryService implements StoryService {
       .from(STORY_BUCKET)
       .upload(path, draft.media, {
         contentType: draft.media.type || (draft.kind === 'video' ? 'video/mp4' : 'image/jpeg'),
+        upsert: false,
       });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      throw new Error(uploadError.message || 'Could not upload the story media.');
+    }
 
     const { data, error } = await this.#client
       .from('stories')
@@ -248,9 +255,10 @@ export class SupabaseStoryService implements StoryService {
       .single();
 
     if (error) {
-      // The row did not land, so nothing points at the upload.
+      // The row did not land (or RETURNING was blocked), so nothing should keep
+      // pointing at the upload.
       await this.#client.storage.from(STORY_BUCKET).remove([path]);
-      throw error;
+      throw new Error(error.message || 'Could not save the story.');
     }
 
     if (draft.audience === 'custom' && draft.audienceUserIds?.length) {

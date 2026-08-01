@@ -107,6 +107,8 @@ export function SnapEditor({
   const [rotation, setRotation] = useState(0);
   /** Absent means the whole frame. Applied at export, previewed as a mask. */
   const [crop, setCrop] = useState<Crop | undefined>();
+  const [exportError, setExportError] = useState<string>();
+  const [exporting, setExporting] = useState(false);
 
   const addItem = useCallback(
     (item: Omit<Item, 'id' | 'x' | 'y'>) =>
@@ -173,147 +175,187 @@ export function SnapEditor({
   // ---- export -------------------------------------------------------------
 
   const flatten = useCallback(async () => {
-    const image = imageRef.current;
-    if (!image) return;
+    if (exporting) return;
+    setExportError(undefined);
+    setExporting(true);
 
-    const width = image.naturalWidth;
-    const height = image.naturalHeight;
+    try {
+      const image = imageRef.current;
+      if (!image) throw new Error('Image is not ready.');
 
-    /*
-     * Rotation is applied to the canvas rather than to the annotations.
-     *
-     * Strokes and text are stored in the *image's* coordinate space, so drawing
-     * them after the canvas has been turned puts them exactly where the user
-     * left them relative to the picture - which is what they were aiming at.
-     * Rotating each point by hand would be the same maths done worse.
-     */
-    const quarterTurned = rotation % 180 !== 0;
-    const out = document.createElement('canvas');
-    out.width = quarterTurned ? height : width;
-    out.height = quarterTurned ? width : height;
+      // Next can fire before decode finishes - natural size is then 0 and the
+      // export produces nothing, with no feedback.
+      if (!image.complete || image.naturalWidth === 0) {
+        try {
+          await image.decode();
+        } catch {
+          throw new Error('Image is still loading. Wait a moment and try again.');
+        }
+      }
 
-    const context = out.getContext('2d');
-    if (!context) return;
-
-    context.translate(out.width / 2, out.height / 2);
-    context.rotate((rotation * Math.PI) / 180);
-    context.translate(-width / 2, -height / 2);
-
-    context.drawImage(image, 0, 0, width, height);
-
-    // Strokes, re-drawn at native size rather than upscaled from the preview  - 
-    // scaling a bitmap would soften every line.
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
-    for (const stroke of strokes) {
-      if (stroke.points.length === 0) continue;
-      context.strokeStyle = stroke.colour;
-      context.lineWidth = PEN_WIDTH * Math.min(width, height);
-      context.beginPath();
-      stroke.points.forEach((point, index) => {
-        const x = point.x * width;
-        const y = point.y * height;
-        if (index === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      });
-      context.stroke();
-    }
-
-    const fontSize = Math.round(height * 0.052);
-    context.font = `600 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-
-    /*
-     * Stickers first, fetched with CORS.
-     *
-     * Drawing a cross-origin image onto a canvas taints it, and a tainted
-     * canvas throws on `toBlob` - the export would fail at the very last step,
-     * after the user had done all the work. `crossOrigin = 'anonymous'` asks
-     * for the CORS headers that keep it clean; the packs are served from a CDN
-     * that sends them. A sticker that will not load is skipped rather than
-     * taking the whole picture down with it.
-     */
-    await Promise.all(
-      items
-        .filter((item) => item.kind === 'sticker' && item.url)
-        .map(
-          (item) =>
-            new Promise<void>((resolve) => {
-              const sticker = new Image();
-              sticker.crossOrigin = 'anonymous';
-              sticker.onload = () => {
-                const size = height * 0.18;
-                const ratio = sticker.naturalWidth / sticker.naturalHeight || 1;
-                const w = ratio >= 1 ? size : size * ratio;
-                const h = ratio >= 1 ? size / ratio : size;
-                context.drawImage(sticker, item.x * width - w / 2, item.y * height - h / 2, w, h);
-                resolve();
-              };
-              sticker.onerror = () => resolve();
-              sticker.src = item.url!;
-            }),
-        ),
-    );
-
-    // Emoji: painted as text, but larger and without the plate a label gets.
-    const emojiSize = Math.round(height * 0.12);
-    for (const item of items) {
-      if (item.kind !== 'emoji') continue;
-      context.font = `${emojiSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
-      context.fillText(item.value, item.x * width, item.y * height);
-    }
-
-    context.font = `600 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
-
-    for (const text of items) {
-      if (text.kind !== 'text') continue;
-      const value = text.value.trim();
-      if (!value) continue;
-
-      const x = text.x * width;
-      const y = text.y * height;
+      const width = image.naturalWidth;
+      const height = image.naturalHeight;
+      if (width < 1 || height < 1) {
+        throw new Error('Image is still loading. Wait a moment and try again.');
+      }
 
       /*
-       * A dark plate behind the words, matching the on-screen chip.
+       * Rotation is applied to the canvas rather than to the annotations.
        *
-       * White text on a bright sky is unreadable, and this is the one place the
-       * export must not diverge from what the user arranged.
+       * Strokes and text are stored in the *image's* coordinate space, so drawing
+       * them after the canvas has been turned puts them exactly where the user
+       * left them relative to the picture - which is what they were aiming at.
+       * Rotating each point by hand would be the same maths done worse.
        */
-      const metrics = context.measureText(value);
-      const padX = fontSize * 0.42;
-      const padY = fontSize * 0.3;
-      context.fillStyle = 'rgba(16, 17, 20, 0.42)';
-      context.beginPath();
-      context.roundRect(
-        x - metrics.width / 2 - padX,
-        y - fontSize / 2 - padY,
-        metrics.width + padX * 2,
-        fontSize + padY * 2,
-        fontSize * 0.36,
+      const quarterTurned = rotation % 180 !== 0;
+      const out = document.createElement('canvas');
+      out.width = quarterTurned ? height : width;
+      out.height = quarterTurned ? width : height;
+
+      const context = out.getContext('2d');
+      if (!context) throw new Error('Could not prepare the image.');
+
+      context.translate(out.width / 2, out.height / 2);
+      context.rotate((rotation * Math.PI) / 180);
+      context.translate(-width / 2, -height / 2);
+
+      context.drawImage(image, 0, 0, width, height);
+
+      // Strokes, re-drawn at native size rather than upscaled from the preview  - 
+      // scaling a bitmap would soften every line.
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      for (const stroke of strokes) {
+        if (stroke.points.length === 0) continue;
+        context.strokeStyle = stroke.colour;
+        context.lineWidth = PEN_WIDTH * Math.min(width, height);
+        context.beginPath();
+        stroke.points.forEach((point, index) => {
+          const x = point.x * width;
+          const y = point.y * height;
+          if (index === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        });
+        context.stroke();
+      }
+
+      const fontSize = Math.round(height * 0.052);
+      context.font = `600 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+
+      /*
+       * Stickers first, fetched with CORS.
+       *
+       * Drawing a cross-origin image onto a canvas taints it, and a tainted
+       * canvas throws on `toBlob` - the export would fail at the very last step,
+       * after the user had done all the work. `crossOrigin = 'anonymous'` asks
+       * for the CORS headers that keep it clean; the packs are served from a CDN
+       * that sends them. A sticker that will not load is skipped rather than
+       * taking the whole picture down with it.
+       */
+      await Promise.all(
+        items
+          .filter((item) => item.kind === 'sticker' && item.url)
+          .map(
+            (item) =>
+              new Promise<void>((resolve) => {
+                const sticker = new Image();
+                sticker.crossOrigin = 'anonymous';
+                sticker.onload = () => {
+                  const size = height * 0.18;
+                  const ratio = sticker.naturalWidth / sticker.naturalHeight || 1;
+                  const w = ratio >= 1 ? size : size * ratio;
+                  const h = ratio >= 1 ? size / ratio : size;
+                  context.drawImage(sticker, item.x * width - w / 2, item.y * height - h / 2, w, h);
+                  resolve();
+                };
+                sticker.onerror = () => resolve();
+                sticker.src = item.url!;
+              }),
+          ),
       );
-      context.fill();
 
-      context.fillStyle = text.colour;
-      context.fillText(value, x, y);
+      // Emoji: painted as text, but larger and without the plate a label gets.
+      const emojiSize = Math.round(height * 0.12);
+      for (const item of items) {
+        if (item.kind !== 'emoji') continue;
+        context.font = `${emojiSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+        context.fillText(item.value, item.x * width, item.y * height);
+      }
+
+      context.font = `600 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
+
+      for (const text of items) {
+        if (text.kind !== 'text') continue;
+        const value = text.value.trim();
+        if (!value) continue;
+
+        const x = text.x * width;
+        const y = text.y * height;
+
+        /*
+         * A dark plate behind the words, matching the on-screen chip.
+         *
+         * White text on a bright sky is unreadable, and this is the one place the
+         * export must not diverge from what the user arranged.
+         *
+         * `roundRect` is not on every engine - falling back to a plain rect keeps
+         * export from throwing after the user finished editing.
+         */
+        const metrics = context.measureText(value);
+        const padX = fontSize * 0.42;
+        const padY = fontSize * 0.3;
+        const plateX = x - metrics.width / 2 - padX;
+        const plateY = y - fontSize / 2 - padY;
+        const plateW = metrics.width + padX * 2;
+        const plateH = fontSize + padY * 2;
+        const radius = fontSize * 0.36;
+        context.fillStyle = 'rgba(16, 17, 20, 0.42)';
+        context.beginPath();
+        if (typeof context.roundRect === 'function') {
+          context.roundRect(plateX, plateY, plateW, plateH, radius);
+        } else {
+          context.rect(plateX, plateY, plateW, plateH);
+        }
+        context.fill();
+
+        context.fillStyle = text.colour;
+        context.fillText(value, x, y);
+      }
+
+      /*
+       * Crop last, and after rotation on purpose.
+       *
+       * The rectangle was dragged over the picture as it looked on screen - which
+       * is the rotated picture. Cropping the source before turning it would apply
+       * the user's rectangle to a different orientation and cut out the wrong
+       * part; doing it here means "what was inside the box" is exactly what comes
+       * out, whatever else was done first.
+       */
+      const finished = crop ? cropCanvas(out, crop) : out;
+
+      const blob = await new Promise<Blob | null>((resolve, reject) => {
+        try {
+          finished.toBlob((result) => resolve(result), 'image/jpeg', 0.92);
+        } catch (cause) {
+          reject(cause instanceof Error ? cause : new Error('Could not export the image.'));
+        }
+      });
+
+      if (!blob || blob.size === 0) {
+        throw new Error('Could not export the image. Try again.');
+      }
+
+      onDone(blob);
+    } catch (cause) {
+      setExportError(
+        cause instanceof Error ? cause.message : 'Could not prepare the story. Try again.',
+      );
+    } finally {
+      setExporting(false);
     }
-
-    /*
-     * Crop last, and after rotation on purpose.
-     *
-     * The rectangle was dragged over the picture as it looked on screen - which
-     * is the rotated picture. Cropping the source before turning it would apply
-     * the user's rectangle to a different orientation and cut out the wrong
-     * part; doing it here means "what was inside the box" is exactly what comes
-     * out, whatever else was done first.
-     */
-    const finished = crop ? cropCanvas(out, crop) : out;
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      finished.toBlob(resolve, 'image/jpeg', 0.92),
-    );
-    if (blob) onDone(blob);
-  }, [strokes, items, rotation, crop, onDone]);
+  }, [strokes, items, rotation, crop, onDone, exporting]);
 
   // ---- render -------------------------------------------------------------
 
@@ -528,10 +570,16 @@ export function SnapEditor({
           ))}
         </div>
 
+        {exportError && (
+          <p role="alert" className="text-center text-caption text-danger">
+            {exportError}
+          </p>
+        )}
+
         <button
           type="button"
           onClick={() => void flatten()}
-          disabled={busy}
+          disabled={busy || exporting}
           className={cn(
             'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
             // ~6px shorter (py-3.5 → py-2.5), quieter shadow (~20% less lift).
@@ -542,7 +590,7 @@ export function SnapEditor({
           )}
         >
           <CheckIcon size={17} />
-          {busy ? 'Working…' : doneLabel}
+          {busy || exporting ? 'Working…' : doneLabel}
         </button>
       </div>
     </div>

@@ -100,8 +100,14 @@ export function StoryComposer({
       });
       await refresh();
       onPosted();
-    } catch {
-      setError('That did not post. Try again.');
+    } catch (cause) {
+      // Surface the real reason - a silent "try again" hides RLS, upload and
+      // empty-media failures that the user cannot otherwise diagnose.
+      const message =
+        cause instanceof Error && cause.message
+          ? cause.message
+          : 'That did not post. Try again.';
+      setError(message);
       setBusy(false);
     }
   };
