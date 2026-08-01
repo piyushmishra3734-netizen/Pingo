@@ -176,115 +176,99 @@ function MyCircle({
     if (moved > 10) clear();
   };
 
+  /*
+   * Instagram-style add chip: sits on the bottom-right of the face, white ring
+   * cutting it out of the photo. Shared classes so empty and “already posted”
+   * land on the same dock point.
+   */
+  const plusChip = cn(
+    'absolute right-0 bottom-0 z-10 grid size-5 place-items-center',
+    'rounded-full bg-brand-gradient text-white',
+    'ring-[2.5px] ring-page',
+  );
+
   return (
     /*
-      A wrapper, so the plus can be its own button.
-
-      Once you have a story the ring has to do two jobs - open what you posted,
-      and add another - and a button cannot contain a button. Previously the
-      second job simply disappeared: the plus was rendered only when there was
-      no story, so posting one removed the only way to post a second from here.
+      Wrapper so the plus can be its own control once a story exists (a button
+      cannot nest a button). The chip is always a child of the avatar frame so
+      it sticks to the circle the way Instagram does - not floating free, not
+      upper-right.
     */
-    <span className="relative inline-flex">
-    <button
-      type="button"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={clear}
-      onPointerCancel={clear}
-      onContextMenu={(event) => {
-        // A long press on a touch screen also raises the browser's own menu,
-        // which would land on top of ours.
-        if (group) event.preventDefault();
-      }}
-      onClick={(event) => {
-        clear();
-        // The hold already opened the menu; the click that follows is noise.
-        if (held.current) {
-          held.current = false;
-          return;
-        }
-        if (group) onOpen(group, event.currentTarget.getBoundingClientRect());
-        else onCreate();
-      }}
-      aria-label={
-        group
-          ? `Your story, ${group.stories.length} ${
-              group.stories.length === 1 ? 'item' : 'items'
-            }. Tap to view, hold to manage.`
-          : 'Add to your story'
-      }
-      className={cn(
-        'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
-        'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
-      )}
-    >
+    <span className="relative inline-flex w-[67px] shrink-0 flex-col items-center gap-1.5 py-1">
       <span
         className={cn(
           'relative block',
-          // Squeezes over the hold's duration, then springs back on release.
           holding
             ? 'motion-safe:animate-press-hold'
             : 'transition-transform duration-quick ease-standard',
         )}
       >
-        <StoryRing
-          seen={group?.allSeen ?? true}
-          close={group?.closeFriends ?? false}
-          hasStory={Boolean(group)}
+        <button
+          type="button"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={clear}
+          onPointerCancel={clear}
+          onContextMenu={(event) => {
+            if (group) event.preventDefault();
+          }}
+          onClick={(event) => {
+            clear();
+            if (held.current) {
+              held.current = false;
+              return;
+            }
+            if (group) onOpen(group, event.currentTarget.getBoundingClientRect());
+            else onCreate();
+          }}
+          aria-label={
+            group
+              ? `Your story, ${group.stories.length} ${
+                  group.stories.length === 1 ? 'item' : 'items'
+                }. Tap to view, hold to manage.`
+              : 'Add to your story'
+          }
+          className={cn(
+            'block rounded-full',
+            'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
+          )}
         >
-          <Avatar name={name} id={userId} src={avatarUrl} size="lg" />
-        </StoryRing>
-
-        {/*
-          Decorative only when there is no story: the whole tile already adds
-          one, so a second target for the same action would be two controls
-          saying one thing.
-        */}
-        {/*
-          Small floating add - ~25% smaller than the old 24px badge, parked a
-          couple of pixels into the upper-right so it reads as an action on the
-          circle rather than a second attached button.
-        */}
-        {!group && (
-          <span
-            className={cn(
-              // Another ~2px out to the right so it sits on the rim, not inside.
-              'absolute -top-px -right-1.5 grid size-[1.125rem] place-items-center',
-              'rounded-full bg-brand-gradient text-white ring-2 ring-page',
-              'shadow-sm',
-            )}
-            aria-hidden
+          <StoryRing
+            seen={group?.allSeen ?? true}
+            close={group?.closeFriends ?? false}
+            hasStory={Boolean(group)}
           >
-            <PlusIcon size={11} />
+            <Avatar name={name} id={userId} src={avatarUrl} size="lg" />
+          </StoryRing>
+        </button>
+
+        {group ? (
+          <button
+            type="button"
+            onClick={onCreate}
+            aria-label="Add another story"
+            className={cn(
+              plusChip,
+              'focus-ring transition-transform duration-quick ease-standard',
+              'hover:scale-110 active:scale-95',
+              // Hit area without stealing taps from the ring itself.
+              'after:absolute after:-inset-2 after:content-[""]',
+            )}
+          >
+            <PlusIcon size={12} strokeWidth={2.5} />
+          </button>
+        ) : (
+          /*
+            Decorative only: the face button already creates a story, so a
+            second control would be two targets for one job.
+          */
+          <span className={plusChip} aria-hidden>
+            <PlusIcon size={12} strokeWidth={2.5} />
           </span>
         )}
       </span>
 
-      <span className="w-full truncate text-caption text-text-secondary">You</span>
-    </button>
-
-    {group && (
-      <button
-        type="button"
-        onClick={onCreate}
-        aria-label="Add another story"
-        className={cn(
-          'absolute top-0.5 -right-1 grid size-[1.125rem] place-items-center',
-          'rounded-full bg-brand-gradient text-white ring-2 ring-page shadow-sm',
-          'focus-ring transition-transform duration-quick ease-standard',
-          'hover:scale-110 active:scale-95',
-          /*
-            The 44px target sits outside the badge, so it does not swallow the
-            ring around it, the tile is the bigger, more likely tap and must
-            stay reachable right up to the badge's edge.
-          */
-          'after:absolute after:-inset-2.5 after:content-[""]',
-        )}
-      >
-        <PlusIcon size={11} />
-      </button>
-    )}
+      <span className="w-full truncate text-center text-caption text-text-secondary">You</span>
     </span>
   );
 }
