@@ -1,6 +1,7 @@
-import { useChat } from '@pingo/core';
+import { useChat, useProfile } from '@pingo/core';
 import {
   Badge,
+  BellIcon,
   CameraIcon,
   ChatIcon,
   GlassPanel,
@@ -9,17 +10,22 @@ import {
   UsersIcon,
   cn,
 } from '@pingo/ui';
-
+import { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { useNotifications } from '../features/notifications/NotificationContext.js';
+import { canAccessCommunities } from '../lib/community-access.js';
 
 /**
  * The floating navigation dock - "Glass effect. Floating. Always accessible."
  *
- * Five destinations: Chats, Calls, Camera, Communities, Profile. Camera sits in
- * the middle because it is the one *creating* action among four browsing ones  - 
- * the same reason it is centred in every camera-first product.
+ * Five destinations: Chats, Calls, Camera, then either Notifications or
+ * Communities, then Profile. Camera sits in the middle because it is the one
+ * *creating* action among four browsing ones - the same reason it is centred in
+ * every camera-first product.
+ *
+ * Communities is allowlisted (see `canAccessCommunities`). Everyone else gets
+ * Notifications in that slot, which used to live only on the chats header.
  *
  * Five is the ceiling. Settings is reached from the Chats header and from
  * Profile, not from here, because a dock that grows by one every time a feature
@@ -41,17 +47,24 @@ interface DockItem {
   matchPrefix?: string;
 }
 
-const ITEMS: DockItem[] = [
-  { to: '/chats', label: 'Chats', Icon: ChatIcon, matchPrefix: '/chats' },
-  { to: '/calls', label: 'Calls', Icon: PhoneIcon },
-  { to: '/camera', label: 'Camera', Icon: CameraIcon },
-  { to: '/communities', label: 'Communities', Icon: UsersIcon },
-  { to: '/profile', label: 'Profile', Icon: UserIcon, matchPrefix: '/profile' },
-];
-
 export function Dock() {
   const { totalUnread } = useChat();
+  const { profile } = useProfile();
   const { unread: unreadNotifications } = useNotifications();
+  const communities = canAccessCommunities(profile?.username);
+
+  const items = useMemo<DockItem[]>(
+    () => [
+      { to: '/chats', label: 'Chats', Icon: ChatIcon, matchPrefix: '/chats' },
+      { to: '/calls', label: 'Calls', Icon: PhoneIcon },
+      { to: '/camera', label: 'Camera', Icon: CameraIcon },
+      communities
+        ? { to: '/communities', label: 'Communities', Icon: UsersIcon }
+        : { to: '/notifications', label: 'Notifications', Icon: BellIcon },
+      { to: '/profile', label: 'Profile', Icon: UserIcon, matchPrefix: '/profile' },
+    ],
+    [communities],
+  );
 
   return (
     <nav
@@ -65,7 +78,7 @@ export function Dock() {
       )}
     >
       <GlassPanel className="pointer-events-auto flex items-center gap-1 p-2">
-        {ITEMS.map(({ to, label, Icon, matchPrefix }) => (
+        {items.map(({ to, label, Icon, matchPrefix }) => (
           <NavLink
             key={to}
             to={to}
@@ -122,12 +135,18 @@ export function Dock() {
                 />
 
                 {/*
-                  Notifications hang off Profile, and the dock is the one thing
-                  on screen everywhere - which is the point. A dot rather than a
-                  count: the number is on the screen it leads to, and two
-                  numbers side by side on one bar is a scoreboard.
+                  Unread notifications sit on the Notifications tab when that
+                  tab is in the dock. Allowlisted accounts keep Communities
+                  there instead, so the dot still hangs off Profile for them
+                  (and the chats-header bell remains as the open path).
                 */}
-                {to === '/profile' && unreadNotifications > 0 && (
+                {to === '/notifications' && !isActive && unreadNotifications > 0 && (
+                  <span
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand ring-2 ring-glass"
+                    aria-label={`${unreadNotifications} unread notifications`}
+                  />
+                )}
+                {to === '/profile' && communities && unreadNotifications > 0 && (
                   <span
                     className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand ring-2 ring-glass"
                     aria-label={`${unreadNotifications} unread notifications`}

@@ -1,4 +1,4 @@
-import { formatPresence, useChat, type User } from '@pingo/core';
+import { formatPresence, useChat, useProfile, type User } from '@pingo/core';
 import {
   Avatar,
   AvatarStack,
@@ -11,12 +11,16 @@ import {
   cn,
 } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { canAccessCommunities } from '../lib/community-access.js';
 
 /**
  * Communities and contacts.
+ *
+ * Allowlisted only (`canAccessCommunities`). Everyone else is sent home; the
+ * dock slot that used to open this screen now opens Notifications.
  *
  * Two sections, one screen. Group and community conversations come first as cards,
  * because they are destinations; individual contacts follow as a plain list,
@@ -28,7 +32,9 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
  */
 export function CommunitiesScreen() {
   const { service, conversations, users, currentUser } = useChat();
+  const { profile } = useProfile();
   const [query, setQuery] = useState('');
+  const allowed = canAccessCommunities(profile?.username);
 
   /*
    * The whole directory, not just people already in a conversation.
@@ -42,6 +48,7 @@ export function CommunitiesScreen() {
   const [directoryError, setDirectoryError] = useState<string>();
 
   useEffect(() => {
+    if (!allowed) return;
     let active = true;
     void service
       .listContacts()
@@ -64,7 +71,7 @@ export function CommunitiesScreen() {
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [service, allowed]);
 
   const people = directory ?? users;
   const q = query.trim().toLowerCase();
@@ -123,6 +130,10 @@ export function CommunitiesScreen() {
 
   const loadingPeople = directory === undefined && !directoryError && users.length === 0;
   const nothingFound = !loadingPeople && groups.length === 0 && contacts.length === 0;
+
+  if (!allowed) {
+    return <Navigate to="/chats" replace />;
+  }
 
   return (
     <div className="h-full overflow-y-auto">

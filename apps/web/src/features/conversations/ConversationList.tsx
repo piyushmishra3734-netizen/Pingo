@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AppWordmark } from '../../components/AppWordmark.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { canAccessCommunities } from '../../lib/community-access.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
@@ -71,6 +72,11 @@ export function ConversationList({
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const { unread } = useNotifications();
+  /*
+   * Most accounts open notifications from the dock. Allowlisted community
+   * accounts still have Communities in that slot, so they keep the header bell.
+   */
+  const showHeaderNotifications = canAccessCommunities(profile?.username);
 
   const actions = useConversationActions();
   const confirm = useConfirm();
@@ -308,22 +314,24 @@ export function ConversationList({
                   <SearchIcon size={21} />
                 </IconButton>
 
-                <IconButton
-                  label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-                  variant="ghost"
-                  onClick={() => navigate('/notifications')}
-                >
-                  <span className="relative">
-                    <BellIcon size={21} />
-                    <span
-                      className={cn(
-                        'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-brand ring-2 ring-page',
-                        'transition-opacity duration-quick',
-                        unread > 0 ? 'opacity-100' : 'opacity-0',
-                      )}
-                    />
-                  </span>
-                </IconButton>
+                {showHeaderNotifications && (
+                  <IconButton
+                    label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+                    variant="ghost"
+                    onClick={() => navigate('/notifications')}
+                  >
+                    <span className="relative">
+                      <BellIcon size={21} />
+                      <span
+                        className={cn(
+                          'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-brand ring-2 ring-page',
+                          'transition-opacity duration-quick',
+                          unread > 0 ? 'opacity-100' : 'opacity-0',
+                        )}
+                      />
+                    </span>
+                  </IconButton>
+                )}
 
                 <IconButton
                   label="Start a chat or a group"

@@ -1,7 +1,9 @@
+import { useProfile } from '@pingo/core';
 import { useEffect, useState } from 'react';
 
 import { Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
+import { canAccessCommunities } from '../../lib/community-access.js';
 
 /**
  * Notifications.
@@ -16,7 +18,9 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  */
 export function NotificationsScreen() {
   const { preferences, update } = usePreferences();
+  const { profile } = useProfile();
   const n = preferences.notifications;
+  const showCommunitiesToggle = canAccessCommunities(profile?.username);
 
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(
     'unsupported',
@@ -83,12 +87,14 @@ export function NotificationsScreen() {
           disabled={n.muteAll}
           onChange={(calls) => update('notifications', { calls })}
         />
-        <ToggleRow
-          label="Communities"
-          checked={n.communities}
-          disabled={n.muteAll}
-          onChange={(communities) => update('notifications', { communities })}
-        />
+        {showCommunitiesToggle && (
+          <ToggleRow
+            label="Communities"
+            checked={n.communities}
+            disabled={n.muteAll}
+            onChange={(communities) => update('notifications', { communities })}
+          />
+        )}
       </Group>
 
       <Group

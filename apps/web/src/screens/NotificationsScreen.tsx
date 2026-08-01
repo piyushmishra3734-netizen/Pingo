@@ -7,18 +7,17 @@ import {
 import {
   Avatar,
   BellIcon,
-  ChevronLeftIcon,
   EmptyState,
-  IconButton,
   LoadingState,
   cn,
 } from '@pingo/ui';
 import { useEffect, useState } from 'react';
-
-import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
 import { useNavigate } from 'react-router-dom';
 
+import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useNotifications } from '../features/notifications/NotificationContext.js';
+import { canAccessCommunities } from '../lib/community-access.js';
+import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
 
 /**
  * Everything that happened to you, newest first.
@@ -39,8 +38,13 @@ export function NotificationsScreen() {
   const navigate = useNavigate();
   const { service } = useChat();
   const { clear } = useNotifications();
-  const { service: profiles } = useProfile();
+  const { profile, service: profiles } = useProfile();
   const [acting, setActing] = useState<string>();
+  /*
+   * Primary dock tab for most accounts (no back). Allowlisted community
+   * accounts still open this from the chats header, so they keep a back button.
+   */
+  const showBack = canAccessCommunities(profile?.username);
 
   /*
    * Answering happens here rather than on a separate screen.
@@ -115,18 +119,7 @@ export function NotificationsScreen() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-page">
-      <header
-        className={cn(
-          'sticky top-0 z-100 shrink-0 flex items-center gap-1',
-          'glass-surface border-x-0 border-t-0 border-b-line',
-          'px-3 pt-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))]',
-        )}
-      >
-        <IconButton label="Back" variant="ghost" onClick={() => navigate(-1)}>
-          <ChevronLeftIcon size={22} />
-        </IconButton>
-        <h1 className="text-h2 text-ink">Notifications</h1>
-      </header>
+      <ScreenHeader title="Notifications" showBack={showBack} />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {!items ? (
