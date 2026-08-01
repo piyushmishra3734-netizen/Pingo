@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+
 import { PingoDot, type DotState } from '../brand/PingoDot.js';
 import { cn } from '../utils/cn.js';
 import { initials, variantFromSeed } from '../utils/text.js';
@@ -10,6 +12,13 @@ import { initials, variantFromSeed } from '../utils/text.js';
  * device, with no network request and no stored asset. The gradients are all
  * tints of the brand palette, which keeps a list of them looking like one product
  * rather than a bag of confetti.
+ *
+ * ## Photo load (Instagram / WhatsApp language)
+ *
+ * A raw `<img>` flash is a browser artefact, not a product moment. While the
+ * bytes arrive we keep the monogram under a brand-coloured progress ring; the
+ * photo crossfades in once ready. A failed load drops back to the monogram -
+ * never a broken-image glyph.
  *
  * Presence uses `PingoDot`, so an online avatar breathes with exactly the same
  * motion as every other live indicator in PINGO.
@@ -70,6 +79,16 @@ const DOT: Record<AvatarSize, { size: number; inset: string }> = {
   '2xl': { size: 24, inset: 'bottom-2 right-2' },
 };
 
+/** Progress ring stroke - thicker on larger faces so it stays readable. */
+const RING: Record<AvatarSize, number> = {
+  xs: 1.5,
+  sm: 1.75,
+  md: 2,
+  lg: 2.25,
+  xl: 2.5,
+  '2xl': 3,
+};
+
 /**
  * Six tints drawn from the brand gradient's range. Deliberately low-saturation:
  * an avatar is a supporting element, and a wall of vivid circles is exactly the
@@ -84,6 +103,8 @@ const GRADIENTS = [
   'linear-gradient(135deg, #D8D9FF 0%, #ECDDFF 100%)',
 ] as const;
 
+type PhotoPhase = 'empty' | 'loading' | 'ready' | 'failed';
+
 export function Avatar({
   name,
   id,
@@ -94,39 +115,123 @@ export function Avatar({
 }: AvatarProps) {
   const px = PX[size];
   const dot = DOT[size];
+  const stroke = RING[size];
   const gradient = GRADIENTS[variantFromSeed(id ?? name, GRADIENTS.length)];
+
+  const [phase, setPhase] = useState<PhotoPhase>(() => (src ? 'loading' : 'empty'));
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  /*
+   * Every new URL restarts the load cycle. Cached images often skip `onLoad`
+   * after a remount, so we also read `complete` on the element once it exists.
+   */
+  useEffect(() => {
+    if (!src) {
+      setPhase('empty');
+      return;
+    }
+    setPhase('loading');
+    const node = imgRef.current;
+    if (node?.complete && node.naturalWidth > 0) {
+      setPhase('ready');
+    }
+  }, [src]);
 
   // 'offline' is a valid presence value but shows nothing - an absent dot is the
   // clearest way to say "not here", and it keeps quiet lists quiet.
   const showDot = presence !== undefined && presence !== 'offline';
+  const showPhoto = Boolean(src) && phase === 'ready';
+  const showProgress = Boolean(src) && phase === 'loading';
+  const showMonogram = !src || phase === 'loading' || phase === 'failed' || phase === 'empty';
 
   return (
     <span
       className={cn('relative inline-flex shrink-0', className)}
       style={{ width: px, height: px }}
     >
-      {src ? (
-        <img
-          src={src}
-          alt={name}
-          width={px}
-          height={px}
-          className="size-full rounded-full object-cover"
-        />
-      ) : (
-        <span
-          className={cn(
-            'flex size-full items-center justify-center rounded-full',
-            'font-sans font-medium text-brand/85 select-none',
-            TEXT[size],
-          )}
-          style={{ backgroundImage: gradient }}
-          // The adjacent name is the accessible label; a monogram adds nothing.
-          aria-hidden
-        >
-          {initials(name)}
-        </span>
-      )}
+      {/*
+        Face plate: monogram always sits under the photo so load / fail never
+        flash empty, and a loaded photo gets a soft ring so it reads as a face
+        in the product - not a raw bitmap pasted on the page.
+      */}
+      <span
+        className={cn(
+          'relative size-full overflow-hidden rounded-full',
+          showPhoto && 'shadow-[0_1px_2px_rgba(16,17,20,0.06),0_0_0_1px_rgba(16,17,20,0.06)]',
+        )}
+      >
+        {showMonogram && (
+          <span
+            className={cn(
+              'absolute inset-0 flex items-center justify-center rounded-full',
+              'font-sans font-medium text-brand/85 select-none',
+              TEXT[size],
+            )}
+            style={{ backgroundImage: gradient }}
+            aria-hidden
+          >
+            {initials(name)}
+          </span>
+        )}
+
+        {src && phase !== 'failed' && (
+          <img
+            ref={imgRef}
+            src={src}
+            alt={name}
+            width={px}
+            height={px}
+            decoding="async"
+            loading="lazy"
+            onLoad={() => setPhase('ready')}
+            onError={() => setPhase('failed')}
+            className={cn(
+              'absolute inset-0 size-full rounded-full object-cover',
+              // Soft crossfade - Instagram language, not a hard pop.
+              'transition-opacity duration-300 ease-standard',
+              showPhoto ? 'opacity-100' : 'opacity-0',
+            )}
+          />
+        )}
+
+        {/*
+          Brand arc while bytes arrive. Not a browser spinner: a thin ring that
+          orbits the face, in PINGO blue, so load feels like the product.
+        */}
+        {showProgress && (
+          <span
+            className="pointer-events-none absolute inset-0 grid place-items-center"
+            aria-hidden
+          >
+            <svg
+              width={px}
+              height={px}
+              viewBox={`0 0 ${px} ${px}`}
+              className="animate-spin"
+              style={{ animationDuration: '0.85s' }}
+            >
+              <circle
+                cx={px / 2}
+                cy={px / 2}
+                r={px / 2 - stroke}
+                fill="none"
+                stroke="rgba(92, 108, 255, 0.18)"
+                strokeWidth={stroke}
+              />
+              <circle
+                cx={px / 2}
+                cy={px / 2}
+                r={px / 2 - stroke}
+                fill="none"
+                stroke="var(--color-brand, #5c6cff)"
+                strokeWidth={stroke}
+                strokeLinecap="round"
+                strokeDasharray={`${Math.PI * (px - stroke * 2) * 0.28} ${Math.PI * (px - stroke * 2)}`}
+              />
+            </svg>
+          </span>
+        )}
+      </span>
 
       {showDot && (
         <span

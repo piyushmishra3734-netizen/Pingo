@@ -52,6 +52,9 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   /** Set only while a one-finger drag at natural size is in progress. */
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
+  /** Same product language as Avatar: brand arc, not a browser image flash. */
+  const [photoReady, setPhotoReady] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   const pointers = useRef(new Map<number, Point>());
   const start = useRef<
@@ -65,6 +68,11 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    setPhotoReady(false);
+    setPhotoFailed(false);
+  }, [src]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -181,7 +189,7 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
         </div>
 
         <div
-          className="flex min-h-0 flex-1 items-center justify-center overflow-hidden"
+          className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endPointer}
@@ -189,20 +197,63 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
           // The browser must not also pan, zoom or pull-to-refresh underneath.
           style={{ touchAction: 'none' }}
         >
-          <img
-            src={src}
-            alt={alt}
-            draggable={false}
-            className={cn(
-              'max-h-full max-w-full object-contain select-none',
-              // Only when the finger is up, so dragging tracks it exactly.
-              !dragging && 'transition-transform duration-base ease-standard',
-            )}
-            style={{
-              transform: `translate3d(${offset.x}px, ${offset.y + dragY}px, 0) scale(${scale})`,
-              opacity: 1 - dragProgress * 0.35,
-            }}
-          />
+          {!photoReady && !photoFailed && (
+            <span
+              className="pointer-events-none absolute grid size-14 place-items-center"
+              aria-hidden
+            >
+              <svg
+                width={56}
+                height={56}
+                viewBox="0 0 56 56"
+                className="animate-spin"
+                style={{ animationDuration: '0.85s' }}
+              >
+                <circle
+                  cx="28"
+                  cy="28"
+                  r="24"
+                  fill="none"
+                  stroke="rgba(92, 108, 255, 0.22)"
+                  strokeWidth="3"
+                />
+                <circle
+                  cx="28"
+                  cy="28"
+                  r="24"
+                  fill="none"
+                  stroke="var(--color-brand, #5c6cff)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={`${Math.PI * 48 * 0.28} ${Math.PI * 48}`}
+                />
+              </svg>
+            </span>
+          )}
+
+          {photoFailed ? (
+            <p className="px-8 text-center text-body text-white/55">
+              Could not load this photo.
+            </p>
+          ) : (
+            <img
+              src={src}
+              alt={alt}
+              draggable={false}
+              onLoad={() => setPhotoReady(true)}
+              onError={() => setPhotoFailed(true)}
+              className={cn(
+                'max-h-full max-w-full object-contain select-none',
+                // Only when the finger is up, so dragging tracks it exactly.
+                !dragging && 'transition-[transform,opacity] duration-base ease-standard',
+                photoReady ? 'opacity-100' : 'opacity-0',
+              )}
+              style={{
+                transform: `translate3d(${offset.x}px, ${offset.y + dragY}px, 0) scale(${scale})`,
+                opacity: photoReady ? 1 - dragProgress * 0.35 : 0,
+              }}
+            />
+          )}
         </div>
 
         {footer && (

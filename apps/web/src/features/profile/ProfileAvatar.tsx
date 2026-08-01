@@ -132,7 +132,8 @@ export function ProfileAvatar({
               : `${name} has no profile photo`
         }
         className={cn(
-          'focus-ring rounded-full ring-4 ring-surface',
+          // Soft face plate: ring reads as depth, not a sticker on the page.
+          'focus-ring rounded-full ring-[3px] ring-surface shadow-sm',
           'transition-transform duration-quick ease-standard active:scale-[0.97]',
         )}
       >
