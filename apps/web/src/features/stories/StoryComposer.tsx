@@ -197,9 +197,20 @@ export function StoryComposer({
   }
 
   return (
-    <Sheet title="Post to your story" onClose={onClose}>
+    <Sheet
+      title="Post to your story"
+      onClose={onClose}
+      /*
+        Craftsmanship only on this share sheet: warmer page wash, softer line,
+        quieter brand-tinted lift. Radius and layout stay the product default.
+      */
+      className={cn(
+        'border-line/55 bg-page',
+        'shadow-[0_4px_20px_rgba(16,17,20,0.05),0_14px_36px_rgba(92,108,255,0.07)]',
+      )}
+    >
       {src && (
-        <div className="mt-3 overflow-hidden rounded-lg bg-hover">
+        <div className="mt-3 overflow-hidden rounded-xl bg-sunken/80 ring-1 ring-line/50">
           {picked?.kind === 'video' ? (
             <video src={src} className="max-h-48 w-full object-contain" muted playsInline />
           ) : (
@@ -208,7 +219,8 @@ export function StoryComposer({
         </div>
       )}
 
-      <div className="mt-3 space-y-2">
+      {/* Preview → caption tightened ~8–12px (was mt-3 + equal field weight). */}
+      <div className="mt-2 space-y-1.5">
         <textarea
           value={caption}
           onChange={(event) => setCaption(event.target.value.slice(0, 500))}
@@ -216,12 +228,21 @@ export function StoryComposer({
           placeholder="Say something. @mentions and links work."
           aria-label="Caption"
           className={cn(
-            'focus-ring w-full resize-none rounded-lg border border-line bg-page',
-            'px-3 py-2.5 text-body text-ink placeholder:text-text-tertiary',
+            // Primary field - most presence so the eye lands here first.
+            'focus-ring w-full resize-none rounded-xl border border-line/70 bg-surface',
+            'px-3.5 py-3 text-body text-ink placeholder:text-text-tertiary',
+            'transition-[border-color,box-shadow] duration-150 ease-standard',
+            'focus:border-brand/30 focus:shadow-sm',
           )}
         />
 
-        <label className="flex items-center gap-2 rounded-lg border border-line bg-page px-3">
+        <label
+          className={cn(
+            // Secondary - quieter wash, thinner edge.
+            'flex items-center gap-2 rounded-xl border border-line/40 bg-sunken/70 px-3',
+            'transition-colors duration-150 ease-standard focus-within:border-line/70',
+          )}
+        >
           <span aria-hidden className="text-text-tertiary">
             📍
           </span>
@@ -230,12 +251,18 @@ export function StoryComposer({
             onChange={(event) => setPlace(event.target.value.slice(0, 80))}
             placeholder="Add a place (optional)"
             aria-label="Place"
-            className="min-w-0 flex-1 bg-transparent py-2.5 text-body text-ink outline-none placeholder:text-text-tertiary"
+            className="min-w-0 flex-1 bg-transparent py-2 text-caption text-ink outline-none placeholder:text-text-tertiary"
           />
         </label>
 
-        <label className="flex items-center gap-2 rounded-lg border border-line bg-page px-3">
-          <LinkIcon size={16} className="shrink-0 text-text-tertiary" />
+        <label
+          className={cn(
+            // Tertiary - softest of the three.
+            'flex items-center gap-2 rounded-xl border border-transparent bg-sunken/45 px-3',
+            'transition-colors duration-150 ease-standard focus-within:border-line/40',
+          )}
+        >
+          <LinkIcon size={15} className="shrink-0 text-text-tertiary" />
           <input
             value={link}
             onChange={(event) => setLink(event.target.value)}
@@ -244,65 +271,89 @@ export function StoryComposer({
             inputMode="url"
             autoCapitalize="none"
             spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent py-2.5 text-body text-ink outline-none placeholder:text-text-tertiary"
+            className="min-w-0 flex-1 bg-transparent py-2 text-caption text-ink outline-none placeholder:text-text-tertiary"
           />
         </label>
       </div>
 
-      {/* ---- audience ------------------------------------------------- */}
+      {/* ---- audience: selectable cards, not a settings list ------------- */}
       <fieldset className="mt-4">
-        <legend className="mb-2 text-caption font-medium text-text-secondary">Who can see it</legend>
+        <legend className="mb-2 px-0.5 text-caption font-medium tracking-wide text-text-secondary">
+          Who can see it
+        </legend>
 
-        <div className="flex flex-col gap-1">
-          {STORY_AUDIENCES.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={audience === option.value}
-              onClick={() => {
-                setAudience(option.value);
-                setError(undefined);
-                if (option.value === 'custom') setChoosing(true);
-              }}
-              className={cn(
-                'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left',
-                'transition-colors duration-instant hover:bg-hover',
-                audience === option.value && 'bg-hover',
-              )}
-            >
-              <span
-                aria-hidden
+        <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="Audience">
+          {STORY_AUDIENCES.map((option) => {
+            const selected = audience === option.value;
+            const closeSelected = option.value === 'close' && selected;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => {
+                  setAudience(option.value);
+                  setError(undefined);
+                  if (option.value === 'custom') setChoosing(true);
+                }}
                 className={cn(
-                  'grid size-5 shrink-0 place-items-center rounded-full border-2',
-                  audience === option.value ? 'border-brand' : 'border-line',
-                  // Close friends is green everywhere it appears, including the
-                  // control that chooses it.
-                  option.value === 'close' && audience === option.value && 'border-online',
+                  'focus-ring flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left',
+                  'border transition-[background-color,border-color,box-shadow] duration-150 ease-standard',
+                  selected
+                    ? closeSelected
+                      ? 'border-online/30 bg-online/8 shadow-sm'
+                      : 'border-brand/25 bg-selected shadow-sm'
+                    : 'border-line/45 bg-surface/70 hover:bg-hover/70',
                 )}
               >
-                {audience === option.value && (
+                {/* Quiet indicator - typography carries the choice. */}
+                <span
+                  aria-hidden
+                  className={cn(
+                    'grid size-3.5 shrink-0 place-items-center rounded-full border',
+                    selected
+                      ? closeSelected
+                        ? 'border-online'
+                        : 'border-brand'
+                      : 'border-line-strong/70',
+                  )}
+                >
+                  {selected && (
+                    <span
+                      className={cn(
+                        'size-1.5 rounded-full',
+                        closeSelected ? 'bg-online' : 'bg-brand',
+                      )}
+                    />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
                   <span
                     className={cn(
-                      'size-2.5 rounded-full',
-                      option.value === 'close' ? 'bg-online' : 'bg-brand',
+                      'block text-body',
+                      selected ? 'font-medium text-ink' : 'text-ink',
                     )}
-                  />
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-body text-ink">{option.label}</span>
-                <span className="block text-caption text-text-secondary">
-                  {option.value === 'custom' && chosen.size > 0
-                    ? `${chosen.size} chosen`
-                    : option.hint}
+                  >
+                    {option.label}
+                  </span>
+                  <span
+                    className={cn(
+                      'mt-0.5 block text-caption',
+                      selected ? 'text-text-secondary' : 'text-text-tertiary',
+                    )}
+                  >
+                    {option.value === 'custom' && chosen.size > 0
+                      ? `${chosen.size} chosen`
+                      : option.hint}
+                  </span>
                 </span>
-              </span>
-              {option.value === 'custom' && (
-                <UsersIcon size={16} className="shrink-0 text-text-tertiary" />
-              )}
-            </button>
-          ))}
+                {option.value === 'custom' && (
+                  <UsersIcon size={15} className="shrink-0 text-text-tertiary" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </fieldset>
 
@@ -312,21 +363,38 @@ export function StoryComposer({
         </p>
       )}
 
-      <div className="mt-4 flex flex-col gap-1.5">
+      <div className="mt-4 flex flex-col gap-1">
         <button
           type="button"
           onClick={() => void post()}
           disabled={busy || !media}
           className={cn(
             'focus-ring w-full rounded-full px-5 py-3 text-body font-medium',
-            'bg-brand-gradient text-white shadow-brand',
-            'transition-transform duration-instant active:scale-[0.98]',
+            'bg-brand-gradient text-white',
+            // Same gradient; ~20% quieter brand glow than `shadow-brand`.
+            'shadow-[0_3px_12px_rgba(109,124,255,0.26)]',
+            'transition-transform duration-150 ease-standard active:scale-[0.99]',
             (busy || !media) && 'opacity-50',
           )}
         >
           {busy ? 'Posting…' : 'Share to story'}
         </button>
-        <SheetCancel onClick={onClose} />
+        {/*
+          Tertiary text action, same column as Share - not a second full pill
+          that floats below the sheet.
+        */}
+        <button
+          type="button"
+          onClick={onClose}
+          className={cn(
+            'focus-ring w-full rounded-full px-5 py-2.5',
+            'text-caption font-medium text-text-tertiary',
+            'transition-colors duration-150 ease-standard',
+            'hover:bg-hover/60 hover:text-text-secondary',
+          )}
+        >
+          Cancel
+        </button>
       </div>
     </Sheet>
   );
