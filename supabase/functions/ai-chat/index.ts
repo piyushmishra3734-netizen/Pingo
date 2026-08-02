@@ -422,8 +422,8 @@ async function updateMemories(
 
   const extractPrompt = [
     'Extract up to 4 durable personal facts about the USER from this chat.',
-    'Only solid facts they stated or clearly confirmed (name, place, school, job, preferences, people, goals).',
-    'Skip temporary moods, one-off jokes, and anything about the AI.',
+    'Only solid facts THEY stated or clearly confirmed (name, place, school, job, preferences, people, goals).',
+    'Skip: temporary moods, jokes, the AI, PINGO product owner/founder/developer, @piuxxh, profile links, and anything not about the user.',
     'Return ONLY a JSON array of objects: [{"key":"short_label","value":"fact"}]',
     'key: snake_case max 40 chars. value: max 200 chars. Empty array if nothing new.',
     '',
@@ -515,6 +515,18 @@ function parseFacts(raw: string): { key: string; value: string }[] {
           .slice(0, 80);
         const value = String(rec.value ?? '').trim().slice(0, 500);
         if (!key || !value) return null;
+        // Never store product-owner noise as if it were the user's life.
+        const blob = `${key} ${value}`.toLowerCase();
+        if (
+          blob.includes('owner') ||
+          blob.includes('founder') ||
+          blob.includes('developer') ||
+          blob.includes('piuxxh') ||
+          blob.includes('pingochat.pages.dev') ||
+          blob.includes('profile_link')
+        ) {
+          return null;
+        }
         return { key, value };
       })
       .filter((x): x is { key: string; value: string } => Boolean(x));
