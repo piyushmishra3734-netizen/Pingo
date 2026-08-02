@@ -249,6 +249,14 @@ export interface ChatService {
   openPing(messageId: MessageId): Promise<PingView | undefined>;
 
   /**
+   * Mint a short-lived signed URL for a voice note storage path.
+   *
+   * Used on play when the page-load signed URL is missing or expired, so the
+   * receiver always gets audible audio instead of a silent waveform.
+   */
+  signVoiceUrl?(path: string): Promise<string | undefined>;
+
+  /**
    * Fetches the bytes so the receiver can keep them, then destroys the copy.
    *
    * The order matters: the blob is returned first and the server copy is only

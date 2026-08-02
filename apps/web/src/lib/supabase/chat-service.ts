@@ -165,6 +165,8 @@ function toAttachments(row: MessageRow): Attachment[] {
         url: '',
         duration: row.voice_duration ?? 0,
         waveform: normalizeWaveform(row.voice_waveform),
+        // Path survives even when the signed URL is empty or expires.
+        storagePath: row.voice_path,
       },
     ];
   }
@@ -1880,7 +1882,13 @@ export class SupabaseChatService implements ChatService {
       const attachments =
         message.attachments.some((a) => a.kind === 'audio')
           ? message.attachments.map((attachment) =>
-              attachment.kind === 'audio' ? { ...attachment, url } : attachment,
+              attachment.kind === 'audio'
+                ? {
+                    ...attachment,
+                    url,
+                    storagePath: attachment.storagePath ?? row.voice_path ?? undefined,
+                  }
+                : attachment,
             )
           : [
               {
@@ -1889,6 +1897,7 @@ export class SupabaseChatService implements ChatService {
                 url,
                 duration: row.voice_duration ?? 0,
                 waveform: normalizeWaveform(row.voice_waveform),
+                storagePath: row.voice_path ?? undefined,
               },
             ];
 
@@ -1896,6 +1905,22 @@ export class SupabaseChatService implements ChatService {
     });
 
     return this.#signDocuments(rows, signed);
+  }
+
+  /**
+   * Fresh signed URL for a voice storage path — used when play finds no URL
+   * or the previous one expired mid-thread.
+   */
+  async signVoiceUrl(path: string): Promise<string | undefined> {
+    if (!path.trim()) return undefined;
+    const { data, error } = await this.#client.storage
+      .from(VOICE_BUCKET)
+      .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
+    if (error || !data?.signedUrl) {
+      console.warn('[voice] signVoiceUrl failed', path, error?.message);
+      return undefined;
+    }
+    return data.signedUrl;
   }
 
   /**
@@ -1978,9 +2003,10 @@ export class SupabaseChatService implements ChatService {
 
   async #uploadVoice(audio: Blob): Promise<string> {
     const me = await this.#userId();
-    // Extension + Content-Type follow the blob so the player does not guess wrong.
-    const type = (audio.type || 'audio/webm').split(';')[0]!.toLowerCase();
-    const extension = type.includes('wav')
+    // Prefer WAV always (recorder produces it). Fallback types for legacy callers.
+    const type = (audio.type || 'audio/wav').split(';')[0]!.toLowerCase();
+    const isWav = type.includes('wav') || type.includes('wave');
+    const extension = isWav
       ? 'wav'
       : type.includes('mpeg') || type.includes('mp3')
         ? 'mp3'
@@ -2003,9 +2029,15 @@ export class SupabaseChatService implements ChatService {
               ? 'audio/ogg'
               : 'audio/webm';
 
+    // Force correct Content-Type so receivers do not get octet-stream silence.
+    const body =
+      isWav && audio.type !== 'audio/wav'
+        ? new Blob([audio], { type: 'audio/wav' })
+        : audio;
+
     const { error } = await this.#client.storage
       .from(VOICE_BUCKET)
-      .upload(path, audio, { contentType, upsert: false });
+      .upload(path, body, { contentType, upsert: false, cacheControl: '3600' });
 
     if (error) throw error;
     return path;

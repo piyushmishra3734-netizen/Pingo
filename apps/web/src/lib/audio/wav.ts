@@ -1,41 +1,66 @@
 /**
  * Encode PCM to WAV so every browser can play a voice note.
  *
- * Chrome records WebM/Opus; Safari/iOS often cannot decode it. Re-encoding
- * after capture (already decoded for the waveform) is the cheap fix that
- * keeps receiver playback working without a server transcoder.
+ * Chrome records WebM/Opus; Safari/iOS often cannot decode it. Capturing PCM
+ * during record (and encoding WAV here) is the reliable path — no MediaRecorder
+ * container quirks, no receiver codec roulette.
  */
 
 /** Speech-friendly rate — clear enough, much smaller than 48 kHz WAV. */
-const VOICE_WAV_RATE = 24_000;
+export const VOICE_WAV_RATE = 24_000;
 
 /**
  * Turn any browser-decodable recording into a mono WAV blob.
  *
- * Falls back to the original blob if decode fails (rare codec edge cases),
- * so send is never blocked by the compatibility pass.
+ * Prefer {@link encodePcmToWavBlob} from live capture — decode can fail on
+ * timesliced WebM and then the receiver gets unplayable bytes.
  */
 export async function toPlayableVoiceBlob(blob: Blob): Promise<Blob> {
   if (!blob.size) return blob;
-  // Already universal — leave alone.
-  if (/^audio\/(wav|wave|mpeg|mp3|mp4|m4a|aac|x-m4a)/i.test(blob.type)) {
-    return blob;
-  }
+  if (/^audio\/(wav|wave)/i.test(blob.type)) return blob;
 
   try {
     const context = new AudioContext();
     try {
-      const buffer = await context.decodeAudioData(await blob.arrayBuffer());
-      const mono = mixToMono(buffer);
-      const resampled = resample(mono, buffer.sampleRate, VOICE_WAV_RATE);
-      const wav = encodeWav(resampled, VOICE_WAV_RATE);
-      return new Blob([wav], { type: 'audio/wav' });
+      // Copy buffer — decodeAudioData may detach the original ArrayBuffer.
+      const copy = await blob.arrayBuffer();
+      const buffer = await context.decodeAudioData(copy.slice(0));
+      return encodePcmToWavBlob(
+        mixToMono(buffer),
+        buffer.sampleRate,
+        VOICE_WAV_RATE,
+      );
     } finally {
       void context.close().catch(() => undefined);
     }
   } catch {
     return blob;
   }
+}
+
+/** Build a mono WAV from float samples captured during recording. */
+export function encodePcmToWavBlob(
+  samples: Float32Array,
+  fromRate: number,
+  toRate: number = VOICE_WAV_RATE,
+): Blob {
+  const mono = samples;
+  const resampled = resample(mono, fromRate, toRate);
+  const wav = encodeWav(resampled, toRate);
+  return new Blob([wav], { type: 'audio/wav' });
+}
+
+/** Concatenate PCM chunks from ScriptProcessor / AudioWorklet. */
+export function concatFloat32(chunks: Float32Array[]): Float32Array {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Float32Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
 }
 
 function mixToMono(buffer: AudioBuffer): Float32Array {
@@ -83,8 +108,8 @@ function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
   view.setUint32(4, 36 + dataSize, true);
   writeString(view, 8, 'WAVE');
   writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true); // PCM chunk size
-  view.setUint16(20, 1, true); // PCM format
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
   view.setUint16(22, numChannels, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, byteRate, true);

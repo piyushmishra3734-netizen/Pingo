@@ -97,6 +97,12 @@ export interface AudioAttachment extends AttachmentBase {
    * wasteful and janky on a list of many notes.
    */
   waveform: number[];
+  /**
+   * Private storage path (bucket key). Receivers use this to mint a fresh
+   * signed URL when the cached one is missing or expired — without it, play
+   * shows a waveform and no sound.
+   */
+  storagePath?: string;
 }
 
 export interface FileAttachment extends AttachmentBase {

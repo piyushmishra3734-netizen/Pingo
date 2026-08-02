@@ -1,4 +1,10 @@
-import { formatEventTime, formatFileSize, formatTime, type Message } from '@pingo/core';
+import {
+  formatEventTime,
+  formatFileSize,
+  formatTime,
+  useChat,
+  type Message,
+} from '@pingo/core';
 import {
   CheckDoubleIcon,
   CheckIcon,
@@ -6,6 +12,7 @@ import {
   PingoDot,
   cn,
 } from '@pingo/ui';
+import { useCallback } from 'react';
 
 import {
   CallBubble,
@@ -109,18 +116,28 @@ export function MessageBubble({
   replyToAuthor,
   onJumpToReply,
 }: MessageBubbleProps) {
+  const { service } = useChat();
+
   /*
-     * Which way this bubble comes in from.
-     *
-     * Held once rather than branched at each of the five places a bubble is
-     * rendered - a voice note, a photo, a sticker and a tombstone are all
-     * bubbles, and they were all rising from below identically.
-     */
-    const arrive = mine ? 'animate-bubble-in-mine' : 'animate-bubble-in';
+   * Which way this bubble comes in from.
+   *
+   * Held once rather than branched at each of the five places a bubble is
+   * rendered - a voice note, a photo, a sticker and a tombstone are all
+   * bubbles, and they were all rising from below identically.
+   */
+  const arrive = mine ? 'animate-bubble-in-mine' : 'animate-bubble-in';
 
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
   const hasBody = message.body.trim().length > 0;
+
+  const resolveVoiceUrl = useCallback(
+    async (path: string) => {
+      if (!service.signVoiceUrl) return undefined;
+      return service.signVoiceUrl(path);
+    },
+    [service],
+  );
 
   /*
    * Deleted, and said so.
@@ -324,6 +341,7 @@ export function MessageBubble({
               attachment={voiceNote}
               tone={mine ? 'outgoing' : 'incoming'}
               className={cn(hasBody && 'mb-2')}
+              resolveUrl={resolveVoiceUrl}
             />
           )}
 
