@@ -237,15 +237,14 @@ export function AiProfileSheet({
   return (
     <>
       {/*
-        Flex column: outer sheet clips; only the body scrolls. Passing
-        overflow-hidden alone used to kill Sheet's overflow-y-auto and freeze
-        the whole panel (including under the avatar).
+        One continuous scroll. A fixed hero + separate body made the photo/bio
+        feel stuck and half-cut on short screens.
       */}
       <Sheet
         title="About them"
         hideTitle
         onClose={onClose}
-        className="flex max-h-[90vh] max-w-md flex-col overflow-hidden p-0"
+        className="max-h-[min(92vh,44rem)] max-w-md overflow-x-hidden overflow-y-auto p-0"
       >
         <input
           ref={fileRef}
@@ -259,15 +258,14 @@ export function AiProfileSheet({
           }}
         />
 
-        {/* Hero — shrink-0 so it never steals the scroll surface */}
-        <div className="relative shrink-0 bg-brand/[0.08] px-5 pb-5 pt-7">
-          <div className="relative flex flex-col items-center text-center">
-            <div className="relative mx-auto" style={{ width: 96, height: 96 }}>
+        <div className="bg-brand/[0.08] px-5 pb-5 pt-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="relative pb-1 pt-1">
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 className={cn(
-                  'absolute inset-0 rounded-full',
+                  'relative block rounded-full',
                   'outline-none focus-visible:outline focus-visible:outline-2',
                   'focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
                 )}
@@ -280,18 +278,14 @@ export function AiProfileSheet({
                   size="xl"
                   presence="online"
                 />
-              </button>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className={cn(
-                  'absolute bottom-0 right-0 z-10 rounded-full',
-                  'bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm',
-                  'outline-none focus-visible:outline focus-visible:outline-2',
-                  'focus-visible:outline-offset-1 focus-visible:outline-[color:var(--color-focus-ring)]',
-                )}
-              >
-                Edit
+                <span
+                  className={cn(
+                    'pointer-events-none absolute bottom-0 right-0 rounded-full',
+                    'bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm',
+                  )}
+                >
+                  Edit
+                </span>
               </button>
             </div>
             <div className="mt-3 flex items-center gap-1.5">
@@ -305,7 +299,7 @@ export function AiProfileSheet({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-6 pt-4">
+        <div className="space-y-5 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
           <Section title="Name">
             <input
               value={prefs.display_name ?? faceName}
@@ -322,7 +316,7 @@ export function AiProfileSheet({
                 setPrefs((r) => ({ ...r, bio: e.target.value.slice(0, 160) }))
               }
               onBlur={() => void savePrefs({ bio: prefs.bio ?? null })}
-              rows={2}
+              rows={3}
               className="focus-ring w-full resize-none rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
               placeholder={
                 pub?.bio?.trim() ||
