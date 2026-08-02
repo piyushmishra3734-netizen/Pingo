@@ -174,7 +174,7 @@ export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
 
         {!loading && rows.length === 0 && (
           <p className="rounded-2xl border border-line/50 bg-sunken px-3 py-4 text-center text-caption text-text-tertiary">
-            Nothing saved yet. In chat say “yaad rakh …” or add one above.
+            Empty for now. Chat me “yaad rakh …” bolo ya yahan Add karo — auto-save nahi hota.
           </p>
         )}
 

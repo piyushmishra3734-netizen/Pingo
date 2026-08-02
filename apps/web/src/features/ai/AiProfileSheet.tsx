@@ -479,7 +479,7 @@ export function AiProfileSheet({
                     {memoryCount > 0 ? ` (${memoryCount})` : ''}
                   </button>
                   <span className="text-caption text-text-tertiary">
-                    Chat me “yaad rakh …” bhi chalta hai
+                    Sirf jab bole “yaad rakh …” / “remember …” tab save
                   </span>
                 </div>
               )}

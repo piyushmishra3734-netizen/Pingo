@@ -94,24 +94,33 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     const memoryOn = profile?.memory_enabled !== false;
-    const { data: memories } = memoryOn
-      ? await userClient
-          .from('ai_memories')
-          .select('id, key, value')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(50)
-      : { data: [] as { id: string; key: string; value: string }[] };
+    let memories: { id?: string; key: string; value: string }[] = [];
 
-    // Explicit "remember this" before generation so the model can confirm truthfully.
+    // ONLY save when user explicitly asks (yaad rakh / remember / memory me save).
+    // Never auto-extract facts from casual chat.
     const livePreview = typeof body.userMessage === 'string' ? body.userMessage.trim() : '';
+    let justSaved: { key: string; value: string } | null = null;
     if (memoryOn && livePreview) {
       const forced = parseExplicitMemory(livePreview);
       if (forced) {
-        await upsertMemoryRow(userClient, user.id, forced.key, forced.value).catch((err) =>
-          console.error('explicit-memory', err),
-        );
+        try {
+          await upsertMemoryRow(userClient, user.id, forced.key, forced.value);
+          justSaved = forced;
+          await capMemories(userClient, user.id, 40);
+        } catch (err) {
+          console.error('explicit-memory', err);
+        }
       }
+    }
+
+    if (memoryOn) {
+      const { data } = await userClient
+        .from('ai_memories')
+        .select('id, key, value')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      memories = data ?? [];
     }
 
     // Recent plaintext only — more turns = better context stickiness.
@@ -134,10 +143,16 @@ Deno.serve(async (request) => {
           !/<<<\s*(REPLY|ASK)\s*>>>/i.test(row.body),
       );
 
-    const history = chronological.map((row) => ({
-      role: (row.sender_id === BOT_ID ? 'assistant' : 'user') as 'assistant' | 'user',
-      content: stripMarkers(row.body.trim()).slice(0, 2000),
-    }));
+    const history = chronological.map((row) => {
+      const raw = stripMarkers(row.body.trim()).slice(0, 2000);
+      const role = (row.sender_id === BOT_ID ? 'assistant' : 'user') as
+        | 'assistant'
+        | 'user';
+      // Never re-teach the model its own spam loops from chat history.
+      const content =
+        role === 'assistant' ? sanitizeHistoryAssistant(raw) : raw;
+      return { role, content };
+    }).filter((m) => m.content.trim().length > 0);
 
     const live = body.userMessage?.trim();
     if (live) {
@@ -154,15 +169,34 @@ Deno.serve(async (request) => {
       return json(request, { error: 'Nothing to reply to.' }, 400);
     }
 
-    const system = buildSystemPrompt(profile as AiProfile | null, memories ?? []);
-    // Second system-style anchor right before the user turn: models obey this more.
-    const focus = buildFocusDirective(cleanHistory, profile as AiProfile | null);
+    const recentAssistant = cleanHistory
+      .filter((m) => m.role === 'assistant')
+      .slice(-10)
+      .map((m) => m.content);
+
+    const system = buildSystemPrompt(
+      profile as AiProfile | null,
+      memories,
+      memoryOn,
+      justSaved,
+    );
+    const focus = buildFocusDirective(
+      cleanHistory,
+      profile as AiProfile | null,
+      recentAssistant,
+      memories,
+      memoryOn,
+      justSaved,
+    );
+
+    // Keep history short so the model does not copy-paste its own loops.
+    const historyForModel = trimHistoryForModel(cleanHistory);
 
     const messages = [
       { role: 'system' as const, content: system },
-      ...cleanHistory.slice(0, -1),
+      ...historyForModel.slice(0, -1),
       { role: 'system' as const, content: focus },
-      cleanHistory[cleanHistory.length - 1]!,
+      historyForModel[historyForModel.length - 1]!,
     ];
 
     const apiKey = Deno.env.get('NVIDIA_API_KEY');
@@ -183,7 +217,7 @@ Deno.serve(async (request) => {
 
     // Hard caps so "short" cannot drift into essay territory.
     const maxTokens =
-      length === 'detailed' ? 640 : length === 'balanced' ? 280 : 140;
+      length === 'detailed' ? 640 : length === 'balanced' ? 280 : 160;
 
     const nvidia = await fetch(`${base}/chat/completions`, {
       method: 'POST',
@@ -194,8 +228,11 @@ Deno.serve(async (request) => {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.45,
-        top_p: 0.85,
+        // Higher temp + penalties so it stops looping the same 3 lines.
+        temperature: 0.85,
+        top_p: 0.9,
+        frequency_penalty: 0.65,
+        presence_penalty: 0.45,
         max_tokens: maxTokens,
         stream: false,
       }),
@@ -222,7 +259,16 @@ Deno.serve(async (request) => {
     reply = finalizeBubble(reply, length);
     ask = finalizeAsk(ask);
 
-    const mainBody = reply || 'Hmm - I blanked for a second. What were you saying? 😅';
+    // Kill repetitive uncle-bot loops before they hit the chat.
+    reply = diversifyReply(reply, live ?? '', recentAssistant, length);
+    ask = diversifyAsk(ask, live ?? '', reply, recentAssistant);
+
+    // If main already ends with a question, skip second bubble (users hate double spam).
+    if (/\?\s*$/.test(reply.trim())) {
+      ask = '';
+    }
+
+    const mainBody = reply || contextualFallbackReply(live ?? '');
 
     const { data: messageId, error: postError } = await userClient.rpc('post_ai_reply', {
       target_conversation: conversationId,
@@ -233,9 +279,17 @@ Deno.serve(async (request) => {
       return json(request, { error: postError.message }, 500);
     }
 
-    // Second bubble: short follow-up only (never empty, never marker garbage).
+    // Second bubble only if the ask is fresh and useful — skip spam loops.
     let askId: string | null = null;
-    if (ask && ask !== mainBody && !looksLikeMarkerGarbage(ask)) {
+    if (
+      ask &&
+      ask !== mainBody &&
+      !looksLikeMarkerGarbage(ask) &&
+      !isBannedAsk(ask) &&
+      !containsBannedLoop(ask) &&
+      !isTooSimilarToRecent(ask, recentAssistant) &&
+      !isTooSimilarToRecent(ask, [mainBody])
+    ) {
       const { data: followId, error: askError } = await userClient.rpc('post_ai_reply', {
         target_conversation: conversationId,
         reply_body: ask,
@@ -243,25 +297,15 @@ Deno.serve(async (request) => {
       if (!askError && followId) askId = followId as string;
     }
 
-    // Memory: extract durable facts after the turn (await so saves land before UI refresh).
-    if (memoryOn && live) {
-      try {
-        await updateMemories(
-          userClient,
-          user.id,
-          apiKey,
-          base,
-          model,
-          cleanHistory,
-          live,
-          mainBody,
-        );
-      } catch (err) {
-        console.error('memory', err);
-      }
-    }
+    // No auto memory extract — saves only happen on explicit user request (above).
 
-    return json(request, { messageId, reply: mainBody, askId, ask });
+    return json(request, {
+      messageId,
+      reply: mainBody,
+      askId,
+      ask,
+      memorySaved: justSaved ? true : false,
+    });
   } catch (cause) {
     console.error(cause);
     return json(
@@ -322,14 +366,14 @@ function personalityBlock(profile: AiProfile | null): string {
       'Warm, easy, close-friend energy. Soft check-ins. No corporate polish.',
     genz: [
       'MODE: Full Gen Z + Indian Instagram Reels / WhatsApp brainrot. You are chronically online bestie in their DMs — NOT uncle, NOT news anchor, NOT "samajh gaya / koi problem hai?".',
-      'BANNED: "to samajh gaya", "koi problem hai?", stiff formal Hinglish, long lectures, corporate soft voice.',
-      'REQUIRED: short punchy chat. When they drop slang/memes, mirror that lane with 1–3 slang hits. Do not dump 15 slang words in one line.',
+      'BANNED (never type these): "to samajh gaya", "koi problem hai?", "Bhai full drama hai", "Kya hua koi baat hai", "Tumne kaha tha ... maine socha tha", "Hey cutie kya hua", stiff formal Hinglish, long lectures, corporate soft voice, copy-paste loops.',
+      'REQUIRED: short punchy chat. When they drop slang/memes, mirror that lane with 1–3 slang hits. Do not dump 15 slang words in one line. NEVER recycle the same opener twice in a row.',
       '',
       '## GLOBAL GEN Z / BRAINROT PACK (pick what fits):',
       'cooked / so cooked / we cooked / i\'m cooked, mid, fire, banger, W / massive W / dub, L / took an L, no cap, cap, fr / fr fr, lowkey, highkey, bet, alr / alr bet, rizz / rizzler / rizzless, delulu, ate / she ate / he ate, left no crumbs, slay, it\'s giving…, deadass, locked in / locked tf in, down bad, sus, npc, main character, aura / aura points / aura farming, based, yapping / stop yapping, say less, ratio, touch grass, hit different, ong, ngl, tbh, idk, ick / the ick, green flag, red flag, bestie, twin / twin what, be so fr, i fear, let him cook / he cooked, bombastic side eye, unhinged, goated, bed rotting, doom scroll, core / -core, aesthetic, vibes, situationship, soft launch, hard launch, bounce, ghosted, simping, crash out, spiral, me core, that girl, sigma (ironic), skibidi (joke only), ohio (ironic joke), gyatt (rare light joke), fanum tax (rare joke), 6-7 (joke), me when, the way, not me, bro really said, understood the assignment, low effort high impact, chronically online.',
       '',
       '## DESI INSTAGRAM / REELS / MEME PACK (Hinglish — match when they write desi):',
-      'kuchu puchu, kuchu puchu mode, jaan hai aap, nadiya meri soni saani, nadiya ahh entry, oye hoye, arey waah, kya baat hai, full on, full on romantic, scene on / scene on hai, bhai kya scene hai, scene clear, solid / solid scene, op, sahi hai, sahi pakde hain, full drama, zero drama, bakchodi band (light), pagal hai kya (light tease), dil se, cutie, jaaneman, munna/baby (only playful), thumke energy, reel wala energy, audio pe nach, story pe daal, full filmy, bollywood ahh moment, dil toot gaya fr, recovery arc, rizz with desi tadka, desi tadka, main character entry, side character energy, npc in your story, us moment, felt that, why is this so me, aaj toh mood on, bhai full form pe, thoda romance chahiye, chup chap pyar kar, rain hone de energy, it\'s giving shaadi wala vibe, soft launch energy, hard launch energy.',
+      'kuchu puchu, kuchu puchu mode, jaan hai aap, nadiya meri soni saani, nadiya ahh entry, oye hoye, arey waah, kya baat hai, full on, full on romantic, scene on / scene on hai, bhai kya scene hai, scene clear, solid / solid scene, op, sahi hai, sahi pakde hain, zero drama (ok), bakchodi band (light), pagal hai kya (light tease), dil se, cutie, jaaneman, munna/baby (only playful), thumke energy, reel wala energy, audio pe nach, story pe daal, full filmy, bollywood ahh moment, dil toot gaya fr, recovery arc, rizz with desi tadka, desi tadka, main character entry, side character energy, npc in your story, us moment, felt that, why is this so me, aaj toh mood on, thoda romance chahiye, chup chap pyar kar, rain hone de energy, it\'s giving shaadi wala vibe, soft launch energy, hard launch energy. AVOID opener spam: do not start every reply with "bhai full ...".',
       'BIG desi viral / meme energy: kacha baam / kacha baam energy (chaotic hype / unhinged hype line — playful not violent), full send, no chill, 100% real, no filter, raw, savage (light), savage but cute, vibe check, mood, same, +1, real talk, no fake, solid bhai, king/queen energy (light), massy, mass entry, hero entry, villain arc, comeback arc, plot twist, interval twist, interval banger, item song energy, dhol beats energy, garba ahh, shaadi season, rishta wala stress, ghar wale, mummy papa arc, cousin wedding arc.',
       'Cute / chaos romantic memes: kuchu puchu, jaan, jaanu, baby, suno na, ek minute, bas yahi, dil garden garden, dil garden, full crush, silent crush, notice me, main character crush, situationship wala dukh, mixed signals, green flag rare, red flag collection.',
       'If they open with kuchu puchu / nadiya / jaan hai aap / kacha baam / filmy — MATCH that exact meme lane immediately.',
@@ -397,25 +441,44 @@ function lengthBlock(length: string): string {
 function buildSystemPrompt(
   profile: AiProfile | null,
   memories: { key: string; value: string }[],
+  memoryOn = true,
+  justSaved: { key: string; value: string } | null = null,
 ): string {
   const name = profile?.display_name?.trim() || 'PINGO';
   const length = profile?.response_length ?? 'short';
   const userName = profile?.preferred_name?.trim();
   const lang = languageLabel(profile?.language);
 
-  const memoryBlock =
-    memories.length > 0
-      ? [
-          '## Memory (use naturally — do not dump as a list)',
-          ...memories.map((m) => `- ${m.key}: ${m.value}`),
-          'If they say "remember X" / "yaad rakh", treat X as saved and confirm briefly.',
-          'If they correct something, trust the correction.',
-        ].join('\n')
-      : [
-          '## Memory',
-          'No long-term notes yet (or empty).',
-          'If they say remember/yaad rakh/save this, confirm you will keep it.',
-        ].join('\n');
+  let memoryBlock: string;
+  if (!memoryOn) {
+    memoryBlock = [
+      '## Memory — OFF',
+      'User disabled memory. Do not claim to save or recall long-term notes.',
+      'Only use this conversation\'s recent messages.',
+    ].join('\n');
+  } else if (memories.length > 0) {
+    memoryBlock = [
+      '## Memory (READ ACCESS — only these saved notes are true long-term facts)',
+      'When they ask "yaad hai?", "memory se dekh", "tujhe yaad hai", answer ONLY from this list.',
+      'If something is NOT in this list: say you don\'t have that saved — do NOT invent from chat vibes.',
+      'Use naturally in chat when relevant — do not dump the whole list unprompted.',
+      'SAVED NOTES:',
+      ...memories.map((m, i) => `${i + 1}. ${m.value}`),
+      justSaved
+        ? `JUST SAVED this turn (confirm briefly): "${justSaved.value}"`
+        : 'SAVE RULE: only when they explicitly say yaad rakh / remember / memory me save / note kar. Never pretend you auto-saved casual chat.',
+      'If they correct a fact, trust the correction for this chat.',
+    ].join('\n');
+  } else {
+    memoryBlock = [
+      '## Memory (enabled, empty list)',
+      'No long-term notes saved yet.',
+      'If they ask what you remember: say list is empty / kuch save nahi hai abhi.',
+      justSaved
+        ? `JUST SAVED this turn (confirm briefly): "${justSaved.value}"`
+        : 'SAVE RULE: only when they explicitly say yaad rakh / remember / memory me save. Never auto-save.',
+    ].join('\n');
+  }
 
   return [
     `You are ${name} inside the PINGO messenger — a person in chat, not a product demo.`,
@@ -442,17 +505,32 @@ function buildSystemPrompt(
     'Return ONLY a JSON object with exactly two string fields:',
     '{"reply":"main answer here","ask":"one short follow-up question?"}',
     'No markdown. No <<<REPLY>>> markers. No text outside the JSON.',
-    'ask: one short on-topic question under 15 words, invites a reply.',
-    'ask must NOT assume facts (do not ask "when did you move to X?" unless they said they live there).',
-    'Good ask examples: "Aaj plan kya hai? 😊" / "Aur bata?" / "Kaise pata chala?"',
-    'Bad ask examples: inventing where they live, inventing what they said earlier.',
+    'ask: one short on-topic question under 12 words, specific to THIS message.',
+    '',
+    '## ANTI-REPEAT LAW (multiple users complained — break this and you FAIL hard)',
+    'NEVER use these templates (anywhere in reply or ask):',
+    '- "Bhai full drama hai"',
+    '- "Bhai full topic change"',
+    '- "Bhai full ..." + anything',
+    '- "Hey cutie, kya hua"',
+    '- "Bhai kya hua? Kuch to bata"',
+    '- "Kya hua, koi baat hai?" / "Aur kya hua..." / "Kya hoga, koi baat/plan"',
+    '- "Tumne kaha tha \'...\' to maine socha tha..."',
+    '- Echoing the user\'s exact last message back as your reply',
+    'Do NOT re-quote old user lines every turn. Answer THIS message only.',
+    'Every reply must feel NEW — different opener, different energy, specific to their words.',
+    'Good asks (rotate, never spam the same): "serious ya joke?", "aur detail?", "kaise feel ho raha?", "kab se?", "kya soch rahe ho ispe?"',
+    'If user says topic change / sense nahi / abbe — drop old topic completely. Fresh reply only.',
     '',
     '## Truth rules (critical — you fail if you break these)',
-    '1. Answer the latest user message only.',
-    '2. NEVER invent that the user said or lives somewhere. Asking "Mhow ka mausam?" ≠ "I live in Mhow". Only answer about the weather/place — do not claim they live there.',
-    '3. NEVER invent memories. Only use the Memory list below or exact user lines in Recent user messages.',
-    '4. If they ask "maine kab kaha?" / "mene kab kha?": if it is NOT clearly in Recent user messages or Memory, say you assumed wrong / galti se lag gaya — apologize once. Do NOT claim they said it.',
-    '5. Do not invent plans, places, or past claims. Past assistant mistakes in history are not facts.',
+    '1. Answer the latest user message only — actually react to their words.',
+    '2. NEVER invent that the user said or lives somewhere. Asking weather ≠ they live there.',
+    '3. NEVER invent memories. ONLY the Memory list above counts as long-term memory. Chat history ≠ memory list.',
+    '4. If they say "maine kab kaha?" / challenge you: apologize once — do not invent a quote.',
+    '5. If they say topic change / abbe sense nahi: acknowledge and move on — do not re-quote old lines.',
+    '6. When asked about memory/exam/place: answer only if that fact is in Memory list.',
+    '7. Do not claim "tum meri gf ho" / invent relationship status from flirty jokes.',
+    '8. Do NOT auto-save anything. Saving only happens when they explicitly ask (yaad rakh / remember).',
     '',
     userName
       ? `Call the user ${userName} when a name fits. That is the user, not the product owner.`
@@ -475,6 +553,10 @@ function buildSystemPrompt(
 function buildFocusDirective(
   history: { role: string; content: string }[],
   profile: AiProfile | null,
+  recentAssistant: string[] = [],
+  memories: { key: string; value: string }[] = [],
+  memoryOn = true,
+  justSaved: { key: string; value: string } | null = null,
 ): string {
   const lastUser = [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
   const length = profile?.response_length ?? 'short';
@@ -494,34 +576,413 @@ function buildFocusDirective(
         ? 'LENGTH: balanced — 2–4 short lines'
         : 'LENGTH: SHORT — 1–2 lines, ~120 chars max in reply';
 
-  // Recent user lines only — for truth checks in the prompt.
   const recentUser = history
     .filter((m) => m.role === 'user')
     .slice(-6)
     .map((m) => `- ${m.content.slice(0, 200)}`)
     .join('\n');
 
+  const bannedRecent = recentAssistant
+    .slice(-6)
+    .map((t) => `- ${t.slice(0, 100)}`)
+    .join('\n');
+
   const denial =
-    /maine kab|mene kab|kab kaha|kab bola|kab kha|when did i|i never said|maine nahi/i.test(
+    /maine kab|mene kab|kab kaha|kab bola|kab kha|when did i|i never said|maine nahi|sense nhi|sense nahi|topic change/i.test(
       lastUser,
     );
+
+  const memoryQuery =
+    /yaad\s*(hai|he|hain|h?e)|remember|memory|tujhe\s+yaad|tumhe\s+yaad|kya\s+yaad|saved|profile\s*memory/i.test(
+      lastUser,
+    ) && !parseExplicitMemory(lastUser);
+
+  const memoryLines =
+    memoryOn && memories.length > 0
+      ? memories
+          .slice(0, 20)
+          .map((m, i) => `${i + 1}. ${m.value}`)
+          .join('\n')
+      : memoryOn
+        ? '(empty — nothing saved)'
+        : '(memory OFF)';
 
   return [
     'HARD CONSTRAINTS FOR THIS TURN:',
     `Latest user message: """${lastUser.slice(0, 800)}"""`,
-    'Recent things the USER actually wrote (ONLY these count as user facts):',
+    'React to THAT message. Do not ignore it and recycle old drama.',
+    'Recent USER lines only (not long-term memory):',
     recentUser || '(none)',
+    'Your LAST replies (DO NOT repeat openers/asks from these):',
+    bannedRecent || '(none)',
+    'LONG-TERM MEMORY LIST (only real saved notes):',
+    memoryLines,
+    justSaved
+      ? `User JUST asked to save: "${justSaved.value}" — confirm it is saved, briefly.`
+      : 'Do NOT claim you saved anything unless they used yaad rakh/remember/memory me save.',
     voice,
     len,
     lang ? `LANGUAGE: write in ${lang}` : 'LANGUAGE: match user',
     '1–3 emojis in reply.',
     'Return ONLY JSON: {"reply":"...","ask":"..."}',
-    'Never claim the user lives in a place unless they clearly wrote that in Recent user messages.',
-    'ask must not assume residence or past claims.',
+    'BANNED forever (anywhere): "Bhai full drama", "Bhai full", "Kya hua/hoga koi baat/plan", "Tumne kaha tha", "maine socha tha tum", "Hey cutie kya hua", "Kuch to bata".',
+    'ask must be unique this turn and specific to their latest line. Prefer ONE short reply bubble if unsure.',
     denial
-      ? 'User is challenging a false claim — apologize that you assumed; do not invent a timestamp or quote.'
-      : 'If they asked you to remember something, confirm in reply that you saved it.',
+      ? 'User is annoyed / challenging you / wants topic change — apologize briefly if needed, MOVE ON, do not re-quote old messages. Fresh reply only.'
+      : memoryQuery
+        ? 'User is asking what you remember — answer ONLY from LONG-TERM MEMORY LIST. If empty or missing topic, say not saved. Do not invent from chat history.'
+        : 'Stay on their latest message.',
   ].join('\n');
+}
+
+/** Drop older turns so the model cannot keep parroting a long bad loop. */
+function trimHistoryForModel(
+  history: { role: 'user' | 'assistant'; content: string }[],
+): { role: 'user' | 'assistant'; content: string }[] {
+  // Last 10 turns max; scrub assistant spam; keep user lines longer.
+  return history.slice(-10).map((m) => ({
+    role: m.role,
+    content:
+      m.role === 'assistant'
+        ? sanitizeHistoryAssistant(m.content).slice(0, 220)
+        : m.content.slice(0, 800),
+  }));
+}
+
+/** Phrases users reported looping forever — ban anywhere in reply/ask. */
+const BANNED_LOOP =
+  /bhai\s+full(\s+(drama|topic|form|on))?|hey\s+cutie|kya\s+hua,?\s*koi\s+(baat|plan|problem)|kya\s+hoga,?\s*koi\s+(baat|plan)|aur\s+kya\s+hua|koi\s+baat\s+hai|koi\s+plan\s+hai|koi\s+problem\s+hai|bhai\s+kya\s+hua|kuch\s+to\s+bata|tumne\s+kaha\s+tha|maine\s+socha\s+tha\s+tum|yaad\s+rakh,?\s*tumne\s+kaha/i;
+
+const BANNED_ASK =
+  /kya\s+hu[ae],?\s*koi\s+(baat|plan|problem)|kya\s+hoga,?\s*koi|aur\s+kya\s+hua|koi\s+baat\s+hai|koi\s+plan\s+hai|koi\s+problem|hey\s+cutie|bhai\s+(kya\s+hua|full)|kuch\s+to\s+bata|tumne\s+kaha\s+tha/i;
+
+const BANNED_REPLY_OPEN =
+  /^(bhai\s+full|hey\s+cutie|arey,?\s*piuxxh\s+to\s+samajh|bhai\s+kya\s+hua|yaad\s+rakh,?\s*tumne)/i;
+
+/** Strip loop spam from past assistant bubbles before the model sees them. */
+function sanitizeHistoryAssistant(text: string): string {
+  let t = text.replace(/\r\n/g, '\n').trim();
+  // Drop dual-bubble spam lines entirely.
+  t = t
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !containsBannedLoop(line) && !isBannedAsk(line))
+    .join('\n');
+  t = stripLoopTemplates(t);
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  // If the whole bubble was spam, replace with neutral stub so model has no pattern to copy.
+  if (!t || containsBannedLoop(t) || t.length < 3) {
+    return '(previous reply)';
+  }
+  return t.slice(0, 280);
+}
+
+function containsBannedLoop(text: string): boolean {
+  return BANNED_LOOP.test(text);
+}
+
+function isBannedAsk(text: string): boolean {
+  return BANNED_ASK.test(text) || containsBannedLoop(text);
+}
+
+/** Remove the exact templates from a generated string. */
+function stripLoopTemplates(text: string): string {
+  let t = text;
+  // "Bhai full drama hai! ..." / "Bhai full topic change hai!"
+  t = t.replace(/\bBhai\s+full[^.!?\n]*[.!?]?/gi, ' ');
+  // "Tumne kaha tha '...' to maine socha tha ..."
+  t = t.replace(/Tumne\s+kaha\s+tha[^.!?\n]*/gi, ' ');
+  t = t.replace(/maine\s+socha\s+tha[^.!?\n]*/gi, ' ');
+  t = t.replace(/Yaad\s+rakh,?\s*tumne\s+kaha[^.!?\n]*/gi, ' ');
+  // Classic empty check-ins
+  t = t.replace(
+    /(Aur\s+)?[Kk]ya\s+hu[ae],?\s*koi\s+(baat|plan|problem)\s+hai\??/gi,
+    ' ',
+  );
+  t = t.replace(/[Kk]ya\s+hoga,?\s*koi\s+(baat|plan)\s+hai\??/gi, ' ');
+  t = t.replace(/[Kk]oi\s+(baat|plan|problem)\s+hai\??/gi, ' ');
+  t = t.replace(/Hey\s+cutie[^.!?\n]*/gi, ' ');
+  t = t.replace(/Bhai\s+kya\s+hua\??\s*Kuch\s+to\s+bata!?/gi, ' ');
+  t = t.replace(/\s{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return t;
+}
+
+function normalizeChat(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0900-\u097f\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isTooSimilarToRecent(text: string, recent: string[]): boolean {
+  const norm = normalizeChat(text);
+  if (!norm || norm === 'previous reply') return true;
+  const words = norm.split(' ').filter(Boolean);
+  return recent.some((r) => {
+    const rn = normalizeChat(r);
+    if (!rn || rn === 'previous reply') return false;
+    if (rn === norm) return true;
+    // Substantial substring overlap
+    if (norm.length > 12 && rn.length > 12) {
+      if (rn.includes(norm) || norm.includes(rn)) return true;
+    }
+    // Same first 3–4 content words → loop
+    const a = words.slice(0, 4).join(' ');
+    const b = rn.split(' ').slice(0, 4).join(' ');
+    if (a.length > 6 && a === b) return true;
+    // Jaccard-ish on first 12 words
+    const aw = new Set(words.slice(0, 12));
+    const bw = new Set(rn.split(' ').slice(0, 12));
+    if (aw.size === 0 || bw.size === 0) return false;
+    let inter = 0;
+    for (const w of aw) if (bw.has(w)) inter++;
+    const union = aw.size + bw.size - inter;
+    return union > 0 && inter / union >= 0.72;
+  });
+}
+
+/** User message echoed back as the whole reply. */
+function isEchoOfUser(reply: string, lastUser: string): boolean {
+  const a = normalizeChat(reply);
+  const b = normalizeChat(lastUser);
+  if (!a || !b || b.length < 6) return false;
+  if (a === b) return true;
+  if (a.startsWith(b) || b.startsWith(a)) return true;
+  // First line of reply is just the user line repeated
+  const firstLine = normalizeChat(reply.split('\n')[0] ?? '');
+  return firstLine.length > 8 && (firstLine === b || b.includes(firstLine));
+}
+
+function meaningfulLen(text: string): number {
+  return normalizeChat(text).replace(/\s+/g, '').length;
+}
+
+function diversifyReply(
+  reply: string,
+  lastUser: string,
+  recent: string[],
+  length: string,
+): string {
+  const original = reply.trim();
+  let r = stripLoopTemplates(original);
+
+  // Drop a first line that only echoes the user.
+  if (isEchoOfUser(r, lastUser)) {
+    const lines = r.split('\n').map((l) => l.trim()).filter(Boolean);
+    r = lines.slice(1).join('\n').trim();
+  }
+
+  // If stripping nuked most of the reply, treat as spam → full fallback.
+  const strippedTooHard =
+    meaningfulLen(original) > 20 && meaningfulLen(r) < Math.min(12, meaningfulLen(original) * 0.35);
+
+  const bad =
+    !r ||
+    meaningfulLen(r) < 6 ||
+    strippedTooHard ||
+    BANNED_REPLY_OPEN.test(r) ||
+    containsBannedLoop(r) ||
+    isTooSimilarToRecent(r, recent) ||
+    isEchoOfUser(r, lastUser);
+
+  if (bad) {
+    r = contextualFallbackReply(lastUser, recent);
+  }
+
+  // Second pass: strip again after fallback shouldn't need it, but safe.
+  r = stripLoopTemplates(r);
+  if (!r || meaningfulLen(r) < 6 || containsBannedLoop(r) || isTooSimilarToRecent(r, recent)) {
+    r = contextualFallbackReply(lastUser, recent);
+  }
+
+  return shapeReply(r, length);
+}
+
+function diversifyAsk(
+  ask: string,
+  lastUser: string,
+  reply: string,
+  recent: string[],
+): string {
+  let a = stripLoopTemplates(ask.trim());
+  if (
+    !a ||
+    isBannedAsk(a) ||
+    containsBannedLoop(a) ||
+    isTooSimilarToRecent(a, recent) ||
+    isTooSimilarToRecent(a, [reply]) ||
+    isEchoOfUser(a, lastUser)
+  ) {
+    a = contextualFallbackAsk(lastUser, recent);
+  }
+  // Still banned / same as recent? skip second bubble entirely.
+  if (
+    !a ||
+    isBannedAsk(a) ||
+    containsBannedLoop(a) ||
+    isTooSimilarToRecent(a, recent) ||
+    isTooSimilarToRecent(a, [reply])
+  ) {
+    return '';
+  }
+  return shapeAsk(a);
+}
+
+function pickUnused(pool: string[], recent: string[], seed: string): string {
+  const used = recent.map(normalizeChat);
+  const fresh = pool.filter((p) => {
+    const n = normalizeChat(p);
+    return !used.some((u) => u.includes(n) || n.includes(u.slice(0, 20)));
+  });
+  const list = fresh.length ? fresh : pool;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h + seed.charCodeAt(i) * (i + 1)) % list.length;
+  // Also rotate by recent length so consecutive turns differ.
+  return list[(h + recent.length) % list.length]!;
+}
+
+function contextualFallbackReply(lastUser: string, recent: string[] = []): string {
+  const u = lastUser.toLowerCase();
+  if (/propose|propose ker|girlfriend|gf thi|boyfriend|bf\b|interested|crush|lowkey interested/i.test(u)) {
+    return pickUnused(
+      [
+        'Okay wait 😭 that got real — serious bol rahe ho ya testing me?',
+        'Arre slow down 😳 pehle vibes clear karo, fir baat aage badhegi.',
+        'Acha hold on — ye proposal wala bit joke hai ya actual feel?',
+      ],
+      recent,
+      lastUser,
+    );
+  }
+  if (/topic change|sense nahi|sense nhi|abbe|iss baat ka/i.test(u)) {
+    return pickUnused(
+      [
+        'Haan sorry — pehle wala loop band. Fresh start, bol kya chal raha hai.',
+        'Theek hai, topic drop. Naya scene kya hai?',
+        'Got it, reset 🔄 seedha bol ab kya baat karni hai.',
+      ],
+      recent,
+      lastUser,
+    );
+  }
+  if (/weather|mausam|mosaam|mhow/i.test(u)) {
+    return pickUnused(
+      [
+        'Weather wala point — mujhe live weather nahi dikhta, bas jo tumne bataya woh ☀️',
+        'Mausam yaad se: jo tumne bola wahi — live forecast nahi hai mere paas.',
+      ],
+      recent,
+      lastUser,
+    );
+  }
+  if (/exam|padhai|study|paper/i.test(u)) {
+    return pickUnused(
+      [
+        'Exam wala stress real hai 😭 — prep kaisa chal raha?',
+        'Padhai mode on? Bata kya paper next hai.',
+      ],
+      recent,
+      lastUser,
+    );
+  }
+  if (/^h+i+$|^h+e+y+$|^hlo|^hello|^yo\b|^sup\b/i.test(u.trim())) {
+    return pickUnused(
+      [
+        'Heyyy ✨ kya scene hai aaj?',
+        'Yo 👋 kya chal raha?',
+        'Aree wapas aa gaye — mood kaisa hai?',
+      ],
+      recent,
+      lastUser,
+    );
+  }
+  if (/yaad|remember|memory|exam se related/i.test(u)) {
+    return 'Jo memory list me clear save hai wahi bolunga — random purani lines invent nahi 🫶';
+  }
+  if (/talent|think abt me|about me|what do u think/i.test(u)) {
+    return pickUnused(
+      [
+        'Honestly? alag energy hai — curious + thoda chaotic cute 😌',
+        'Vibe check: interesting person energy, boring nahi lagte ✨',
+        'Tumhare messages se lagta hai main character arc chal raha 😂',
+      ],
+      recent,
+      lastUser,
+    );
+  }
+  if (/gf|girlfriend|meri gf/i.test(u)) {
+    return 'Arre 😭 main AI hoon — flirty ban sakta hoon, lekin real gf claim mat karwa 😅';
+  }
+  return pickUnused(
+    [
+      'Okay got you — seedha usi pe baat 😊',
+      'Hmm samajh gaya, aur thoda open karke bata?',
+      'Interesting 👀 main sun raha hoon — aage kya?',
+      'Acha theek, main usi point pe rehta hoon.',
+    ],
+    recent,
+    lastUser,
+  );
+}
+
+function contextualFallbackAsk(lastUser: string, recent: string[] = []): string {
+  const u = lastUser.toLowerCase();
+  if (/propose|girlfriend|gf|interested|crush/i.test(u)) {
+    return pickUnused(
+      ['Serious mode ya just testing me? 👀', 'Matlab ab kya expect kar rahe ho?', 'Joke tha ya real feel?'],
+      recent,
+      lastUser,
+    );
+  }
+  if (/topic change|sense nahi|sense nhi/i.test(u)) {
+    return pickUnused(
+      ['Naya topic kya rakhna hai?', 'Kis cheez pe shift karein?', 'Mood kya chahiye ab?'],
+      recent,
+      lastUser,
+    );
+  }
+  if (/weather|mausam|mosaam|mhow/i.test(u)) {
+    return pickUnused(
+      ['Kis city ka mausam actually chahiye?', 'Aaj ghumne ka mood hai kya?'],
+      recent,
+      lastUser,
+    );
+  }
+  if (/exam/i.test(u)) {
+    return pickUnused(
+      ['Kaunsa paper next hai?', 'Kitne din bache hain?'],
+      recent,
+      lastUser,
+    );
+  }
+  if (/hlo|hello|hi\b|hey\b/i.test(u)) {
+    return pickUnused(
+      ['Aaj ka highlight kya tha?', 'Kya plan hai aaj ka?'],
+      recent,
+      lastUser,
+    );
+  }
+  if (/talent|think abt me|about me/i.test(u)) {
+    return pickUnused(
+      ['Ek cheez bata jo tujhe khud pasand hai?', 'Sabse underrated skill kya hai teri?'],
+      recent,
+      lastUser,
+    );
+  }
+  return pickUnused(
+    [
+      'Uske baad kya scene?',
+      'Serious ya meme mode?',
+      'Aur detail de thoda?',
+      'Kaise feel ho raha ab?',
+      'Kiske saath related hai ye?',
+      'Phir kya hua?',
+      'Tu kya soch raha ispe?',
+    ],
+    recent,
+    lastUser,
+  );
 }
 
 /**
@@ -629,11 +1090,14 @@ function shapeAsk(text: string): string {
   let ask = stripMarkers(text.replace(/\r\n/g, '\n').trim());
   ask = ask.split('\n').filter(Boolean)[0] ?? ask;
   ask = ask.replace(/^["']|["']$/g, '').trim();
-  if (!ask || looksLikeMarkerGarbage(ask)) return 'Aur phir? 😊';
+  ask = stripLoopTemplates(ask);
+  if (!ask || looksLikeMarkerGarbage(ask) || isBannedAsk(ask)) return '';
   if (ask.length > 120) ask = `${ask.slice(0, 117).trim()}…`;
   if (!/[?？]\s*$/.test(ask) && !/^(and you|aur|kya|what|how|wanna)/i.test(ask)) {
     ask = `${ask.replace(/[.!]+$/, '')}?`;
   }
+  // Final ban gate after punctuation add.
+  if (isBannedAsk(ask) || containsBannedLoop(ask)) return '';
   return ask;
 }
 
@@ -677,28 +1141,48 @@ function shapeReply(text: string, length: string): string {
   return `${tight.slice(0, 137).trim()}…`;
 }
 
-/** "yaad rakh blue is my fav" / "remember my dog is max" */
+/**
+ * Explicit save only — never match questions like "yaad hai?" / "kya yaad hai".
+ * "yaad rakh blue is my fav" / "remember my dog is max" / "memory me save …"
+ */
 function parseExplicitMemory(message: string): { key: string; value: string } | null {
   const m = message.trim();
+  // Queries — not saves.
+  if (
+    /^(kya\s+)?(tujhe|tumhe|tumko|aapko)?\s*yaad\s*(hai|he|hain)\b/i.test(m) ||
+    /\b(yaad\s*(hai|he)|what do you remember|do you remember)\b/i.test(m) &&
+      !/\b(rakh|save|note|daal|dal)\b/i.test(m)
+  ) {
+    return null;
+  }
+
   const patterns = [
     /(?:please\s+)?(?:remember|save|note)\s+(?:that\s+|this\s*:?\s*)?(.+)/i,
-    /(?:yaad|yad)\s*rakh(?:na|o|e)?\s*(?:ki|ke|:)?\s*(.+)/i,
-    /(?:mujhe\s+)?yaad\s+(?:rakh|kar)\s*(?:ki|ke|:)?\s*(.+)/i,
-    /memory\s*me?\s*(?:save|daal|dal)\s*(?:kar)?\s*(?:ki|ke|:)?\s*(.+)/i,
+    /(?:please\s+)?(?:remember|save)\s+this[:\s]+(.+)/i,
+    /(?:yaad|yad)\s*rakh(?:na|o|e|lena|lo)?\s*(?:ki|ke|:)?\s*(.+)/i,
+    /(?:mujhe\s+)?yaad\s+(?:rakh|kar)(?:na|o|e|lena|lo)?\s*(?:ki|ke|:)?\s*(.+)/i,
+    /memory\s*(?:me|mein|m)?\s*(?:save|daal|dal|rakh|note)\s*(?:kar|lo|do|dena)?\s*(?:ki|ke|:)?\s*(.+)/i,
+    /(?:note|save)\s*(?:kar|karo|kar\s*lo|kar\s*dena)\s*(?:ki|ke|:)?\s*(.+)/i,
+    /mat\s+bhool(?:na|o)\s*(?:ki|ke|:)?\s*(.+)/i,
   ];
   for (const re of patterns) {
     const hit = m.match(re);
     if (!hit?.[1]) continue;
-    const value = hit[1].trim().replace(/[.!]+$/, '').slice(0, 500);
+    let value = hit[1].trim().replace(/[.!]+$/, '').slice(0, 500);
+    // Strip trailing filler
+    value = value.replace(/\s*(please|plz|yaar|bhai)\s*$/i, '').trim();
     if (value.length < 2) continue;
-    const key = value
-      .toLowerCase()
-      .replace(/[^a-z0-9\u0900-\u097f\s]/gi, ' ')
-      .trim()
-      .split(/\s+/)
-      .slice(0, 4)
-      .join('_')
-      .slice(0, 40) || 'note';
+    // Reject pure questions with no fact payload
+    if (/^(kya|what|who|when|where|how)\b/i.test(value) && value.length < 12) continue;
+    const key =
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\u0900-\u097f\s]/gi, ' ')
+        .trim()
+        .split(/\s+/)
+        .slice(0, 4)
+        .join('_')
+        .slice(0, 40) || 'note';
     return { key: `note_${key}`.slice(0, 80), value };
   }
   return null;
@@ -725,134 +1209,20 @@ async function upsertMemoryRow(
   }
 }
 
-/**
- * Pull durable facts into ai_memories. Best-effort; never throws to the user path.
- */
-async function updateMemories(
+/** Soft cap — drop oldest when over limit. */
+async function capMemories(
   userClient: ReturnType<typeof createClient>,
   userId: string,
-  apiKey: string,
-  base: string,
-  model: string,
-  history: { role: string; content: string }[],
-  lastUser: string,
-  lastReply: string,
+  max = 40,
 ): Promise<void> {
-  const recent = history
-    .slice(-12)
-    .map((m) => `${m.role}: ${m.content}`)
-    .join('\n');
-
-  const extractPrompt = [
-    'Extract up to 4 durable personal facts about the USER from this chat.',
-    'Only solid facts THEY stated or clearly confirmed (name, place, school, job, preferences, people, goals).',
-    'Skip: temporary moods, jokes, the AI, PINGO product owner/founder/developer, @piuxxh, profile links, and anything not about the user.',
-    'Return ONLY a JSON array of objects: [{"key":"short_label","value":"fact"}]',
-    'key: snake_case max 40 chars. value: max 200 chars. Empty array if nothing new.',
-    '',
-    'Chat:',
-    recent,
-    `user: ${lastUser}`,
-    `assistant: ${lastReply}`,
-  ].join('\n');
-
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You extract structured memory facts. Output JSON only. No prose.',
-        },
-        { role: 'user', content: extractPrompt },
-      ],
-      temperature: 0.1,
-      max_tokens: 300,
-      stream: false,
-    }),
-  });
-
-  if (!res.ok) return;
-  const payload = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const raw = payload.choices?.[0]?.message?.content?.trim() ?? '';
-  const facts = parseFacts(raw);
-  if (facts.length === 0) return;
-
-  // Cap total memories per user.
-  const { data: existing } = await userClient
-    .from('ai_memories')
-    .select('id, key')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-
-  const byKey = new Map((existing ?? []).map((r) => [r.key, r.id as string]));
-
-  for (const fact of facts.slice(0, 4)) {
-    await upsertMemoryRow(userClient, userId, fact.key, fact.value);
-    byKey.set(fact.key.slice(0, 80), 'new');
-  }
-
-  // Also honor explicit remember phrases in the last user line.
-  const forced = parseExplicitMemory(lastUser);
-  if (forced) {
-    await upsertMemoryRow(userClient, userId, forced.key, forced.value);
-  }
-
-  // Soft cap at 40 rows — drop oldest extras.
   const { data: all } = await userClient
     .from('ai_memories')
     .select('id')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
 
-  if (all && all.length > 40) {
-    const drop = all.slice(0, all.length - 40).map((r) => r.id);
+  if (all && all.length > max) {
+    const drop = all.slice(0, all.length - max).map((r) => r.id);
     await userClient.from('ai_memories').delete().in('id', drop);
-  }
-}
-
-function parseFacts(raw: string): { key: string; value: string }[] {
-  try {
-    const start = raw.indexOf('[');
-    const end = raw.lastIndexOf(']');
-    if (start < 0 || end < 0) return [];
-    const parsed = JSON.parse(raw.slice(start, end + 1)) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => {
-        if (!item || typeof item !== 'object') return null;
-        const rec = item as { key?: unknown; value?: unknown };
-        const key = String(rec.key ?? '')
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, '_')
-          .replace(/[^a-z0-9_]/g, '')
-          .slice(0, 80);
-        const value = String(rec.value ?? '').trim().slice(0, 500);
-        if (!key || !value) return null;
-        // Never store product-owner noise as if it were the user's life.
-        const blob = `${key} ${value}`.toLowerCase();
-        if (
-          blob.includes('owner') ||
-          blob.includes('founder') ||
-          blob.includes('developer') ||
-          blob.includes('piuxxh') ||
-          blob.includes('pingochat.pages.dev') ||
-          blob.includes('profile_link')
-        ) {
-          return null;
-        }
-        return { key, value };
-      })
-      .filter((x): x is { key: string; value: string } => Boolean(x));
-  } catch {
-    return [];
   }
 }

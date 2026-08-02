@@ -5,6 +5,7 @@ import {
   speechAudioConstraints,
   VOICE_AUDIO_BITRATE,
 } from '../../lib/audio/capture.js';
+import { toPlayableVoiceBlob } from '../../lib/audio/wav.js';
 
 /**
  * Recording a voice note.
@@ -165,17 +166,39 @@ export function useVoiceRecorder(): VoiceRecorder {
 
     const seconds = (Date.now() - startedAt.current) / 1000;
 
-    const blob = await new Promise<Blob>((resolve) => {
+    const raw = await new Promise<Blob>((resolve) => {
       mediaRecorder.onstop = () =>
-        resolve(new Blob(chunks.current, { type: mediaRecorder.mimeType }));
-      if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-      else resolve(new Blob(chunks.current, { type: mediaRecorder.mimeType }));
+        resolve(
+          new Blob(chunks.current, {
+            // Strip codec params so storage + <audio> agree on a simple type.
+            type: (mediaRecorder.mimeType || 'audio/webm').split(';')[0] || 'audio/webm',
+          }),
+        );
+      if (mediaRecorder.state !== 'inactive') {
+        // Flush the last timeslice before stop so the container is complete.
+        try {
+          mediaRecorder.requestData();
+        } catch {
+          // Older engines may not implement requestData mid-recording.
+        }
+        mediaRecorder.stop();
+      } else {
+        resolve(
+          new Blob(chunks.current, {
+            type: (mediaRecorder.mimeType || 'audio/webm').split(';')[0] || 'audio/webm',
+          }),
+        );
+      }
     });
 
     teardown();
 
-    if (seconds < MIN_SECONDS || blob.size === 0) return undefined;
-    return { blob, seconds, waveform: await peaks(blob) };
+    if (seconds < MIN_SECONDS || raw.size === 0) return undefined;
+
+    // WAV round-trip so Safari/iOS receivers can play Chrome/Android WebM notes.
+    const blob = await toPlayableVoiceBlob(raw);
+    const waveform = await peaks(blob.size ? blob : raw);
+    return { blob, seconds, waveform };
   }, [teardown]);
 
   return {

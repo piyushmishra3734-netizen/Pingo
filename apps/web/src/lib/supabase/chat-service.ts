@@ -130,6 +130,25 @@ function parseTimestamp(value: string): number {
   return Date.parse(value);
 }
 
+/** Postgres real[] sometimes arrives as a number[], sometimes as a stringy list. */
+function normalizeWaveform(raw: unknown): number[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v))
+      .map((v) => Math.max(0, Math.min(1, v)));
+  }
+  if (typeof raw === 'string' && raw.length > 2) {
+    try {
+      const parsed = JSON.parse(raw.replace(/^\{/, '[').replace(/\}$/, ']')) as unknown;
+      return normalizeWaveform(parsed);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 /**
  * The attachment a row carries, if any.
  *
@@ -145,7 +164,7 @@ function toAttachments(row: MessageRow): Attachment[] {
         kind: 'audio',
         url: '',
         duration: row.voice_duration ?? 0,
-        waveform: row.voice_waveform ?? [],
+        waveform: normalizeWaveform(row.voice_waveform),
       },
     ];
   }
@@ -1819,11 +1838,7 @@ export class SupabaseChatService implements ChatService {
     // here outright would silently skip it for any thread of only voice notes.
     if (paths.length === 0) return this.#signVoice(rows, messages);
 
-    const { data } = await this.#client.storage
-      .from(PHOTO_BUCKET)
-      .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
-
-    const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
+    const urlByPath = await this.#signStoragePaths(PHOTO_BUCKET, paths);
 
     const withPhotos = messages.map((message, index) => {
       const row = rows[index];
@@ -1843,17 +1858,17 @@ export class SupabaseChatService implements ChatService {
    * both, so the two never contend.
    */
   async #signVoice(rows: MessageRow[], messages: Message[]): Promise<Message[]> {
-    const paths = rows
-      .filter((row) => row.kind === 'voice' && row.voice_path)
-      .map((row) => row.voice_path!);
+    const paths = [
+      ...new Set(
+        rows
+          .filter((row) => row.kind === 'voice' && row.voice_path)
+          .map((row) => row.voice_path!),
+      ),
+    ];
 
     if (paths.length === 0) return this.#signDocuments(rows, messages);
 
-    const { data } = await this.#client.storage
-      .from(VOICE_BUCKET)
-      .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
-
-    const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
+    const urlByPath = await this.#signStoragePaths(VOICE_BUCKET, paths);
 
     const signed = messages.map((message, index) => {
       const row = rows[index];
@@ -1861,15 +1876,73 @@ export class SupabaseChatService implements ChatService {
       const url = urlByPath.get(row.voice_path);
       if (!url) return message;
 
-      return {
-        ...message,
-        attachments: message.attachments.map((attachment) =>
-          attachment.kind === 'audio' ? { ...attachment, url } : attachment,
-        ),
-      };
+      // Guarantee an audio attachment even if mapping earlier dropped it.
+      const attachments =
+        message.attachments.some((a) => a.kind === 'audio')
+          ? message.attachments.map((attachment) =>
+              attachment.kind === 'audio' ? { ...attachment, url } : attachment,
+            )
+          : [
+              {
+                id: row.id,
+                kind: 'audio' as const,
+                url,
+                duration: row.voice_duration ?? 0,
+                waveform: normalizeWaveform(row.voice_waveform),
+              },
+            ];
+
+      return { ...message, attachments };
     });
 
     return this.#signDocuments(rows, signed);
+  }
+
+  /**
+   * Batch-sign private storage paths, with index + singular fallbacks.
+   *
+   * Supabase sometimes returns entries without a usable `path` key, or a null
+   * `signedUrl` on one of a batch - either leaves the receiver with a silent
+   * voice bubble. Zip by request index first, then retry failures one by one.
+   */
+  async #signStoragePaths(
+    bucket: string,
+    paths: string[],
+  ): Promise<Map<string, string>> {
+    const urlByPath = new Map<string, string>();
+    if (paths.length === 0) return urlByPath;
+
+    const { data } = await this.#client.storage
+      .from(bucket)
+      .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
+
+    const failed: string[] = [];
+    paths.forEach((path, index) => {
+      const entry = data?.[index] as
+        | { path?: string | null; signedUrl?: string | null; signedURL?: string | null; error?: string | null }
+        | undefined;
+      const url = entry?.signedUrl || entry?.signedURL || undefined;
+      // Prefer the path we asked for; response path is only a secondary key.
+      if (url && entry && !entry.error) {
+        urlByPath.set(path, url);
+        if (entry.path && entry.path !== path) urlByPath.set(entry.path, url);
+      } else {
+        failed.push(path);
+      }
+    });
+
+    // Singular retry — batch signing can miss individual objects intermittently.
+    await Promise.all(
+      failed.map(async (path) => {
+        const { data: one } = await this.#client.storage
+          .from(bucket)
+          .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
+        const url = one?.signedUrl;
+        if (url) urlByPath.set(path, url);
+      }),
+    );
+
+    return urlByPath;
   }
 
   /**
@@ -1886,11 +1959,7 @@ export class SupabaseChatService implements ChatService {
 
     if (paths.length === 0) return messages;
 
-    const { data } = await this.#client.storage
-      .from(DOCUMENT_BUCKET)
-      .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
-
-    const urlByPath = new Map((data ?? []).map((entry) => [entry.path, entry.signedUrl]));
+    const urlByPath = await this.#signStoragePaths(DOCUMENT_BUCKET, paths);
 
     return messages.map((message, index) => {
       const row = rows[index];
@@ -1909,15 +1978,34 @@ export class SupabaseChatService implements ChatService {
 
   async #uploadVoice(audio: Blob): Promise<string> {
     const me = await this.#userId();
-    // Extension follows the codec the browser actually produced, so the file is
-    // playable when fetched back by something that trusts it.
-    const extension = audio.type.includes('mp4') ? 'm4a' : 'webm';
+    // Extension + Content-Type follow the blob so the player does not guess wrong.
+    const type = (audio.type || 'audio/webm').split(';')[0]!.toLowerCase();
+    const extension = type.includes('wav')
+      ? 'wav'
+      : type.includes('mpeg') || type.includes('mp3')
+        ? 'mp3'
+        : type.includes('mp4') || type.includes('m4a') || type.includes('aac')
+          ? 'm4a'
+          : type.includes('ogg')
+            ? 'ogg'
+            : 'webm';
     // The uploader's id leads the path, which is what the storage policy checks.
     const path = `${me}/${crypto.randomUUID()}.${extension}`;
 
+    const contentType =
+      extension === 'wav'
+        ? 'audio/wav'
+        : extension === 'mp3'
+          ? 'audio/mpeg'
+          : extension === 'm4a'
+            ? 'audio/mp4'
+            : extension === 'ogg'
+              ? 'audio/ogg'
+              : 'audio/webm';
+
     const { error } = await this.#client.storage
       .from(VOICE_BUCKET)
-      .upload(path, audio, { contentType: audio.type || 'audio/webm' });
+      .upload(path, audio, { contentType, upsert: false });
 
     if (error) throw error;
     return path;
