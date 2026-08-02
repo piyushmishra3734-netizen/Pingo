@@ -186,6 +186,8 @@ export type AiProfileRow = {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
+  /** Full-bleed cover behind the face on the AI profile card. */
+  banner_url: string | null;
   /** How they appear to this user; falls back to the global public bio. */
   bio: string | null;
   personality: string;

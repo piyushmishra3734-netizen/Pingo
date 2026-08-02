@@ -37,7 +37,8 @@ export function AiProfileSheet({
   const { service } = useChat();
   const confirm = useConfirm();
   const navigate = useNavigate();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+  const bannerFileRef = useRef<HTMLInputElement>(null);
 
   const [pub, setPub] = useState<AiPublicIdentity>();
   const [owner, setOwner] = useState(false);
@@ -75,6 +76,7 @@ export function AiProfileSheet({
 
   const faceName = prefs.display_name?.trim() || pub?.displayName || 'PINGO';
   const faceSrc = prefs.avatar_url || pub?.avatarUrl;
+  const bannerSrc = prefs.banner_url ?? undefined;
   const faceBio =
     prefs.bio?.trim() ||
     pub?.bio?.trim() ||
@@ -87,13 +89,13 @@ export function AiProfileSheet({
     typeof navigator !== 'undefined' ? navigator.language : undefined,
   );
 
-  const uploadAvatar = async (file: File) => {
+  const uploadToAvatars = async (file: File, kind: 'avatar' | 'banner') => {
     if (!profile) return;
     setBusy(true);
     setError(undefined);
     try {
       const client = getSupabaseClient();
-      const path = `${profile.id}/ai-avatar-${Date.now()}`;
+      const path = `${profile.id}/ai-${kind}-${Date.now()}`;
       const { error: upError } = await client.storage
         .from('avatars')
         .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
@@ -101,7 +103,7 @@ export function AiProfileSheet({
       const { data } = client.storage.from('avatars').getPublicUrl(path);
       const url = data.publicUrl;
 
-      if (owner) {
+      if (kind === 'avatar' && owner) {
         const { error: rpcError } = await client.rpc('update_ai_public_identity', {
           new_avatar_url: url,
         });
@@ -109,19 +111,17 @@ export function AiProfileSheet({
         setPub((p) => (p ? { ...p, avatarUrl: url } : p));
       }
 
-      const { error: writeError } = await client.from('ai_profiles').upsert({
-        user_id: profile.id,
-        avatar_url: url,
-        display_name: prefs.display_name ?? faceName,
-        personality: prefs.personality ?? 'friendly',
-        response_length: prefs.response_length ?? 'short',
-        updated_at: new Date().toISOString(),
-      });
-      if (writeError) throw writeError;
-      setPrefs((r) => ({ ...r, avatar_url: url }));
-      onChanged?.();
+      const patch =
+        kind === 'avatar' ? { avatar_url: url } : { banner_url: url };
+      await savePrefs(patch);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not upload photo.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : kind === 'banner'
+            ? 'Could not upload banner.'
+            : 'Could not upload photo.',
+      );
     } finally {
       setBusy(false);
     }
@@ -155,6 +155,7 @@ export function AiProfileSheet({
           language: next.language ?? null,
           memory_enabled: next.memory_enabled ?? true,
           avatar_url: next.avatar_url ?? null,
+          banner_url: next.banner_url ?? null,
           updated_at: new Date().toISOString(),
         });
       if (writeError) throw writeError;
@@ -237,57 +238,101 @@ export function AiProfileSheet({
   return (
     <>
       {/*
-        One continuous scroll. A fixed hero + separate body made the photo/bio
-        feel stuck and half-cut on short screens.
+        Full-bleed premium card: banner edge-to-edge, face overlapping cover,
+        rest of the form scrolls with it as one surface.
       */}
       <Sheet
         title="About them"
         hideTitle
         onClose={onClose}
-        className="max-h-[min(92vh,44rem)] max-w-md overflow-x-hidden overflow-y-auto p-0"
+        className="max-h-[min(92vh,44rem)] max-w-md overflow-x-hidden overflow-y-auto p-0 sm:max-w-md"
       >
         <input
-          ref={fileRef}
+          ref={avatarFileRef}
           type="file"
           accept="image/*"
           hidden
           onChange={(e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
-            if (file) void uploadAvatar(file);
+            if (file) void uploadToAvatars(file, 'avatar');
+          }}
+        />
+        <input
+          ref={bannerFileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void uploadToAvatars(file, 'banner');
           }}
         />
 
-        <div className="bg-brand/[0.08] px-5 pb-5 pt-8">
-          <div className="flex flex-col items-center text-center">
-            <div className="relative pb-1 pt-1">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
+        {/* Full-width banner — no side padding so the right edge is complete */}
+        <div className="relative w-full">
+          <div className="relative h-40 w-full overflow-hidden bg-brand/20 sm:h-44">
+            {bannerSrc ? (
+              <img
+                src={bannerSrc}
+                alt=""
+                className="absolute inset-0 size-full object-cover"
+              />
+            ) : (
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(135deg, color-mix(in srgb, var(--color-brand) 35%, transparent) 0%, color-mix(in srgb, var(--color-brand-alt, var(--color-brand)) 18%, transparent) 55%, transparent 100%)',
+                }}
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-surface/90 via-surface/10 to-transparent" />
+            <button
+              type="button"
+              onClick={() => bannerFileRef.current?.click()}
+              disabled={busy}
+              className={cn(
+                'absolute top-3 right-3 z-10 rounded-full px-3 py-1.5',
+                'glass-surface text-caption font-medium text-ink shadow-sm',
+                'outline-none focus-visible:outline focus-visible:outline-2',
+                'focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
+              )}
+            >
+              {bannerSrc ? 'Change cover' : 'Add cover'}
+            </button>
+          </div>
+
+          {/* Face sits half on the banner — premium profile rhythm */}
+          <div className="relative -mt-12 flex flex-col items-center px-5 pb-4 text-center">
+            <button
+              type="button"
+              onClick={() => avatarFileRef.current?.click()}
+              disabled={busy}
+              className={cn(
+                'relative rounded-full bg-surface p-1 shadow-lg',
+                'outline-none focus-visible:outline focus-visible:outline-2',
+                'focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
+              )}
+              aria-label="Change photo"
+            >
+              <Avatar
+                name={faceName}
+                id="pingo-ai"
+                src={faceSrc}
+                size="xl"
+                presence="online"
+              />
+              <span
                 className={cn(
-                  'relative block rounded-full',
-                  'outline-none focus-visible:outline focus-visible:outline-2',
-                  'focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
+                  'pointer-events-none absolute bottom-1 right-1 rounded-full',
+                  'bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm',
                 )}
-                aria-label="Change photo"
               >
-                <Avatar
-                  name={faceName}
-                  id="pingo-ai"
-                  src={faceSrc}
-                  size="xl"
-                  presence="online"
-                />
-                <span
-                  className={cn(
-                    'pointer-events-none absolute bottom-0 right-0 rounded-full',
-                    'bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm',
-                  )}
-                >
-                  Edit
-                </span>
-              </button>
-            </div>
+                Edit
+              </span>
+            </button>
             <div className="mt-3 flex items-center gap-1.5">
               <PingoDot state="online" size={6} />
               <span className="text-caption font-medium text-brand">Always here</span>
@@ -299,7 +344,7 @@ export function AiProfileSheet({
           </div>
         </div>
 
-        <div className="space-y-5 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+        <div className="space-y-5 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-1">
           <Section title="Name">
             <input
               value={prefs.display_name ?? faceName}
