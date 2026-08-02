@@ -28,8 +28,8 @@ export const PERSONALITIES: {
   {
     id: 'genz',
     label: 'Gen Z',
-    hint: 'Slang, memes, brainrot',
-    preview: 'bro you cooked 😭 no cap that hit different fr',
+    hint: 'IG slang + desi reels',
+    preview: 'kuchu puchu mode on 😭 that’s a W fr no cap',
   },
   {
     id: 'coach',
