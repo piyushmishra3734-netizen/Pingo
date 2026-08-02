@@ -168,8 +168,9 @@ Deno.serve(async (request) => {
     const model = Deno.env.get('NVIDIA_MODEL') ?? DEFAULT_MODEL;
     const length = profile?.response_length ?? 'short';
 
+    // Room for main reply + follow-up ask (two bubbles).
     const maxTokens =
-      length === 'detailed' ? 640 : length === 'balanced' ? 320 : 180;
+      length === 'detailed' ? 720 : length === 'balanced' ? 400 : 260;
 
     const nvidia = await fetch(`${base}/chat/completions`, {
       method: 'POST',
@@ -180,7 +181,7 @@ Deno.serve(async (request) => {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.55,
+        temperature: 0.6,
         top_p: 0.9,
         max_tokens: maxTokens,
         stream: false,
@@ -192,7 +193,7 @@ Deno.serve(async (request) => {
       console.error('nvidia', nvidia.status, detail);
       const { data: id } = await userClient.rpc('post_ai_reply', {
         target_conversation: conversationId,
-        reply_body: "Something went wrong on my side. Say that again?",
+        reply_body: "Something went wrong on my side. Say that again? 😅",
       });
       return json(request, { messageId: id, error: 'model_failed' }, 200);
     }
@@ -200,31 +201,46 @@ Deno.serve(async (request) => {
     const payload = (await nvidia.json()) as {
       choices?: { message?: { content?: string } }[];
     };
-    let reply = payload.choices?.[0]?.message?.content?.trim() ?? '';
-    reply = cleanModelArtifacts(reply);
-    reply = shapeReply(reply, length);
+    let raw = payload.choices?.[0]?.message?.content?.trim() ?? '';
+    raw = cleanModelArtifacts(raw);
+    const { reply, ask } = splitReplyAndAsk(raw, length);
 
-    if (!reply) {
-      reply = 'Hmm - I blanked for a second. What were you saying?';
-    }
+    const mainBody = reply || 'Hmm - I blanked for a second. What were you saying? 😅';
 
     const { data: messageId, error: postError } = await userClient.rpc('post_ai_reply', {
       target_conversation: conversationId,
-      reply_body: reply,
+      reply_body: mainBody,
     });
 
     if (postError) {
       return json(request, { error: postError.message }, 500);
     }
 
-    // Memory: extract durable facts after the turn (never blocks the reply path).
-    if (memoryOn && live) {
-      void updateMemories(userClient, user.id, apiKey, base, model, cleanHistory, live, reply).catch(
-        (err) => console.error('memory', err),
-      );
+    // Second bubble: a short question so the chat keeps moving (person-shaped).
+    let askId: string | null = null;
+    if (ask) {
+      const { data: followId, error: askError } = await userClient.rpc('post_ai_reply', {
+        target_conversation: conversationId,
+        reply_body: ask,
+      });
+      if (!askError && followId) askId = followId as string;
     }
 
-    return json(request, { messageId, reply });
+    // Memory: extract durable facts after the turn (never blocks the reply path).
+    if (memoryOn && live) {
+      void updateMemories(
+        userClient,
+        user.id,
+        apiKey,
+        base,
+        model,
+        cleanHistory,
+        live,
+        mainBody,
+      ).catch((err) => console.error('memory', err));
+    }
+
+    return json(request, { messageId, reply: mainBody, askId, ask });
   } catch (cause) {
     console.error(cause);
     return json(
@@ -320,12 +336,27 @@ function buildSystemPrompt(
     '',
     personalityBlock(profile),
     '',
-    '## Focus rules (highest priority after voice)',
+    '## Emoji',
+    'Use natural chat emojis (1–3) in your main reply when it fits the vibe — 😊 😂 🔥 💙 ✨ 🙂 etc.',
+    'Do not spam. Do not put an emoji on every word. Match their energy.',
+    '',
+    '## Output format (strict — two parts, always)',
+    'You ALWAYS answer in exactly this shape so the app can send two bubbles:',
+    '<<<REPLY>>>',
+    '(your main answer here — may be multiple short lines, with emoji)',
+    '<<<ASK>>>',
+    '(one short follow-up question that keeps the chat going, can include 1 emoji)',
+    'Rules for <<<ASK>>>:',
+    '- One question only, under ~15 words.',
+    '- Related to what they just said — curiosity, not a topic change.',
+    '- Friendly, like a real person continuing the convo.',
+    '- Never empty. Never a second long monologue.',
+    '',
+    '## Focus rules (highest priority after voice + format)',
     '1. Answer the latest user message first. That is the topic.',
     '2. Stay on that topic. Do not jump to random facts, owner links, or old subjects unless they ask.',
     '3. Use earlier chat only when it helps the current message.',
-    '4. If you are unsure what they mean, ask one short clarifying question — do not invent a new topic.',
-    '5. Never invent that they said something they did not.',
+    '4. Never invent that they said something they did not.',
     '',
     lengthLine,
     "Mirror their energy: formal stays formal, funny stays light. Don't overdo slang.",
@@ -363,11 +394,66 @@ function buildFocusDirective(
       : `Stay in personality: ${profile?.personality ?? 'friendly'}`;
 
   return [
-    'Focus for this single reply:',
+    'Focus for this turn:',
     `Latest user message: """${lastUser.slice(0, 800)}"""`,
-    'Respond to THAT message only. Stay relevant. Do not change the subject.',
+    'Respond to THAT message only. Stay relevant.',
     voice,
+    'Use 1–3 natural emojis in the main reply.',
+    'Output MUST use <<<REPLY>>> then <<<ASK>>> (one short follow-up question).',
   ].join('\n');
+}
+
+/**
+ * Split model output into main bubble + follow-up question bubble.
+ * Falls back gracefully if the model ignores markers.
+ */
+function splitReplyAndAsk(
+  raw: string,
+  length: string,
+): { reply: string; ask: string } {
+  const text = raw.replace(/\r\n/g, '\n').trim();
+
+  const replyMark = /<<<\s*REPLY\s*>>>/i;
+  const askMark = /<<<\s*ASK\s*>>>/i;
+
+  if (replyMark.test(text) && askMark.test(text)) {
+    const afterReply = text.split(replyMark)[1] ?? '';
+    const parts = afterReply.split(askMark);
+    const reply = shapeReply(cleanModelArtifacts((parts[0] ?? '').trim()), length);
+    let ask = cleanModelArtifacts((parts[1] ?? '').trim());
+    ask = shapeAsk(ask);
+    return { reply, ask };
+  }
+
+  // Fallback: last line that looks like a question → second bubble.
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2) {
+    const last = lines[lines.length - 1]!;
+    if (/[?？]\s*$/.test(last) || /^(what|why|how|kab|kya|kaise|aur|wanna|want)\b/i.test(last)) {
+      const reply = shapeReply(lines.slice(0, -1).join('\n'), length);
+      return { reply, ask: shapeAsk(last) };
+    }
+  }
+
+  const reply = shapeReply(text, length);
+  return {
+    reply,
+    ask: shapeAsk('Aur bata — uske baad kya hua? 😊'),
+  };
+}
+
+function shapeAsk(text: string): string {
+  let ask = text.replace(/\r\n/g, '\n').trim();
+  // One line, chat-short.
+  ask = ask.split('\n').filter(Boolean)[0] ?? ask;
+  ask = ask.replace(/^["']|["']$/g, '').trim();
+  if (!ask) return 'Aur phir? 😊';
+  if (ask.length > 120) ask = `${ask.slice(0, 117).trim()}…`;
+  // Soft ensure it invites a reply.
+  if (!/[?？]\s*$/.test(ask) && !/^(and you|aur|kya|what|how|wanna)/i.test(ask)) {
+    ask = `${ask.replace(/[.!]+$/, '')}?`;
+  }
+  return ask;
 }
 
 function collapseHistory(
