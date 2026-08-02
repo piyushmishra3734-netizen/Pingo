@@ -57,6 +57,7 @@ export function AiOnboardingSheet({
         personality,
         custom_personality: personality === 'custom' ? custom.trim() || null : null,
         response_length: 'short',
+        memory_enabled: true,
         display_name: pub?.displayName ?? 'PINGO',
         avatar_url: pub?.avatarUrl ?? null,
         onboarded_at: new Date().toISOString(),
