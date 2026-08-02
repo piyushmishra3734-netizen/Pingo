@@ -14,34 +14,37 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
-/**
- * Permissive CORS for the web app.
- *
- * supabase-js sends extra client headers on every Functions call. If any one
- * is missing from Allow-Headers, the browser fails the preflight and the
- * client only sees a generic Functions error - which is why the chat kept
- * posting the "glitched" fallback even when this function works with curl.
- */
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, prefer',
-  'Access-Control-Max-Age': '86400',
-};
-
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
 
+/**
+ * CORS for the web app - same approach as turn-credentials.
+ *
+ * Reflect `Access-Control-Request-Headers` rather than a fixed list. The
+ * Supabase client always sends `x-pingo-client` (and other client headers);
+ * a fixed allow-list that omits one of them fails preflight with opaque
+ * "Failed to fetch" and the chat posts the glitch fallback.
+ */
+function corsHeaders(request: Request): HeadersInit {
+  return {
+    'Access-Control-Allow-Origin': request.headers.get('Origin') ?? '*',
+    'Access-Control-Allow-Headers':
+      request.headers.get('Access-Control-Request-Headers') ??
+      'authorization, x-client-info, apikey, content-type, x-pingo-client',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: cors });
+    return new Response('ok', { headers: corsHeaders(request) });
   }
 
   try {
     const authorization = request.headers.get('Authorization');
     if (!authorization) {
-      return json({ error: 'Sign in required.' }, 401);
+      return json(request, { error: 'Sign in required.' }, 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -55,7 +58,7 @@ Deno.serve(async (request) => {
       error: userError,
     } = await userClient.auth.getUser();
     if (userError || !user) {
-      return json({ error: 'Sign in required.' }, 401);
+      return json(request, { error: 'Sign in required.' }, 401);
     }
 
     const body = (await request.json()) as {
@@ -65,7 +68,7 @@ Deno.serve(async (request) => {
     };
     const conversationId = body.conversationId;
     if (!conversationId) {
-      return json({ error: 'conversationId required.' }, 400);
+      return json(request, { error: 'conversationId required.' }, 400);
     }
 
     const { data: conv } = await userClient
@@ -75,7 +78,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (!conv || conv.kind !== 'ai') {
-      return json({ error: 'Not an AI conversation.' }, 403);
+      return json(request, { error: 'Not an AI conversation.' }, 403);
     }
 
     const { data: profile } = await userClient
@@ -117,7 +120,7 @@ Deno.serve(async (request) => {
     }
 
     if (history.length === 0) {
-      return json({ error: 'Nothing to reply to.' }, 400);
+      return json(request, { error: 'Nothing to reply to.' }, 400);
     }
 
     const messages = [{ role: 'system' as const, content: system }, ...history];
@@ -131,8 +134,8 @@ Deno.serve(async (request) => {
         target_conversation: conversationId,
         reply_body: fallback,
       });
-      if (error) return json({ error: error.message }, 500);
-      return json({ messageId: id, offline: true });
+      if (error) return json(request, { error: error.message }, 500);
+      return json(request, { messageId: id, offline: true });
     }
 
     const base = (Deno.env.get('NVIDIA_BASE_URL') ?? DEFAULT_BASE).replace(/\/$/, '');
@@ -167,7 +170,7 @@ Deno.serve(async (request) => {
         target_conversation: conversationId,
         reply_body: "Something went wrong on my side. Say that again?",
       });
-      return json({ messageId: id, error: 'model_failed' }, 200);
+      return json(request, { messageId: id, error: 'model_failed' }, 200);
     }
 
     const payload = (await nvidia.json()) as {
@@ -186,23 +189,24 @@ Deno.serve(async (request) => {
     });
 
     if (postError) {
-      return json({ error: postError.message }, 500);
+      return json(request, { error: postError.message }, 500);
     }
 
-    return json({ messageId, reply });
+    return json(request, { messageId, reply });
   } catch (cause) {
     console.error(cause);
     return json(
+      request,
       { error: cause instanceof Error ? cause.message : 'Unexpected error' },
       500,
     );
   }
 });
 
-function json(body: unknown, status = 200) {
+function json(request: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...cors, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },
   });
 }
 
