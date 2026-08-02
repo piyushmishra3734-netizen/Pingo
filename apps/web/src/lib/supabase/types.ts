@@ -186,6 +186,8 @@ export type AiProfileRow = {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
+  /** How they appear to this user; falls back to the global public bio. */
+  bio: string | null;
   personality: string;
   custom_personality: string | null;
   response_length: 'short' | 'balanced' | 'detailed';

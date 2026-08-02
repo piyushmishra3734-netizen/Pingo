@@ -66,7 +66,9 @@ export function AiProfileSheet({
   const faceName = prefs.display_name?.trim() || pub?.displayName || 'PINGO';
   const faceSrc = prefs.avatar_url || pub?.avatarUrl;
   const faceBio =
-    pub?.bio?.trim() || 'Always down to chat. Not a product — someone to talk to.';
+    prefs.bio?.trim() ||
+    pub?.bio?.trim() ||
+    'Always down to chat. Not a product — someone to talk to.';
   const personality = (prefs.personality as PersonalityId) || 'friendly';
   const length = prefs.response_length ?? 'short';
   const lengthPreview =
@@ -128,6 +130,7 @@ export function AiProfileSheet({
         .upsert({
           user_id: profile.id,
           display_name: (next.display_name ?? faceName).trim() || 'PINGO',
+          bio: next.bio?.trim() ? next.bio.trim().slice(0, 160) : null,
           personality: next.personality ?? 'friendly',
           custom_personality: next.custom_personality ?? null,
           response_length: next.response_length ?? 'short',
@@ -138,10 +141,6 @@ export function AiProfileSheet({
           updated_at: new Date().toISOString(),
         });
       if (writeError) throw writeError;
-
-      if (owner && (patch.display_name !== undefined || patch.avatar_url !== undefined)) {
-        // Keep shared name in sync when owner renames their personal display.
-      }
       onChanged?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save.');
@@ -150,18 +149,19 @@ export function AiProfileSheet({
     }
   };
 
-  const saveGlobalBio = async (bio: string) => {
+  /** Owner-only: default bio every new user sees until they write their own. */
+  const saveSharedDefaultBio = async (bio: string) => {
     if (!owner) return;
     setBusy(true);
     try {
       const { error: rpcError } = await getSupabaseClient().rpc('update_ai_public_identity', {
-        new_bio: bio.trim(),
+        new_bio: bio.trim().slice(0, 160),
       });
       if (rpcError) throw rpcError;
-      setPub((p) => (p ? { ...p, bio: bio.trim() } : p));
+      setPub((p) => (p ? { ...p, bio: bio.trim().slice(0, 160) } : p));
       onChanged?.();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save bio.');
+      setError(cause instanceof Error ? cause.message : 'Could not save default bio.');
     } finally {
       setBusy(false);
     }
@@ -297,18 +297,40 @@ export function AiProfileSheet({
           </Section>
 
           <Section title="Bio">
-            {owner ? (
-              <textarea
-                defaultValue={faceBio}
-                rows={2}
-                onBlur={(e) => void saveGlobalBio(e.target.value)}
-                className="focus-ring w-full resize-none rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
-                placeholder="Always down to chat."
-              />
-            ) : (
-              <p className="rounded-2xl border border-line/40 bg-sunken/50 px-3 py-2.5 text-body text-text-secondary">
-                {faceBio}
-              </p>
+            <textarea
+              value={prefs.bio ?? ''}
+              onChange={(e) =>
+                setPrefs((r) => ({ ...r, bio: e.target.value.slice(0, 160) }))
+              }
+              onBlur={() => void savePrefs({ bio: prefs.bio ?? null })}
+              rows={2}
+              className="focus-ring w-full resize-none rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
+              placeholder={
+                pub?.bio?.trim() ||
+                'Always down to chat. Your study buddy. Whatever fits them.'
+              }
+            />
+            <p className="mt-1.5 text-caption text-text-tertiary">
+              How they show up for you
+              {prefs.bio?.trim()
+                ? ''
+                : pub?.bio?.trim()
+                  ? ` · default: “${pub.bio.trim()}”`
+                  : ''}
+              .
+            </p>
+            {owner && (
+              <button
+                type="button"
+                className="focus-ring mt-2 text-caption font-medium text-brand"
+                onClick={() =>
+                  void saveSharedDefaultBio(
+                    (prefs.bio?.trim() || faceBio).slice(0, 160),
+                  )
+                }
+              >
+                Use this as default for everyone
+              </button>
             )}
           </Section>
 
