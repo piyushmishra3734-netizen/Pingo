@@ -2216,20 +2216,7 @@ export class SupabaseChatService implements ChatService {
         turn_body: userMessage.slice(0, 4000),
       });
 
-      const { data, error } = await this.#client.functions.invoke('ai-chat', {
-        body: { conversationId, userMessage: userMessage.slice(0, 4000) },
-      });
-
-      if (error) {
-        // Person-shaped failure - not a stack dump in the thread.
-        const { data: fallbackId } = await this.#client.rpc('post_ai_reply', {
-          target_conversation: conversationId,
-          reply_body: "Something glitched on my side. Say that again?",
-        });
-        if (!fallbackId) throw error;
-      } else if (data && typeof data === 'object' && 'error' in data && data.error && !('messageId' in data)) {
-        throw new Error(String((data as { error: string }).error));
-      }
+      await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000));
 
       // Ensure the new assistant row is in the list even if realtime lags.
       const conversation = await this.getConversation(conversationId);
@@ -2238,8 +2225,79 @@ export class SupabaseChatService implements ChatService {
       for (const msg of latest) {
         this.#emit({ type: 'message:new', message: msg });
       }
+    } catch (cause) {
+      console.error('[pingo-ai]', cause);
+      // Last resort only - do not spam this if post_ai_reply already wrote one.
+      try {
+        await this.#client.rpc('post_ai_reply', {
+          target_conversation: conversationId,
+          reply_body: "Something glitched on my side. Say that again?",
+        });
+        const latest = await this.listMessages(conversationId, { limit: 5 });
+        for (const msg of latest) this.#emit({ type: 'message:new', message: msg });
+      } catch {
+        /* ignore double-failure */
+      }
     } finally {
       this.#setAiTyping(conversationId, false);
+    }
+  }
+
+  /**
+   * Call the ai-chat Edge Function.
+   *
+   * Uses session-aware fetch rather than only `functions.invoke`, because the
+   * invoke helper can surface opaque CORS/relay errors without the body that
+   * already contains a successful `messageId`.
+   */
+  async #invokeAiChat(conversationId: ConversationId, userMessage: string): Promise<void> {
+    const {
+      data: { session },
+    } = await this.#client.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('Sign in required for AI reply.');
+    }
+
+    // Prefer invoke; on failure fall through to a direct fetch with the same JWT.
+    const { data, error } = await this.#client.functions.invoke('ai-chat', {
+      body: { conversationId, userMessage },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (!error) {
+      if (data && typeof data === 'object' && 'error' in data && data.error && !('messageId' in data)) {
+        throw new Error(String((data as { error: string }).error));
+      }
+      return;
+    }
+
+    console.warn('[pingo-ai] functions.invoke failed, retrying with fetch', error);
+
+    const base = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '');
+    const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!base || !anon) throw error;
+
+    const response = await fetch(`${base}/functions/v1/ai-chat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: anon,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ conversationId, userMessage }),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      messageId?: string;
+      error?: string;
+      reply?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.error ?? `ai-chat HTTP ${response.status}`);
+    }
+    if (payload.error && !payload.messageId) {
+      throw new Error(payload.error);
     }
   }
 
