@@ -28,8 +28,8 @@ export const PERSONALITIES: {
   {
     id: 'genz',
     label: 'Gen Z',
-    hint: 'Natural energy',
-    preview: 'Okay wait tell me everything thr',
+    hint: 'Slang, memes, brainrot',
+    preview: 'bro you cooked 😭 no cap that hit different fr',
   },
   {
     id: 'coach',
