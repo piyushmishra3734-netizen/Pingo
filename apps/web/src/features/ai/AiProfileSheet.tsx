@@ -45,6 +45,16 @@ export function AiProfileSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [memoriesOpen, setMemoriesOpen] = useState(false);
+  const [memoryCount, setMemoryCount] = useState(0);
+
+  useEffect(() => {
+    if (!profile) return;
+    void getSupabaseClient()
+      .from('ai_memories')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profile.id)
+      .then(({ count }) => setMemoryCount(count ?? 0));
+  }, [profile, memoriesOpen]);
 
   useEffect(() => {
     void fetchAiPublicIdentity().then(setPub);
@@ -119,6 +129,10 @@ export function AiProfileSheet({
 
   const savePrefs = async (patch: Partial<AiProfileRow>) => {
     if (!profile) return;
+    // Leaving custom mode must drop stale custom text so the model ignores it.
+    if (patch.personality && patch.personality !== 'custom') {
+      patch = { ...patch, custom_personality: null };
+    }
     const next = { ...prefs, ...patch };
     setPrefs(next);
     setBusy(true);
@@ -132,7 +146,10 @@ export function AiProfileSheet({
           display_name: (next.display_name ?? faceName).trim() || 'PINGO',
           bio: next.bio?.trim() ? next.bio.trim().slice(0, 160) : null,
           personality: next.personality ?? 'friendly',
-          custom_personality: next.custom_personality ?? null,
+          custom_personality:
+            (next.personality ?? 'friendly') === 'custom'
+              ? next.custom_personality ?? null
+              : null,
           response_length: next.response_length ?? 'short',
           preferred_name: next.preferred_name ?? null,
           language: next.language ?? null,
@@ -245,13 +262,14 @@ export function AiProfileSheet({
         {/* Hero — shrink-0 so it never steals the scroll surface */}
         <div className="relative shrink-0 bg-brand/[0.08] px-5 pb-5 pt-7">
           <div className="relative flex flex-col items-center text-center">
-            <div className="relative inline-flex">
+            <div className="relative mx-auto" style={{ width: 96, height: 96 }}>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 className={cn(
-                  'focus-ring relative block size-fit rounded-full',
-                  'outline-offset-2',
+                  'absolute inset-0 rounded-full',
+                  'outline-none focus-visible:outline focus-visible:outline-2',
+                  'focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
                 )}
                 aria-label="Change photo"
               >
@@ -261,15 +279,16 @@ export function AiProfileSheet({
                   src={faceSrc}
                   size="xl"
                   presence="online"
-                  className="shadow-lg"
                 />
               </button>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 className={cn(
-                  'focus-ring absolute -bottom-0.5 -right-0.5 rounded-full',
+                  'absolute bottom-0 right-0 z-10 rounded-full',
                   'bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm',
+                  'outline-none focus-visible:outline focus-visible:outline-2',
+                  'focus-visible:outline-offset-1 focus-visible:outline-[color:var(--color-focus-ring)]',
                 )}
               >
                 Edit
@@ -411,21 +430,18 @@ export function AiProfileSheet({
                 />
               </div>
               {prefs.memory_enabled !== false && (
-                <div className="mt-3 flex flex-wrap gap-2 border-t border-line/40 pt-3">
+                <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line/40 pt-3">
                   <button
                     type="button"
                     className="focus-ring text-caption font-medium text-brand"
                     onClick={() => setMemoriesOpen(true)}
                   >
-                    View memories
+                    View & edit memories
+                    {memoryCount > 0 ? ` (${memoryCount})` : ''}
                   </button>
-                  <button
-                    type="button"
-                    className="focus-ring text-caption font-medium text-brand"
-                    onClick={() => setMemoriesOpen(true)}
-                  >
-                    Edit memories
-                  </button>
+                  <span className="text-caption text-text-tertiary">
+                    Chat me “yaad rakh …” bhi chalta hai
+                  </span>
                 </div>
               )}
             </div>

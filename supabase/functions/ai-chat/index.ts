@@ -93,7 +93,7 @@ Deno.serve(async (request) => {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    const memoryOn = Boolean(profile?.memory_enabled);
+    const memoryOn = profile?.memory_enabled !== false;
     const { data: memories } = memoryOn
       ? await userClient
           .from('ai_memories')
@@ -102,6 +102,17 @@ Deno.serve(async (request) => {
           .order('created_at', { ascending: false })
           .limit(50)
       : { data: [] as { id: string; key: string; value: string }[] };
+
+    // Explicit "remember this" before generation so the model can confirm truthfully.
+    const livePreview = typeof body.userMessage === 'string' ? body.userMessage.trim() : '';
+    if (memoryOn && livePreview) {
+      const forced = parseExplicitMemory(livePreview);
+      if (forced) {
+        await upsertMemoryRow(userClient, user.id, forced.key, forced.value).catch((err) =>
+          console.error('explicit-memory', err),
+        );
+      }
+    }
 
     // Recent plaintext only — more turns = better context stickiness.
     const { data: rows } = await userClient
@@ -168,9 +179,9 @@ Deno.serve(async (request) => {
     const model = Deno.env.get('NVIDIA_MODEL') ?? DEFAULT_MODEL;
     const length = profile?.response_length ?? 'short';
 
-    // Room for main reply + follow-up ask (two bubbles).
+    // Hard caps so "short" cannot drift into essay territory.
     const maxTokens =
-      length === 'detailed' ? 720 : length === 'balanced' ? 400 : 260;
+      length === 'detailed' ? 640 : length === 'balanced' ? 280 : 140;
 
     const nvidia = await fetch(`${base}/chat/completions`, {
       method: 'POST',
@@ -226,18 +237,22 @@ Deno.serve(async (request) => {
       if (!askError && followId) askId = followId as string;
     }
 
-    // Memory: extract durable facts after the turn (never blocks the reply path).
+    // Memory: extract durable facts after the turn (await so saves land before UI refresh).
     if (memoryOn && live) {
-      void updateMemories(
-        userClient,
-        user.id,
-        apiKey,
-        base,
-        model,
-        cleanHistory,
-        live,
-        mainBody,
-      ).catch((err) => console.error('memory', err));
+      try {
+        await updateMemories(
+          userClient,
+          user.id,
+          apiKey,
+          base,
+          model,
+          cleanHistory,
+          live,
+          mainBody,
+        );
+      } catch (err) {
+        console.error('memory', err);
+      }
     }
 
     return json(request, { messageId, reply: mainBody, askId, ask });
@@ -258,22 +273,41 @@ function json(request: Request, body: unknown, status = 200) {
   });
 }
 
+function languageLabel(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const map: Record<string, string> = {
+    en: 'English',
+    hi: 'Hindi (Devanagari or natural Hinglish only if they wrote Hinglish — prefer clear Hindi words)',
+    es: 'Spanish',
+    fr: 'French',
+    de: 'German',
+    pt: 'Portuguese',
+    ar: 'Arabic',
+    ja: 'Japanese',
+    ko: 'Korean',
+    zh: 'Chinese',
+  };
+  return map[code.slice(0, 2).toLowerCase()] ?? code;
+}
+
 function personalityBlock(profile: AiProfile | null): string {
+  // Ignore leftover custom_personality text when mode is not custom.
   const personality = profile?.personality ?? 'friendly';
-  const custom = profile?.custom_personality?.trim();
+  const custom =
+    personality === 'custom' ? profile?.custom_personality?.trim() : undefined;
 
   if (personality === 'custom') {
     if (custom) {
       return [
-        '## Voice (CUSTOM — this is the law of how you sound)',
-        `The user defined your personality as: "${custom}"`,
-        'Every reply must match this voice. Do not slip into a generic assistant tone.',
-        'If the custom vibe conflicts with other style tips, custom wins.',
+        '## VOICE LAW (CUSTOM) — highest priority',
+        `You MUST sound like this: "${custom}"`,
+        'Every sentence of <<<REPLY>>> and <<<ASK>>> must match that vibe.',
+        'Do not become a neutral assistant. Custom wins over all other style tips.',
       ].join('\n');
     }
     return [
-      '## Voice',
-      'Custom personality was selected but not described — stay warm and natural like a close friend.',
+      '## VOICE LAW',
+      'Custom was chosen but empty — warm close-friend energy only.',
     ].join('\n');
   }
 
@@ -281,27 +315,49 @@ function personalityBlock(profile: AiProfile | null): string {
     friendly:
       'Warm, easy, close-friend energy. Soft check-ins. No corporate polish.',
     genz:
-      'Internet-native, natural Gen Z cadence. Light slang only when it fits the user — never force it, never try-hard.',
+      'Internet-native Gen Z cadence. Light slang only when natural — never try-hard.',
     coach:
       'Supportive coach. Short clear next steps. No lectures. One action when possible.',
     study:
-      'Patient study buddy. Explain simply. Break hard things down. Check understanding.',
+      'Patient study buddy. Explain simply. Break hard things down.',
     calm:
-      'Calm, steady, unhurried. Short sentences. No hype. Grounding presence.',
+      'Calm, steady, unhurried. Short sentences. No hype.',
     funny:
-      'Light humour, playful. Never mean, never dunk on them. Wit over loud jokes.',
+      'Light humour and wit. Playful, never mean.',
     motivator:
-      'Encouraging without toxic positivity. Honest hope. Celebrate small wins.',
+      'Encouraging without toxic positivity. Honest hope.',
     creative:
-      'Ideas and playful imagination. Offer options, riffs, unexpected angles.',
+      'Ideas and playful imagination. Offer options and riffs.',
     spicy:
-      'Flirty, bold, teasing energy. Confident and playful — never crude without invitation, never pushy. Match their heat; if they keep it light, stay light. Stay fun, not gross.',
+      'Flirty, bold, teasing. Confident — never pushy or crude without invitation. Match their heat.',
   };
 
   return [
-    '## Voice (required)',
-    map[personality] ?? map.friendly,
-    `Active personality key: ${personality}. Stay in this voice the whole reply.`,
+    '## VOICE LAW — highest priority',
+    `Personality mode: ${personality}`,
+    map[personality] ?? map.friendly!,
+    'Stay in this mode for BOTH <<<REPLY>>> and <<<ASK>>>. Do not drift to another personality.',
+  ].join('\n');
+}
+
+function lengthBlock(length: string): string {
+  if (length === 'detailed') {
+    return [
+      '## LENGTH LAW: detailed',
+      'You may write a fuller answer (still chatty). Multiple short paragraphs OK.',
+      'Still not an essay or bullet dump unless they asked for steps.',
+    ].join('\n');
+  }
+  if (length === 'balanced') {
+    return [
+      '## LENGTH LAW: balanced',
+      'About 2–4 short chat lines in <<<REPLY>>>. Not one word. Not a paragraph wall.',
+    ].join('\n');
+  }
+  return [
+    '## LENGTH LAW: short — hard limit',
+    '<<<REPLY>>> must be 1–2 short chat lines only (max ~120 characters total).',
+    'If you write more, you fail the task. Punchy. No filler. No lists.',
   ].join('\n');
 }
 
@@ -312,74 +368,71 @@ function buildSystemPrompt(
   const name = profile?.display_name?.trim() || 'PINGO';
   const length = profile?.response_length ?? 'short';
   const userName = profile?.preferred_name?.trim();
-
-  const lengthLine =
-    length === 'detailed'
-      ? 'Length: thorough when useful. Short bullets for lists. Still chatty, not an essay.'
-      : length === 'balanced'
-        ? 'Length: a few sentences is fine. Prefer bullets for steps.'
-        : 'Length: default 1–3 short chat lines. No walls of text.';
+  const lang = languageLabel(profile?.language);
 
   const memoryBlock =
     memories.length > 0
       ? [
-          '## Memory (you already know this — use it naturally, do not dump the list)',
+          '## Memory (use naturally — do not dump as a list)',
           ...memories.map((m) => `- ${m.key}: ${m.value}`),
-          'If they correct something, trust the correction over old memory.',
+          'If they say "remember X" / "yaad rakh", treat X as saved and confirm briefly.',
+          'If they correct something, trust the correction.',
         ].join('\n')
-      : '## Memory\nNo long-term notes saved yet. Remember what they say in this chat.';
+      : [
+          '## Memory',
+          'No long-term notes yet (or empty).',
+          'If they say remember/yaad rakh/save this, confirm you will keep it.',
+        ].join('\n');
 
   return [
-    `You are ${name} inside the PINGO messenger — a person in their chat list, not a product demo.`,
-    'You are not ChatGPT, not an AI assistant product, not a support bot.',
-    'Write like a real chat: casual punctuation, natural line breaks, no markdown headings, no "As an AI…".',
+    `You are ${name} inside the PINGO messenger — a person in chat, not a product demo.`,
+    'Not ChatGPT. Not a support bot. Real chat energy.',
+    'No markdown headings. No "As an AI…".',
     '',
     personalityBlock(profile),
     '',
+    lengthBlock(length),
+    '',
+    lang
+      ? [
+          '## LANGUAGE LAW — hard',
+          `Write <<<REPLY>>> and <<<ASK>>> primarily in: ${lang}.`,
+          'Do not default to English if their language preference is not English.',
+          'Only mix languages if they mixed first.',
+        ].join('\n')
+      : '## LANGUAGE\nMatch the language they write in.',
+    '',
     '## Emoji',
-    'Use natural chat emojis (1–3) in your main reply when it fits the vibe — 😊 😂 🔥 💙 ✨ 🙂 etc.',
-    'Do not spam. Do not put an emoji on every word. Match their energy.',
+    '1–3 natural chat emojis in <<<REPLY>>> when it fits. No spam.',
     '',
-    '## Output format (strict — two parts, always)',
-    'You ALWAYS answer in exactly this shape so the app can send two bubbles:',
+    '## Output format (strict)',
+    'ALWAYS exactly:',
     '<<<REPLY>>>',
-    '(your main answer here — may be multiple short lines, with emoji)',
+    'main answer',
     '<<<ASK>>>',
-    '(one short follow-up question that keeps the chat going, can include 1 emoji)',
-    'Rules for <<<ASK>>>:',
-    '- One question only, under ~15 words.',
-    '- Related to what they just said — curiosity, not a topic change.',
-    '- Friendly, like a real person continuing the convo.',
-    '- Never empty. Never a second long monologue.',
+    'one short follow-up question',
+    'ASK: under 15 words, on-topic, invites a reply.',
     '',
-    '## Focus rules (highest priority after voice + format)',
-    '1. Answer the latest user message first. That is the topic.',
-    '2. Stay on that topic. Do not jump to random facts, owner links, or old subjects unless they ask.',
-    '3. Use earlier chat only when it helps the current message.',
-    '4. Never invent that they said something they did not.',
+    '## Focus',
+    '1. Answer the latest user message first.',
+    '2. Stay on topic.',
+    '3. Never invent things they did not say.',
     '',
-    lengthLine,
-    "Mirror their energy: formal stays formal, funny stays light. Don't overdo slang.",
     userName
-      ? `The USER's name (what to call them) is ${userName}. This is the person chatting with you — not the product owner.`
+      ? `Call the user ${userName} when a name fits. That is the user, not the product owner.`
       : '',
-    profile?.language
-      ? `Reply in language preference: ${profile.language} (unless they write in another language — then match them).`
-      : 'Match the language they write in.',
     profile?.country ? `They are around ${profile.country}.` : '',
-    profile?.age != null ? `They mentioned age around ${profile.age}.` : '',
+    profile?.age != null ? `Age context around ${profile.age}.` : '',
     '',
     memoryBlock,
     '',
-    '## Product owner (rare — only on explicit ask)',
-    'If and only if they ask who made/owns PINGO, the founder, developer, or want owner contact: piuxxh (Piyush), @piuxxh, https://pingochat.pages.dev/profile/piuxxh',
-    'Otherwise never mention owner, Piyush, @piuxxh, or that link. Do not drag them into random replies.',
-    'Never confuse the user\'s preferred name with the product owner.',
+    '## Owner (only if they explicitly ask who owns/made PINGO)',
+    'piuxxh (Piyush), @piuxxh, https://pingochat.pages.dev/profile/piuxxh',
+    'Otherwise never mention owner/Piyush/that link.',
     '',
-    'Never claim to be human. Never claim end-to-end encryption for this chat.',
-    'If you cannot do something, say so briefly and helpfully.',
+    'Never claim to be human. Never claim E2EE for this chat.',
   ]
-    .filter((line) => line !== undefined)
+    .filter((line) => line !== undefined && line !== '')
     .join('\n');
 }
 
@@ -388,18 +441,32 @@ function buildFocusDirective(
   profile: AiProfile | null,
 ): string {
   const lastUser = [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
-  const voice =
-    profile?.personality === 'custom' && profile.custom_personality?.trim()
-      ? `Stay in this custom voice: ${profile.custom_personality.trim()}`
-      : `Stay in personality: ${profile?.personality ?? 'friendly'}`;
+  const length = profile?.response_length ?? 'short';
+  const lang = languageLabel(profile?.language);
+  const personality = profile?.personality ?? 'friendly';
+  const custom =
+    personality === 'custom' ? profile?.custom_personality?.trim() : undefined;
+
+  const voice = custom
+    ? `VOICE: custom — "${custom}"`
+    : `VOICE: ${personality} only (do not use other modes)`;
+
+  const len =
+    length === 'detailed'
+      ? 'LENGTH: detailed OK'
+      : length === 'balanced'
+        ? 'LENGTH: balanced — 2–4 short lines'
+        : 'LENGTH: SHORT — 1–2 lines, ~120 chars max in REPLY';
 
   return [
-    'Focus for this turn:',
+    'HARD CONSTRAINTS FOR THIS TURN:',
     `Latest user message: """${lastUser.slice(0, 800)}"""`,
-    'Respond to THAT message only. Stay relevant.',
     voice,
-    'Use 1–3 natural emojis in the main reply.',
-    'Output MUST use <<<REPLY>>> then <<<ASK>>> (one short follow-up question).',
+    len,
+    lang ? `LANGUAGE: write in ${lang}` : 'LANGUAGE: match user',
+    '1–3 emojis in REPLY.',
+    'Output MUST be <<<REPLY>>> ... <<<ASK>>> ...',
+    'If they asked you to remember something, confirm in REPLY that you saved it.',
   ].join('\n');
 }
 
@@ -507,10 +574,64 @@ function cleanModelArtifacts(text: string): string {
 function shapeReply(text: string, length: string): string {
   const cleaned = text.replace(/\r\n/g, '\n').trim();
   if (length === 'detailed') return cleaned.slice(0, 4000);
-  if (length === 'balanced') return cleaned.slice(0, 1600);
+  if (length === 'balanced') {
+    const lines = cleaned.split('\n').filter(Boolean);
+    if (lines.length <= 4 && cleaned.length <= 420) return cleaned;
+    return lines.slice(0, 4).join('\n').slice(0, 420);
+  }
+  // short — hard
   const lines = cleaned.split('\n').filter(Boolean);
-  if (lines.length <= 4 && cleaned.length <= 480) return cleaned;
-  return lines.slice(0, 4).join('\n').slice(0, 480);
+  const tight = lines.slice(0, 2).join('\n').trim();
+  if (tight.length <= 140) return tight;
+  return `${tight.slice(0, 137).trim()}…`;
+}
+
+/** "yaad rakh blue is my fav" / "remember my dog is max" */
+function parseExplicitMemory(message: string): { key: string; value: string } | null {
+  const m = message.trim();
+  const patterns = [
+    /(?:please\s+)?(?:remember|save|note)\s+(?:that\s+|this\s*:?\s*)?(.+)/i,
+    /(?:yaad|yad)\s*rakh(?:na|o|e)?\s*(?:ki|ke|:)?\s*(.+)/i,
+    /(?:mujhe\s+)?yaad\s+(?:rakh|kar)\s*(?:ki|ke|:)?\s*(.+)/i,
+    /memory\s*me?\s*(?:save|daal|dal)\s*(?:kar)?\s*(?:ki|ke|:)?\s*(.+)/i,
+  ];
+  for (const re of patterns) {
+    const hit = m.match(re);
+    if (!hit?.[1]) continue;
+    const value = hit[1].trim().replace(/[.!]+$/, '').slice(0, 500);
+    if (value.length < 2) continue;
+    const key = value
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0900-\u097f\s]/gi, ' ')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 4)
+      .join('_')
+      .slice(0, 40) || 'note';
+    return { key: `note_${key}`.slice(0, 80), value };
+  }
+  return null;
+}
+
+async function upsertMemoryRow(
+  userClient: ReturnType<typeof createClient>,
+  userId: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  const k = key.slice(0, 80);
+  const v = value.slice(0, 500);
+  const { data: existing } = await userClient
+    .from('ai_memories')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('key', k)
+    .maybeSingle();
+  if (existing?.id) {
+    await userClient.from('ai_memories').update({ value: v }).eq('id', existing.id);
+  } else {
+    await userClient.from('ai_memories').insert({ user_id: userId, key: k, value: v });
+  }
 }
 
 /**
@@ -583,15 +704,14 @@ async function updateMemories(
   const byKey = new Map((existing ?? []).map((r) => [r.key, r.id as string]));
 
   for (const fact of facts.slice(0, 4)) {
-    const key = fact.key.slice(0, 80);
-    const value = fact.value.slice(0, 500);
-    const existingId = byKey.get(key);
-    if (existingId) {
-      await userClient.from('ai_memories').update({ value }).eq('id', existingId);
-    } else {
-      await userClient.from('ai_memories').insert({ user_id: userId, key, value });
-      byKey.set(key, 'new');
-    }
+    await upsertMemoryRow(userClient, userId, fact.key, fact.value);
+    byKey.set(fact.key.slice(0, 80), 'new');
+  }
+
+  // Also honor explicit remember phrases in the last user line.
+  const forced = parseExplicitMemory(lastUser);
+  if (forced) {
+    await upsertMemoryRow(userClient, userId, forced.key, forced.value);
   }
 
   // Soft cap at 40 rows — drop oldest extras.
