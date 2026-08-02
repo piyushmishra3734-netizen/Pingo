@@ -416,13 +416,16 @@ function buildSystemPrompt(
     '{"reply":"main answer here","ask":"one short follow-up question?"}',
     'No markdown. No <<<REPLY>>> markers. No text outside the JSON.',
     'ask: one short on-topic question under 15 words, invites a reply.',
+    'ask must NOT assume facts (do not ask "when did you move to X?" unless they said they live there).',
+    'Good ask examples: "Aaj plan kya hai? 😊" / "Aur bata?" / "Kaise pata chala?"',
+    'Bad ask examples: inventing where they live, inventing what they said earlier.',
     '',
     '## Truth rules (critical — you fail if you break these)',
     '1. Answer the latest user message only.',
-    '2. NEVER invent that the user said or lives somewhere. Asking "Mhow ka mausam?" ≠ "I live in Mhow".',
-    '3. NEVER invent memories. Only use the Memory list below or what they clearly said in this chat.',
-    '4. If they ask "maine kab kaha?" / "when did I say that?" and it is NOT in memory/history: admit you misread — do not double down.',
-    '5. Do not invent plans, places, or past claims.',
+    '2. NEVER invent that the user said or lives somewhere. Asking "Mhow ka mausam?" ≠ "I live in Mhow". Only answer about the weather/place — do not claim they live there.',
+    '3. NEVER invent memories. Only use the Memory list below or exact user lines in Recent user messages.',
+    '4. If they ask "maine kab kaha?" / "mene kab kha?": if it is NOT clearly in Recent user messages or Memory, say you assumed wrong / galti se lag gaya — apologize once. Do NOT claim they said it.',
+    '5. Do not invent plans, places, or past claims. Past assistant mistakes in history are not facts.',
     '',
     userName
       ? `Call the user ${userName} when a name fits. That is the user, not the product owner.`
@@ -471,19 +474,26 @@ function buildFocusDirective(
     .map((m) => `- ${m.content.slice(0, 200)}`)
     .join('\n');
 
+  const denial =
+    /maine kab|mene kab|kab kaha|kab bola|kab kha|when did i|i never said|maine nahi/i.test(
+      lastUser,
+    );
+
   return [
     'HARD CONSTRAINTS FOR THIS TURN:',
     `Latest user message: """${lastUser.slice(0, 800)}"""`,
-    'Recent things the USER actually wrote (do not invent more):',
+    'Recent things the USER actually wrote (ONLY these count as user facts):',
     recentUser || '(none)',
     voice,
     len,
     lang ? `LANGUAGE: write in ${lang}` : 'LANGUAGE: match user',
     '1–3 emojis in reply.',
     'Return ONLY JSON: {"reply":"...","ask":"..."}',
-    'Never claim the user lives in a place unless they clearly said so.',
-    'If they challenge a false memory, apologize briefly — do not invent when they said it.',
-    'If they asked you to remember something, confirm in reply that you saved it.',
+    'Never claim the user lives in a place unless they clearly wrote that in Recent user messages.',
+    'ask must not assume residence or past claims.',
+    denial
+      ? 'User is challenging a false claim — apologize that you assumed; do not invent a timestamp or quote.'
+      : 'If they asked you to remember something, confirm in reply that you saved it.',
   ].join('\n');
 }
 
