@@ -942,13 +942,31 @@ export class SupabaseChatService implements ChatService {
 
     await this.#loadPeople((members ?? []).map((m) => m.user_id));
 
-    // AI display name / face - per owner, not a global bot brand strip.
-    const aiOwnerIds = rows.filter((r) => r.kind === 'ai').map(() => me);
-    const { data: aiProfiles } =
-      aiOwnerIds.length > 0
-        ? await this.#client.from('ai_profiles').select('*').eq('user_id', me)
-        : { data: [] as { user_id: string; display_name: string; avatar_url: string | null }[] };
+    // AI face: global public identity (same for everyone) + optional personal prefs.
+    const hasAi = rows.some((r) => r.kind === 'ai');
+    const { data: aiProfiles } = hasAi
+      ? await this.#client.from('ai_profiles').select('*').eq('user_id', me)
+      : { data: [] as { user_id: string; display_name: string; avatar_url: string | null }[] };
     const aiByUser = new Map((aiProfiles ?? []).map((p) => [p.user_id, p]));
+
+    const { data: aiPublicRows } = hasAi
+      ? await this.#client.rpc('get_ai_public_identity')
+      : { data: null as null };
+    const aiPublic = Array.isArray(aiPublicRows)
+      ? (aiPublicRows[0] as
+          | {
+              display_name: string;
+              avatar_url: string | null;
+              bio: string | null;
+            }
+          | undefined)
+      : (aiPublicRows as
+          | {
+              display_name: string;
+              avatar_url: string | null;
+              bio: string | null;
+            }
+          | null);
 
     return rows
       /*
@@ -991,15 +1009,22 @@ export class SupabaseChatService implements ChatService {
         const aiProfile = row.kind === 'ai' ? aiByUser.get(me) : undefined;
         if (row.kind === 'ai') this.#aiConversationIds.add(row.id);
 
+        // Global face first (owner default for everyone), personal name/avatar
+        // only as optional polish on top.
+        const aiTitle =
+          aiProfile?.display_name?.trim() ||
+          aiPublic?.display_name?.trim() ||
+          row.title ||
+          'PINGO';
+        const aiAvatar =
+          aiProfile?.avatar_url || aiPublic?.avatar_url || undefined;
+
         return {
           id: row.id,
           kind: row.kind,
           // A direct chat is titled by whoever else is in it, per viewer.
           // AI is a person-shaped row: name from prefs, not a "bot" label.
-          title:
-            row.kind === 'ai'
-              ? (aiProfile?.display_name ?? row.title ?? 'PINGO')
-              : (row.title ?? otherUser?.name ?? 'Conversation'),
+          title: row.kind === 'ai' ? aiTitle : (row.title ?? otherUser?.name ?? 'Conversation'),
           /*
            * A group's own picture, or the other person's.
            *
@@ -1008,8 +1033,8 @@ export class SupabaseChatService implements ChatService {
            * happens to sort first - which would give the group a face belonging
            * to somebody who might later leave it.
            */
-          ...(row.kind === 'ai' && aiProfile?.avatar_url
-            ? { avatarUrl: aiProfile.avatar_url }
+          ...(row.kind === 'ai' && aiAvatar
+            ? { avatarUrl: aiAvatar }
             : row.avatar_url
               ? { avatarUrl: row.avatar_url }
               : otherUser?.avatarUrl

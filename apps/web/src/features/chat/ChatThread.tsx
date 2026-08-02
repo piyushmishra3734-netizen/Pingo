@@ -29,7 +29,7 @@ import { useSharedElement } from '../../hooks/useSharedElement.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
-import { AiSettingsSheet } from '../ai/AiSettingsSheet.js';
+import { AiProfileSheet } from '../ai/AiProfileSheet.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
@@ -223,7 +223,7 @@ export function ChatThread({
    */
   const isAi = conversation.kind === 'ai';
   const [aiOnboarding, setAiOnboarding] = useState(false);
-  const [aiSettings, setAiSettings] = useState(false);
+  const [aiProfileOpen, setAiProfileOpen] = useState(false);
 
   useEffect(() => {
     if (!isAi || !currentUser) return;
@@ -600,7 +600,7 @@ export function ChatThread({
           {...(conversation.kind === 'direct' && partner
             ? { to: `/profile/${partner.handle}` }
             : isAi
-              ? { onClick: () => setAiSettings(true) }
+              ? { onClick: () => setAiProfileOpen(true) }
               : { onClick: () => setGroupInfo(true) })}
         >
           {conversation.kind === 'direct' || isAi ? (
@@ -689,7 +689,7 @@ export function ChatThread({
                 }
               : {})}
             {...(callBlockedReason && !isAi ? { callBlockedReason } : {})}
-            {...(isAi ? { onAiSettings: () => setAiSettings(true) } : {})}
+            {...(isAi ? { onAiSettings: () => setAiProfileOpen(true) } : {})}
           />
         </div>
       </header>
@@ -1070,8 +1070,14 @@ export function ChatThread({
         />
       )}
 
-      {isAi && aiSettings && (
-        <AiSettingsSheet onClose={() => setAiSettings(false)} />
+      {isAi && aiProfileOpen && (
+        <AiProfileSheet
+          onClose={() => setAiProfileOpen(false)}
+          onChanged={() => {
+            // ensure re-hydrates AI title/avatar and emits conversation:updated.
+            void service.ensureAiConversation().catch(() => undefined);
+          }}
+        />
       )}
     </div>
   );

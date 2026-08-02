@@ -578,6 +578,28 @@ export type Database = {
         Args: { target_conversation: string; turn_body: string };
         Returns: undefined;
       };
+      get_ai_public_identity: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          username: string;
+          display_name: string;
+          avatar_url: string | null;
+          bio: string | null;
+        };
+      };
+      update_ai_public_identity: {
+        Args: {
+          new_display_name?: string | null;
+          new_bio?: string | null;
+          new_avatar_url?: string | null;
+        };
+        Returns: undefined;
+      };
+      is_ai_owner: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
       /** Newest message and unread count per conversation, for this user only. */
       conversation_previews: {
         Args: Record<string, never>;
