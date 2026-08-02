@@ -322,6 +322,10 @@ export function ChatThread({
 
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
+  /** AI has no contact row - still show a normal typing line, not a blank. */
+  const typingLabel = isAi
+    ? 'typing…'
+    : formatTypingLabel(conversation.typingUserIds, users);
 
   /*
    * The "Seen" line, the way Instagram does it.
@@ -634,7 +638,7 @@ export function ChatThread({
             {isTyping ? (
               <span className="flex items-center gap-1.5 text-caption text-brand">
                 <PingoDot state="typing" size={4} />
-                {formatTypingLabel(conversation.typingUserIds, users)}
+                {typingLabel}
               </span>
             ) : (
               <span className="block truncate text-caption text-text-secondary">
@@ -845,7 +849,7 @@ export function ChatThread({
                   <PingoDot
                     state="typing"
                     size={7}
-                    label={formatTypingLabel(conversation.typingUserIds, users)}
+                    label={typingLabel || 'typing'}
                   />
                 </div>
               </div>

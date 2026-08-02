@@ -47,7 +47,11 @@ Deno.serve(async (request) => {
       return json({ error: 'Sign in required.' }, 401);
     }
 
-    const body = (await request.json()) as { conversationId?: string };
+    const body = (await request.json()) as {
+      conversationId?: string;
+      /** Plaintext of the turn that just sent - never rely on ciphertext in the DB. */
+      userMessage?: string;
+    };
     const conversationId = body.conversationId;
     if (!conversationId) {
       return json({ error: 'conversationId required.' }, 400);
@@ -73,24 +77,39 @@ Deno.serve(async (request) => {
       ? await userClient.from('ai_memories').select('key, value').eq('user_id', user.id).limit(40)
       : { data: [] as { key: string; value: string }[] };
 
+    // Only plaintext rows - E2EE bodies are opaque to the model.
     const { data: rows } = await userClient
       .from('messages')
-      .select('sender_id, body, created_at')
+      .select('sender_id, body, created_at, encryption')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(24);
 
-    const chronological = [...(rows ?? [])].reverse();
     const botId = 'a1000000-0000-4000-8000-0000000000a1';
+    const chronological = [...(rows ?? [])]
+      .reverse()
+      .filter((row) => row.encryption == null && typeof row.body === 'string' && row.body.trim());
 
     const system = buildSystemPrompt(profile, memories ?? []);
-    const messages = [
-      { role: 'system' as const, content: system },
-      ...chronological.map((row) => ({
-        role: (row.sender_id === botId ? 'assistant' : 'user') as 'assistant' | 'user',
-        content: row.body,
-      })),
-    ];
+    const history = chronological.map((row) => ({
+      role: (row.sender_id === botId ? 'assistant' : 'user') as 'assistant' | 'user',
+      content: row.body,
+    }));
+
+    // Prefer the live plaintext the client just sent (source of truth for this turn).
+    const live = body.userMessage?.trim();
+    if (live) {
+      const last = history[history.length - 1];
+      if (!last || last.role !== 'user' || last.content !== live) {
+        history.push({ role: 'user', content: live.slice(0, 4000) });
+      }
+    }
+
+    if (history.length === 0) {
+      return json({ error: 'Nothing to reply to.' }, 400);
+    }
+
+    const messages = [{ role: 'system' as const, content: system }, ...history];
 
     const apiKey = Deno.env.get('NVIDIA_API_KEY');
     if (!apiKey) {

@@ -372,6 +372,9 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   story: { body: 'posted a story' },
 };
 
+/** Fixed AI identity - same uuid as `public.pingo_ai_user_id()` and the Edge Function. */
+const PINGO_AI_USER_ID = 'a1000000-0000-4000-8000-0000000000a1';
+
 export class SupabaseChatService implements ChatService {
   readonly #client: PingoSupabaseClient;
 
@@ -382,6 +385,15 @@ export class SupabaseChatService implements ChatService {
 
   /** Cached so message mapping and conversation titles do not refetch people. */
   #people = new Map<UserId, User>();
+
+  /**
+   * AI conversation ids known to this session.
+   *
+   * Kind is also re-checked on the server row, but the set is the fast path and
+   * a belt for cases where a re-select races membership. AI threads must never
+   * go through E2EE - the model cannot read ciphertext.
+   */
+  #aiConversationIds = new Set<ConversationId>();
 
   /**
    * The backing store for `Message.reactions`. docs/13 § 8.1.
@@ -977,6 +989,7 @@ export class SupabaseChatService implements ChatService {
           .sort((a, b) => b - a)[0];
 
         const aiProfile = row.kind === 'ai' ? aiByUser.get(me) : undefined;
+        if (row.kind === 'ai') this.#aiConversationIds.add(row.id);
 
         return {
           id: row.id,
@@ -2034,12 +2047,7 @@ export class SupabaseChatService implements ChatService {
      * AI threads are never end-to-end encrypted: the server must read them to
      * reply. Human threads still go through sealBody when the roster is ready.
      */
-    const { data: convKind } = await this.#client
-      .from('conversations')
-      .select('kind')
-      .eq('id', draft.conversationId)
-      .maybeSingle();
-    const isAi = convKind?.kind === 'ai';
+    const isAi = await this.#isAiConversation(draft.conversationId);
 
     const sealed = isAi
       ? { body: draft.body, encryption: null as string | null, envelope: null as null }
@@ -2145,7 +2153,7 @@ export class SupabaseChatService implements ChatService {
 
     // Person-shaped AI: reply arrives as another message in the same thread.
     if (isAi && draft.body.trim()) {
-      void this.#requestAiReply(draft.conversationId).catch((cause) => {
+      void this.#requestAiReply(draft.conversationId, draft.body).catch((cause) => {
         console.error('[pingo-ai]', cause);
       });
     }
@@ -2153,31 +2161,85 @@ export class SupabaseChatService implements ChatService {
     return message;
   }
 
+  /** True for `kind = 'ai'` threads. Cached so a flaky re-select cannot seal ciphertext. */
+  async #isAiConversation(conversationId: ConversationId): Promise<boolean> {
+    if (this.#aiConversationIds.has(conversationId)) return true;
+
+    const { data, error } = await this.#client
+      .from('conversations')
+      .select('kind')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    if (!error && data?.kind === 'ai') {
+      this.#aiConversationIds.add(conversationId);
+      return true;
+    }
+    return false;
+  }
+
+  /** Local typing dots for the AI person - not a Realtime presence channel. */
+  #setAiTyping(conversationId: ConversationId, typing: boolean): void {
+    this.#rememberAiPerson();
+    this.#emit({
+      type: 'typing:changed',
+      conversationId,
+      userIds: typing ? [PINGO_AI_USER_ID] : [],
+    });
+  }
+
+  /** So "PINGO is typing" has a name even when the bot is not in contacts. */
+  #rememberAiPerson(displayName = 'PINGO'): void {
+    if (this.#people.has(PINGO_AI_USER_ID)) return;
+    this.#people.set(PINGO_AI_USER_ID, {
+      id: PINGO_AI_USER_ID,
+      name: displayName,
+      handle: 'pingo_ai',
+      presence: { state: 'online', lastSeenAt: Date.now() },
+    });
+  }
+
   /**
    * Asks the Edge Function to generate a reply and insert it via `post_ai_reply`.
    * Realtime (or a follow-up refresh) puts the bubble on screen like any human.
+   *
+   * `userMessage` is the plaintext we just sent - the model must not depend only
+   * on rows that might still be ciphertext from an earlier bug.
    */
-  async #requestAiReply(conversationId: ConversationId): Promise<void> {
-    void this.#client.rpc('log_ai_user_turn', {
-      target_conversation: conversationId,
-      turn_body: '',
-    });
+  async #requestAiReply(conversationId: ConversationId, userMessage: string): Promise<void> {
+    this.#aiConversationIds.add(conversationId);
+    this.#setAiTyping(conversationId, true);
 
-    const { data, error } = await this.#client.functions.invoke('ai-chat', {
-      body: { conversationId },
-    });
+    try {
+      void this.#client.rpc('log_ai_user_turn', {
+        target_conversation: conversationId,
+        turn_body: userMessage.slice(0, 4000),
+      });
 
-    if (error) throw error;
-    if (data && typeof data === 'object' && 'error' in data && data.error) {
-      throw new Error(String((data as { error: string }).error));
-    }
+      const { data, error } = await this.#client.functions.invoke('ai-chat', {
+        body: { conversationId, userMessage: userMessage.slice(0, 4000) },
+      });
 
-    // Ensure the new assistant row is in the list even if realtime lags.
-    const conversation = await this.getConversation(conversationId);
-    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
-    const latest = await this.listMessages(conversationId, { limit: 5 });
-    for (const msg of latest) {
-      this.#emit({ type: 'message:new', message: msg });
+      if (error) {
+        // Person-shaped failure - not a stack dump in the thread.
+        const { data: fallbackId } = await this.#client.rpc('post_ai_reply', {
+          target_conversation: conversationId,
+          reply_body: "Something glitched on my side. Say that again?",
+        });
+        if (!fallbackId) throw error;
+      } else if (data && typeof data === 'object' && 'error' in data && data.error && !('messageId' in data)) {
+        throw new Error(String((data as { error: string }).error));
+      }
+
+      // Ensure the new assistant row is in the list even if realtime lags.
+      const conversation = await this.getConversation(conversationId);
+      if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+      const latest = await this.listMessages(conversationId, { limit: 8 });
+      for (const msg of latest) {
+        this.#emit({ type: 'message:new', message: msg });
+      }
+    } finally {
+      this.#setAiTyping(conversationId, false);
     }
   }
 
@@ -2185,6 +2247,8 @@ export class SupabaseChatService implements ChatService {
     const { data, error } = await this.#client.rpc('ensure_ai_conversation');
     if (error) throw error;
     const id = data as ConversationId;
+    this.#aiConversationIds.add(id);
+    this.#rememberAiPerson();
     const conversation = await this.getConversation(id);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
     return id;

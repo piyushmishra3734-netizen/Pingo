@@ -206,7 +206,8 @@ export function formatTypingLabel(userIds: UserId[], users: User[]): string {
     .map((id) => users.find((u) => u.id === id)?.name.split(' ')[0])
     .filter((n): n is string => Boolean(n));
 
-  if (names.length === 0) return '';
+  // Someone is typing but their name is not in the contact cache (e.g. AI person).
+  if (names.length === 0) return userIds.length > 0 ? 'typing…' : '';
   if (names.length === 1) return `${names[0]} is typing`;
   if (names.length === 2) return `${names[0]} and ${names[1]} are typing`;
   return `${names.length} people are typing`;

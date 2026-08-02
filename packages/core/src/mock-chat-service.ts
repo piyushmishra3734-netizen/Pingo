@@ -215,7 +215,13 @@ export class MockChatService implements ChatService {
     if (!body.trim()) return;
 
     const botId = 'a1000000-0000-4000-8000-0000000000a1';
-    this.#after(700, () => {
+    this.#after(350, () => {
+      this.#updateConversation(conversationId, { typingUserIds: [botId] });
+      this.#emit({ type: 'typing:changed', conversationId, userIds: [botId] });
+    });
+    this.#after(1200, () => {
+      this.#updateConversation(conversationId, { typingUserIds: [] });
+      this.#emit({ type: 'typing:changed', conversationId, userIds: [] });
       const reply: Message = {
         id: nextMessageId(),
         conversationId,
