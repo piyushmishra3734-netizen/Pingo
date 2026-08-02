@@ -51,6 +51,11 @@ export interface ChatListBodyProps {
   selectionMode: boolean;
   /** The chat preference. Off means rows do not move at all. */
   swipeEnabled: boolean;
+  /**
+   * Soft-top PINGO: flat list ordered by parent sort (unread humans, then AI).
+   * Off keeps the classic Pinned section.
+   */
+  pinAiToTop?: boolean;
   onEnterSelection: (conversation: Conversation) => void;
   onToggleSelect: (conversation: Conversation) => void;
   /** Escape leaves selection mode from anywhere in the list. */
@@ -70,6 +75,7 @@ export function ChatListBody({
   selectedIds,
   selectionMode,
   swipeEnabled,
+  pinAiToTop = true,
   onEnterSelection,
   onToggleSelect,
   onCancelSelection,
@@ -198,8 +204,17 @@ export function ChatListBody({
 
   if (!ready) return <ConversationSkeleton />;
 
-  const pinned = conversations.filter((c) => c.pinned);
-  const rest = conversations.filter((c) => !c.pinned);
+  /*
+   * Soft-top mode: parent already ordered the list (unread people, then AI,
+   * then everyone else). A separate Pinned section would push unread humans
+   * under AI, which breaks the product rule. Classic mode keeps the section.
+   */
+  const pinned = pinAiToTop
+    ? []
+    : conversations.filter((c) => c.pinned);
+  const rest = pinAiToTop
+    ? conversations
+    : conversations.filter((c) => !c.pinned);
 
   const row = (conversation: Conversation, index: number, inArchive = false) => {
     const selected = selectedIds.has(conversation.id);

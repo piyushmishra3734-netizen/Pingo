@@ -80,12 +80,18 @@ export function ChatsSettingsScreen() {
           checked={c.keepArchived}
           onChange={(keepArchived) => update('chats', { keepArchived })}
         />
+        <ToggleRow
+          label="Keep PINGO near the top"
+          description="Unread chats from people still come first. Off uses ordinary pin and recency only."
+          checked={c.pinAiToTop}
+          onChange={(pinAiToTop) => update('chats', { pinAiToTop })}
+        />
       </Group>
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        Font Size, Enter to Send, Swipe Actions and Keep Chats Archived take effect now.
-        Wallpaper, bubble style and auto-download are saved and start working when those
-        features are built.
+        Font Size, Enter to Send, Swipe Actions, Keep Chats Archived and Keep PINGO near the top
+        take effect now. Wallpaper, bubble style and auto-download are saved and start working when
+        those features are built.
       </p>
     </SettingsPage>
   );

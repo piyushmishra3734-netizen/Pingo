@@ -1,8 +1,10 @@
-import { useProfile } from '@pingo/core';
-import { Avatar, Button, PingoDot, cn } from '@pingo/ui';
+import { useChat, useProfile } from '@pingo/core';
+import { Avatar, Button, PingoDot, Toggle, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../../components/Sheet.js';
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import type { AiProfileRow } from '../../lib/supabase/types.js';
 import {
@@ -10,60 +12,42 @@ import {
   isAiOwner,
   type AiPublicIdentity,
 } from './ai-public.js';
-
-const PERSONALITIES = [
-  'friendly',
-  'genz',
-  'coach',
-  'study',
-  'calm',
-  'funny',
-  'motivator',
-  'creative',
-  'custom',
-] as const;
-
-const LENGTHS: { id: AiProfileRow['response_length']; label: string }[] = [
-  { id: 'short', label: 'Short' },
-  { id: 'balanced', label: 'Balanced' },
-  { id: 'detailed', label: 'Detailed' },
-];
+import { AiMemoriesSheet } from './AiMemoriesSheet.js';
+import { AiPersonalityGrid } from './AiPersonalityGrid.js';
+import {
+  orderedLanguages,
+  pushRecentLanguage,
+  RESPONSE_LENGTHS,
+  type PersonalityId,
+} from './personalities.js';
 
 /**
- * Premium person card for PINGO AI — face, bio, prefs.
- * Owner can edit the shared default bio + pfp for everyone.
+ * Contact-style editor for PINGO AI — not a model control panel.
  */
 export function AiProfileSheet({
+  conversationId,
   onClose,
   onChanged,
 }: {
+  conversationId?: string;
   onClose: () => void;
-  /** After save, parent can refresh conversation title/avatar. */
   onChanged?: () => void;
 }) {
   const { profile } = useProfile();
+  const { service } = useChat();
+  const confirm = useConfirm();
+  const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [pub, setPub] = useState<AiPublicIdentity>();
   const [owner, setOwner] = useState(false);
   const [prefs, setPrefs] = useState<Partial<AiProfileRow>>({});
-  const [editGlobal, setEditGlobal] = useState(false);
-  const [globalName, setGlobalName] = useState('PINGO');
-  const [globalBio, setGlobalBio] = useState('');
-  const [globalAvatar, setGlobalAvatar] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [section, setSection] = useState<'card' | 'prefs'>('card');
+  const [memoriesOpen, setMemoriesOpen] = useState(false);
 
   useEffect(() => {
-    void fetchAiPublicIdentity().then((identity) => {
-      setPub(identity);
-      if (identity) {
-        setGlobalName(identity.displayName);
-        setGlobalBio(identity.bio ?? '');
-        setGlobalAvatar(identity.avatarUrl);
-      }
-    });
+    void fetchAiPublicIdentity().then(setPub);
     void isAiOwner().then(setOwner);
   }, []);
 
@@ -79,10 +63,17 @@ export function AiProfileSheet({
       });
   }, [profile]);
 
-  const faceName =
-    prefs.display_name?.trim() || pub?.displayName || 'PINGO';
+  const faceName = prefs.display_name?.trim() || pub?.displayName || 'PINGO';
   const faceSrc = prefs.avatar_url || pub?.avatarUrl;
-  const faceBio = pub?.bio?.trim() || 'Always here. Not a bot product — just someone to talk to.';
+  const faceBio =
+    pub?.bio?.trim() || 'Always down to chat. Not a product — someone to talk to.';
+  const personality = (prefs.personality as PersonalityId) || 'friendly';
+  const length = prefs.response_length ?? 'short';
+  const lengthPreview =
+    RESPONSE_LENGTHS.find((l) => l.id === length)?.preview ?? RESPONSE_LENGTHS[0]!.preview;
+  const langs = orderedLanguages(
+    typeof navigator !== 'undefined' ? navigator.language : undefined,
+  );
 
   const uploadAvatar = async (file: File) => {
     if (!profile) return;
@@ -98,26 +89,24 @@ export function AiProfileSheet({
       const { data } = client.storage.from('avatars').getPublicUrl(path);
       const url = data.publicUrl;
 
-      if (owner && editGlobal) {
-        setGlobalAvatar(url);
+      if (owner) {
         const { error: rpcError } = await client.rpc('update_ai_public_identity', {
           new_avatar_url: url,
         });
         if (rpcError) throw rpcError;
         setPub((p) => (p ? { ...p, avatarUrl: url } : p));
-      } else {
-        // Personal override of the face for this user only.
-        const { error: writeError } = await client.from('ai_profiles').upsert({
-          user_id: profile.id,
-          avatar_url: url,
-          display_name: prefs.display_name ?? faceName,
-          personality: prefs.personality ?? 'friendly',
-          response_length: prefs.response_length ?? 'short',
-          updated_at: new Date().toISOString(),
-        });
-        if (writeError) throw writeError;
-        setPrefs((r) => ({ ...r, avatar_url: url }));
       }
+
+      const { error: writeError } = await client.from('ai_profiles').upsert({
+        user_id: profile.id,
+        avatar_url: url,
+        display_name: prefs.display_name ?? faceName,
+        personality: prefs.personality ?? 'friendly',
+        response_length: prefs.response_length ?? 'short',
+        updated_at: new Date().toISOString(),
+      });
+      if (writeError) throw writeError;
+      setPrefs((r) => ({ ...r, avatar_url: url }));
       onChanged?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not upload photo.');
@@ -126,52 +115,33 @@ export function AiProfileSheet({
     }
   };
 
-  const saveGlobal = async () => {
-    setBusy(true);
-    setError(undefined);
-    try {
-      const { error: rpcError } = await getSupabaseClient().rpc('update_ai_public_identity', {
-        new_display_name: globalName.trim() || 'PINGO',
-        new_bio: globalBio.trim(),
-        new_avatar_url: globalAvatar ?? '',
-      });
-      if (rpcError) throw rpcError;
-      setPub({
-        id: pub?.id ?? '',
-        username: pub?.username ?? 'pingo_ai',
-        displayName: globalName.trim() || 'PINGO',
-        ...(globalAvatar ? { avatarUrl: globalAvatar } : {}),
-        ...(globalBio.trim() ? { bio: globalBio.trim() } : {}),
-      });
-      setEditGlobal(false);
-      onChanged?.();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const savePrefs = async () => {
+  const savePrefs = async (patch: Partial<AiProfileRow>) => {
     if (!profile) return;
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
     setBusy(true);
     setError(undefined);
     try {
+      if (next.language) pushRecentLanguage(next.language);
       const { error: writeError } = await getSupabaseClient()
         .from('ai_profiles')
         .upsert({
           user_id: profile.id,
-          display_name: (prefs.display_name ?? faceName).trim() || 'PINGO',
-          personality: prefs.personality ?? 'friendly',
-          custom_personality: prefs.custom_personality ?? null,
-          response_length: prefs.response_length ?? 'short',
-          preferred_name: prefs.preferred_name ?? null,
-          memory_enabled: prefs.memory_enabled ?? false,
-          avatar_url: prefs.avatar_url ?? null,
+          display_name: (next.display_name ?? faceName).trim() || 'PINGO',
+          personality: next.personality ?? 'friendly',
+          custom_personality: next.custom_personality ?? null,
+          response_length: next.response_length ?? 'short',
+          preferred_name: next.preferred_name ?? null,
+          language: next.language ?? null,
+          memory_enabled: next.memory_enabled ?? true,
+          avatar_url: next.avatar_url ?? null,
           updated_at: new Date().toISOString(),
         });
       if (writeError) throw writeError;
-      setSection('card');
+
+      if (owner && (patch.display_name !== undefined || patch.avatar_url !== undefined)) {
+        // Keep shared name in sync when owner renames their personal display.
+      }
       onChanged?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save.');
@@ -180,305 +150,314 @@ export function AiProfileSheet({
     }
   };
 
-  return (
-    <Sheet title="PINGO" hideTitle onClose={onClose} className="max-w-md overflow-hidden p-0">
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) void uploadAvatar(file);
-        }}
-      />
+  const saveGlobalBio = async (bio: string) => {
+    if (!owner) return;
+    setBusy(true);
+    try {
+      const { error: rpcError } = await getSupabaseClient().rpc('update_ai_public_identity', {
+        new_bio: bio.trim(),
+      });
+      if (rpcError) throw rpcError;
+      setPub((p) => (p ? { ...p, bio: bio.trim() } : p));
+      onChanged?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save bio.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
-      {/* Premium hero */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-brand/20 via-brand/[0.07] to-surface px-5 pb-5 pt-7">
-        <div
-          className="pointer-events-none absolute -top-20 left-1/2 size-64 -translate-x-1/2 rounded-full bg-brand/25 blur-3xl"
-          aria-hidden
+  const resetPersonality = async () => {
+    const go = await confirm({
+      title: 'Reset personality?',
+      description: 'Back to Friendly, short replies.',
+      confirmLabel: 'Reset',
+    });
+    if (!go) return;
+    await savePrefs({
+      personality: 'friendly',
+      custom_personality: null,
+      response_length: 'short',
+    });
+  };
+
+  const resetMemory = async () => {
+    if (!profile) return;
+    const go = await confirm({
+      title: 'Reset memory?',
+      description: 'All saved notes are removed. Memory stays on.',
+      confirmLabel: 'Reset memory',
+    });
+    if (!go) return;
+    await getSupabaseClient().from('ai_memories').delete().eq('user_id', profile.id);
+  };
+
+  const clearChat = async () => {
+    if (!conversationId) return;
+    const go = await confirm({
+      title: 'Clear this chat?',
+      description: 'Messages leave your side. The chat stays in the list.',
+      confirmLabel: 'Clear messages',
+    });
+    if (!go) return;
+    await service.clearConversations([conversationId]);
+    onClose();
+  };
+
+  const deleteChat = async () => {
+    if (!conversationId) return;
+    const go = await confirm({
+      title: 'Delete this chat?',
+      description: 'Removed from your list. You can open PINGO again from +.',
+      confirmLabel: 'Delete chat',
+    });
+    if (!go) return;
+    await service.deleteConversations([conversationId]);
+    onClose();
+    navigate('/chats');
+  };
+
+  return (
+    <>
+      <Sheet title="About them" hideTitle onClose={onClose} className="max-w-md overflow-hidden p-0">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void uploadAvatar(file);
+          }}
         />
-        <div className="relative flex flex-col items-center text-center">
-          <button
-            type="button"
-            onClick={() => {
-              if (owner && editGlobal) fileRef.current?.click();
-              else if (!editGlobal && section === 'prefs') fileRef.current?.click();
-            }}
-            className={cn(
-              'relative rounded-full',
-              (owner && editGlobal) || section === 'prefs'
-                ? 'focus-ring cursor-pointer'
-                : 'cursor-default',
-            )}
-            aria-label={
-              owner && editGlobal ? 'Change shared photo' : section === 'prefs' ? 'Change photo' : faceName
-            }
-          >
-            <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-brand/50 via-brand/15 to-transparent blur-[1px]" />
-            <Avatar
-              name={faceName}
-              id="pingo-ai"
-              src={editGlobal ? globalAvatar : faceSrc}
-              size="xl"
-              presence="online"
-              className="relative ring-2 ring-surface shadow-xl"
-            />
-            {((owner && editGlobal) || section === 'prefs') && (
-              <span className="absolute bottom-0 right-0 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+
+        {/* Hero */}
+        <div className="relative overflow-hidden bg-brand/[0.08] px-5 pb-5 pt-7">
+          <div className="relative flex flex-col items-center text-center">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="focus-ring relative rounded-full"
+              aria-label="Change photo"
+            >
+              <Avatar
+                name={faceName}
+                id="pingo-ai"
+                src={faceSrc}
+                size="xl"
+                presence="online"
+                className="ring-2 ring-surface shadow-lg"
+              />
+              <span className="absolute bottom-0 right-0 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
                 Edit
               </span>
-            )}
-          </button>
-
-          <div className="mt-3 flex items-center gap-1.5">
-            <PingoDot state="online" size={6} />
-            <span className="text-caption font-medium text-brand">Always here</span>
-          </div>
-          <h2 className="mt-1.5 text-h1 text-ink">
-            {editGlobal ? globalName || 'PINGO' : faceName}
-          </h2>
-          <p className="mt-1 text-caption text-text-tertiary">@{pub?.username ?? 'pingo_ai'}</p>
-          {!editGlobal && (
-            <p className="mt-3 max-w-[20rem] text-body leading-snug text-text-secondary">
-              {faceBio}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-4 px-5 pb-5">
-        {section === 'card' && !editGlobal && (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSection('prefs')}
-                className={cn(
-                  'focus-ring rounded-2xl border border-line/60 bg-sunken px-3 py-3 text-left',
-                  'transition-colors hover:bg-hover',
-                )}
-              >
-                <span className="block text-body font-medium text-ink">How they feel</span>
-                <span className="mt-0.5 block text-caption text-text-tertiary">
-                  Name, vibe, memory
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className={cn(
-                  'focus-ring rounded-2xl border border-brand/25 bg-selected px-3 py-3 text-left',
-                  'transition-colors hover:bg-selected/80',
-                )}
-              >
-                <span className="block text-body font-medium text-brand">Back to chat</span>
-                <span className="mt-0.5 block text-caption text-text-tertiary">Keep talking</span>
-              </button>
+            </button>
+            <div className="mt-3 flex items-center gap-1.5">
+              <PingoDot state="online" size={6} />
+              <span className="text-caption font-medium text-brand">Always here</span>
             </div>
-
-            {owner && (
-              <button
-                type="button"
-                onClick={() => setEditGlobal(true)}
-                className="focus-ring w-full rounded-2xl border border-line/50 bg-surface px-3 py-3 text-left transition-colors hover:bg-hover"
-              >
-                <span className="block text-body font-medium text-ink">
-                  Shared face for everyone
-                </span>
-                <span className="mt-0.5 block text-caption text-text-tertiary">
-                  Default photo, name & bio every user sees
-                </span>
-              </button>
-            )}
-
-            <p className="text-center text-caption text-text-tertiary">
-              Messages are processed to generate replies. Not end-to-end encrypted.
+            <h2 className="mt-1.5 text-h1 text-ink">{faceName}</h2>
+            <p className="mt-1 text-caption text-text-tertiary">
+              @{pub?.username ?? 'pingo_ai'}
             </p>
-          </>
-        )}
+          </div>
+        </div>
 
-        {editGlobal && owner && (
-          <div className="space-y-3">
-            <p className="text-caption font-medium text-text-secondary">
-              Default for every account
-            </p>
-            <label className="block">
-              <span className="mb-1.5 block text-caption text-text-secondary">Name</span>
-              <input
-                value={globalName}
-                onChange={(e) => setGlobalName(e.target.value.slice(0, 40))}
-                className="focus-ring w-full rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-caption text-text-secondary">Bio</span>
+        <div className="space-y-5 px-5 pb-6 pt-4">
+          <Section title="Name">
+            <input
+              value={prefs.display_name ?? faceName}
+              onChange={(e) => setPrefs((r) => ({ ...r, display_name: e.target.value.slice(0, 40) }))}
+              onBlur={() => void savePrefs({ display_name: prefs.display_name })}
+              className="focus-ring w-full rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
+            />
+          </Section>
+
+          <Section title="Bio">
+            {owner ? (
               <textarea
-                value={globalBio}
-                onChange={(e) => setGlobalBio(e.target.value.slice(0, 160))}
-                rows={3}
+                defaultValue={faceBio}
+                rows={2}
+                onBlur={(e) => void saveGlobalBio(e.target.value)}
                 className="focus-ring w-full resize-none rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
+                placeholder="Always down to chat."
               />
-            </label>
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() => fileRef.current?.click()}
-              disabled={busy}
-            >
-              Change shared photo
-            </Button>
-            {error && (
-              <p className="text-center text-caption text-danger/90" role="alert">
-                {error}
+            ) : (
+              <p className="rounded-2xl border border-line/40 bg-sunken/50 px-3 py-2.5 text-body text-text-secondary">
+                {faceBio}
               </p>
             )}
-            <div className="flex gap-2">
+          </Section>
+
+          <Section title="Personality">
+            <AiPersonalityGrid
+              value={personality}
+              customText={prefs.custom_personality ?? ''}
+              onChange={(id) => void savePrefs({ personality: id })}
+              onCustomText={(text) => setPrefs((r) => ({ ...r, custom_personality: text }))}
+            />
+            {personality === 'custom' && (
               <Button
                 variant="secondary"
-                className="flex-1"
-                onClick={() => setEditGlobal(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                className="flex-1"
-                onClick={() => void saveGlobal()}
-                disabled={busy}
-              >
-                {busy ? 'Saving…' : 'Save for everyone'}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {section === 'prefs' && !editGlobal && (
-          <div className="space-y-4">
-            <label className="block">
-              <span className="mb-1.5 block text-caption font-medium text-text-secondary">
-                Name in your chats
-              </span>
-              <input
-                value={prefs.display_name ?? faceName}
-                onChange={(e) =>
-                  setPrefs((r) => ({ ...r, display_name: e.target.value.slice(0, 40) }))
+                className="mt-2 w-full"
+                onClick={() =>
+                  void savePrefs({ custom_personality: prefs.custom_personality ?? null })
                 }
-                className="focus-ring w-full rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
-              />
-            </label>
-
-            <div>
-              <span className="mb-1.5 block text-caption font-medium text-text-secondary">
-                Personality
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {PERSONALITIES.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPrefs((r) => ({ ...r, personality: p }))}
-                    className={cn(
-                      'rounded-full px-3 py-1.5 text-caption font-medium capitalize',
-                      (prefs.personality ?? 'friendly') === p
-                        ? 'bg-selected text-brand'
-                        : 'bg-sunken text-text-secondary',
-                    )}
-                  >
-                    {p === 'genz' ? 'Gen Z' : p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {(prefs.personality ?? 'friendly') === 'custom' && (
-              <textarea
-                value={prefs.custom_personality ?? ''}
-                onChange={(e) =>
-                  setPrefs((r) => ({
-                    ...r,
-                    custom_personality: e.target.value.slice(0, 200),
-                  }))
-                }
-                rows={2}
-                placeholder="Describe the vibe"
-                className="focus-ring w-full resize-none rounded-2xl border border-line/50 bg-sunken px-3 py-2 text-body text-ink"
-              />
+              >
+                Save custom vibe
+              </Button>
             )}
+          </Section>
 
-            <div>
-              <span className="mb-1.5 block text-caption font-medium text-text-secondary">
-                Reply length
-              </span>
-              <div className="flex gap-1.5">
-                {LENGTHS.map((l) => (
-                  <button
-                    key={l.id}
-                    type="button"
-                    onClick={() => setPrefs((r) => ({ ...r, response_length: l.id }))}
-                    className={cn(
-                      'flex-1 rounded-full py-2 text-caption font-medium',
-                      (prefs.response_length ?? 'short') === l.id
-                        ? 'bg-selected text-brand'
-                        : 'bg-sunken text-text-secondary',
-                    )}
-                  >
-                    {l.label}
-                  </button>
-                ))}
+          <Section title="Response style">
+            <div className="flex gap-1.5">
+              {RESPONSE_LENGTHS.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => void savePrefs({ response_length: l.id })}
+                  className={cn(
+                    'flex-1 rounded-full py-2 text-caption font-medium',
+                    length === l.id ? 'bg-selected text-brand' : 'bg-sunken text-text-secondary',
+                  )}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-caption text-text-tertiary" aria-live="polite">
+              {lengthPreview}
+            </p>
+          </Section>
+
+          <Section title="Language">
+            <div className="flex flex-wrap gap-2">
+              {langs.slice(0, 10).map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => void savePrefs({ language: l.id })}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-caption font-medium',
+                    (prefs.language ?? 'en') === l.id
+                      ? 'bg-selected text-brand'
+                      : 'bg-sunken text-text-secondary',
+                  )}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Memory">
+            <div className="rounded-2xl border border-line/50 bg-surface px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-body text-ink">Remember things about me</p>
+                  <p className="text-caption text-text-tertiary">
+                    Only with your permission. You can edit or erase anytime.
+                  </p>
+                </div>
+                <Toggle
+                  checked={Boolean(prefs.memory_enabled ?? true)}
+                  onChange={(memory_enabled) => void savePrefs({ memory_enabled })}
+                  label="Remember things about me"
+                />
               </div>
+              {prefs.memory_enabled !== false && (
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-line/40 pt-3">
+                  <button
+                    type="button"
+                    className="focus-ring text-caption font-medium text-brand"
+                    onClick={() => setMemoriesOpen(true)}
+                  >
+                    View memories
+                  </button>
+                  <button
+                    type="button"
+                    className="focus-ring text-caption font-medium text-brand"
+                    onClick={() => setMemoriesOpen(true)}
+                  >
+                    Edit memories
+                  </button>
+                </div>
+              )}
             </div>
+          </Section>
 
-            <label className="flex items-center justify-between gap-3 rounded-2xl border border-line/50 bg-surface px-3 py-3">
-              <span>
-                <span className="block text-body text-ink">Remember things I share</span>
-                <span className="block text-caption text-text-tertiary">
-                  Only with your permission
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                checked={Boolean(prefs.memory_enabled)}
-                onChange={(e) =>
-                  setPrefs((r) => ({ ...r, memory_enabled: e.target.checked }))
-                }
-                className="size-5 accent-brand"
-              />
-            </label>
-
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() => fileRef.current?.click()}
-              disabled={busy}
-            >
-              Change photo for you
-            </Button>
-
-            {error && (
-              <p className="text-center text-caption text-danger/90" role="alert">
-                {error}
-              </p>
-            )}
-
-            <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={() => setSection('card')}>
-                Back
-              </Button>
-              <Button
-                variant="primary"
-                className="flex-1"
-                onClick={() => void savePrefs()}
-                disabled={busy}
-              >
-                {busy ? 'Saving…' : 'Save'}
-              </Button>
+          <Section title="Privacy">
+            <div className="space-y-2 rounded-2xl border border-line/40 bg-sunken/50 px-3 py-3 text-caption leading-relaxed text-text-secondary">
+              <p>Messages here are processed so they can reply.</p>
+              <p>Processing copies are cleaned up automatically after about 24 hours.</p>
+              <p>This chat is not end-to-end encrypted.</p>
             </div>
-          </div>
-        )}
-      </div>
-    </Sheet>
+          </Section>
+
+          <Section title="Advanced">
+            <div className="space-y-1">
+              <AdvRow label="Reset personality" onClick={() => void resetPersonality()} />
+              <AdvRow label="Reset memory" onClick={() => void resetMemory()} />
+              {conversationId && (
+                <>
+                  <AdvRow label="Clear conversation" onClick={() => void clearChat()} />
+                  <AdvRow
+                    label="Delete AI chat"
+                    danger
+                    onClick={() => void deleteChat()}
+                  />
+                </>
+              )}
+            </div>
+          </Section>
+
+          {error && (
+            <p className="text-center text-caption text-danger/90" role="alert">
+              {error}
+            </p>
+          )}
+
+          <Button variant="primary" className="w-full" onClick={onClose} disabled={busy}>
+            Done
+          </Button>
+        </div>
+      </Sheet>
+
+      {memoriesOpen && <AiMemoriesSheet onClose={() => setMemoriesOpen(false)} />}
+    </>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="mb-2 text-caption font-medium text-text-secondary">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function AdvRow({
+  label,
+  onClick,
+  danger,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'focus-ring flex w-full items-center rounded-xl px-2 py-2.5 text-left text-body',
+        'hover:bg-hover',
+        danger ? 'text-danger' : 'text-ink',
+      )}
+    >
+      {label}
+    </button>
   );
 }

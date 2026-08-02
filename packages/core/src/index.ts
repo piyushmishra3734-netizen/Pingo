@@ -117,6 +117,7 @@ export type {
   CameraFacing,
 } from './preferences.js';
 export { DEFAULT_PREFERENCES, FONT_SCALE } from './preferences.js';
+export { sortConversationsForList } from './sort-conversations.js';
 
 // Stickers: packs are data, loaded at runtime
 export type {

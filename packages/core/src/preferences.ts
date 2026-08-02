@@ -74,6 +74,13 @@ export interface ChatPreferences {
    * list that already exists instead of only applying from now on.
    */
   keepArchived: boolean;
+  /**
+   * Soft-place PINGO AI near the top of Chats.
+   *
+   * Unread human chats still rank above it. Not a hard pin the user has to
+   * manage - turn off to use ordinary pin + recency only.
+   */
+  pinAiToTop: boolean;
 }
 
 export interface CameraPreferences {
@@ -148,6 +155,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     // Staying archived is the point of archiving. Anyone who wants the chat
     // back on every message can say so, but that is the surprising answer.
     keepArchived: true,
+    pinAiToTop: true,
   },
   camera: {
     defaultCamera: 'front',

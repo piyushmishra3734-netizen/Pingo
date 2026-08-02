@@ -180,6 +180,12 @@ export const SETTINGS_REGISTRY: SettingsEntry[] = [
 
   // -- Chats -----------------------------------------------------------------
   entry('chats.fontSize', 'Font Size', 'Chats', ['font', 'size', 'text', 'bigger', 'smaller']),
+  entry(
+    'chats.pinAiToTop',
+    'Keep PINGO near the top',
+    'Chats',
+    ['pingo', 'ai', 'pin', 'top', 'list', 'chats'],
+  ),
   entry('chats.wallpaper', 'Chat Wallpaper', 'Chats', ['wallpaper', 'background', 'theme']),
   entry('chats.bubble', 'Bubble Style', 'Chats', ['bubble', 'style', 'message', 'shape']),
   entry('chats.autoDownload', 'Auto Download', 'Chats', ['download', 'media', 'auto', 'data']),

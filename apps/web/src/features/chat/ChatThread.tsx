@@ -1072,6 +1072,7 @@ export function ChatThread({
 
       {isAi && aiProfileOpen && (
         <AiProfileSheet
+          conversationId={conversation.id}
           onClose={() => setAiProfileOpen(false)}
           onChanged={() => {
             // ensure re-hydrates AI title/avatar and emits conversation:updated.

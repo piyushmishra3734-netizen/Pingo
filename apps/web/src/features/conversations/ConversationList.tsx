@@ -1,6 +1,7 @@
 import {
   conversationFilterLabels,
   conversationFilters,
+  sortConversationsForList,
   useChat,
   useConversationFilter,
   useProfile,
@@ -111,7 +112,17 @@ export function ConversationList({
   useEffect(loadLists, [service]);
 
   const { preferences } = usePreferences();
-  const { keepArchived, swipeActions } = preferences.chats;
+  const { keepArchived, swipeActions, pinAiToTop } = preferences.chats;
+
+  // Fresh installs: PINGO exists in Chats without hunting the + menu.
+  const ensuredAi = useRef(false);
+  useEffect(() => {
+    if (!ready || ensuredAi.current) return;
+    ensuredAi.current = true;
+    void service.ensureAiConversation().catch(() => {
+      ensuredAi.current = false;
+    });
+  }, [ready, service]);
 
   /*
    * Whether an archived chat with new messages is still archived.
@@ -142,6 +153,11 @@ export function ConversationList({
   );
 
   const { filter, setFilter, filtered, counts } = useConversationFilter(inList, query);
+
+  const ordered = useMemo(
+    () => sortConversationsForList(filtered, { pinAiToTop }),
+    [filtered, pinAiToTop],
+  );
 
   const selected = useMemo(
     () => conversations.filter((c) => selectedIds.has(c.id)),
@@ -224,8 +240,8 @@ export function ConversationList({
                   }
                 />
                 <SelectionMenuItem
-                  label={`Select all (${filtered.length})`}
-                  onSelect={() => setSelectedIds(new Set(filtered.map((c) => c.id)))}
+                  label={`Select all (${ordered.length})`}
+                  onSelect={() => setSelectedIds(new Set(ordered.map((c) => c.id)))}
                 />
                 <SelectionMenuItem
                   label={allSelected ? 'Remove from favourites' : 'Add to favourites'}
@@ -441,7 +457,8 @@ export function ConversationList({
       >
         <ChatListBody
           ready={ready}
-          conversations={filtered}
+          conversations={ordered}
+          pinAiToTop={pinAiToTop}
           archived={archived}
           {...(activeConversationId ? { activeConversationId } : {})}
           selectedIds={selectedIds}
