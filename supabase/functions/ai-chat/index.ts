@@ -129,12 +129,14 @@ Deno.serve(async (request) => {
           row.encryption == null &&
           typeof row.body === 'string' &&
           row.body.trim() &&
-          !SKIP_BODIES.includes(row.body.trim()),
+          !SKIP_BODIES.includes(row.body.trim()) &&
+          // Never feed format markers back into the model.
+          !/<<<\s*(REPLY|ASK)\s*>>>/i.test(row.body),
       );
 
     const history = chronological.map((row) => ({
       role: (row.sender_id === BOT_ID ? 'assistant' : 'user') as 'assistant' | 'user',
-      content: row.body.trim().slice(0, 2000),
+      content: stripMarkers(row.body.trim()).slice(0, 2000),
     }));
 
     const live = body.userMessage?.trim();
@@ -192,8 +194,8 @@ Deno.serve(async (request) => {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.6,
-        top_p: 0.9,
+        temperature: 0.45,
+        top_p: 0.85,
         max_tokens: maxTokens,
         stream: false,
       }),
@@ -214,7 +216,11 @@ Deno.serve(async (request) => {
     };
     let raw = payload.choices?.[0]?.message?.content?.trim() ?? '';
     raw = cleanModelArtifacts(raw);
-    const { reply, ask } = splitReplyAndAsk(raw, length);
+    let { reply, ask } = parseModelPayload(raw, length);
+
+    // Absolute last line of defence — markers must never reach the chat UI.
+    reply = finalizeBubble(reply, length);
+    ask = finalizeAsk(ask);
 
     const mainBody = reply || 'Hmm - I blanked for a second. What were you saying? 😅';
 
@@ -227,9 +233,9 @@ Deno.serve(async (request) => {
       return json(request, { error: postError.message }, 500);
     }
 
-    // Second bubble: a short question so the chat keeps moving (person-shaped).
+    // Second bubble: short follow-up only (never empty, never marker garbage).
     let askId: string | null = null;
-    if (ask) {
+    if (ask && ask !== mainBody && !looksLikeMarkerGarbage(ask)) {
       const { data: followId, error: askError } = await userClient.rpc('post_ai_reply', {
         target_conversation: conversationId,
         reply_body: ask,
@@ -403,20 +409,20 @@ function buildSystemPrompt(
       : '## LANGUAGE\nMatch the language they write in.',
     '',
     '## Emoji',
-    '1–3 natural chat emojis in <<<REPLY>>> when it fits. No spam.',
+    '1–3 natural chat emojis in the reply field when it fits. No spam.',
     '',
-    '## Output format (strict)',
-    'ALWAYS exactly:',
-    '<<<REPLY>>>',
-    'main answer',
-    '<<<ASK>>>',
-    'one short follow-up question',
-    'ASK: under 15 words, on-topic, invites a reply.',
+    '## Output format (STRICT — JSON only, no other text)',
+    'Return ONLY a JSON object with exactly two string fields:',
+    '{"reply":"main answer here","ask":"one short follow-up question?"}',
+    'No markdown. No <<<REPLY>>> markers. No text outside the JSON.',
+    'ask: one short on-topic question under 15 words, invites a reply.',
     '',
-    '## Focus',
-    '1. Answer the latest user message first.',
-    '2. Stay on topic.',
-    '3. Never invent things they did not say.',
+    '## Truth rules (critical — you fail if you break these)',
+    '1. Answer the latest user message only.',
+    '2. NEVER invent that the user said or lives somewhere. Asking "Mhow ka mausam?" ≠ "I live in Mhow".',
+    '3. NEVER invent memories. Only use the Memory list below or what they clearly said in this chat.',
+    '4. If they ask "maine kab kaha?" / "when did I say that?" and it is NOT in memory/history: admit you misread — do not double down.',
+    '5. Do not invent plans, places, or past claims.',
     '',
     userName
       ? `Call the user ${userName} when a name fits. That is the user, not the product owner.`
@@ -456,71 +462,103 @@ function buildFocusDirective(
       ? 'LENGTH: detailed OK'
       : length === 'balanced'
         ? 'LENGTH: balanced — 2–4 short lines'
-        : 'LENGTH: SHORT — 1–2 lines, ~120 chars max in REPLY';
+        : 'LENGTH: SHORT — 1–2 lines, ~120 chars max in reply';
+
+  // Recent user lines only — for truth checks in the prompt.
+  const recentUser = history
+    .filter((m) => m.role === 'user')
+    .slice(-6)
+    .map((m) => `- ${m.content.slice(0, 200)}`)
+    .join('\n');
 
   return [
     'HARD CONSTRAINTS FOR THIS TURN:',
     `Latest user message: """${lastUser.slice(0, 800)}"""`,
+    'Recent things the USER actually wrote (do not invent more):',
+    recentUser || '(none)',
     voice,
     len,
     lang ? `LANGUAGE: write in ${lang}` : 'LANGUAGE: match user',
-    '1–3 emojis in REPLY.',
-    'Output MUST be <<<REPLY>>> ... <<<ASK>>> ...',
-    'If they asked you to remember something, confirm in REPLY that you saved it.',
+    '1–3 emojis in reply.',
+    'Return ONLY JSON: {"reply":"...","ask":"..."}',
+    'Never claim the user lives in a place unless they clearly said so.',
+    'If they challenge a false memory, apologize briefly — do not invent when they said it.',
+    'If they asked you to remember something, confirm in reply that you saved it.',
   ].join('\n');
 }
 
 /**
- * Split model output into main bubble + follow-up question bubble.
- * Falls back gracefully if the model ignores markers.
+ * Prefer JSON {"reply","ask"}; fall back to marker split / last-question split.
  */
-function splitReplyAndAsk(
+function parseModelPayload(
   raw: string,
   length: string,
 ): { reply: string; ask: string } {
-  let text = raw.replace(/\r\n/g, '\n').trim();
-  // Tolerate models that drop angle brackets or add spaces.
-  text = text
-    .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '<<<REPLY>>>')
-    .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '<<<ASK>>>');
+  const text = raw.replace(/\r\n/g, '\n').trim();
 
-  const replyMark = /<<<\s*REPLY\s*>>>/i;
-  const askMark = /<<<\s*ASK\s*>>>/i;
-
-  if (askMark.test(text)) {
-    // Prefer split on ASK even if REPLY marker is missing.
-    let head = text;
-    let tail = '';
-    if (replyMark.test(text)) {
-      head = text.split(replyMark)[1] ?? text;
-    }
-    const parts = head.split(askMark);
-    const reply = shapeReply(
-      stripMarkers(cleanModelArtifacts((parts[0] ?? '').trim())),
-      length,
-    );
-    const ask = shapeAsk(stripMarkers(cleanModelArtifacts((parts[1] ?? '').trim())));
+  // 1) JSON object
+  const jsonHit = tryParseReplyJson(text);
+  if (jsonHit) {
     return {
-      reply: reply || 'Hmm 😅',
-      ask: ask || shapeAsk('Aur bata? 😊'),
+      reply: shapeReply(stripMarkers(jsonHit.reply), length) || 'Hmm 😅',
+      ask: shapeAsk(stripMarkers(jsonHit.ask)),
     };
   }
 
-  // Fallback: last line that looks like a question → second bubble.
+  // 2) Marker format (legacy / misbehaving models)
+  let normalized = text
+    .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '<<<REPLY>>>')
+    .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '<<<ASK>>>');
+
+  if (/<<<\s*ASK\s*>>>/i.test(normalized)) {
+    let head = normalized;
+    if (/<<<\s*REPLY\s*>>>/i.test(normalized)) {
+      head = normalized.split(/<<<\s*REPLY\s*>>>/i)[1] ?? normalized;
+    }
+    const parts = head.split(/<<<\s*ASK\s*>>>/i);
+    return {
+      reply: shapeReply(stripMarkers((parts[0] ?? '').trim()), length) || 'Hmm 😅',
+      ask: shapeAsk(stripMarkers((parts[1] ?? '').trim())),
+    };
+  }
+
+  // 3) Last line question
   const lines = stripMarkers(text).split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length >= 2) {
     const last = lines[lines.length - 1]!;
     if (/[?？]\s*$/.test(last) || /^(what|why|how|kab|kya|kaise|aur|wanna|want)\b/i.test(last)) {
-      const reply = shapeReply(lines.slice(0, -1).join('\n'), length);
-      return { reply, ask: shapeAsk(last) };
+      return {
+        reply: shapeReply(lines.slice(0, -1).join('\n'), length),
+        ask: shapeAsk(last),
+      };
     }
   }
 
-  const reply = shapeReply(stripMarkers(text), length);
   return {
-    reply,
-    ask: shapeAsk('Aur bata — uske baad kya hua? 😊'),
+    reply: shapeReply(stripMarkers(text), length),
+    ask: shapeAsk('Aur bata? 😊'),
   };
+}
+
+function tryParseReplyJson(text: string): { reply: string; ask: string } | null {
+  try {
+    // Extract first {...} block if model added prose.
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    const obj = JSON.parse(text.slice(start, end + 1)) as {
+      reply?: unknown;
+      ask?: unknown;
+      message?: unknown;
+      question?: unknown;
+    };
+    const reply = String(obj.reply ?? obj.message ?? '').trim();
+    const ask = String(obj.ask ?? obj.question ?? '').trim();
+    if (!reply && !ask) return null;
+    return { reply, ask };
+  } catch {
+    return null;
+  }
 }
 
 function stripMarkers(text: string): string {
@@ -529,17 +567,33 @@ function stripMarkers(text: string): string {
     .replace(/<<<\s*ASK\s*>>>/gi, '')
     .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '')
     .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '')
+    .replace(/\bREPLY\s*:/gi, '')
+    .replace(/\bASK\s*:/gi, '')
     .trim();
+}
+
+function looksLikeMarkerGarbage(text: string): boolean {
+  return /<<<|>>>|^\s*REPLY\s*$|^\s*ASK\s*$/i.test(text);
+}
+
+function finalizeBubble(text: string, length: string): string {
+  let t = stripMarkers(cleanModelArtifacts(text));
+  // If markers somehow survived mid-string, cut at ASK.
+  const cut = t.split(/<<<\s*ASK\s*>>>|<{1,3}\s*ASK\s*>{1,3}/i)[0] ?? t;
+  t = shapeReply(cut.trim(), length);
+  return t;
+}
+
+function finalizeAsk(text: string): string {
+  return shapeAsk(stripMarkers(text));
 }
 
 function shapeAsk(text: string): string {
   let ask = stripMarkers(text.replace(/\r\n/g, '\n').trim());
-  // One line, chat-short.
   ask = ask.split('\n').filter(Boolean)[0] ?? ask;
   ask = ask.replace(/^["']|["']$/g, '').trim();
-  if (!ask) return 'Aur phir? 😊';
+  if (!ask || looksLikeMarkerGarbage(ask)) return 'Aur phir? 😊';
   if (ask.length > 120) ask = `${ask.slice(0, 117).trim()}…`;
-  // Soft ensure it invites a reply.
   if (!/[?？]\s*$/.test(ask) && !/^(and you|aur|kya|what|how|wanna)/i.test(ask)) {
     ask = `${ask.replace(/[.!]+$/, '')}?`;
   }
