@@ -219,7 +219,17 @@ export function AiProfileSheet({
 
   return (
     <>
-      <Sheet title="About them" hideTitle onClose={onClose} className="max-w-md overflow-hidden p-0">
+      {/*
+        Flex column: outer sheet clips; only the body scrolls. Passing
+        overflow-hidden alone used to kill Sheet's overflow-y-auto and freeze
+        the whole panel (including under the avatar).
+      */}
+      <Sheet
+        title="About them"
+        hideTitle
+        onClose={onClose}
+        className="flex max-h-[90vh] max-w-md flex-col overflow-hidden p-0"
+      >
         <input
           ref={fileRef}
           type="file"
@@ -232,27 +242,39 @@ export function AiProfileSheet({
           }}
         />
 
-        {/* Hero */}
-        <div className="relative overflow-hidden bg-brand/[0.08] px-5 pb-5 pt-7">
+        {/* Hero — shrink-0 so it never steals the scroll surface */}
+        <div className="relative shrink-0 bg-brand/[0.08] px-5 pb-5 pt-7">
           <div className="relative flex flex-col items-center text-center">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="focus-ring relative rounded-full"
-              aria-label="Change photo"
-            >
-              <Avatar
-                name={faceName}
-                id="pingo-ai"
-                src={faceSrc}
-                size="xl"
-                presence="online"
-                className="ring-2 ring-surface shadow-lg"
-              />
-              <span className="absolute bottom-0 right-0 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
+            <div className="relative inline-flex">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className={cn(
+                  'focus-ring relative block size-fit rounded-full',
+                  'outline-offset-2',
+                )}
+                aria-label="Change photo"
+              >
+                <Avatar
+                  name={faceName}
+                  id="pingo-ai"
+                  src={faceSrc}
+                  size="xl"
+                  presence="online"
+                  className="shadow-lg"
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className={cn(
+                  'focus-ring absolute -bottom-0.5 -right-0.5 rounded-full',
+                  'bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm',
+                )}
+              >
                 Edit
-              </span>
-            </button>
+              </button>
+            </div>
             <div className="mt-3 flex items-center gap-1.5">
               <PingoDot state="online" size={6} />
               <span className="text-caption font-medium text-brand">Always here</span>
@@ -264,7 +286,7 @@ export function AiProfileSheet({
           </div>
         </div>
 
-        <div className="space-y-5 px-5 pb-6 pt-4">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-6 pt-4">
           <Section title="Name">
             <input
               value={prefs.display_name ?? faceName}

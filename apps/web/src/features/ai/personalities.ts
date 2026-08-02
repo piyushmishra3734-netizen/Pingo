@@ -9,6 +9,7 @@ export type PersonalityId =
   | 'funny'
   | 'motivator'
   | 'creative'
+  | 'spicy'
   | 'custom';
 
 export const PERSONALITIES: {
@@ -65,6 +66,12 @@ export const PERSONALITIES: {
     label: 'Creative',
     hint: 'Ideas and play',
     preview: 'What if we tried a wilder angle…',
+  },
+  {
+    id: 'spicy',
+    label: 'Spicy',
+    hint: 'Flirty, bold',
+    preview: 'Oh? You’re bold today — I like that.',
   },
   {
     id: 'custom',

@@ -278,6 +278,8 @@ function personalityBlock(profile: AiProfile | null): string {
       'Encouraging without toxic positivity. Honest hope. Celebrate small wins.',
     creative:
       'Ideas and playful imagination. Offer options, riffs, unexpected angles.',
+    spicy:
+      'Flirty, bold, teasing energy. Confident and playful — never crude without invitation, never pushy. Match their heat; if they keep it light, stay light. Stay fun, not gross.',
   };
 
   return [

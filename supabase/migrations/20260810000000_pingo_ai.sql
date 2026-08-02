@@ -92,14 +92,14 @@ create table if not exists public.ai_profiles (
   age integer check (age is null or (age >= 13 and age <= 120)),
   language text,
   country text,
-  memory_enabled boolean not null default false,
+  memory_enabled boolean not null default true,
   onboarded_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint ai_profiles_personality check (
     personality in (
       'friendly', 'genz', 'coach', 'study', 'calm',
-      'funny', 'motivator', 'creative', 'custom'
+      'funny', 'motivator', 'creative', 'spicy', 'custom'
     )
   )
 );
