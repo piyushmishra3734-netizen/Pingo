@@ -1,30 +1,25 @@
 /**
  * PINGO AI reply generation.
  *
- * The browser never holds the model key. JWT proves the caller owns an `ai`
- * conversation; this function loads context, calls NVIDIA, and inserts the
- * reply through `post_ai_reply` so it lands as a normal message from the AI
- * identity - person-shaped, not a sidebar chatbot.
- *
- * Secrets (Dashboard → Edge Functions → Secrets):
- *   NVIDIA_API_KEY
- *   NVIDIA_BASE_URL  (optional, default integrate.api.nvidia.com)
- *   NVIDIA_MODEL     (optional)
+ * Browser never holds the model key. JWT proves the caller owns an `ai`
+ * conversation; this function loads profile + memories + recent plaintext,
+ * calls NVIDIA, posts the reply, and (when allowed) updates memory.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
+const BOT_ID = 'a1000000-0000-4000-8000-0000000000a1';
 
-/**
- * CORS for the web app - same approach as turn-credentials.
- *
- * Reflect `Access-Control-Request-Headers` rather than a fixed list. The
- * Supabase client always sends `x-pingo-client` (and other client headers);
- * a fixed allow-list that omits one of them fails preflight with opaque
- * "Failed to fetch" and the chat posts the glitch fallback.
- */
+/** Noise we never feed back into the model. */
+const SKIP_BODIES = [
+  "Something glitched on my side. Say that again?",
+  "Something went wrong on my side. Say that again?",
+  "I'm almost ready - my connection is still being set up. Try me again in a bit.",
+  'Hmm - I blanked for a second. What were you saying?',
+];
+
 function corsHeaders(request: Request): HeadersInit {
   return {
     'Access-Control-Allow-Origin': request.headers.get('Origin') ?? '*',
@@ -35,6 +30,18 @@ function corsHeaders(request: Request): HeadersInit {
     'Access-Control-Max-Age': '86400',
   };
 }
+
+type AiProfile = {
+  display_name?: string;
+  personality?: string;
+  custom_personality?: string | null;
+  response_length?: string;
+  preferred_name?: string | null;
+  language?: string | null;
+  country?: string | null;
+  memory_enabled?: boolean;
+  age?: number | null;
+};
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -63,7 +70,6 @@ Deno.serve(async (request) => {
 
     const body = (await request.json()) as {
       conversationId?: string;
-      /** Plaintext of the turn that just sent - never rely on ciphertext in the DB. */
       userMessage?: string;
     };
     const conversationId = body.conversationId;
@@ -87,47 +93,67 @@ Deno.serve(async (request) => {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    const { data: memories } = profile?.memory_enabled
-      ? await userClient.from('ai_memories').select('key, value').eq('user_id', user.id).limit(40)
-      : { data: [] as { key: string; value: string }[] };
+    const memoryOn = Boolean(profile?.memory_enabled);
+    const { data: memories } = memoryOn
+      ? await userClient
+          .from('ai_memories')
+          .select('id, key, value')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50)
+      : { data: [] as { id: string; key: string; value: string }[] };
 
-    // Only plaintext rows - E2EE bodies are opaque to the model.
+    // Recent plaintext only — more turns = better context stickiness.
     const { data: rows } = await userClient
       .from('messages')
       .select('sender_id, body, created_at, encryption')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
-      .limit(24);
+      .limit(48);
 
-    const botId = 'a1000000-0000-4000-8000-0000000000a1';
     const chronological = [...(rows ?? [])]
       .reverse()
-      .filter((row) => row.encryption == null && typeof row.body === 'string' && row.body.trim());
+      .filter(
+        (row) =>
+          row.encryption == null &&
+          typeof row.body === 'string' &&
+          row.body.trim() &&
+          !SKIP_BODIES.includes(row.body.trim()),
+      );
 
-    const system = buildSystemPrompt(profile, memories ?? []);
     const history = chronological.map((row) => ({
-      role: (row.sender_id === botId ? 'assistant' : 'user') as 'assistant' | 'user',
-      content: row.body,
+      role: (row.sender_id === BOT_ID ? 'assistant' : 'user') as 'assistant' | 'user',
+      content: row.body.trim().slice(0, 2000),
     }));
 
-    // Prefer the live plaintext the client just sent (source of truth for this turn).
     const live = body.userMessage?.trim();
     if (live) {
       const last = history[history.length - 1];
       if (!last || last.role !== 'user' || last.content !== live) {
-        history.push({ role: 'user', content: live.slice(0, 4000) });
+        history.push({ role: 'user', content: live.slice(0, 2000) });
       }
     }
 
-    if (history.length === 0) {
+    // Collapse runaway alternating empty / glitch-only threads.
+    const cleanHistory = collapseHistory(history);
+
+    if (cleanHistory.length === 0) {
       return json(request, { error: 'Nothing to reply to.' }, 400);
     }
 
-    const messages = [{ role: 'system' as const, content: system }, ...history];
+    const system = buildSystemPrompt(profile as AiProfile | null, memories ?? []);
+    // Second system-style anchor right before the user turn: models obey this more.
+    const focus = buildFocusDirective(cleanHistory, profile as AiProfile | null);
+
+    const messages = [
+      { role: 'system' as const, content: system },
+      ...cleanHistory.slice(0, -1),
+      { role: 'system' as const, content: focus },
+      cleanHistory[cleanHistory.length - 1]!,
+    ];
 
     const apiKey = Deno.env.get('NVIDIA_API_KEY');
     if (!apiKey) {
-      // Still person-shaped: a short message, not an operator dump.
       const fallback =
         "I'm almost ready - my connection is still being set up. Try me again in a bit.";
       const { data: id, error } = await userClient.rpc('post_ai_reply', {
@@ -140,13 +166,10 @@ Deno.serve(async (request) => {
 
     const base = (Deno.env.get('NVIDIA_BASE_URL') ?? DEFAULT_BASE).replace(/\/$/, '');
     const model = Deno.env.get('NVIDIA_MODEL') ?? DEFAULT_MODEL;
+    const length = profile?.response_length ?? 'short';
 
     const maxTokens =
-      profile?.response_length === 'detailed'
-        ? 512
-        : profile?.response_length === 'balanced'
-          ? 256
-          : 120;
+      length === 'detailed' ? 640 : length === 'balanced' ? 320 : 180;
 
     const nvidia = await fetch(`${base}/chat/completions`, {
       method: 'POST',
@@ -157,7 +180,8 @@ Deno.serve(async (request) => {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.7,
+        temperature: 0.55,
+        top_p: 0.9,
         max_tokens: maxTokens,
         stream: false,
       }),
@@ -177,7 +201,8 @@ Deno.serve(async (request) => {
       choices?: { message?: { content?: string } }[];
     };
     let reply = payload.choices?.[0]?.message?.content?.trim() ?? '';
-    reply = shapeReply(reply, profile?.response_length ?? 'short');
+    reply = cleanModelArtifacts(reply);
+    reply = shapeReply(reply, length);
 
     if (!reply) {
       reply = 'Hmm - I blanked for a second. What were you saying?';
@@ -190,6 +215,13 @@ Deno.serve(async (request) => {
 
     if (postError) {
       return json(request, { error: postError.message }, 500);
+    }
+
+    // Memory: extract durable facts after the turn (never blocks the reply path).
+    if (memoryOn && live) {
+      void updateMemories(userClient, user.id, apiKey, base, model, cleanHistory, live, reply).catch(
+        (err) => console.error('memory', err),
+      );
     }
 
     return json(request, { messageId, reply });
@@ -210,79 +242,283 @@ function json(request: Request, body: unknown, status = 200) {
   });
 }
 
+function personalityBlock(profile: AiProfile | null): string {
+  const personality = profile?.personality ?? 'friendly';
+  const custom = profile?.custom_personality?.trim();
+
+  if (personality === 'custom') {
+    if (custom) {
+      return [
+        '## Voice (CUSTOM — this is the law of how you sound)',
+        `The user defined your personality as: "${custom}"`,
+        'Every reply must match this voice. Do not slip into a generic assistant tone.',
+        'If the custom vibe conflicts with other style tips, custom wins.',
+      ].join('\n');
+    }
+    return [
+      '## Voice',
+      'Custom personality was selected but not described — stay warm and natural like a close friend.',
+    ].join('\n');
+  }
+
+  const map: Record<string, string> = {
+    friendly:
+      'Warm, easy, close-friend energy. Soft check-ins. No corporate polish.',
+    genz:
+      'Internet-native, natural Gen Z cadence. Light slang only when it fits the user — never force it, never try-hard.',
+    coach:
+      'Supportive coach. Short clear next steps. No lectures. One action when possible.',
+    study:
+      'Patient study buddy. Explain simply. Break hard things down. Check understanding.',
+    calm:
+      'Calm, steady, unhurried. Short sentences. No hype. Grounding presence.',
+    funny:
+      'Light humour, playful. Never mean, never dunk on them. Wit over loud jokes.',
+    motivator:
+      'Encouraging without toxic positivity. Honest hope. Celebrate small wins.',
+    creative:
+      'Ideas and playful imagination. Offer options, riffs, unexpected angles.',
+  };
+
+  return [
+    '## Voice (required)',
+    map[personality] ?? map.friendly,
+    `Active personality key: ${personality}. Stay in this voice the whole reply.`,
+  ].join('\n');
+}
+
 function buildSystemPrompt(
-  profile: {
-    display_name?: string;
-    personality?: string;
-    custom_personality?: string | null;
-    response_length?: string;
-    preferred_name?: string | null;
-    language?: string | null;
-    country?: string | null;
-  } | null,
+  profile: AiProfile | null,
   memories: { key: string; value: string }[],
 ): string {
   const name = profile?.display_name?.trim() || 'PINGO';
-  const personality = profile?.personality ?? 'friendly';
   const length = profile?.response_length ?? 'short';
   const userName = profile?.preferred_name?.trim();
 
-  const personalityLine =
-    personality === 'custom' && profile?.custom_personality
-      ? profile.custom_personality
-      : {
-          friendly: 'Warm, easy, like a close friend.',
-          genz: 'Natural internet-native energy. Use slang only when it fits - never force it.',
-          coach: 'Supportive coach. Clear next steps, not lectures.',
-          study: 'Patient study buddy. Explain simply.',
-          calm: 'Calm, steady, unhurried.',
-          funny: 'Light humour. Never mean.',
-          motivator: 'Encouraging without toxic positivity.',
-          creative: 'Ideas and playful imagination.',
-        }[personality] ?? 'Warm, easy, like a close friend.';
-
   const lengthLine =
     length === 'detailed'
-      ? 'Prefer thorough answers. Use short bullets when listing.'
+      ? 'Length: thorough when useful. Short bullets for lists. Still chatty, not an essay.'
       : length === 'balanced'
-        ? 'A few sentences is fine. Prefer bullets for steps.'
-        : 'Default to 1-2 short lines. Bullets only when needed. No walls of text.';
+        ? 'Length: a few sentences is fine. Prefer bullets for steps.'
+        : 'Length: default 1–3 short chat lines. No walls of text.';
 
   const memoryBlock =
     memories.length > 0
-      ? `Things you know about them (with consent):\n${memories
-          .map((m) => `- ${m.key}: ${m.value}`)
-          .join('\n')}`
-      : 'No saved memories yet.';
+      ? [
+          '## Memory (you already know this — use it naturally, do not dump the list)',
+          ...memories.map((m) => `- ${m.key}: ${m.value}`),
+          'If they correct something, trust the correction over old memory.',
+        ].join('\n')
+      : '## Memory\nNo long-term notes saved yet. Remember what they say in this chat.';
 
   return [
-    `You are ${name}, a real-feeling friend inside the PINGO messenger.`,
-    'You are not a generic chatbot, not an assistant product, not ChatGPT.',
-    'You talk like a person in a chat app. Same energy as messaging a friend.',
-    personalityLine,
+    `You are ${name} inside the PINGO messenger — a person in their chat list, not a product demo.`,
+    'You are not ChatGPT, not an AI assistant product, not a support bot.',
+    'Write like a real chat: casual punctuation, natural line breaks, no markdown headings, no "As an AI…".',
+    '',
+    personalityBlock(profile),
+    '',
+    '## Focus rules (highest priority after voice)',
+    '1. Answer the latest user message first. That is the topic.',
+    '2. Stay on that topic. Do not jump to random facts, owner links, or old subjects unless they ask.',
+    '3. Use earlier chat only when it helps the current message.',
+    '4. If you are unsure what they mean, ask one short clarifying question — do not invent a new topic.',
+    '5. Never invent that they said something they did not.',
+    '',
     lengthLine,
-    'Mirror the user\'s energy. Formal stays formal. Funny stays light. Never overdo slang.',
-    'Understand internet culture (rizz, delulu, W/L, cooked, etc.) only when natural.',
-    userName ? `They like to be called ${userName}.` : '',
-    profile?.language ? `Prefer language: ${profile.language}.` : '',
+    "Mirror their energy: formal stays formal, funny stays light. Don't overdo slang.",
+    userName
+      ? `The USER's name (what to call them) is ${userName}. This is the person chatting with you — not the product owner.`
+      : '',
+    profile?.language
+      ? `Reply in language preference: ${profile.language} (unless they write in another language — then match them).`
+      : 'Match the language they write in.',
     profile?.country ? `They are around ${profile.country}.` : '',
+    profile?.age != null ? `They mentioned age around ${profile.age}.` : '',
+    '',
     memoryBlock,
-    // Product owner / developer contact — casual, one link, no essay.
-    'Owner and developer of PINGO is piuxxh (also called Piyush). Handle: @piuxxh.',
-    'If anyone asks who the owner/founder/developer is, or wants their id, username, contact, profile, or to message them: give this link so they can open the profile directly: https://pingochat.pages.dev/profile/piuxxh',
-    'Also mention @piuxxh. Keep it short and friendly, like sharing a contact in chat — not a support ticket.',
+    '',
+    '## Product owner (rare — only on explicit ask)',
+    'If and only if they ask who made/owns PINGO, the founder, developer, or want owner contact: piuxxh (Piyush), @piuxxh, https://pingochat.pages.dev/profile/piuxxh',
+    'Otherwise never mention owner, Piyush, @piuxxh, or that link. Do not drag them into random replies.',
+    'Never confuse the user\'s preferred name with the product owner.',
+    '',
     'Never claim to be human. Never claim end-to-end encryption for this chat.',
     'If you cannot do something, say so briefly and helpfully.',
   ]
-    .filter(Boolean)
+    .filter((line) => line !== undefined)
     .join('\n');
+}
+
+function buildFocusDirective(
+  history: { role: string; content: string }[],
+  profile: AiProfile | null,
+): string {
+  const lastUser = [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
+  const voice =
+    profile?.personality === 'custom' && profile.custom_personality?.trim()
+      ? `Stay in this custom voice: ${profile.custom_personality.trim()}`
+      : `Stay in personality: ${profile?.personality ?? 'friendly'}`;
+
+  return [
+    'Focus for this single reply:',
+    `Latest user message: """${lastUser.slice(0, 800)}"""`,
+    'Respond to THAT message only. Stay relevant. Do not change the subject.',
+    voice,
+  ].join('\n');
+}
+
+function collapseHistory(
+  history: { role: 'user' | 'assistant'; content: string }[],
+): { role: 'user' | 'assistant'; content: string }[] {
+  const out: { role: 'user' | 'assistant'; content: string }[] = [];
+  for (const msg of history) {
+    const prev = out[out.length - 1];
+    if (prev && prev.role === msg.role) {
+      // Merge same-role streaks so the model does not get confused.
+      prev.content = `${prev.content}\n${msg.content}`.slice(0, 3000);
+    } else {
+      out.push({ ...msg });
+    }
+  }
+  // Cap to last 30 turns after merge.
+  return out.slice(-30);
+}
+
+function cleanModelArtifacts(text: string): string {
+  return text
+    .replace(/^\s*(as an ai|as a language model|i'm an ai)[^\n]*\n?/gi, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .trim();
 }
 
 function shapeReply(text: string, length: string): string {
   const cleaned = text.replace(/\r\n/g, '\n').trim();
-  if (length !== 'short') return cleaned.slice(0, 4000);
-  // Soft cap so short mode stays chatty even if the model rambles.
+  if (length === 'detailed') return cleaned.slice(0, 4000);
+  if (length === 'balanced') return cleaned.slice(0, 1600);
   const lines = cleaned.split('\n').filter(Boolean);
-  if (lines.length <= 3 && cleaned.length <= 320) return cleaned;
-  return lines.slice(0, 3).join('\n').slice(0, 320);
+  if (lines.length <= 4 && cleaned.length <= 480) return cleaned;
+  return lines.slice(0, 4).join('\n').slice(0, 480);
+}
+
+/**
+ * Pull durable facts into ai_memories. Best-effort; never throws to the user path.
+ */
+async function updateMemories(
+  userClient: ReturnType<typeof createClient>,
+  userId: string,
+  apiKey: string,
+  base: string,
+  model: string,
+  history: { role: string; content: string }[],
+  lastUser: string,
+  lastReply: string,
+): Promise<void> {
+  const recent = history
+    .slice(-12)
+    .map((m) => `${m.role}: ${m.content}`)
+    .join('\n');
+
+  const extractPrompt = [
+    'Extract up to 4 durable personal facts about the USER from this chat.',
+    'Only solid facts they stated or clearly confirmed (name, place, school, job, preferences, people, goals).',
+    'Skip temporary moods, one-off jokes, and anything about the AI.',
+    'Return ONLY a JSON array of objects: [{"key":"short_label","value":"fact"}]',
+    'key: snake_case max 40 chars. value: max 200 chars. Empty array if nothing new.',
+    '',
+    'Chat:',
+    recent,
+    `user: ${lastUser}`,
+    `assistant: ${lastReply}`,
+  ].join('\n');
+
+  const res = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You extract structured memory facts. Output JSON only. No prose.',
+        },
+        { role: 'user', content: extractPrompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 300,
+      stream: false,
+    }),
+  });
+
+  if (!res.ok) return;
+  const payload = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const raw = payload.choices?.[0]?.message?.content?.trim() ?? '';
+  const facts = parseFacts(raw);
+  if (facts.length === 0) return;
+
+  // Cap total memories per user.
+  const { data: existing } = await userClient
+    .from('ai_memories')
+    .select('id, key')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  const byKey = new Map((existing ?? []).map((r) => [r.key, r.id as string]));
+
+  for (const fact of facts.slice(0, 4)) {
+    const key = fact.key.slice(0, 80);
+    const value = fact.value.slice(0, 500);
+    const existingId = byKey.get(key);
+    if (existingId) {
+      await userClient.from('ai_memories').update({ value }).eq('id', existingId);
+    } else {
+      await userClient.from('ai_memories').insert({ user_id: userId, key, value });
+      byKey.set(key, 'new');
+    }
+  }
+
+  // Soft cap at 40 rows — drop oldest extras.
+  const { data: all } = await userClient
+    .from('ai_memories')
+    .select('id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (all && all.length > 40) {
+    const drop = all.slice(0, all.length - 40).map((r) => r.id);
+    await userClient.from('ai_memories').delete().in('id', drop);
+  }
+}
+
+function parseFacts(raw: string): { key: string; value: string }[] {
+  try {
+    const start = raw.indexOf('[');
+    const end = raw.lastIndexOf(']');
+    if (start < 0 || end < 0) return [];
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null;
+        const rec = item as { key?: unknown; value?: unknown };
+        const key = String(rec.key ?? '')
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '_')
+          .replace(/[^a-z0-9_]/g, '')
+          .slice(0, 80);
+        const value = String(rec.value ?? '').trim().slice(0, 500);
+        if (!key || !value) return null;
+        return { key, value };
+      })
+      .filter((x): x is { key: string; value: string } => Boolean(x));
+  } catch {
+    return [];
+  }
 }
