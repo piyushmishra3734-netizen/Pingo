@@ -930,6 +930,14 @@ export class SupabaseChatService implements ChatService {
 
     await this.#loadPeople((members ?? []).map((m) => m.user_id));
 
+    // AI display name / face - per owner, not a global bot brand strip.
+    const aiOwnerIds = rows.filter((r) => r.kind === 'ai').map(() => me);
+    const { data: aiProfiles } =
+      aiOwnerIds.length > 0
+        ? await this.#client.from('ai_profiles').select('*').eq('user_id', me)
+        : { data: [] as { user_id: string; display_name: string; avatar_url: string | null }[] };
+    const aiByUser = new Map((aiProfiles ?? []).map((p) => [p.user_id, p]));
+
     return rows
       /*
        * A chat the member deleted is not in their list at all - not archived,
@@ -968,11 +976,17 @@ export class SupabaseChatService implements ChatService {
           .map((m) => Date.parse(m.last_read_at))
           .sort((a, b) => b - a)[0];
 
+        const aiProfile = row.kind === 'ai' ? aiByUser.get(me) : undefined;
+
         return {
           id: row.id,
           kind: row.kind,
           // A direct chat is titled by whoever else is in it, per viewer.
-          title: row.title ?? otherUser?.name ?? 'Conversation',
+          // AI is a person-shaped row: name from prefs, not a "bot" label.
+          title:
+            row.kind === 'ai'
+              ? (aiProfile?.display_name ?? row.title ?? 'PINGO')
+              : (row.title ?? otherUser?.name ?? 'Conversation'),
           /*
            * A group's own picture, or the other person's.
            *
@@ -981,11 +995,13 @@ export class SupabaseChatService implements ChatService {
            * happens to sort first - which would give the group a face belonging
            * to somebody who might later leave it.
            */
-          ...(row.avatar_url
-            ? { avatarUrl: row.avatar_url }
-            : otherUser?.avatarUrl
-              ? { avatarUrl: otherUser.avatarUrl }
-              : {}),
+          ...(row.kind === 'ai' && aiProfile?.avatar_url
+            ? { avatarUrl: aiProfile.avatar_url }
+            : row.avatar_url
+              ? { avatarUrl: row.avatar_url }
+              : otherUser?.avatarUrl
+                ? { avatarUrl: otherUser.avatarUrl }
+                : {}),
           participantIds: roster.map((m) => m.user_id),
           // Only groups have ranks, so a direct chat carries an empty list
           // rather than an absent field the screens would have to guard.
@@ -2014,7 +2030,20 @@ export class SupabaseChatService implements ChatService {
      * queue holds plaintext it can re-seal on flush, when the recipient list
      * may well have changed.
      */
-    const sealed = await sealBody(this.#client, draft.conversationId, draft.body);
+    /*
+     * AI threads are never end-to-end encrypted: the server must read them to
+     * reply. Human threads still go through sealBody when the roster is ready.
+     */
+    const { data: convKind } = await this.#client
+      .from('conversations')
+      .select('kind')
+      .eq('id', draft.conversationId)
+      .maybeSingle();
+    const isAi = convKind?.kind === 'ai';
+
+    const sealed = isAi
+      ? { body: draft.body, encryption: null as string | null, envelope: null as null }
+      : await sealBody(this.#client, draft.conversationId, draft.body);
 
     const { data, error } = await this.#client
       .from('messages')
@@ -2114,7 +2143,51 @@ export class SupabaseChatService implements ChatService {
     const conversation = await this.getConversation(draft.conversationId);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
 
+    // Person-shaped AI: reply arrives as another message in the same thread.
+    if (isAi && draft.body.trim()) {
+      void this.#requestAiReply(draft.conversationId).catch((cause) => {
+        console.error('[pingo-ai]', cause);
+      });
+    }
+
     return message;
+  }
+
+  /**
+   * Asks the Edge Function to generate a reply and insert it via `post_ai_reply`.
+   * Realtime (or a follow-up refresh) puts the bubble on screen like any human.
+   */
+  async #requestAiReply(conversationId: ConversationId): Promise<void> {
+    void this.#client.rpc('log_ai_user_turn', {
+      target_conversation: conversationId,
+      turn_body: '',
+    });
+
+    const { data, error } = await this.#client.functions.invoke('ai-chat', {
+      body: { conversationId },
+    });
+
+    if (error) throw error;
+    if (data && typeof data === 'object' && 'error' in data && data.error) {
+      throw new Error(String((data as { error: string }).error));
+    }
+
+    // Ensure the new assistant row is in the list even if realtime lags.
+    const conversation = await this.getConversation(conversationId);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+    const latest = await this.listMessages(conversationId, { limit: 5 });
+    for (const msg of latest) {
+      this.#emit({ type: 'message:new', message: msg });
+    }
+  }
+
+  async ensureAiConversation(): Promise<ConversationId> {
+    const { data, error } = await this.#client.rpc('ensure_ai_conversation');
+    if (error) throw error;
+    const id = data as ConversationId;
+    const conversation = await this.getConversation(id);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+    return id;
   }
 
   async markConversationRead(conversationId: ConversationId): Promise<void> {

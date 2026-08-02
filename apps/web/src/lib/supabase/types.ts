@@ -83,7 +83,7 @@ export type PostCommentRow = {
 /** One row of `public.conversations`. */
 export type ConversationRow = {
   id: string;
-  kind: 'direct' | 'group' | 'community';
+  kind: 'direct' | 'group' | 'community' | 'ai';
   /** Groups only. A direct chat's title is resolved per viewer. */
   title: string | null;
   created_by: string | null;
@@ -181,15 +181,51 @@ export type DeviceKeyRow = {
   last_seen_at: string;
 };
 
+/** Per-user prefs for the AI person in Chats. */
+export type AiProfileRow = {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  personality: string;
+  custom_personality: string | null;
+  response_length: 'short' | 'balanced' | 'detailed';
+  preferred_name: string | null;
+  age: number | null;
+  language: string | null;
+  country: string | null;
+  memory_enabled: boolean;
+  onboarded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** The `public` schema. */
 export type Database = {
   public: {
     Tables: {
+      ai_profiles: {
+        Row: AiProfileRow;
+        Insert: Partial<AiProfileRow> & { user_id: string };
+        Update: Partial<AiProfileRow>;
+        Relationships: [];
+      };
+      ai_memories: {
+        Row: {
+          id: string;
+          user_id: string;
+          key: string;
+          value: string;
+          created_at: string;
+        };
+        Insert: { user_id: string; key: string; value: string };
+        Update: { key?: string; value?: string };
+        Relationships: [];
+      };
       conversations: {
         Row: ConversationRow;
         Insert: {
           id?: string;
-          kind?: 'direct' | 'group' | 'community';
+          kind?: 'direct' | 'group' | 'community' | 'ai';
           title?: string | null;
           created_by?: string | null;
         };
@@ -528,6 +564,19 @@ export type Database = {
       start_direct_conversation: {
         Args: { other_user: string };
         Returns: string;
+      };
+      /** One AI conversation per user - person-shaped row in Chats. */
+      ensure_ai_conversation: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      post_ai_reply: {
+        Args: { target_conversation: string; reply_body: string };
+        Returns: string;
+      };
+      log_ai_user_turn: {
+        Args: { target_conversation: string; turn_body: string };
+        Returns: undefined;
       };
       /** Newest message and unread count per conversation, for this user only. */
       conversation_previews: {

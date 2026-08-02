@@ -37,12 +37,15 @@ export interface ConversationMenuProps {
   onCall?: (kind: 'audio' | 'video') => void;
   /** Why calling is unavailable, if it is. Shown instead of the call rows. */
   callBlockedReason?: string;
+  /** AI threads only - name, vibe, memory. Person settings, not a model panel. */
+  onAiSettings?: () => void;
 }
 
 export function ConversationMenu({
   conversation,
   onCall,
   callBlockedReason,
+  onAiSettings,
 }: ConversationMenuProps) {
   const [open, setOpen] = useState(false);
   const [muting, setMuting] = useState(false);
@@ -111,11 +114,24 @@ export function ConversationMenu({
             is merely dimmed leaves the user guessing which of the many possible
             reasons applies to them.
           */}
-          {callBlockedReason && (
+          {callBlockedReason && conversation.kind !== 'ai' && (
             <>
               <p className="px-3 py-2 text-caption text-text-tertiary">
                 {callBlockedReason}
               </p>
+              <Divider />
+            </>
+          )}
+
+          {conversation.kind === 'ai' && onAiSettings && (
+            <>
+              <Item
+                label="About them"
+                onSelect={() => {
+                  setOpen(false);
+                  onAiSettings();
+                }}
+              />
               <Divider />
             </>
           )}

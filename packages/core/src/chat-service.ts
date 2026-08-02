@@ -370,6 +370,13 @@ export interface ChatService {
    */
   startDirectConversation(otherUserId: UserId): Promise<ConversationId>;
 
+  /**
+   * Get-or-create the signed-in user's PINGO AI conversation.
+   *
+   * Same list and thread surfaces as any other chat. Not a separate AI product.
+   */
+  ensureAiConversation(): Promise<ConversationId>;
+
   // -- Groups ---------------------------------------------------------------
   //
   // Two doors, and the rule is the same one stated twice: *a friend may put you

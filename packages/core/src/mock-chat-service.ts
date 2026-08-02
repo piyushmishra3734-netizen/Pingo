@@ -208,6 +208,33 @@ export class MockChatService implements ChatService {
     });
   }
 
+  /** Person-shaped AI reply in the mock - short, chatty, not a product banner. */
+  #simulateAiReply(conversationId: ConversationId, body: string): void {
+    const conversation = this.#conversation(conversationId);
+    if (!conversation || conversation.kind !== 'ai') return;
+    if (!body.trim()) return;
+
+    const botId = 'a1000000-0000-4000-8000-0000000000a1';
+    this.#after(700, () => {
+      const reply: Message = {
+        id: nextMessageId(),
+        conversationId,
+        authorId: botId,
+        body: "Hey - I'm here. What's on your mind?",
+        createdAt: Date.now(),
+        status: 'sent',
+        attachments: [],
+        reactions: [],
+      };
+      (this.#messages[conversationId] ??= []).push(reply);
+      this.#emit({ type: 'message:new', message: clone(reply) });
+      this.#updateConversation(conversationId, {
+        lastMessage: clone(reply),
+        updatedAt: reply.createdAt,
+      });
+    });
+  }
+
   // -- session -------------------------------------------------------------
 
   async getCurrentUser(): Promise<CurrentUser> {
@@ -302,6 +329,7 @@ export class MockChatService implements ChatService {
 
     this.#simulateDelivery(message);
     this.#simulateTypingResponse(draft.conversationId);
+    this.#simulateAiReply(draft.conversationId, draft.body);
 
     return clone(message);
   }
@@ -734,6 +762,42 @@ export class MockChatService implements ChatService {
     this.#messages[conversation.id] = [];
     this.#emit({ type: 'conversation:updated', conversation: clone(conversation) });
 
+    return conversation.id;
+  }
+
+  async ensureAiConversation(): Promise<ConversationId> {
+    await delay(READ_LATENCY_MS);
+    const existing = this.#conversations.find((c) => c.kind === 'ai');
+    if (existing) return existing.id;
+
+    const conversation: Conversation = {
+      id: 'conversation-pingo-ai',
+      kind: 'ai',
+      title: 'PINGO',
+      participantIds: [this.#currentUser.id],
+      unreadCount: 0,
+      updatedAt: Date.now(),
+      typingUserIds: [],
+      muted: false,
+      pinned: true,
+      favorite: false,
+      archived: false,
+      listIds: [],
+    };
+    this.#conversations = [conversation, ...this.#conversations];
+    this.#messages[conversation.id] = [
+      {
+        id: 'ai-hello',
+        conversationId: conversation.id,
+        authorId: 'a1000000-0000-4000-8000-0000000000a1',
+        body: "Hey. I'm here whenever you want to talk.",
+        createdAt: Date.now(),
+        status: 'sent',
+        attachments: [],
+        reactions: [],
+      },
+    ];
+    this.#emit({ type: 'conversation:updated', conversation: clone(conversation) });
     return conversation.id;
   }
 

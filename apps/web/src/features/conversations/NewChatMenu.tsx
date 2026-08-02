@@ -1,4 +1,6 @@
-import { ChevronRightIcon, UserIcon, UsersIcon } from '@pingo/ui';
+import { useChat } from '@pingo/core';
+import { ChatIcon, ChevronRightIcon, UserIcon, UsersIcon, cn } from '@pingo/ui';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../../components/Sheet.js';
@@ -7,24 +9,49 @@ import { Sheet } from '../../components/Sheet.js';
  * What the `+` opens.
  *
  * It used to go straight to the contact list, which was right while starting a
- * chat was the only thing you could start. Now there are two, and a `+` that
- * silently picks one of them makes the other undiscoverable - there is nowhere
- * else a group could plausibly be created from.
+ * chat was the only thing you could start. Now there are a few doors, and a `+`
+ * that silently picks one makes the rest undiscoverable.
  *
- * Two rows and no more. A menu that grows past about four entries stops being a
+ * Keep this short. A menu that grows past about four entries stops being a
  * choice and starts being a screen, and this one is opened by reflex.
  */
 export function NewChatMenu({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
+  const { service } = useChat();
+  const [openingAi, setOpeningAi] = useState(false);
+  const [aiError, setAiError] = useState<string>();
 
   const go = (to: string) => () => {
     onClose();
     navigate(to);
   };
 
+  const openPingo = async () => {
+    if (openingAi) return;
+    setOpeningAi(true);
+    setAiError(undefined);
+    try {
+      const id = await service.ensureAiConversation();
+      onClose();
+      navigate(`/chats/${id}`);
+    } catch (cause) {
+      setAiError(cause instanceof Error ? cause.message : 'Could not open chat.');
+      setOpeningAi(false);
+    }
+  };
+
   return (
     <Sheet title="Start something" onClose={onClose}>
       <ul className="flex flex-col">
+        <li>
+          <Row
+            icon={<ChatIcon size={20} />}
+            title="Message PINGO"
+            detail="A chat that feels like a person"
+            onClick={() => void openPingo()}
+            disabled={openingAi}
+          />
+        </li>
         <li>
           <Row
             icon={<UserIcon size={20} />}
@@ -42,6 +69,11 @@ export function NewChatMenu({ onClose }: { onClose: () => void }) {
           />
         </li>
       </ul>
+      {aiError && (
+        <p className="mt-2 px-1 text-center text-caption text-danger/90" role="alert">
+          {aiError}
+        </p>
+      )}
     </Sheet>
   );
 }
@@ -51,17 +83,24 @@ function Row({
   title,
   detail,
   onClick,
+  disabled = false,
 }: {
   icon: React.ReactNode;
   title: string;
   detail: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3.5 rounded-md px-1 py-3 text-left transition-colors duration-quick hover:bg-surface-hover active:bg-surface-active"
+      disabled={disabled}
+      className={cn(
+        'flex w-full items-center gap-3.5 rounded-md px-1 py-3 text-left transition-colors duration-quick',
+        'hover:bg-surface-hover active:bg-surface-active',
+        disabled && 'opacity-60',
+      )}
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand">
         {icon}

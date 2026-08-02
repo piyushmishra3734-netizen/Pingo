@@ -117,9 +117,11 @@ export function ConversationRow({
         // Presence only. Typing is already carried by the preview line below, and
         // saying it twice in one row is two signals competing for the same glance.
         presence={
-          conversation.kind === 'direct' && partner?.presence.state === 'online'
+          conversation.kind === 'ai'
             ? 'online'
-            : undefined
+            : conversation.kind === 'direct' && partner?.presence.state === 'online'
+              ? 'online'
+              : undefined
         }
       />
       </span>

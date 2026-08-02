@@ -26,6 +26,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useSharedElement } from '../../hooks/useSharedElement.js';
+import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
+import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
+import { AiSettingsSheet } from '../ai/AiSettingsSheet.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
@@ -213,6 +217,36 @@ export function ChatThread({
         )
       : undefined;
 
+  /**
+   * PINGO AI is a person-shaped thread: no calls, no E2EE lock line, settings
+   * instead of a profile. Everything else reuses the same chat chrome.
+   */
+  const isAi = conversation.kind === 'ai';
+  const [aiOnboarding, setAiOnboarding] = useState(false);
+  const [aiSettings, setAiSettings] = useState(false);
+
+  useEffect(() => {
+    if (!isAi || !currentUser) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await getSupabaseClient()
+          .from('ai_profiles')
+          .select('onboarded_at')
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+        // Missing table / offline: skip the sheet rather than block chat.
+        if (cancelled || error) return;
+        if (!data?.onboarded_at) setAiOnboarding(true);
+      } catch {
+        /* offline / not configured */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAi, currentUser?.id, conversation.id]);
+
   /*
    * A direct call needs a mutual follow; a group call does not.
    *
@@ -226,11 +260,15 @@ export function ChatThread({
    * agreed to be in the room. Requiring friendship *inside* the room would mean
    * a group of six where four people can be called and two cannot, which is not
    * a privacy rule - it is a broken button.
+   *
+   * AI has no ringing - the call buttons are omitted entirely, not greyed out.
    */
-  const isGroup = conversation.kind !== 'direct';
-  const canCall = isGroup
-    ? conversation.participantIds.length > 1
-    : Boolean(partner && mutuals?.has(partner.id));
+  const isGroup = conversation.kind !== 'direct' && !isAi;
+  const canCall = isAi
+    ? false
+    : isGroup
+      ? conversation.participantIds.length > 1
+      : Boolean(partner && mutuals?.has(partner.id));
 
   /**
    * Why calling is unavailable, in a sentence. Undefined when it is available.
@@ -511,9 +549,11 @@ export function ChatThread({
     });
   }, [groups]);
 
-  const presenceLine = partner
-    ? formatPresence(partner)
-    : `${members.length} members`;
+  const presenceLine = isAi
+    ? 'Always here'
+    : partner
+      ? formatPresence(partner)
+      : `${members.length} members`;
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col bg-page', className)}>
@@ -542,7 +582,8 @@ export function ChatThread({
 
         {/*
           The identity block goes wherever "who is this?" is answered: a
-          person's profile in a direct chat, the group's own info in a group.
+          person's profile in a direct chat, the group's own info in a group,
+          or AI prefs (name/vibe) for the AI person.
           It used to be a link in both cases, and in a group it pointed at
           `/chats` - so the one place a group's roster could plausibly be
           reached bounced you back to the list you came from.
@@ -554,16 +595,24 @@ export function ChatThread({
           )}
           {...(conversation.kind === 'direct' && partner
             ? { to: `/profile/${partner.handle}` }
-            : { onClick: () => setGroupInfo(true) })}
+            : isAi
+              ? { onClick: () => setAiSettings(true) }
+              : { onClick: () => setGroupInfo(true) })}
         >
-          {conversation.kind === 'direct' ? (
+          {conversation.kind === 'direct' || isAi ? (
             <span ref={headerAvatar} className="inline-flex">
             <Avatar
               name={conversation.title}
               id={partner?.id ?? conversation.id}
               src={partner?.avatarUrl ?? conversation.avatarUrl}
               size="sm"
-              presence={partner?.presence.state === 'online' ? 'online' : undefined}
+              presence={
+                isAi
+                  ? 'online'
+                  : partner?.presence.state === 'online'
+                    ? 'online'
+                    : undefined
+              }
             />
             </span>
           ) : (
@@ -603,23 +652,30 @@ export function ChatThread({
             between "this app's calling is broken" and "you two do not follow
             each other yet". Hiding them instead would make the feature look
             absent rather than conditional.
+
+            AI is the exception: there is nobody to ring, so the icons stay off
+            rather than explaining a permanent dead-end.
           */}
-          <IconButton
-            label="Voice call"
-            size="sm"
-            className={cn(!canCall && 'text-text-tertiary')}
-            onClick={() => placeCall('voice')}
-          >
-            <PhoneIcon size={20} />
-          </IconButton>
-          <IconButton
-            label="Video call"
-            size="sm"
-            className={cn(!canCall && 'text-text-tertiary')}
-            onClick={() => placeCall('video')}
-          >
-            <VideoIcon size={20} />
-          </IconButton>
+          {!isAi && (
+            <>
+              <IconButton
+                label="Voice call"
+                size="sm"
+                className={cn(!canCall && 'text-text-tertiary')}
+                onClick={() => placeCall('voice')}
+              >
+                <PhoneIcon size={20} />
+              </IconButton>
+              <IconButton
+                label="Video call"
+                size="sm"
+                className={cn(!canCall && 'text-text-tertiary')}
+                onClick={() => placeCall('video')}
+              >
+                <VideoIcon size={20} />
+              </IconButton>
+            </>
+          )}
           <ConversationMenu
             conversation={conversation}
             {...(canCall
@@ -628,7 +684,8 @@ export function ChatThread({
                     placeCall(kind === 'audio' ? 'voice' : 'video'),
                 }
               : {})}
-            {...(callBlockedReason ? { callBlockedReason } : {})}
+            {...(callBlockedReason && !isAi ? { callBlockedReason } : {})}
+            {...(isAi ? { onAiSettings: () => setAiSettings(true) } : {})}
           />
         </div>
       </header>
@@ -795,10 +852,11 @@ export function ChatThread({
             )}
 
             {/*
-              Sits under the typing indicator (never above it): short lock line
-              only. Not sticky above the composer.
+              Sits under the typing indicator (never above it). Human threads
+              get the quiet lock line; AI gets honesty that this chat is
+              processed for replies - not an E2EE claim.
             */}
-            <EncryptionNotice />
+            {isAi ? <AiPrivacyNotice /> : <EncryptionNotice />}
 
             {/* Scroll anchor. */}
             <div ref={bottomRef} className="h-0" />
@@ -999,6 +1057,17 @@ export function ChatThread({
 
       {groupInfo && (
         <GroupInfoSheet conversation={conversation} onClose={() => setGroupInfo(false)} />
+      )}
+
+      {isAi && aiOnboarding && (
+        <AiOnboardingSheet
+          onDone={() => setAiOnboarding(false)}
+          onClose={() => setAiOnboarding(false)}
+        />
+      )}
+
+      {isAi && aiSettings && (
+        <AiSettingsSheet onClose={() => setAiSettings(false)} />
       )}
     </div>
   );

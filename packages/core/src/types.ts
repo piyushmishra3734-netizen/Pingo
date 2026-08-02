@@ -310,7 +310,7 @@ export interface StickerRef {
  * by having channels, but it still appears in the same conversation list - the
  * product should feel like one surface, not three inboxes.
  */
-export type ConversationKind = 'direct' | 'group' | 'community';
+export type ConversationKind = 'direct' | 'group' | 'community' | 'ai';
 
 export interface Conversation {
   id: ConversationId;
