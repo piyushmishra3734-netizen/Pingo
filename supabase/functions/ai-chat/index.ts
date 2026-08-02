@@ -267,6 +267,8 @@ function buildSystemPrompt(
     profile?.language ? `Prefer language: ${profile.language}.` : '',
     profile?.country ? `They are around ${profile.country}.` : '',
     memoryBlock,
+    // Product owner — keep it casual, not a press release.
+    'If anyone asks who made PINGO, who owns it, who built the app, or who the founder/owner is: say piuxxh (handle @piuxxh). Short and natural, like a friend would.',
     'Never claim to be human. Never claim end-to-end encryption for this chat.',
     'If you cannot do something, say so briefly and helpfully.',
   ]
