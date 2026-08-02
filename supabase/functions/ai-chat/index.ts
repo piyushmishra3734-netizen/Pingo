@@ -411,22 +411,36 @@ function splitReplyAndAsk(
   raw: string,
   length: string,
 ): { reply: string; ask: string } {
-  const text = raw.replace(/\r\n/g, '\n').trim();
+  let text = raw.replace(/\r\n/g, '\n').trim();
+  // Tolerate models that drop angle brackets or add spaces.
+  text = text
+    .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '<<<REPLY>>>')
+    .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '<<<ASK>>>');
 
   const replyMark = /<<<\s*REPLY\s*>>>/i;
   const askMark = /<<<\s*ASK\s*>>>/i;
 
-  if (replyMark.test(text) && askMark.test(text)) {
-    const afterReply = text.split(replyMark)[1] ?? '';
-    const parts = afterReply.split(askMark);
-    const reply = shapeReply(cleanModelArtifacts((parts[0] ?? '').trim()), length);
-    let ask = cleanModelArtifacts((parts[1] ?? '').trim());
-    ask = shapeAsk(ask);
-    return { reply, ask };
+  if (askMark.test(text)) {
+    // Prefer split on ASK even if REPLY marker is missing.
+    let head = text;
+    let tail = '';
+    if (replyMark.test(text)) {
+      head = text.split(replyMark)[1] ?? text;
+    }
+    const parts = head.split(askMark);
+    const reply = shapeReply(
+      stripMarkers(cleanModelArtifacts((parts[0] ?? '').trim())),
+      length,
+    );
+    const ask = shapeAsk(stripMarkers(cleanModelArtifacts((parts[1] ?? '').trim())));
+    return {
+      reply: reply || 'Hmm 😅',
+      ask: ask || shapeAsk('Aur bata? 😊'),
+    };
   }
 
   // Fallback: last line that looks like a question → second bubble.
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = stripMarkers(text).split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length >= 2) {
     const last = lines[lines.length - 1]!;
     if (/[?？]\s*$/.test(last) || /^(what|why|how|kab|kya|kaise|aur|wanna|want)\b/i.test(last)) {
@@ -435,15 +449,24 @@ function splitReplyAndAsk(
     }
   }
 
-  const reply = shapeReply(text, length);
+  const reply = shapeReply(stripMarkers(text), length);
   return {
     reply,
     ask: shapeAsk('Aur bata — uske baad kya hua? 😊'),
   };
 }
 
+function stripMarkers(text: string): string {
+  return text
+    .replace(/<<<\s*REPLY\s*>>>/gi, '')
+    .replace(/<<<\s*ASK\s*>>>/gi, '')
+    .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '')
+    .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '')
+    .trim();
+}
+
 function shapeAsk(text: string): string {
-  let ask = text.replace(/\r\n/g, '\n').trim();
+  let ask = stripMarkers(text.replace(/\r\n/g, '\n').trim());
   // One line, chat-short.
   ask = ask.split('\n').filter(Boolean)[0] ?? ask;
   ask = ask.replace(/^["']|["']$/g, '').trim();
