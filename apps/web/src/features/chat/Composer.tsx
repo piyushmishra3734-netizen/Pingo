@@ -66,6 +66,20 @@ export interface ComposerProps {
   className?: string;
 }
 
+/**
+ * Files out of a `DataTransferItemList`.
+ *
+ * Chrome and Android put a keyboard image in `files`; some Safari builds expose
+ * it only here, and reading the wrong one is the difference between the feature
+ * working and the button looking dead.
+ */
+function filesFromItems(items: DataTransferItemList): File[] {
+  return [...items]
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null);
+}
+
 /** Growth cap, in px. Roughly six lines before the field starts to scroll. */
 const MAX_HEIGHT = 140;
 
@@ -160,6 +174,68 @@ export function Composer({
     el.addEventListener('beforeinput', handler);
     return () => el.removeEventListener('beforeinput', handler);
   });
+
+  /*
+   * A field the keyboard will put a GIF into.
+   *
+   * Android only offers the GIF and sticker keys when the focused element
+   * advertises rich content, which Chrome does for `contenteditable` and not
+   * for a `<textarea>` — so with the composer as it is, Gboard answers "this app
+   * doesn't support GIF here" and no web event fires at all. No paste handler
+   * can rescue that, because nothing is ever sent.
+   *
+   * Rewriting the composer as `contenteditable` is the real fix and drags in
+   * autosize, placeholder, Enter handling, IME and undo. This is the small
+   * version: one focusable element that exists only to receive an image, so
+   * typing keeps working exactly as it does now.
+   */
+  const gifCatcher = useRef<HTMLDivElement>(null);
+  // A touch keyboard is the only kind with a GIF key.
+  const isTouch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+  const [catching, setCatching] = useState(false);
+
+  useEffect(() => {
+    const el = gifCatcher.current;
+    if (!el || !catching) return;
+
+    el.textContent = '';
+    el.focus();
+
+    const done = (files: File[]) => {
+      if (!takeImages(files)) return false;
+      el.textContent = '';
+      setCatching(false);
+      // Back to the composer so the keyboard does not close under them.
+      textareaRef.current?.focus();
+      return true;
+    };
+
+    const onPaste = (event: ClipboardEvent) => {
+      const data = event.clipboardData;
+      if (!data) return;
+      const files = [...data.files];
+      if (done(files.length > 0 ? files : filesFromItems(data.items))) event.preventDefault();
+    };
+
+    const onInsert = (event: Event) => {
+      const transfer = (event as InputEvent).dataTransfer;
+      if (!transfer) return;
+      const files = [...transfer.files];
+      if (done(files.length > 0 ? files : filesFromItems(transfer.items))) event.preventDefault();
+    };
+
+    // Leaving without picking anything should not strand the user in a mode.
+    const onBlur = () => setCatching(false);
+
+    el.addEventListener('paste', onPaste);
+    el.addEventListener('beforeinput', onInsert);
+    el.addEventListener('blur', onBlur);
+    return () => {
+      el.removeEventListener('paste', onPaste);
+      el.removeEventListener('beforeinput', onInsert);
+      el.removeEventListener('blur', onBlur);
+    };
+  }, [catching]);
 
   const recorder = useVoiceRecorder();
 
@@ -411,7 +487,54 @@ export function Composer({
         >
           <SmileIcon size={20} />
         </IconButton>
+
+        {/*
+          Only where it can actually help.
+
+          On a desktop the keyboard has no GIF key, and Ctrl+V into the composer
+          already works — a button that opens an empty field there would be a
+          dead end. `coarse` is the honest test: it means a touch keyboard, which
+          is the only kind with a GIF key.
+        */}
+        {onPasteFiles && isTouch && (
+          <IconButton
+            label="Send a GIF from your keyboard"
+            size="sm"
+            variant="ghost"
+            className={cn('mb-0.5', catching && 'text-brand')}
+            onClick={() => setCatching((was) => !was)}
+          >
+            <span className="text-[11px] font-semibold leading-none">GIF</span>
+          </IconButton>
+        )}
       </div>
+
+      {/*
+        The field the keyboard inserts into, and nothing else.
+
+        It has to be focusable and genuinely contenteditable for Android to offer
+        the GIF key at all, so it cannot be `hidden` or zero-sized in a way that
+        drops it out of the focus order. It carries no text, and anything typed
+        into it is discarded rather than sent.
+      */}
+      {catching && (
+        <div className="flex items-center gap-2 px-1 pt-1">
+          <div
+            ref={gifCatcher}
+            contentEditable
+            role="textbox"
+            aria-label="Pick a GIF or sticker from your keyboard"
+            suppressContentEditableWarning
+            className={cn(
+              'min-w-0 flex-1 rounded-lg border border-line-strong bg-surface',
+              'px-3 py-2 text-caption text-text-tertiary outline-none',
+            )}
+          />
+          <span className="shrink-0 text-caption text-text-tertiary">
+            Now tap the GIF key on your keyboard
+          </span>
+        </div>
+      )}
 
       </>
       )}
