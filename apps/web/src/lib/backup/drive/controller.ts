@@ -551,6 +551,31 @@ export class DriveBackupController {
     });
   }
 
+  /**
+   * Report that a backup could not start, without pretending one happened.
+   *
+   * Uses the same surface as an incomplete proof, because it is the same kind
+   * of news: nothing was uploaded, nothing was lost, and the previous backup is
+   * still the live one. Not an error phase — nothing failed, and reconnecting
+   * would not help.
+   */
+  async reportBlocked(headline: string, detail: string): Promise<DriveView> {
+    return this.#exclusive(async () => {
+      const saved = await this.store.read();
+      this.#set({
+        phase: 'connected',
+        connected: saved?.connected ?? true,
+        stage: undefined,
+        stageLabel: undefined,
+        progress: undefined,
+        message: undefined,
+        needsReconnect: undefined,
+        incomplete: { headline, detail },
+      });
+      return this.#view;
+    });
+  }
+
   async restore(
     recoveryPrivateKey: CryptoKey,
     apply: (plaintext: Uint8Array) => Promise<void>,

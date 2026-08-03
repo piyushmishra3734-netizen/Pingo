@@ -106,16 +106,36 @@ export function SecureBackupScreen() {
       ? { package: local.package, publicKey: local.publicKey }
       : undefined;
 
-    const userId = (await getSupabaseClient().auth.getUser()).data.user?.id;
+    /*
+     * The local session first, the network second.
+     *
+     * `getUser()` validates against the auth server, and measured against
+     * production it returned no user here while the very same call succeeded
+     * elsewhere in the app — so the complete-history path never ran and the
+     * fallback below quietly archived the cache instead. `getSession()` reads
+     * the persisted session without a round trip, which is both faster and has
+     * one fewer way to fail before a backup that has not started yet.
+     */
+    const auth = getSupabaseClient().auth;
+    const userId =
+      (await auth.getSession()).data.session?.user?.id ??
+      (await auth.getUser()).data.user?.id;
 
     /*
-     * Without a signed-in user there is nothing to count and nothing to walk,
-     * so the old path is the honest fallback rather than a broken new one: it
-     * archives whatever is already stored, which is exactly what it has always
-     * done.
+     * No silent fallback.
+     *
+     * This used to drop to `backupStreaming`, which archives whatever the local
+     * database happens to hold. On an account that has never been scrolled back
+     * that is the newest few hundred messages — and it reported "Backup
+     * complete" for it. A backup that quietly contains less than it claims is
+     * the exact failure this whole pipeline exists to prevent, so if the user
+     * cannot be identified the backup stops and says so.
      */
     if (!userId) {
-      await driveCtl.backupStreaming(local.publicKey, storedPackage);
+      await driveCtl.reportBlocked(
+        'Backup stopped: PINGO could not confirm who is signed in.',
+        'Nothing was uploaded. Your previous backup is untouched. Signing out and back in should fix this.',
+      );
       return;
     }
 
