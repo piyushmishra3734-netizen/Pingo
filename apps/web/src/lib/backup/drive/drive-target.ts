@@ -203,7 +203,27 @@ export class GoogleDriveBackupTarget implements BackupTarget {
       onChunk: (chunk: ArchiveChunk) => Promise<void>,
     ) => Promise<{ manifest: ArchiveManifest; stats: { skipped: number; records: number } }>,
     onProgress?: (progress: ArchiveProgress) => void,
-  ): Promise<{ generation: number; bytes: number; skipped: number; records: number; discarded: number }> {
+    /**
+     * Read the generation back before the old one is deleted.
+     *
+     * Runs after HEAD and before the clean, which is the only window where a
+     * failure is still recoverable: after HEAD because verifying a file nobody
+     * points at proves nothing, and before the clean because putting the
+     * pointer back needs the previous generation to still exist. Returning
+     * false skips the clean, leaving the older backup in place.
+     *
+     * Optional, and when it is absent the clean runs as it always did — a
+     * caller that never checks has nothing to roll back to anyway.
+     */
+    verify?: (generation: number) => Promise<boolean>,
+  ): Promise<{
+    generation: number;
+    bytes: number;
+    skipped: number;
+    records: number;
+    discarded: number;
+    verified?: boolean;
+  }> {
     const current = await this.head();
     const generation = (current?.generation ?? 0) + 1;
 
@@ -237,10 +257,74 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     );
     if (previousHead) await this.drive.remove(previousHead.id);
 
-    onProgress?.({ phase: 'cleaning' });
-    await this.#removeGenerationsBefore(generation);
+    /*
+     * The one window where a bad generation is still recoverable. Everything
+     * before this point could be abandoned; everything after it is permanent.
+     */
+    const verified = verify ? await verify(generation) : undefined;
 
-    return { generation, bytes, skipped: stats.skipped, records: stats.records, discarded: orphans.length };
+    if (verified !== false) {
+      onProgress?.({ phase: 'cleaning' });
+      await this.#removeGenerationsBefore(generation);
+    }
+
+    return {
+      generation,
+      bytes,
+      skipped: stats.skipped,
+      records: stats.records,
+      discarded: orphans.length,
+      ...(verified === undefined ? {} : { verified }),
+    };
+  }
+
+  /**
+   * A `VerificationStore` over this Drive folder.
+   *
+   * Chunk presence and size come from file metadata, so those checks cost a
+   * listing rather than a download — which is what lets them run in full while
+   * the digest pass samples.
+   */
+  verificationStore() {
+    const drive = this.drive;
+    return {
+      head: async () => {
+        const found = await this.head();
+        return found ? { generation: found.generation } : undefined;
+      },
+      writeHead: async (generation: number) => {
+        const previous = await drive.find(HEAD_FILE);
+        await drive.upload(
+          HEAD_FILE,
+          encoder.encode(JSON.stringify({ generation, updatedAt: Date.now() })),
+        );
+        if (previous) await drive.remove(previous.id);
+      },
+      removeHead: async () => {
+        const found = await drive.find(HEAD_FILE);
+        if (found) await drive.remove(found.id);
+      },
+      generations: async () => {
+        const out: number[] = [];
+        for (const file of await drive.list('pingo.manifest.g')) {
+          const match = /^pingo\.manifest\.g(\d+)\.json$/.exec(file.name);
+          if (match) out.push(Number(match[1]));
+        }
+        return out;
+      },
+      readManifest: async (generation: number) => {
+        const file = await drive.find(manifestName(generation));
+        return file ? decoder.decode(await drive.download(file.id)) : undefined;
+      },
+      chunkSize: async (generation: number, index: number) => {
+        const file = await drive.find(chunkName(generation, index));
+        return file?.size;
+      },
+      readChunk: async (generation: number, index: number) => {
+        const file = await drive.find(chunkName(generation, index));
+        return file ? await drive.download(file.id) : undefined;
+      },
+    };
   }
 
   async restoreArchive(

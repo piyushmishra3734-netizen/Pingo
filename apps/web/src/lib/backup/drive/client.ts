@@ -26,6 +26,17 @@ export interface DriveFile {
   modifiedTime?: string;
 }
 
+/**
+ * Drive reports `size` as a decimal *string*, not a number.
+ *
+ * Handing it back raw type-checks fine and compares wrong: a chunk size check
+ * would test "64" !== 64 and fail every chunk, against real Drive only. Every
+ * in-memory stand-in returns a number, so nothing catches it until production.
+ */
+function normalise(file: DriveFile): DriveFile {
+  return file.size === undefined ? file : { ...file, size: Number(file.size) };
+}
+
 export class DriveError extends Error {
   constructor(
     message: string,
@@ -105,7 +116,7 @@ export class DriveClient {
     if (!response.ok) throw new DriveError(`Drive list failed (${response.status}).`, 'failed', response.status);
 
     const body = (await response.json()) as { files?: DriveFile[] };
-    return body.files?.[0];
+    return body.files?.[0] ? normalise(body.files[0]) : undefined;
   }
 
   async list(prefix: string): Promise<DriveFile[]> {
@@ -114,7 +125,7 @@ export class DriveClient {
     const response = await this.#send(url, { method: 'GET' });
     if (!response.ok) throw new DriveError(`Drive list failed (${response.status}).`, 'failed', response.status);
     const body = (await response.json()) as { files?: DriveFile[] };
-    return body.files ?? [];
+    return (body.files ?? []).map(normalise);
   }
 
   /**

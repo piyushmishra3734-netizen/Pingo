@@ -1,6 +1,6 @@
 # PINGO — backing up complete history
 
-**Status:** implementation in progress. Steps 1-3 shipped and verified.
+**Status:** implemented and verified. All six steps shipped; not yet wired to the product surface (§14.4).
 **Supersedes:** the cache-snapshot assumption in
 [effortless-backup-plan.md](./effortless-backup-plan.md) and
 [e2ee-relay-and-backup-plan.md](./e2ee-relay-and-backup-plan.md).
@@ -738,4 +738,74 @@ and the receipt is written only after verification passes — so a receipt sayin
 | 3 | `receipt.ts` — immutable receipt, restore verification | done — 47 checks |
 | 4 | `completeness.ts` — the proof, the retry set, the header | done — 49 checks |
 | 5 | `verification.ts` — read-back, sampling, rollback | done — 64 checks |
-| 6 | archive integration, end to end on a wiped device | next |
+| 6 | `pipeline.ts` — the lifecycle, end to end on a wiped device | done — 58 checks |
+
+---
+
+## 14. Integration
+
+The modules above each prove they work alone. `pipeline.ts` is the one that puts
+them in order, and `verify-pipeline.ts` proves the order holds — real backfill,
+real proof, real archive builder, real Drive target, real verification, real
+sealed receipt. Only the network and the database are stand-ins.
+
+```
+preparing → downloading → proving → encrypting → uploading → verifying → recording → done
+```
+
+The stage names map one-to-one onto the modules, so the progress a user watches
+is the work actually happening. `STAGE_LABELS` lives beside the stage type so a
+new stage cannot be added without deciding what it is called — a label invented
+at the call site is how "Encrypting…" ends up on screen during an upload.
+
+### 14.1 What the end-to-end run proves
+
+| Claim | How it is shown |
+| --- | --- |
+| The proof blocks the archive | one unreachable conversation → nothing uploaded, no HEAD, no receipt |
+| Verification runs while rollback is possible | a chunk deleted after HEAD → HEAD back to generation 1 |
+| The old backup survives a failure | generation 1 still restores in full, all 425 messages |
+| The clean waits for verification | `pingo.manifest.g1.json` still present after a failed generation 2 |
+| The receipt records reality | `proven` · `verified`, counts matching the proof |
+| Receipts chain | second receipt carries the first's hash |
+| A wiped device can read it back | 425 of 425 messages, 3 of 3 conversations |
+| The restore matches its receipt | `verified`, no warnings |
+| A repeat backup is cheap | `messagesFetched === 0`, proof still run afresh |
+| An empty account is not a backup | "Nothing to back up yet", nothing uploaded |
+
+### 14.2 Two changes to existing code
+
+**The clean now waits.** `backupArchiveStreaming` takes an optional `verify`
+callback that runs after HEAD and before the clean, and returning false skips
+the clean. Without it the behaviour is unchanged — a caller that never verifies
+has nothing to roll back to anyway — so the ordering is available where it
+matters without a second code path.
+
+**The completeness block travels in the header.** `archiveLines` takes it as an
+optional second argument and writes it into the header record, inside the
+encryption. `openArchiveHeader` reads it back from chunk zero alone, so
+verifying which account state an archive holds costs one chunk rather than a
+full restore. The AAD still binds generation, index and chunk count, so reading
+less does not mean checking less.
+
+### 14.3 A bug the integration found
+
+`DriveClient.find` and `.list` returned Google's file metadata unchanged, and
+the Drive API reports `size` as a decimal **string**. The chunk-size check
+compares it against a number, so `"64" !== 64` would have failed every chunk of
+every backup — against real Drive only. Every in-memory stand-in in this
+repository returns a number, so no existing suite could have caught it, and it
+would have surfaced as "your backup is corrupt" on the first real verification.
+
+Normalised in `client.ts` at the one place the metadata enters, rather than at
+each comparison.
+
+### 14.4 What is deliberately not wired yet
+
+`controller.ts` still drives the old path. Switching the product surface over is
+a UI change — preflight summary, four-stage progress, the blocked-proof screen —
+and it belongs with that work rather than buried in this one. The pipeline is
+complete, verified, and callable.
+
+Media remains v2 (§5), and retention still must not shorten until an account has
+a completed backfill and a verified archive (§6).

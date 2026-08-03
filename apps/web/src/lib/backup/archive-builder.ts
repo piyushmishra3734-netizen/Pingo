@@ -85,9 +85,25 @@ export interface ArchiveStats {
  */
 export async function* archiveLines(
   stores: StoreName[] = ARCHIVED_STORES,
+  /**
+   * The completeness proof, travelling inside the encryption.
+   *
+   * Deliberately here and not in the manifest. The manifest is plaintext to
+   * Google, and a message count is a finer-grained signal than the archive size
+   * Drive can already see. A restore reads this back and compares, which is the
+   * only check that says *which account state* an archive holds rather than
+   * that its bytes survived the trip.
+   */
+  completeness?: { conversations: number; messages: number; provenAt: number },
 ): AsyncGenerator<Uint8Array> {
   yield encoder.encode(
-    `${JSON.stringify({ kind: 'header', version: 1, createdAt: Date.now(), stores })}\n`,
+    `${JSON.stringify({
+      kind: 'header',
+      version: 1,
+      createdAt: Date.now(),
+      stores,
+      ...(completeness ? { completeness } : {}),
+    })}\n`,
   );
 
   let records = 0;

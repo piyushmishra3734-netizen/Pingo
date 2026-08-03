@@ -278,3 +278,66 @@ export async function openArchive(
   }
   return out;
 }
+
+/**
+ * Read only the archive header, from only the first chunk.
+ *
+ * Verification needs to know which account state an archive holds, and the
+ * answer is in the first line of the plaintext. Downloading the whole archive
+ * to read one line would make a verified backup cost a full extra restore, so
+ * this opens chunk zero and nothing else.
+ *
+ * The AAD still binds generation, index and chunk count, so a chunk lifted from
+ * another archive or moved to position zero fails to open exactly as it would
+ * during a full restore. Reading less does not mean checking less.
+ */
+export async function openArchiveHeader(
+  manifest: ArchiveManifest,
+  firstChunk: Uint8Array,
+  recoveryPrivateKey: CryptoKey,
+): Promise<Record<string, unknown> | undefined> {
+  if (manifest.version !== 1) {
+    throw new ArchiveError('This backup was written by a newer version of PINGO.', 'unsupported');
+  }
+
+  const entry = manifest.chunks.find((c) => c.index === 0);
+  if (!entry) throw new ArchiveError('Backup part 0 is missing.', 'chunk-missing');
+
+  const ephemeral = await importPublic(manifest.epk);
+  const key = await archiveKey(recoveryPrivateKey, ephemeral, ['decrypt']);
+
+  let plaintext: Uint8Array;
+  try {
+    plaintext = new Uint8Array(
+      await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: fromBase64(entry.iv) as unknown as ArrayBuffer,
+          additionalData: chunkAad(manifest.generation, 0, manifest.chunkCount) as unknown as ArrayBuffer,
+        },
+        key,
+        firstChunk as unknown as ArrayBuffer,
+      ),
+    );
+  } catch {
+    throw new ArchiveError('Backup part 0 could not be opened.', 'chunk-corrupt');
+  }
+
+  /*
+   * The header is the first line. A chunk boundary cannot fall inside it — the
+   * header is a few hundred bytes and a chunk is megabytes — but a truncated or
+   * empty archive can leave no newline at all, and that reads as no header
+   * rather than as a crash.
+   */
+  const newline = plaintext.indexOf(0x0a);
+  if (newline < 0) return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext.subarray(0, newline)));
+    if (typeof parsed !== 'object' || parsed === null) return undefined;
+    const header = parsed as Record<string, unknown>;
+    return header.kind === 'header' ? header : undefined;
+  } catch {
+    return undefined;
+  }
+}

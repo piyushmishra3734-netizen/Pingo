@@ -32,7 +32,8 @@
     "verify:preflight": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-preflight.ts",
     "verify:receipt": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-receipt.ts",
     "verify:completeness": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-completeness.ts",
-    "verify:verification": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-verification.ts"
+    "verify:verification": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-verification.ts",
+    "verify:pipeline": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-pipeline.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
