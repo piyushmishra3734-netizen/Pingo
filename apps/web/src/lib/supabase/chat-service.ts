@@ -246,7 +246,7 @@ function newestUpdatedAt(rows: MessageRow[], fallback: string): string {
   return newest;
 }
 
-function toMessage(row: MessageRow, readAt: number | undefined): Message {
+export function toMessage(row: MessageRow, readAt: number | undefined): Message {
   return {
     id: row.id,
     conversationId: row.conversation_id,

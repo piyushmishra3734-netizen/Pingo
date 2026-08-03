@@ -14,7 +14,9 @@
  * entire account, so a count that transferred rows would download the account
  * twice to report on it once.
  */
-import { openRecord, sealRecord, writeMessageRows } from '../crypto/session.js';
+import { openRecord, openRow, sealRecord, writeMessageRows } from '../crypto/session.js';
+import { toMessage } from '../supabase/chat-service.js';
+import type { MessageRow } from '../supabase/types.js';
 import {
   STORE,
   localCount,
@@ -164,9 +166,19 @@ export function liveBackfillSource(client: Client, userId: string): BackfillSour
     },
 
     async page(conversationId, before, limit) {
+      /*
+       * The whole row, not just the paging keys.
+       *
+       * This selected `id, created_at` and the sink stored exactly that, so a
+       * backfilled message reached the archive as an id and a timestamp with no
+       * text. The backup verified perfectly, the counts matched to the message,
+       * and half the history had no content in it — the precise failure this
+       * pipeline exists to prevent, reached through the code meant to prevent
+       * it. `BackfillRow` documents that extra fields ride along to the sink.
+       */
       let query = client
         .from('messages')
-        .select('id, created_at')
+        .select('*')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -221,9 +233,31 @@ export const liveBackfillSink: BackfillSink = {
   async write(conversationId, rows) {
     const range = messageRowRange(conversationId);
     const before = await localCount(STORE.messageRows, range);
+
+    /*
+     * Decrypted here, and stored in the same shape chat-service stores.
+     *
+     * `openRow` rewrites `row.body` in place — plaintext when it opens, and the
+     * `UNREADABLE` placeholder when it does not. `session.ts` records what
+     * happens if a caller caches the second kind: a transient failure becomes
+     * the stored text and is then served ahead of the network for ever. An
+     * archive is that cache with a longer memory, so a row that will not open
+     * is skipped rather than backed up as the sentence "Sent before you added
+     * this device."
+     *
+     * Skipping is the honest outcome, not a workaround. A device can only back
+     * up what it can read, and the completeness proof will report the shortfall
+     * instead of an archive full of placeholders that verifies perfectly.
+     */
+    const full = rows as unknown as MessageRow[];
+    const readable: MessageRow[] = [];
+    for (const row of full) {
+      if (await openRow(row)) readable.push(row);
+    }
+
     await writeMessageRows(
       conversationId,
-      rows.map((row) => ({ id: row.id, createdAt: Date.parse(row.created_at) })),
+      readable.map((row) => toMessage(row, undefined) as unknown as { id: string; createdAt: number }),
     );
     return (await localCount(STORE.messageRows, range)) - before;
   },
