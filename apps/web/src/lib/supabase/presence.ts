@@ -25,6 +25,16 @@ import type { PingoSupabaseClient } from './client.js';
  * discard 99% of it is the kind of thing that works fine until it does not.
  */
 
+/**
+ * What someone is doing in a thread right now.
+ *
+ * One channel carries both, because they are the same kind of fact -- true for
+ * seconds, wrong forever after -- and share an expiry sweeper. A second channel
+ * would need its own timeout and could disagree with this one about whether the
+ * person is still there.
+ */
+export type ChatActivity = 'typing' | 'recording';
+
 /** How long a typing signal stands before it is assumed stale. */
 const TYPING_TIMEOUT_MS = 4_000;
 
@@ -33,7 +43,7 @@ const TYPING_THROTTLE_MS = 2_000;
 
 export interface PresenceHandlers {
   onPresence: (userId: UserId, state: PresenceState) => void;
-  onTyping: (conversationId: string, userIds: UserId[]) => void;
+  onTyping: (conversationId: string, userIds: UserId[], kind: ChatActivity) => void;
 }
 
 export class PresenceHub {
@@ -43,8 +53,8 @@ export class PresenceHub {
   #presence: ReturnType<PingoSupabaseClient['channel']> | undefined;
   #typing = new Map<string, ReturnType<PingoSupabaseClient['channel']>>();
 
-  /** Per conversation: who is typing, and when their signal expires. */
-  #typists = new Map<string, Map<UserId, number>>();
+  /** Per conversation: who is doing what, and when their signal expires. */
+  #typists = new Map<string, Map<UserId, { until: number; kind: ChatActivity }>>();
   #sweeper: ReturnType<typeof setInterval> | undefined;
   #lastSent = new Map<string, number>();
   #userId: UserId | undefined;
@@ -116,11 +126,16 @@ export class PresenceHub {
         config: { broadcast: { self: true } },
       })
       .on('broadcast', { event: 'typing' }, ({ payload }) => {
-        const { userId, typing } = payload as { userId: UserId; typing: boolean };
+        const { userId, typing, kind } = payload as {
+          userId: UserId;
+          typing: boolean;
+          kind?: ChatActivity;
+        };
         if (userId === this.#userId) return;
 
-        const map = this.#typists.get(conversationId) ?? new Map<UserId, number>();
-        if (typing) map.set(userId, Date.now() + TYPING_TIMEOUT_MS);
+        const map = this.#typists.get(conversationId) ?? new Map<UserId, { until: number; kind: ChatActivity }>();
+        // A sender on an older build sends no kind, and meant typing.
+        if (typing) map.set(userId, { until: Date.now() + TYPING_TIMEOUT_MS, kind: kind ?? 'typing' });
         else map.delete(userId);
         this.#typists.set(conversationId, map);
         this.#publish(conversationId);
@@ -138,19 +153,31 @@ export class PresenceHub {
    * always sent immediately - a late "still typing" is harmless, a late "stopped"
    * leaves the indicator up.
    */
-  async setTyping(conversationId: string, typing: boolean): Promise<void> {
+  async setTyping(
+    conversationId: string,
+    typing: boolean,
+    kind: ChatActivity = 'typing',
+  ): Promise<void> {
     this.watchTyping(conversationId);
     const channel = this.#typing.get(conversationId);
     if (!channel || !this.#userId) return;
 
+    /*
+     * Throttled per kind, not per conversation.
+     *
+     * Sharing one timestamp would let a keystroke swallow the "started
+     * recording" that came right after it, and the receiver would keep seeing
+     * "typing" while the sender held the microphone.
+     */
+    const throttleKey = `${conversationId}|${kind}`;
     const now = Date.now();
-    if (typing && now - (this.#lastSent.get(conversationId) ?? 0) < TYPING_THROTTLE_MS) return;
-    this.#lastSent.set(conversationId, typing ? now : 0);
+    if (typing && now - (this.#lastSent.get(throttleKey) ?? 0) < TYPING_THROTTLE_MS) return;
+    this.#lastSent.set(throttleKey, typing ? now : 0);
 
     await channel.send({
       type: 'broadcast',
       event: 'typing',
-      payload: { userId: this.#userId, typing },
+      payload: { userId: this.#userId, typing, kind },
     });
   }
 
@@ -166,8 +193,8 @@ export class PresenceHub {
       const now = Date.now();
       for (const [conversationId, map] of this.#typists) {
         let changed = false;
-        for (const [userId, expires] of map) {
-          if (expires <= now) {
+        for (const [userId, entry] of map) {
+          if (entry.until <= now) {
             map.delete(userId);
             changed = true;
           }
@@ -178,9 +205,18 @@ export class PresenceHub {
   }
 
   #publish(conversationId: string): void {
-    this.#handlers.onTyping(conversationId, [
-      ...(this.#typists.get(conversationId)?.keys() ?? []),
-    ]);
+    const map = this.#typists.get(conversationId);
+    this.#handlers.onTyping(
+      conversationId,
+      [...(map?.keys() ?? [])],
+      /*
+       * One kind for the line, not one per person. The indicator is a single
+       * sentence, and "recording" is the more specific thing to say when both
+       * are happening — somebody holding a microphone is further along than
+       * somebody who has touched a key.
+       */
+      [...(map?.values() ?? [])].some((entry) => entry.kind === 'recording') ? 'recording' : 'typing',
+    );
   }
 
   stop(): void {

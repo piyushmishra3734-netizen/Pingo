@@ -78,6 +78,32 @@ const OLDER_THRESHOLD = 200;
  */
 const DIVIDER_HOLD_MS = 600;
 
+/**
+ * A microphone that breathes, for "recording a voice note".
+ *
+ * Deliberately not the typing dots. Dots mean words are on the way; this is a
+ * different promise, and a receiver who reads it as text will keep waiting for
+ * text. The pulse is CSS rather than a timer so it costs nothing and stops with
+ * the element.
+ *
+ * `motion-reduce` drops the animation and leaves the icon, because the
+ * information is the microphone, not the movement.
+ */
+function RecordingPulse() {
+  return (
+    <span
+      aria-hidden
+      className="relative inline-flex h-3 w-3 items-center justify-center text-brand"
+    >
+      <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-brand/40 motion-reduce:hidden" />
+      <svg viewBox="0 0 24 24" className="relative h-3 w-3" fill="currentColor">
+        <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" />
+        <path d="M18 11a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-3.06A8 8 0 0 0 20 11h-2Z" />
+      </svg>
+    </span>
+  );
+}
+
 export function ChatThread({
   conversation,
   showBack = false,
@@ -322,10 +348,11 @@ export function ChatThread({
 
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
+  const isRecording = isTyping && conversation.typingActivity === 'recording';
   /** AI has no contact row - still show a normal typing line, not a blank. */
   const typingLabel = isAi
     ? 'typing…'
-    : formatTypingLabel(conversation.typingUserIds, users);
+    : formatTypingLabel(conversation.typingUserIds, users, conversation.typingActivity);
 
   /*
    * The "Seen" line, the way Instagram does it.
@@ -637,7 +664,14 @@ export function ChatThread({
             */}
             {isTyping ? (
               <span className="flex items-center gap-1.5 text-caption text-brand">
-                <PingoDot state="typing" size={4} />
+                {/*
+                  A microphone, not the typing dots.
+
+                  The dots mean "words are coming"; a voice note is a different
+                  promise and a different wait. Reusing the same mark would make
+                  the receiver read it as text on the way.
+                */}
+                {isRecording ? <RecordingPulse /> : <PingoDot state="typing" size={4} />}
                 {typingLabel}
               </span>
             ) : (
@@ -965,6 +999,7 @@ export function ChatThread({
               event: () => setSheet('event'),
             }}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}
+            onRecording={(recording) => void service.setRecording(conversation.id, recording)}
             ariaLabel={`Message ${conversation.title}`}
           />
         </div>

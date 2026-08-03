@@ -1,3 +1,4 @@
+import type { ChatActivity } from './chat-service.js';
 /**
  * PINGO domain model.
  *
@@ -366,6 +367,13 @@ export interface Conversation {
   listIds: string[];
   /** User IDs currently typing. Drives the typing dots in the list and header. */
   typingUserIds: UserId[];
+  /**
+   * What they are doing. Absent means typing.
+   *
+   * One field rather than a second list of user ids: the indicator is a single
+   * sentence, so it only ever needs one verb.
+   */
+  typingActivity?: ChatActivity;
   updatedAt: number;
   /**
    * Consecutive days both people have sent a message, direct chats only.

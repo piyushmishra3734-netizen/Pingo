@@ -694,6 +694,12 @@ export class MockChatService implements ChatService {
     void typing;
   }
 
+  /** Same as typing: there is nobody else in a mock to tell. */
+  async setRecording(conversationId: ConversationId, recording: boolean): Promise<void> {
+    void conversationId;
+    void recording;
+  }
+
   async toggleReaction(messageId: MessageId, emoji: string): Promise<Message> {
     const message = this.#findMessage(messageId);
     if (!message) throw new Error(`No such message: ${messageId}`);

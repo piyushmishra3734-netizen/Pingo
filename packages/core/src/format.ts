@@ -6,6 +6,7 @@
  * relative times that stop being relative after a week, and so on.
  */
 
+import type { ChatActivity } from './chat-service.js';
 import type { Conversation, Message, User, UserId } from './types.js';
 
 const MINUTE = 60_000;
@@ -200,17 +201,29 @@ export function messagePreview(
   return text;
 }
 
-/** "Anaya is typing" / "Anaya and Alex are typing" / "3 people are typing". */
-export function formatTypingLabel(userIds: UserId[], users: User[]): string {
+/**
+ * "Anaya is typing" / "Anaya is recording" / "3 people are typing".
+ *
+ * The verb is a parameter because the two states share a line and a channel but
+ * are not the same news. Showing "typing" while somebody is holding the
+ * microphone is worse than showing nothing — the receiver waits for text that
+ * is never coming.
+ */
+export function formatTypingLabel(
+  userIds: UserId[],
+  users: User[],
+  activity: ChatActivity = 'typing',
+): string {
+  const verb = activity === 'recording' ? 'recording' : 'typing';
   const names = userIds
     .map((id) => users.find((u) => u.id === id)?.name.split(' ')[0])
     .filter((n): n is string => Boolean(n));
 
-  // Someone is typing but their name is not in the contact cache (e.g. AI person).
-  if (names.length === 0) return userIds.length > 0 ? 'typing…' : '';
-  if (names.length === 1) return `${names[0]} is typing`;
-  if (names.length === 2) return `${names[0]} and ${names[1]} are typing`;
-  return `${names.length} people are typing`;
+  // Someone is there but their name is not in the contact cache (e.g. AI person).
+  if (names.length === 0) return userIds.length > 0 ? `${verb}…` : '';
+  if (names.length === 1) return `${names[0]} is ${verb}`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are ${verb}`;
+  return `${names.length} people are ${verb}`;
 }
 
 /**

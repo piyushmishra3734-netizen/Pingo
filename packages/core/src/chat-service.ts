@@ -145,6 +145,9 @@ export interface MessageReceipt {
  * Every event carries enough context for a reducer to apply it without a refetch.
  * This is what keeps phone and desktop consistent: both consume the same stream.
  */
+/** What somebody is doing in a thread right now. */
+export type ChatActivity = 'typing' | 'recording';
+
 export type ChatEvent =
   | { type: 'message:new'; message: Message }
   | { type: 'message:updated'; message: Message }
@@ -161,7 +164,20 @@ export type ChatEvent =
    * when something newer arrives. The list is what changed, not the chat.
    */
   | { type: 'conversation:removed'; conversationId: ConversationId }
-  | { type: 'typing:changed'; conversationId: ConversationId; userIds: UserId[] }
+  /**
+   * Somebody is typing, or holding the microphone.
+   *
+   * One event for both because they are the same fact with a different verb,
+   * and a receiver showing "typing" while the sender records a voice note is
+   * worse than showing nothing. Optional so an older emitter still compiles;
+   * absent means typing.
+   */
+  | {
+      type: 'typing:changed';
+      conversationId: ConversationId;
+      userIds: UserId[];
+      activity?: ChatActivity;
+    }
   /**
    * Somebody else's read cursor moved.
    *
@@ -338,6 +354,14 @@ export interface ChatService {
     member: boolean,
   ): Promise<void>;
   setTyping(conversationId: ConversationId, typing: boolean): Promise<void>;
+
+  /**
+   * Announces that this user is holding the microphone.
+   *
+   * The same lifetime as typing — true for seconds, wrong forever after — so a
+   * recorder that dies mid-note has its indicator swept rather than left up.
+   */
+  setRecording(conversationId: ConversationId, recording: boolean): Promise<void>;
   toggleReaction(messageId: MessageId, emoji: string): Promise<Message>;
 
   // -- message actions -----------------------------------------------------

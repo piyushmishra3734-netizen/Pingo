@@ -162,7 +162,9 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
         case 'typing:changed': {
           setConversations((previous) =>
             previous.map((c) =>
-              c.id === event.conversationId ? { ...c, typingUserIds: event.userIds } : c,
+              c.id === event.conversationId
+                ? { ...c, typingUserIds: event.userIds, typingActivity: event.activity }
+                : c,
             ),
           );
           break;

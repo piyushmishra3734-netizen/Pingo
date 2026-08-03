@@ -190,7 +190,7 @@ export function ConversationRow({
           {isTyping ? (
             <span className="min-w-0 flex-1 flex items-center gap-2 text-caption text-brand">
               <PingoDot state="typing" size={5} />
-              {formatTypingLabel(conversation.typingUserIds, users)}
+              {formatTypingLabel(conversation.typingUserIds, users, conversation.typingActivity)}
             </span>
           ) : (
             <>

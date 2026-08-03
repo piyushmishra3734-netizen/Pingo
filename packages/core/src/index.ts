@@ -12,6 +12,7 @@ export type * from './types.js';
 export type {
   ChatService,
   StartupSnapshot,
+  ChatActivity,
   ChatEvent,
   ConnectionState,
   MessageReceipt,

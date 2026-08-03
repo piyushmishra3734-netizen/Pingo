@@ -44,6 +44,14 @@ export interface ComposerProps {
   placeholder?: string;
   /** Called as the field fills and empties, so the other side sees the dots. */
   onTyping?: (typing: boolean) => void | Promise<void>;
+  /**
+   * Called as the microphone opens and closes, so the other side can say so.
+   *
+   * Separate from `onTyping` because the receiver shows a different sentence,
+   * and because cancelling a take must clear the indicator without also
+   * claiming the user stopped typing something they never started.
+   */
+  onRecording?: (recording: boolean) => void | Promise<void>;
   /** Announced to screen readers, e.g. "Message Anaya Sharma". */
   ariaLabel?: string;
   className?: string;
@@ -67,6 +75,7 @@ export function Composer({
   onSendVoice,
   onSendSticker,
   onTyping,
+  onRecording,
   placeholder = 'Type a message...',
   ariaLabel = 'Message',
   className,
@@ -91,6 +100,21 @@ export function Composer({
   const hasText = value.trim().length > 0;
 
   const recorder = useVoiceRecorder();
+
+  /*
+   * Mirror the recorder state onto the wire from one effect.
+   *
+   * Announcing at each call site would mean remembering it at start, at send,
+   * at cancel and at unmount, and the one that gets forgotten leaves the other
+   * person watching "recording" for ever. The effect cannot forget.
+   */
+  useEffect(() => {
+    void onRecording?.(recorder.recording);
+    if (!recorder.recording) return;
+    return () => {
+      void onRecording?.(false);
+    };
+  }, [recorder.recording, onRecording]);
 
   /** Set while a press is being treated as hold-to-record. */
   const heldRef = useRef(false);

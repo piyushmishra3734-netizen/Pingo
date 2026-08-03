@@ -500,8 +500,8 @@ export class SupabaseChatService implements ChatService {
         if (cached) this.#people.set(userId, { ...cached, presence });
         this.#emit({ type: 'presence:changed', userId, presence });
       },
-      onTyping: (conversationId, userIds) => {
-        this.#emit({ type: 'typing:changed', conversationId, userIds });
+      onTyping: (conversationId, userIds, activity) => {
+        this.#emit({ type: 'typing:changed', conversationId, userIds, activity });
       },
     });
 
@@ -2656,6 +2656,18 @@ export class SupabaseChatService implements ChatService {
   /** Not persisted - typing needs a realtime presence channel, not a table. */
   async setTyping(conversationId: ConversationId, typing: boolean): Promise<void> {
     await this.#presenceHub.setTyping(conversationId, typing);
+  }
+
+  /**
+   * Announces that this user is holding the microphone.
+   *
+   * The same channel and the same expiry as typing, because it is the same kind
+   * of fact: true for seconds, wrong forever after. A recorder that dies
+   * mid-note never sends the stopping signal, and the sweeper is what takes the
+   * indicator down rather than a promise that the sender will behave.
+   */
+  async setRecording(conversationId: ConversationId, recording: boolean): Promise<void> {
+    await this.#presenceHub.setTyping(conversationId, recording, 'recording');
   }
 
   /**
