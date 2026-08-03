@@ -84,22 +84,35 @@ export function livePreflightSource(client: Client, userId: string): PreflightSo
     countDocuments: () => count((q) => q.eq('kind', 'document').not('file_mime', 'like', 'video/%')),
     countVoiceNotes: () => count((q) => q.eq('kind', 'voice')),
     /*
-     * Media size is the one figure that cannot come from a count, and it is the
-     * least important one on the screen — it is shown for context and is not
-     * part of the archive in v1. A sum aggregate that some deployments do not
-     * expose should not be able to fail a backup, so an unsupported response
-     * becomes zero through the same path as any other unavailable figure.
+     * Media size, when the project will answer for it.
+     *
+     * Measured against production: this Supabase project has aggregates turned
+     * off, and `file_size.sum()` comes back `PGRST123 — Use of aggregate
+     * functions is not allowed`. That is a permanent property of the
+     * deployment, not a transient failure, so letting it throw would mark every
+     * preflight for every user `partial` and print "Could not measure: media
+     * size" under a summary that is otherwise complete.
+     *
+     * A warning that is always on is a warning nobody reads, and the line it
+     * would train people to ignore is the one that matters: a failed *message*
+     * count. So an unavailable sum returns zero and stays silent — the figure
+     * is contextual, media is not in the v1 archive at all, and
+     * `formatPreflight` omits the row entirely when it is zero.
      */
     async mediaBytes() {
       const conversations = await ids;
       if (conversations.length === 0) return 0;
-      const { data, error } = await client
-        .from('messages')
-        .select('file_size.sum()')
-        .in('conversation_id', conversations);
-      if (error) throw error;
-      const row = (data as Array<{ sum?: number | null }> | null)?.[0];
-      return row?.sum ?? 0;
+      try {
+        const { data, error } = await client
+          .from('messages')
+          .select('file_size.sum()')
+          .in('conversation_id', conversations);
+        if (error) return 0;
+        const row = (data as Array<{ sum?: number | null }> | null)?.[0];
+        return row?.sum ?? 0;
+      } catch {
+        return 0;
+      }
     },
   };
 }
@@ -111,6 +124,29 @@ export function livePreflightSource(client: Client, userId: string): PreflightSo
  * resolved to its timestamp first. Ordering by id would be ordering by a uuid,
  * which is ordering by nothing.
  */
+/**
+ * Strictly older than one exact message, ties included.
+ *
+ * A bare `created_at < X` is wrong at a page boundary. Two messages can share a
+ * timestamp, and if the boundary falls between them the filter excludes both —
+ * the one already fetched and the one never fetched. `countOlderThan` uses the
+ * same predicate, so the count agrees with the omission, the walk terminates,
+ * and the cursor says complete while history is missing.
+ *
+ * The completeness proof catches it, because it compares the local store
+ * against an unfiltered server count. But it catches it as a permanent
+ * shortfall: every retry would resume from the same cursor and skip the same
+ * rows, so the account could never be backed up at all.
+ *
+ * Keyset pagination instead — order by `(created_at, id)` and compare on the
+ * pair. Measured on production data: one thousand consecutive messages had one
+ * thousand distinct microsecond timestamps, so this is rare rather than
+ * theoretical, and unrecoverable when it happens.
+ */
+function olderThan(createdAt: string, id: string): string {
+  return `created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`;
+}
+
 export function liveBackfillSource(client: Client, userId: string): BackfillSource {
   const timestampOf = async (conversationId: string, id: string): Promise<string | undefined> => {
     const { data } = await client
@@ -141,7 +177,7 @@ export function liveBackfillSource(client: Client, userId: string): BackfillSour
         // A cursor pointing at a message that no longer exists must not silently
         // restart the walk from the newest end; it would loop forever.
         if (at === undefined) return [];
-        query = query.lt('created_at', at);
+        query = query.or(olderThan(at, before));
       }
 
       const { data, error } = await query;
@@ -158,7 +194,7 @@ export function liveBackfillSource(client: Client, userId: string): BackfillSour
       if (before) {
         const at = await timestampOf(conversationId, before);
         if (at === undefined) return 0;
-        query = query.lt('created_at', at);
+        query = query.or(olderThan(at, before));
       }
 
       const { count, error } = await query;
