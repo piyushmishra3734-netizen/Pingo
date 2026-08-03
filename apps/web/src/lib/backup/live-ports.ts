@@ -416,8 +416,23 @@ export async function liveBackupPorts(options: {
       });
     },
 
-    async backfill(signal) {
-      return runBackfill(backfillSource, liveBackfillSink, liveCursorStore, { signal });
+    /*
+     * Progress is reported per conversation, not per message.
+     *
+     * Measured on a real account: this stage ran for minutes and sat at "0%"
+     * the whole time, because the callback was accepted and never called. A bar
+     * that never moves during the longest step reads as a hang, which is the
+     * one thing an honest progress display exists to prevent.
+     *
+     * Conversations rather than messages because the message total is only
+     * known per conversation as it is walked, so a message-based percentage
+     * would jump backwards as each new chat is discovered.
+     */
+    async backfill(signal, onPage) {
+      return runBackfill(backfillSource, liveBackfillSink, liveCursorStore, {
+        signal,
+        onProgress: (p) => onPage(p.conversationsDone, p.conversationsTotal),
+      });
     },
 
     async prove() {
