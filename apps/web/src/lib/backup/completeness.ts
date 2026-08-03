@@ -65,6 +65,13 @@ export interface ConversationProof {
   /** `local - server`. Negative is a shortfall; positive is fine, see below. */
   difference: number;
   cursorComplete: boolean;
+  /**
+   * Rows this device could not decrypt, so never stored.
+   *
+   * Counted apart from a shortfall because no retry can improve it. Treating
+   * the two alike blocks every backup of the readable history for ever.
+   */
+  unreadable: number;
   status: ConversationStatus;
   reason?: string;
 }
@@ -83,6 +90,8 @@ export interface CompletenessProof {
   conversations: ConversationProof[];
   /** How much is missing, for the words shown to the user. */
   shortfall: { conversations: number; messages: number };
+  /** Messages the device cannot read, across the account. Not a shortfall. */
+  unreadable: number;
   totals: { conversations: number; serverMessages: number; localMessages: number };
   /**
    * Held locally but absent from the server's list.
@@ -163,6 +172,7 @@ async function proveConversation(
       localCount: 0,
       difference: 0,
       cursorComplete: false,
+      unreadable: 0,
       status: 'unmeasured',
       reason: cause instanceof Error ? cause.message : 'the count could not be read',
     };
@@ -170,6 +180,7 @@ async function proveConversation(
 
   const stored = await cursors.read(conversationId);
   const cursorComplete = isValidCursor(stored) && stored.complete;
+  const unreadable = isValidCursor(stored) ? (stored.unreadable ?? 0) : 0;
   const difference = localCount - serverCount;
 
   /*
@@ -188,12 +199,20 @@ async function proveConversation(
       localCount,
       difference,
       cursorComplete,
+      unreadable,
       status: 'not-walked',
       reason: 'this chat has not been walked back to its beginning yet',
     };
   }
 
-  if (localCount < serverCount) {
+  /*
+   * The device holding fewer rows than the server is only a shortfall for the
+   * rows it could have stored. Messages it cannot decrypt were delivered and
+   * refused on purpose — storing them would have written the placeholder
+   * "Sent before you added this device." into the archive as if it were the
+   * message. They are recorded, reported, and do not block.
+   */
+  if (localCount + unreadable < serverCount) {
     return {
       conversationId,
       ref,
@@ -201,12 +220,13 @@ async function proveConversation(
       localCount,
       difference,
       cursorComplete,
+      unreadable,
       status: 'short',
-      reason: `${plural(serverCount - localCount, 'message')} on the server ${serverCount - localCount === 1 ? 'is' : 'are'} not held locally`,
+      reason: `${plural(serverCount - localCount - unreadable, 'message')} on the server ${serverCount - localCount - unreadable === 1 ? 'is' : 'are'} not held locally`,
     };
   }
 
-  return { conversationId, ref, serverCount, localCount, difference, cursorComplete, status: 'proven' };
+  return { conversationId, ref, serverCount, localCount, difference, cursorComplete, unreadable, status: 'proven' };
 }
 
 /**
@@ -249,15 +269,17 @@ export async function proveCompleteness(
   let localMessages = 0;
   let shortConversations = 0;
   let shortMessages = 0;
+  let unreadableTotal = 0;
   let unmeasured = 0;
 
   for (const c of conversations) {
     serverMessages += c.serverCount;
     localMessages += c.localCount;
     if (c.status === 'unmeasured') unmeasured += 1;
+    unreadableTotal += c.unreadable;
     if (c.status === 'short' || c.status === 'not-walked') {
       shortConversations += 1;
-      shortMessages += Math.max(0, c.serverCount - c.localCount);
+      shortMessages += Math.max(0, c.serverCount - c.localCount - c.unreadable);
     }
   }
 
@@ -276,6 +298,7 @@ export async function proveCompleteness(
     status,
     conversations,
     shortfall: { conversations: shortConversations, messages: shortMessages },
+    unreadable: unreadableTotal,
     totals: { conversations: serverConversations.length, serverMessages, localMessages },
     localOnly,
     provenAt: Date.now(),
@@ -345,6 +368,11 @@ export function formatProof(proof: CompletenessProof, options: { redact?: boolea
         ? `Not complete: ${proof.shortfall.conversations} of ${proof.totals.conversations} chats ${proof.shortfall.conversations === 1 ? 'is' : 'are'} missing ${plural(proof.shortfall.messages, 'message')}.`
         : `Could not verify ${proof.conversations.filter((c) => c.status === 'unmeasured').length} of ${proof.totals.conversations} chats.`;
 
+  const unreadableNote =
+    proof.unreadable > 0
+      ? `${plural(proof.unreadable, 'older message')} cannot be read on this device and are not included.`
+      : undefined;
+
   const problems = proof.conversations.filter((c) => c.status !== 'proven');
   const lines = [head];
   if (problems.length > 0) {
@@ -354,6 +382,7 @@ export function formatProof(proof: CompletenessProof, options: { redact?: boolea
     }
     if (problems.length > 20) lines.push(`  ...and ${problems.length - 20} more`);
   }
+  if (unreadableNote) lines.push('', unreadableNote);
   if (proof.localOnly.length > 0) {
     lines.push('', `${plural(proof.localOnly.length, 'chat')} ${proof.localOnly.length === 1 ? 'is' : 'are'} held locally but no longer on the server.`);
   }

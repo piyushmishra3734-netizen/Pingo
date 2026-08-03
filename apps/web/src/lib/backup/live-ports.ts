@@ -259,7 +259,11 @@ export const liveBackfillSink: BackfillSink = {
       conversationId,
       readable.map((row) => toMessage(row, undefined) as unknown as { id: string; createdAt: number }),
     );
-    return (await localCount(STORE.messageRows, range)) - before;
+
+    return {
+      written: (await localCount(STORE.messageRows, range)) - before,
+      unreadable: full.length - readable.length,
+    };
   },
 };
 

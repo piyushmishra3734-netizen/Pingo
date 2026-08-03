@@ -34,7 +34,7 @@ const check = (ok: boolean, what: string) => {
 };
 
 /** Server counts, local counts and cursors, each independently riggable. */
-function world(spec: Record<string, { server: number; local: number; walked: boolean }>) {
+function world(spec: Record<string, { server: number; local: number; walked: boolean; unreadable?: number }>) {
   const ids = Object.keys(spec);
   const broken = new Set<string>();
   let peakInFlight = 0;
@@ -65,7 +65,7 @@ function world(spec: Record<string, { server: number; local: number; walked: boo
 
   const cursors: CursorReader = {
     async read(id) {
-      return { complete: spec[id]!.walked, pages: 1 };
+      return { complete: spec[id]!.walked, pages: 1, unreadable: spec[id]!.unreadable ?? 0 };
     },
   };
 
@@ -83,6 +83,7 @@ console.log('— a proven account —');
   const proof = await proveCompleteness(w.source, w.local, w.cursors);
 
   check(proof.status === 'proven', 'the account is proven');
+  check(proof.unreadable === 0, 'with nothing unreadable');
   check(proof.shortfall.conversations === 0, 'nothing is short');
   check(proof.totals.localMessages === 3_520, `the totals add up (${proof.totals.localMessages})`);
   check(proof.conversations.every((c) => c.status === 'proven'), 'every conversation is proven');
@@ -328,7 +329,7 @@ console.log('\n— a retry resumes rather than restarting —');
         bucket.add(r.id);
       }
       rows.set(id, bucket);
-      return written;
+      return { written, unreadable: 0 };
     },
   };
 
@@ -400,6 +401,34 @@ console.log('\n— the proof is safe to send to support —');
   check(rendered.includes(proof.conversations[0]!.ref), 'and carries a stable ref instead');
   check(/100 of 500/.test(rendered), 'with the numbers a bug report needs');
   console.log('\n' + rendered + '\n');
+}
+
+console.log('\n— what the device cannot read is not a shortfall —');
+
+{
+  /*
+   * Measured on a real account: 296 messages that predate this device cannot be
+   * decrypted by it, so the sink refuses to store them rather than writing the
+   * "Sent before you added this device." placeholder into the archive. Counting
+   * them as missing blocked every backup of the 5,463 readable ones, for ever,
+   * because no retry can ever make them readable.
+   */
+  const w = world({ a: { server: 5759, local: 5463, walked: true, unreadable: 296 } });
+  const proof = await proveCompleteness(w.source, w.local, w.cursors);
+
+  check(proof.status === 'proven', 'an account short only by unreadable rows still proves');
+  check(proof.unreadable === 296, `and the count is carried (${proof.unreadable})`);
+  check(proof.shortfall.messages === 0, 'none of it is reported as missing history');
+  check(/cannot be read on this device/.test(formatProof(proof)), 'the wording says so plainly');
+  check(completenessHeader(proof).messages === 5463, 'the header claims only what was stored');
+}
+
+{
+  // A real shortfall alongside unreadable rows is still a shortfall.
+  const w = world({ a: { server: 5759, local: 5000, walked: true, unreadable: 296 } });
+  const proof = await proveCompleteness(w.source, w.local, w.cursors);
+  check(proof.status === 'short', 'a genuine gap still blocks');
+  check(proof.shortfall.messages === 463, `and counts only the recoverable part (${proof.shortfall.messages})`);
 }
 
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILED`);

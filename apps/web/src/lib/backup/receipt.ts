@@ -62,6 +62,14 @@ export interface BackupReceipt {
   conversations: number;
   messages: number;
   mediaFiles: number;
+  /**
+   * Messages left out because this device could not decrypt them.
+   *
+   * On the receipt rather than only in the proof, because the receipt is what a
+   * restore is checked against. A backup that quietly contained less than it
+   * claimed is the failure this whole record exists to prevent.
+   */
+  unreadable: number;
   archiveBytes: number;
 
   /** SHA-256 of the canonical manifest. */
@@ -455,6 +463,9 @@ export function formatReceipt(receipt: BackupReceipt): string {
     ['Chats', receipt.conversations.toLocaleString()],
     ['Messages', receipt.messages.toLocaleString()],
     ['Media files', receipt.mediaFiles.toLocaleString()],
+    ...(receipt.unreadable > 0
+      ? ([['Not included', `${receipt.unreadable.toLocaleString()} unreadable`]] as Array<[string, string]>)
+      : []),
     ['Archive size', `${receipt.archiveBytes.toLocaleString()} B`],
     ['Manifest hash', shortHash(receipt.manifestHash)],
     ['Archive hash', shortHash(receipt.archiveHash)],

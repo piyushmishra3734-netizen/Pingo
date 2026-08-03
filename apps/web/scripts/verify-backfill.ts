@@ -121,7 +121,7 @@ class MemorySink implements BackfillSink {
       bucket.set(r.id, r); // keyed, so duplicates collapse
     }
     this.rows.set(conversationId, bucket);
-    return written;
+    return { written, unreadable: 0 };
   }
   count(conversationId: string) {
     return this.rows.get(conversationId)?.size ?? 0;

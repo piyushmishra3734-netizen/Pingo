@@ -109,7 +109,7 @@ function account(options: { breakConversation?: string } = {}) {
         bucket.set(r.id, r);
       }
       rows.set(id, bucket);
-      return written;
+      return { written, unreadable: 0 };
     },
   };
 

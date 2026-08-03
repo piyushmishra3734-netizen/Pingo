@@ -229,6 +229,7 @@ export async function runBackup(
     conversations: proof.totals.conversations,
     messages: proof.totals.localMessages,
     mediaFiles: preflight.photos + preflight.videos + preflight.documents + preflight.voiceNotes,
+    unreadable: proof.unreadable,
     archiveBytes: archived.archiveBytes,
     manifestHash: await computeManifestHash(archived.manifest),
     archiveHash: await computeArchiveHash(archived.manifest.chunks),

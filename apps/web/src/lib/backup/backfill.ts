@@ -69,6 +69,8 @@ export interface BackfillCursor {
   duplicates?: number;
   /** Pages re-requested after a failure. */
   retries?: number;
+  /** Rows the sink could not decrypt. Never improves on retry. */
+  unreadable?: number;
   /** Time spent walking, summed across runs - not wall-clock since the start. */
   elapsedMs?: number;
   startedAt?: number;
@@ -90,7 +92,7 @@ export function isValidCursor(value: unknown): value is BackfillCursor {
   if (c.oldestFetchedId !== undefined && typeof c.oldestFetchedId !== 'string') return false;
   if (c.oldestFetchedAt !== undefined && typeof c.oldestFetchedAt !== 'string') return false;
   if (c.anchorId !== undefined && typeof c.anchorId !== 'string') return false;
-  for (const n of [c.expected, c.downloaded, c.duplicates, c.retries, c.elapsedMs] as const) {
+  for (const n of [c.expected, c.downloaded, c.duplicates, c.retries, c.unreadable, c.elapsedMs] as const) {
     if (n !== undefined && (typeof n !== 'number' || !Number.isFinite(n) || n < 0)) return false;
   }
   return true;
@@ -118,7 +120,23 @@ export interface BackfillSource {
  * module is careful not to do.
  */
 export interface BackfillSink {
-  write(conversationId: string, rows: BackfillRow[]): Promise<number>;
+  write(conversationId: string, rows: BackfillRow[]): Promise<SinkResult>;
+}
+
+/**
+ * What the sink did with a page.
+ *
+ * `unreadable` is separate from everything else because it is the one number a
+ * retry can never improve. A row this device cannot decrypt will not decrypt on
+ * the next attempt either, so counting it as missing history blocks every
+ * future backup of the messages that *are* readable — measured on a real
+ * account, 296 unreadable messages held back 5,463 readable ones permanently.
+ */
+export interface SinkResult {
+  /** Rows genuinely new to the store. */
+  written: number;
+  /** Rows the sink refused to store because it could not read them. */
+  unreadable: number;
 }
 
 export interface CursorStore {
@@ -181,6 +199,8 @@ export interface BackfillAudit {
   duplicates: number;
   /** `downloaded + duplicates` - everything the server actually handed over. */
   seen: number;
+  /** Rows delivered that this device could not decrypt, and so did not store. */
+  unreadable: number;
   /** `seen - expectedFinal`. Zero is the expected answer; negative is a shortfall. */
   discrepancy: number;
   pages: number;
@@ -337,6 +357,7 @@ async function walkConversation(
       downloaded: 0,
       duplicates: 0,
       retries: 0,
+      unreadable: 0,
       elapsedMs: 0,
       startedAt: runStarted,
     };
@@ -433,7 +454,7 @@ async function walkConversation(
         );
       }
 
-      const written = await sink.write(conversationId, page);
+      const { written, unreadable } = await sink.write(conversationId, page);
       fetched += page.length;
       onPage(page.length);
 
@@ -446,7 +467,14 @@ async function walkConversation(
         oldestFetchedAt: oldest.created_at,
         pages: cursor.pages + 1,
         downloaded: (cursor.downloaded ?? 0) + written,
-        duplicates: (cursor.duplicates ?? 0) + (page.length - written),
+        /*
+         * Everything the server sent that was neither new nor unreadable.
+         * Without subtracting the unreadable rows they would be filed as
+         * duplicates, which reads as "the server repeated itself" when what
+         * actually happened is that this device cannot open them.
+         */
+        duplicates: (cursor.duplicates ?? 0) + Math.max(0, page.length - written - unreadable),
+        unreadable: (cursor.unreadable ?? 0) + unreadable,
         lastRunAt: Date.now(),
       };
       await cursors.write(conversationId, cursor);
@@ -473,7 +501,11 @@ async function walkConversation(
         cursor.anchorId === undefined
           ? 0
           : (await source.countOlderThan(conversationId, cursor.anchorId)) + 1;
-      const seen = (cursor.downloaded ?? 0) + (cursor.duplicates ?? 0);
+      // Everything the server actually handed over. A row this device could not
+      // decrypt was still delivered, so it counts here — leaving it out would
+      // make an honest server look like it had short-changed us.
+      const seen =
+        (cursor.downloaded ?? 0) + (cursor.duplicates ?? 0) + (cursor.unreadable ?? 0);
 
       if (!reconciles(seen, cursor.expected ?? 0, expectedFinal)) {
         await commitElapsed();
@@ -523,7 +555,8 @@ function auditFor(
 ): BackfillAudit {
   const downloaded = cursor.downloaded ?? 0;
   const duplicates = cursor.duplicates ?? 0;
-  const seen = downloaded + duplicates;
+  const unreadable = cursor.unreadable ?? 0;
+  const seen = downloaded + duplicates + unreadable;
   const expected = cursor.expected ?? 0;
   const notes: string[] = [];
 
@@ -545,6 +578,7 @@ function auditFor(
     downloaded,
     duplicates,
     seen,
+    unreadable,
     discrepancy: seen - expectedFinal,
     pages: cursor.pages,
     retries: cursor.retries ?? 0,
@@ -585,6 +619,15 @@ export async function runBackfill(
   let messagesFetched = 0;
   let conversationsComplete = 0;
   let conversationsWalked = 0;
+  /*
+   * One counter for progress, incremented once per conversation finished.
+   *
+   * This was `conversationsWalked + conversationsComplete`, and a conversation
+   * that completes increments both — so the bar read 189% on a real account.
+   * A percentage above one hundred tells the user the number is guesswork,
+   * which undoes the reason for showing it.
+   */
+  let done = 0;
 
   for (const conversationId of conversations) {
     if (signal.cancelled) break;
@@ -592,6 +635,7 @@ export async function runBackfill(
     const existing = await cursors.read(conversationId);
     if (isValidCursor(existing) && existing.complete) {
       conversationsComplete += 1;
+      done += 1;
       /*
        * An already-finished conversation still gets a row.
        *
@@ -601,7 +645,7 @@ export async function runBackfill(
        */
       audit.push(auditFor(conversationId, existing, existing.expected ?? 0, 'complete'));
       options.onProgress?.({
-        conversationsDone: conversationsWalked + conversationsComplete,
+        conversationsDone: done,
         conversationsTotal: conversations.length,
         messagesFetched,
         conversationId,
@@ -619,7 +663,7 @@ export async function runBackfill(
         (n) => {
           messagesFetched += n;
           options.onProgress?.({
-            conversationsDone: conversationsWalked + conversationsComplete,
+            conversationsDone: done,
             conversationsTotal: conversations.length,
             messagesFetched,
             conversationId,
@@ -630,6 +674,7 @@ export async function runBackfill(
       );
 
       conversationsWalked += 1;
+      done += 1;
       if (cursor.complete) {
         conversationsComplete += 1;
         audit.push(auditFor(conversationId, cursor, expectedFinal ?? cursor.expected ?? 0, 'complete'));
