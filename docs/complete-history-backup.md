@@ -386,6 +386,74 @@ restore can confirm it received what was promised:
 Deliberately not in the manifest. The manifest is plaintext to Google, and a
 message count is a finer-grained signal than the archive size it already sees.
 
+
+### 9.5 Why this is not the backfill audit again
+
+The audit records what the server said *during* the walk, and states its own
+limit: every figure in it comes from one endpoint, so a count that is wrong
+consistently satisfies all of it. The proof is the independent check. It asks
+the server afresh, per conversation, and compares against what is actually in
+the local row store — not against what backfill remembers downloading. Two
+sources that were never derived from each other have to agree.
+
+The cursor check is what closes the remaining gap. Counts agreeing says nothing
+was left behind; `cursor.complete` says the walk actually reached the beginning.
+A conversation can satisfy the first and fail the second exactly when the server
+under-reports its own history — the failure the audit admits it cannot see
+alone. Verified: a conversation whose counts agree exactly is still refused
+while its cursor is unfinished.
+
+### 9.6 The case a global total would hide
+
+Two conversations, five hundred each on the server. One holds nine hundred
+locally after a deletion elsewhere; the other holds one hundred. The account
+totals one thousand against one thousand, balances perfectly, and four hundred
+messages are missing.
+
+This is why the sum is computed *from* the per-conversation results and never
+used as the gate.
+
+### 9.7 Three verdicts, not two
+
+| Verdict | Means | Archive |
+| --- | --- | --- |
+| `proven` | every conversation measured and whole | proceeds |
+| `short` | measured, and history is missing | refused |
+| `unverified` | a count could not be read at all | refused |
+
+`short` and `unverified` both refuse, and they are different problems needing
+different words — the same distinction preflight draws between an empty account
+and an unmeasured one. A count that failed must never be reported as missing
+history, and must never quietly pass as proven. Where both are present the
+measured shortfall leads, because it is the actionable fact and reporting
+"unverified" while holding proof of a shortfall would understate what is known.
+
+### 9.8 A retry resumes
+
+`conversationsToWalk` returns only the conversations that are short, unwalked or
+unmeasured. A retry resumes those from their cursors rather than restarting the
+account — minutes instead of an hour on a large account, and a retry that
+re-walks what already succeeded is one users learn not to press.
+
+Verified end to end across both modules: backfill runs against a server that
+fails one conversation, the proof names only that one, and after the targeted
+retry the conversation that already succeeded is never re-paged.
+
+### 9.9 The header is the only way to claim proof
+
+`completenessHeader()` throws unless the proof passed, and it is the only
+constructor for the block that travels inside the archive. A header is a claim
+that completeness was proven, so writing one for an account where it was not has
+to be impossible rather than merely discouraged.
+
+### 9.10 Cost
+
+Four hundred conversations is four hundred count queries, run eight at a time.
+All at once is a burst a phone network handles badly and a rate limiter handles
+worse; one at a time is a visible wait before a button that has not started yet.
+No history is transferred — these are the same `count=exact` aggregates preflight
+uses.
+
 ---
 
 ## 10. Verified backup
@@ -577,6 +645,6 @@ and the receipt is written only after verification passes — so a receipt sayin
 | 1 | `backfill.ts` + audit log | done — 73 checks |
 | 2 | `preflight.ts` | done — 40 checks |
 | 3 | `receipt.ts` — immutable receipt, restore verification | done — 47 checks |
-| 4 | completeness proof | next |
-| 5 | backup verification | |
+| 4 | `completeness.ts` — the proof, the retry set, the header | done — 49 checks |
+| 5 | backup verification | next |
 | 6 | archive integration, end to end on a wiped device | |
