@@ -54,12 +54,51 @@ check(
   'normalisation is exact, not approximate',
 );
 
-// The checksum is the reason for using BIP-39 at all: a swapped word is caught
-// before the KDF runs, so a typo costs nothing and reports itself.
+/*
+ * The checksum is the reason for using BIP-39 at all: a swapped word is caught
+ * before the KDF runs, so a typo costs nothing and reports itself.
+ *
+ * It catches *almost* all of them, and the difference matters. A twelve-word
+ * code carries a four-bit checksum, so a single wrong word has roughly a one in
+ * sixteen chance of still validating — inherent to BIP-39, not a defect here.
+ *
+ * This was previously one swap asserted to fail, which is a coin that lands
+ * wrong about six percent of the time. It failed a full run during the pipeline
+ * wiring, sending me looking for a regression in code that had not been
+ * touched; a test that cries wolf one run in sixteen teaches people to re-run
+ * it, which is worse than not having it.
+ *
+ * So the rate is measured across many swaps and the bound is the one the maths
+ * actually supports.
+ */
 const words = code.split(' ');
-const swapped = [...words];
-swapped[4] = words[4] === 'abandon' ? 'ability' : 'abandon';
-check(!isValidRecoveryCode(swapped.join(' ')), 'a single swapped word fails the checksum');
+
+{
+  const substitutes = ['abandon', 'ability', 'able', 'about', 'above', 'absent', 'absorb', 'abstract'];
+
+  let tried = 0;
+  let rejected = 0;
+  for (let position = 0; position < words.length; position += 1) {
+    for (const substitute of substitutes) {
+      if (words[position] === substitute) continue;
+      const swapped = [...words];
+      swapped[position] = substitute;
+      tried += 1;
+      if (!isValidRecoveryCode(swapped.join(' '))) rejected += 1;
+    }
+  }
+
+  const caught = rejected / tried;
+  check(tried > 80, `every position was tried with several wrong words (${tried} typos)`);
+  check(
+    caught > 0.8,
+    `the checksum catches the great majority of single-word typos (${Math.round(caught * 100)}% of ${tried})`,
+  );
+  check(
+    caught < 1,
+    'and not all of them, which is the four-bit checksum being honest rather than a bug',
+  );
+}
 
 check(
   unknownWords(`${words.slice(0, 11).join(' ')} notaword`)[0] === 11,

@@ -61,6 +61,17 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     this.drive = new DriveClient(auth, http);
   }
 
+  /**
+   * The same authenticated client this target uses.
+   *
+   * Exposed so receipts can be written into the same `appDataFolder`, through
+   * the same token, without a second client that could hold a different one.
+   * Read-only: callers borrow it, they do not get to swap it.
+   */
+  get client(): DriveClient {
+    return this.drive;
+  }
+
   // -- BackupTarget: the recovery package ------------------------------------
 
   async put(stored: StoredPackage): Promise<void> {

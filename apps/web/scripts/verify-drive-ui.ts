@@ -13,6 +13,7 @@ import { GoogleDriveBackupTarget } from '../src/lib/backup/drive/drive-target.js
 import { DriveAuthError } from '../src/lib/backup/drive/auth.js';
 import { ANDROID_POLICY, WEB_POLICY, shouldBackup } from '../src/lib/backup/drive/policy.js';
 import { FakeAuth, FakeDrive } from './fake-drive.js';
+import type { BackupPorts, BackupStage } from '../src/lib/backup/pipeline.js';
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
@@ -280,6 +281,180 @@ stubborn.drive.http = async () => {
 const stubbornGone = await stubborn.controller.disconnect();
 check(stubbornGone.phase === 'disconnected', 'the device disconnects regardless');
 check(stubborn.store.peek() === undefined, 'and stops claiming to be connected');
+
+
+console.log('\n— the pipeline path, as the screen sees it —');
+
+/**
+ * A `BackupPorts` that reports whatever outcome a test asks for.
+ *
+ * The pipeline itself is proven in `verify-pipeline.ts` against real modules.
+ * What is under test here is narrower and easy to get wrong: whether the
+ * controller turns each outcome into the right screen state, and in particular
+ * whether an account that is merely incomplete gets filed as a failure.
+ */
+function portsReporting(
+  outcome: 'complete' | 'incomplete' | 'unverified',
+  stages: BackupStage[] = [],
+): BackupPorts {
+  const proven = outcome !== 'incomplete';
+  return {
+    async preflight() {
+      return {
+        conversations: 3,
+        messages: 425,
+        photos: 1,
+        videos: 0,
+        documents: 0,
+        voiceNotes: 0,
+        archive: { bytes: 1_000, low: 800, high: 1_200, sampledRows: 10, assumed: false },
+        mediaBytes: 0,
+        toDownload: 425,
+        empty: false,
+        partial: false,
+        unavailable: [],
+        measuredAt: Date.now(),
+      };
+    },
+    async backfill() {
+      return {
+        conversationsWalked: 3,
+        conversationsComplete: proven ? 3 : 2,
+        messagesFetched: 425,
+        incomplete: [],
+        cancelled: false,
+        audit: [],
+      };
+    },
+    async prove() {
+      return {
+        status: proven ? 'proven' : 'short',
+        conversations: [],
+        shortfall: { conversations: proven ? 0 : 1, messages: proven ? 0 : 130 },
+        totals: { conversations: 3, serverMessages: 425, localMessages: proven ? 425 : 295 },
+        localOnly: [],
+        provenAt: Date.now(),
+      };
+    },
+    async archive(_completeness, onProgress) {
+      onProgress({ stage: 'uploading' });
+      onProgress({ stage: 'verifying' });
+      return {
+        generation: 4,
+        manifest: {
+          version: 1,
+          generation: 4,
+          epk: 'ZXBr',
+          chunkCount: 1,
+          totalBytes: 10,
+          chunks: [{ index: 0, iv: 'aXY', digest: 'ZA==', bytes: 26 }],
+          createdAt: Date.now(),
+        },
+        archiveBytes: 4_096,
+        verification:
+          outcome === 'unverified'
+            ? {
+                status: 'failed',
+                generation: 4,
+                checks: [],
+                digests: { checked: 0, total: 1, sampled: false },
+                failures: ['Missing chunks: 0.'],
+                rolledBackTo: 3,
+              }
+            : {
+                status: 'verified',
+                generation: 4,
+                checks: [],
+                digests: { checked: 1, total: 1, sampled: false },
+                failures: [],
+              },
+      };
+    },
+    async previousReceipt() {
+      return undefined;
+    },
+    async storeReceipt() {},
+    recoveryPublicKey: recoveryPublic,
+    mode: 'private',
+    keyVersion: 1,
+    newBackupId: () => 'bk_test',
+  };
+}
+
+{
+  const world = build();
+  await world.controller.connect(() => world.auth.authorize());
+
+  const stages: BackupStage[] = [];
+  const unsubscribe = world.controller.subscribe((view: DriveView) => {
+    if (view.stage && stages[stages.length - 1] !== view.stage) stages.push(view.stage);
+  });
+
+  const view = await world.controller.backupComplete(portsReporting('complete'));
+  unsubscribe?.();
+
+  check(view.phase === 'connected', 'a complete backup leaves the screen connected');
+  check(view.receipt?.messages === 425, 'the receipt reaches the screen');
+  check(view.generation === 4, 'with the generation that was committed');
+  check(view.bytes === 4_096, 'and the sealed size the quota pays for');
+  check(view.incomplete === undefined, 'nothing is reported incomplete');
+  check(view.stage === undefined && view.stageLabel === undefined, 'the stage clears when it finishes');
+  check(view.message === 'Backup complete and fully verified.', `and says what happened: "${view.message}"`);
+  check(stages.includes('proving'), `the proving stage was shown (${stages.join(' → ')})`);
+  check(world.store.peek()?.lastSuccessAt !== undefined, 'the success is recorded');
+}
+
+{
+  /*
+   * The distinction this whole block exists for. A backup that correctly
+   * refused to run because history is missing is the system working, and
+   * filing it under `lastFailure` would start the next support conversation
+   * from the wrong place.
+   */
+  const world = build();
+  await world.controller.connect(() => world.auth.authorize());
+  const view = await world.controller.backupComplete(portsReporting('incomplete'));
+
+  check(view.phase === 'connected', 'an incomplete account is not an error state');
+  check(view.phase !== 'error', 'and never shows the error phase');
+  check(view.incomplete !== undefined, 'the incomplete report reaches the screen');
+  check(
+    /130 messages are still missing/.test(view.incomplete?.headline ?? ''),
+    `with the number in it: "${view.incomplete?.headline}"`,
+  );
+  check(view.needsReconnect !== true, 'reconnecting is not offered, because it would not help');
+  check(world.store.peek()?.lastFailure === undefined, 'it is NOT recorded as a failure');
+  check(world.store.peek()?.lastSuccessAt === undefined, 'nor as a success');
+  check(view.receipt === undefined, 'and no receipt claims it');
+}
+
+{
+  const world = build();
+  await world.controller.connect(() => world.auth.authorize());
+  const view = await world.controller.backupComplete(portsReporting('unverified'));
+
+  check(view.phase === 'error', 'a backup that failed to verify IS an error');
+  check(
+    view.message === 'Backup failed to verify. Your previous backup from generation 3 is still in place.',
+    `and the user is told the old one survives: "${view.message}"`,
+  );
+  check(!/failed - Error:/.test(view.message ?? ''), 'without a generic wrapper stuttering over it');
+  check(world.store.peek()?.lastFailure !== undefined, 'the failure is recorded');
+  check(world.store.peek()?.lastSuccessAt === undefined, 'and not counted as a success');
+}
+
+{
+  // A second backup cannot start while one is running: the same lock the old
+  // path uses, since the screen's disabled button is a courtesy, not the lock.
+  const world = build();
+  await world.controller.connect(() => world.auth.authorize());
+
+  const first = world.controller.backupComplete(portsReporting('complete'));
+  const second = world.controller.backupComplete(portsReporting('complete'));
+  await Promise.all([first, second]);
+
+  check(world.store.peek()?.generation === 4, 'both runs settle on one generation');
+}
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

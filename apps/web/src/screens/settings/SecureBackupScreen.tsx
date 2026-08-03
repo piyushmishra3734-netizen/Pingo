@@ -99,12 +99,46 @@ export function SecureBackupScreen() {
    */
   const driveBackupNow = async () => {
     if (!local?.publicKey) return;
-    await driveCtl.backupStreaming(
-      local.publicKey,
-      // Mirror the package so a device that has never seen this account can open
-      // what it downloads. The server will not hand it back, by design.
-      local.package ? { package: local.package, publicKey: local.publicKey } : undefined,
-    );
+
+    // Mirror the package so a device that has never seen this account can open
+    // what it downloads. The server will not hand it back, by design.
+    const storedPackage = local.package
+      ? { package: local.package, publicKey: local.publicKey }
+      : undefined;
+
+    const userId = (await getSupabaseClient().auth.getUser()).data.user?.id;
+
+    /*
+     * Without a signed-in user there is nothing to count and nothing to walk,
+     * so the old path is the honest fallback rather than a broken new one: it
+     * archives whatever is already stored, which is exactly what it has always
+     * done.
+     */
+    if (!userId) {
+      await driveCtl.backupStreaming(local.publicKey, storedPackage);
+      return;
+    }
+
+    const { liveBackupPorts } = await import('../../lib/backup/live-ports.js');
+    const ports = await liveBackupPorts({
+      userId,
+      target: {
+        backupArchiveStreaming: driveTarget.backupArchiveStreaming.bind(driveTarget),
+        verificationStore: driveTarget.verificationStore.bind(driveTarget),
+        driveClient: driveTarget.client,
+      },
+      recoveryPublicKey: local.publicKey,
+      /*
+       * No recovery key here, and that is deliberate: backing up must not ask
+       * for the 12-word code. Verification says so — the header check reports
+       * itself skipped and the headline reads "completeness not confirmed"
+       * rather than claiming a check that did not run.
+       */
+      mode: 'private',
+      keyVersion: 1,
+    });
+
+    await driveCtl.backupComplete(ports, storedPackage);
   };
 
   /*
@@ -519,7 +553,21 @@ export function SecureBackupScreen() {
           */}
           <p className="px-4 pt-2 text-sm text-muted">{policy.description}</p>
 
-          {drive?.progress ? (
+          {/*
+            The stage first, then the bar. The stage names come from the
+            pipeline and map one-to-one onto what is actually running, so
+            "Downloading older history…" means exactly that and not "we are
+            still working". A percentage under the wrong label is worse than no
+            percentage.
+          */}
+          {drive?.stageLabel ? (
+            <p className="px-4 pt-1 text-sm text-muted">
+              {drive.stageLabel}
+              {drive.progress?.total
+                ? ` ${Math.round(((drive.progress.sent ?? 0) / drive.progress.total) * 100)}%`
+                : ''}
+            </p>
+          ) : drive?.progress ? (
             <p className="px-4 pt-1 text-sm text-muted">
               {drive.progress.phase === 'uploading' && drive.progress.total
                 ? `Uploading ${Math.round(((drive.progress.sent ?? 0) / drive.progress.total) * 100)}%`
@@ -527,8 +575,43 @@ export function SecureBackupScreen() {
             </p>
           ) : null}
 
+          {/*
+            An incomplete account is not an error and does not read like one.
+            Nothing the user did caused it and reconnecting will not fix it, so
+            it gets its own block with the numbers in it and a retry that
+            resumes rather than starting again.
+          */}
+          {drive?.incomplete ? (
+            <div className="mx-4 mt-2 rounded-lg bg-surface-2 p-3">
+              <p className="text-sm font-medium">{drive.incomplete.headline}</p>
+              <p className="pt-1 text-xs text-muted">
+                Nothing was uploaded. Your previous backup is untouched.
+              </p>
+              <button
+                type="button"
+                disabled={busyDrive}
+                className="pt-2 text-sm text-accent disabled:opacity-50"
+                onClick={driveBackupNow}
+              >
+                Try again
+              </button>
+            </div>
+          ) : null}
+
           {drive?.phase === 'error' && drive.message ? (
             <p className="px-4 pt-1 text-sm text-danger">{drive.message}</p>
+          ) : null}
+
+          {/*
+            What the last backup actually contained, from the receipt rather
+            than from what the app intended to do.
+          */}
+          {drive?.receipt && !busyDrive ? (
+            <p className="px-4 pt-1 text-xs text-muted">
+              {drive.receipt.messages.toLocaleString()} messages in{' '}
+              {drive.receipt.conversations.toLocaleString()} chats
+              {drive.receipt.verification === 'sampled' ? ' · spot-checked' : ' · verified'}
+            </p>
           ) : null}
 
           {!drive?.connected || drive?.needsReconnect ? (

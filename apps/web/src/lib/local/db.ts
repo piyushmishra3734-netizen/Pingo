@@ -247,6 +247,29 @@ export async function localRange<T>(
   });
 }
 
+/**
+ * How many records fall in a range, without reading any of them.
+ *
+ * The completeness proof asks this once per conversation, and an account can
+ * hold tens of thousands of rows. Counting by reading — the only thing the
+ * helpers above could do — would decrypt every row to answer a question about
+ * how many there are, which is the opposite of what the proof is for.
+ */
+export async function localCount(store: StoreName, range: IDBKeyRange): Promise<number> {
+  const db = await openDatabase();
+  if (!db) return 0;
+
+  return new Promise<number>((resolve) => {
+    try {
+      const request = db.transaction(store, 'readonly').objectStore(store).count(range);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(0);
+    } catch {
+      resolve(0);
+    }
+  });
+}
+
 /** Writes many records in one transaction. Separate puts would be one each. */
 export async function localPutMany(
   store: StoreName,

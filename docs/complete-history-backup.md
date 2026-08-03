@@ -800,12 +800,27 @@ would have surfaced as "your backup is corrupt" on the first real verification.
 Normalised in `client.ts` at the one place the metadata enters, rather than at
 each comparison.
 
-### 14.4 What is deliberately not wired yet
+### 14.4 Wired to the product surface
 
-`controller.ts` still drives the old path. Switching the product surface over is
-a UI change — preflight summary, four-stage progress, the blocked-proof screen —
-and it belongs with that work rather than buried in this one. The pipeline is
-complete, verified, and callable.
+`live-ports.ts` is where the interfaces meet Supabase, IndexedDB and Drive, and
+it is deliberately thin — every decision worth arguing about lives in the module
+it belongs to, and what is left is queries. `controller.backupComplete()` runs
+the lifecycle and maps its outcome onto screen state; the Secure Backup screen
+shows the stage, the blocked-proof block and what the last receipt recorded.
+
+**An incomplete account is not an error.** It does not set the error phase, is
+not written to `lastFailure`, and does not offer Reconnect — nothing the user
+did caused it and reconnecting would not fix it. It gets its own block with the
+numbers in it and a retry that resumes from the cursors.
+
+**Backing up never asks for the recovery code.** The header check therefore runs
+only when the key happens to be in hand; otherwise it reports itself skipped and
+the headline reads "completeness not confirmed" rather than claiming a check
+that did not run.
+
+**Without a signed-in user the old path still runs.** It archives whatever is
+already stored, which is exactly what it has always done — an honest fallback
+rather than a broken new one.
 
 Media remains v2 (§5), and retention still must not shorten until an account has
 a completed backfill and a verified archive (§6).

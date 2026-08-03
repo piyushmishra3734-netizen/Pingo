@@ -15,6 +15,9 @@ import { STORE, localDelete, localGet, localSet } from '../../local/db.js';
 import { DriveAuthError } from './auth.js';
 import { DriveError } from './client.js';
 import type { StoredPackage } from '../target.js';
+import type { BackupPorts, BackupStage } from '../pipeline.js';
+import type { PreflightSummary } from '../preflight.js';
+import type { BackupReceipt } from '../receipt.js';
 import type { ArchiveProgress, GoogleDriveBackupTarget } from './drive-target.js';
 
 const STATE_KEY = 'drive-backup';
@@ -85,6 +88,27 @@ export interface DriveView {
   nextScheduledAt?: number;
   /** True while a backup or restore holds the lock. */
   busy?: boolean;
+
+  /**
+   * Which stage of the lifecycle is running, when the pipeline is driving.
+   *
+   * Separate from `progress`, which is the target's own upload reporting. The
+   * stage is what the user reads; the progress is the bar underneath it.
+   */
+  stage?: BackupStage;
+  stageLabel?: string;
+  /** The "Ready to Back Up" summary, once measured. */
+  preflight?: PreflightSummary;
+  /**
+   * Set when a backup stopped because the account could not be proven complete.
+   *
+   * Kept apart from `message` because this is not an error the user caused and
+   * not one reconnecting fixes — it is a report with numbers in it, and the
+   * screen shows it differently.
+   */
+  incomplete?: { headline: string; detail: string };
+  /** What the last backup recorded, for the Backup Details screen. */
+  receipt?: BackupReceipt;
 }
 
 /**
@@ -401,6 +425,124 @@ export class DriveBackupController {
             result.skipped > 0
               ? `Backed up ${result.records} records. ${result.skipped} could not be read on this device and were not included.`
               : undefined,
+        });
+      } catch (cause) {
+        await this.#recordFailure(cause);
+      }
+      return this.#view;
+    });
+  }
+
+  /**
+   * Back up through the full lifecycle: backfill, proof, archive, verify, receipt.
+   *
+   * `backupStreaming` above archives whatever the local database happens to
+   * hold, which on an account that has never been scrolled back is the newest
+   * few pages. This one makes the local store complete first and refuses to
+   * archive until it is proven so.
+   *
+   * The ports are passed in rather than built here: this file knows about
+   * Drive and about screen state, and knows deliberately nothing about
+   * Supabase, which is what has kept it testable.
+   */
+  async backupComplete(
+    ports: BackupPorts,
+    storedPackage?: StoredPackage,
+  ): Promise<DriveView> {
+    return this.#exclusive(async () => {
+      this.#set({
+        phase: 'backing-up',
+        message: undefined,
+        needsReconnect: undefined,
+        progress: undefined,
+        incomplete: undefined,
+      });
+
+      try {
+        if (storedPackage) await this.target.put(storedPackage);
+        const { runBackup, STAGE_LABELS } = await import('../pipeline.js');
+
+        const run = await runBackup(ports, {
+          onProgress: (progress) =>
+            this.#set({
+              stage: progress.stage,
+              stageLabel: STAGE_LABELS[progress.stage],
+              ...(progress.total !== undefined
+                ? { progress: { phase: 'uploading', sent: progress.done, total: progress.total } }
+                : {}),
+            }),
+        });
+
+        /*
+         * An incomplete account is not a failure to record as one.
+         *
+         * `#recordFailure` exists for things that went wrong — a dead token, a
+         * dropped connection. A backup that correctly refused to run because
+         * history is missing is the system working, and filing it under
+         * `lastFailure` would make the next support conversation start from the
+         * wrong place.
+         */
+        if (run.outcome === 'incomplete') {
+          this.#set({
+            phase: 'connected',
+            connected: true,
+            stage: undefined,
+            stageLabel: undefined,
+            progress: undefined,
+            preflight: run.preflight,
+            incomplete: { headline: run.headline, detail: run.detail ?? '' },
+          });
+          return this.#view;
+        }
+
+        if (run.outcome === 'unverified' || run.outcome === 'cancelled') {
+          /*
+           * Recorded as a failure, but with the sentence verification already
+           * wrote rather than the generic one. Routing it through `describe`
+           * produced "Backup failed - Error: Backup failed to verify. Your
+           * previous backup from generation 3 is still in place." — a wrapper
+           * stuttering over a message that was already finished, and burying
+           * the only part the user needs.
+           */
+          const failure = { reason: run.headline, at: Date.now() };
+          const saved = await this.store.read();
+          if (saved) await this.store.write({ ...saved, lastFailure: failure });
+          this.#set({
+            phase: 'error',
+            message: run.headline,
+            needsReconnect: false,
+            stage: undefined,
+            stageLabel: undefined,
+            progress: undefined,
+            lastFailure: failure,
+          });
+          return this.#view;
+        }
+
+        const saved = await this.store.read();
+        const now = Date.now();
+        await this.store.write({
+          ...(saved ?? {}),
+          connected: true,
+          lastBackupAt: now,
+          lastSuccessAt: now,
+          ...(run.receipt ? { bytes: run.receipt.archiveBytes } : {}),
+          ...(run.generation !== undefined ? { generation: run.generation } : {}),
+        });
+
+        this.#set({
+          phase: 'connected',
+          connected: true,
+          lastBackupAt: now,
+          lastSuccessAt: now,
+          ...(run.receipt ? { bytes: run.receipt.archiveBytes, receipt: run.receipt } : {}),
+          ...(run.generation !== undefined ? { generation: run.generation } : {}),
+          stage: undefined,
+          stageLabel: undefined,
+          progress: undefined,
+          preflight: run.preflight,
+          incomplete: undefined,
+          message: run.headline,
         });
       } catch (cause) {
         await this.#recordFailure(cause);
