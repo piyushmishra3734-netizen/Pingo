@@ -302,6 +302,19 @@ export function SecureBackupScreen() {
           if (checked.warnings.length > 0) {
             headline += ` (${checked.warnings.map((warning) => warning.message).join(' ')})`;
           }
+        } else {
+          /*
+           * Nothing to check against, so say so.
+           *
+           * This branch used to fall through silently and leave the count of
+           * records on screen, which reads exactly like a verified restore and
+           * is the same silent-success failure this whole pipeline was built to
+           * remove. Measured on a real restore: it reported "Restored 5499
+           * records across 4 stores" having verified nothing at all.
+           */
+          headline += raw
+            ? ' No backup record was found, so it could not be verified.'
+            : ' The backup index could not be read, so it could not be verified.';
         }
       } catch {
         // An unreadable receipt leaves the restore standing and unverified,
