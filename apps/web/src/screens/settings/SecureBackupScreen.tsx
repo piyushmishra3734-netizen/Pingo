@@ -139,6 +139,15 @@ export function SecureBackupScreen() {
       return;
     }
 
+    /*
+     * Simple Backup: the archive is sealed to a keypair whose private half sits
+     * in the user's own Drive, so a restore needs the Google account and
+     * nothing else. Google can therefore read this backup, which is the trade
+     * the mode exists to make and which the interface states plainly.
+     */
+    const { ensureArchiveKey } = await import('../../lib/backup/archive-key.js');
+    const archiveKey = await ensureArchiveKey(driveTarget.client);
+
     const { liveBackupPorts } = await import('../../lib/backup/live-ports.js');
     const ports = await liveBackupPorts({
       userId,
@@ -147,14 +156,15 @@ export function SecureBackupScreen() {
         verificationStore: driveTarget.verificationStore.bind(driveTarget),
         driveClient: driveTarget.client,
       },
-      recoveryPublicKey: local.publicKey,
+      recoveryPublicKey: archiveKey.publicKey,
       /*
-       * No recovery key here, and that is deliberate: backing up must not ask
-       * for the 12-word code. Verification says so — the header check reports
-       * itself skipped and the headline reads "completeness not confirmed"
-       * rather than claiming a check that did not run.
+       * The private half is in hand, so the header check actually runs and the
+       * headline can say "fully verified" rather than "completeness not
+       * confirmed". Simple mode buys that as well as a restore with no code:
+       * the same key that opens the archive proves it holds the right account.
        */
-      mode: 'private',
+      recoveryPrivateKey: archiveKey.privateKey,
+      mode: 'simple',
       keyVersion: 1,
     });
 
@@ -184,24 +194,50 @@ export function SecureBackupScreen() {
     setConfirm(undefined);
     const entered = restoreCode.trim();
     setRestoreCode('');
-    if (!entered) {
-      setError('Restore needs your 12-word recovery code.');
-      return;
-    }
 
-    const { restoreRecoveryKey } = await import('../../lib/crypto/recovery.js');
-    const stored = local?.package;
-    if (!stored) {
-      setError('This device has no recovery package to open. Enable Secure Backup first.');
-      return;
-    }
+    /*
+     * Simple Backup restores with the Google account and nothing else.
+     *
+     * The archive key lives in the same Drive folder as the archive it opens,
+     * so a signed-in device already holds everything it needs. Asking for a
+     * twelve-word code here was the old model, and the point of retiring it is
+     * that nobody remembers twelve words — a backup that cannot be restored by
+     * the person who made it is not a backup.
+     *
+     * The code path survives only for archives sealed before this existed. When
+     * there is no archive key in Drive there is no other way in, so the prompt
+     * is offered rather than the restore simply failing.
+     */
+    const { loadArchiveKey, ArchiveKeyError } = await import('../../lib/backup/archive-key.js');
 
     let recoveryKey: CryptoKey;
     try {
-      recoveryKey = await restoreRecoveryKey(stored, entered, 0);
-    } catch {
-      setError('That code did not open your recovery package. Nothing was restored.');
-      return;
+      recoveryKey = (await loadArchiveKey(driveTarget.client)).privateKey;
+    } catch (cause) {
+      if (!(cause instanceof ArchiveKeyError) || cause.code !== 'missing') {
+        setError('The backup key in Drive could not be read. Nothing was restored.');
+        return;
+      }
+
+      // Pre-Simple-mode archive: the twelve-word code is the only key there is.
+      if (!entered) {
+        setError(
+          'This backup was made before PINGO stored a key in Drive, so it still needs your 12-word recovery code.',
+        );
+        return;
+      }
+      const { restoreRecoveryKey } = await import('../../lib/crypto/recovery.js');
+      const stored = local?.package;
+      if (!stored) {
+        setError('This device has no recovery package to open. Enable Secure Backup first.');
+        return;
+      }
+      try {
+        recoveryKey = await restoreRecoveryKey(stored, entered, 0);
+      } catch {
+        setError('That code did not open your recovery package. Nothing was restored.');
+        return;
+      }
     }
 
     const { applyArchivePlaintext } = await import('../../lib/backup/archive-builder.js');
@@ -633,6 +669,18 @@ export function SecureBackupScreen() {
           <p className="px-4 pt-2 text-sm text-muted">{policy.description}</p>
 
           {/*
+            Stated without euphemism, because it is the trade the mode makes.
+            Plan §10: not "secured by Google", not "encrypted in Drive". If the
+            sentence is uncomfortable the honest answer is Private mode, which
+            is the next thing to build — not softer wording here.
+          */}
+          <p className="px-4 pt-1 text-xs text-muted">
+            Your backup is encrypted, and its key is stored in your Google Drive so restoring
+            needs nothing but this Google account. Anyone who can sign in to it can read these
+            chats. PINGO cannot.
+          </p>
+
+          {/*
             The stage first, then the bar. The stage names come from the
             pipeline and map one-to-one onto what is actually running, so
             "Downloading older history…" means exactly that and not "we are
@@ -750,18 +798,31 @@ export function SecureBackupScreen() {
           {confirm === 'restore' ? (
             <div className="px-4 pb-3">
               <p className="text-sm text-warning">
-                Restore replaces this device&rsquo;s local history with the backup in Drive, and
-                needs your 12-word recovery code. Use Test Recovery above first to check the code
-                works.
+                Restore replaces this device&rsquo;s local history with the backup in Drive.
               </p>
-              <input
-                type="password"
-                value={restoreCode}
-                autoComplete="off"
-                placeholder="Your 12-word recovery code"
-                onChange={(event) => setRestoreCode(event.target.value)}
-                className="my-2 w-full rounded-md bg-surface px-3 py-2 text-sm"
-              />
+              {/*
+                The code field is for old backups only.
+
+                Simple Backup keeps its key in the same Drive folder as the
+                archive, so a signed-in device needs nothing else. Showing an
+                empty box labelled "recovery code" to everyone would teach people
+                that restore needs something they do not have — and most of them
+                would stop there rather than press a button that looks like it
+                will fail.
+              */}
+              <details className="my-2">
+                <summary className="cursor-pointer text-xs text-muted">
+                  Backup made before PINGO stored a key in Drive?
+                </summary>
+                <input
+                  type="password"
+                  value={restoreCode}
+                  autoComplete="off"
+                  placeholder="Your 12-word recovery code"
+                  onChange={(event) => setRestoreCode(event.target.value)}
+                  className="my-2 w-full rounded-md bg-surface px-3 py-2 text-sm"
+                />
+              </details>
               <button type="button" className="py-2 text-left text-accent" onClick={() => void confirmRestore()}>
                 Yes, restore from Drive
               </button>
