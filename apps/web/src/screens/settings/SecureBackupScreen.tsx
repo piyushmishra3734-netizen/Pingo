@@ -52,7 +52,6 @@ export function SecureBackupScreen() {
 
   const [drive, setDrive] = useState<DriveView | undefined>();
   const [confirm, setConfirm] = useState<'restore' | 'disconnect' | undefined>();
-  const [restoreCode, setRestoreCode] = useState('');
   const backupUx = useBackupUx();
   const reminderState = backupUx.reminders;
   const [telemetryOn, setTelemetryOn] = useState(false);
@@ -192,21 +191,13 @@ export function SecureBackupScreen() {
    */
   const confirmRestore = async () => {
     setConfirm(undefined);
-    const entered = restoreCode.trim();
-    setRestoreCode('');
-
     /*
-     * Simple Backup restores with the Google account and nothing else.
+     * Nothing is asked for.
      *
      * The archive key lives in the same Drive folder as the archive it opens,
-     * so a signed-in device already holds everything it needs. Asking for a
-     * twelve-word code here was the old model, and the point of retiring it is
-     * that nobody remembers twelve words — a backup that cannot be restored by
-     * the person who made it is not a backup.
-     *
-     * The code path survives only for archives sealed before this existed. When
-     * there is no archive key in Drive there is no other way in, so the prompt
-     * is offered rather than the restore simply failing.
+     * so a signed-in device already holds the whole credential. Twelve words
+     * nobody wrote down was never a recovery mechanism — a backup that cannot
+     * be opened by the person who made it is not a backup.
      */
     const { loadArchiveKey, ArchiveKeyError } = await import('../../lib/backup/archive-key.js');
 
@@ -214,30 +205,18 @@ export function SecureBackupScreen() {
     try {
       recoveryKey = (await loadArchiveKey(driveTarget.client)).privateKey;
     } catch (cause) {
-      if (!(cause instanceof ArchiveKeyError) || cause.code !== 'missing') {
-        setError('The backup key in Drive could not be read. Nothing was restored.');
-        return;
-      }
-
-      // Pre-Simple-mode archive: the twelve-word code is the only key there is.
-      if (!entered) {
-        setError(
-          'This backup was made before PINGO stored a key in Drive, so it still needs your 12-word recovery code.',
-        );
-        return;
-      }
-      const { restoreRecoveryKey } = await import('../../lib/crypto/recovery.js');
-      const stored = local?.package;
-      if (!stored) {
-        setError('This device has no recovery package to open. Enable Secure Backup first.');
-        return;
-      }
-      try {
-        recoveryKey = await restoreRecoveryKey(stored, entered, 0);
-      } catch {
-        setError('That code did not open your recovery package. Nothing was restored.');
-        return;
-      }
+      /*
+       * Named separately because they need different answers. No key at all
+       * means the backup predates Simple mode and one more backup fixes it; an
+       * unreadable key is a problem with a key existing archives depend on, and
+       * generating a replacement would orphan every one of them.
+       */
+      setError(
+        cause instanceof ArchiveKeyError && cause.code === 'missing'
+          ? 'This backup was made before PINGO stored a key in Drive. Run Backup Now once, then restore.'
+          : 'The backup key in Drive could not be read. Nothing was restored.',
+      );
+      return;
     }
 
     const { applyArchivePlaintext } = await import('../../lib/backup/archive-builder.js');
@@ -335,24 +314,27 @@ export function SecureBackupScreen() {
    * to readable history.
    */
   const recoverFromDrive = async () => {
-    const entered = restoreCode.trim();
-    setRestoreCode('');
     setError(undefined);
-    if (!entered) return;
 
     try {
-      const stored = await driveTarget.get();
-      if (!stored) {
-        setError('No recovery package was found in Google Drive for this account.');
-        return;
-      }
-
-      const { restoreRecoveryKey } = await import('../../lib/crypto/recovery.js');
+      /*
+       * The lost-phone path, and it asks for nothing.
+       *
+       * This runs on a device that has never held this account's keys. The
+       * archive key sits in the same Drive folder as the archive, so signing in
+       * to Google is the entire credential — which is the whole reason Simple
+       * Backup exists.
+       */
+      const { loadArchiveKey, ArchiveKeyError } = await import('../../lib/backup/archive-key.js');
       let key: CryptoKey;
       try {
-        key = await restoreRecoveryKey(stored.package, entered, 0);
-      } catch {
-        setError('That code did not open the recovery package. Nothing was restored.');
+        key = (await loadArchiveKey(driveTarget.client)).privateKey;
+      } catch (cause) {
+        setError(
+          cause instanceof ArchiveKeyError && cause.code === 'missing'
+            ? 'No backup key was found in this Google account. Nothing was restored.'
+            : 'The backup key in Drive could not be read. Nothing was restored.',
+        );
         return;
       }
 
@@ -521,24 +503,14 @@ export function SecureBackupScreen() {
               {drive?.phase === 'connecting' ? 'Connecting…' : 'Connect Google Drive'}
             </button>
           ) : (
-            <>
-              <input
-                type="password"
-                value={restoreCode}
-                autoComplete="off"
-                placeholder="Your 12-word recovery code"
-                onChange={(event) => setRestoreCode(event.target.value)}
-                className="mx-4 my-2 rounded-md bg-surface px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                disabled={busyDrive || restoreCode.trim().length === 0}
-                className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
-                onClick={() => void recoverFromDrive()}
-              >
-                {drive?.phase === 'restoring' ? 'Restoring…' : 'Restore from Google Drive'}
-              </button>
-            </>
+            <button
+              type="button"
+              disabled={busyDrive}
+              className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+              onClick={() => void recoverFromDrive()}
+            >
+              {drive?.phase === 'restoring' ? 'Restoring…' : 'Restore from Google Drive'}
+            </button>
           )}
 
           {drive?.phase === 'error' && drive.message ? (
@@ -814,28 +786,15 @@ export function SecureBackupScreen() {
                 Restore replaces this device&rsquo;s local history with the backup in Drive.
               </p>
               {/*
-                The code field is for old backups only.
-
-                Simple Backup keeps its key in the same Drive folder as the
-                archive, so a signed-in device needs nothing else. Showing an
-                empty box labelled "recovery code" to everyone would teach people
-                that restore needs something they do not have — and most of them
-                would stop there rather than press a button that looks like it
-                will fail.
+                Nothing is asked for, and the screen says so rather than
+                leaving an empty box. A field labelled "recovery code" teaches
+                people that restore needs something they do not have, and most
+                stop there rather than press a button that looks like it will
+                fail.
               */}
-              <details className="my-2">
-                <summary className="cursor-pointer text-xs text-muted">
-                  Backup made before PINGO stored a key in Drive?
-                </summary>
-                <input
-                  type="password"
-                  value={restoreCode}
-                  autoComplete="off"
-                  placeholder="Your 12-word recovery code"
-                  onChange={(event) => setRestoreCode(event.target.value)}
-                  className="my-2 w-full rounded-md bg-surface px-3 py-2 text-sm"
-                />
-              </details>
+              <p className="my-2 text-xs text-muted">
+                Your backup opens with this Google account. Nothing to type.
+              </p>
               <button type="button" className="py-2 text-left text-accent" onClick={() => void confirmRestore()}>
                 Yes, restore from Drive
               </button>
