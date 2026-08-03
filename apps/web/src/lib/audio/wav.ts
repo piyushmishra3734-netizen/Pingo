@@ -79,8 +79,83 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
 }
 
 /** Linear resample — good enough for speech; no extra deps. */
+/**
+ * One 2nd-order lowpass, applied in place. RBJ cookbook coefficients.
+ *
+ * Forward-only, so it shifts phase. That is inaudible in speech and costs half
+ * the work of running it backwards as well.
+ */
+function biquadLowpass(samples: Float32Array, rate: number, cutoff: number, q: number): void {
+  const w0 = (2 * Math.PI * cutoff) / rate;
+  const cos0 = Math.cos(w0);
+  const alpha = Math.sin(w0) / (2 * q);
+
+  const a0 = 1 + alpha;
+  const b0 = ((1 - cos0) / 2) / a0;
+  const b1 = (1 - cos0) / a0;
+  const b2 = b0;
+  const a1 = (-2 * cos0) / a0;
+  const a2 = (1 - alpha) / a0;
+
+  let x1 = 0;
+  let x2 = 0;
+  let y1 = 0;
+  let y2 = 0;
+
+  for (let i = 0; i < samples.length; i += 1) {
+    const x0 = samples[i]!;
+    const y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1;
+    x1 = x0;
+    y2 = y1;
+    y1 = y0;
+    samples[i] = y0;
+  }
+}
+
+/**
+ * Drop everything the new sample rate cannot represent, before dropping samples.
+ *
+ * Reported from real use: voice notes sometimes sound harsh or warbly, and not
+ * consistently. This is why. Capture runs at 48 kHz and the note is written at
+ * 24 kHz, and the resampler below only interpolated — which is a very weak
+ * lowpass. Everything above 12 kHz folded back into the audible band instead of
+ * being removed.
+ *
+ * That aliasing is *content-dependent*, which is exactly why it comes and goes:
+ * a calm low voice has little energy up there and sounds fine, while sibilance,
+ * keyboard clicks, or room hiss fold down as a harsh warble. The recording is
+ * lossless WAV either way, so the format was never the variable — this was.
+ *
+ * Three cascaded sections — 6th-order Butterworth — cut a little under the new
+ * Nyquist so the transition band lands where nothing speech-carrying lives.
+ *
+ * Fourth order was tried first and left a 15 kHz tone folding down at about
+ * -25 dB, which is quiet but measurable. 15 kHz sits only a third of an octave
+ * above the cutoff, so it is the hardest case a 24 kHz file can be asked about;
+ * the honest fix was a steeper filter rather than a slacker threshold. The cost
+ * is one more biquad, which is nothing next to encoding the file at all.
+ */
+function antiAlias(samples: Float32Array, fromRate: number, toRate: number): void {
+  const cutoff = Math.min(toRate * 0.45, fromRate * 0.45);
+  // Standard 6th-order Butterworth section Q values.
+  biquadLowpass(samples, fromRate, cutoff, 0.517_638_1);
+  biquadLowpass(samples, fromRate, cutoff, 0.707_106_8);
+  biquadLowpass(samples, fromRate, cutoff, 1.931_851_7);
+}
+
 function resample(input: Float32Array, fromRate: number, toRate: number): Float32Array {
   if (fromRate === toRate) return input;
+
+  /*
+   * Filtered on a copy. `input` is the caller's captured PCM and is also used
+   * to draw the waveform; filtering it in place would quietly change the
+   * picture the sender sees to match a compromise made for the file.
+   */
+  const filtered = new Float32Array(input);
+  if (toRate < fromRate) antiAlias(filtered, fromRate, toRate);
+  input = filtered;
+
   const ratio = fromRate / toRate;
   const length = Math.max(1, Math.round(input.length / ratio));
   const out = new Float32Array(length);

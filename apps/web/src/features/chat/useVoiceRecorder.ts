@@ -28,6 +28,14 @@ const WAVEFORM_BARS = 48;
 /** Recording stops itself here. Past this it is a memo, not a message. */
 const MAX_SECONDS = 300;
 
+/**
+ * How often the level meter may re-render, in milliseconds.
+ *
+ * Fast enough to look live, slow enough that drawing it is not competing with
+ * capturing audio on the same thread.
+ */
+const METER_INTERVAL_MS = 120;
+
 /** Below this a "recording" is a mis-tap, not a message. */
 const MIN_SECONDS = 0.4;
 
@@ -115,11 +123,30 @@ export function useVoiceRecorder(): VoiceRecorder {
       // ScriptProcessor is deprecated but universal — captures PCM on every device.
       const node = context.createScriptProcessor(4096, 1, 1);
       processor.current = node;
+      /*
+       * Copy the audio first, then think about the meter.
+       *
+       * `ScriptProcessor` runs on the main thread: whatever this callback does
+       * is time the browser is not spending on the next buffer, and a buffer
+       * that arrives late is silently dropped. The level meter used to call
+       * `setLevel` on every callback — a React render roughly twelve times a
+       * second, inside the audio path — so a busy moment in the app turned into
+       * gaps in the recording.
+       *
+       * The meter is throttled to something an eye can follow. The PCM copy
+       * stays first and unconditional, because dropping a buffer to draw a bar
+       * is the wrong way round.
+       */
+      let lastMeter = 0;
       node.onaudioprocess = (event) => {
         if (!recordingRef.current) return;
         const input = event.inputBuffer.getChannelData(0);
         pcmChunks.current.push(new Float32Array(input));
-        // Live level from the same buffer (no second graph).
+
+        const now = event.timeStamp || Date.now();
+        if (now - lastMeter < METER_INTERVAL_MS) return;
+        lastMeter = now;
+
         let peak = 0;
         for (let i = 0; i < input.length; i += 1) {
           peak = Math.max(peak, Math.abs(input[i]!));
