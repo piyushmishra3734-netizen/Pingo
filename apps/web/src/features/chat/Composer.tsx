@@ -109,6 +109,58 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
 
+  /*
+   * Images inserted by the keyboard without a paste.
+   *
+   * Some keyboards commit a GIF straight into the field as an `insertFrom*`
+   * input event carrying a `dataTransfer`, and never fire a paste at all. That
+   * has to be a *native* listener: React's `onBeforeInput` is synthetic, built
+   * on the legacy `textInput` event, and does not carry `dataTransfer` — so a
+   * handler written the React way looks correct and receives nothing.
+   *
+   * Guarded against the case where a keyboard fires both. The paste handler
+   * already prevented the default, but a second delivery would send the same
+   * GIF twice, and the same file object arriving twice in one tick is the only
+   * signal available to tell them apart.
+   */
+  const lastInsert = useRef(0);
+  const takeImages = (files: File[]) => {
+    const images = files.filter((file) => file.type.startsWith('image/'));
+    if (images.length === 0) return false;
+
+    const now = Date.now();
+    if (now - lastInsert.current < 400) return true;
+    lastInsert.current = now;
+
+    onPasteFiles?.(images);
+    return true;
+  };
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el || !onPasteFiles) return;
+
+    const handler = (event: Event) => {
+      const input = event as InputEvent;
+      const transfer = input.dataTransfer;
+      if (!transfer) return;
+
+      const files = [...transfer.files];
+      const fallback =
+        files.length > 0
+          ? files
+          : [...transfer.items]
+              .filter((item) => item.kind === 'file')
+              .map((item) => item.getAsFile())
+              .filter((file): file is File => file !== null);
+
+      if (takeImages(fallback)) event.preventDefault();
+    };
+
+    el.addEventListener('beforeinput', handler);
+    return () => el.removeEventListener('beforeinput', handler);
+  });
+
   const recorder = useVoiceRecorder();
 
   /*
@@ -310,24 +362,22 @@ export function Composer({
              * happen because only one of them is used.
              */
             const fromFiles = [...event.clipboardData.files];
-            const images = (
+            const candidates =
               fromFiles.length > 0
                 ? fromFiles
                 : [...event.clipboardData.items]
                     .filter((item) => item.kind === 'file')
                     .map((item) => item.getAsFile())
-                    .filter((file): file is File => file !== null)
-            ).filter((file) => file.type.startsWith('image/'));
-
-            if (images.length === 0) return;
+                    .filter((file): file is File => file !== null);
 
             /*
-             * Only when there is an image. Pasting text stays a normal paste —
-             * intercepting that would break the ordinary case to serve the rare
-             * one.
+             * `takeImages` returns whether this was an image, and does the
+             * de-duplication shared with the `beforeinput` listener. The default
+             * is prevented only then: pasting text stays an ordinary paste,
+             * because intercepting that would break the common case to serve
+             * the rare one.
              */
-            event.preventDefault();
-            onPasteFiles(images);
+            if (takeImages(candidates)) event.preventDefault();
           }}
           onKeyDown={(event) => {
             const touch = window.matchMedia('(pointer: coarse)').matches;
