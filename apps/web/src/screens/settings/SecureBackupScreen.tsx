@@ -214,7 +214,66 @@ export function SecureBackupScreen() {
        * completed restore.
        */
       const applied = await applyArchivePlaintext(plaintext);
-      setError(`Restored ${applied.records} records across ${applied.stores} stores.`);
+
+      /*
+       * What arrived, checked against what was promised.
+       *
+       * "Restored 5,465 records" is a statement about this function finishing,
+       * not about the backup being whole — and those are different claims. The
+       * receipt written when the backup was made is the only thing that can
+       * tell them apart, so it is read back and compared here rather than the
+       * restore reporting its own success.
+       *
+       * A mismatch never blocks the restore: the data that arrived is the
+       * user's data. It simply stops being described as complete.
+       */
+      const [{ verifyRestore, openReceipt, computeManifestHash, computeArchiveHash }, { liveReceiptStore }] =
+        await Promise.all([
+          import('../../lib/backup/receipt.js'),
+          import('../../lib/backup/live-ports.js'),
+        ]);
+
+      let headline = `Restored ${applied.records} records across ${applied.stores} stores.`;
+      try {
+        const store = driveTarget.verificationStore();
+        const head = await store.head();
+        const raw = head ? await store.readManifest(head.generation) : undefined;
+        const sealed = await liveReceiptStore(driveTarget.client).newest();
+
+        if (raw && sealed) {
+          const manifest = JSON.parse(raw) as Parameters<typeof computeManifestHash>[0];
+          const receipt = await openReceipt(sealed as never, recoveryKey);
+
+          // Counted from the archive itself, not from what we hoped it held.
+          const conversations = new Set<string>();
+          let messages = 0;
+          for (const line of new TextDecoder().decode(plaintext).split('\n')) {
+            if (!line) continue;
+            const record = JSON.parse(line) as { kind?: string; store?: string; key?: string };
+            if (record.kind === 'record' && record.store === 'message-rows' && record.key) {
+              messages += 1;
+              conversations.add(record.key.split('|')[0]!);
+            }
+          }
+
+          const checked = verifyRestore(receipt, {
+            conversations: conversations.size,
+            messages,
+            manifestHash: await computeManifestHash(manifest),
+            archiveHash: await computeArchiveHash(manifest.chunks),
+          });
+          headline = checked.headline;
+          if (checked.warnings.length > 0) {
+            headline += ` (${checked.warnings.map((warning) => warning.message).join(' ')})`;
+          }
+        }
+      } catch {
+        // An unreadable receipt leaves the restore standing and unverified,
+        // which is what `verifyRestore` calls it when handed nothing.
+        headline += ' Could not verify it against the original backup record.';
+      }
+
+      setError(headline);
     });
   };
 
