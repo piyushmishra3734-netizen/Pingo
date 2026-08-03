@@ -494,6 +494,97 @@ The response is to roll HEAD back to the previous generation rather than leave a
 pointer to something unverified — the same ordering discipline as everywhere
 else: nothing good is discarded until something better is proven.
 
+### 10.4 Where it runs — an ordering constraint on the existing commit path
+
+The commit sequence today is chunks → manifest → HEAD → **delete old**, and the
+delete happens immediately (`drive-target.ts:164`, `drive-target.ts:239`).
+Verification has to run *between the last two*:
+
+```
+chunks → manifest → HEAD → VERIFY → delete old
+```
+
+After HEAD, because verifying anything else is verifying a file nobody points
+at. Before the delete, because a failure here means a bad generation is live and
+the only correct response is to put the pointer back — which requires the
+previous generation to still exist.
+
+**Deleting first would convert a recoverable bad backup into no backup at all.**
+Step 6 moves the clean to after verification; until then the module is complete
+and unwired, which is why its store interface is injected.
+
+### 10.5 Rollback, and the first-backup case
+
+On failure HEAD moves to the newest older generation that still has a readable
+manifest — a generation whose manifest is also gone is skipped rather than
+pointed at.
+
+When there is nothing older, HEAD is **removed** rather than left on the
+failure. That is the first backup, and "no backup" is the honest state: telling
+someone they have a backup that did not verify is worse than telling them they
+have none, because only one of those gets acted on.
+
+| Situation | Result |
+| --- | --- |
+| Older generation exists | `rolledBackTo: N`, previous backup still live |
+| Older manifest missing | skipped, rolls further back |
+| Nothing older | `headCleared: true`, no backup claimed |
+| `rollback: false` | reports the failure, pointer untouched |
+
+### 10.6 What is sampled and what never is
+
+| Check | Sampled? | Why |
+| --- | --- | --- |
+| HEAD generation | never | one read |
+| Manifest present and parses | never | one read |
+| Chunk count | never | arithmetic |
+| Encryption metadata | never | arithmetic |
+| Chunk presence | never | metadata, not a download |
+| Chunk size | never | metadata, not a download |
+| Chunk digest | above 64 chunks | requires re-downloading the archive |
+| Header completeness | only if a reader is supplied | requires the recovery key |
+
+Presence and size are metadata reads, so sampling them would save nothing and
+give up the check most likely to catch an upload Drive reported as fine.
+Verified: a chunk missing at index 150 of 200 is caught even though the digest
+sample never reads it.
+
+The digest sample always includes the **first and last** chunk — the tail is
+where a truncated upload shows, and a sample that could miss it would pass the
+failure most likely to happen. The remaining picks are spread evenly rather than
+chosen at random, so a verification is reproducible and a bug report can be
+re-run.
+
+### 10.7 The UI cannot overstate what happened
+
+`verificationHeadline()` is built here rather than at the call site, so
+"Backup complete" cannot be written next to a partial verification by someone
+reading only `status`:
+
+```
+Backup complete and fully verified.
+Backup complete, spot-checked (16 of 200 parts read).
+Backup complete, completeness not confirmed.
+Backup failed to verify. Your previous backup from generation 6 is still in place.
+Backup failed to verify and was not kept.
+```
+
+A sampled digest pass and a skipped header check are **different** qualifications
+and are worded separately. Collapsing them produced "spot-checked (4 of 4 parts
+read)" on a run that read every chunk and simply could not decrypt the header —
+reassuring and wrong at the same time.
+
+### 10.8 The header check needs a key, so it is injected
+
+Structural verification needs no key at all. Confirming *which account state*
+the archive holds needs the recovery key to read the header. So the reader is
+injected, and a caller that cannot decrypt gets an explicit `skipped` with a
+reason rather than a check that quietly did not happen.
+
+Everything above the header proves the bytes are the bytes that were uploaded.
+The header is the only check that proves they are the bytes that were meant to
+be.
+
 ---
 
 ## 11. Implementation order
@@ -646,5 +737,5 @@ and the receipt is written only after verification passes — so a receipt sayin
 | 2 | `preflight.ts` | done — 40 checks |
 | 3 | `receipt.ts` — immutable receipt, restore verification | done — 47 checks |
 | 4 | `completeness.ts` — the proof, the retry set, the header | done — 49 checks |
-| 5 | backup verification | next |
-| 6 | archive integration, end to end on a wiped device | |
+| 5 | `verification.ts` — read-back, sampling, rollback | done — 64 checks |
+| 6 | archive integration, end to end on a wiped device | next |
