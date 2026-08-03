@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <title>PINGO. Connect. Privately.</title>
+    <meta
+      name="description"
+      content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
+    />
+    <link rel="canonical" href="https://pingochat.pages.dev/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PINGO" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="PINGO. Connect. Privately." />
+    <meta
+      property="og:description"
+      content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
+    />
+    <meta property="og:url" content="https://pingochat.pages.dev/" />
+    <meta property="og:image" content="https://pingochat.pages.dev/pingo-icon.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="PINGO app icon" />
+
+    <!-- Twitter / X Cards -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="PINGO. Connect. Privately." />
+    <meta
+      name="twitter:description"
+      content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
+    />
+    <meta name="twitter:url" content="https://pingochat.pages.dev/" />
+    <meta name="twitter:image" content="https://pingochat.pages.dev/pingo-icon.png" />
+    <meta name="twitter:image:alt" content="PINGO app icon" />
+
+    <!-- Tints browser chrome to the page colour so the app has no visible seam. -->
+    <meta name="theme-color" content="#FBFBFE" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!--
+      Space Grotesk is the brand face, served from our own origin.
+
+      It used to come from fonts.googleapis.com, which meant Google received an
+      IP address for every visitor on every cold load - before sign-in, before
+      anything at all. On a product whose argument is that the middle is empty,
+      that was the one request contradicting it, and the privacy policy would
+      have had to list Google as a third party purely because of a typeface.
+
+      Preloaded rather than merely linked: the @font-face lives in an imported
+      stylesheet, so without this the browser cannot discover the font until CSS
+      has parsed - a round trip that lands squarely in first paint. The latin
+      subset only; the others are fetched on demand by their unicode-range and
+      most sessions never need them.
+
+      Licensed under the SIL Open Font License. See /fonts/OFL.txt.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/space-grotesk-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <!-- Hero mark used on public landing surfaces; warm the cache for LCP. -->
+    <link rel="preload" href="/pingo-icon.png" as="image" type="image/png" />
+
+    <!--
+      The official app icon, used as supplied. Not a redraw, not a generated
+      size set - one file, referenced everywhere the mark appears.
+    -->
+    <link rel="icon" href="/pingo-icon.png" type="image/png" sizes="512x512" />
+    <link rel="icon" href="/pingo-icon.png" type="image/png" sizes="any" />
+    <link rel="shortcut icon" href="/pingo-icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/pingo-icon.png" sizes="512x512" />
+
+    <!-- JSON-LD: organization + software application (public product surface). -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://pingochat.pages.dev/#organization",
+            "name": "PINGO",
+            "url": "https://pingochat.pages.dev/",
+            "logo": "https://pingochat.pages.dev/pingo-icon.png",
+            "description": "Private messaging, redefined for you."
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://pingochat.pages.dev/#website",
+            "name": "PINGO",
+            "url": "https://pingochat.pages.dev/",
+            "description": "Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts.",
+            "publisher": { "@id": "https://pingochat.pages.dev/#organization" },
+            "inLanguage": "en"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://pingochat.pages.dev/#app",
+            "name": "PINGO",
+            "applicationCategory": "CommunicationApplication",
+            "operatingSystem": "Web, Android",
+            "url": "https://pingochat.pages.dev/download",
+            "image": "https://pingochat.pages.dev/pingo-icon.png",
+            "description": "Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "publisher": { "@id": "https://pingochat.pages.dev/#organization" }
+          }
+        ]
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-COwTVsgo.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DwUe6toc.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <body>
+    <div id="root"></div>
+    <script>
+      /*
+       * Recover from a stale shell.
+       *
+       * Observed in production: a cached index.html referencing
+       * assets/index-CnNEDbzi.js, an asset a later deploy had removed. Pages
+       * answers a missing file with the SPA fallback, so the browser fetched
+       * 2,245 bytes of HTML where it expected a module, the script never ran,
+       * and #root stayed empty. A white screen, and nothing in the console to
+       * say why.
+       *
+       * Network-first navigations make it rarer, and cannot make it impossible:
+       * on a connection slower than the timeout the service worker still falls
+       * back to the shell it has, and that shell can name assets that no longer
+       * exist. The only reliable signal is the one that matters anyway -- did
+       * the app mount.
+       *
+       * If it did not, drop the caches and the worker and reload. Guarded by
+       * sessionStorage so a genuinely broken build reloads once rather than
+       * spinning, because a reload loop is worse than a white screen: it burns
+       * battery and data and never stops.
+       */
+      (function () {
+        var KEY = 'pingo:boot-retry';
+        function mounted() {
+          var root = document.getElementById('root');
+          return !!root && root.childNodes.length > 0;
+        }
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            if (mounted()) {
+              sessionStorage.removeItem(KEY);
+              return;
+            }
+            if (sessionStorage.getItem(KEY)) return;
+            sessionStorage.setItem(KEY, '1');
+
+            var done = function () {
+              location.reload();
+            };
+            var jobs = [];
+            if (window.caches && caches.keys) {
+              jobs.push(
+                caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                }),
+              );
+            }
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (all) {
+                  return Promise.all(all.map(function (r) { return r.unregister(); }));
+                }),
+              );
+            }
+            Promise.all(jobs).then(done, done);
+          }, 5000);
+        });
+      })();
+    </script>
+  </body>
+</html>

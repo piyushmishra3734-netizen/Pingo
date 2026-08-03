@@ -255,7 +255,11 @@ console.log('\n— media is counted but not promised —');
   );
   check(/not included yet/.test(rendered), 'and the wording says it is not included');
   check(/Estimated size/.test(rendered), 'the size line says estimated');
-  check(/–/.test(rendered), 'and shows a range rather than a bare number');
+    // Asserted structurally rather than on the separator character: the linter
+  // normalises dashes, and a test that breaks on punctuation teaches people to
+  // ignore it.
+  const range = new RegExp(`\(${formatBytes(summary.archive.low)}.${formatBytes(summary.archive.high)}\)`);
+  check(range.test(rendered), 'and shows a low-to-high range rather than a bare number');
 }
 
 console.log('\n' + formatPreflight(await runPreflight(new FakeSource(), SAMPLE)) + '\n');

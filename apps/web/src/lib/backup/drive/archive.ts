@@ -83,7 +83,14 @@ const fromBase64 = (text: string) => {
  * holding the archive in memory. Kept here rather than duplicated there so
  * there is one definition of how a chunk is sealed and bound to its place.
  */
-export { archiveKey as deriveArchiveKey, chunkAad, digest as chunkDigest, importPublic as importArchivePublicKey, toBase64 as archiveBase64 };
+export {
+  archiveKey as deriveArchiveKey,
+  chunkAad,
+  digest as chunkDigest,
+  importPublic as importArchivePublicKey,
+  toBase64 as archiveBase64,
+  fromBase64 as archiveFromBase64,
+};
 
 async function digest(bytes: Uint8Array): Promise<string> {
   const hash = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);

@@ -1,6 +1,6 @@
 # PINGO — backing up complete history
 
-**Status:** design. No code written.
+**Status:** implementation in progress. Steps 1-3 shipped and verified.
 **Supersedes:** the cache-snapshot assumption in
 [effortless-backup-plan.md](./effortless-backup-plan.md) and
 [e2ee-relay-and-backup-plan.md](./e2ee-relay-and-backup-plan.md).
@@ -445,3 +445,138 @@ The short-page case is called an attack rather than an edge case on purpose. A
 server that returns a short page — through hidden messages, a hostile proxy, or
 a bug — must not be able to convince backfill that history has ended, because
 the resulting archive verifies perfectly and is silently incomplete.
+
+---
+
+## 12. The immutable backup receipt
+
+Every successful backup writes one receipt recording exactly what it contained.
+A restore checks what arrived against it. "The restore finished" and "the
+restore was complete" are different claims, and only the second one is worth
+making.
+
+```
+Backup ID        bk_01HZY
+Created          2026-07-25T17:20:00.000Z
+Generation       7
+Chats            412
+Messages         38,204
+Media files      2,544
+Archive size     3,000,048 B
+Manifest hash    q8wCKPPXUbNy
+Archive hash     vt6R6dX+YEg/
+Encryption mode  private
+Key version      1
+Verification     verified
+Completeness     proven
+```
+
+### 12.1 Immutable against whom
+
+The receipt lives beside the archive, so it lives on Google Drive, so Google can
+rewrite every byte of it. **Storage cannot make it immutable; cryptography can.**
+The body is sealed under a key derived from the account's recovery key, so a
+receipt can be *deleted* by whoever holds the file and cannot be *forged or
+edited* by anyone. That is the property a restore actually needs — a tampered
+receipt fails to open rather than lying convincingly.
+
+### 12.2 Sealed, not signed
+
+A signature would make the receipt tamper-evident while leaving the counts
+readable. §9.4 already decided counts do not go where Google can read them: the
+manifest is plaintext, and a message count is a finer-grained signal than the
+archive size Drive can already see. So the body is encrypted, and the plaintext
+envelope carries only `backupId`, `generation`, `mode`, `keyVersion` — every one
+of which is already implied by the file's location, so the envelope leaks
+nothing new.
+
+The envelope is bound into the AEAD. Without that it would be unauthenticated
+and editable: a receipt could be relabelled as a different generation, or as
+Private when it was made in Simple mode, while its body still opened cleanly.
+
+### 12.3 A separate key from the chunks
+
+The receipt key is HKDF'd from the same ECDH secret under a different `info`
+label, so whoever can open the archive can read its receipt and nobody else,
+while neither key is the other. The suite takes the archive chunk key and
+attempts to open a receipt with it, and fails if that ever succeeds — the same
+shape as the archive/recovery isolation proof.
+
+### 12.4 The two hashes
+
+| Hash | Over | Catches |
+| --- | --- | --- |
+| `manifestHash` | canonical JSON of the manifest | any edit to generation, chunk count, size, epk, or a digest |
+| `archiveHash` | root over the ordered chunk digests | an edited chunk, a dropped tail, a swapped pair |
+
+Both are canonicalised — keys sorted, chunks ordered by index — so a manifest
+rebuilt by a different code path hashes the same. Without that, an honest
+restore raises a false alarm the moment field order changes, which trains people
+to ignore the alarm.
+
+The archive root binds the chunk *count* and each *index* into its preimage. A
+plain concatenation of digests would let a reorder through.
+
+### 12.5 The chain, and what it does not cover
+
+Each receipt carries the hash of the previous sealed receipt, inside the sealed
+body — a link an attacker can rewrite is not a chain. This catches a deleted
+receipt in the middle and an old receipt replayed as the newest.
+
+**It cannot catch truncation at the newest end.** Deleting the most recent
+receipt leaves a shorter chain that is internally perfect. That is covered by
+pinning the newest hash locally and by the server-side generation floor from the
+security review (Gap 2/3) — not by the chain. The suite asserts this limit
+rather than leaving it to be assumed.
+
+### 12.6 Restore verification
+
+| Checked | Result if it differs |
+| --- | --- |
+| Expected chats == restored chats | warning, named, with both numbers |
+| Expected messages == restored messages | warning, named, with both numbers |
+| Expected manifest hash == actual | warning |
+| Expected archive hash == actual | warning |
+| No readable receipt | `unverifiable` |
+
+**A mismatch never blocks the restore.** The data that did arrive is the user's
+data and withholding it helps nobody. But it is never reported as a complete
+restore either, which is the entire reason for writing the receipt.
+
+The status is `verified | warned | unverifiable` — deliberately not a boolean, so
+no call site can write `if (ok)` and let "restored with warnings" quietly become
+"restored". The suite asserts the result object exposes no boolean at all.
+
+**What a hash mismatch actually means, stated precisely.** The chunks are
+AES-GCM and the receipt is sealed, so nobody can produce an archive that
+decrypts *and* hashes differently. Reaching the warning path means the receipt
+belongs to a different backup than the one restored — a stale pointer, a
+partially rolled-back generation — not forged content. Forged content fails
+earlier, at decryption, and never gets that far. The warning is worth having
+anyway: the failure it catches is ours, not an attacker's.
+
+### 12.7 The lifecycle
+
+```
+backfill  →  completeness proof  →  archive  →  upload  →  verification
+                                                                 ↓
+success  ←  restore verification  ←  immutable receipt  ←────────┘
+```
+
+Each arrow is a gate, not a step: the proof refuses to archive while anything is
+short, verification refuses to commit HEAD to something it could not read back,
+and the receipt is written only after verification passes — so a receipt saying
+`verified · proven` cannot exist for a backup that was neither.
+
+---
+
+## 13. Implementation order, revised
+
+| # | Module | Status |
+| --- | --- | --- |
+| 1 | `backfill.ts` + audit log | done — 73 checks |
+| 2 | `preflight.ts` | done — 40 checks |
+| 3 | `receipt.ts` — immutable receipt, restore verification | done — 47 checks |
+| 4 | completeness proof | next |
+| 5 | backup verification | |
+| 6 | archive integration, end to end on a wiped device | |

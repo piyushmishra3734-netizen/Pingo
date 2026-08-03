@@ -1,0 +1,12 @@
+{
+  "jsPath": "assets/index-BYigr0fp.js",
+  "cssPath": "assets/index-DoOpkez4.css",
+  "checks": {
+    "jsHasToast": true,
+    "jsHasSlide": true,
+    "cssHasToastIn": true,
+    "cssHasSlide": true,
+    "jsLen": 1132683,
+    "cssLen": 77619
+  }
+}
