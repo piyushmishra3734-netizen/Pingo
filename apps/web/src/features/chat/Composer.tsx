@@ -52,6 +52,15 @@ export interface ComposerProps {
    * claiming the user stopped typing something they never started.
    */
   onRecording?: (recording: boolean) => void | Promise<void>;
+  /**
+   * Images pasted or inserted from the keyboard.
+   *
+   * This is how a GIF or sticker chosen in Gboard or the iOS keyboard actually
+   * arrives: not as a file pick, but as a paste carrying image data. Without a
+   * handler the browser tries to insert it as text, finds none, and the tap
+   * appears to do nothing at all — which is exactly how it looked.
+   */
+  onPasteFiles?: (files: File[]) => void;
   /** Announced to screen readers, e.g. "Message Anaya Sharma". */
   ariaLabel?: string;
   className?: string;
@@ -76,6 +85,7 @@ export function Composer({
   onSendSticker,
   onTyping,
   onRecording,
+  onPasteFiles,
   placeholder = 'Type a message...',
   ariaLabel = 'Message',
   className,
@@ -286,6 +296,38 @@ export function Composer({
               is harmless and a late "stopped" leaves the dots up.
             */
             void onTyping?.(event.target.value.length > 0);
+          }}
+          onPaste={(event) => {
+            if (!onPasteFiles) return;
+
+            /*
+             * `files` first, `items` as the fallback.
+             *
+             * A keyboard GIF arrives as a file on Chrome and Android; some
+             * builds of Safari expose it only through `items`, and reading the
+             * wrong one is the difference between the feature working and the
+             * button appearing dead. Both are checked, and duplicates cannot
+             * happen because only one of them is used.
+             */
+            const fromFiles = [...event.clipboardData.files];
+            const images = (
+              fromFiles.length > 0
+                ? fromFiles
+                : [...event.clipboardData.items]
+                    .filter((item) => item.kind === 'file')
+                    .map((item) => item.getAsFile())
+                    .filter((file): file is File => file !== null)
+            ).filter((file) => file.type.startsWith('image/'));
+
+            if (images.length === 0) return;
+
+            /*
+             * Only when there is an image. Pasting text stays a normal paste —
+             * intercepting that would break the ordinary case to serve the rare
+             * one.
+             */
+            event.preventDefault();
+            onPasteFiles(images);
           }}
           onKeyDown={(event) => {
             const touch = window.matchMedia('(pointer: coarse)').matches;

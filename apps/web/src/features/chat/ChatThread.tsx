@@ -1000,6 +1000,10 @@ export function ChatThread({
             }}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}
             onRecording={(recording) => void service.setRecording(conversation.id, recording)}
+            // A GIF or sticker from the keyboard lands where a gallery pick
+            // lands: same preview, caption and send. The file is passed through
+            // untouched, which is what keeps an animated GIF animated.
+            onPasteFiles={(files) => setPending(files)}
             ariaLabel={`Message ${conversation.title}`}
           />
         </div>
