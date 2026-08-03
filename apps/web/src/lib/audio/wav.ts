@@ -38,6 +38,51 @@ export async function toPlayableVoiceBlob(blob: Blob): Promise<Blob> {
   }
 }
 
+/** Loudest a note is allowed to land, leaving a little headroom under clipping. */
+const TARGET_PEAK = 0.89;
+
+/**
+ * The most a quiet recording may be lifted.
+ *
+ * Without a ceiling, a near-silent take would be multiplied by fifty and arrive
+ * as a wall of room noise and mains hum. Eight times turns a genuinely quiet
+ * voice into an audible one and leaves a genuinely empty room quiet.
+ */
+const MAX_GAIN = 8;
+
+/**
+ * Bring the whole take to a consistent level, once, at the end.
+ *
+ * This exists to replace the browser's automatic gain control for voice notes.
+ * AGC rides the level *during* capture: it pulls down after a loud passage and
+ * creeps back up through the next quiet one, so a single note can audibly
+ * change volume partway through. That is the "sometimes the sound drops"
+ * complaint, and no amount of filtering fixes it because it is baked into the
+ * samples.
+ *
+ * One measurement and one multiplication cannot pump, because the gain is
+ * constant across the whole recording — the loud parts stay loud relative to
+ * the quiet ones, which is what makes it still sound like a person talking.
+ */
+export function normalisePeak(samples: Float32Array): Float32Array {
+  let peak = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    const value = Math.abs(samples[i]!);
+    if (value > peak) peak = value;
+  }
+
+  // Silence has no peak to normalise against, and dividing by it is how a
+  // broken microphone becomes a burst of amplified nothing.
+  if (peak < 0.0005) return samples;
+
+  const gain = Math.min(TARGET_PEAK / peak, MAX_GAIN);
+  if (gain <= 1.01) return samples;
+
+  const out = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i += 1) out[i] = samples[i]! * gain;
+  return out;
+}
+
 /** Build a mono WAV from float samples captured during recording. */
 export function encodePcmToWavBlob(
   samples: Float32Array,

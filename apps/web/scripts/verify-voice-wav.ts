@@ -13,7 +13,12 @@
  *
  * Run with `pnpm verify:voice-wav`.
  */
-import { VOICE_WAV_RATE, concatFloat32, encodePcmToWavBlob } from '../src/lib/audio/wav.js';
+import {
+  VOICE_WAV_RATE,
+  concatFloat32,
+  encodePcmToWavBlob,
+  normalisePeak,
+} from '../src/lib/audio/wav.js';
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
@@ -164,6 +169,77 @@ console.log('\n— the pieces still fit together —');
   const { samples } = await decode(encodePcmToWavBlob(joined, SOURCE_RATE));
   const expected = Math.round((joined.length * VOICE_WAV_RATE) / SOURCE_RATE);
   check(Math.abs(samples.length - expected) <= 2, `duration is preserved (${samples.length} vs ${expected})`);
+}
+
+console.log('\n— levels are made even once, not ridden during capture —');
+
+const peakOf = (samples: Float32Array) => {
+  let peak = 0;
+  for (let i = 0; i < samples.length; i += 1) peak = Math.max(peak, Math.abs(samples[i]!));
+  return peak;
+};
+
+{
+  // A quiet talker should arrive audible.
+  const quiet = tone(500, 0.3, SOURCE_RATE, 0.05);
+  const lifted = normalisePeak(quiet);
+  check(
+    peakOf(lifted) > 0.35,
+    `a quiet take is lifted (${peakOf(quiet).toFixed(3)} to ${peakOf(lifted).toFixed(3)})`,
+  );
+  check(peakOf(lifted) <= 1, 'and never past full scale');
+}
+
+{
+  // Already loud: leave it alone rather than pushing it into the ceiling.
+  const loud = tone(500, 0.3, SOURCE_RATE, 0.85);
+  const out = normalisePeak(loud);
+  check(Math.abs(peakOf(out) - 0.85) < 0.06, `a loud take is left as it is (${peakOf(out).toFixed(3)})`);
+  check(peakOf(out) <= 1, 'and does not clip');
+}
+
+{
+  /*
+   * The property that separates this from AGC: one gain for the whole take, so
+   * a quiet passage stays quieter than a loud one. AGC flattens them, and that
+   * flattening is what people hear as the volume moving on its own.
+   */
+  const mixed = new Float32Array(SOURCE_RATE);
+  for (let i = 0; i < mixed.length; i += 1) {
+    const amplitude = i < mixed.length / 2 ? 0.4 : 0.08;
+    mixed[i] = amplitude * Math.sin((2 * Math.PI * 500 * i) / SOURCE_RATE);
+  }
+
+  const out = normalisePeak(mixed);
+  const loudHalf = peakOf(out.slice(0, out.length / 2));
+  const quietHalf = peakOf(out.slice(out.length / 2));
+  const ratioBefore = 0.4 / 0.08;
+  const ratioAfter = loudHalf / quietHalf;
+
+  check(
+    Math.abs(ratioAfter - ratioBefore) < 0.2,
+    `dynamics are preserved (${ratioAfter.toFixed(2)} vs ${ratioBefore.toFixed(2)})`,
+  );
+  check(loudHalf > quietHalf * 4, 'the loud half is still clearly louder');
+}
+
+{
+  // A dead microphone must not become amplified room hum.
+  const silence = new Float32Array(SOURCE_RATE);
+  check(peakOf(normalisePeak(silence)) === 0, 'silence stays silent');
+
+  const nearSilence = tone(500, 0.3, SOURCE_RATE, 0.0002);
+  check(peakOf(normalisePeak(nearSilence)) < 0.01, 'and a near-dead mic is not blown up');
+}
+
+{
+  // The lift is capped, so a very quiet take is helped rather than exploded.
+  const veryQuiet = tone(500, 0.3, SOURCE_RATE, 0.01);
+  const out = normalisePeak(veryQuiet);
+  check(
+    peakOf(out) <= 0.01 * 8 + 0.001,
+    `the gain is capped at 8x (${(peakOf(out) / 0.01).toFixed(1)}x)`,
+  );
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);
