@@ -30,7 +30,8 @@ export type BadgeCategory =
   | 'friendship'
   | 'ai'
   | 'learning'
-  | 'goals';
+  | 'goals'
+  | 'realLife';
 
 export type BadgeRarity = 'common' | 'rare' | 'epic' | 'legendary' | 'mythic';
 
@@ -63,14 +64,19 @@ export interface UnlockCondition {
     | 'photosSaved'
     | 'editedPhotosSent'
     | 'storiesPosted'
-    | 'storyViews'
+    | 'storyPlaces'
     | 'storyWeeks'
     | 'friends'
     | 'mutualFriends'
     | 'groupsCreated'
     | 'aiMessages'
     | 'studyMinutes'
-    | 'goalsCompleted';
+    | 'goalsCompleted'
+    // Real life. Every one of these is confirmed by the other person — see
+    // MUTUAL_METRICS below.
+    | 'meetupsConfirmed'
+    | 'birthdayWishes'
+    | 'celebrationsShared';
   /** The value the metric must reach. */
   threshold: number;
   /** Shown on a locked badge, in the user's words rather than the metric's. */
@@ -304,13 +310,21 @@ export const BADGES: BadgeDefinition[] = [
     { metric: 'storiesPosted', threshold: 100, progressLabel: 'stories posted' },
     { fill: 'paper' },
   ),
+  /*
+   * Replaced "Viral Story", which counted a thousand views on one post.
+   *
+   * Reach is a vanity metric: it measures an audience, not a relationship, and
+   * it was the only badge in the library about being seen rather than about
+   * being with someone. Distance travelled is still social — friends in
+   * different places — without anybody's story becoming a number to chase.
+   */
   badge(
-    'viral_story',
-    'Viral Story',
-    'One story travelled further than the rest.',
+    'around_together',
+    'Around Together',
+    'Friends in different places shared your day.',
     'stories',
     'mythic',
-    { metric: 'storyViews', threshold: 1000, progressLabel: 'views on one story' },
+    { metric: 'storyPlaces', threshold: 5, progressLabel: 'places friends watched from' },
     { fill: 'ink', accent: BADGE_ACCENT.ember },
   ),
   badge(
@@ -393,7 +407,78 @@ export const BADGES: BadgeDefinition[] = [
     { metric: 'goalsCompleted', threshold: 5, progressLabel: 'goals completed' },
     { fill: 'ink', accent: BADGE_ACCENT.clay },
   ),
+
+  /*
+   * — Real Life ————————————————————————————————————————————————
+   *
+   * The only badges in the library that are not about using PINGO. They are
+   * about the app being put down, which is the point: an app that celebrates
+   * meeting someone for coffee is saying out loud that time on the app is not
+   * the thing being maximised.
+   *
+   * ## Every one of these needs the other person
+   *
+   * A real-life badge nobody can check is a badge you award yourself, and a
+   * badge you award yourself is worth nothing the moment anybody realises they
+   * can tap it four times. So none of these count from one side: the friend
+   * confirms the meet, the birthday belongs to somebody else's profile, the
+   * celebration has more than one person in it. That constraint is recorded as
+   * data in MUTUAL_METRICS and checked, rather than left as an intention.
+   *
+   * The confirmation surface does not exist yet. These stay locked for
+   * everybody until it does — which is the honest state, and better than
+   * inventing a proxy like "you were both online in the same city".
+   */
+  badge(
+    'met_offline',
+    'Met Offline',
+    'A PINGO friend became someone you have actually met.',
+    'realLife',
+    'rare',
+    { metric: 'meetupsConfirmed', threshold: 1, progressLabel: 'friends met in person' },
+    { fill: 'ink', shape: 'squircle' },
+  ),
+  badge(
+    'coffee_together',
+    'Coffee Together',
+    'Made a habit of seeing people, not just messaging them.',
+    'realLife',
+    'epic',
+    { metric: 'meetupsConfirmed', threshold: 10, progressLabel: 'times met in person' },
+    { fill: 'paper', accent: BADGE_ACCENT.amber },
+  ),
+  badge(
+    'birthday_wish',
+    'Birthday Wish',
+    'Remembered the day without being reminded twice.',
+    'realLife',
+    'rare',
+    { metric: 'birthdayWishes', threshold: 3, progressLabel: 'birthdays remembered' },
+    { fill: 'ink', accent: BADGE_ACCENT.rose },
+  ),
+  badge(
+    'celebrated_together',
+    'Celebrated Together',
+    'Showed up for somebody else’s good day.',
+    'realLife',
+    'epic',
+    { metric: 'celebrationsShared', threshold: 3, progressLabel: 'celebrations shared' },
+    { fill: 'paper', accent: BADGE_ACCENT.sage },
+  ),
 ];
+
+/**
+ * Metrics that only another person can advance.
+ *
+ * Listed here rather than inferred from the category, because the reason is not
+ * "these are the real-life ones" — it is "these cannot be earned alone", and a
+ * future badge in any category may need the same property.
+ */
+export const MUTUAL_METRICS: ReadonlySet<UnlockCondition['metric']> = new Set([
+  'meetupsConfirmed',
+  'birthdayWishes',
+  'celebrationsShared',
+]);
 
 export const BADGE_BY_ID: ReadonlyMap<string, BadgeDefinition> = new Map(
   BADGES.map((b) => [b.id, b]),

@@ -26,13 +26,17 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { Badge } from '../features/badges/Badge.js';
 import { BadgeDetailSheet } from '../features/badges/BadgeDetailSheet.js';
 import { DUMMY_METRICS, DUMMY_UNLOCKED_AT } from '../features/badges/dummy-progress.js';
+import { buildChapters } from '../features/journey/chapters.js';
 import {
   DUMMY_ENCOURAGEMENT,
+  DUMMY_JOINED_AT,
   DUMMY_LEVEL,
   DUMMY_MISSIONS,
+  DUMMY_PERSONAL_MOMENTS,
   DUMMY_PULSE,
   STATISTIC_PLACEHOLDERS,
 } from '../features/journey/dummy-journey.js';
+import { LifeChapters } from '../features/journey/LifeChapters.js';
 import {
   JourneyOverview,
   Pulse,
@@ -70,6 +74,7 @@ const CATEGORIES: Array<{ id: BadgeCategory | 'all'; label: string }> = [
   { id: 'ai', label: 'AI' },
   { id: 'learning', label: 'Learning' },
   { id: 'goals', label: 'Goals' },
+  { id: 'realLife', label: 'Real Life' },
 ];
 
 export function JourneyScreen() {
@@ -114,6 +119,20 @@ export function JourneyScreen() {
     [earned],
   );
 
+  /*
+   * Built from the unlock dates rather than stored, so the timeline cannot
+   * disagree with the badges above it.
+   */
+  const chapters = useMemo(
+    () =>
+      buildChapters({
+        joinedAt: DUMMY_JOINED_AT,
+        unlockedAt: DUMMY_UNLOCKED_AT,
+        personal: DUMMY_PERSONAL_MOMENTS,
+      }),
+    [],
+  );
+
   const sections = RARITY_ORDER.map((rarity) => ({
     rarity,
     entries: visible.filter((e) => e.badge.rarity === rarity),
@@ -136,6 +155,16 @@ export function JourneyScreen() {
         <Pulse entries={DUMMY_PULSE} />
 
         <RecentUnlocks entries={recent} unlockedAt={DUMMY_UNLOCKED_AT} onOpen={setOpen} />
+
+        {/*
+          The story, directly under the last few badges.
+
+          It could have gone at the bottom, after the collection — but the
+          collection is twenty-eight badges tall, and a section nobody scrolls
+          to is a section nobody has. Following "recently earned" also reads in
+          one movement: here is the last of it, and here is all of it.
+        */}
+        <LifeChapters chapters={chapters} />
 
         {/*
           The collection's own heading, so the search and chips below it clearly

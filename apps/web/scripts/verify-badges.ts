@@ -13,10 +13,12 @@
  * Run with `pnpm verify:badges`.
  */
 import { BADGE_ART_IDS } from '../src/features/badges/BadgeArt.js';
+import { METRIC_POLICY } from '../src/features/badges/metric-policy.js';
 import {
   BADGES,
   BADGE_ACCENT,
   BADGE_BY_ID,
+  MUTUAL_METRICS,
   XP_BY_RARITY,
   badgeXp,
   libraryFor,
@@ -33,7 +35,8 @@ const check = (ok: boolean, what: string) => {
 console.log('— the sheet, complete —');
 
 {
-  check(BADGES.length === 24, `all twenty-four badges are present (${BADGES.length})`);
+  // Twenty-four from the reference sheet, plus the four Real Life badges.
+  check(BADGES.length === 28, `all twenty-eight badges are present (${BADGES.length})`);
 
   const ids = BADGES.map((b) => b.id);
   check(new Set(ids).size === ids.length, 'every id is unique');
@@ -48,9 +51,9 @@ console.log('— the sheet, complete —');
 }
 
 {
-  // The nine categories the brief names, and nothing invented beside them.
+  // The nine categories the brief names, plus Real Life, and nothing else.
   const categories = new Set(BADGES.map((b) => b.category));
-  check(categories.size === 9, `nine categories (${[...categories].sort().join(', ')})`);
+  check(categories.size === 10, `ten categories (${[...categories].sort().join(', ')})`);
   check(BADGES.filter((b) => b.category === 'stories').length === 5, 'five story badges');
   check(BADGES.filter((b) => b.category === 'friendship').length === 4, 'four friendship badges');
 }
@@ -71,7 +74,7 @@ console.log('\n— XP follows rarity, always —');
 }
 
 {
-  const unlocked = new Set(['first_message', 'viral_story']);
+  const unlocked = new Set(['first_message', 'around_together']);
   check(badgeXp(unlocked) === 25 + 400, `earned XP sums the badges held (${badgeXp(unlocked)})`);
   check(badgeXp(new Set(['not_a_badge'])) === 0, 'and an unknown id is worth nothing rather than NaN');
 }
@@ -171,9 +174,9 @@ console.log('\n— the grid —');
    * An explicit unlock has to win over the metric. A badge earned last year is
    * still earned after a device is wiped and the counters restart at zero.
    */
-  const granted = libraryFor({}, new Set(['viral_story']));
+  const granted = libraryFor({}, new Set(['around_together']));
   check(
-    granted.find((e) => e.badge.id === 'viral_story')?.unlocked === true,
+    granted.find((e) => e.badge.id === 'around_together')?.unlocked === true,
     'a recorded unlock survives a counter that no longer remembers why',
   );
 }
@@ -192,6 +195,69 @@ console.log('\n— the words —');
   check(
     BADGES.every((b) => !/\bXP\b|\bunlock/i.test(b.description)),
     'without the description explaining the mechanic back at them',
+  );
+}
+
+console.log('\n— every metric answers the gate question —');
+
+{
+  /*
+   * The rule: "does this represent a meaningful human interaction?" — and if
+   * not, it does not contribute to Journey. These checks are what stop that
+   * from being a sentence in a document that nobody re-reads before adding a
+   * counter.
+   */
+  const used = new Set(BADGES.map((b) => b.unlockCondition.metric));
+  const policied = Object.keys(METRIC_POLICY) as (keyof typeof METRIC_POLICY)[];
+
+  const unjudged = [...used].filter((m) => !METRIC_POLICY[m]);
+  check(
+    unjudged.length === 0,
+    `every metric a badge watches has been through the rule${unjudged.length ? `: ${unjudged.join(', ')}` : ''}`,
+  );
+
+  const orphaned = policied.filter((m) => !used.has(m));
+  check(orphaned.length === 0, `and no policy describes a metric nothing uses${orphaned.length ? `: ${orphaned.join(', ')}` : ''}`);
+
+  /*
+   * Never reward spam, never reward repetition: an entry with no ceiling is a
+   * raw tally, and an entry with no exclusion has not been thought about.
+   */
+  const uncapped = policied.filter((m) => METRIC_POLICY[m].ceiling.trim().length === 0);
+  check(uncapped.length === 0, `every metric names a ceiling${uncapped.length ? `: ${uncapped.join(', ')}` : ''}`);
+
+  const unbounded = policied.filter((m) => METRIC_POLICY[m].excludes.length === 0);
+  check(unbounded.length === 0, `and names what does not count${unbounded.length ? `: ${unbounded.join(', ')}` : ''}`);
+
+  /*
+   * Never reward inactivity. There must be no metric that goes up for being
+   * present — a streak, a login, a day, time in the app.
+   */
+  const passive = policied.filter((m) => /\b(streak|login|logged in|days? active|time in app|opened the app)\b/i.test(
+    `${m} ${METRIC_POLICY[m].counts}`,
+  ));
+  check(passive.length === 0, `nothing counts merely being present${passive.length ? `: ${passive.join(', ')}` : ''}`);
+
+  // The gate itself: answered "no" means it cannot be behind a badge.
+  const rejected = policied.filter((m) => !METRIC_POLICY[m].contributes);
+  check(
+    rejected.every((m) => !used.has(m)),
+    'a metric the rule rejected is behind no badge',
+  );
+
+  /*
+   * Real life cannot be self-awarded. A badge for meeting someone that one
+   * person can tap on their own is worth nothing the moment anybody notices.
+   */
+  const realLife = BADGES.filter((b) => b.category === 'realLife');
+  check(realLife.length === 4, `four real-life badges (${realLife.length})`);
+  check(
+    realLife.every((b) => MUTUAL_METRICS.has(b.unlockCondition.metric)),
+    'and every one of them needs the other person to confirm it',
+  );
+  check(
+    [...MUTUAL_METRICS].every((m) => METRIC_POLICY[m]?.mutual === true),
+    'the policy agrees with the registry about which metrics are mutual',
   );
 }
 

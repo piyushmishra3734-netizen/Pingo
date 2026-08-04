@@ -13,6 +13,8 @@
  * completion reads — and both are the states this phase exists to judge.
  */
 
+import type { ChapterMoment } from './chapters.js';
+
 export interface JourneyLevel {
   level: number;
   /** XP earned inside the current level, not lifetime. */
@@ -108,6 +110,49 @@ export const DUMMY_PULSE: PulseEntry[] = [
   { id: 'p2', name: 'Kashish', quietDays: 1, exchanges: 74 },
   { id: 'p3', name: 'Sneha', quietDays: 4, exchanges: 31 },
   { id: 'p4', name: 'Hadiya', quietDays: 12, exchanges: 8 },
+];
+
+/*
+ * Life Chapters.
+ *
+ * Dated relative to now, like the unlock dates beside them, so the timeline
+ * always spans two years and the year grouping can actually be judged — a set
+ * of fixed dates would eventually all fall into one chapter and hide the thing
+ * this data exists to show.
+ */
+const DAY = 24 * 60 * 60 * 1000;
+
+/** Long enough ago to put the first chapter in the previous year. */
+export const DUMMY_JOINED_AT = Date.now() - 260 * DAY;
+
+/**
+ * The moments that are not badges.
+ *
+ * People, and things that happened. These are what stop the timeline from being
+ * a list of unlocks with years written on it — "Met Baani" is the line somebody
+ * would actually remember, and no badge will ever say it.
+ */
+export const DUMMY_PERSONAL_MOMENTS: ChapterMoment[] = [
+  {
+    id: 'person:baani',
+    at: Date.now() - 210 * DAY,
+    title: 'Met Baani',
+    detail: 'Still the longest conversation.',
+    kind: 'person',
+  },
+  {
+    id: 'milestone:first-long-call',
+    at: Date.now() - 150 * DAY,
+    title: 'First late-night call with Kashish',
+    kind: 'milestone',
+  },
+  {
+    id: 'milestone:coffee-sneha',
+    at: Date.now() - 17 * DAY,
+    title: 'Coffee with Sneha',
+    detail: 'The first time it happened off the app.',
+    kind: 'milestone',
+  },
 ];
 
 /** The eight surfaces Phase 2 will count. Cards only, no numbers. */

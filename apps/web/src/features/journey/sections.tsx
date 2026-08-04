@@ -239,12 +239,23 @@ export function Pulse({ entries }: { entries: PulseEntry[] }) {
                 />
               </div>
 
-              <p className="w-20 shrink-0 text-right text-caption text-text-tertiary">
-                {entry.quietDays === 0
-                  ? 'Today'
-                  : entry.quietDays === 1
-                    ? 'Yesterday'
-                    : `${entry.quietDays}d ago`}
+              {/*
+                Memory framing, not decay.
+
+                "12d ago" beside a shrinking bar reads as something running out.
+                Naming what the time refers to turns the same number into a
+                recollection — the last time you two spoke — which is a warm
+                fact rather than a countdown.
+              */}
+              <p className="w-28 shrink-0 text-right text-caption leading-tight text-text-tertiary">
+                <span className="block">Last conversation</span>
+                <span className="block">
+                  {entry.quietDays === 0
+                    ? 'today'
+                    : entry.quietDays === 1
+                      ? 'yesterday'
+                      : `${entry.quietDays} days ago`}
+                </span>
               </p>
             </div>
           ))}

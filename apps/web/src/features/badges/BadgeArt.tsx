@@ -55,7 +55,7 @@ export type BadgeArtId =
   | 'first_story'
   | 'story_creator'
   | 'story_master'
-  | 'viral_story'
+  | 'around_together'
   | 'weekly_story'
   | 'trusted_friend'
   | 'first_friend'
@@ -63,7 +63,11 @@ export type BadgeArtId =
   | 'community_builder'
   | 'ai_buddy'
   | 'study_session'
-  | 'goal_planner';
+  | 'goal_planner'
+  | 'met_offline'
+  | 'coffee_together'
+  | 'birthday_wish'
+  | 'celebrated_together';
 
 /**
  * A paper plane, thrown.
@@ -256,18 +260,23 @@ const storyMaster = (
   </>
 );
 
-/** A flame, filled rather than outlined — the one solid glyph in the set. */
-const viralStory = (
+/**
+ * A globe with three places marked on it.
+ *
+ * This replaced a flame. A flame meant *viral* — an audience, growing — and
+ * this badge is now about friends who are somewhere else being part of your
+ * day, so the glyph has to be places rather than spread. The three dots are
+ * solid because they are people; the globe stays drawn so it does not turn into
+ * an icon of the internet.
+ */
+const aroundTogether = (
   <>
-    <path
-      fill="currentColor"
-      d="M32 8c6 9 3 13 7 16 3-2 3-5 3-7 6 6 8 13 8 19 0 11-8 18-18 18S14 47 14 36c0-8 5-15 10-19 3 3 2 6 4 7 4-4 1-9 4-16Z"
-    />
-    <path
-      fill="currentColor"
-      opacity={0.35}
-      d="M32 30c3 4 2 6 4 8 1-1 1-3 1-4 3 3 4 7 4 10 0 5-4 9-9 9s-9-4-9-9c0-4 2-8 5-10 2 2 1 3 2 4 2-2 0-5 2-8Z"
-    />
+    <circle {...PEN_BOLD} cx="32" cy="32" r="20" />
+    <path {...PEN} d="M12 32h40" />
+    <path {...PEN} d="M32 12c6 6 9 13 9 20s-3 14-9 20c-6-6-9-13-9-20s3-14 9-20Z" />
+    <circle fill="currentColor" cx="24" cy="22" r="2.6" />
+    <circle fill="currentColor" cx="43" cy="30" r="2.6" />
+    <circle fill="currentColor" cx="28" cy="44" r="2.6" />
   </>
 );
 
@@ -362,6 +371,62 @@ const goalPlanner = (
   </>
 );
 
+/*
+ * — Real Life ————————————————————————————————————————————————————
+ *
+ * Four glyphs about the app being put down. They are drawn with the same pen as
+ * the rest — the temptation with a new category is to mark it as special with a
+ * heavier line or a new shape language, and that is exactly how a sheet stops
+ * being one sheet.
+ */
+
+/** Two pins on a ground line, one nearer than the other, meeting at a place. */
+const metOffline = (
+  <>
+    <path {...PEN} d="M9 52h46" />
+    <path {...PEN_BOLD} d="M24 48c-6-8-9-12-9-16a9 9 0 0 1 18 0c0 4-3 8-9 16Z" />
+    <circle {...PEN} cx="24" cy="31" r="3.4" />
+    <path {...PEN} d="M43 48c-5-6-7-10-7-13a7 7 0 0 1 14 0c0 3-2 7-7 13Z" />
+    <circle {...PEN} cx="43" cy="34" r="2.6" />
+  </>
+);
+
+/** Two cups on a table, one with a handle, steam over both. */
+const coffeeTogether = (
+  <>
+    <path {...PEN_BOLD} d="M12 29h17v10a8.5 8.5 0 0 1-17 0Z" />
+    <path {...PEN} d="M29 31h3.5a4 4 0 0 1 0 8H29" />
+    <path {...PEN} d="M9 50h23" />
+    <path {...PEN} d="M38 31h14v8a7 7 0 0 1-14 0Z" />
+    <path {...PEN} d="M35 50h17" />
+    <path {...PEN} d="M18 23c-2-3 2-4 0-7M25 23c-2-3 2-4 0-7" opacity={0.75} />
+    <path {...PEN} d="M45 25c-2-2 2-3 0-6" opacity={0.75} />
+  </>
+);
+
+/** A cake with one candle. One, because it is a birthday and not an age. */
+const birthdayWish = (
+  <>
+    <path {...PEN_BOLD} d="M13 34h38v15a3 3 0 0 1-3 3H16a3 3 0 0 1-3-3Z" />
+    <path {...PEN} d="M13 42h38" />
+    <path {...PEN} d="M32 34V24" />
+    <path {...PEN} d="M32 16c3 3 3.5 5 0 8-3.5-3-3-5 0-8Z" />
+    <path {...PEN} d="M24 21l-2-2M40 21l2-2" opacity={0.7} />
+  </>
+);
+
+/** A popper going off, with the confetti drawn as separate marks. */
+const celebratedTogether = (
+  <>
+    <path {...PEN_BOLD} d="M11 53l13-27 14 14Z" />
+    <path {...PEN} d="M19 39l10 10" opacity={0.55} />
+    <path {...PEN} d="M33 20l3-4M41 25l5-2M39 13l1-5M47 33l6 0M45 41l4 3" />
+    <circle fill="currentColor" cx="45" cy="17" r="1.8" />
+    <circle fill="currentColor" cx="53" cy="24" r="1.8" />
+    <circle fill="currentColor" cx="36" cy="8" r="1.5" />
+  </>
+);
+
 const ART: Record<BadgeArtId, ReactNode> = {
   first_message: firstMessage,
   night_owl: nightOwl,
@@ -378,7 +443,7 @@ const ART: Record<BadgeArtId, ReactNode> = {
   first_story: firstStory,
   story_creator: storyCreator,
   story_master: storyMaster,
-  viral_story: viralStory,
+  around_together: aroundTogether,
   weekly_story: weeklyStory,
   trusted_friend: trustedFriend,
   first_friend: firstFriend,
@@ -387,6 +452,10 @@ const ART: Record<BadgeArtId, ReactNode> = {
   ai_buddy: aiBuddy,
   study_session: studySession,
   goal_planner: goalPlanner,
+  met_offline: metOffline,
+  coffee_together: coffeeTogether,
+  birthday_wish: birthdayWish,
+  celebrated_together: celebratedTogether,
 };
 
 /** Every id the sheet defines, for the registry check. */

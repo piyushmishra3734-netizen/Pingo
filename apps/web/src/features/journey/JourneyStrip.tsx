@@ -37,7 +37,7 @@ export function JourneyStrip({
     <button
       type="button"
       onClick={() => navigate('/profile/journey')}
-      aria-label={`Journey. Level ${level.level}, ${percent} percent. ${done} of ${missions.length} of today complete.`}
+      aria-label={`Journey. Level ${level.level}. ${done} of ${missions.length} of today complete.`}
       className={cn(
         'mx-4 mb-2 flex w-[calc(100%-2rem)] items-center gap-3 rounded-xl',
         'border border-line/60 bg-surface/70 px-3.5 py-2.5 text-left',
@@ -47,10 +47,15 @@ export function JourneyStrip({
       )}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-body font-medium">Level {level.level}</span>
-          <span className="text-caption tabular-nums text-text-tertiary">{percent}%</span>
-        </div>
+        {/*
+          The level, and no percentage.
+
+          A number beside the bar is a number to keep alive — it invites
+          measuring, and measuring invites comparing. The bar already says how
+          far along this is, and it says it without giving anyone a figure to
+          defend.
+        */}
+        <p className="text-body font-medium">Level {level.level}</p>
 
         {/*
           One bar, thin. A thicker bar or a second one for the missions would

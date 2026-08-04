@@ -45,8 +45,20 @@ export const DUMMY_METRICS: BadgeMetrics = {
   studyMinutes: 85, // of 300
   goalsCompleted: 1, // of 5
 
+  /*
+   * Real life, mixed on purpose.
+   *
+   * One met, one birthday remembered, no celebrations — so the new category
+   * shows an unlocked badge, a part-done bar and an untouched one at once. The
+   * real counters stay at zero for everybody until the confirmation surface
+   * exists; this file is only here so the category can be looked at.
+   */
+  meetupsConfirmed: 2, // met_offline earned, coffee_together 2 of 10
+  birthdayWishes: 1, // of 3
+  celebrationsShared: 0,
+
   // Untouched, so the empty state is on screen too.
-  storyViews: 0,
+  storyPlaces: 0,
 };
 
 /**
@@ -66,6 +78,7 @@ export const DUMMY_UNLOCKED_AT: Record<string, number> = (() => {
     camera_explorer: now - 63 * day,
     hundred_messages: now - 55 * day,
     ai_buddy: now - 22 * day,
+    met_offline: now - 17 * day,
     story_creator: now - 9 * day,
   };
 })();

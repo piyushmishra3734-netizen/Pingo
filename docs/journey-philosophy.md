@@ -102,13 +102,63 @@ Pulse is private because it names other people.
 The reaction being designed for is *"this person has really been here"*, not
 *"this person farmed"*.
 
-## 6. Badges are memories, not rarity
+## 6. Every metric answers one question
+
+**Does this represent a meaningful human interaction?** If the answer is no, it
+does not contribute to Journey. Three consequences, and none of them is
+optional:
+
+- **Never reward spam.** Every metric names a ceiling — per day, and usually per
+  person.
+- **Never reward repetition.** Every metric names what does *not* count: the
+  same thing again, the same person again, the identical message twice.
+- **Never reward inactivity.** Nothing counts a login, a day, or a streak. There
+  is no metric that goes up for being present.
+
+Written out one metric at a time in `features/badges/metric-policy.ts`, with the
+already-rejected ones kept beside them and the reason they were rejected.
+`verify:badges` fails if a badge watches a metric that has not been through the
+question, or if a policy has no ceiling or no exclusion — so the rule is
+answered *before* anything is wired, which is what was asked for.
+
+### Real Life needs the other person
+
+The Real Life badges — Met Offline, Coffee Together, Birthday Wish, Celebrated
+Together — are the only ones about the app being put down, and none of them can
+be earned alone. A real-life badge one person can tap on their own is worth
+nothing the moment somebody notices. `MUTUAL_METRICS` records that constraint
+and the suite checks it.
+
+The confirmation surface does not exist yet, so these stay locked for everybody.
+That is the honest state, and better than inventing a proxy.
+
+## 7. Badges are memories, not rarity
 
 "Friends Since 2026", "Weekend Caller", "Night Owl" — people should recognise
 **stories**, not tiers. Rarity stays a single muted dot and never touches the
 artwork. See `docs` for the badge library rules.
 
-## 7. Weekly reflection, never ranking
+## 8. Life Chapters
+
+Journey grouped by year: joined, first friend, first night owl, met Baani. A
+badge collection answers *what have I got*; a chapter answers *what happened*,
+and the year heading is what turns a list of unlocks into a period of somebody's
+life.
+
+Rules, all checked in `verify:chapters`:
+
+- A moment happened **once**. Anything that can go up again next week belongs in
+  Statistics — an entry that keeps changing is not a memory.
+- **A quiet year is not a chapter.** A year with nothing in it is absent, not
+  drawn empty with "no moments yet" under it. That would be a record of absence,
+  and §2 forbids it.
+- **No counts.** No per-year totals. A chapter with a number becomes a year to
+  beat, and next January starts at zero.
+- **Months, never days.** "March", not "14 March, 21:40" — tone, and privacy on
+  a public Journey.
+- Nothing predates joining, and a badge removed from the library leaves no hole.
+
+## 9. Weekly reflection, never ranking
 
 One card on a Sunday evening: friendships strengthened, time spent talking,
 badges earned, stories shared. No leaderboard, no comparison to last week framed
@@ -122,8 +172,10 @@ as a shortfall, no other users. Reflection only.
 
 | | |
 | --- | --- |
-| Badge library and registry | built, 37 checks |
-| Journey screen — six sections | built, dummy data |
+| Badge library and registry | built, 28 badges, 46 checks |
+| Metric policy | built, one entry per metric, checked |
+| Journey screen — seven sections | built, dummy data |
+| Life Chapters | built, dummy data, 22 checks |
 | Chats-list strip | built, dummy data |
 | Daily card | built, once per local day |
 | Language rules | built and centralised |

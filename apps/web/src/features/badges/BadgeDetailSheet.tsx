@@ -26,6 +26,7 @@ const CATEGORY_TITLE: Record<string, string> = {
   ai: 'AI',
   learning: 'Learning',
   goals: 'Goals',
+  realLife: 'Real Life',
 };
 
 export function BadgeDetailSheet({
