@@ -9,12 +9,23 @@
  * Run with `pnpm verify:metrics`.
  */
 import { countMessageMetrics, type CountableMessage } from '../src/features/badges/metrics.js';
+import type { BadgeMetrics } from '../src/features/badges/registry.js';
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
   if (!ok) failures += 1;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}`);
 };
+
+/**
+ * One metric, with absent read as zero.
+ *
+ * The pipeline emits only what happened, so a metric nothing advanced is not
+ * present at all — which is the honest representation and the reason the tests
+ * ask through this helper rather than comparing against `undefined`.
+ */
+const count = (messages: readonly CountableMessage[], selfId: string, metric: keyof BadgeMetrics): number =>
+  countMessageMetrics(messages, selfId)[metric] ?? 0;
 
 const ME = 'me';
 const THEM = 'them';
@@ -36,7 +47,7 @@ console.log('— a message counts when somebody answered —');
 {
   const talkingAtSomebody = [msg({ createdAt: noon(1) }), msg({ createdAt: noon(1, 1) })];
   check(
-    (countMessageMetrics(talkingAtSomebody, ME).messagesSent ?? 0) === 0,
+    (count(talkingAtSomebody, ME, 'messagesSent') ?? 0) === 0,
     'messages into a thread nobody answered count for nothing',
   );
 
@@ -45,7 +56,7 @@ console.log('— a message counts when somebody answered —');
     msg({ createdAt: noon(1, 5), authorId: THEM, body: 'hey' }),
     msg({ createdAt: noon(1, 6) }),
   ];
-  check(countMessageMetrics(exchange, ME).messagesSent === 2, 'an answered thread counts both of yours');
+  check(count(exchange, ME, 'messagesSent') === 2, 'an answered thread counts both of yours');
 
   const answeredTomorrow = [
     msg({ createdAt: noon(1) }),
@@ -53,12 +64,12 @@ console.log('— a message counts when somebody answered —');
     msg({ createdAt: noon(2, 5) }),
   ];
   check(
-    countMessageMetrics(answeredTomorrow, ME).messagesSent === 1,
+    count(answeredTomorrow, ME, 'messagesSent') === 1,
     'and the reply condition is per day, so yesterday’s monologue stays uncounted',
   );
 
   check(
-    countMessageMetrics(exchange, THEM).messagesSent === 1,
+    count(exchange, THEM, 'messagesSent') === 1,
     'the counter counts the person asked for, not whoever wrote most',
   );
 }
@@ -73,7 +84,7 @@ console.log('\n— never reward spam —');
   const flood: CountableMessage[] = [msg({ createdAt: noon(1), authorId: THEM, body: 'hi' })];
   for (let i = 0; i < 50; i += 1) flood.push(msg({ createdAt: noon(1, i + 1), body: `line ${i}` }));
 
-  check(countMessageMetrics(flood, ME).messagesSent === 30, `a flood stops at the ceiling (${countMessageMetrics(flood, ME).messagesSent})`);
+  check(count(flood, ME, 'messagesSent') === 30, `a flood stops at the ceiling (${count(flood, ME, 'messagesSent')})`);
 
   // The same fifty spread over two days is two days of talking, not a flood.
   const spread: CountableMessage[] = [];
@@ -81,7 +92,7 @@ console.log('\n— never reward spam —');
     spread.push(msg({ createdAt: noon(day), authorId: THEM, body: 'hi' }));
     for (let i = 0; i < 25; i += 1) spread.push(msg({ createdAt: noon(day, i + 1), body: `line ${day}-${i}` }));
   }
-  check(countMessageMetrics(spread, ME).messagesSent === 50, 'while the same volume across two days counts in full');
+  check(count(spread, ME, 'messagesSent') === 50, 'while the same volume across two days counts in full');
 
   /*
    * And the ceiling is per conversation, not global: someone with ten active
@@ -94,7 +105,7 @@ console.log('\n— never reward spam —');
       many.push(msg({ conversationId: `c${c}`, createdAt: noon(1, i + 1), body: `to ${c} line ${i}` }));
     }
   }
-  check(countMessageMetrics(many, ME).messagesSent === 90, 'three conversations get three ceilings, not one');
+  check(count(many, ME, 'messagesSent') === 90, 'three conversations get three ceilings, not one');
 }
 
 console.log('\n— never reward repetition —');
@@ -103,7 +114,7 @@ console.log('\n— never reward repetition —');
   const echo: CountableMessage[] = [msg({ createdAt: noon(1), authorId: THEM, body: 'hi' })];
   for (let i = 0; i < 5; i += 1) echo.push(msg({ createdAt: noon(1, i + 1), body: 'ok' }));
 
-  check(countMessageMetrics(echo, ME).messagesSent === 1, '"ok" five times is one thing said');
+  check(count(echo, ME, 'messagesSent') === 1, '"ok" five times is one thing said');
 
   const alternating = [
     msg({ createdAt: noon(1), authorId: THEM, body: 'hi' }),
@@ -112,7 +123,7 @@ console.log('\n— never reward repetition —');
     msg({ createdAt: noon(1, 3), body: 'ok' }),
   ];
   check(
-    countMessageMetrics(alternating, ME).messagesSent === 3,
+    count(alternating, ME, 'messagesSent') === 3,
     'but the same word said again later is not a repeat',
   );
 
@@ -121,7 +132,7 @@ console.log('\n— never reward repetition —');
     msg({ createdAt: noon(1, 1), body: 'ready?' }),
   ];
   check(
-    countMessageMetrics(echoedThem, ME).messagesSent === 1,
+    count(echoedThem, ME, 'messagesSent') === 1,
     'and answering with their own word still counts — the rule is about repeating yourself',
   );
 }
@@ -144,7 +155,7 @@ console.log('\n— the long ones —');
     msg({ createdAt: noon(2), authorId: THEM, body: 'hi' }),
     msg({ createdAt: noon(2, 1), body: 'x'.repeat(299) }),
   ];
-  check((countMessageMetrics(under, ME).longMessages ?? 0) === 0, 'and 299 characters is not long');
+  check((count(under, ME, 'longMessages') ?? 0) === 0, 'and 299 characters is not long');
 }
 
 console.log('\n— night and dawn —');
@@ -173,7 +184,7 @@ console.log('\n— a conversation started is a conversation that happened —');
 {
   const ignored = [msg({ conversationId: 'c9', createdAt: noon(1), body: 'hey!' })];
   check(
-    countMessageMetrics(ignored, ME).conversationsStarted === 0,
+    count(ignored, ME, 'conversationsStarted') === 0,
     'an opener nobody answered is not a conversation started',
   );
 
@@ -181,14 +192,14 @@ console.log('\n— a conversation started is a conversation that happened —');
     msg({ conversationId: 'c9', createdAt: noon(1), body: 'hey!' }),
     msg({ conversationId: 'c9', createdAt: noon(2), authorId: THEM, body: 'hey' }),
   ];
-  check(countMessageMetrics(answered, ME).conversationsStarted === 1, 'an answer makes it one');
+  check(count(answered, ME, 'conversationsStarted') === 1, 'an answer makes it one');
 
   const answeredMuchLater = [
     msg({ conversationId: 'c9', createdAt: noon(1), body: 'hey!' }),
     msg({ conversationId: 'c9', createdAt: noon(20), authorId: THEM, body: 'hey, sorry' }),
   ];
   check(
-    countMessageMetrics(answeredMuchLater, ME).conversationsStarted === 0,
+    count(answeredMuchLater, ME, 'conversationsStarted') === 0,
     'and an answer three weeks later does not',
   );
 
@@ -197,7 +208,7 @@ console.log('\n— a conversation started is a conversation that happened —');
     msg({ conversationId: 'c9', createdAt: noon(1, 5) }),
   ];
   check(
-    countMessageMetrics(theirs, ME).conversationsStarted === 0,
+    count(theirs, ME, 'conversationsStarted') === 0,
     'a conversation somebody else started is theirs',
   );
 }
@@ -224,7 +235,7 @@ console.log('\n— nothing is invented —');
     Object.values(counted).every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0),
     'every number returned is a real, non-negative number',
   );
-  check(countMessageMetrics([], ME).messagesSent === 0, 'an empty history counts zero rather than throwing');
+  check(count([], ME, 'messagesSent') === 0, 'an empty history counts zero rather than throwing');
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);

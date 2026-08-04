@@ -1,35 +1,33 @@
 /**
- * Real counters, built from messages, obeying the policy exactly.
+ * Messages, turned into events.
  *
- * `metric-policy.ts` decides what may be counted. This file is the half of
- * Phase 2 that does the counting, and it is deliberately a **pure function over
- * a list of messages** rather than a service: the interesting part is the rules
- * — the reply condition, the echo rule, the daily ceiling — and rules are worth
- * testing without a database in the way.
+ * This used to be a counter with the rules inside it. It is now a **source**:
+ * it knows about messages and about threads, and it knows nothing at all about
+ * what any of that is worth. Everything it produces goes through the same
+ * pipeline as every future surface —
  *
- * ## What is wired, and what is honestly not
+ *     Events → Meaning Evaluator → Journey Metrics → Badge Evaluator → Journey UI
  *
- * Only the metrics a message list can actually answer:
+ * — which is the point of the abstraction. When stories, communities, meetups
+ * and the calendar arrive, none of them gets to bring its own opinion about
+ * spam, repetition or what a friendship is worth.
  *
- * | Wired | Needs a signal that does not exist yet |
- * | --- | --- |
- * | messagesSent | voiceNotesSent — the policy counts notes the recipient *played*, and nothing records a play |
- * | conversationsStarted | photosSent, photosSaved — the same, for opens and saves |
- * | longMessages | callsPlaced, callMinutes, weekendCalls — call history is not local |
- * | messagesAtNight | storiesPosted, storyPlaces, storyWeeks |
- * | messagesAtDawn | friends, mutualFriends, groupsCreated |
- * | | the three Real Life metrics, which need mutual confirmation |
+ * ## What a source is responsible for
  *
- * The unwired ones are simply absent from the result, which reads as zero. The
- * alternative — approximating "played" with "sent" — is how a metric quietly
- * stops meaning what its policy says, and the policy is the whole point.
+ * Facts, and only facts about *this* user: what was sent, how long it was, who
+ * else wrote and when. It decides one thing the evaluator cannot — whether an
+ * opener was answered — because that is a property of the thread and the thread
+ * is what this holds.
  *
- * ## Local time, deliberately
+ * ## What is not emitted, and why that is the honest answer
  *
- * Every window here (a day, the night, the dawn) is the user's local day, taken
- * from the runtime's own timezone. UTC days would put an evening conversation
- * in two different days depending on where somebody lives.
+ * No `voice.played`: the policy counts voice notes the recipient *played*, and
+ * nothing records a play. A source that emitted `voice.played` on send would be
+ * lying to the evaluator, which is worse than a metric sitting at zero. Same
+ * for photo opens and saves.
  */
+import { evaluateJourney, type Evaluation } from '../journey/evaluate.js';
+import type { JourneyEvent } from '../journey/events.js';
 import type { BadgeMetrics } from './registry.js';
 
 /** The little that is needed from a message. Anything wider is untestable. */
@@ -43,136 +41,99 @@ export interface CountableMessage {
   attachmentKinds?: readonly string[];
 }
 
-/** From `metric-policy.ts`, restated here as numbers the counter can use. */
-const CEILING_PER_CONVERSATION_PER_DAY = 30;
-const LONG_MESSAGE_CHARACTERS = 300;
-const LONG_MESSAGES_PER_DAY = 5;
-const NIGHT_MESSAGES_PER_DAY = 15;
-const DAWN_MESSAGES_PER_DAY = 15;
-/** A conversation counts as started only if the other side answered inside this. */
+/** An opener counts as a conversation only if they answered inside this. */
 const OPENER_ANSWERED_WITHIN = 7 * 24 * 60 * 60 * 1000;
 
-const dayKey = (at: number) => {
-  const d = new Date(at);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-};
+/**
+ * Everything a message list can honestly say happened.
+ *
+ * `selfId` is required rather than optional: a source that guesses which
+ * messages are yours would feed the evaluator somebody else's activity, and
+ * every number on Journey would quietly be about the wrong person.
+ */
+export function messageEvents(
+  messages: readonly CountableMessage[],
+  selfId: string,
+): JourneyEvent[] {
+  const ordered = [...messages].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  const events: JourneyEvent[] = [];
+
+  for (const message of ordered) {
+    if (message.authorId === selfId) {
+      events.push({
+        kind: 'message.sent',
+        id: message.id,
+        at: message.createdAt,
+        conversationId: message.conversationId,
+        characters: message.body.trim().length,
+        // The trimmed body, used only to notice the same thing said twice. It
+        // never leaves the device and never reaches a counter.
+        fingerprint: message.body.trim(),
+      });
+    } else {
+      events.push({
+        kind: 'message.received',
+        id: message.id,
+        at: message.createdAt,
+        conversationId: message.conversationId,
+        with: message.authorId,
+      });
+    }
+  }
+
+  for (const started of conversationsStarted(ordered, selfId)) events.push(started);
+
+  return events;
+}
 
 /**
- * Count what the local messages can answer.
+ * Openers that became conversations.
  *
- * `selfId` is required rather than optional: a counter that guesses which
- * messages are yours would silently count the other person's, and every number
- * on Journey would be somebody else's activity.
+ * The first message in a thread is only an opener; it is a conversation once
+ * the other person answers, and only if they answer inside a week. An opener
+ * nobody replied to is not a conversation, and counting it would reward sending
+ * them.
  */
+function conversationsStarted(
+  ordered: readonly CountableMessage[],
+  selfId: string,
+): JourneyEvent[] {
+  const first = new Map<string, CountableMessage>();
+  for (const message of ordered) if (!first.has(message.conversationId)) first.set(message.conversationId, message);
+
+  const events: JourneyEvent[] = [];
+  for (const [conversationId, opener] of first) {
+    if (opener.authorId !== selfId) continue;
+
+    const answer = ordered.find(
+      (m) => m.conversationId === conversationId && m.authorId !== selfId && m.createdAt > opener.createdAt,
+    );
+    if (!answer || answer.createdAt - opener.createdAt > OPENER_ANSWERED_WITHIN) continue;
+
+    events.push({
+      kind: 'conversation.started',
+      // Dated to the answer, because that is when it became one.
+      id: `started:${conversationId}`,
+      at: answer.createdAt,
+      conversationId,
+      with: answer.authorId,
+    });
+  }
+  return events;
+}
+
+/** The whole pipeline over a message list, for callers that want the detail. */
+export function evaluateMessages(
+  messages: readonly CountableMessage[],
+  selfId: string,
+): Evaluation {
+  return evaluateJourney(messageEvents(messages, selfId));
+}
+
+/** Just the counters, for the Badge Evaluator. */
 export function countMessageMetrics(
   messages: readonly CountableMessage[],
   selfId: string,
 ): BadgeMetrics {
-  const ordered = [...messages].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-
-  /*
-   * Which (conversation, day) pairs had somebody else writing in them.
-   *
-   * This is the reply condition, and it is what turns "messages sent" into an
-   * exchange: without it the metric counts talking at somebody, which the
-   * policy rules out.
-   */
-  const answered = new Set<string>();
-  for (const message of ordered) {
-    if (message.authorId !== selfId) answered.add(`${message.conversationId}:${dayKey(message.createdAt)}`);
-  }
-
-  const sentPerConversationDay = new Map<string, number>();
-  const longPerDay = new Map<string, number>();
-  const nightPerDay = new Map<string, number>();
-  const dawnPerDay = new Map<string, number>();
-  /** The last thing said in each conversation, to catch the repeat. */
-  const lastBody = new Map<string, string>();
-
-  let messagesSent = 0;
-  let longMessages = 0;
-  let messagesAtNight = 0;
-  let messagesAtDawn = 0;
-
-  const bump = (map: Map<string, number>, key: string, ceiling: number): boolean => {
-    const used = map.get(key) ?? 0;
-    if (used >= ceiling) return false;
-    map.set(key, used + 1);
-    return true;
-  };
-
-  for (const message of ordered) {
-    if (message.authorId !== selfId) {
-      /*
-       * Their turn clears the echo memory.
-       *
-       * Saying the same thing twice in a row is a repeat; saying it again after
-       * somebody has answered is a new turn in a conversation. Without this the
-       * counter would drop the second "see you tomorrow" of a friendship that
-       * ends every evening the same way.
-       */
-      lastBody.delete(message.conversationId);
-      continue;
-    }
-
-    const day = dayKey(message.createdAt);
-    const conversationDay = `${message.conversationId}:${day}`;
-
-    /*
-     * The echo rule.
-     *
-     * "ok" then "ok" again is one thing said, however many times it was typed.
-     * Compared against the last message *you* sent in that conversation rather
-     * than the last message overall, so an answer that happens to repeat the
-     * other person's word still counts.
-     */
-    const body = message.body.trim();
-    const repeated = body.length > 0 && lastBody.get(message.conversationId) === body;
-    lastBody.set(message.conversationId, body);
-    if (repeated) continue;
-
-    // Nobody answered here today, so nothing said here today counts.
-    if (!answered.has(conversationDay)) continue;
-
-    if (!bump(sentPerConversationDay, conversationDay, CEILING_PER_CONVERSATION_PER_DAY)) continue;
-    messagesSent += 1;
-
-    if (body.length >= LONG_MESSAGE_CHARACTERS && bump(longPerDay, day, LONG_MESSAGES_PER_DAY)) {
-      longMessages += 1;
-    }
-
-    const hour = new Date(message.createdAt).getHours();
-    if (hour < 4 && bump(nightPerDay, day, NIGHT_MESSAGES_PER_DAY)) messagesAtNight += 1;
-    else if (hour >= 4 && hour < 7 && bump(dawnPerDay, day, DAWN_MESSAGES_PER_DAY)) messagesAtDawn += 1;
-  }
-
-  return {
-    messagesSent,
-    longMessages,
-    messagesAtNight,
-    messagesAtDawn,
-    conversationsStarted: countConversationsStarted(ordered, selfId),
-  };
-}
-
-/**
- * Conversations you started that became conversations.
- *
- * The first message in a thread is only an opener; it counts once the other
- * person answers, and only if they answer inside a week. An opener nobody
- * replied to is not a conversation, and counting it would reward sending them.
- */
-function countConversationsStarted(ordered: readonly CountableMessage[], selfId: string): number {
-  const first = new Map<string, CountableMessage>();
-  for (const message of ordered) if (!first.has(message.conversationId)) first.set(message.conversationId, message);
-
-  let started = 0;
-  for (const [conversationId, opener] of first) {
-    if (opener.authorId !== selfId) continue;
-    const answer = ordered.find(
-      (m) => m.conversationId === conversationId && m.authorId !== selfId && m.createdAt > opener.createdAt,
-    );
-    if (answer && answer.createdAt - opener.createdAt <= OPENER_ANSWERED_WITHIN) started += 1;
-  }
-  return started;
+  return evaluateMessages(messages, selfId).metrics;
 }

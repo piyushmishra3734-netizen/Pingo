@@ -8,6 +8,16 @@ Journey is a **personal growth system**, not an achievement system. Users should
 feel proud. Never pressured, never addicted, never punished. The reference points
 are a GitHub contribution history and Spotify Wrapped — not a mobile game.
 
+> **Every Journey event must represent a memory worth remembering.**
+> If an interaction would not matter to the user one year from now, it should
+> probably not become Journey progress.
+
+That is the first test anything must pass. It is stricter than "is this a
+meaningful interaction", and it is the one that settles arguments about
+borderline metrics: not *did something happen*, but *would anybody remember it*.
+Every event kind answers it in writing, in `features/journey/events.ts`, and the
+evaluator reads that answer rather than a comment.
+
 **PINGO celebrates meaningful relationships. It does not maximise screen time.**
 Every Journey feature should make somebody proud of the connections they built,
 and never pressured to keep a number alive. That sentence outranks everything
@@ -115,13 +125,37 @@ optional:
 - **Never reward inactivity.** Nothing counts a login, a day, or a streak. There
   is no metric that goes up for being present.
 
-The counting half is `features/badges/metrics.ts`: a pure function over a list
-of messages, so the rules — the reply condition, the echo rule, the daily
-ceiling — can be tested without a database in the way. It wires only what a
-message list can honestly answer (messages sent, conversations started, long
-messages, night and dawn). Everything else is **absent rather than
-approximated**: the policy counts voice notes the recipient *played*, and
-nothing records a play, so `voiceNotesSent` stays unwired until something does.
+### The pipeline
+
+```
+Events → Meaning Evaluator → Journey Metrics → Badge Evaluator → Journey UI
+```
+
+Nothing counts itself. A surface emits **events** — something happened, between
+people, at a time — and has no opinion about what they are worth. The
+**evaluator** (`features/journey/evaluate.ts`) applies the one-year test, the
+ceilings, the exclusions and the mutual rules, and returns moments, metrics, and
+every rejection with its reason. The Badge Evaluator and the UI are unchanged
+downstream of it.
+
+This is why it exists: stories, communities, meetups and the calendar all have
+the same shape, and if each grows its own counter then each grows its own
+version of "does this count" — which is how a philosophy erodes without anybody
+deciding to change it.
+
+**Rejections are returned, never dropped.** A number nobody can explain is a
+number nobody trusts.
+
+**Weight is where "quality before quantity" becomes arithmetic.** A message is
+worth one and runs into a ceiling; a long conversation is worth a great deal and
+has no equivalent. Checked: three hundred messages in a day count as thirty and
+are worth 30, while one forty-five-minute call is worth 113. The suite fails if
+volume ever wins.
+
+`features/badges/metrics.ts` is now a **source**, not a counter: it turns
+messages into events and knows nothing about their value. What it does not emit
+is as deliberate as what it does — the policy counts voice notes the recipient
+*played*, and nothing records a play, so no `voice.played` event is invented.
 Approximating it with "sent" is how a metric quietly stops meaning what its
 policy says.
 
@@ -184,7 +218,8 @@ as a shortfall, no other users. Reflection only.
 | --- | --- |
 | Badge library and registry | built, 28 badges, 46 checks |
 | Metric policy | built, one entry per metric, checked |
-| Message counters | built, 25 checks, not yet reading the real store |
+| Event pipeline | built, 33 checks — evaluator, weights, rejections |
+| Message source | built, 25 checks, not yet reading the real store |
 | Journey screen — seven sections | built, dummy data |
 | Life Chapters | built, dummy data, 22 checks |
 | Chats-list strip | built, dummy data |
