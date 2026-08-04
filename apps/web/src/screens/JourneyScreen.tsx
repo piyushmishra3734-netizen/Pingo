@@ -25,18 +25,11 @@ import { useMemo, useState } from 'react';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { Badge } from '../features/badges/Badge.js';
 import { BadgeDetailSheet } from '../features/badges/BadgeDetailSheet.js';
-import { DUMMY_METRICS, DUMMY_UNLOCKED_AT } from '../features/badges/dummy-progress.js';
 import { buildChapters, onThisDay } from '../features/journey/chapters.js';
-import {
-  DUMMY_ENCOURAGEMENT,
-  DUMMY_JOINED_AT,
-  DUMMY_LEVEL,
-  DUMMY_MISSIONS,
-  DUMMY_PERSONAL_MOMENTS,
-  DUMMY_PULSE,
-  STATISTIC_PLACEHOLDERS,
-} from '../features/journey/dummy-journey.js';
+import { DUMMY_MISSIONS, STATISTIC_PLACEHOLDERS } from '../features/journey/dummy-journey.js';
+import { encouragementFor } from '../features/journey/language.js';
 import { LifeChapters, OnThisDay } from '../features/journey/LifeChapters.js';
+import { useJourneyProgress } from '../features/journey/useJourneyProgress.js';
 import {
   JourneyOverview,
   Pulse,
@@ -46,7 +39,6 @@ import {
   TodaysMissions,
 } from '../features/journey/sections.js';
 import {
-  libraryFor,
   type BadgeCategory,
   type BadgeProgress,
   type BadgeRarity,
@@ -83,14 +75,16 @@ export function JourneyScreen() {
   const [open, setOpen] = useState<BadgeProgress | undefined>();
 
   /*
-   * The whole library is computed once and filtered from there, so the counts on
-   * the chips describe the collection rather than the current search — a chip
-   * whose number changed as you typed would be describing the filter to itself.
+   * Real counts, from the local message cache through the pipeline.
+   *
+   * The whole library comes back at once and is filtered from there, so the
+   * counts on the chips describe the collection rather than the current search
+   * — a chip whose number changed as you typed would be describing the filter
+   * to itself.
    */
-  const library = useMemo(() => libraryFor(DUMMY_METRICS), []);
+  const { level, library, unlockedAt, pulse, joinedAt } = useJourneyProgress();
 
   const earned = library.filter((e) => e.unlocked);
-  const xp = earned.reduce((sum, e) => sum + e.badge.xpReward, 0);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -113,10 +107,10 @@ export function JourneyScreen() {
   const recent = useMemo(
     () =>
       earned
-        .filter((e) => DUMMY_UNLOCKED_AT[e.badge.id] !== undefined)
-        .sort((a, b) => (DUMMY_UNLOCKED_AT[b.badge.id] ?? 0) - (DUMMY_UNLOCKED_AT[a.badge.id] ?? 0))
+        .filter((e) => unlockedAt[e.badge.id] !== undefined)
+        .sort((a, b) => (unlockedAt[b.badge.id] ?? 0) - (unlockedAt[a.badge.id] ?? 0))
         .slice(0, 6),
-    [earned],
+    [earned, unlockedAt],
   );
 
   /*
@@ -126,11 +120,16 @@ export function JourneyScreen() {
   const chapters = useMemo(
     () =>
       buildChapters({
-        joinedAt: DUMMY_JOINED_AT,
-        unlockedAt: DUMMY_UNLOCKED_AT,
-        personal: DUMMY_PERSONAL_MOMENTS,
+        joinedAt,
+        unlockedAt,
+        /*
+         * Nothing hand-written any more. "Met Baani" was stand-in data, and a
+         * stand-in memory on a real timeline is a lie about somebody's life —
+         * these come back when the pipeline records who was in each moment.
+         */
+        personal: [],
       }),
-    [],
+    [joinedAt, unlockedAt],
   );
 
   /*
@@ -155,13 +154,13 @@ export function JourneyScreen() {
         scrolling for, sit underneath the tab bar.
       */}
       <div className="mx-auto w-full max-w-2xl flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-        <JourneyOverview level={DUMMY_LEVEL} encouragement={DUMMY_ENCOURAGEMENT} />
+        <JourneyOverview level={level} encouragement={encouragementFor(joinedAt)} />
 
         <TodaysMissions missions={DUMMY_MISSIONS} />
 
-        <Pulse entries={DUMMY_PULSE} />
+        {pulse.length > 0 ? <Pulse entries={pulse} /> : null}
 
-        <RecentUnlocks entries={recent} unlockedAt={DUMMY_UNLOCKED_AT} onOpen={setOpen} />
+        <RecentUnlocks entries={recent} unlockedAt={unlockedAt} onOpen={setOpen} />
 
         {/*
           The story, directly under the last few badges.
@@ -288,7 +287,7 @@ export function JourneyScreen() {
       {open ? (
         <BadgeDetailSheet
           entry={open}
-          unlockedAt={DUMMY_UNLOCKED_AT[open.badge.id]}
+          unlockedAt={unlockedAt[open.badge.id]}
           onClose={() => setOpen(undefined)}
         />
       ) : null}

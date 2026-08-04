@@ -139,7 +139,10 @@ export const DUMMY_JOINED_AT = Date.now() - 500 * DAY;
 export const DUMMY_PERSONAL_MOMENTS: ChapterMoment[] = [
   {
     id: 'person:baani',
-    at: Date.now() - 210 * DAY,
+    // Before the three-hour conversation below it. A timeline where you talk
+    // for three hours in August and meet in January is nonsense, and nonsense
+    // in the stand-in data is how a real bug gets mistaken for a placeholder.
+    at: Date.now() - 400 * DAY,
     title: 'Met Baani',
     detail: 'Still the longest conversation.',
     kind: 'person',

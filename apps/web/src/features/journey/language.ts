@@ -57,6 +57,46 @@ export function greeting(now: Date, name?: string): string {
   return name ? `${part}, ${name}` : part;
 }
 
+const MONTHS_SPELLED = [
+  '',
+  'One month',
+  'Two months',
+  'Three months',
+  'Four months',
+  'Five months',
+  'Six months',
+  'Seven months',
+  'Eight months',
+  'Nine months',
+  'Ten months',
+  'Eleven months',
+] as const;
+
+/**
+ * The one line on Journey that says something rather than counts something.
+ *
+ * It has to be *true*, which is why it is derived from when the story actually
+ * starts rather than written once and shipped. The stand-in copy said "Three
+ * months of conversations" to everybody, including somebody on their first day
+ * — flattering, and false, and the kind of detail that quietly tells a user
+ * none of the screen is real.
+ */
+export function encouragementFor(startedAt: number, now = Date.now()): string {
+  const days = Math.floor((now - startedAt) / (24 * 60 * 60 * 1000));
+
+  if (days < 7) return 'Your journey starts here.';
+  if (days < 30) return 'A few weeks of conversations, and still going.';
+
+  const months = Math.floor(days / 30);
+  const spelled = MONTHS_SPELLED[months];
+  if (spelled) return `${spelled} of conversations, and still going.`;
+
+  const years = Math.floor(days / 365);
+  return years <= 1
+    ? 'Over a year of conversations, and still going.'
+    : `Years of conversations, and still going.`;
+}
+
 /**
  * What the app says when somebody has been away.
  *

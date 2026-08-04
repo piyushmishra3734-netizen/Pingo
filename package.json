@@ -40,7 +40,8 @@
     "verify:badges": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-badges.ts",
     "verify:chapters": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-chapters.ts",
     "verify:metrics": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-metrics.ts",
-    "verify:journey-pipeline": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-journey-pipeline.ts"
+    "verify:journey-pipeline": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-journey-pipeline.ts",
+    "verify:progress": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-progress.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

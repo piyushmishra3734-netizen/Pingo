@@ -220,7 +220,23 @@ you joined PINGO, because that is the story of the two of you.
 pipeline to record who was in each moment, and until it does, every profile
 would show the same dummy story.*
 
-## 10. Weekly reflection, never ranking
+## 10. Journey may never go backwards
+
+Counts come from what *this device* has cached. A fresh install, a trimmed
+cache, or a restore that only brought back a year each produce a smaller number
+than yesterday — and a level that drops because somebody changed phones is both
+the punished feeling §2 forbids and simply untrue. The conversations happened.
+
+So stored progress is a **floor**, never a source of truth: moments take the
+larger value, badges are a union, an unlock keeps the earliest date it was ever
+seen, and the story keeps its earliest beginning. Checked in `verify:progress`,
+with the case that matters spelled out — a device that has seen a week of
+history cannot reduce an account that had earned four thousand moments.
+
+The curve is linear, not exponential: each level costs fifty more than the last.
+An exponential curve is how a progression system tells somebody to play more.
+
+## 11. Weekly reflection, never ranking
 
 One card on a Sunday evening: friendships strengthened, time spent talking,
 badges earned, stories shared. No leaderboard, no comparison to last week framed
@@ -237,10 +253,12 @@ as a shortfall, no other users. Reflection only.
 | Badge library and registry | built, 28 badges, 46 checks |
 | Metric policy | built, one entry per metric, checked |
 | Event pipeline | built, 33 checks — evaluator, weights, rejections |
-| Message source | built, 25 checks, not yet reading the real store |
-| Journey screen — seven sections | built, dummy data |
-| Life Chapters | built, dummy data |
-| On this day | built, dummy data |
+| Message source | built, 25 checks, **reading the real cache** |
+| Level, and the no-going-back rule | built, 27 checks |
+| Journey screen — seven sections | **live** — level, badges, Pulse, chapters |
+| Life Chapters | **live**, from real unlock dates |
+| On this day | **live** — and quiet until there is something |
+| Today's missions | still stand-in: needs a call source and adaptive difficulty |
 | Friendship chapters | built as data, **no screen yet** |
 | Chats-list strip | built, dummy data |
 | Daily card | built, once per local day |
