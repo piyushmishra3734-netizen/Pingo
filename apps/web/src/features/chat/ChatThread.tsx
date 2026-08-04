@@ -26,7 +26,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useSharedElement } from '../../hooks/useSharedElement.js';
-import { playMessageSound, primeMessageSounds } from '../../lib/audio/message-sounds.js';
+import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
@@ -993,19 +993,19 @@ export function ChatThread({
               setReplyTo(undefined);
 
               /*
-               * Played when the message is actually away, not when it was asked
-               * for.
+               * Sending makes no sound, on purpose.
                *
-               * This fired on the tap first, and it was wrong twice over. It
-               * arrived while the finger was still down, which reads as a button
-               * click rather than as a message leaving, and it made the same
-               * sound whether the send succeeded or failed — a confirmation of
-               * nothing. Waiting for the server costs the delay but buys the
-               * meaning: the sound now says *gone*, and it is silent when the
-               * send is refused.
+               * It was tried on the tap and again on the acknowledgement, and
+               * neither earned its place: the sender already knows they sent it,
+               * they are looking at the screen when it happens, and the ticks
+               * say the rest. Arrival is the only event here the user is not
+               * already watching, so it is the only one worth a sound.
+               *
+               * `SENT` stays designed and tested in `message-sounds.ts` — the
+               * decision here is about when to use a sound, not about whether
+               * PINGO has one.
                */
               await send(body, target);
-              playMessageSound('sent');
             }}
             onSendSticker={(sticker) =>
               sendSticker({ id: sticker.id, url: sticker.url, body: sticker.emoji ?? sticker.name })
