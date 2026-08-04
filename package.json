@@ -36,7 +36,8 @@
     "verify:pipeline": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-pipeline.ts",
     "verify:archive-key": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-archive-key.ts",
     "verify:voice-wav": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-voice-wav.ts",
-    "verify:message-sounds": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-message-sounds.ts"
+    "verify:message-sounds": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-message-sounds.ts",
+    "verify:badges": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-badges.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
