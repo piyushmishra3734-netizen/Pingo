@@ -38,7 +38,8 @@
     "verify:voice-wav": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-voice-wav.ts",
     "verify:message-sounds": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-message-sounds.ts",
     "verify:badges": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-badges.ts",
-    "verify:chapters": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-chapters.ts"
+    "verify:chapters": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-chapters.ts",
+    "verify:metrics": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-metrics.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

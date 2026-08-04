@@ -115,6 +115,16 @@ optional:
 - **Never reward inactivity.** Nothing counts a login, a day, or a streak. There
   is no metric that goes up for being present.
 
+The counting half is `features/badges/metrics.ts`: a pure function over a list
+of messages, so the rules — the reply condition, the echo rule, the daily
+ceiling — can be tested without a database in the way. It wires only what a
+message list can honestly answer (messages sent, conversations started, long
+messages, night and dawn). Everything else is **absent rather than
+approximated**: the policy counts voice notes the recipient *played*, and
+nothing records a play, so `voiceNotesSent` stays unwired until something does.
+Approximating it with "sent" is how a metric quietly stops meaning what its
+policy says.
+
 Written out one metric at a time in `features/badges/metric-policy.ts`, with the
 already-rejected ones kept beside them and the reason they were rejected.
 `verify:badges` fails if a badge watches a metric that has not been through the
@@ -174,6 +184,7 @@ as a shortfall, no other users. Reflection only.
 | --- | --- |
 | Badge library and registry | built, 28 badges, 46 checks |
 | Metric policy | built, one entry per metric, checked |
+| Message counters | built, 25 checks, not yet reading the real store |
 | Journey screen — seven sections | built, dummy data |
 | Life Chapters | built, dummy data, 22 checks |
 | Chats-list strip | built, dummy data |
