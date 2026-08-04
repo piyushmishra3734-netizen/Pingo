@@ -146,7 +146,7 @@ export function JourneyScreen() {
           title="Badges"
           action={
             <span className="text-caption text-text-tertiary">
-              {earned.length}/{library.length} · {xp.toLocaleString()} XP
+              {earned.length}/{library.length}
             </span>
           }
         />

@@ -19,6 +19,7 @@ import type { ReactNode } from 'react';
 import { Badge } from '../badges/Badge.js';
 import type { BadgeProgress } from '../badges/registry.js';
 import type { JourneyLevel, Mission, PulseEntry } from './dummy-journey.js';
+import { moments } from './language.js';
 
 /** A section heading, so the six sections cannot drift apart in weight. */
 export function SectionHeading({ title, action }: { title: string; action?: ReactNode }) {
@@ -53,7 +54,7 @@ export function JourneyOverview({
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-title">Level {level.level}</p>
           <p className="text-caption text-text-tertiary">
-            {level.xpTotal.toLocaleString()} XP total
+            {moments(level.xpTotal)}
           </p>
         </div>
 
@@ -72,7 +73,7 @@ export function JourneyOverview({
         </div>
 
         <p className="pt-2 text-caption text-text-secondary">
-          {remaining.toLocaleString()} XP to level {level.level + 1}
+          {moments(remaining)} to level {level.level + 1}
         </p>
 
         {/*

@@ -1,4 +1,4 @@
-import { useChat } from '@pingo/core';
+import { useChat, useProfile } from '@pingo/core';
 import { EmptyState, cn } from '@pingo/ui';
 import { Navigate, useParams } from 'react-router-dom';
 
@@ -8,6 +8,8 @@ import { BackupFoundCard, BackupPrompt, BackupReminderCard } from '../features/b
 import { useBackupUx } from '../features/backup/useBackupUx.js';
 import { ChatThread } from '../features/chat/ChatThread.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
+import { DailyJourneyCard } from '../features/journey/DailyJourneyCard.js';
+import { DUMMY_DAILY_NOTE, DUMMY_MISSIONS } from '../features/journey/dummy-journey.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 
 /**
@@ -26,6 +28,7 @@ import { useIsDesktop } from '../hooks/useMediaQuery.js';
  */
 export function ChatsScreen() {
   const { conversationId } = useParams<{ conversationId: string }>();
+  const { profile } = useProfile();
   const { conversations, ready } = useChat();
   const isDesktop = useIsDesktop();
   /*
@@ -60,6 +63,15 @@ export function ChatsScreen() {
           business over a conversation somebody is reading.
         */}
         <InstallBanner />
+      {/*
+        Once a day, on the screen the app opens to. Not a modal: nothing behind
+        it is disabled and it leaves on its own after five seconds.
+      */}
+      <DailyJourneyCard
+        missions={DUMMY_MISSIONS}
+        note={DUMMY_DAILY_NOTE}
+        {...(profile?.displayName ? { name: profile.displayName.split(" ")[0] } : {})}
+      />
         <BackupPrompt ux={backupUx} />
       </>
     );

@@ -29,6 +29,8 @@ import { canAccessCommunities } from '../../lib/community-access.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
+import { JourneyStrip } from '../journey/JourneyStrip.js';
+import { DUMMY_LEVEL, DUMMY_MISSIONS, DUMMY_STRIP_NOTE } from '../journey/dummy-journey.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { StoryComposer } from '../stories/StoryComposer.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
@@ -496,6 +498,22 @@ export function ConversationList({
                   }
                   onCreate={() => setCreating(true)}
                   onManageMine={() => setManagingStory(true)}
+                />
+
+                {/*
+                  Under the stories, above the conversations, and scrolling away
+                  with both.
+
+                  It sits inside the same hidden-while-searching condition as the
+                  rail for the same reason: searching, filtering and selecting
+                  are all "find me a conversation", and a progress strip answers
+                  none of them.
+                */}
+                <JourneyStrip
+                  level={DUMMY_LEVEL}
+                  missions={DUMMY_MISSIONS}
+                  note={DUMMY_STRIP_NOTE}
+                  className="mt-1"
                 />
               </div>
             ) : undefined

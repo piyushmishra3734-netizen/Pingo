@@ -39,6 +39,12 @@ export const DUMMY_LEVEL: JourneyLevel = {
  */
 export const DUMMY_ENCOURAGEMENT = 'Three months of conversations, and still going.';
 
+/** One line for the chats-list strip. Shorter than the Journey one; it truncates. */
+export const DUMMY_STRIP_NOTE = 'You’re building meaningful friendships.';
+
+/** One line under the daily card’s list. A reason, never a target. */
+export const DUMMY_DAILY_NOTE = 'Small conversations build lasting friendships.';
+
 export interface Mission {
   id: string;
   title: string;

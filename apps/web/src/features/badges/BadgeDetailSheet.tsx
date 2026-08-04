@@ -12,6 +12,7 @@
  * a bar has finished being read. The bar is the illustration, not the fact.
  */
 import { Sheet } from '../../components/Sheet.js';
+import { momentsFrom } from '../journey/language.js';
 import { Badge } from './Badge.js';
 import type { BadgeProgress } from './registry.js';
 
@@ -66,8 +67,8 @@ export function BadgeDetailSheet({
           </div>
           <span aria-hidden className="h-3 w-px bg-line" />
           <div className="flex items-center gap-1.5">
-            <dt className="sr-only">Reward</dt>
-            <dd>{badge.xpReward} XP</dd>
+            <dt className="sr-only">Moments</dt>
+            <dd>{momentsFrom(badge.xpReward)}</dd>
           </div>
         </dl>
 
