@@ -122,8 +122,12 @@ export const DUMMY_PULSE: PulseEntry[] = [
  */
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Long enough ago to put the first chapter in the previous year. */
-export const DUMMY_JOINED_AT = Date.now() - 260 * DAY;
+/**
+ * Long enough ago to put the first chapter in the previous year — and far
+ * enough back that a moment from exactly a year ago is inside the account's
+ * life, which is what "On this day" needs to be judged at all.
+ */
+export const DUMMY_JOINED_AT = Date.now() - 500 * DAY;
 
 /**
  * The moments that are not badges.
@@ -139,12 +143,29 @@ export const DUMMY_PERSONAL_MOMENTS: ChapterMoment[] = [
     title: 'Met Baani',
     detail: 'Still the longest conversation.',
     kind: 'person',
+    with: 'baani',
+  },
+  /*
+   * Exactly a year ago, to the day.
+   *
+   * Placed here so "On this day" is on screen while it is being judged. It is
+   * the one piece of dummy data positioned relative to *today* rather than to
+   * the account, and without it the section would be invisible on all but a
+   * handful of days a year.
+   */
+  {
+    id: 'milestone:three-hours',
+    at: Date.now() - 365 * DAY,
+    title: 'Talked with Baani for three hours',
+    kind: 'milestone',
+    with: 'baani',
   },
   {
     id: 'milestone:first-long-call',
     at: Date.now() - 150 * DAY,
     title: 'First late-night call with Kashish',
     kind: 'milestone',
+    with: 'kashish',
   },
   {
     id: 'milestone:coffee-sneha',
@@ -152,6 +173,7 @@ export const DUMMY_PERSONAL_MOMENTS: ChapterMoment[] = [
     title: 'Coffee with Sneha',
     detail: 'The first time it happened off the app.',
     kind: 'milestone',
+    with: 'sneha',
   },
 ];
 

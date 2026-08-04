@@ -202,7 +202,25 @@ Rules, all checked in `verify:chapters`:
   a public Journey.
 - Nothing predates joining, and a badge removed from the library leaves no hole.
 
-## 9. Weekly reflection, never ranking
+## 9. On this day, and friendship chapters
+
+**On this day** — what happened on this date in an earlier year. The thing it
+must not become is a memories feed: something shown daily whether or not there
+is anything to show, with a button to post it again. So it renders **nothing**
+on a day with no match, which is most days, and carries no share control. One
+recollection at a time; two would be a list, and a list is scanned rather than
+felt. Years are spelled out — a digit reads as data.
+
+**Friendship chapters** — the same timeline narrowed to one person. Not a
+second history: it is the moments you already have, filtered by who was there,
+so the two can never disagree. It opens with the day you met rather than the day
+you joined PINGO, because that is the story of the two of you.
+
+*Built as data and checked. The friendship view has no screen yet: it needs the
+pipeline to record who was in each moment, and until it does, every profile
+would show the same dummy story.*
+
+## 10. Weekly reflection, never ranking
 
 One card on a Sunday evening: friendships strengthened, time spent talking,
 badges earned, stories shared. No leaderboard, no comparison to last week framed
@@ -221,7 +239,9 @@ as a shortfall, no other users. Reflection only.
 | Event pipeline | built, 33 checks — evaluator, weights, rejections |
 | Message source | built, 25 checks, not yet reading the real store |
 | Journey screen — seven sections | built, dummy data |
-| Life Chapters | built, dummy data, 22 checks |
+| Life Chapters | built, dummy data |
+| On this day | built, dummy data |
+| Friendship chapters | built as data, **no screen yet** |
 | Chats-list strip | built, dummy data |
 | Daily card | built, once per local day |
 | Language rules | built and centralised |

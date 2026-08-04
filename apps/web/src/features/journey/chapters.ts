@@ -45,6 +45,14 @@ export interface ChapterMoment {
   kind: ChapterMomentKind;
   /** Set on badge moments, so the row can draw the real artwork. */
   badgeId?: string;
+  /**
+   * Who it was with, when it was with one person.
+   *
+   * This is what makes a friendship chapter possible: the same moments,
+   * filtered to one person, are the story of that friendship. Absent on the
+   * solo ones, and absent on badges until the pipeline records who was there.
+   */
+  with?: string;
 }
 
 export interface Chapter {
@@ -119,6 +127,90 @@ export function chapterNote(chapter: Chapter, index: number, total: number, now 
   if (index === 0) return 'Where it started';
   if (index === total - 1 && chapter.year === now.getFullYear()) return 'This year, so far';
   return undefined;
+}
+
+/**
+ * The same story, narrowed to one friendship.
+ *
+ * Not a separate timeline with its own data: a friendship chapter is the
+ * chapters you already have, filtered to the moments that person was in.
+ * Building it any other way would mean two histories that can disagree, and the
+ * one thing worse than a missing memory is two contradictory ones.
+ *
+ * `joinedAt` becomes the day the friendship started rather than the day the
+ * account did — a chapter that opens with "Started using PINGO" is your story,
+ * not the story of the two of you.
+ */
+export function buildFriendshipChapters(input: {
+  friendId: string;
+  /** When you two met, in ms. */
+  metAt: number;
+  /** How they should be named in the first line. */
+  friendName: string;
+  moments: readonly ChapterMoment[];
+}): Chapter[] {
+  const { friendId, metAt, friendName, moments } = input;
+
+  const theirs = moments.filter((m) => m.with === friendId);
+  return buildChapters({
+    joinedAt: metAt,
+    unlockedAt: {},
+    personal: [
+      { id: `met:${friendId}`, at: metAt, title: `Met ${friendName}`, kind: 'person', with: friendId },
+      ...theirs,
+    ],
+  }).map((chapter) => ({
+    ...chapter,
+    // `buildChapters` labels the first line "Started using PINGO"; in a
+    // friendship the first line is meeting them, and it is already in the list.
+    moments: chapter.moments.filter((m) => m.kind !== 'joined'),
+  }));
+}
+
+export interface Recollection {
+  moment: ChapterMoment;
+  /** Whole years, so "one year ago" is exactly that and never eleven months. */
+  yearsAgo: number;
+}
+
+/**
+ * On this day — what happened on this date, in an earlier year.
+ *
+ * The feature this has to avoid being is Facebook Memories: a feed of
+ * resurfaced content, shown daily whether or not there is anything to show,
+ * with a button to post it again. So: nothing invented, nothing on a day with
+ * no match, nothing from this year, and no sharing. It is a private
+ * recollection, and on most days it does not appear at all.
+ *
+ * Most recent first, because "one year ago" lands harder than "four years ago"
+ * and the first line is the one that gets read.
+ */
+export function onThisDay(moments: readonly ChapterMoment[], today = new Date()): Recollection[] {
+  const month = today.getMonth();
+  const date = today.getDate();
+  const year = today.getFullYear();
+
+  return moments
+    .filter((moment) => {
+      const when = new Date(moment.at);
+      return when.getMonth() === month && when.getDate() === date && when.getFullYear() < year;
+    })
+    .map((moment) => ({ moment, yearsAgo: year - new Date(moment.at).getFullYear() }))
+    .sort((a, b) => a.yearsAgo - b.yearsAgo || b.moment.at - a.moment.at);
+}
+
+const SPELLED = ['', 'One', 'Two', 'Three', 'Four', 'Five'] as const;
+
+/**
+ * "One year ago", not "1 year ago".
+ *
+ * A digit reads as data. This line is the one piece of copy on the screen whose
+ * only job is to make somebody feel something, and spelling the number out is
+ * most of the difference.
+ */
+export function yearsAgoLabel(years: number): string {
+  const word = SPELLED[years];
+  return word ? `${word} year${years === 1 ? '' : 's'} ago` : `${years} years ago`;
 }
 
 const MONTHS = [

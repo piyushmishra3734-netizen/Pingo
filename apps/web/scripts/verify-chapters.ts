@@ -11,8 +11,11 @@
  */
 import {
   buildChapters,
+  buildFriendshipChapters,
   chapterNote,
   momentMonth,
+  onThisDay,
+  yearsAgoLabel,
   type ChapterMoment,
 } from '../src/features/journey/chapters.js';
 import { FORBIDDEN_WORDS } from '../src/features/journey/language.js';
@@ -173,6 +176,82 @@ console.log('\n— dates read as memory —');
    * a particular evening.
    */
   check(!/\d/.test(momentMonth(Date.now())), 'and never to a day or a time');
+}
+
+console.log('\n— on this day —');
+
+{
+  /*
+   * Local time, not UTC. "On this day" is a question about the calendar on the
+   * wall, and an evening in Delhi is already tomorrow in UTC — a test written
+   * in Z would pass in London and fail here, which is the wrong way round for a
+   * feature about somebody's own day.
+   */
+  const local = (y: number, m: number, d: number, h: number) => new Date(y, m, d, h).getTime();
+  const moments: ChapterMoment[] = [
+    { id: 'a', at: local(2024, 7, 4, 20), title: 'Talked with Baani for three hours', kind: 'milestone', with: 'baani' },
+    { id: 'b', at: local(2025, 7, 4, 9), title: 'Coffee with Sneha', kind: 'milestone', with: 'sneha' },
+    { id: 'c', at: local(2025, 7, 5, 9), title: 'Something the day after', kind: 'milestone' },
+    { id: 'd', at: local(2026, 7, 4, 9), title: 'Something today', kind: 'milestone' },
+  ];
+  const today = new Date(2026, 7, 4, 12, 0, 0);
+
+  const found = onThisDay(moments, today);
+  check(found.length === 2, `only what happened on this date, in an earlier year (${found.length})`);
+  check(found[0]?.yearsAgo === 1 && found[1]?.yearsAgo === 2, 'most recent first — "one year ago" lands hardest');
+  check(!found.some((r) => r.moment.id === 'd'), 'nothing from this year, which would be a log rather than a memory');
+  check(!found.some((r) => r.moment.id === 'c'), 'and nothing from the day after');
+
+  /*
+   * The important case. Most days have nothing, and on those days the section
+   * must not appear at all — a card that shows up daily whether or not there is
+   * anything to say is the memories feed this is deliberately not.
+   */
+  const quiet = onThisDay(moments, new Date(2026, 8, 19, 12, 0, 0));
+  check(quiet.length === 0, 'a day with nothing to remember produces nothing to show');
+
+  check(yearsAgoLabel(1) === 'One year ago', 'the years are spelled out, because a digit reads as data');
+  check(yearsAgoLabel(2) === 'Two years ago', 'including the plural');
+  check(/^\d/.test(yearsAgoLabel(9)), 'past five it falls back to a numeral rather than inventing prose');
+}
+
+console.log('\n— friendship chapters —');
+
+{
+  const moments: ChapterMoment[] = [
+    { id: 'call', at: at('2026-09-02T20:00:00Z'), title: 'First call', kind: 'milestone', with: 'baani' },
+    { id: 'coffee', at: at('2027-01-11T10:00:00Z'), title: 'Coffee together', kind: 'milestone', with: 'baani' },
+    { id: 'other', at: at('2026-10-02T20:00:00Z'), title: 'Coffee with Sneha', kind: 'milestone', with: 'sneha' },
+    { id: 'solo', at: at('2026-11-02T20:00:00Z'), title: 'Night Owl', kind: 'badge' },
+  ];
+
+  const chapters = buildFriendshipChapters({
+    friendId: 'baani',
+    friendName: 'Baani',
+    metAt: at('2026-08-14T18:00:00Z'),
+    moments,
+  });
+
+  const flat = chapters.flatMap((c) => c.moments);
+  check(flat.length === 3, `only what the two of you did (${flat.length})`);
+  check(flat[0]?.title === 'Met Baani', 'and it opens with meeting them, not with joining PINGO');
+  check(!flat.some((m) => m.kind === 'joined'), 'the account’s own first line has no place in a friendship');
+  check(!flat.some((m) => m.id === 'other' || m.id === 'solo'), 'somebody else’s moments stay out of it');
+  check(
+    chapters.map((c) => c.year).join(',') === '2026,2027',
+    'a friendship that crosses a year gets two chapters',
+  );
+
+  const strangers = buildFriendshipChapters({
+    friendId: 'nobody',
+    friendName: 'Nobody',
+    metAt: at('2026-08-14T18:00:00Z'),
+    moments,
+  });
+  check(
+    strangers.flatMap((c) => c.moments).length === 1,
+    'a friendship with nothing in it yet is just the day you met',
+  );
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);

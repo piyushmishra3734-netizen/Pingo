@@ -26,7 +26,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { Badge } from '../features/badges/Badge.js';
 import { BadgeDetailSheet } from '../features/badges/BadgeDetailSheet.js';
 import { DUMMY_METRICS, DUMMY_UNLOCKED_AT } from '../features/badges/dummy-progress.js';
-import { buildChapters } from '../features/journey/chapters.js';
+import { buildChapters, onThisDay } from '../features/journey/chapters.js';
 import {
   DUMMY_ENCOURAGEMENT,
   DUMMY_JOINED_AT,
@@ -36,7 +36,7 @@ import {
   DUMMY_PULSE,
   STATISTIC_PLACEHOLDERS,
 } from '../features/journey/dummy-journey.js';
-import { LifeChapters } from '../features/journey/LifeChapters.js';
+import { LifeChapters, OnThisDay } from '../features/journey/LifeChapters.js';
 import {
   JourneyOverview,
   Pulse,
@@ -133,6 +133,13 @@ export function JourneyScreen() {
     [],
   );
 
+  /*
+   * Read from the chapters rather than from the raw data, so a moment that was
+   * dropped as impossible — dated before the account existed — cannot come back
+   * as a memory.
+   */
+  const recollections = useMemo(() => onThisDay(chapters.flatMap((c) => c.moments)), [chapters]);
+
   const sections = RARITY_ORDER.map((rarity) => ({
     rarity,
     entries: visible.filter((e) => e.badge.rarity === rarity),
@@ -164,6 +171,13 @@ export function JourneyScreen() {
           to is a section nobody has. Following "recently earned" also reads in
           one movement: here is the last of it, and here is all of it.
         */}
+        {/*
+          Above the timeline, because it is about today. It renders nothing on
+          a day with nothing to remember, which is most days — and that absence
+          is the feature working, not failing.
+        */}
+        <OnThisDay recollections={recollections} />
+
         <LifeChapters chapters={chapters} />
 
         {/*

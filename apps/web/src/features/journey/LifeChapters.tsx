@@ -21,12 +21,55 @@
  * it becomes a year to beat, and next year starts at zero — which is the
  * pressure this whole screen is built to avoid.
  */
-import { cn } from '@pingo/ui';
+import { Card, cn } from '@pingo/ui';
 
 import { Badge } from '../badges/Badge.js';
 import { BADGE_BY_ID } from '../badges/registry.js';
-import { chapterNote, momentMonth, type Chapter, type ChapterMoment } from './chapters.js';
+import {
+  chapterNote,
+  momentMonth,
+  yearsAgoLabel,
+  type Chapter,
+  type ChapterMoment,
+  type Recollection,
+} from './chapters.js';
 import { SectionHeading } from './sections.js';
+
+/**
+ * On this day.
+ *
+ * The feature this must not become is a memories feed: something shown every
+ * day whether or not there is anything to show, with a button to post it again.
+ * So it renders nothing on a day with no match — which is most days — and there
+ * is no share control anywhere on it. It is a private recollection.
+ *
+ * One at a time. Two would be a list, and a list is something you scan rather
+ * than something that catches you.
+ */
+export function OnThisDay({ recollections }: { recollections: Recollection[] }) {
+  const first = recollections[0];
+  if (!first) return null;
+
+  return (
+    <>
+      <SectionHeading title="On this day" />
+      <div className="px-4">
+        <Card elevation="flat" className="p-4">
+          <p className="text-caption text-text-tertiary">{yearsAgoLabel(first.yearsAgo)}</p>
+          {/*
+            Set a size larger than the timeline rows below it. This is the one
+            line on the screen whose only job is to make somebody feel
+            something, and it should not read like another entry in a list.
+          */}
+          <p className="pt-1 text-body leading-snug text-balance">{first.moment.title}</p>
+          {first.moment.detail ? (
+            <p className="pt-1 text-caption text-text-secondary">{first.moment.detail}</p>
+          ) : null}
+        </Card>
+      </div>
+    </>
+  );
+}
 
 export function LifeChapters({ chapters }: { chapters: Chapter[] }) {
   if (chapters.length === 0) return null;
