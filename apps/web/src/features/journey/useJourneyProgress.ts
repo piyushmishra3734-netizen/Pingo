@@ -64,6 +64,20 @@ export function useJourneyProgress(): JourneyState {
 
   const userId = currentUser?.id;
 
+  /*
+   * A stable key for "which conversations exist".
+   *
+   * `conversations` is a new array on every provider refresh — a new message, a
+   * presence change, a read receipt — and using it directly as a dependency
+   * would re-read every cached thread on each of those. The count is worth
+   * doing when the set of conversations changes or the screen is opened, and
+   * not once a second while somebody is typing to you.
+   */
+  const conversationKey = useMemo(
+    () => conversations.map((c) => c.id).sort().join(','),
+    [conversations],
+  );
+
   useEffect(() => {
     if (!userId || !ready) return;
     let cancelled = false;
@@ -128,7 +142,9 @@ export function useJourneyProgress(): JourneyState {
     return () => {
       cancelled = true;
     };
-  }, [service, userId, ready, conversations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids
+    // rather than the array, deliberately; see `conversationKey`.
+  }, [service, userId, ready, conversationKey]);
 
   const library = useMemo(
     () => libraryFor(metrics, new Set(progress.unlockedIds)),
