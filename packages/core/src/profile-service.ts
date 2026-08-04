@@ -155,6 +155,18 @@ export class ProfileError extends Error {
   }
 }
 
+/** What anybody may see of somebody else's Journey. */
+export interface PublicJourney {
+  userId: string;
+  level: number;
+  /** Registry ids, in the order they were earned. */
+  badgeIds: string[];
+  /** When the owner last published. Their device does it, so it can be stale. */
+  updatedAt: number;
+}
+
+export type PublicJourneyDraft = Omit<PublicJourney, 'userId' | 'updatedAt'>;
+
 export interface ProfileService {
   /** The signed-in user's profile, or `null` if sign-up has not created it yet. */
   getMine(): Promise<Profile | null>;
@@ -238,6 +250,27 @@ export interface ProfileService {
    * per row would be a request per contact on every render.
    */
   listMutualIds(): Promise<string[]>;
+
+  // -- journey --------------------------------------------------------------
+
+  /**
+   * The public half of somebody's Journey.
+   *
+   * Journey is counted on its owner's device, from their own cached messages,
+   * so nobody else can work it out — the owner publishes a summary and this
+   * reads it. `null` when they have never published one, which is also what a
+   * profile looks like before it has been opened on a build that publishes.
+   */
+  publicJourney(userId: string): Promise<PublicJourney | null>;
+
+  /**
+   * Publishes the signed-in user's own summary.
+   *
+   * Only what docs/journey-philosophy.md § 5 makes public: the level and the
+   * badges. No moment count — a level is a milestone and a count is a score.
+   * No metric ever leaves the device.
+   */
+  publishJourney(summary: PublicJourneyDraft): Promise<void>;
 
   // -- profile page ---------------------------------------------------------
 

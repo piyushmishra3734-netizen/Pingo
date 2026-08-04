@@ -24,8 +24,8 @@
  * body leaves the device, and the only thing taken from the text is its length
  * and a fingerprint used to notice the same thing said twice.
  */
-import { useChat } from '@pingo/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useChat, useProfile } from '@pingo/core';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { evaluateMessages, type CountableMessage } from '../badges/metrics.js';
 import { libraryFor, type BadgeMetrics, type BadgeProgress } from '../badges/registry.js';
@@ -58,6 +58,15 @@ export interface JourneyState {
   feeling: JourneyFeeling;
   /** What the system noticed today, at most one, worth no progress at all. */
   notice?: Notice;
+  /**
+   * The closest unearned badge.
+   *
+   * "Closest" by fraction, and never one that has not been started: a badge at
+   * zero is not somewhere somebody already is, and pointing at it would be
+   * advertising rather than reflecting. Undefined when there is no such badge,
+   * and the strip then falls back to saying nothing about it.
+   */
+  nextBadge?: BadgeProgress;
   /** When this account started, for the first line of the first chapter. */
   joinedAt: number;
   /** False until the first count settles. The screen renders regardless. */
@@ -68,6 +77,12 @@ export interface JourneyState {
 
 export function useJourneyProgress(): JourneyState {
   const { service, currentUser, conversations, ready } = useChat();
+  const { profile, service: profiles } = useProfile();
+
+  /**
+   * The last summary published, so the same row is not written on every mount.
+   */
+  const lastPublished = useRef('');
   const [progress, setProgress] = useState<JourneyProgress>(EMPTY_PROGRESS);
   const [metrics, setMetrics] = useState<BadgeMetrics>({});
   const [pulse, setPulse] = useState<PulseEntry[]>([]);
@@ -177,6 +192,28 @@ export function useJourneyProgress(): JourneyState {
       setProgress(merged);
       setMetrics(counts);
       setCounted(true);
+
+      /*
+       * Publish the public half, so somebody opening this profile sees it.
+       *
+       * Only when it has changed: this runs every time the chats list mounts,
+       * and re-writing the same row on each of those is a request nobody
+       * needed. What goes up is the level and the badge ids — no moments, no
+       * metric, nothing about who anybody talks to.
+       */
+      const summary = JSON.stringify({
+        level: levelFor(merged.momentsEarned).level,
+        badges: merged.unlockedIds,
+      });
+      if (summary !== lastPublished.current) {
+        lastPublished.current = summary;
+        void profiles
+          .publishJourney({
+            level: levelFor(merged.momentsEarned).level,
+            badgeIds: merged.unlockedIds,
+          })
+          .catch(() => undefined);
+      }
     })();
 
     return () => {
@@ -191,15 +228,43 @@ export function useJourneyProgress(): JourneyState {
     [metrics, progress.unlockedIds],
   );
 
+  /*
+   * Nearest first, and only ones already begun. Ties break towards the smaller
+   * threshold, so "one more voice note" beats "forty more minutes on calls"
+   * when both are equally far along in proportion.
+   */
+  const nextBadge = useMemo(
+    () =>
+      library
+        .filter((entry) => !entry.unlocked && entry.fraction > 0)
+        .sort(
+          (a, b) =>
+            b.fraction - a.fraction ||
+            a.badge.unlockCondition.threshold - b.badge.unlockCondition.threshold,
+        )[0],
+    [library],
+  );
+
   return {
     level: levelFor(progress.momentsEarned),
+    ...(nextBadge ? { nextBadge } : {}),
     metrics,
     library,
     pulse,
     feeling,
     notice,
     unlockedAt: progress.unlockedAt,
-    joinedAt: progress.joinedAt ?? Date.now(),
+    /*
+     * The account's own creation date, when it is known.
+     *
+     * This used to be the oldest message on the device, which is not when
+     * somebody joined — it is how far back this phone happens to remember, and
+     * on a fresh cache it made a fortnight-old account look like a week-old one
+     * while a longer cache could make the story start before the account did.
+     * The profile row knows the real answer; the oldest message is the fallback
+     * for the moment before it loads.
+     */
+    joinedAt: profile?.createdAt ?? progress.joinedAt ?? Date.now(),
     ready: counted,
     empty: counted && progress.momentsEarned === 0,
   };

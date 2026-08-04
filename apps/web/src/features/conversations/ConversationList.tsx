@@ -522,6 +522,7 @@ export function ConversationList({
                   // The same phrase the Journey screen shows, rather than a
                   // second piece of copy about the same week.
                   note={journey.feeling}
+                  {...(journey.nextBadge ? { next: journey.nextBadge } : {})}
                   className="mt-1"
                 />
               </div>

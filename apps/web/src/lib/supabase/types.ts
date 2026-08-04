@@ -560,6 +560,23 @@ export type Database = {
         Update: Record<string, never>;
         Relationships: [];
       };
+      /**
+       * The public half of Journey — level and badges, published by the owner.
+       *
+       * No moments and no metrics, by design: see the migration and
+       * docs/journey-philosophy.md § 5.
+       */
+      journey_public: {
+        Row: {
+          user_id: string;
+          level: number;
+          badge_ids: string[];
+          updated_at: string;
+        };
+        Insert: { user_id: string; level?: number; badge_ids?: string[] };
+        Update: { level?: number; badge_ids?: string[] };
+        Relationships: [];
+      };
     };
     /* Empty groups, in the shape the generator emits. */
     Views: { [_ in never]: never };

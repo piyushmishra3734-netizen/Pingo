@@ -28,6 +28,8 @@ import {
   type ProfileDraft,
   type ProfileService,
   type ProfileStats,
+  type PublicJourney,
+  type PublicJourneyDraft,
   type ReportInput,
   type SharedHistory,
 } from '@pingo/core';
@@ -464,6 +466,54 @@ export class SupabaseProfileService implements ProfileService {
    * caller is part of. Asking directly would report "0 friends, 0 groups" on
    * every profile in the product except your own.
    */
+  /**
+   * The public half of somebody's Journey.
+   *
+   * Missing table, missing row and a failed request are all the same answer:
+   * `null`. The section that shows this is an extra on a profile, and a profile
+   * must not fail to open because an extra did — that is also what makes the
+   * migration safe to apply after the code ships rather than before.
+   */
+  async publicJourney(userId: string): Promise<PublicJourney | null> {
+    try {
+      const { data, error } = await this.client
+        .from('journey_public')
+        .select('user_id, level, badge_ids, updated_at')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return {
+        userId: data.user_id,
+        level: data.level ?? 1,
+        badgeIds: Array.isArray(data.badge_ids) ? data.badge_ids : [],
+        updatedAt: Date.parse(data.updated_at) || Date.now(),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async publishJourney(summary: PublicJourneyDraft): Promise<void> {
+    const { data: session } = await this.client.auth.getUser();
+    const userId = session.user?.id;
+    if (!userId) return;
+
+    try {
+      await this.client.from('journey_public').upsert(
+        {
+          user_id: userId,
+          level: summary.level,
+          badge_ids: summary.badgeIds,
+        },
+        { onConflict: 'user_id' },
+      );
+    } catch {
+      // Publishing is a nicety. A profile that shows nothing is better than a
+      // screen that throws while somebody is reading their chats.
+    }
+  }
+
   async stats(userId: string): Promise<ProfileStats> {
     const { data, error } = await this.client.rpc('profile_stats', { target: userId });
 

@@ -118,8 +118,17 @@ console.log('\n— the line under the level is true —');
 {
   const now = Date.now();
   check(encouragementFor(now - 2 * DAY, now) === 'Your journey starts here.', 'a new account is not told it has months of history');
+  /*
+   * The band that was wrong. An app a week and a half old cannot have given
+   * anybody "a few weeks of conversations", and a line somebody can check and
+   * find false costs the whole screen its credibility.
+   */
   check(
-    encouragementFor(now - 20 * DAY, now).startsWith('A few weeks'),
+    encouragementFor(now - 10 * DAY, now) === 'The first days of it.',
+    'ten days in, it does not claim weeks',
+  );
+  check(
+    encouragementFor(now - 20 * DAY, now).startsWith('A couple of weeks'),
     'three weeks in, it says weeks',
   );
   check(

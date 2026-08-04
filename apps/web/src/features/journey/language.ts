@@ -84,8 +84,18 @@ const MONTHS_SPELLED = [
 export function encouragementFor(startedAt: number, now = Date.now()): string {
   const days = Math.floor((now - startedAt) / (24 * 60 * 60 * 1000));
 
-  if (days < 7) return 'Your journey starts here.';
-  if (days < 30) return 'A few weeks of conversations, and still going.';
+  /*
+   * The bands never round upwards.
+   *
+   * "A few weeks of conversations" started at seven days, so a ten-day-old
+   * account — which is every account, on an app this young — was told it had
+   * weeks of history behind it. Nobody is flattered by a number they can check;
+   * they just stop believing the rest of the screen. Each band now describes the
+   * *shortest* thing that could be true of it.
+   */
+  if (days < 3) return 'Your journey starts here.';
+  if (days < 14) return 'The first days of it.';
+  if (days < 30) return 'A couple of weeks in, and still going.';
 
   const months = Math.floor(days / 30);
   const spelled = MONTHS_SPELLED[months];

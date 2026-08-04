@@ -6,6 +6,7 @@ import {
   type Post,
   type Profile,
   type ProfileStats,
+  type PublicJourney,
   type SharedHistory,
 } from '@pingo/core';
 import {
@@ -32,6 +33,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
+import { ProfileJourney } from '../features/journey/ProfileJourney.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { CaptionText } from '../features/profile/CaptionText.js';
@@ -135,6 +137,8 @@ export function ProfileScreen() {
   const [media, setMedia] = useState<ChatMediaItem[]>();
   const [shared, setShared] = useState<SharedHistory>();
   const [blocked, setBlocked] = useState(false);
+  /** The public half of their Journey. Absent until it loads, or for ever. */
+  const [journey, setJourney] = useState<PublicJourney | null>(null);
 
   const [tab, setTab] = useState<Tab>('posts');
 
@@ -144,6 +148,7 @@ export function ProfileScreen() {
     setPosts(undefined);
     setStats(undefined);
     setShared(undefined);
+    setJourney(null);
     setTab('posts');
   }, [handle]);
 
@@ -176,6 +181,19 @@ export function ProfileScreen() {
       void profiles
         .isBlocked(personId)
         .then((next) => { if (active) setBlocked(next); })
+        .catch(() => undefined);
+
+      /*
+       * Their Journey, read once per profile.
+       *
+       * Never for your own — that screen is one tap away in full, and a summary
+       * of it here would be the same page twice. Never blocking either: a
+       * profile must open whether or not this answers, which is also what makes
+       * the migration safe to apply after the code ships.
+       */
+      void profiles
+        .publicJourney(personId)
+        .then((next) => { if (active) setJourney(next); })
         .catch(() => undefined);
     }
 
@@ -634,6 +652,23 @@ export function ProfileScreen() {
         </div>
 
         {!isSelf && shared && <SharedWithPanel history={shared} />}
+
+        {/*
+          Their Journey, above the tabs and below what they share with you.
+
+          Only on other people's profiles: your own is one tap away in full, and
+          a summary of it here would be the same screen twice. It is absent
+          rather than empty when they have never published — a section that says
+          "nothing yet" about somebody else is a comment on them.
+        */}
+        {!isSelf && journey ? (
+          <ProfileJourney
+            level={journey.level}
+            badgeIds={journey.badgeIds}
+            name={person.displayName.split(' ')[0] ?? person.displayName}
+            className="mt-6"
+          />
+        ) : null}
 
         {/* ---- tabs ----------------------------------------------------- */}
         <div

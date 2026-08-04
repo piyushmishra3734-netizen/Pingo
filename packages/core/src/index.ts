@@ -46,6 +46,8 @@ export type {
   PostDraft,
   PostComment,
   ProfileStats,
+  PublicJourney,
+  PublicJourneyDraft,
   SharedHistory,
   ChatMediaItem,
   ReportReason,
