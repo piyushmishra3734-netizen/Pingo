@@ -21,6 +21,7 @@ import { Link } from 'react-router-dom';
 
 import { rememberSharedElement } from '../../hooks/useSharedElement.js';
 import { useLongPress } from '../chat/context-menu/useLongPress.js';
+import { StreakFlame } from './StreakFlame.js';
 
 /**
  * One row in the conversation list.
@@ -147,12 +148,20 @@ export function ConversationRow({
             badge; the count still exists as a quiet tabular note when present.
           */}
           {conversation.streak !== undefined && (
-            <span
-              className="shrink-0 text-caption tabular-nums text-text-tertiary"
-              title={`${conversation.streak}-day streak`}
-            >
-              {conversation.streak}
-              <span className="sr-only">-day streak</span>
+            /*
+              The flame and the number, as one thing.
+
+              The emoji version was removed for fighting the unread badge; this
+              is drawn in PINGO's own palette at fifteen pixels and stays out of
+              the badge's colour entirely. The count keeps its tabular figures
+              so a two-digit streak does not shift the row.
+            */
+            <span className="flex shrink-0 items-center gap-0.5">
+              <StreakFlame days={conversation.streak} />
+              <span className="text-caption tabular-nums text-text-tertiary">
+                {conversation.streak}
+                <span className="sr-only">-day streak</span>
+              </span>
             </span>
           )}
           {conversation.favorite && (

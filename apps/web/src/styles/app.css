@@ -193,3 +193,54 @@
 @utility animate-badge-sparkle {
   animation: badge-sparkle 720ms var(--ease-standard) 120ms both;
 }
+
+/**
+ * The streak flame.
+ *
+ * Fire in an eighteen-pixel icon cannot be a video or a sprite sheet — both
+ * would cost more than the row they sit in. What reads as fire at this size is
+ * three things happening at slightly different speeds: the body of the flame
+ * leaning and stretching, an inner core doing the same a beat faster, and the
+ * whole thing breathing in brightness. Three loops with prime-ish durations
+ * never resynchronise, so it does not develop a visible rhythm — which is what
+ * makes a looping animation start to look like a loop.
+ *
+ * Everything is transform and opacity, so it composites on the GPU and costs
+ * nothing on a list that scrolls.
+ */
+@keyframes flame-body {
+  0%   { transform: translateY(0) scaleY(1) scaleX(1) rotate(0deg); }
+  22%  { transform: translateY(-0.4px) scaleY(1.07) scaleX(0.96) rotate(-1.6deg); }
+  47%  { transform: translateY(0.2px) scaleY(0.95) scaleX(1.04) rotate(1.4deg); }
+  71%  { transform: translateY(-0.3px) scaleY(1.05) scaleX(0.98) rotate(-0.8deg); }
+  100% { transform: translateY(0) scaleY(1) scaleX(1) rotate(0deg); }
+}
+
+@keyframes flame-core {
+  0%   { transform: translateY(0) scaleY(1); opacity: 0.9; }
+  30%  { transform: translateY(0.5px) scaleY(0.86); opacity: 0.72; }
+  55%  { transform: translateY(-0.4px) scaleY(1.12); opacity: 1; }
+  80%  { transform: translateY(0.2px) scaleY(0.94); opacity: 0.8; }
+  100% { transform: translateY(0) scaleY(1); opacity: 0.9; }
+}
+
+@keyframes flame-glow {
+  0%   { opacity: 0.28; transform: scale(1); }
+  40%  { opacity: 0.5; transform: scale(1.1); }
+  100% { opacity: 0.28; transform: scale(1); }
+}
+
+@utility animate-flame-body {
+  animation: flame-body 1300ms ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+@utility animate-flame-core {
+  animation: flame-core 890ms ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+@utility animate-flame-glow {
+  animation: flame-glow 1700ms ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
