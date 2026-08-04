@@ -101,17 +101,35 @@ export function JourneyStrip({
           something real; "Level 6" is a number about nothing in particular, so
           it moves to the quiet end of the row.
         */}
-        {next ? (
-          <p className="truncate text-body font-medium">
-            {remaining} more {next.badge.unlockCondition.progressLabel}
-          </p>
-        ) : (
-          <p className="truncate text-body font-medium">Level {level.level}</p>
-        )}
+        {/*
+          Two lines, and the sentence is allowed to wrap onto the second.
 
-        <p className="truncate pt-0.5 text-caption text-text-secondary">
-          {next ? `until ${next.badge.title} · ${note}` : note}
-        </p>
+          It truncated at "29 more messages after …" in the desktop sidebar,
+          which is the narrowest place this appears — and a sentence cut before
+          its subject is worse than no sentence. Some progress labels are simply
+          long ("messages after midnight"), so the fix is room rather than
+          shorter words.
+
+          The feeling line goes with it when a badge is showing. It was
+          "until Night Owl · Building new connections", two thoughts fighting
+          for one line; the phrase is already on the Journey screen, and the
+          badge is what this row is for.
+        */}
+        {next ? (
+          <>
+            <p className="line-clamp-2 text-body font-medium leading-snug">
+              {remaining} more {next.badge.unlockCondition.progressLabel}
+            </p>
+            <p className="truncate pt-0.5 text-caption text-text-secondary">
+              until {next.badge.title}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="truncate text-body font-medium">Level {level.level}</p>
+            <p className="truncate pt-0.5 text-caption text-text-secondary">{note}</p>
+          </>
+        )}
 
         {/*
           The level bar, thinner than before and below the words rather than
