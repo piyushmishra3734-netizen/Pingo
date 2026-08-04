@@ -116,11 +116,17 @@ const earlyBird = (
  */
 const hundredMessages = (
   <>
-    <path {...PEN_BOLD} d="M16 22c-2 1-3 3-3 6v14" />
-    <path {...PEN_BOLD} d="M12 42h9" />
-    <path {...PEN_BOLD} d="M28 24c-4 0-6 4-6 9s2 9 6 9 6-4 6-9-2-9-6-9Z" />
-    <path {...PEN_BOLD} d="M45 24c-4 0-6 4-6 9s2 9 6 9 6-4 6-9-2-9-6-9Z" />
-    <path {...PEN} d="M12 49c9 2 26 3 39 0" />
+    {/*
+      The "1" is a flag and a stem, with no foot.
+
+      Drawn with a base serif first, which read as an "L" at badge size — the
+      grid showed "L00". A brush-written 1 has the upstroke and nothing at the
+      bottom, and that is unambiguous even at 64 pixels.
+    */}
+    <path {...PEN_BOLD} d="M13 26l6-4v20" />
+    <path {...PEN_BOLD} d="M28 22c-4 0-7 5-7 10s3 10 7 10 7-5 7-10-3-10-7-10Z" />
+    <path {...PEN_BOLD} d="M46 22c-4 0-7 5-7 10s3 10 7 10 7-5 7-10-3-10-7-10Z" />
+    <path {...PEN} d="M12 49c9 2 27 3 40 0" />
   </>
 );
 

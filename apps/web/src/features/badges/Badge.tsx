@@ -26,9 +26,20 @@ import { cn } from '@pingo/ui';
 import { BadgeArt, type BadgeArtId } from './BadgeArt.js';
 import type { BadgeDefinition, BadgeRarity } from './registry.js';
 
-/** The sheet's two papers. Warm, not white; near-black, not black. */
-const INK = '#141210';
+/**
+ * The sheet's two papers. Warm, not white; near-black, not black.
+ *
+ * Ink is lifted a little off the reference's own value. On the printed sheet a
+ * near-black disc reads because the paper around it is a different near-black
+ * and there is texture between them; in the app it sat on a dark page and
+ * disappeared, leaving the artwork floating with no badge under it. Since the
+ * sheet is a sheet *of discs*, the disc has to survive — so ink is raised just
+ * far enough to separate, and a hairline ring does the rest.
+ */
+const INK = '#1C1A18';
 const PAPER = '#E8E2D5';
+/** Barely there, and only on ink — paper separates from the page by itself. */
+const INK_EDGE = 'rgba(232, 226, 213, 0.09)';
 
 /**
  * The rarity dot.
@@ -64,13 +75,20 @@ export function Badge({ badge, unlocked, size = 72, celebrate = false, className
           'flex h-full w-full items-center justify-center overflow-hidden',
           badge.shape === 'squircle' ? 'rounded-[28%]' : 'rounded-full',
           celebrate && 'motion-safe:animate-badge-unlock',
-          // Locked keeps the drawing and drops the contrast. See the note above.
-          !unlocked && 'opacity-40 saturate-[0.25]',
+          /*
+           * Locked drops the contrast and nothing else.
+           *
+           * Desaturating came first and was wrong: it turned the cream discs
+           * grey, so a locked paper badge stopped being paper. Opacity alone
+           * dims the artwork while leaving both papers recognisably themselves.
+           */
+          !unlocked && 'opacity-45',
         )}
         style={{
           backgroundColor: ink ? INK : PAPER,
           // The accent replaces the artwork colour and nothing else.
           color: badge.accent ?? (ink ? PAPER : INK),
+          ...(ink ? { boxShadow: `inset 0 0 0 1px ${INK_EDGE}` } : {}),
         }}
       >
         <BadgeArt id={badge.id as BadgeArtId} size={Math.round(size * 0.78)} />

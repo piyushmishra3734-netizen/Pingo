@@ -95,7 +95,12 @@ export function JourneyScreen() {
     <div className="flex min-h-dvh flex-col bg-bg">
       <ScreenHeader title="Journey" showBack />
 
-      <div className="mx-auto w-full max-w-2xl flex-1 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      {/*
+        The dock floats over the page, so the last rarity section needs room to
+        clear it — otherwise the rarest badges, which are the ones worth
+        scrolling for, sit underneath the tab bar.
+      */}
+      <div className="mx-auto w-full max-w-2xl flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {/*
           The summary reads as one sentence rather than as a dashboard. Two big
           numbers side by side would make the page about the score, and the page
