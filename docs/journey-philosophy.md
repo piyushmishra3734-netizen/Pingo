@@ -8,8 +8,25 @@ Journey is a **personal growth system**, not an achievement system. Users should
 feel proud. Never pressured, never addicted, never punished. The reference points
 are a GitHub contribution history and Spotify Wrapped — not a mobile game.
 
+**PINGO celebrates meaningful relationships. It does not maximise screen time.**
+Every Journey feature should make somebody proud of the connections they built,
+and never pressured to keep a number alive. That sentence outranks everything
+below it and settles any argument the rest of this document does not.
+
 The test: when somebody opens Journey they should remember **who they became**,
 not what they unlocked.
+
+### The test applied, once, so it is not abstract
+
+The first draft of the daily missions was "Send 5 messages". It reads like a
+mission and is a screen-time quota: five messages to one person and five
+one-word messages to five people complete it identically. It rewards activity,
+which is the thing being ruled out.
+
+Missions now name a relationship and can only be finished by doing something
+*with someone* — reply to somebody waiting, call a friend, check in on someone
+quiet. Counts stay small, because the target is a **shape, not a volume**.
+Adaptive difficulty moves the number without changing the shape.
 
 ---
 

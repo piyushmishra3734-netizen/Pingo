@@ -55,10 +55,36 @@ export interface Mission {
   xpReward: number;
 }
 
+/**
+ * Missions name a relationship, never a quantity.
+ *
+ * The first draft was "Send 5 messages", and that is a screen-time quota in the
+ * clothes of a mission: five messages to one person and five one-word messages
+ * to five people complete it identically. It rewards activity, which is the
+ * thing PINGO is explicitly not trying to maximise.
+ *
+ * Each of these can only be finished by doing something *with someone*. The
+ * counts are small and stay small — the target is a shape, not a volume, and
+ * adaptive difficulty in Phase 2 moves the number without changing the shape.
+ */
 export const DUMMY_MISSIONS: Mission[] = [
-  { id: 'daily_messages', title: 'Send 5 messages', unit: 'messages', done: 2, target: 5, xpReward: 10 },
-  { id: 'daily_call', title: 'Call one friend', unit: 'calls', done: 0, target: 1, xpReward: 15 },
-  { id: 'daily_story', title: 'Share a story', unit: 'stories', done: 1, target: 1, xpReward: 10 },
+  {
+    id: 'daily_reply',
+    title: 'Reply to someone waiting',
+    unit: 'replies',
+    done: 1,
+    target: 2,
+    xpReward: 10,
+  },
+  { id: 'daily_call', title: 'Call a friend', unit: 'calls', done: 0, target: 1, xpReward: 15 },
+  {
+    id: 'daily_check_in',
+    title: 'Check in on someone quiet',
+    unit: 'friends',
+    done: 1,
+    target: 1,
+    xpReward: 10,
+  },
 ];
 
 /**
