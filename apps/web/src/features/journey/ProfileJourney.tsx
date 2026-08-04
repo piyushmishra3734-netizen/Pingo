@@ -1,20 +1,26 @@
 /**
  * Somebody else's Journey, on their profile.
  *
- * ## The whole collection, not just what they earned
+ * ## Only what they earned
  *
- * The first version showed only their earned badges, on the reasoning that a
- * grid of things somebody has *not* done is a list of their shortcomings shown
- * to a stranger. That was wrong, and for a simple reason: a collection is only
- * legible as a collection when the empty slots are visible. Six badges floating
- * on their own say nothing about what six means. Six lit out of twenty-eight is
- * a story — and it is the same story their own Journey screen tells them, which
- * is the point of a public Journey at all.
+ * Not the locked ones. A profile is somebody's own page, and a grid of
+ * twenty-two dim badges is a list of things they have not done, shown to
+ * whoever opens it. Their own Journey screen is the place for the whole library
+ * — there the locked ones are somewhere to go, because they are *theirs* to go
+ * to. Here they would only be a measure of how far short of the set this person
+ * is.
  *
- * The locked ones are dim and silent. No progress bars, because the viewer does
- * not know how far along somebody else is and must not: progress is counted on
- * the owner's device from their own messages, and only the fact of an unlock is
- * ever published.
+ * What that costs is the sense of scale: six badges do not say what six means.
+ * That is the trade, and it is the right way round — a profile should show what
+ * somebody has done rather than the size of what they have not.
+ *
+ * ## Nothing is guessed
+ *
+ * Journey is counted on its owner's device, so a profile knows nothing at all
+ * about somebody who has not opened the app since this shipped. That case is
+ * *named* rather than hidden — hiding the section made the feature look broken
+ * — and it is never filled in with a level of one or a count of zero, because
+ * neither is known to be true.
  *
  * ## Only the public half
  *
@@ -26,8 +32,9 @@
  *
  * ## Nothing here can be compared with your own
  *
- * No "you are ahead", no rank, no side-by-side. The reaction being designed for
- * is "they have really been here", not "I am winning".
+ * No progress bars — the viewer does not know how far along somebody else is
+ * and must not. No rank, no side-by-side. The reaction being designed for is
+ * "they have really been here", not "I am winning".
  */
 import { Card, cn } from '@pingo/ui';
 import { useState } from 'react';
@@ -35,9 +42,8 @@ import { useState } from 'react';
 import { Badge } from '../badges/Badge.js';
 import { BADGES } from '../badges/registry.js';
 
-/** Enough to read the shape of the collection without owning the screen. */
-const COLLAPSED_ROWS = 2;
-const PER_ROW = 6;
+/** Two rows of six. Past that it is a wall rather than a row of badges. */
+const COLLAPSED = 12;
 
 export function ProfileJourney({
   level,
@@ -45,7 +51,7 @@ export function ProfileJourney({
   name,
   className,
 }: {
-  /** Undefined when they have never published — see below. */
+  /** Undefined when they have never published. */
   level?: number;
   badgeIds?: readonly string[];
   /** First name, for the line about them. */
@@ -53,37 +59,18 @@ export function ProfileJourney({
   className?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const published = level !== undefined;
   const earned = new Set(badgeIds ?? []);
 
   /*
-   * They have never published.
-   *
-   * Journey is counted on its owner's device, so a profile knows nothing about
-   * somebody who has not opened the app since this shipped. The first version
-   * hid the whole section in that case, which made the feature look broken —
-   * you open a friend's profile and there is simply nothing there, with no way
-   * to tell whether they have no badges or the app is not working.
-   *
-   * So the collection is always drawn, and the missing part is *named*. What is
-   * never done is guess: no level, and no "0 of 28", because neither is known.
+   * In sheet order rather than in the order they were earned. The library has
+   * an order that means something — messaging, the two times of day, calls,
+   * camera, stories, people — and a handful of badges shown in that order still
+   * reads as part of the set.
    */
-  const published = level !== undefined;
-
-  /*
-   * Their badges first, then the rest in sheet order.
-   *
-   * A profile should open with what they have done rather than with the first
-   * six commons in the library, and the collapsed view only has room for a
-   * couple of rows. Inside each half the sheet order is kept, so the set still
-   * reads as the set.
-   */
-  const ordered = [
-    ...BADGES.filter((badge) => earned.has(badge.id)),
-    ...BADGES.filter((badge) => !earned.has(badge.id)),
-  ];
-
-  const visible = expanded ? ordered : ordered.slice(0, COLLAPSED_ROWS * PER_ROW);
-  const hidden = ordered.length - visible.length;
+  const theirs = BADGES.filter((badge) => earned.has(badge.id));
+  const visible = expanded ? theirs : theirs.slice(0, COLLAPSED);
+  const hidden = theirs.length - visible.length;
 
   return (
     <section className={cn('px-4', className)}>
@@ -97,55 +84,47 @@ export function ProfileJourney({
           <p className="pt-2 text-caption text-text-secondary">
             {name} hasn’t shared their Journey yet.
           </p>
-        ) : earned.size === 0 ? (
+        ) : theirs.length === 0 ? (
           <p className="pt-2 text-caption text-text-secondary">
             {name} is just getting started here.
           </p>
-        ) : null}
+        ) : (
+          <>
+            <ul className="grid grid-cols-6 gap-x-2 gap-y-4 pt-4">
+              {visible.map((badge) => (
+                <li key={badge.id}>
+                  <div className="flex flex-col items-center gap-1.5 text-center">
+                    <Badge badge={badge} unlocked size={40} />
+                    <span className="line-clamp-2 text-[10px] leading-tight text-text-secondary">
+                      {badge.title}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
 
-        <ul className="grid grid-cols-6 gap-x-2 gap-y-4 pt-4">
-          {visible.map((badge) => {
-            const unlocked = earned.has(badge.id);
-            return (
-              <li key={badge.id}>
-                <div className="flex flex-col items-center gap-1.5 text-center">
-                  <Badge badge={badge} unlocked={unlocked} size={40} />
-                  <span
-                    className={cn(
-                      'line-clamp-2 text-[10px] leading-tight',
-                      unlocked ? 'text-text-secondary' : 'text-text-tertiary/70',
-                    )}
-                  >
-                    {badge.title}
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+            <div className="flex items-baseline justify-between gap-3 pt-4">
+              {/*
+                What they have, never what they are missing. "6 of 28" would
+                turn somebody's profile into a completion score, and the locked
+                badges are absent for the same reason.
+              */}
+              <p className="text-caption text-text-tertiary">
+                {theirs.length === 1 ? '1 badge earned' : `${theirs.length} badges earned`}
+              </p>
 
-        <div className="flex items-baseline justify-between gap-3 pt-4">
-          {/*
-            The count reads as a collection, not as a completion score: what
-            they have, out of what there is. It is only here because the whole
-            library is on screen — the number was left off when the locked ones
-            were, and a bare "six badges" beside a full grid would be the one
-            thing on the card somebody had to work out for themselves.
-          */}
-          <p className="text-caption text-text-tertiary">
-            {published ? `${earned.size} of ${BADGES.length} earned` : `${BADGES.length} to earn`}
-          </p>
-
-          {hidden > 0 || expanded ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((open) => !open)}
-              className="focus-ring rounded-md text-caption text-brand"
-            >
-              {expanded ? 'Show less' : `Show all ${BADGES.length}`}
-            </button>
-          ) : null}
-        </div>
+              {hidden > 0 || expanded ? (
+                <button
+                  type="button"
+                  onClick={() => setExpanded((open) => !open)}
+                  className="focus-ring rounded-md text-caption text-brand"
+                >
+                  {expanded ? 'Show less' : `Show all ${theirs.length}`}
+                </button>
+              ) : null}
+            </div>
+          </>
+        )}
       </Card>
     </section>
   );

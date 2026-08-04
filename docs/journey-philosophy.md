@@ -112,7 +112,7 @@ what stays private is what would turn it into a scoreboard or expose the user.
 | --- | --- |
 | Level | Today's missions |
 | Joined | AI conversations |
-| The badge collection, in full | Memories |
+| Badges they have earned | Memories |
 | Favourite badges | Personal statistics |
 | Current streak | Pulse |
 | Friendship milestones | |
@@ -302,7 +302,7 @@ as a shortfall, no other users. Reflection only.
 | Today's missions | still stand-in: needs a call source and adaptive difficulty |
 | Noticing | **live**, 18 checks, worth nothing by design |
 | The feeling indicator | **live**, on Journey and the chats strip |
-| Public Journey on a profile | **live** — level and the whole collection |
+| Public Journey on a profile | **live** — level and the badges they earned |
 | Friendship chapters | built as data, **no screen yet** |
 | Chats-list strip | built, dummy data |
 | Daily card | built, once per local day |
