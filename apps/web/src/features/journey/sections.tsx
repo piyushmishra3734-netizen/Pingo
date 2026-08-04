@@ -98,8 +98,18 @@ export function MissionCard({ mission }: { mission: Mission }) {
   const fraction = mission.target <= 0 ? 1 : Math.min(1, mission.done / mission.target);
 
   return (
-    <Card elevation="flat" className={cn('p-3.5', complete && 'opacity-70')}>
-      <div className="flex items-center gap-3">
+    /*
+     * A column with the bar pinned to the bottom, so cards line up whatever
+     * their titles do.
+     *
+     * Heights were uneven for two reasons at once: a long title wrapped to a
+     * second line, and a completed card dropped its bar entirely. Fixing only
+     * the wrapping would have left the completed card short. So the track is
+     * always drawn — filled and tinted when done — and `mt-auto` holds it to the
+     * bottom edge, which keeps every bar on the same line across the row.
+     */
+    <Card elevation="flat" className={cn('flex h-full flex-col p-3.5', complete && 'opacity-70')}>
+      <div className="flex items-start gap-3">
         {/*
           A tick or an empty ring, at text size. A checkbox would invite a tap,
           and missions are completed by living rather than by pressing.
@@ -107,7 +117,9 @@ export function MissionCard({ mission }: { mission: Mission }) {
         <span
           aria-hidden
           className={cn(
-            'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+            // `mt-0.5` sits it on the first line's baseline rather than centred
+            // against a title that may be two lines tall.
+            'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
             complete ? 'border-brand bg-brand text-white' : 'border-line',
           )}
         >
@@ -118,23 +130,36 @@ export function MissionCard({ mission }: { mission: Mission }) {
           ) : null}
         </span>
 
-        <p className={cn('min-w-0 flex-1 text-body', complete && 'line-through decoration-line')}>
+        <p
+          className={cn(
+            'min-w-0 flex-1 text-body leading-snug text-balance',
+            complete && 'line-through decoration-line',
+          )}
+        >
           {mission.title}
         </p>
 
-        <p className="shrink-0 text-caption tabular-nums text-text-tertiary">
+        <p className="mt-0.5 shrink-0 text-caption tabular-nums text-text-tertiary">
           {mission.done}/{mission.target}
         </p>
       </div>
 
-      {!complete ? (
-        <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-sunken">
+      {/*
+        Always drawn, so a finished mission occupies the same shape as an
+        unfinished one. Full and tinted rather than hidden — the card still has
+        to say "done" once the tick has been taken in.
+      */}
+      <div className="mt-auto pt-3">
+        <div className="h-1 w-full overflow-hidden rounded-full bg-sunken">
           <div
-            className="h-full rounded-full bg-text-tertiary transition-[width] duration-slow ease-standard"
+            className={cn(
+              'h-full rounded-full transition-[width] duration-slow ease-standard',
+              complete ? 'bg-brand/60' : 'bg-text-tertiary',
+            )}
             style={{ width: `${Math.max(2, Math.round(fraction * 100))}%` }}
           />
         </div>
-      ) : null}
+      </div>
     </Card>
   );
 }
@@ -152,7 +177,16 @@ export function TodaysMissions({ missions }: { missions: Mission[] }) {
           </span>
         }
       />
-      <div className="grid gap-2 px-4 sm:grid-cols-3">
+      {/*
+        `auto-fit` with a floor, rather than a fixed three.
+
+        Three hard columns squeezed "Send 5 messages" onto two lines at the very
+        width where there was room for a wider card. Letting the grid choose
+        means it takes three when each can be 190px, two when it cannot, and one
+        on a phone — and no title is broken to satisfy a column count that was
+        decided in advance.
+      */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] items-stretch gap-2 px-4">
         {missions.map((mission) => (
           <MissionCard key={mission.id} mission={mission} />
         ))}
@@ -178,14 +212,26 @@ export function Pulse({ entries }: { entries: PulseEntry[] }) {
         <Card elevation="flat" className="divide-y divide-line p-0">
           {entries.map((entry) => (
             <div key={entry.id} className="flex items-center gap-3 px-4 py-3">
-              <p className="w-24 shrink-0 truncate text-body">{entry.name}</p>
+              {/*
+                The name takes what it needs; the bar takes what is left.
+
+                It was a fixed 6rem column, which cut names short while the bar
+                beside it had room to spare. Flexing both — with the name given
+                the smaller share and a ceiling so one long name cannot swallow
+                the row — keeps the reading order the section is built on: who
+                first, how warm second.
+              */}
+              <p className="min-w-0 flex-[1_1_auto] basis-20 truncate text-body sm:max-w-48">
+                {entry.name}
+              </p>
 
               {/*
                 A bar rather than a number. "128 messages" invites comparison
                 between friends, which is the last thing a friendship signal
                 should encourage; a length says "warm" without scoring anyone.
+                The floor stops it collapsing to a dot beside a long name.
               */}
-              <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-sunken">
+              <div className="h-1 min-w-16 flex-[2_1_0%] overflow-hidden rounded-full bg-sunken">
                 <div
                   className="h-full rounded-full bg-brand/70"
                   style={{ width: `${Math.max(4, Math.round((entry.exchanges / busiest) * 100))}%` }}
