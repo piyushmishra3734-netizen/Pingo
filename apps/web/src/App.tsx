@@ -38,6 +38,7 @@ import { NewGroupScreen } from './screens/NewGroupScreen.js';
 import { JoinGroupScreen } from './screens/JoinGroupScreen.js';
 import { NotificationsScreen as NotificationsFeedScreen } from './screens/NotificationsScreen.js';
 import { EditProfileScreen } from './screens/EditProfileScreen.js';
+import { JourneyScreen } from './screens/JourneyScreen.js';
 import { ProfileScreen } from './screens/ProfileScreen.js';
 import { StoryArchiveScreen } from './screens/StoryArchiveScreen.js';
 import { SettingsScreen } from './screens/SettingsScreen.js';
@@ -344,6 +345,7 @@ export function App() {
                   <Route path="/profile" element={<ProfileScreen />} />
                   {/* Before `:handle`, or "edit" would be read as a username. */}
                   <Route path="/profile/edit" element={<EditProfileScreen />} />
+                  <Route path="/profile/journey" element={<JourneyScreen />} />
                   {/* Accepts a handle or a user id - see `ProfileService.find`. */}
                   <Route path="/profile/:handle" element={<ProfileScreen />} />
                   {/* Private, and owner-only by the read policy rather than by this route. */}

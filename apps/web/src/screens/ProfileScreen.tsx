@@ -11,6 +11,7 @@ import {
 import {
   Button,
   ChatIcon,
+  ChevronRightIcon,
   EditIcon,
   EmptyState,
   IconButton,
@@ -530,7 +531,39 @@ export function ProfileScreen() {
                 Share profile
               </Button>
             </div>
-          ) : (
+          ) : null}
+
+          {/*
+            Journey, and only on your own profile.
+
+            A collection is something you keep, not something you show — putting
+            it on other people's profiles would turn badges into a rank visible
+            to strangers, which is a different product from the one the sheet was
+            drawn for. It sits under the actions rather than beside them because
+            it is somewhere to go, not something to do.
+          */}
+          {isSelf ? (
+            <button
+              type="button"
+              onClick={() => navigate('/profile/journey')}
+              className={cn(
+                'mt-3 flex w-full max-w-xs items-center justify-between gap-3',
+                'rounded-xl border border-line/60 bg-surface/90 px-4 py-3 text-left',
+                'transition-transform duration-instant ease-standard',
+                'active:scale-[0.98] motion-reduce:active:scale-100',
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block text-body font-medium">Journey</span>
+                <span className="block truncate text-caption text-text-secondary">
+                  Badges you have earned
+                </span>
+              </span>
+              <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
+            </button>
+          ) : null}
+
+          {!isSelf ? (
             <div className="mt-4 flex w-full max-w-xs flex-col items-center gap-2">
               {/*
                 Not friends yet, so the request comes first and is the primary
@@ -597,7 +630,7 @@ export function ProfileScreen() {
                 </p>
               )}
             </div>
-          )}
+          ) : null}
         </div>
 
         {!isSelf && shared && <SharedWithPanel history={shared} />}
