@@ -23,6 +23,18 @@ export interface VoiceNoteProps {
 
 const TICK_MS = 40;
 
+/**
+ * Every mounted player, so starting one can stop the rest.
+ *
+ * `document.querySelectorAll('audio')` only reaches notes playing through an
+ * element. A note that fell back to Web Audio — which is exactly what happens
+ * on the browsers where playback is hardest — has no element to pause, so it
+ * carried on underneath the next one and two people talked at once. A registry
+ * covers both paths, and it is module-level because the players are siblings in
+ * a list with no shared parent to hold this.
+ */
+const mountedPlayers = new Set<() => void>();
+
 const FALLBACK_WAVEFORM = Array.from({ length: 32 }, (_, i) =>
   0.25 + 0.35 * Math.abs(Math.sin(i * 0.55)),
 );
@@ -82,6 +94,32 @@ export function VoiceNote({
     webAudioRef.current = null;
   }, []);
 
+  /**
+   * Stop this one, whichever way it happens to be playing.
+   *
+   * Held in a ref so the registry entry is stable for the life of the
+   * component — a new function each render would leave stale stoppers behind
+   * and stop nothing.
+   */
+  const stopSelfRef = useRef<() => void>(() => undefined);
+  stopSelfRef.current = () => {
+    audioRef.current?.pause();
+    stopWebAudio();
+    setPlaying(false);
+  };
+
+  /** The exact function in the registry, so "everyone but me" can mean it. */
+  const registeredRef = useRef<() => void>(() => undefined);
+
+  useEffect(() => {
+    const stop = () => stopSelfRef.current();
+    registeredRef.current = stop;
+    mountedPlayers.add(stop);
+    return () => {
+      mountedPlayers.delete(stop);
+    };
+  }, []);
+
   /** Load bytes from a remote URL into a typed blob + object URL. */
   const materialize = useCallback(async (remote: string): Promise<string> => {
     const response = await fetch(remote);
@@ -135,9 +173,20 @@ export function VoiceNote({
     }
   }, [playSrc, loadError, initialUrl, storagePath, resolveUrl, materialize]);
 
-  // Prefetch when we already have a URL so first tap is snappy.
+  /*
+   * Reset when the note this component is showing changes.
+   *
+   * This used to prefetch as well — mint a signed URL and download the audio —
+   * "so the first tap is snappy". Every voice note in the thread does that on
+   * mount, so opening a conversation with twenty of them fired twenty signature
+   * requests and downloaded twenty files nobody had asked to hear, on whatever
+   * connection the phone happened to be on, and held twenty blobs in memory.
+   *
+   * `ensurePlayableSrc` already does the whole job on tap, including re-signing
+   * and falling back. The cost of removing the prefetch is a moment on the
+   * first tap of a note; the saving is every byte of every note never played.
+   */
   useEffect(() => {
-    let cancelled = false;
     setLoadError(false);
     setElapsed(0);
     setPlaying(false);
@@ -146,28 +195,7 @@ export function VoiceNote({
     revokeObjectUrl();
     setPlaySrc('');
 
-    if (!initialUrl && !storagePath) return;
-
-    void (async () => {
-      try {
-        let remote = initialUrl;
-        if ((!remote || remote.length < 8) && storagePath && resolveUrl) {
-          remote = (await resolveUrl(storagePath)) || '';
-        }
-        if (!remote || cancelled) return;
-        try {
-          const src = await materialize(remote);
-          if (!cancelled) setPlaySrc(src);
-        } catch {
-          if (!cancelled) setPlaySrc(remote);
-        }
-      } catch {
-        // Leave playSrc empty — play will retry / re-sign.
-      }
-    })();
-
     return () => {
-      cancelled = true;
       stopWebAudio();
       revokeObjectUrl();
     };
@@ -209,8 +237,8 @@ export function VoiceNote({
   }, [playing, duration, stopWebAudio]);
 
   const stopOthers = () => {
-    for (const other of document.querySelectorAll('audio')) {
-      if (other !== audioRef.current) other.pause();
+    for (const stop of mountedPlayers) {
+      if (stop !== registeredRef.current) stop();
     }
   };
 

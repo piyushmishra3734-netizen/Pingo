@@ -170,13 +170,20 @@ export function Composer({
    * at cancel and at unmount, and the one that gets forgotten leaves the other
    * person watching "recording" for ever. The effect cannot forget.
    */
+  /*
+   * At the five-minute ceiling the microphone is genuinely released, so the
+   * other person stops seeing "recording" even though the bar is still up
+   * waiting to send. The indicator describes the microphone, not the composer.
+   */
+  const listening = recorder.recording && !recorder.capped;
+
   useEffect(() => {
-    void onRecording?.(recorder.recording);
-    if (!recorder.recording) return;
+    void onRecording?.(listening);
+    if (!listening) return;
     return () => {
       void onRecording?.(false);
     };
-  }, [recorder.recording, onRecording]);
+  }, [listening, onRecording]);
 
   /** Set while a press is being treated as hold-to-record. */
   const heldRef = useRef(false);

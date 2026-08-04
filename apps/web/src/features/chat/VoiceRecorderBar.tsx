@@ -27,7 +27,7 @@ export interface VoiceRecorderBarProps {
 }
 
 export function VoiceRecorderBar({ recorder, onSend }: VoiceRecorderBarProps) {
-  const { elapsed, level, cancel } = recorder;
+  const { elapsed, level, capped, cancel } = recorder;
 
   return (
     <div
@@ -55,8 +55,13 @@ export function VoiceRecorderBar({ recorder, onSend }: VoiceRecorderBarProps) {
       */}
       <span
         aria-hidden
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-danger/15 text-danger"
-        style={{ transform: `scale(${1 + Math.min(level, 1) * 0.22})` }}
+        className={cn(
+          'grid size-8 shrink-0 place-items-center rounded-full',
+          // At the ceiling the microphone has genuinely been let go of, so the
+          // indicator stops looking live rather than lying about it.
+          capped ? 'bg-sunken text-text-tertiary' : 'bg-danger/15 text-danger',
+        )}
+        style={capped ? undefined : { transform: `scale(${1 + Math.min(level, 1) * 0.22})` }}
       >
         <MicIcon size={16} />
       </span>
@@ -69,7 +74,15 @@ export function VoiceRecorderBar({ recorder, onSend }: VoiceRecorderBarProps) {
         {formatDuration(elapsed)}
       </span>
 
-      <span className="shrink-0 text-caption text-text-tertiary">Recording</span>
+      {/*
+        "Recording" has to stop being true when it stops being true. At the
+        five-minute ceiling capture is over and the microphone is released — the
+        word for that is not "Recording", and leaving it there is how somebody
+        keeps talking into a device that stopped listening.
+      */}
+      <span className="shrink-0 text-caption text-text-tertiary">
+        {capped ? 'Maximum length' : 'Recording'}
+      </span>
 
       <button
         type="button"

@@ -42,7 +42,8 @@
     "verify:metrics": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-metrics.ts",
     "verify:journey-pipeline": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-journey-pipeline.ts",
     "verify:progress": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-progress.ts",
-    "verify:noticing": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-noticing.ts"
+    "verify:noticing": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-noticing.ts",
+    "verify:voice-capture": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-voice-capture.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

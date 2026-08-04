@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { speechAudioConstraints } from '../../lib/audio/capture.js';
+import { PCM_WORKLET_SOURCE } from '../../lib/audio/pcm-worklet.js';
 import {
   concatFloat32,
   encodePcmToWavBlob,
@@ -37,51 +38,6 @@ const MAX_SECONDS = 300;
  */
 const METER_INTERVAL_MS = 120;
 
-/**
- * The capture processor, as source, so it can be loaded without a build step.
- *
- * `audioWorklet.addModule` wants a URL, and a separate file would have to
- * survive bundling, hashing and the service worker to still be fetchable at the
- * moment a user taps record. A blob URL is created from this string at runtime
- * and cannot go missing.
- *
- * It accumulates a block before posting rather than sending each 128-frame
- * quantum, which would be 375 messages a second per recording.
- */
-const PCM_WORKLET_SOURCE = `
-class PingoPcmProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.block = new Float32Array(4096);
-    this.filled = 0;
-  }
-
-  process(inputs) {
-    const channel = inputs[0] && inputs[0][0];
-    if (!channel) return true;
-
-    for (let i = 0; i < channel.length; i += 1) {
-      this.block[this.filled] = channel[i];
-      this.filled += 1;
-
-      if (this.filled === this.block.length) {
-        let peak = 0;
-        for (let j = 0; j < this.block.length; j += 1) {
-          const value = this.block[j] < 0 ? -this.block[j] : this.block[j];
-          if (value > peak) peak = value;
-        }
-        // Transferred, not copied: the block leaves this thread entirely.
-        const out = this.block;
-        this.port.postMessage({ pcm: out, peak }, [out.buffer]);
-        this.block = new Float32Array(4096);
-        this.filled = 0;
-      }
-    }
-    return true;
-  }
-}
-registerProcessor('pingo-pcm', PingoPcmProcessor);
-`;
 
 /** Below this a "recording" is a mis-tap, not a message. */
 const MIN_SECONDS = 0.4;
@@ -99,6 +55,13 @@ export interface VoiceRecorder {
   elapsed: number;
   /** Live input level, 0-1, so the UI can show the mic is hearing something. */
   level: number;
+  /**
+   * The five-minute ceiling was reached.
+   *
+   * Capture and the microphone have stopped; the take is still there and can
+   * still be sent. The bar says so rather than pretending to still be listening.
+   */
+  capped: boolean;
   error: string | undefined;
   start: () => Promise<void>;
   /** Stops and returns the take. Undefined if it was too short to mean anything. */
@@ -111,6 +74,7 @@ export function useVoiceRecorder(): VoiceRecorder {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
+  const [capped, setCapped] = useState(false);
   const [error, setError] = useState<string>();
 
   const stream = useRef<MediaStream | undefined>(undefined);
@@ -124,7 +88,29 @@ export function useVoiceRecorder(): VoiceRecorder {
   const recordingRef = useRef(false);
   const meter = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
-  const teardown = useCallback(() => {
+  /**
+   * Which attempt is the current one.
+   *
+   * `start` awaits three things — the permission prompt, the context resuming,
+   * the worklet module loading — and any of them can still be in flight when
+   * the take is cancelled, the hold is released, or the screen is left. Every
+   * one of those resolutions used to carry on setting up a microphone nobody
+   * was waiting for: the stream was assigned after teardown had already run, so
+   * the device stayed live with the browser's recording indicator on until the
+   * tab was closed. The counter is bumped by teardown; a resolution that finds
+   * itself out of date releases what it was handed and stops.
+   */
+  const attempt = useRef(0);
+
+  /**
+   * Let go of the microphone and the audio graph, keeping the take.
+   *
+   * Separate from `teardown` because the five-minute ceiling needs exactly
+   * this: stop listening, release the device — the browser's recording
+   * indicator is a promise to the person in the room — but leave the recorded
+   * audio and the composer's bar alone so it can still be sent.
+   */
+  const releaseInput = useCallback(() => {
     recordingRef.current = false;
     if (timer.current) clearInterval(timer.current);
     if (meter.current) clearInterval(meter.current);
@@ -154,15 +140,33 @@ export function useVoiceRecorder(): VoiceRecorder {
     void audioContext.current?.close().catch(() => undefined);
     audioContext.current = undefined;
 
-    setRecording(false);
     setLevel(0);
   }, []);
+
+  const teardown = useCallback(() => {
+    // Anything still being awaited inside `start` belongs to a take that is
+    // over. See `attempt`.
+    attempt.current += 1;
+    releaseInput();
+    setRecording(false);
+    setCapped(false);
+  }, [releaseInput]);
 
   useEffect(() => teardown, [teardown]);
 
   const start = useCallback(async () => {
+    /*
+     * Never open a second microphone on top of the first.
+     *
+     * `stream.current` is assigned unconditionally, so a second start would
+     * overwrite the first stream without stopping it — a device left open with
+     * nothing holding a reference to close it.
+     */
+    if (recordingRef.current || stream.current) return;
+
     setError(undefined);
     pcmChunks.current = [];
+    const mine = (attempt.current += 1);
     try {
       const media = await navigator.mediaDevices.getUserMedia({
         /*
@@ -180,12 +184,23 @@ export function useVoiceRecorder(): VoiceRecorder {
          */
         audio: speechAudioConstraints({ hd: true, autoGainControl: false }),
       });
+      if (mine !== attempt.current) {
+        // Cancelled while the permission prompt was up. Give the microphone
+        // straight back rather than holding a device nobody is recording with.
+        media.getTracks().forEach((track) => track.stop());
+        return;
+      }
       stream.current = media;
 
       const context = new AudioContext();
       // Some engines ignore the constructor rate; trust context.sampleRate.
       if (context.state === 'suspended') {
         await context.resume().catch(() => undefined);
+      }
+      if (mine !== attempt.current) {
+        media.getTracks().forEach((track) => track.stop());
+        void context.close().catch(() => undefined);
+        return;
       }
       audioContext.current = context;
       sampleRate.current = context.sampleRate || 48_000;
@@ -218,6 +233,8 @@ export function useVoiceRecorder(): VoiceRecorder {
             URL.revokeObjectURL(url);
           }
 
+          if (mine !== attempt.current) return;
+
           const worklet = new AudioWorkletNode(context, 'pingo-pcm', {
             numberOfInputs: 1,
             numberOfOutputs: 0,
@@ -228,7 +245,7 @@ export function useVoiceRecorder(): VoiceRecorder {
           let lastMeter = 0;
           worklet.port.onmessage = (event: MessageEvent<{ pcm: Float32Array; peak: number }>) => {
             if (!recordingRef.current) return;
-            pcmChunks.current.push(event.data.pcm);
+            if (event.data.pcm.length > 0) pcmChunks.current.push(event.data.pcm);
 
             const now = Date.now();
             if (now - lastMeter < METER_INTERVAL_MS) return;
@@ -285,15 +302,38 @@ export function useVoiceRecorder(): VoiceRecorder {
       startedAt.current = Date.now();
       recordingRef.current = true;
       setRecording(true);
+      setCapped(false);
       setElapsed(0);
 
       timer.current = setInterval(() => {
         const seconds = (Date.now() - startedAt.current) / 1000;
-        setElapsed(seconds);
+
         if (seconds >= MAX_SECONDS) {
-          // Caller will stop via UI max; also freeze capture.
+          /*
+           * The ceiling, and it has to actually stop things.
+           *
+           * This used to set `recordingRef` false and leave everything else
+           * running: the microphone stayed open — with the browser's recording
+           * indicator lit — the timer kept climbing past five minutes, the bar
+           * still said "Recording", and none of it was being captured. The take
+           * is kept: capture and the microphone stop, the clock freezes at the
+           * ceiling, and send still works on what was recorded.
+           */
+          setElapsed(MAX_SECONDS);
+          setCapped(true);
           recordingRef.current = false;
+
+          if (timer.current) clearInterval(timer.current);
+          if (meter.current) clearInterval(meter.current);
+          timer.current = undefined;
+          meter.current = undefined;
+          setLevel(0);
+
+          releaseInput();
+          return;
         }
+
+        setElapsed(seconds);
       }, 100);
     } catch (cause) {
       teardown();
@@ -311,18 +351,57 @@ export function useVoiceRecorder(): VoiceRecorder {
       return undefined;
     }
 
+    /*
+     * Ask the worklet for the part-filled block before anything is torn down.
+     *
+     * Without this the last block never arrives — a note always lost up to
+     * 85ms off its end, which is exactly where the last word is. Raced against
+     * a short timeout because a recording must not be lost if the audio thread
+     * is wedged: a note missing its final syllable beats no note at all.
+     */
+    const node = workletNode.current;
+    if (node) {
+      await new Promise<void>((resolve) => {
+        const settle = setTimeout(resolve, 80);
+        node.port.onmessage = (event: MessageEvent<{ pcm: Float32Array }>) => {
+          if (event.data.pcm.length > 0) pcmChunks.current.push(event.data.pcm);
+          clearTimeout(settle);
+          resolve();
+        };
+        try {
+          node.port.postMessage({ flush: true });
+        } catch {
+          clearTimeout(settle);
+          resolve();
+        }
+      });
+    }
+
     // Stop accepting more PCM first so the last callback cannot race.
     recordingRef.current = false;
-    const seconds = (Date.now() - startedAt.current) / 1000;
     const rate = sampleRate.current;
     const chunks = pcmChunks.current;
     pcmChunks.current = [];
 
     teardown();
 
-    if (seconds < MIN_SECONDS || chunks.length === 0) return undefined;
+    if (chunks.length === 0) return undefined;
 
     const samples = concatFloat32(chunks);
+
+    /*
+     * The length of the audio, not the length of the interaction.
+     *
+     * This was the wall clock — `Date.now()` at stop minus at start — and the
+     * two disagree whenever anything went wrong: a buffer dropped on the
+     * ScriptProcessor path, a tab backgrounded mid-take, or the five-minute
+     * ceiling reached with the timer still running. The number goes straight
+     * into the attachment, so the receiver's player would show a length the
+     * file does not have and run its progress bar against it.
+     */
+    const seconds = samples.length / rate;
+    if (seconds < MIN_SECONDS) return undefined;
+
     // Reject pure silence (broken mic path) so we never send a "working" empty note.
     let peak = 0;
     for (let i = 0; i < samples.length; i += 16) {
@@ -348,6 +427,7 @@ export function useVoiceRecorder(): VoiceRecorder {
     recording,
     elapsed,
     level,
+    capped,
     error,
     start,
     stop,
