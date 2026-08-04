@@ -26,6 +26,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useSharedElement } from '../../hooks/useSharedElement.js';
+import { playMessageSound, primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
@@ -163,6 +164,24 @@ export function ChatThread({
   // Cleared when the thread changes: a reply aimed at another conversation
   // would attach to whatever is open now.
   useEffect(() => setReplyTo(undefined), [conversation.id]);
+
+  /*
+   * Open the audio path on the first touch anywhere in the thread.
+   *
+   * A browser starts an `AudioContext` suspended until a gesture, and the first
+   * use after that costs a few milliseconds of device setup. Spending it here
+   * means the first message is not the one that sounds late — which is the one
+   * an impression is formed on. Once is enough, so it removes itself.
+   */
+  useEffect(() => {
+    const prime = () => primeMessageSounds();
+    window.addEventListener('pointerdown', prime, { once: true, passive: true });
+    window.addEventListener('keydown', prime, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', prime);
+      window.removeEventListener('keydown', prime);
+    };
+  }, []);
 
   // Reset jump / new-message session when switching threads.
   useEffect(() => {
@@ -972,6 +991,17 @@ export function ChatThread({
               // turn this into a plain message.
               const target = replyTo?.id;
               setReplyTo(undefined);
+
+              /*
+               * Played on the gesture, not on the acknowledgement.
+               *
+               * The sound is feedback for the tap, so it belongs with the tap.
+               * Waiting for the server would put it anywhere between eighty
+               * milliseconds and never, and a confirmation that arrives late
+               * feels like a different event from the thing it is confirming.
+               * Delivery has its own signal already — the ticks.
+               */
+              playMessageSound('sent');
               await send(body, target);
             }}
             onSendSticker={(sticker) =>

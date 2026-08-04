@@ -26,6 +26,12 @@ import {
   type MessageToastMotion,
 } from './MessageToast.js';
 import { isQuietHoursActive } from './quiet-hours.js';
+import {
+  FRESH_THROTTLE,
+  decide,
+  playMessageSound,
+  type ThrottleState,
+} from '../../lib/audio/message-sounds.js';
 
 /**
  * Floating in-app message banner for PINGO.
@@ -66,6 +72,8 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
   const locationRef = useRef(location.pathname);
   const callRef = useRef(call);
   const activeRef = useRef(active);
+  /** Burst state for the arrival sound. Lives here because arrivals do. */
+  const soundThrottle = useRef<ThrottleState>(FRESH_THROTTLE);
 
   usersRef.current = users;
   conversationsRef.current = conversations;
@@ -270,17 +278,31 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
         updatedAt: message.createdAt,
       };
 
-      if (
-        !shouldShowMessageToast({
-          message,
-          conversation: conv,
-          prefs: prefsRef.current,
-          pathname: locationRef.current,
-          inCall: Boolean(callRef.current),
-        })
-      ) {
-        return;
+      /*
+       * Sound and toast are gated together but not identically.
+       *
+       * Everything that silences a notification silences the sound — muted
+       * chat, mute-all, quiet hours, a call in progress, the per-kind
+       * preferences. The one condition they part on is having the conversation
+       * already open: a toast there would cover the message you are reading,
+       * while the sound is the whole point, because it is what tells you a reply
+       * landed without looking away from the keyboard.
+       */
+      const gate = {
+        message,
+        conversation: conv,
+        prefs: prefsRef.current,
+        pathname: locationRef.current,
+        inCall: Boolean(callRef.current),
+      };
+
+      if (shouldPlayMessageSound({ ...gate, open: isConversationOpen(locationRef.current, message) })) {
+        const decision = decide(soundThrottle.current, Date.now());
+        soundThrottle.current = decision.state;
+        if (decision.play) playMessageSound('received', decision.gain);
       }
+
+      if (!shouldShowMessageToast(gate)) return;
 
       const sender =
         usersRef.current.find((u) => u.id === message.authorId) ??
@@ -400,6 +422,26 @@ function hasBlockingOverlay(): boolean {
   if (typeof document === 'undefined') return false;
   if (document.querySelector('[aria-modal="true"]')) return true;
   return false;
+}
+
+/** Is the thread this message belongs to the one on screen? */
+function isConversationOpen(pathname: string, message: Message): boolean {
+  return conversationIdFromPath(pathname) === message.conversationId;
+}
+
+/**
+ * Whether this arrival should make a sound.
+ *
+ * Deliberately built on the toast gate rather than beside it, so there is one
+ * definition of "this account is muted" and no way for the two to drift into
+ * disagreeing about it. The single difference is stated where it is made: an
+ * open conversation suppresses the toast and keeps the sound.
+ */
+function shouldPlayMessageSound(args: Parameters<typeof shouldShowMessageToast>[0] & { open: boolean }): boolean {
+  if (args.open) {
+    return shouldShowMessageToast({ ...args, pathname: "/" });
+  }
+  return shouldShowMessageToast(args);
 }
 
 function conversationIdFromPath(pathname: string): string | undefined {
