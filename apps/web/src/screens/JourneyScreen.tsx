@@ -82,7 +82,7 @@ export function JourneyScreen() {
    * — a chip whose number changed as you typed would be describing the filter
    * to itself.
    */
-  const { level, library, unlockedAt, pulse, joinedAt } = useJourneyProgress();
+  const { level, library, unlockedAt, pulse, feeling, notice, joinedAt } = useJourneyProgress();
 
   const earned = library.filter((e) => e.unlocked);
 
@@ -154,7 +154,12 @@ export function JourneyScreen() {
         scrolling for, sit underneath the tab bar.
       */}
       <div className="mx-auto w-full max-w-2xl flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-        <JourneyOverview level={level} encouragement={encouragementFor(joinedAt)} />
+        <JourneyOverview
+          level={level}
+          encouragement={encouragementFor(joinedAt)}
+          feeling={feeling}
+          notice={notice?.text}
+        />
 
         <TodaysMissions missions={DUMMY_MISSIONS} />
 

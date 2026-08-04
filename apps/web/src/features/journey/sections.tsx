@@ -41,11 +41,16 @@ export function SectionHeading({ title, action }: { title: string; action?: Reac
 export function JourneyOverview({
   level,
   encouragement,
+  feeling,
+  notice,
 }: {
   level: JourneyLevel;
   encouragement: string;
+  /** How the journey feels, in words. Never a percentage, never a rank. */
+  feeling: string;
+  /** What the system noticed today, if it noticed anything. */
+  notice?: string;
 }) {
-  const remaining = Math.max(0, level.xpForLevel - level.xpIntoLevel);
   const fraction = level.xpForLevel <= 0 ? 1 : level.xpIntoLevel / level.xpForLevel;
 
   return (
@@ -72,9 +77,16 @@ export function JourneyOverview({
           />
         </div>
 
-        <p className="pt-2 text-caption text-text-secondary">
-          {moments(remaining)} to level {level.level + 1}
-        </p>
+        {/*
+          A feeling, not a countdown.
+
+          This line used to read "175 moments to level 7" — a target, and the
+          same mistake as the percentage that was removed from the strip: it
+          tells somebody how much is missing rather than how things are going.
+          A phrase says what is true about the week without implying there is a
+          better phrase to reach.
+        */}
+        <p className="pt-2 text-caption text-text-secondary">{feeling}</p>
 
         {/*
           The one line on the screen that says something rather than counts
@@ -82,6 +94,20 @@ export function JourneyOverview({
           the bar represents, not a caption for it.
         */}
         <p className="pt-3 text-body text-text-secondary">{encouragement}</p>
+
+        {/*
+          What the system noticed, when it noticed anything.
+
+          Inside the same card rather than in a section of its own, and with no
+          heading: a notice with a title above it is a feature announcing
+          itself, and the whole idea is that nobody asked for this and nobody
+          earned it. It is worth nothing, and that is why it is worth reading.
+        */}
+        {notice ? (
+          <p className="mt-3 border-t border-line pt-3 text-body leading-snug text-text-primary text-balance">
+            {notice}
+          </p>
+        ) : null}
       </Card>
     </section>
   );

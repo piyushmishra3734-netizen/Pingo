@@ -1,8 +1,19 @@
 # Journey — the philosophy
 
-**Status:** source of truth for every Journey feature, present and future.
+**Status: FROZEN at v1.** Source of truth for every Journey feature, present
+and future.
 **Rule:** a Journey change that conflicts with this document is wrong, even if
 it is well built.
+
+**No new rules are to be added to this document.** Journey v1 is complete. What
+comes next is bugs, performance, sync, offline, notifications, voice notes and
+calls — and real beta use. Fifty to a hundred people should live with this
+before anything else is designed into it; the rules below were written without
+a single real user's behaviour to check them against, and the next honest
+version of this document is one edited by what those people actually do.
+
+Tuning numbers — a ceiling, a weight, a threshold — is not a new rule and does
+not need this section reopened.
 
 Journey is a **personal growth system**, not an achievement system. Users should
 feel proud. Never pressured, never addicted, never punished. The reference points
@@ -236,7 +247,37 @@ history cannot reduce an account that had earned four thousand moments.
 The curve is linear, not exponential: each level costs fifty more than the last.
 An exponential curve is how a progression system tells somebody to play more.
 
-## 11. Weekly reflection, never ranking
+## 11. Journey notices, and noticing is worth nothing
+
+> Journey should occasionally notice meaningful moments that users never
+> expected to be noticed. Those moments should never increase progress. They
+> exist only to make people feel seen.
+
+*"Today you replied to someone who had been waiting five days." "You checked in
+with a friend it had been quiet with." "You spoke to your oldest friend here
+again today."* Nothing was unlocked. The system simply noticed.
+
+The second sentence is what protects the first. A notice that earned moments
+would become something to trigger deliberately — reply late so the app calls you
+kind — and a thing that can be farmed cannot make anybody feel seen. So noticing
+returns no metric, no weight and no count, and `verify:noticing` asserts that a
+day producing every notice the system has leaves the level exactly where it was.
+
+Rarity is the feature: at most one a day, never the same one twice running, and
+detectors deliberately conservative. Something that appears every time you open
+a screen is furniture.
+
+**The indicator is a feeling, not a score.** *Building new connections. Keeping
+in touch. Growing steadily. Recently active. Quietly here.* No percentage, no
+rank, no comparison — to last week or to anybody else. The quiet week is greeted
+rather than judged, which is why it reads "Quietly here" and never "inactive".
+This replaced "175 moments to level 7", which was a target wearing a caption.
+
+*PINGO AI will one day notice out loud — "you've mostly been talking late at
+night this week, everything okay?" — and it will be ignorable, unweighted and
+rare, under exactly this rule. Not built.*
+
+## 12. Weekly reflection, never ranking
 
 One card on a Sunday evening: friendships strengthened, time spent talking,
 badges earned, stories shared. No leaderboard, no comparison to last week framed
@@ -259,6 +300,8 @@ as a shortfall, no other users. Reflection only.
 | Life Chapters | **live**, from real unlock dates |
 | On this day | **live** — and quiet until there is something |
 | Today's missions | still stand-in: needs a call source and adaptive difficulty |
+| Noticing | **live**, 18 checks, worth nothing by design |
+| The feeling indicator | **live**, on Journey and the chats strip |
 | Friendship chapters | built as data, **no screen yet** |
 | Chats-list strip | built, dummy data |
 | Daily card | built, once per local day |

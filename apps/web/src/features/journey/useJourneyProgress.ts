@@ -31,6 +31,13 @@ import { evaluateMessages, type CountableMessage } from '../badges/metrics.js';
 import { libraryFor, type BadgeMetrics, type BadgeProgress } from '../badges/registry.js';
 import type { PulseEntry } from './dummy-journey.js';
 import {
+  feelingFrom,
+  noticeToday,
+  pickNotice,
+  type JourneyFeeling,
+  type Notice,
+} from './noticing.js';
+import {
   EMPTY_PROGRESS,
   levelFor,
   loadProgress,
@@ -47,6 +54,10 @@ export interface JourneyState {
   unlockedAt: Record<string, number>;
   /** Who you have been talking to, warmest first. Direct chats only. */
   pulse: PulseEntry[];
+  /** How the journey feels, in words. Never a percentage. */
+  feeling: JourneyFeeling;
+  /** What the system noticed today, at most one, worth no progress at all. */
+  notice?: Notice;
   /** When this account started, for the first line of the first chapter. */
   joinedAt: number;
   /** False until the first count settles. The screen renders regardless. */
@@ -60,6 +71,8 @@ export function useJourneyProgress(): JourneyState {
   const [progress, setProgress] = useState<JourneyProgress>(EMPTY_PROGRESS);
   const [metrics, setMetrics] = useState<BadgeMetrics>({});
   const [pulse, setPulse] = useState<PulseEntry[]>([]);
+  const [feeling, setFeeling] = useState<JourneyFeeling>('Quietly here');
+  const [notice, setNotice] = useState<Notice | undefined>();
   const [counted, setCounted] = useState(false);
 
   const userId = currentUser?.id;
@@ -108,7 +121,34 @@ export function useJourneyProgress(): JourneyState {
       if (cancelled) return;
 
       const { metrics: counts, momentsEarned } = evaluateMessages(messages, userId);
-      if (!cancelled) setPulse(pulseFrom(conversations, messages, userId));
+
+      const rows = pulseFrom(conversations, messages, userId);
+      if (!cancelled) {
+        setPulse(rows);
+
+        const month = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const firstSeen = new Map<string, number>();
+        for (const message of messages) {
+          const known = firstSeen.get(message.conversationId);
+          if (known === undefined || message.createdAt < known) {
+            firstSeen.set(message.conversationId, message.createdAt);
+          }
+        }
+        setFeeling(
+          feelingFrom({
+            pulse: rows,
+            newConnections: [...firstSeen.values()].filter((at) => at >= month).length,
+          }),
+        );
+
+        /*
+         * Noticing runs after the counting and feeds nothing back into it. It
+         * cannot reach the metrics or the moments — see `noticing.ts`, and the
+         * check in `verify:noticing` that a day full of notices leaves the
+         * level exactly where it was.
+         */
+        setNotice(pickNotice(noticeToday(messages, userId), userId));
+      }
       const earned = libraryFor(counts, new Set(stored.unlockedIds)).filter((e) => e.unlocked);
 
       /*
@@ -156,6 +196,8 @@ export function useJourneyProgress(): JourneyState {
     metrics,
     library,
     pulse,
+    feeling,
+    notice,
     unlockedAt: progress.unlockedAt,
     joinedAt: progress.joinedAt ?? Date.now(),
     ready: counted,

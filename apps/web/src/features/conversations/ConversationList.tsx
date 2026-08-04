@@ -30,7 +30,8 @@ import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
 import { JourneyStrip } from '../journey/JourneyStrip.js';
-import { DUMMY_LEVEL, DUMMY_MISSIONS, DUMMY_STRIP_NOTE } from '../journey/dummy-journey.js';
+import { DUMMY_MISSIONS } from '../journey/dummy-journey.js';
+import { useJourneyProgress } from '../journey/useJourneyProgress.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { StoryComposer } from '../stories/StoryComposer.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
@@ -70,6 +71,12 @@ export function ConversationList({
   className,
 }: ConversationListProps) {
   const { conversations, ready, service } = useChat();
+  /*
+   * The same count the Journey screen runs, from the same cache. It is keyed on
+   * the conversation ids rather than the array, so this does not re-read every
+   * thread each time a message arrives — see `useJourneyProgress`.
+   */
+  const journey = useJourneyProgress();
   const { profile } = useProfile();
   const { groups: storyGroups } = useStories();
   const navigate = useNavigate();
@@ -510,9 +517,11 @@ export function ConversationList({
                   none of them.
                 */}
                 <JourneyStrip
-                  level={DUMMY_LEVEL}
+                  level={journey.level}
                   missions={DUMMY_MISSIONS}
-                  note={DUMMY_STRIP_NOTE}
+                  // The same phrase the Journey screen shows, rather than a
+                  // second piece of copy about the same week.
+                  note={journey.feeling}
                   className="mt-1"
                 />
               </div>
