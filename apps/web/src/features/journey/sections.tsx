@@ -1,0 +1,297 @@
+/**
+ * The Journey sections above the badge collection.
+ *
+ * ## A timeline, not a cabinet
+ *
+ * The brief for this screen is that it should read as "I have grown", not "I
+ * collected items", and that difference is mostly hierarchy. The level is
+ * stated once and quietly; the missions are today's, so they are the only thing
+ * with a call to action; Pulse is about people rather than counts. Nothing is
+ * given a trophy frame, nothing is centred and enlarged, and no number is
+ * repeated in two places to make the page feel fuller.
+ *
+ * Everything here is built from `Card`, `Chip` and the existing tokens — no new
+ * visual language, which is also why there is no gauge, no ring and no medal.
+ */
+import { Card, cn } from '@pingo/ui';
+import type { ReactNode } from 'react';
+
+import { Badge } from '../badges/Badge.js';
+import type { BadgeProgress } from '../badges/registry.js';
+import type { JourneyLevel, Mission, PulseEntry } from './dummy-journey.js';
+
+/** A section heading, so the six sections cannot drift apart in weight. */
+export function SectionHeading({ title, action }: { title: string; action?: ReactNode }) {
+  return (
+    <header className="flex items-baseline justify-between px-4 pb-3 pt-7">
+      <h2 className="text-caption uppercase tracking-wide text-text-tertiary">{title}</h2>
+      {action}
+    </header>
+  );
+}
+
+/**
+ * Level, progress, and one sentence.
+ *
+ * Deliberately compact. A large level number with a ring around it is the
+ * gaming UI the brief rules out, and it would also be the biggest thing on a
+ * screen whose subject is the last three months rather than a score.
+ */
+export function JourneyOverview({
+  level,
+  encouragement,
+}: {
+  level: JourneyLevel;
+  encouragement: string;
+}) {
+  const remaining = Math.max(0, level.xpForLevel - level.xpIntoLevel);
+  const fraction = level.xpForLevel <= 0 ? 1 : level.xpIntoLevel / level.xpForLevel;
+
+  return (
+    <section className="px-4 pt-5">
+      <Card elevation="flat" className="p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-title">Level {level.level}</p>
+          <p className="text-caption text-text-tertiary">
+            {level.xpTotal.toLocaleString()} XP total
+          </p>
+        </div>
+
+        <div
+          className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-sunken"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={level.xpForLevel}
+          aria-valuenow={level.xpIntoLevel}
+          aria-label={`Progress to level ${level.level + 1}`}
+        >
+          <div
+            className="h-full rounded-full bg-brand transition-[width] duration-slow ease-standard"
+            style={{ width: `${Math.round(fraction * 100)}%` }}
+          />
+        </div>
+
+        <p className="pt-2 text-caption text-text-secondary">
+          {remaining.toLocaleString()} XP to level {level.level + 1}
+        </p>
+
+        {/*
+          The one line on the screen that says something rather than counts
+          something. It sits under the bar because it is a reflection on what
+          the bar represents, not a caption for it.
+        */}
+        <p className="pt-3 text-body text-text-secondary">{encouragement}</p>
+      </Card>
+    </section>
+  );
+}
+
+/**
+ * One mission.
+ *
+ * Reusable because daily and weekly missions are the same object with a
+ * different reset — building two would guarantee they eventually looked
+ * different for no reason.
+ */
+export function MissionCard({ mission }: { mission: Mission }) {
+  const complete = mission.done >= mission.target;
+  const fraction = mission.target <= 0 ? 1 : Math.min(1, mission.done / mission.target);
+
+  return (
+    <Card elevation="flat" className={cn('p-3.5', complete && 'opacity-70')}>
+      <div className="flex items-center gap-3">
+        {/*
+          A tick or an empty ring, at text size. A checkbox would invite a tap,
+          and missions are completed by living rather than by pressing.
+        */}
+        <span
+          aria-hidden
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+            complete ? 'border-brand bg-brand text-white' : 'border-line',
+          )}
+        >
+          {complete ? (
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.2}>
+              <path d="M3.5 8.5l3 3 6-7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : null}
+        </span>
+
+        <p className={cn('min-w-0 flex-1 text-body', complete && 'line-through decoration-line')}>
+          {mission.title}
+        </p>
+
+        <p className="shrink-0 text-caption tabular-nums text-text-tertiary">
+          {mission.done}/{mission.target}
+        </p>
+      </div>
+
+      {!complete ? (
+        <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-sunken">
+          <div
+            className="h-full rounded-full bg-text-tertiary transition-[width] duration-slow ease-standard"
+            style={{ width: `${Math.max(2, Math.round(fraction * 100))}%` }}
+          />
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+export function TodaysMissions({ missions }: { missions: Mission[] }) {
+  const done = missions.filter((m) => m.done >= m.target).length;
+
+  return (
+    <>
+      <SectionHeading
+        title="Today"
+        action={
+          <span className="text-caption text-text-tertiary">
+            {done}/{missions.length} done
+          </span>
+        }
+      />
+      <div className="grid gap-2 px-4 sm:grid-cols-3">
+        {missions.map((mission) => (
+          <MissionCard key={mission.id} mission={mission} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Pulse.
+ *
+ * People and warmth, not a leaderboard. Ordered by how recently you spoke, so
+ * the top of the list is who you are close to *now* — which is the thing a
+ * friendship signal is for, and the reason it is not sorted by message count.
+ */
+export function Pulse({ entries }: { entries: PulseEntry[] }) {
+  const busiest = Math.max(1, ...entries.map((e) => e.exchanges));
+
+  return (
+    <>
+      <SectionHeading title="Pulse" />
+      <div className="px-4">
+        <Card elevation="flat" className="divide-y divide-line p-0">
+          {entries.map((entry) => (
+            <div key={entry.id} className="flex items-center gap-3 px-4 py-3">
+              <p className="w-24 shrink-0 truncate text-body">{entry.name}</p>
+
+              {/*
+                A bar rather than a number. "128 messages" invites comparison
+                between friends, which is the last thing a friendship signal
+                should encourage; a length says "warm" without scoring anyone.
+              */}
+              <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-sunken">
+                <div
+                  className="h-full rounded-full bg-brand/70"
+                  style={{ width: `${Math.max(4, Math.round((entry.exchanges / busiest) * 100))}%` }}
+                />
+              </div>
+
+              <p className="w-20 shrink-0 text-right text-caption text-text-tertiary">
+                {entry.quietDays === 0
+                  ? 'Today'
+                  : entry.quietDays === 1
+                    ? 'Yesterday'
+                    : `${entry.quietDays}d ago`}
+              </p>
+            </div>
+          ))}
+        </Card>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Recent unlocks.
+ *
+ * A row rather than a grid, and small. These are already in the collection
+ * below; this is a reminder of the last few, not a second place to browse them.
+ */
+export function RecentUnlocks({
+  entries,
+  unlockedAt,
+  onOpen,
+}: {
+  entries: BadgeProgress[];
+  unlockedAt: Readonly<Record<string, number>>;
+  onOpen: (entry: BadgeProgress) => void;
+}) {
+  if (entries.length === 0) return null;
+
+  return (
+    <>
+      <SectionHeading title="Recently earned" />
+      <ul className="scrollbar-none flex gap-4 overflow-x-auto px-4 pb-1">
+        {entries.map((entry) => (
+          <li key={entry.badge.id} className="shrink-0">
+            <button
+              type="button"
+              onClick={() => onOpen(entry)}
+              className={cn(
+                'flex w-16 flex-col items-center gap-1.5 text-center',
+                'transition-transform duration-instant ease-standard',
+                'active:scale-[0.96] motion-reduce:active:scale-100',
+              )}
+            >
+              <Badge badge={entry.badge} unlocked size={52} />
+              <span className="line-clamp-2 text-[11px] leading-tight text-text-secondary">
+                {entry.badge.title}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="px-4 pt-2 text-caption text-text-tertiary">
+        {relativeDay(unlockedAt[entries[0]!.badge.id])}
+      </p>
+    </>
+  );
+}
+
+function relativeDay(at?: number): string {
+  if (!at) return '';
+  const days = Math.round((Date.now() - at) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return 'Latest, today';
+  if (days === 1) return 'Latest, yesterday';
+  if (days < 30) return `Latest, ${days} days ago`;
+  return `Latest, ${Math.round(days / 30)} months ago`;
+}
+
+/**
+ * Statistics, deliberately empty.
+ *
+ * Cards with no numbers rather than cards with invented ones. A placeholder
+ * that shows plausible figures is the kind of made-up detail that gets screen-
+ * shotted and quoted back, and the point of this phase is to judge the layout
+ * — which these do without pretending to be data.
+ */
+export function StatisticsPlaceholder({
+  items,
+}: {
+  items: ReadonlyArray<{ id: string; label: string }>;
+}) {
+  return (
+    <>
+      <SectionHeading
+        title="Statistics"
+        action={<span className="text-caption text-text-tertiary">Coming soon</span>}
+      />
+      <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4">
+        {items.map((item) => (
+          <Card key={item.id} elevation="flat" className="p-3.5">
+            <p className="text-caption text-text-tertiary">{item.label}</p>
+            <p aria-hidden className="pt-2 text-title text-text-tertiary/40">
+              —
+            </p>
+          </Card>
+        ))}
+      </div>
+    </>
+  );
+}

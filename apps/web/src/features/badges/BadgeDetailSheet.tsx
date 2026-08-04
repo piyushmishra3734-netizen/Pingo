@@ -83,8 +83,18 @@ export function BadgeDetailSheet({
           </p>
         ) : (
           <div className="w-full max-w-64 space-y-2">
+            {/*
+              What is left, stated as an action.
+
+              "34 of 100" tells you where you are; "66 more messages" tells you
+              what to do about it, and the second is the one somebody opening a
+              locked badge came for.
+            */}
+            <p className="text-body">
+              {(threshold - value).toLocaleString()} more {progressLabel}
+            </p>
             <p className="text-caption text-text-secondary">
-              {value.toLocaleString()} of {threshold.toLocaleString()} {progressLabel}
+              {value.toLocaleString()} of {threshold.toLocaleString()}
             </p>
             <div
               className="h-1 w-full overflow-hidden rounded-full bg-surface-2"

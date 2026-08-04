@@ -27,6 +27,21 @@ import { Badge } from '../features/badges/Badge.js';
 import { BadgeDetailSheet } from '../features/badges/BadgeDetailSheet.js';
 import { DUMMY_METRICS, DUMMY_UNLOCKED_AT } from '../features/badges/dummy-progress.js';
 import {
+  DUMMY_ENCOURAGEMENT,
+  DUMMY_LEVEL,
+  DUMMY_MISSIONS,
+  DUMMY_PULSE,
+  STATISTIC_PLACEHOLDERS,
+} from '../features/journey/dummy-journey.js';
+import {
+  JourneyOverview,
+  Pulse,
+  RecentUnlocks,
+  SectionHeading,
+  StatisticsPlaceholder,
+  TodaysMissions,
+} from '../features/journey/sections.js';
+import {
   libraryFor,
   type BadgeCategory,
   type BadgeProgress,
@@ -86,6 +101,19 @@ export function JourneyScreen() {
     });
   }, [library, category, query]);
 
+  /*
+   * Newest first, and only a handful. The row is a reminder of what just
+   * happened, not a second way to browse the collection that sits below it.
+   */
+  const recent = useMemo(
+    () =>
+      earned
+        .filter((e) => DUMMY_UNLOCKED_AT[e.badge.id] !== undefined)
+        .sort((a, b) => (DUMMY_UNLOCKED_AT[b.badge.id] ?? 0) - (DUMMY_UNLOCKED_AT[a.badge.id] ?? 0))
+        .slice(0, 6),
+    [earned],
+  );
+
   const sections = RARITY_ORDER.map((rarity) => ({
     rarity,
     entries: visible.filter((e) => e.badge.rarity === rarity),
@@ -101,37 +129,29 @@ export function JourneyScreen() {
         scrolling for, sit underneath the tab bar.
       */}
       <div className="mx-auto w-full max-w-2xl flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+        <JourneyOverview level={DUMMY_LEVEL} encouragement={DUMMY_ENCOURAGEMENT} />
+
+        <TodaysMissions missions={DUMMY_MISSIONS} />
+
+        <Pulse entries={DUMMY_PULSE} />
+
+        <RecentUnlocks entries={recent} unlockedAt={DUMMY_UNLOCKED_AT} onOpen={setOpen} />
+
         {/*
-          The summary reads as one sentence rather than as a dashboard. Two big
-          numbers side by side would make the page about the score, and the page
-          is about the set.
+          The collection's own heading, so the search and chips below it clearly
+          belong to it rather than to the page. Everything above is today; this
+          is everything.
         */}
-        <section className="px-4 pt-5">
-          <h2 className="text-title">Badges</h2>
-          <p className="pt-1 text-body text-text-secondary">
-            {earned.length} of {library.length} earned
-            <span aria-hidden className="px-2 text-text-tertiary">
-              ·
+        <SectionHeading
+          title="Badges"
+          action={
+            <span className="text-caption text-text-tertiary">
+              {earned.length}/{library.length} · {xp.toLocaleString()} XP
             </span>
-            {xp.toLocaleString()} XP
-          </p>
+          }
+        />
 
-          <div
-            className="mt-4 h-1 w-full overflow-hidden rounded-full bg-surface-2"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={library.length}
-            aria-valuenow={earned.length}
-            aria-label="Badges earned"
-          >
-            <div
-              className="h-full rounded-full bg-brand transition-[width] duration-slow ease-standard"
-              style={{ width: `${Math.round((earned.length / library.length) * 100)}%` }}
-            />
-          </div>
-        </section>
-
-        <div className="px-4 pt-5">
+        <div className="px-4">
           <TextField
             shape="pill"
             type="search"
@@ -218,6 +238,8 @@ export function JourneyScreen() {
             </section>
           ))
         )}
+
+        <StatisticsPlaceholder items={STATISTIC_PLACEHOLDERS} />
       </div>
 
       {open ? (
