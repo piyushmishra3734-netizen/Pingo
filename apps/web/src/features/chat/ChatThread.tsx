@@ -993,16 +993,19 @@ export function ChatThread({
               setReplyTo(undefined);
 
               /*
-               * Played on the gesture, not on the acknowledgement.
+               * Played when the message is actually away, not when it was asked
+               * for.
                *
-               * The sound is feedback for the tap, so it belongs with the tap.
-               * Waiting for the server would put it anywhere between eighty
-               * milliseconds and never, and a confirmation that arrives late
-               * feels like a different event from the thing it is confirming.
-               * Delivery has its own signal already — the ticks.
+               * This fired on the tap first, and it was wrong twice over. It
+               * arrived while the finger was still down, which reads as a button
+               * click rather than as a message leaving, and it made the same
+               * sound whether the send succeeded or failed — a confirmation of
+               * nothing. Waiting for the server costs the delay but buys the
+               * meaning: the sound now says *gone*, and it is silent when the
+               * send is refused.
                */
-              playMessageSound('sent');
               await send(body, target);
+              playMessageSound('sent');
             }}
             onSendSticker={(sticker) =>
               sendSticker({ id: sticker.id, url: sticker.url, body: sticker.emoji ?? sticker.name })

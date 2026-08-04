@@ -37,8 +37,10 @@ const envelopeEnd = (design: SoundDesign) =>
 console.log('— sent is short, dry and closed —');
 
 {
-  check(SENT.durationMs >= 50 && SENT.durationMs <= 90, `within the 50-90 ms brief (${SENT.durationMs} ms)`);
-  check(SENT.partials[0]!.to < SENT.partials[0]!.from, 'the body falls, which reads as finished');
+  check(
+    SENT.durationMs >= 90 && SENT.durationMs <= 160,
+    `long enough not to read as a click (${SENT.durationMs} ms)`,
+  );
   check(
     !SENT.partials.some((p) => p.delayMs > 0),
     'nothing blooms — the sender does not need it to feel like it is opening',
@@ -50,26 +52,46 @@ console.log('\n— received is warmer, and opens —');
 
 {
   check(
-    RECEIVED.durationMs >= 80 && RECEIVED.durationMs <= 140,
-    `within the 80-140 ms brief (${RECEIVED.durationMs} ms)`,
+    RECEIVED.durationMs >= 140 && RECEIVED.durationMs <= 240,
+    `long enough for two notes to be separate (${RECEIVED.durationMs} ms)`,
   );
   check(RECEIVED.durationMs > SENT.durationMs, 'and is longer than sent');
-  check(RECEIVED.partials[0]!.to > RECEIVED.partials[0]!.from, 'the body rises, which reads as arriving');
 
-  const bloom = RECEIVED.partials.find((p) => p.delayMs > 0);
-  check(bloom !== undefined, 'there is a delayed bloom');
+  const second = RECEIVED.partials.find((p) => p.delayMs > 0);
+  check(second !== undefined, 'there is a second note');
   check(
-    bloom !== undefined && bloom.delayMs >= 15 && bloom.delayMs <= 35,
-    `late enough to be felt, early enough not to be a second event (${bloom?.delayMs} ms)`,
+    second !== undefined && second.from > RECEIVED.partials[0]!.from,
+    'and it is above the first, so the pair steps up',
   );
   check(
-    bloom !== undefined && Math.abs(bloom.from / RECEIVED.partials[0]!.from - 1.5) < 0.02,
-    'and it is a perfect fifth above the body — consonant without being a tune',
+    second !== undefined && second.delayMs >= 40 && second.delayMs <= 80,
+    `far enough behind to be a step rather than a chord (${second?.delayMs} ms)`,
+  );
+  check(
+    second !== undefined && Math.abs(second.from / RECEIVED.partials[0]!.from - 1.5) < 0.02,
+    'and it is a perfect fifth above the first — consonant without being a tune',
   );
 
   const sub = RECEIVED.partials.find((p) => p.from < RECEIVED.partials[0]!.from);
   check(sub !== undefined, 'a sub-octave carries the warmth');
   check(RECEIVED.partials.length > SENT.partials.length, 'received is the richer of the two');
+}
+
+console.log('\n— every note holds its pitch —');
+
+{
+  /*
+   * The first version slid the pitch on both sounds and both were reported as
+   * odd. Over seventy milliseconds a slide is too fast to hear as a pitch
+   * moving and lands as a bend, which reads as an instrument out of tune. A
+   * held note sounds deliberate; a short glide sounds broken.
+   */
+  for (const [name, design] of [['sent', SENT], ['received', RECEIVED]] as const) {
+    check(
+      design.partials.every((p) => p.from === p.to),
+      `${name}: nothing glides`,
+    );
+  }
 }
 
 console.log('\n— soft, not harsh —');

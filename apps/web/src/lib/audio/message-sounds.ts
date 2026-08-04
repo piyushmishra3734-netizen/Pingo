@@ -9,13 +9,23 @@
  *
  * ## The design, in one paragraph
  *
- * Sent falls; received rises. A falling interval reads as *closed, done*, and a
- * rising one as *opening, arriving* — so the two are told apart before either is
- * consciously identified, even face-down in a pocket. Received is also given a
- * little more: a delayed bloom a fifth above and a sub-octave of warmth
- * underneath, because hearing from someone should be marginally more rewarding
- * than confirming your own action. Marginally. Overdo it and it becomes the
- * thing people turn off.
+ * Sent is one clean note. Received is two, a fifth apart, the second arriving
+ * late enough to be heard as a step *up* — so one reads as closed and done and
+ * the other as opening and arriving, and the two are told apart before either is
+ * consciously identified, even face-down in a pocket. Received also carries a
+ * sub-octave of warmth underneath, because hearing from someone should be
+ * marginally more rewarding than confirming your own action. Marginally. Overdo
+ * it and it becomes the thing people turn off.
+ *
+ * ## Discrete notes, never a glide
+ *
+ * The first version slid the pitch — sent fell from 587 to 494 Hz, received rose
+ * from 523 to 587. Both were reported as sounding *odd*, and they were. Over
+ * seventy milliseconds a slide is too fast to be heard as a pitch moving and
+ * lands instead as a bend, which the ear reads as an instrument out of tune. A
+ * fixed pitch sounds deliberate; a short glide sounds broken. So every partial
+ * here holds its note, and the movement in "received" comes from a second note
+ * starting later rather than from the first one sliding.
  *
  * ## What makes it soft rather than sharp
  *
@@ -75,12 +85,12 @@ export interface SoundDesign {
  */
 export const SENT: SoundDesign = {
   partials: [
-    { from: 587, to: 494, gain: 0.5, delayMs: 0, attackMs: 6, decayMs: 62 },
+    { from: 659, to: 659, gain: 0.46, delayMs: 0, attackMs: 9, decayMs: 118 },
     // A quiet octave above, which reads as "clean" rather than as a second note.
-    { from: 1174, to: 988, gain: 0.06, delayMs: 0, attackMs: 5, decayMs: 40 },
+    { from: 1318, to: 1318, gain: 0.05, delayMs: 0, attackMs: 7, decayMs: 62 },
   ],
-  air: { centreHz: 3200, q: 1.4, gain: 0.02, durationMs: 12, delayMs: 0 },
-  durationMs: 70,
+  air: { centreHz: 3000, q: 1.4, gain: 0.016, durationMs: 11, delayMs: 0 },
+  durationMs: 130,
 };
 
 /**
@@ -94,14 +104,15 @@ export const SENT: SoundDesign = {
  */
 export const RECEIVED: SoundDesign = {
   partials: [
-    { from: 523, to: 587, gain: 0.5, delayMs: 0, attackMs: 8, decayMs: 100 },
-    // The bloom: a perfect fifth above, late and quieter.
-    { from: 784, to: 784, gain: 0.26, delayMs: 22, attackMs: 14, decayMs: 88 },
+    { from: 523, to: 523, gain: 0.42, delayMs: 0, attackMs: 9, decayMs: 92 },
+    // The second note: a perfect fifth above, far enough behind to be heard as
+    // a step up rather than as a chord.
+    { from: 784, to: 784, gain: 0.32, delayMs: 55, attackMs: 11, decayMs: 118 },
     // Warmth. Felt more than heard, and the reason it does not sound thin.
-    { from: 261, to: 261, gain: 0.14, delayMs: 0, attackMs: 10, decayMs: 105 },
+    { from: 261, to: 261, gain: 0.13, delayMs: 0, attackMs: 12, decayMs: 150 },
   ],
-  air: { centreHz: 3600, q: 1.2, gain: 0.028, durationMs: 18, delayMs: 4 },
-  durationMs: 125,
+  air: { centreHz: 3200, q: 1.2, gain: 0.02, durationMs: 14, delayMs: 6 },
+  durationMs: 185,
 };
 
 export type MessageSound = 'sent' | 'received';
