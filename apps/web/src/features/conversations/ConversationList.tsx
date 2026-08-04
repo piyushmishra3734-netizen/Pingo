@@ -30,7 +30,6 @@ import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
 import { JourneyStrip } from '../journey/JourneyStrip.js';
-import { DUMMY_MISSIONS } from '../journey/dummy-journey.js';
 import { useJourneyProgress } from '../journey/useJourneyProgress.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { StoryComposer } from '../stories/StoryComposer.js';
@@ -518,7 +517,6 @@ export function ConversationList({
                 */}
                 <JourneyStrip
                   level={journey.level}
-                  missions={DUMMY_MISSIONS}
                   // The same phrase the Journey screen shows, rather than a
                   // second piece of copy about the same week.
                   note={journey.feeling}

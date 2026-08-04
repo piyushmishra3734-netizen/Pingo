@@ -24,17 +24,15 @@ import { useNavigate } from 'react-router-dom';
 
 import { Badge } from '../badges/Badge.js';
 import type { BadgeProgress } from '../badges/registry.js';
-import type { JourneyLevel, Mission } from './dummy-journey.js';
+import type { JourneyLevel } from './dummy-journey.js';
 
 export function JourneyStrip({
   level,
-  missions,
   note,
   next,
   className,
 }: {
   level: JourneyLevel;
-  missions: Mission[];
   /** One short line. Never a number — the numbers are already here. */
   note: string;
   /** The closest unearned badge, if there is one. */
@@ -42,7 +40,6 @@ export function JourneyStrip({
   className?: string;
 }) {
   const navigate = useNavigate();
-  const done = missions.filter((m) => m.done >= m.target).length;
   const percent = level.xpForLevel <= 0 ? 100 : Math.round((level.xpIntoLevel / level.xpForLevel) * 100);
 
   const remaining = next
@@ -129,15 +126,22 @@ export function JourneyStrip({
         </div>
       </div>
 
-      <div className="shrink-0 text-right">
-        <p className="text-caption text-text-tertiary">Level</p>
-        <p className="text-body font-medium tabular-nums">{level.level}</p>
-        {done > 0 ? (
-          <p className="text-caption text-text-tertiary tabular-nums">
-            {done}/{missions.length} today
-          </p>
-        ) : null}
-      </div>
+      {/*
+        The level as one small pill, not a three-line column.
+
+        On a phone — and in the desktop sidebar, which is narrower still — a
+        right-hand block of "Level / 2 / 1/3 today" took seventy pixels and left
+        the sentence to truncate at "29 more messages afte…". The sentence is
+        the reason anybody taps this; the level is the part that can be two
+        characters.
+
+        Today's mission count is gone from here entirely: the missions are still
+        stand-in data, and a fabricated fraction on the chats list is the one
+        number in the product nobody could check.
+      */}
+      <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-caption font-medium tabular-nums text-brand">
+        Lv {level.level}
+      </span>
     </button>
   );
 }

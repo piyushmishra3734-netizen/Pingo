@@ -661,10 +661,9 @@ export function ProfileScreen() {
           rather than empty when they have never published — a section that says
           "nothing yet" about somebody else is a comment on them.
         */}
-        {!isSelf && journey ? (
+        {!isSelf ? (
           <ProfileJourney
-            level={journey.level}
-            badgeIds={journey.badgeIds}
+            {...(journey ? { level: journey.level, badgeIds: journey.badgeIds } : {})}
             name={person.displayName.split(' ')[0] ?? person.displayName}
             className="mt-6"
           />

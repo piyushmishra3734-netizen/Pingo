@@ -45,14 +45,29 @@ export function ProfileJourney({
   name,
   className,
 }: {
-  level: number;
-  badgeIds: readonly string[];
-  /** First name, for the empty line. */
+  /** Undefined when they have never published — see below. */
+  level?: number;
+  badgeIds?: readonly string[];
+  /** First name, for the line about them. */
   name: string;
   className?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const earned = new Set(badgeIds);
+  const earned = new Set(badgeIds ?? []);
+
+  /*
+   * They have never published.
+   *
+   * Journey is counted on its owner's device, so a profile knows nothing about
+   * somebody who has not opened the app since this shipped. The first version
+   * hid the whole section in that case, which made the feature look broken —
+   * you open a friend's profile and there is simply nothing there, with no way
+   * to tell whether they have no badges or the app is not working.
+   *
+   * So the collection is always drawn, and the missing part is *named*. What is
+   * never done is guess: no level, and no "0 of 28", because neither is known.
+   */
+  const published = level !== undefined;
 
   /*
    * Their badges first, then the rest in sheet order.
@@ -75,11 +90,15 @@ export function ProfileJourney({
       <Card elevation="flat" className="p-4">
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="text-body font-medium">Journey</h3>
-          <p className="text-caption text-text-tertiary">Level {level}</p>
+          {published ? <p className="text-caption text-text-tertiary">Level {level}</p> : null}
         </div>
 
-        {earned.size === 0 ? (
-          <p className="pt-3 text-caption text-text-secondary">
+        {!published ? (
+          <p className="pt-2 text-caption text-text-secondary">
+            {name} hasn’t shared their Journey yet.
+          </p>
+        ) : earned.size === 0 ? (
+          <p className="pt-2 text-caption text-text-secondary">
             {name} is just getting started here.
           </p>
         ) : null}
@@ -114,7 +133,7 @@ export function ProfileJourney({
             thing on the card somebody had to work out for themselves.
           */}
           <p className="text-caption text-text-tertiary">
-            {earned.size} of {BADGES.length} earned
+            {published ? `${earned.size} of ${BADGES.length} earned` : `${BADGES.length} to earn`}
           </p>
 
           {hidden > 0 || expanded ? (
