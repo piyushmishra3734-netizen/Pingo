@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { BackupLockPicker, type SecretChoice } from '../../features/backup/BackupLock.js';
 import { EnrolmentFlow } from '../../features/backup/EnrolmentFlow.js';
 import { ChoiceRow, Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { useBackupUx } from '../../features/backup/useBackupUx.js';
@@ -12,6 +13,7 @@ import {
   secureBackupStatus,
   type SecureBackupStatus,
 } from '../../lib/backup/secure-backup.js';
+import { useProfile } from '@pingo/core';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { Capacitor } from '@capacitor/core';
 import { DriveBackupController, type DriveView } from '../../lib/backup/drive/controller.js';
@@ -47,6 +49,34 @@ export function SecureBackupScreen() {
 
 
   const [drive, setDrive] = useState<DriveView | undefined>();
+
+  /**
+   * The lock on the backup key, as Drive holds it.
+   *
+   * `undefined` while it is being read, `null` when this account has none —
+   * two different things, and a screen that conflates them offers "set a
+   * passkey" to somebody who already has one.
+   */
+  const [lock, setLock] = useState<import('../../lib/backup/passkey-lock.js').Lock | null>();
+  const [lockStep, setLockStep] = useState<'set' | 'change' | 'unlock' | undefined>();
+
+  /**
+   * The secret, for as long as this screen is open and no longer.
+   *
+   * A ref rather than state: it must not survive a re-render into a snapshot,
+   * it is never written to disk, and leaving the screen drops it. Changing the
+   * lock needs the current secret, and asking for it twice in ten seconds is
+   * how people end up choosing something they can type quickly.
+   */
+  const unlockedWith = useRef<string | Uint8Array | undefined>(undefined);
+  /** The opened key, for the restore that comes straight after unlocking. */
+  const unlockedKey = useRef<CryptoKey | undefined>(undefined);
+
+  /** A passkey needs a name to show in the platform prompt. */
+  const { profile } = useProfile();
+  const profileForPasskey = profile
+    ? { userId: profile.id, userName: profile.username, displayName: profile.displayName }
+    : undefined;
   const [confirm, setConfirm] = useState<'restore' | 'disconnect' | undefined>();
   const backupUx = useBackupUx();
   const reminderState = backupUx.reminders;
@@ -71,6 +101,29 @@ export function SecureBackupScreen() {
     void driveCtl.load(policy, async () => Boolean(await driveAuth.silent()));
     return stop;
   }, [driveCtl]);
+
+  /*
+   * Read once Drive is connected, and again after every change, so the screen
+   * always describes the file rather than what it last did.
+   */
+  useEffect(() => {
+    if (!drive?.connected) {
+      setLock(undefined);
+      return;
+    }
+    let active = true;
+    void import('../../lib/backup/archive-key.js')
+      .then(({ readArchiveLock }) => readArchiveLock(driveTarget.client))
+      .then((found) => {
+        if (active) setLock(found ?? null);
+      })
+      .catch(() => {
+        if (active) setLock(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [drive?.connected, driveTarget, lockStep]);
 
   const driveLabel =
     drive?.phase === 'error'
@@ -140,8 +193,20 @@ export function SecureBackupScreen() {
      * nothing else. Google can therefore read this backup, which is the trade
      * the mode exists to make and which the interface states plainly.
      */
-    const { ensureArchiveKey } = await import('../../lib/backup/archive-key.js');
-    const archiveKey = await ensureArchiveKey(driveTarget.client);
+    /*
+     * Backing up needs the public half and nothing else.
+     *
+     * That is worth saying plainly: a locked account can take a backup without
+     * ever being asked for the passkey, because sealing to a public key needs
+     * no secret. The secret is only ever required to *open* one — which is the
+     * shape you want, and the opposite of a system that asks for a password to
+     * save a file.
+     */
+    const { ensureArchiveKey, readArchiveLock } = await import('../../lib/backup/archive-key.js');
+    const locked = await readArchiveLock(driveTarget.client).catch(() => undefined);
+    const archiveKey = locked
+      ? { publicKey: locked.publicKey, privateKey: unlockedKey.current }
+      : await ensureArchiveKey(driveTarget.client);
 
     const { liveBackupPorts } = await import('../../lib/backup/live-ports.js');
     const ports = await liveBackupPorts({
@@ -153,12 +218,14 @@ export function SecureBackupScreen() {
       },
       recoveryPublicKey: archiveKey.publicKey,
       /*
-       * The private half is in hand, so the header check actually runs and the
-       * headline can say "fully verified" rather than "completeness not
-       * confirmed". Simple mode buys that as well as a restore with no code:
-       * the same key that opens the archive proves it holds the right account.
+       * Only when it is already in hand. With the private half the header check
+       * runs and the headline can say "fully verified"; without it the backup
+       * still completes and says "completeness not confirmed", which is the
+       * honest report for a locked account that has not been unlocked this
+       * session. Prompting for a passkey in order to *write* a backup would be
+       * asking for a key to lock a door.
        */
-      recoveryPrivateKey: archiveKey.privateKey,
+      ...(archiveKey.privateKey ? { recoveryPrivateKey: archiveKey.privateKey } : {}),
       mode: 'simple',
       keyVersion: 1,
     });
@@ -310,24 +377,40 @@ export function SecureBackupScreen() {
 
     try {
       /*
-       * The lost-phone path, and it asks for nothing.
+       * The lost-phone path.
        *
-       * This runs on a device that has never held this account's keys. The
-       * archive key sits in the same Drive folder as the archive, so signing in
-       * to Google is the entire credential — which is the whole reason Simple
-       * Backup exists.
+       * A locked backup asks for the passkey or passcode and cannot proceed
+       * without it — the key in Drive is sealed, so there is nothing to fall
+       * back to. A backup made before locks existed still opens with the Google
+       * account alone, which is what those archives were sealed under; setting
+       * a lock afterwards is offered above rather than forced here.
        */
-      const { loadArchiveKey, ArchiveKeyError } = await import('../../lib/backup/archive-key.js');
-      let key: CryptoKey;
-      try {
-        key = (await loadArchiveKey(driveTarget.client)).privateKey;
-      } catch (cause) {
-        setError(
-          cause instanceof ArchiveKeyError && cause.code === 'missing'
-            ? 'No backup key was found in this Google account. Nothing was restored.'
-            : 'The backup key in Drive could not be read. Nothing was restored.',
-        );
-        return;
+      const { loadArchiveKey, readArchiveLock, ArchiveKeyError } = await import(
+        '../../lib/backup/archive-key.js'
+      );
+
+      const stored = await readArchiveLock(driveTarget.client).catch(() => undefined);
+      let key: CryptoKey | undefined;
+
+      if (stored) {
+        key = unlockedKey.current;
+        if (!key) {
+          // Ask, and stop. The prompt calls this again once it has opened.
+          setLockStep('unlock');
+          setError('This backup is locked. Unlock it to restore.');
+          return;
+        }
+      } else {
+        try {
+          key = (await loadArchiveKey(driveTarget.client)).privateKey;
+        } catch (cause) {
+          setError(
+            cause instanceof ArchiveKeyError && cause.code === 'missing'
+              ? 'No backup key was found in this Google account. Nothing was restored.'
+              : 'The backup key in Drive could not be read. Nothing was restored.',
+          );
+          return;
+        }
       }
 
       const { applyArchivePlaintext } = await import('../../lib/backup/archive-builder.js');
@@ -338,6 +421,90 @@ export function SecureBackupScreen() {
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? `Restore failed - ${cause.message}` : 'Restore failed.');
+    }
+  };
+
+  /**
+   * Set the lock, or change it.
+   *
+   * Setting takes whatever key the account already has — the plaintext one from
+   * before this existed, or none at all — and seals *that same pair*, so every
+   * archive already written keeps opening. Changing re-wraps without touching
+   * the key, so nothing is re-uploaded either.
+   */
+  const applyLock = async (choice: SecretChoice) => {
+    setError(undefined);
+    const drivePkg = driveTarget.client;
+    const [{ createLock, changeLock }, keyMod] = await Promise.all([
+      import('../../lib/backup/passkey-lock.js'),
+      import('../../lib/backup/archive-key.js'),
+    ]);
+
+    try {
+      if (lockStep === 'change') {
+        if (!lock || !unlockedWith.current) {
+          setError('Unlock the current backup first.');
+          return;
+        }
+        const next = await changeLock({
+          lock,
+          current: unlockedWith.current,
+          next: {
+            method: choice.method,
+            secret: choice.secret,
+            ...(choice.passcodeKind ? { passcodeKind: choice.passcodeKind } : {}),
+            ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
+          },
+        });
+        await keyMod.writeArchiveLock(drivePkg, next);
+        unlockedWith.current = choice.secret;
+        setLockStep(undefined);
+        setError('Backup lock changed. Nothing was re-uploaded.');
+        return;
+      }
+
+      /*
+       * An account with a plaintext key keeps it: the archives point at that
+       * pair. Only a brand-new account gets a fresh one.
+       */
+      const existing = await keyMod
+        .loadArchiveKey(drivePkg)
+        .catch(() => undefined);
+
+      const made = await createLock({
+        method: choice.method,
+        secret: choice.secret,
+        ...(choice.passcodeKind ? { passcodeKind: choice.passcodeKind } : {}),
+        ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
+      });
+
+      await keyMod.writeArchiveLock(drivePkg, made.lock);
+      unlockedWith.current = choice.secret;
+      setLockStep(undefined);
+      setError(
+        existing
+          ? 'Backup lock set. Your next backup uses it; the archives you already have still open.'
+          : 'Backup lock set. Your next backup will be sealed to it.',
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That did not work.');
+    }
+  };
+
+  /** Open the lock, and keep the secret only for as long as this screen lives. */
+  const unlock = async (choice: SecretChoice) => {
+    setError(undefined);
+    try {
+      const { openArchiveLock } = await import('../../lib/backup/archive-key.js');
+      const opened = await openArchiveLock(driveTarget.client, choice.secret, lock?.version ?? 0);
+      unlockedWith.current = choice.secret;
+      unlockedKey.current = opened.privateKey;
+      setLockStep(undefined);
+      setError('Unlocked. Restore is ready.');
+      return opened.privateKey;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That did not unlock your backup.');
+      return undefined;
     }
   };
 
@@ -540,6 +707,71 @@ export function SecureBackupScreen() {
         frightened somebody whose backup was fine. The rehearsal that means
         something is a restore, and that is one row further down.
       */}
+
+      {/*
+        The lock, and the only place it is set or changed.
+
+        Shown whenever Drive is connected rather than only when Secure Backup is
+        "enabled": the thing being protected is the archive key in Drive, and
+        that exists independently of the server-side enrolment above.
+      */}
+      {drive?.connected ? (
+        <Group title="Backup lock">
+          <InfoRow
+            label="Protected by"
+            value={
+              lock === undefined
+                ? 'Checking…'
+                : lock === null
+                  ? 'Nothing yet'
+                  : lock.method === 'passkey'
+                    ? 'Face ID, fingerprint or screen lock'
+                    : lock.passcodeKind === 'pin'
+                      ? 'A PIN you chose'
+                      : lock.passcodeKind === 'pattern'
+                        ? 'A pattern you chose'
+                        : 'A password you chose'
+            }
+          />
+
+          {lock === null ? (
+            <p className="px-4 pb-2 text-sm text-muted">
+              Right now anyone with your Google account can open this backup — Google included.
+              Set a lock and only you can.
+            </p>
+          ) : null}
+
+          {lockStep ? (
+            <BackupLockPicker
+              purpose={lockStep}
+              {...(profileForPasskey ? { account: profileForPasskey } : {})}
+              onChosen={(choice) =>
+                lockStep === 'unlock' ? void unlock(choice) : void applyLock(choice)
+              }
+              onCancel={() => setLockStep(undefined)}
+            />
+          ) : (
+            <>
+              <button
+                type="button"
+                className="w-full px-4 py-3 text-left text-accent"
+                onClick={() => setLockStep(lock ? (unlockedWith.current ? 'change' : 'unlock') : 'set')}
+              >
+                {lock
+                  ? unlockedWith.current
+                    ? 'Change the lock'
+                    : 'Unlock to change it'
+                  : 'Set a passkey or passcode'}
+              </button>
+              {lock && unlockedWith.current ? (
+                <p className="px-4 pb-3 text-caption text-text-tertiary">
+                  Unlocked on this screen. Leaving forgets it.
+                </p>
+              ) : null}
+            </>
+          )}
+        </Group>
+      ) : null}
 
       {enabled ? (
         <Group title="Google Drive">
