@@ -61,3 +61,10 @@ client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
 # Where Google returns the browser. `GoogleConnectingScreen` serves both legs.
 redirect_uri = "http://localhost:5173/auth/google"
+
+# The only endpoint in the product that runs without a JWT, and it has to: the
+# caller is signing in and does not have one yet. It refuses everything except
+# a username and a password that already match, and never reveals which of the
+# two was wrong. See the header of `functions/username-login/index.ts`.
+[functions.username-login]
+verify_jwt = false

@@ -43,6 +43,7 @@ import { ProfileScreen } from './screens/ProfileScreen.js';
 import { StoryArchiveScreen } from './screens/StoryArchiveScreen.js';
 import { SettingsScreen } from './screens/SettingsScreen.js';
 import { AccountScreen } from './screens/settings/AccountScreen.js';
+import { ChangePasswordScreen } from './screens/settings/ChangePasswordScreen.js';
 import { AdvancedScreen } from './screens/settings/AdvancedScreen.js';
 import { AppearanceScreen } from './screens/settings/AppearanceScreen.js';
 import { CallsSettingsScreen } from './screens/settings/CallsSettingsScreen.js';
@@ -63,6 +64,7 @@ import { LoginEmailScreen } from './screens/auth/LoginEmailScreen.js';
 import { LoginMethodScreen } from './screens/auth/LoginMethodScreen.js';
 import { LoginPasswordScreen } from './screens/auth/LoginPasswordScreen.js';
 import { LoginPhoneScreen } from './screens/auth/LoginPhoneScreen.js';
+import { LoginUsernameScreen } from './screens/auth/LoginUsernameScreen.js';
 import { SignUpEmailScreen } from './screens/auth/SignUpEmailScreen.js';
 import { SignUpMethodScreen } from './screens/auth/SignUpMethodScreen.js';
 import { SignUpPhoneScreen } from './screens/auth/SignUpPhoneScreen.js';
@@ -295,11 +297,15 @@ export function App() {
               <Route
                 path="/login"
                 element={
-                  <IdentityFlow entryPaths={['/login/email', '/login/phone']} fallback="/login" />
+                  <IdentityFlow
+                    entryPaths={['/login/email', '/login/phone', '/login/username']}
+                    fallback="/login"
+                  />
                 }
               >
                 <Route path="email" element={<LoginEmailScreen />} />
                 <Route path="phone" element={<LoginPhoneScreen />} />
+                <Route path="username" element={<LoginUsernameScreen />} />
                 <Route path="password" element={<LoginPasswordScreen />} />
               </Route>
             </Route>
@@ -352,6 +358,7 @@ export function App() {
                   <Route path="/stories/archive" element={<StoryArchiveScreen />} />
                   <Route path="/settings" element={<SettingsScreen />} />
                   <Route path="/settings/account" element={<AccountScreen />} />
+                  <Route path="/settings/password" element={<ChangePasswordScreen />} />
                   <Route path="/settings/appearance" element={<AppearanceScreen />} />
                   <Route path="/settings/notifications" element={<NotificationsScreen />} />
                   <Route path="/settings/privacy" element={<PrivacyScreen />} />

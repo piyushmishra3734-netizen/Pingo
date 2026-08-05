@@ -32,6 +32,7 @@ export type {
   AuthErrorCode,
   PasswordAuth,
   OAuthAuth,
+  UsernameAuth,
 } from './auth-service.js';
 export { AuthError } from './auth-service.js';
 

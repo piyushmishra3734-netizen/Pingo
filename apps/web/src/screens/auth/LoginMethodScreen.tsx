@@ -1,5 +1,5 @@
 import { useAuth, type AuthMethodKind } from '@pingo/core';
-import { AtIcon, Button, ListGroup, ListRow, PhoneIcon } from '@pingo/ui';
+import { AtIcon, Button, ListGroup, ListRow, PhoneIcon, UserIcon } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,6 +26,15 @@ interface MethodRow {
 
 const METHODS: MethodRow[] = [
   { kind: 'google', label: 'Continue with Google', icon: <GoogleMark />, path: '/auth/google' },
+  /*
+   * Above email and phone, because it is the identifier a returning user
+   * actually knows. People remember the handle they hand out; the address they
+   * signed up with a year ago is the one they get wrong.
+   *
+   * It is a log-in row only - there is no matching row on Welcome, since a
+   * username cannot create an account. It is chosen once the account exists.
+   */
+  { kind: 'username', label: 'Username', icon: <UserIcon size={20} />, path: '/login/username' },
   { kind: 'email', label: 'Email', icon: <AtIcon size={20} />, path: '/login/email' },
   { kind: 'phone', label: 'Phone number', icon: <PhoneIcon size={20} />, path: '/login/phone' },
 ];

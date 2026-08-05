@@ -25,8 +25,13 @@ import { COUNTRIES } from './countries.js';
  */
 
 export interface Identity {
-  kind: 'email' | 'phone';
-  /** An address, or a number in E.164 (`+919876543210`). */
+  /**
+   * `username` is a log-in-only kind. Sign-up never produces one - a username
+   * is chosen after the account exists - so `CreatePasswordScreen` refuses it
+   * rather than pretending there is a `username.signUp` to call.
+   */
+  kind: 'email' | 'phone' | 'username';
+  /** An address, a number in E.164 (`+919876543210`), or a handle. */
   value: string;
 }
 
@@ -94,6 +99,7 @@ export function useIdentityFlow(): IdentityFlowValue {
  */
 export function formatIdentity(identity: Identity): string {
   if (identity.kind === 'email') return identity.value;
+  if (identity.kind === 'username') return `@${identity.value}`;
 
   const dial = [...COUNTRIES]
     .map((country) => country.dial)

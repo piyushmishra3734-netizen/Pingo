@@ -19,7 +19,7 @@ import type { AuthMethodKind } from '@pingo/core';
 
 const KEY = 'pingo:auth:last-method';
 
-const KINDS: readonly AuthMethodKind[] = ['email', 'google', 'phone'];
+const KINDS: readonly AuthMethodKind[] = ['email', 'google', 'phone', 'username'];
 
 export function readLastMethod(): AuthMethodKind | undefined {
   try {

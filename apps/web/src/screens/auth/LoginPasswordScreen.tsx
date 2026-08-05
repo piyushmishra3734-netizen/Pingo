@@ -23,7 +23,11 @@ import { ALREADY_REGISTERED_MESSAGE, authErrorMessage } from '../../features/aut
  * | Rate limiting surfaced | With a countdown and a reason. A user who does not know they are throttled assumes the app is broken |
  * | Loading keeps the width | `Button`'s `loading` swaps the label for the brand dots without reflowing |
  *
- * One screen serves both doors, exactly as `CreatePasswordScreen` does.
+ * One screen serves all three doors, exactly as `CreatePasswordScreen` does for
+ * the two that can create an account. Email, phone and username differ only in
+ * what the previous step collected: `service[identity.kind].signIn` is the same
+ * call either way, and the generic failure is the same sentence - which matters
+ * most for username, where a specific one would say whether a handle is taken.
  *
  * It is also where sign-up lands when § 17 fires: an identifier that already has
  * an account arrives here with `collision` set, and the screen opens with
@@ -77,7 +81,7 @@ export function LoginPasswordScreen() {
 
   if (!identity) return null;
 
-  const changePath = identity.kind === 'email' ? '/login/email' : '/login/phone';
+  const changePath = `/login/${identity.kind}`;
 
   const submit = async () => {
     if (password === '' || signingIn || lockedOut) return;

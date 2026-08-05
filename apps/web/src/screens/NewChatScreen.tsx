@@ -1,4 +1,4 @@
-import { useChat, type User } from '@pingo/core';
+import { useChat, type User, useProfile } from '@pingo/core';
 import {
   Avatar,
   ChevronLeftIcon,
@@ -21,12 +21,18 @@ import { useNavigate } from 'react-router-dom';
  * That one omission is why chats, calls and Pings were all unreachable for a
  * new contact - every one of them needs a conversation to hang off.
  *
- * ## Filtering happens here, not on the server
+ * ## Filtering happens here; finding happens on the server
  *
  * `listContacts()` is fetched once and narrowed as you type. A round trip per
  * keystroke would make the list flicker and lag behind the field for a roster
  * this size, and `search()` caps at ten results - fine for finding someone by
  * name, wrong for browsing everyone.
+ *
+ * But a list can only be narrowed to what is in it. Typing somebody's exact
+ * @username or pasting their id said "nobody by that name" whenever they were
+ * not already a contact — which is precisely when you would be typing it. So
+ * when the local filter comes up empty the server is asked, once the typing
+ * settles, and whoever it returns is appended to the results.
  *
  * ## Tapping is idempotent
  *
@@ -37,6 +43,7 @@ import { useNavigate } from 'react-router-dom';
 export function NewChatScreen() {
   const navigate = useNavigate();
   const { service } = useChat();
+  const { service: profiles } = useProfile();
 
   const [people, setPeople] = useState<User[] | undefined>();
   const [query, setQuery] = useState('');
@@ -68,6 +75,57 @@ export function NewChatScreen() {
         person.handle.toLowerCase().includes(term),
     );
   }, [people, query]);
+
+  /**
+   * Somebody the roster has never heard of.
+   *
+   * Narrowing a list can only ever find what is already in it, so typing an
+   * exact @handle for a person you have not spoken to returned "no matches" —
+   * about somebody who exists, spelled correctly, whom the database would have
+   * returned instantly. Asked for only when the local filter comes up empty,
+   * and only once the typing settles: one request at the end of a word rather
+   * than one per keystroke. `find` takes a handle *or* an id, which is why
+   * pasting somebody's id works too.
+   */
+  const [found, setFound] = useState<User>();
+
+  useEffect(() => {
+    const term = query.trim().replace(/^@/u, '');
+    setFound(undefined);
+    if (term.length < 3 || (matches && matches.length > 0)) return;
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void profiles
+        .find(term)
+        .then((profile) => {
+          if (!active || !profile) return;
+          setFound({
+            id: profile.id,
+            name: profile.displayName,
+            handle: profile.username,
+            ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+            presence: { state: 'offline', lastSeenAt: 0 },
+          });
+        })
+        .catch(() => undefined);
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [profiles, query, matches]);
+
+  /*
+   * Appended rather than replacing, so a search matching one contact and one
+   * stranger shows both.
+   */
+  const shown = useMemo(() => {
+    if (!matches) return undefined;
+    if (!found || matches.some((person) => person.id === found.id)) return matches;
+    return [...matches, found];
+  }, [matches, found]);
 
   const open = async (person: User) => {
     if (opening) return;
@@ -118,9 +176,9 @@ export function NewChatScreen() {
           </p>
         )}
 
-        {!matches ? (
+        {!shown ? (
           <LoadingState label="Loading people" />
-        ) : matches.length === 0 ? (
+        ) : shown.length === 0 ? (
           <EmptyState
             title={query ? 'Nobody by that name' : 'Nobody here yet'}
             description={
@@ -132,7 +190,7 @@ export function NewChatScreen() {
           />
         ) : (
           <ul className="space-y-0.5">
-            {matches.map((person, index) => (
+            {shown.map((person, index) => (
               <li
                 key={person.id}
                 className="animate-row-in"

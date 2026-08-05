@@ -45,6 +45,7 @@ import {
   type OAuthAuth,
   type PasswordAuth,
   type Unsubscribe,
+  type UsernameAuth,
 } from '@pingo/core';
 import type {
   AuthError as SupabaseAuthError,
@@ -362,6 +363,80 @@ class SupabasePasswordAuth implements PasswordAuth {
 }
 
 /**
+ * The @username door.
+ *
+ * ## Why this one call goes through an Edge Function
+ *
+ * Every other door talks to Supabase directly. This one cannot, because
+ * Supabase authenticates on an address and a username is not one, and the
+ * translation between them must not be available to the browser: an endpoint
+ * that turns a public handle into the private email address behind it is a way
+ * to harvest every address on the product, one username at a time.
+ *
+ * So `username-login` does the lookup with the service-role key, signs in on
+ * the caller's behalf, and returns tokens. `setSession` then installs them, and
+ * from that moment the session is the same object every other door produces -
+ * `onSessionChange` fires, the account is remembered, nothing downstream can
+ * tell which door was used.
+ *
+ * The function is deliberately incurious about failure: unknown username and
+ * wrong password come back identically, so the code below has nothing to
+ * branch on and cannot leak the distinction even by accident.
+ */
+class SupabaseUsernameAuth implements UsernameAuth {
+  constructor(private readonly client: PingoSupabaseClient) {}
+
+  async signIn(username: string, password: string): Promise<AuthSession> {
+    const handle = username.trim().replace(/^@/, '').toLowerCase();
+
+    let payload: { access_token?: string; refresh_token?: string; code?: string };
+
+    try {
+      const { data, error } = await this.client.functions.invoke<typeof payload>(
+        'username-login',
+        { body: { username: handle, password } },
+      );
+
+      /*
+       * A non-2xx response is an `error` here, and its body carries the code.
+       * Read rather than assumed: `invoke` reports "non-2xx" for a refusal and
+       * for a crash alike, and treating a 500 as "wrong password" would tell
+       * somebody their password is wrong when the server is simply down.
+       */
+      if (error) {
+        const body: unknown = await (
+          error as { context?: { json?: () => Promise<unknown> } }
+        ).context?.json?.();
+        const code = (body as { code?: string } | undefined)?.code;
+
+        if (code === 'rate_limited') throw new AuthError('rate_limited', 'Too many attempts.');
+        if (code === 'invalid_credentials') {
+          throw new AuthError('invalid_credentials', 'Those details did not match.');
+        }
+        throw new AuthError('unknown', 'Something went wrong. Try again.');
+      }
+
+      payload = data ?? {};
+    } catch (cause) {
+      if (cause instanceof AuthError) throw cause;
+      rethrow(cause);
+    }
+
+    if (!payload.access_token || !payload.refresh_token) {
+      throw new AuthError('invalid_credentials', 'Those details did not match.');
+    }
+
+    const { data, error } = await this.client.auth.setSession({
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+    });
+
+    if (error) rethrow(error);
+    return assertSession(data.session, 'signIn');
+  }
+}
+
+/**
  * Google, via Supabase's OAuth redirect.
  *
  * Redirect rather than popup: § 5.1 forbids a webview and popups are blocked by
@@ -401,11 +476,17 @@ export class SupabaseAuthService implements AuthService {
    * that only matters when a row is tapped. A disabled provider surfaces as
    * `provider_disabled` at that point, with copy that says so.
    */
-  readonly supportedMethods: readonly AuthMethodKind[] = ['email', 'phone', 'google'];
+  readonly supportedMethods: readonly AuthMethodKind[] = [
+    'email',
+    'phone',
+    'google',
+    'username',
+  ];
 
   readonly email: PasswordAuth;
   readonly phone: PasswordAuth;
   readonly google: OAuthAuth;
+  readonly username: UsernameAuth;
 
   private readonly client: PingoSupabaseClient;
 
@@ -413,6 +494,7 @@ export class SupabaseAuthService implements AuthService {
     this.client = client;
     this.email = new SupabasePasswordAuth(client, 'email');
     this.phone = new SupabasePasswordAuth(client, 'phone');
+    this.username = new SupabaseUsernameAuth(client);
     /*
      * One door, two ways through it.
      *
@@ -436,6 +518,59 @@ export class SupabaseAuthService implements AuthService {
     const { data, error } = await this.client.auth.getSession();
     if (error) rethrow(error);
     return toSession(data.session);
+  }
+
+  /**
+   * Change the password, old one first.
+   *
+   * ## The old password is verified by signing in with it
+   *
+   * There is no "check this password" call in Supabase, and writing one would
+   * mean comparing hashes ourselves. Re-signing in is the check: a wrong
+   * password fails there, before `updateUser` is ever reached, and a right one
+   * leaves the session freshly authenticated - which is exactly what
+   * `secure_password_change = true` in `config.toml` requires before it will
+   * accept a new password. One call satisfies both needs.
+   *
+   * The address is taken from the current session rather than typed, so this
+   * works identically for a phone account (whose address is derived and never
+   * shown) without the screen having to know that such a thing exists.
+   *
+   * ## Other devices stay signed in
+   *
+   * A password change does not end the session on someone's phone, for the same
+   * reason `signOut` is local: this is a routine maintenance action, and having
+   * it silently log you out of every device you own is the behaviour that makes
+   * people avoid changing their password at all. Ending other sessions belongs
+   * to a "you were compromised" flow, which is a different button with a
+   * different warning on it.
+   */
+  async changePassword(current: string, next: string): Promise<void> {
+    const { data: sessionData } = await this.client.auth.getSession();
+    const address = sessionData.session?.user.email;
+
+    if (!address) {
+      /*
+       * A Google-only account. It has no password, so there is nothing to
+       * change - and quietly setting one would attach a second sign-in method
+       * the user never asked for, on an address they have not confirmed is
+       * theirs to use here.
+       */
+      throw new AuthError(
+        'provider_disabled',
+        'This account signs in with Google and has no password.',
+      );
+    }
+
+    const { error: signInError } = await this.client.auth.signInWithPassword({
+      email: address,
+      password: current,
+    });
+
+    if (signInError) rethrow(signInError);
+
+    const { error } = await this.client.auth.updateUser({ password: next });
+    if (error) rethrow(error);
   }
 
   onSessionChange(listener: (session: AuthSession | null) => void): Unsubscribe {

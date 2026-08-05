@@ -47,7 +47,16 @@ export function CreatePasswordScreen() {
 
   // `IdentityFlow` redirects before this renders without one; this satisfies the
   // type and would only ever fire if that guard were removed.
-  if (!identity) return null;
+  //
+  // `username` is refused for a different reason: it is a log-in-only kind and
+  // there is no account to attach a password to yet, so no sign-up route can
+  // reach here with one.
+  if (!identity || identity.kind === 'username') return null;
+
+  // Picked out here rather than as `service[identity.kind]` inside `submit`:
+  // narrowing a *property* does not survive into a closure, so the guard above
+  // would not convince the compiler that `signUp` exists.
+  const door = identity.kind === 'email' ? service.email : service.phone;
 
   const submit = async () => {
     if (!assessment.valid || saving) return;
@@ -56,7 +65,7 @@ export function CreatePasswordScreen() {
     setError(undefined);
 
     try {
-      await service[identity.kind].signUp(identity.value, password);
+      await door.signUp(identity.value, password);
       writeLastMethod(identity.kind);
       // Phase 2 ends at Home. Profile Setup, Theme, Notifications and Contacts
       // (§ 9-12) slot in between here and `/chats` when they are built.

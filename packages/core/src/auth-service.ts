@@ -40,8 +40,15 @@ export type Unsubscribe = () => void;
  *
  * An account has one or more of these attached, and gains the others from
  * Settings → Account.
+ *
+ * `username` is the odd one out and deliberately so. It is a *route* onto an
+ * account rather than an identity attached to one: nobody signs up with a
+ * username - they choose one afterwards, and it opens whichever account already
+ * holds the password. So it appears in `supportedMethods` and on the Log In
+ * screen, and never in `AuthUser.methods`, because it is not a contact point
+ * and losing it would not lock anybody out.
  */
-export type AuthMethodKind = 'email' | 'google' | 'phone';
+export type AuthMethodKind = 'email' | 'google' | 'phone' | 'username';
 
 /**
  * The signed-in identity.
@@ -134,6 +141,27 @@ export interface PasswordAuth {
 }
 
 /**
+ * The @username door. Sign in only.
+ *
+ * There is no `signUp` here and there cannot be one: a username belongs to a
+ * profile, and a profile belongs to an account that already exists. Somebody
+ * typing a username they have never registered is signing in to nothing, which
+ * is the same refusal as a wrong password and reported as such.
+ *
+ * The password is the account's own - the same one the email or phone door
+ * takes. This is a second way in, not a second credential.
+ */
+export interface UsernameAuth {
+  /**
+   * @param username with or without the leading `@`; case is not significant.
+   * @throws `AuthError` with `invalid_credentials` for an unknown username *and*
+   * for a wrong password, without distinguishing them. Saying which one it was
+   * turns the login form into a way to test whether a handle exists.
+   */
+  signIn(username: string, password: string): Promise<AuthSession>;
+}
+
+/**
  * A door opened by a third party.
  *
  * `start` hands off to the provider and **does not resolve with a session**  - 
@@ -166,9 +194,27 @@ export interface AuthService {
   readonly email: PasswordAuth;
   readonly phone: PasswordAuth;
   readonly google: OAuthAuth;
+  readonly username: UsernameAuth;
 
   /** Resolves `null` when signed out. Reads persisted state; may refresh a token. */
   getSession(): Promise<AuthSession | null>;
+
+  /**
+   * Replaces the account password, having proved the caller knows the old one.
+   *
+   * The proof is not a formality. A signed-in tab left open on a shared laptop
+   * is not evidence that the person at the keyboard is the account holder, and
+   * a password change without re-authentication hands them the account outright
+   * - they set a new password and the owner is locked out of their own
+   * conversations. So `current` is checked first and a wrong one fails before
+   * anything is written.
+   *
+   * @throws `AuthError` with `invalid_credentials` when `current` is wrong,
+   * `weak_password` when the new one is refused, and `provider_disabled` on an
+   * account that has no password to change - a Google-only sign-in, which needs
+   * an email attached before it can have one.
+   */
+  changePassword(current: string, next: string): Promise<void>;
 
   /**
    * Push, not polling - a token refresh, a sign-out in another tab, or the

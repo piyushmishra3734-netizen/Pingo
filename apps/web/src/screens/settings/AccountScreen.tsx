@@ -7,6 +7,7 @@ import {
 } from '@pingo/core';
 import { Avatar, Button, PingoDot, TextField, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
@@ -26,14 +27,21 @@ import { useSignOut } from '../../features/settings/useSignOut.js';
  * you left. So name and username have a Save, and it only lights up when there
  * is something to save.
  *
- * Phone, email and password are shown but not editable. Changing a sign-in
- * method has to re-authenticate first (docs/01 § 18) - without that step an
+ * Phone and email are shown but not editable. Changing which identifier signs
+ * you in has to verify the new one first (docs/01 § 18) - without that step an
  * open tab on a borrowed laptop is an account takeover, so the rows report
  * rather than pretend.
+ *
+ * The password row is the exception, and deliberately so: it leads to a screen
+ * that asks for the current password, which *is* the re-authentication the
+ * other two are waiting on. It matters more now that a username signs people in
+ * - a handle is public, so the password is the only secret behind it, and a
+ * secret with no way to rotate it is one you are stuck with after every scare.
  */
 export function AccountScreen() {
   const auth = useAuth();
   const { session } = auth;
+  const navigate = useNavigate();
   const confirm = useConfirm();
   const signOut = useSignOut();
   const { profile, service, update } = useProfile();
@@ -197,11 +205,19 @@ export function AccountScreen() {
 
       <Group
         title="Sign-in methods"
-        note="Changing one of these has to re-authenticate first, which is not built yet, so these are shown, not editable."
+        note="Your username signs you in too, with this same password. Changing the phone or email on an account has to re-authenticate first, which is not built yet, so those two are shown, not editable."
       >
+        <InfoRow label="Username" value={`@${profile.username}`} />
         <InfoRow label="Phone" value={session?.user.phone ?? 'Not added'} />
         <InfoRow label="Email" value={session?.user.email ?? 'Not added'} />
-        <InfoRow label="Password" value="••••••••" />
+        {/*
+          Password *is* editable, unlike the two above it, and the difference is
+          not an inconsistency. Changing which address signs you in moves the
+          account to a new identifier and needs a verification step nobody has
+          built; changing the password re-authenticates with the old one, which
+          is the whole check.
+        */}
+        <InfoRow label="Password" value="Change" onClick={() => navigate('/settings/password')} />
       </Group>
 
       <Group
