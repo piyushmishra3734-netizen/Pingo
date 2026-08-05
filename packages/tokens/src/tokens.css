@@ -610,8 +610,22 @@
  */
 @utility glass-surface {
   background-color: var(--color-glass);
-  backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
+  /*
+   * Prefixed first, standard last. The order is load-bearing.
+   *
+   * Written the other way round, the minifier collapses the pair and keeps the
+   * later declaration - so the shipped stylesheet had `-webkit-backdrop-filter`
+   * and nothing else. Chrome dropped that alias, so it resolved to `none`, and
+   * every glass surface in the product - headers, the dock, sheets, the tab bar
+   * - has been a flat translucent panel with no blur at all. Measured in
+   * Chrome 151: the prefixed property computes to `none`, the standard one
+   * works, and the built CSS contained only the first.
+   *
+   * Tailwind's own `backdrop-blur-*` utilities were unaffected because they
+   * already emit in this order, which is what made the difference visible.
+   */
   -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
   border: 1px solid var(--color-glass-line);
 
   position: relative;
@@ -936,8 +950,9 @@
 
 :root[data-glass='0'] .glass-surface,
 :root[data-glass='0'] [class*='glass-surface'] {
-  backdrop-filter: none;
+  /* Same ordering rule as `glass-surface` above - see the note there. */
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 :root[data-glass='25'] {
