@@ -360,7 +360,7 @@ export function SnapEditor({
   // ---- render -------------------------------------------------------------
 
   return (
-    <div className="flex h-full flex-col bg-ink">
+    <div className="flex h-full flex-col bg-backdrop">
       {/*
         ~6–8px breathing room so the image is not hard against the viewport
         edge. Function of the frame is unchanged.
@@ -583,7 +583,7 @@ export function SnapEditor({
           className={cn(
             'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
             // ~6px shorter (py-3.5 → py-2.5), quieter shadow (~20% less lift).
-            'bg-white py-2.5 text-body font-medium text-ink',
+            'bg-white py-2.5 text-body font-medium text-backdrop',
             'shadow-[0_2px_10px_rgba(0,0,0,0.18)]',
             'transition-transform duration-150 ease-standard active:scale-[0.99]',
             'disabled:opacity-50',
@@ -620,7 +620,7 @@ function ToolButton({
         'text-[0.8125rem] font-medium leading-none',
         'transition-colors duration-150 ease-standard',
         active
-          ? 'bg-white text-ink'
+          ? 'bg-white text-backdrop'
           : 'bg-white/[0.08] text-white/85 ring-1 ring-white/10',
         'disabled:opacity-40',
       )}
@@ -733,17 +733,17 @@ function CropOverlay({
   return (
     <div className="absolute inset-0 touch-none" onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
       {/* The dimmed surround, drawn as four bands rather than a hole. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 bg-ink/55" style={{ height: `${crop.y * 100}%` }} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 bg-backdrop/55" style={{ height: `${crop.y * 100}%` }} />
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink/55"
+        className="pointer-events-none absolute inset-x-0 bottom-0 bg-backdrop/55"
         style={{ height: `${(1 - crop.y - crop.h) * 100}%` }}
       />
       <div
-        className="pointer-events-none absolute left-0 bg-ink/55"
+        className="pointer-events-none absolute left-0 bg-backdrop/55"
         style={{ top: `${crop.y * 100}%`, height: `${crop.h * 100}%`, width: `${crop.x * 100}%` }}
       />
       <div
-        className="pointer-events-none absolute right-0 bg-ink/55"
+        className="pointer-events-none absolute right-0 bg-backdrop/55"
         style={{
           top: `${crop.y * 100}%`,
           height: `${crop.h * 100}%`,
@@ -771,7 +771,7 @@ function CropOverlay({
             aria-label={`Crop ${corner} corner`}
             aria-valuenow={Math.round(crop.w * 100)}
             onPointerDown={start(corner)}
-            className={cn('absolute size-6 rounded-full border-2 border-white bg-ink/70', position)}
+            className={cn('absolute size-6 rounded-full border-2 border-white bg-backdrop/70', position)}
           />
         ))}
       </div>

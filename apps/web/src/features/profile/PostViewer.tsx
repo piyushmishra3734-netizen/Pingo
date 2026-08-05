@@ -180,7 +180,7 @@ export function PostViewer({
         role="dialog"
         aria-modal="true"
         aria-label={`Post by ${author.displayName}`}
-        className="animate-fade-in fixed inset-0 z-1000 flex flex-col bg-ink"
+        className="animate-fade-in fixed inset-0 z-1000 flex flex-col bg-backdrop"
       >
         {/* ---- header ------------------------------------------------ */}
         <div className="mx-auto flex w-full max-w-xl shrink-0 items-center gap-3 px-3 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
@@ -413,7 +413,7 @@ function CommentPanel({
 
   return (
     <div className="absolute inset-x-0 bottom-0 z-10 flex max-h-[70%] flex-col">
-      <div className="absolute inset-0 -z-10 bg-ink/40" onPointerDown={onClose} aria-hidden />
+      <div className="absolute inset-0 -z-10 bg-backdrop/40" onPointerDown={onClose} aria-hidden />
 
       <div
         className={cn(

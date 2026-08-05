@@ -278,7 +278,7 @@ export function CameraScreen() {
    */
   if (stage === 'gate') {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-ink px-8">
+      <div className="flex h-full flex-col items-center justify-center bg-backdrop px-8">
         <div className="animate-fade-in flex flex-col items-center text-center">
           <span className="grid size-20 place-items-center rounded-3xl bg-white/10 text-white">
             <CameraIcon size={34} />
@@ -295,7 +295,7 @@ export function CameraScreen() {
               type="button"
               onClick={() => setStage('live')}
               className={cn(
-                'focus-ring rounded-full bg-white py-3.5 text-body font-medium text-ink',
+                'focus-ring rounded-full bg-white py-3.5 text-body font-medium text-backdrop',
                 'transition-transform duration-instant ease-standard active:scale-[0.98]',
               )}
             >
@@ -340,7 +340,7 @@ export function CameraScreen() {
 
   if (stage === 'filter' && shot) {
     return (
-      <div className="flex h-full flex-col bg-ink">
+      <div className="flex h-full flex-col bg-backdrop">
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <img src={shot.url} alt="Your Ping" className="absolute inset-0 size-full object-contain" />
           {busy && (
@@ -364,7 +364,7 @@ export function CameraScreen() {
             type="button"
             disabled={busy}
             onClick={() => setStage('edit')}
-            className="focus-ring flex-[2] rounded-full bg-white py-3 text-body font-medium text-ink disabled:opacity-50"
+            className="focus-ring flex-[2] rounded-full bg-white py-3 text-body font-medium text-backdrop disabled:opacity-50"
           >
             Next
           </button>
@@ -389,7 +389,7 @@ export function CameraScreen() {
 
   if (stage === 'send' && shot) {
     return (
-      <div className="flex h-full flex-col bg-ink">
+      <div className="flex h-full flex-col bg-backdrop">
         {/* ---- the picture ------------------------------------------- */}
         <div className="relative min-h-0 flex-[2] overflow-hidden">
           <img
@@ -406,7 +406,7 @@ export function CameraScreen() {
             beat and leaves with the picture underneath it.
           */}
           {sentCount > 0 && (
-            <div className="animate-fade-in absolute inset-0 grid place-items-center bg-ink/70 backdrop-blur-glass">
+            <div className="animate-fade-in absolute inset-0 grid place-items-center bg-backdrop/70 backdrop-blur-glass">
               <div className="flex flex-col items-center gap-3">
                 <span className="grid size-16 place-items-center rounded-full bg-brand-gradient text-white shadow-brand">
                   <CheckIcon size={30} />
@@ -435,7 +435,7 @@ export function CameraScreen() {
 
         {/* ---- how many views, and who ------------------------------- */}
         <div className="flex min-h-0 flex-1 flex-col bg-page">
-          <div className="shrink-0 space-y-3 border-b border-line bg-ink px-4 py-3">
+          <div className="shrink-0 space-y-3 border-b border-line bg-backdrop px-4 py-3">
             <PingViewLimit value={views} onChange={setViews} />
           </div>
 
@@ -497,7 +497,7 @@ export function CameraScreen() {
   const ready = camera.status === 'ready';
 
   return (
-    <div className="flex h-full flex-col bg-ink">
+    <div className="flex h-full flex-col bg-backdrop">
       <div
         ref={frameRef}
         className="relative min-h-0 flex-1 touch-none overflow-hidden"
@@ -698,7 +698,7 @@ function FilterRail({
             className={cn(
               'focus-ring shrink-0 rounded-full px-4 py-2 text-caption font-medium',
               'transition-colors duration-instant',
-              selected === filter.id ? 'bg-white text-ink' : 'bg-white/12 text-white',
+              selected === filter.id ? 'bg-white text-backdrop' : 'bg-white/12 text-white',
               'disabled:opacity-40',
             )}
           >
@@ -733,7 +733,7 @@ function RoundControl({
       }}
       className={cn(
         'focus-ring grid size-10 place-items-center rounded-full',
-        active ? 'bg-white text-ink' : 'bg-black/40 text-white',
+        active ? 'bg-white text-backdrop' : 'bg-black/40 text-white',
       )}
     >
       {children}

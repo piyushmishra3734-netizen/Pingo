@@ -306,7 +306,7 @@ export function StoryViewer({
         aria-modal="true"
         aria-label={`${group.authorName}'s story`}
         className={cn(
-          'fixed inset-0 z-1000 flex flex-col overflow-hidden bg-ink',
+          'fixed inset-0 z-1000 flex flex-col overflow-hidden bg-backdrop',
           // Only when there is no circle to grow out of; the FLIP above owns
           // the motion whenever there is one, and two would fight.
           !origin && 'animate-fade-in',
@@ -395,7 +395,7 @@ export function StoryViewer({
             <span
               className={cn(
                 'animate-fade-in pointer-events-none absolute top-3 left-1/2 -translate-x-1/2',
-                'rounded-full bg-ink/50 px-3 py-1 text-caption text-white backdrop-blur-glass',
+                'rounded-full bg-backdrop/50 px-3 py-1 text-caption text-white backdrop-blur-glass',
               )}
             >
               Paused

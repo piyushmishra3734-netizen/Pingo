@@ -84,7 +84,7 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
 
   return (
     <Overlay>
-      <div className="fixed inset-0 z-500 bg-ink">
+      <div className="fixed inset-0 z-500 bg-backdrop">
         <SnapEditor
           // Remounted per picture, so strokes and text never bleed across.
           key={index}

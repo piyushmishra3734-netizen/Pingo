@@ -83,6 +83,26 @@
   --color-surface: #ffffff;
   --color-sunken: #f8f9fd;
 
+  /**
+   * The backdrop behind media, and the one colour that does not follow the
+   * theme.
+   *
+   * A camera viewfinder, a photo being cropped, a story being watched — all of
+   * them are dark in every product on earth, because the picture is the subject
+   * and anything bright around it competes with it.
+   *
+   * These screens used `ink`, which is the *text* colour and therefore inverts:
+   * in dark mode it became near-white, so the camera screen turned white, and
+   * every white pill button on it — with `text-ink` on it — became white text
+   * on white. The buttons did not move or break. They became invisible.
+   *
+   * So: one fixed value, defined once, identical in both themes. Anything that
+   * must stay dark regardless of the theme uses this and nothing else.
+   */
+  --color-backdrop: #0b0b0c;
+  /* For text and icons sitting *on* that backdrop, or on a white pill over it. */
+  --color-on-backdrop: #f4f5f9;
+
   /* ---- Semantic text ---------------------------------------------------- */
   --color-text: #101114;
   --color-text-secondary: #6f7282;

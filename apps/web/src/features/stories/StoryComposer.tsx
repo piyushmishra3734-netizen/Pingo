@@ -159,7 +159,7 @@ export function StoryComposer({
   if (step === 'edit' && src) {
     return (
       <Overlay>
-        <div className="fixed inset-0 z-500 bg-ink">
+        <div className="fixed inset-0 z-500 bg-backdrop">
           <SnapEditor
             src={src}
             onCancel={onClose}
