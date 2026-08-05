@@ -1,6 +1,8 @@
 import { useChat } from '@pingo/core';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { usePushRegistration } from './usePushRegistration.js';
+
 /**
  * The unread count, once for the whole app.
  *
@@ -33,6 +35,15 @@ const NotificationContext = createContext<NotificationContextValue | undefined>(
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { service, ready } = useChat();
   const [unread, setUnread] = useState(0);
+
+  /*
+   * Mounted here rather than in `App`, because this is already the place that
+   * owns "how does someone find out something happened". The in-app badge and
+   * the notification on the lock screen are two answers to one question, and
+   * keeping them together is what stops a future change to one from forgetting
+   * the other.
+   */
+  usePushRegistration();
 
   useEffect(() => {
     // Waits for the session: an unauthenticated count is always zero and the

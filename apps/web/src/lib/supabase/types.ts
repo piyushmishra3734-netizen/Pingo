@@ -613,6 +613,31 @@ export type Database = {
         Update: { level?: number; badge_ids?: string[] };
         Relationships: [];
       };
+      /**
+       * One row per install that can receive a push, keyed on the FCM token.
+       *
+       * Keyed on the token rather than the user because a device changes hands:
+       * FCM hands the same token back to whoever signs in next on that handset,
+       * and an upsert on the token is what moves the row instead of duplicating
+       * it. See the migration for the full reasoning.
+       */
+      device_tokens: {
+        Row: {
+          token: string;
+          user_id: string;
+          platform: 'android' | 'ios' | 'web';
+          created_at: string;
+          last_seen_at: string;
+        };
+        Insert: {
+          token: string;
+          user_id: string;
+          platform: 'android' | 'ios' | 'web';
+          last_seen_at?: string;
+        };
+        Update: { user_id?: string; platform?: 'android' | 'ios' | 'web'; last_seen_at?: string };
+        Relationships: [];
+      };
     };
     /* Empty groups, in the shape the generator emits. */
     Views: { [_ in never]: never };

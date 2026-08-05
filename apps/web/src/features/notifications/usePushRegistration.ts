@@ -1,0 +1,110 @@
+import { useAuth } from '@pingo/core';
+import { useEffect } from 'react';
+
+import { currentPlatform, isNative } from '../native/shell.js';
+import { getSupabaseClient } from '../../lib/supabase/client.js';
+
+/**
+ * Registers this device to receive push notifications.
+ *
+ * ## Permission is asked for late, and only once
+ *
+ * Not at launch. A notification prompt on first open is asking for something
+ * before the person knows what they would be agreeing to, and Android only
+ * gives you one refusal before the dialog stops appearing at all - spend it on
+ * a stranger and you have lost push for that install permanently. This runs
+ * once there is a session, which means somebody who has signed in and therefore
+ * has conversations that could notify them.
+ *
+ * `checkPermissions` comes first so a device that already granted or already
+ * refused is never asked again.
+ *
+ * ## The token belongs to the device, and devices change hands
+ *
+ * FCM reissues tokens on reinstall and hands the same one back to whoever signs
+ * in next on that handset. So registration is an upsert keyed on the token, not
+ * on the user: the row is *claimed*, and a previous owner's claim is replaced
+ * rather than left beside it. Without that, signing in as somebody else on a
+ * shared phone would deliver their messages to the previous account's tray.
+ *
+ * ## Nothing here runs in a browser yet
+ *
+ * Web push uses the same table and the same send path - an FCM token is an FCM
+ * token - but a browser needs a VAPID key from the Firebase project before it
+ * can be issued one. Until that exists this is a no-op off-native, rather than
+ * a half-registration that fails at send time.
+ */
+export function usePushRegistration(): void {
+  const { session } = useAuth();
+  const userId = session?.user.id;
+
+  useEffect(() => {
+    if (!userId || !isNative()) return;
+
+    let cancelled = false;
+    const listeners: { remove: () => void }[] = [];
+
+    void (async () => {
+      /*
+       * Imported here rather than at module scope.
+       *
+       * The web build has no push plugin implementation, and a top-level import
+       * would pull it into every bundle and run its registration side effects
+       * in a browser that cannot use them.
+       */
+      const { PushNotifications } = await import('@capacitor/push-notifications');
+
+      const current = await PushNotifications.checkPermissions();
+      let granted = current.receive === 'granted';
+
+      if (current.receive === 'prompt' || current.receive === 'prompt-with-rationale') {
+        const asked = await PushNotifications.requestPermissions();
+        granted = asked.receive === 'granted';
+      }
+
+      // 'denied' lands here and goes no further. Asking again is what makes an
+      // OS stop showing the dialog at all.
+      if (!granted || cancelled) return;
+
+      const registration = await PushNotifications.addListener(
+        'registration',
+        (token) => {
+          void getSupabaseClient()
+            .from('device_tokens')
+            .upsert(
+              {
+                token: token.value,
+                user_id: userId,
+                platform: currentPlatform(),
+                last_seen_at: new Date().toISOString(),
+              },
+              { onConflict: 'token' },
+            )
+            .then(undefined, () => undefined);
+        },
+      );
+      listeners.push(registration);
+
+      const failure = await PushNotifications.addListener(
+        'registrationError',
+        (error) => {
+          /*
+           * Console only, and deliberately. There is nothing the person holding
+           * the phone can do about a failed FCM handshake, and a message saying
+           * "notifications are broken" would be alarming about something that
+           * usually fixes itself on the next launch.
+           */
+          console.warn('[pingo/push] registration failed', error);
+        },
+      );
+      listeners.push(failure);
+
+      await PushNotifications.register();
+    })();
+
+    return () => {
+      cancelled = true;
+      for (const listener of listeners) listener.remove();
+    };
+  }, [userId]);
+}
