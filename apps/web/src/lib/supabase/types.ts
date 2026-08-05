@@ -736,6 +736,14 @@ export type Database = {
         Args: { target: string };
         Returns: { posts: number; friends: number; groups: number }[];
       };
+      /**
+       * Like totals for posts: real `post_likes` rows + `likes_display_seed`.
+       * Used so display seeds always show on profile posts.
+       */
+      post_like_display_counts: {
+        Args: { ids: string[] };
+        Returns: { post_id: string; like_count: number; liked_by_me: boolean }[];
+      };
       /** History between the caller and one other person. Never about two others. */
       shared_with: {
         Args: { other: string };
