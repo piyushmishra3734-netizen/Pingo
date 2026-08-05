@@ -1,5 +1,5 @@
 import type { Story, StoryGroup } from '@pingo/core';
-import { Avatar, CloseIcon, MoreIcon, PingoLoader, cn } from '@pingo/ui';
+import { Avatar, CloseIcon, MoreIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -570,16 +570,22 @@ function StoryImage({
         onError={done}
         className={cn(
           'absolute inset-0 size-full object-contain select-none',
-          'transition-opacity duration-base ease-standard',
-          ready ? 'opacity-100' : 'opacity-0',
+          'transition-[filter,transform] duration-slow ease-standard',
         )}
-      />
+        style={{
+          /*
+            Blurred, then sharp — never hidden behind a loader.
 
-      {!ready && (
-        <span className="absolute inset-0 grid place-items-center">
-          <PingoLoader label="Loading story" />
-        </span>
-      )}
+            The story used to sit at zero opacity with a spinner over it, so a
+            slow one was a black screen with a wheel on it. The picture is drawn
+            from the first frame the browser can paint anything at all and comes
+            into focus as it decodes. The slight overscale keeps the blur from
+            showing soft edges against the frame.
+          */
+          filter: ready ? 'blur(0px)' : 'blur(26px)',
+          transform: ready ? 'scale(1)' : 'scale(1.06)',
+        }}
+      />
     </>
   );
 }

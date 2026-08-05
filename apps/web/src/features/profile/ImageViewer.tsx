@@ -52,9 +52,20 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   /** Set only while a one-finger drag at natural size is in progress. */
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
-  /** Same product language as Avatar: brand arc, not a browser image flash. */
-  const [photoReady, setPhotoReady] = useState(false);
-  const [photoFailed, setPhotoFailed] = useState(false);
+  /**
+   * Which src has actually decoded.
+   *
+   * Derived from the src rather than reset by an effect, and that is the bug
+   * this replaces. An effect runs *after* paint, and a cached image fires
+   * `onLoad` before it — so opening a photo the page had already loaded set
+   * ready, the effect immediately unset it, and no second `onLoad` ever came.
+   * The spinner turned for ever over a picture that was sitting right there,
+   * which is exactly what holding a profile photo did.
+   */
+  const [loadedSrc, setLoadedSrc] = useState<string>();
+  const [failedSrc, setFailedSrc] = useState<string>();
+  const photoReady = loadedSrc === src;
+  const photoFailed = failedSrc === src;
 
   const pointers = useRef(new Map<number, Point>());
   const start = useRef<
@@ -68,11 +79,6 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    setPhotoReady(false);
-    setPhotoFailed(false);
-  }, [src]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -197,39 +203,18 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
           // The browser must not also pan, zoom or pull-to-refresh underneath.
           style={{ touchAction: 'none' }}
         >
-          {!photoReady && !photoFailed && (
-            <span
-              className="pointer-events-none absolute grid size-14 place-items-center"
-              aria-hidden
-            >
-              <svg
-                width={56}
-                height={56}
-                viewBox="0 0 56 56"
-                className="animate-spin"
-                style={{ animationDuration: '0.85s' }}
-              >
-                <circle
-                  cx="28"
-                  cy="28"
-                  r="24"
-                  fill="none"
-                  stroke="rgba(92, 108, 255, 0.22)"
-                  strokeWidth="3"
-                />
-                <circle
-                  cx="28"
-                  cy="28"
-                  r="24"
-                  fill="none"
-                  stroke="var(--color-brand, #5c6cff)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeDasharray={`${Math.PI * 48 * 0.28} ${Math.PI * 48}`}
-                />
-              </svg>
-            </span>
-          )}
+          {/*
+            No spinner. The picture arrives blurred and sharpens.
+
+            A spinner says "wait"; a blur says "here it is, nearly". The
+            second is true — the browser is decoding an image it already has
+            bytes for, and on a photo the page has cached that decode is
+            instant, so what somebody sees is a soft picture snapping into
+            focus rather than a wheel that appears and vanishes.
+
+            It is the same `src`, so there is nothing extra to download: the
+            blur is a filter on the real image, removed once it has loaded.
+          */}
 
           {photoFailed ? (
             <p className="px-8 text-center text-body text-white/55">
@@ -240,17 +225,37 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
               src={src}
               alt={alt}
               draggable={false}
-              onLoad={() => setPhotoReady(true)}
-              onError={() => setPhotoFailed(true)}
+              /*
+                Catches the image that was already in the cache.
+
+                `onLoad` does not fire for an image the browser had before this
+                element existed, and that is the common case here — the small
+                avatar is on the page already. Without this the picture would
+                stay blurred for ever.
+              */
+              ref={(node) => {
+                if (node?.complete && node.naturalWidth > 0) setLoadedSrc(src);
+              }}
+              onLoad={() => setLoadedSrc(src)}
+              onError={() => setFailedSrc(src)}
               className={cn(
                 'max-h-full max-w-full object-contain select-none',
                 // Only when the finger is up, so dragging tracks it exactly.
-                !dragging && 'transition-[transform,opacity] duration-base ease-standard',
-                photoReady ? 'opacity-100' : 'opacity-0',
+                !dragging && 'transition-[transform,opacity,filter] duration-slow ease-standard',
               )}
               style={{
-                transform: `translate3d(${offset.x}px, ${offset.y + dragY}px, 0) scale(${scale})`,
-                opacity: photoReady ? 1 - dragProgress * 0.35 : 0,
+                /*
+                  Blurred until it has decoded, then sharp. Never hidden.
+
+                  The old version held the picture at zero opacity behind a
+                  spinner, so a slow photo was a blank screen with a wheel on
+                  it. Blur shows the shape of what is coming from the first
+                  frame the browser can paint anything at all — and the slight
+                  overscale keeps the blur from showing soft edges.
+                */
+                transform: `translate3d(${offset.x}px, ${offset.y + dragY}px, 0) scale(${photoReady ? scale : scale * 1.06})`,
+                opacity: 1 - dragProgress * 0.35,
+                filter: photoReady ? 'blur(0px)' : 'blur(22px)',
               }}
             />
           )}

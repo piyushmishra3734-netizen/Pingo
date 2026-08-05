@@ -52,6 +52,8 @@ export function PingBubble({
     ping.gone ? 'gone' : 'closed',
   );
   const [saving, setSaving] = useState(false);
+  /** Whether the opened Ping has decoded, for the blur-up. */
+  const [pingReady, setPingReady] = useState(false);
   const objectUrl = useRef<string | undefined>(undefined);
 
   useEffect(() => {

@@ -134,6 +134,16 @@ export function ProfileAvatar({
         className={cn(
           // Soft face plate: ring reads as depth, not a sticker on the page.
           'focus-ring rounded-full shadow-sm',
+          /*
+            The ring was an oval, and this is why.
+
+            A `<button>` lays its content out inline, so the avatar inside it
+            sat on a text baseline with the line-height's descender space
+            underneath — a box a few pixels taller than it was wide. On a square
+            that is invisible; on `rounded-full` it is an egg. `inline-flex`
+            makes the child a block and the button exactly the size of the face.
+          */
+          'inline-flex',
           'transition-transform duration-quick ease-standard active:scale-[0.97]',
           /*
             Own profile: a little more air and emphasis without growing the face

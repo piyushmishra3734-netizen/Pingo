@@ -33,11 +33,23 @@
         The background colour is sampled from the artwork rather than picked,
         so whichever path a device takes, the colour underneath is the colour
         the image starts with.
+
+        ## Why the system splash shows nothing
+
+        On Android 12 and up there were *two* splash screens: the system one,
+        with the launcher icon in the middle of it, and then PINGO's own. The
+        first was never designed — it appeared because
+        `windowSplashScreenAnimatedIcon` pointed at the launcher foreground.
+
+        The system splash cannot be skipped, so it is made to disappear instead.
+        A transparent icon over the same colour the official artwork starts with
+        leaves one continuous field of lavender that resolves into the real
+        splash — one splash, as far as anybody looking at it can tell.
     -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/splashBackground</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_none</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>
