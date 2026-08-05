@@ -1,3 +1,6 @@
+import { OPEN_PRIVACY, useProfile, type PrivacySettings, type Profile } from '@pingo/core';
+import { useEffect, useState } from 'react';
+
 import {
   ChoiceRow,
   Group,
@@ -23,52 +26,89 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  */
 export function PrivacyScreen() {
   const { preferences, update } = usePreferences();
+  const { service: profiles } = useProfile();
   const p = preferences.privacy;
+
+  /*
+   * The server's copy is the truth, read once on open.
+   *
+   * Until it arrives the open defaults are shown — which is what the database
+   * assumes for an account that has never saved any — so the screen never
+   * claims a restriction that is not actually in force.
+   */
+  const [rules, setRules] = useState<PrivacySettings>(OPEN_PRIVACY);
+  const [blocked, setBlocked] = useState<Profile[]>();
+
+  useEffect(() => {
+    let active = true;
+    void profiles
+      .privacySettings()
+      .then((found) => {
+        if (active) setRules(found);
+      })
+      .catch(() => undefined);
+    void profiles
+      .listBlocked()
+      .then((people) => {
+        if (active) setBlocked(people);
+      })
+      .catch(() => {
+        if (active) setBlocked([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [profiles]);
+
+  const save = (changes: Partial<PrivacySettings>) => {
+    // Optimistic, then written. A switch that waits for a round trip before it
+    // moves feels broken on a slow connection.
+    setRules((current) => ({ ...current, ...changes }));
+    void profiles.updatePrivacySettings(changes).catch(() => undefined);
+  };
 
   return (
     <SettingsPage title="Privacy">
       <Group title="Who can reach me">
         <ChoiceRow
           label="Who can call me"
-          value={p.whoCanCall}
+          value={rules.whoCanCall}
           options={[
             { value: 'everyone', label: 'Everyone' },
             { value: 'friends', label: 'Friends' },
             { value: 'nobody', label: 'Nobody' },
           ]}
-          description="Not enforced yet — anyone who can reach you can still call."
-          onChange={(whoCanCall) => update('privacy', { whoCanCall })}
+          onChange={(whoCanCall) => save({ whoCanCall })}
         />
         <ChoiceRow
           label="Who can add me"
-          value={p.whoCanAdd}
+          value={rules.whoCanAdd}
           options={[
             { value: 'everyone', label: 'Everyone' },
             { value: 'friends-of-friends', label: 'Friends of friends' },
             { value: 'nobody', label: 'Nobody' },
           ]}
-          description="Not enforced yet — requests still arrive from anyone."
-          onChange={(whoCanAdd) => update('privacy', { whoCanAdd })}
+          onChange={(whoCanAdd) => save({ whoCanAdd })}
         />
         <ChoiceRow
           label="Profile Visibility"
-          value={p.profileVisibility}
+          value={rules.profileVisibility}
           options={[
             { value: 'everyone', label: 'Everyone' },
             { value: 'friends', label: 'Friends' },
             { value: 'nobody', label: 'Nobody' },
           ]}
-          description="Not enforced yet — your profile is visible to anyone signed in."
-          onChange={(profileVisibility) => update('privacy', { profileVisibility })}
+          description="People you already talk to always see your profile — hiding it from them would only blank out your own chat list."
+          onChange={(profileVisibility) => save({ profileVisibility })}
         />
       </Group>
 
       <Group title="What others see">
         <ToggleRow
           label="Online Status"
-          description="Not enforced yet — presence is still shared."
-          checked={p.onlineStatus}
-          onChange={(onlineStatus) => update('privacy', { onlineStatus })}
+          description="Whether people can see when you're active."
+          checked={rules.onlineStatus}
+          onChange={(onlineStatus) => save({ onlineStatus })}
         />
         <ToggleRow
           label="Read Receipts"
@@ -87,7 +127,32 @@ export function PrivacyScreen() {
       <Group
         note="Screenshot detection is not possible on the web, no browser reports it. This stays off until PINGO has a native app that can."
       >
-        <InfoRow label="Blocked Users" value="None" />
+        {/*
+          The real list. This said "None" as a literal string, so somebody who
+          had blocked three people was told they had blocked nobody — and had
+          nowhere to go to undo it.
+        */}
+        <InfoRow
+          label="Blocked Users"
+          value={
+            blocked === undefined
+              ? '…'
+              : blocked.length === 0
+                ? 'None'
+                : String(blocked.length)
+          }
+        />
+        {blocked?.map((person) => (
+          <InfoRow
+            key={person.id}
+            label={person.displayName}
+            value="Unblock"
+            onClick={() => {
+              setBlocked((list) => list?.filter((p) => p.id !== person.id));
+              void profiles.setBlocked(person.id, false).catch(() => undefined);
+            }}
+          />
+        ))}
       </Group>
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">

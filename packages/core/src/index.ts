@@ -47,6 +47,7 @@ export type {
   PostComment,
   ProfileStats,
   PublicJourney,
+  PrivacySettings,
   PublicJourneyDraft,
   SharedHistory,
   ChatMediaItem,
@@ -54,6 +55,7 @@ export type {
   ReportInput,
 } from './profile-service.js';
 export {
+  OPEN_PRIVACY,
   ProfileError,
   normaliseUsername,
   isValidUsername,

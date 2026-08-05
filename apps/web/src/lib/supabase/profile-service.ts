@@ -28,6 +28,8 @@ import {
   type ProfileDraft,
   type ProfileService,
   type ProfileStats,
+  OPEN_PRIVACY,
+  type PrivacySettings,
   type PublicJourney,
   type PublicJourneyDraft,
   type ReportInput,
@@ -531,6 +533,71 @@ export class SupabaseProfileService implements ProfileService {
       // Publishing is a nicety. A profile that shows nothing is better than a
       // screen that throws while somebody is reading their chats.
     }
+  }
+
+  /**
+   * Everyone this account has blocked.
+   *
+   * The Privacy screen said "None" as a hardcoded string, so somebody who had
+   * blocked three people was told they had blocked nobody — and had no way to
+   * unblock anyone. RLS already limits the rows to the caller's own.
+   */
+  async listBlocked(): Promise<Profile[]> {
+    const { data, error } = await this.client
+      .from('blocks')
+      .select('blocked_id, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error || !data?.length) return [];
+
+    const { data: rows } = await this.client
+      .from('profiles')
+      .select('*')
+      .in('id', data.map((row) => row.blocked_id));
+
+    /*
+     * Ordered by when they were blocked, not by the order the profiles came
+     * back in — the list reads as a history, and the newest is what somebody is
+     * looking for when they open it.
+     */
+    const byId = new Map((rows ?? []).map((row) => [row.id, toProfile(row)]));
+    return data.map((row) => byId.get(row.blocked_id)).filter((p): p is Profile => p !== undefined);
+  }
+
+  async privacySettings(): Promise<PrivacySettings> {
+    const userId = await this.requireUserId();
+    const { data } = await this.client
+      .from('privacy_settings')
+      .select('who_can_call, who_can_add, profile_visibility, online_status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // No row means open, which is what the database assumes too.
+    if (!data) return OPEN_PRIVACY;
+    return {
+      whoCanCall: data.who_can_call as PrivacySettings['whoCanCall'],
+      whoCanAdd: data.who_can_add as PrivacySettings['whoCanAdd'],
+      profileVisibility: data.profile_visibility as PrivacySettings['profileVisibility'],
+      onlineStatus: data.online_status,
+    };
+  }
+
+  async updatePrivacySettings(changes: Partial<PrivacySettings>): Promise<void> {
+    const userId = await this.requireUserId();
+    const current = await this.privacySettings();
+    const next = { ...current, ...changes };
+
+    const { error } = await this.client.from('privacy_settings').upsert(
+      {
+        user_id: userId,
+        who_can_call: next.whoCanCall,
+        who_can_add: next.whoCanAdd,
+        profile_visibility: next.profileVisibility,
+        online_status: next.onlineStatus,
+      },
+      { onConflict: 'user_id' },
+    );
+    if (error) rethrow(error);
   }
 
   async stats(userId: string): Promise<ProfileStats> {

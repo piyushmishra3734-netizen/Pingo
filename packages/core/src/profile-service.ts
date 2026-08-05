@@ -167,6 +167,21 @@ export interface PublicJourney {
 
 export type PublicJourneyDraft = Omit<PublicJourney, 'userId' | 'updatedAt'>;
 
+/** The four rules the database enforces. Defaults are open. */
+export interface PrivacySettings {
+  whoCanCall: 'everyone' | 'friends' | 'nobody';
+  whoCanAdd: 'everyone' | 'friends-of-friends' | 'nobody';
+  profileVisibility: 'everyone' | 'friends' | 'nobody';
+  onlineStatus: boolean;
+}
+
+export const OPEN_PRIVACY: PrivacySettings = {
+  whoCanCall: 'everyone',
+  whoCanAdd: 'everyone',
+  profileVisibility: 'everyone',
+  onlineStatus: true,
+};
+
 export interface ProfileService {
   /** The signed-in user's profile, or `null` if sign-up has not created it yet. */
   getMine(): Promise<Profile | null>;
@@ -341,6 +356,19 @@ export interface ProfileService {
   isBlocked(userId: string): Promise<boolean>;
 
   setBlocked(userId: string, blocked: boolean): Promise<void>;
+
+  /** Everyone this account has blocked, newest first. */
+  listBlocked(): Promise<Profile[]>;
+
+  /**
+   * The privacy rules, as the server holds them.
+   *
+   * On the server rather than the device because they are enforced there: a
+   * preference only this phone knows is a preference nothing can act on, which
+   * is what these four were.
+   */
+  privacySettings(): Promise<PrivacySettings>;
+  updatePrivacySettings(changes: Partial<PrivacySettings>): Promise<void>;
 
   /**
    * Files a report. Fire and forget by design - nothing in the product reads

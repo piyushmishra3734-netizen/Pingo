@@ -566,6 +566,37 @@ export type Database = {
         Relationships: [];
       };
       /**
+       * The four privacy rules, enforced by policy rather than by the client.
+       *
+       * Readable by everyone signed in, on purpose: a policy that refuses a
+       * call has to read the *callee's* preference. What is exposed is a rule,
+       * not a fact about them.
+       */
+      privacy_settings: {
+        Row: {
+          user_id: string;
+          who_can_call: string;
+          who_can_add: string;
+          profile_visibility: string;
+          online_status: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          who_can_call?: string;
+          who_can_add?: string;
+          profile_visibility?: string;
+          online_status?: boolean;
+        };
+        Update: {
+          who_can_call?: string;
+          who_can_add?: string;
+          profile_visibility?: string;
+          online_status?: boolean;
+        };
+        Relationships: [];
+      };
+      /**
        * The public half of Journey — level and badges, published by the owner.
        *
        * No moments and no metrics, by design: see the migration and
