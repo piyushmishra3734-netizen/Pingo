@@ -127,14 +127,16 @@ export async function beginEnrolment(
    * screen on. The mechanism below is unchanged — same KDF, same package, same
    * rotation — only where the secret comes from.
    *
-   * Absent still generates a code, because onboarding has a path that has not
-   * been rewritten yet and a half-enrolled account is worse than a code.
+   * Required. Every caller now asks the user first — Settings and onboarding
+   * both go through the same picker — so the generated-code fallback that used
+   * to live here has gone with them. An enrolment nobody chose a secret for is
+   * an enrolment nobody can use.
    */
-  secret?: string,
+  secret: string,
   store: StateStore = sealedStateStore,
 ): Promise<PendingEnrolment> {
   const previous = await readState(store);
-  const code = secret ?? generateRecoveryCode();
+  const code = secret;
   const created = await createRecoveryKey(code, (previous?.version ?? 0) + 1);
 
   return {

@@ -1,3 +1,4 @@
+import { useProfile } from '@pingo/core';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -30,6 +31,17 @@ export function BackupScreen() {
 
   const done = () => navigate('/setup/people', { replace: true });
 
+  /*
+   * The passkey prompt shows a name, and at this point in setup the profile
+   * already exists — the handle was chosen two steps ago. Without it the
+   * passkey option would appear and then fail on tap, so it is passed here
+   * rather than left to be discovered.
+   */
+  const { profile } = useProfile();
+  const account = profile
+    ? { userId: profile.id, userName: profile.username, displayName: profile.displayName }
+    : undefined;
+
   return (
     <AuthScreen
       progress={SETUP_PROGRESS.backup}
@@ -41,7 +53,13 @@ export function BackupScreen() {
         EnrolmentFlow, shared with Settings. Two copies would eventually
         disagree about the one sentence that must not change.
       */}
-      <EnrolmentFlow targets={targets} onDone={done} onCancel={done} cancelLabel="Not now" />
+      <EnrolmentFlow
+        targets={targets}
+        {...(account ? { account } : {})}
+        onDone={done}
+        onCancel={done}
+        cancelLabel="Not now"
+      />
     </AuthScreen>
   );
 }

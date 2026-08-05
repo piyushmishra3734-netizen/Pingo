@@ -144,7 +144,7 @@ export function BackupLockPicker({
         measurement has not come back yet, and showing a button that might
         vanish is worse than a moment with one option.
       */}
-      {passkeyReady ? (
+      {passkeyReady && (purpose === 'unlock' || account) ? (
         <button
           type="button"
           disabled={busy}
@@ -160,7 +160,7 @@ export function BackupLockPicker({
         </button>
       ) : null}
 
-      {passkeyReady ? (
+      {passkeyReady && (purpose === 'unlock' || account) ? (
         <p className="text-caption text-text-tertiary">
           {purpose === 'unlock' ? 'Or enter what you set:' : 'Or set something you type:'}
         </p>
