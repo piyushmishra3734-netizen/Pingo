@@ -13,6 +13,7 @@
 import {
   changeLock,
   createLock,
+  lockExistingKey,
   openLock,
   passcodeStrength,
   LockError,
@@ -206,6 +207,43 @@ console.log('\n— the lock carries what a backup needs —');
   check(
     changed.publicKey === lock.publicKey,
     'changing the secret leaves it alone, so archives keep the address they were sealed to',
+  );
+}
+
+console.log('\n— locking a key that already has archives —');
+
+{
+  /*
+   * The bug this exists to stop. Adding a lock to an account that has been
+   * backing up must protect the key those archives were sealed to; minting a
+   * new one leaves every chunk unopenable — which is exactly what "backup part
+   * 0 could not be opened" means, and exactly what was reported.
+   */
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+    'deriveBits',
+    'deriveKey',
+  ]);
+  const before = await agree(pair.privateKey);
+  const publicKey = 'the-spki-those-archives-name';
+
+  const lock = await lockExistingKey({
+    privateKeyPkcs8: new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey)),
+    publicKey,
+    method: 'passcode',
+    secret: 'the passcode they chose',
+    passcodeKind: 'password',
+  });
+
+  check(
+    (await agree(await openLock(lock, 'the passcode they chose'))) === before,
+    'the key that comes back is the key the archives already use',
+  );
+  check(lock.publicKey === publicKey, 'and the public half is left exactly as the archives name it');
+
+  const fresh = await createLock({ method: 'passcode', secret: 'x', passcodeKind: 'password' });
+  check(
+    (await agree(await openLock(fresh.lock, 'x'))) !== before,
+    'while a lock created from scratch is a different key — which is why these are two calls',
   );
 }
 

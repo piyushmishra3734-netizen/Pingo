@@ -435,7 +435,7 @@ export function SecureBackupScreen() {
   const applyLock = async (choice: SecretChoice) => {
     setError(undefined);
     const drivePkg = driveTarget.client;
-    const [{ createLock, changeLock }, keyMod] = await Promise.all([
+    const [{ createLock, changeLock, lockExistingKey }, keyMod] = await Promise.all([
       import('../../lib/backup/passkey-lock.js'),
       import('../../lib/backup/archive-key.js'),
     ]);
@@ -464,26 +464,42 @@ export function SecureBackupScreen() {
       }
 
       /*
-       * An account with a plaintext key keeps it: the archives point at that
-       * pair. Only a brand-new account gets a fresh one.
+       * An account that has already backed up keeps its key.
+       *
+       * This is the whole correctness of adding a lock later: the archives on
+       * Drive are sealed to the existing pair, so the lock has to protect *that*
+       * pair. Minting a new one here orphaned every archive — reported as
+       * "backup part 0 could not be opened", which is exactly what a chunk
+       * looks like when the key is wrong.
        */
-      const existing = await keyMod
-        .loadArchiveKey(drivePkg)
-        .catch(() => undefined);
+      const existing = await keyMod.loadArchiveKey(drivePkg).catch(() => undefined);
 
-      const made = await createLock({
-        method: choice.method,
-        secret: choice.secret,
-        ...(choice.passcodeKind ? { passcodeKind: choice.passcodeKind } : {}),
-        ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
-      });
+      const lockToWrite = existing
+        ? await lockExistingKey({
+            privateKeyPkcs8: new Uint8Array(
+              await crypto.subtle.exportKey('pkcs8', existing.privateKey),
+            ),
+            publicKey: existing.publicKey,
+            method: choice.method,
+            secret: choice.secret,
+            ...(choice.passcodeKind ? { passcodeKind: choice.passcodeKind } : {}),
+            ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
+          })
+        : (
+            await createLock({
+              method: choice.method,
+              secret: choice.secret,
+              ...(choice.passcodeKind ? { passcodeKind: choice.passcodeKind } : {}),
+              ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
+            })
+          ).lock;
 
-      await keyMod.writeArchiveLock(drivePkg, made.lock);
+      await keyMod.writeArchiveLock(drivePkg, lockToWrite);
       unlockedWith.current = choice.secret;
       setLockStep(undefined);
       setError(
         existing
-          ? 'Backup lock set. Your next backup uses it; the archives you already have still open.'
+          ? 'Backup lock set. The backups you already have still open — the same key, now protected.'
           : 'Backup lock set. Your next backup will be sealed to it.',
       );
     } catch (cause) {

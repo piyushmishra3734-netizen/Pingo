@@ -223,6 +223,52 @@ export async function createLock(input: {
 }
 
 /**
+ * Seals a key pair that already exists.
+ *
+ * This is the one that matters when a lock is added to an account that has
+ * already been backing up. `createLock` mints a *new* pair, and locking with
+ * a new pair orphans every archive on Drive — they were sealed to the old one,
+ * and the first chunk simply will not open. That is not a theory: it was
+ * reported as "backup part 0 could not be opened" within an hour of the lock
+ * shipping.
+ *
+ * So: same key, new protection. Nothing is re-uploaded and nothing stops
+ * opening.
+ */
+export async function lockExistingKey(input: {
+  /** PKCS8 bytes of the key the archives are already sealed to. */
+  privateKeyPkcs8: Uint8Array;
+  /** SPKI, base64 — its public half, unchanged. */
+  publicKey: string;
+  method: LockMethod;
+  secret: string | Uint8Array;
+  passcodeKind?: PasscodeKind;
+  credentialId?: string;
+  version?: number;
+}): Promise<Lock> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await wrappingKey(input.method, input.secret, salt);
+  const sealed = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv as BufferSource },
+    key,
+    input.privateKeyPkcs8 as BufferSource,
+  );
+
+  return {
+    method: input.method,
+    ...(input.passcodeKind ? { passcodeKind: input.passcodeKind } : {}),
+    kdf: input.method === 'passcode' ? PASSCODE_KDF : PASSKEY_KDF,
+    salt: toBase64(salt),
+    iv: toBase64(iv),
+    sealed: toBase64(new Uint8Array(sealed)),
+    publicKey: input.publicKey,
+    ...(input.credentialId ? { credentialId: input.credentialId } : {}),
+    version: input.version ?? 1,
+  };
+}
+
+/**
  * Opens a lock, or refuses.
  *
  * `seenVersion` is the rollback defence: a version this device has already
