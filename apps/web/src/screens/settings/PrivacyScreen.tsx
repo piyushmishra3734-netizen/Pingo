@@ -36,6 +36,7 @@ export function PrivacyScreen() {
             { value: 'friends', label: 'Friends' },
             { value: 'nobody', label: 'Nobody' },
           ]}
+          description="Not enforced yet — anyone who can reach you can still call."
           onChange={(whoCanCall) => update('privacy', { whoCanCall })}
         />
         <ChoiceRow
@@ -46,6 +47,7 @@ export function PrivacyScreen() {
             { value: 'friends-of-friends', label: 'Friends of friends' },
             { value: 'nobody', label: 'Nobody' },
           ]}
+          description="Not enforced yet — requests still arrive from anyone."
           onChange={(whoCanAdd) => update('privacy', { whoCanAdd })}
         />
         <ChoiceRow
@@ -56,6 +58,7 @@ export function PrivacyScreen() {
             { value: 'friends', label: 'Friends' },
             { value: 'nobody', label: 'Nobody' },
           ]}
+          description="Not enforced yet — your profile is visible to anyone signed in."
           onChange={(profileVisibility) => update('privacy', { profileVisibility })}
         />
       </Group>
@@ -63,7 +66,7 @@ export function PrivacyScreen() {
       <Group title="What others see">
         <ToggleRow
           label="Online Status"
-          description="Whether people can see when you're active."
+          description="Not enforced yet — presence is still shared."
           checked={p.onlineStatus}
           onChange={(onlineStatus) => update('privacy', { onlineStatus })}
         />
