@@ -41,6 +41,35 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:896975933762:android:2db1742ee955852fc6b8db",
+        "android_client_info": {
+          "package_name": "chat.pingo.app.debug"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "896975933762-80sgvcmhs2nobs0ejt7g3klgrpqjjg2g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdckxT9RUFxj1kiSVhC8bzQCrBj1d4GD8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "896975933762-80sgvcmhs2nobs0ejt7g3klgrpqjjg2g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"
