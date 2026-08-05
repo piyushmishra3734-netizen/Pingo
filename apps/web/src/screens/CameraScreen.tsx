@@ -228,6 +228,13 @@ export function CameraScreen() {
        * `busy` used to stay true forever after a successful send - `reset()`
        * never cleared it - so the next Ping or story attempt silently no-oped.
        */
+      /*
+        Settings → Camera & Pings → Save Pings, which nothing read either.
+        Saved only after the send succeeds: a copy of a picture that never went
+        anywhere is clutter, and the switch says "keep a copy of what you post".
+      */
+      if (preferences.camera.saveSnaps) saveToGallery();
+
       setSentCount(recipients.size);
       await new Promise((resolve) => window.setTimeout(resolve, 900));
       setSentCount(0);
@@ -260,6 +267,8 @@ export function CameraScreen() {
       // Friends is the default audience; the creator's own audience step is
       // where a different one is chosen.
       await stories.post({ media: shot.blob, kind: 'photo', audience: 'friends' });
+      // A story is something you posted too.
+      if (preferences.camera.saveSnaps) saveToGallery();
       await refresh();
       navigate('/chats', { replace: true });
     } catch (cause) {
