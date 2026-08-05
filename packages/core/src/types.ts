@@ -439,7 +439,20 @@ export type CallDirection = 'incoming' | 'outgoing';
  * means it never got as far as ringing. A caller can tell the difference by ear,
  * so the log should not pretend they are the same thing.
  */
-export type CallOutcome = 'answered' | 'missed' | 'declined' | 'unreachable';
+/**
+ * `cancelled` is you changing your mind; `unreachable` is the network failing.
+ *
+ * They were one value, and every call the caller hung up before it was answered
+ * was logged as `unreachable` and shown as "Not connected" - which reads as a
+ * problem with the product on a call that worked exactly as asked. Old rows keep
+ * the old word, because what actually happened on them is no longer recoverable.
+ */
+export type CallOutcome =
+  | 'answered'
+  | 'missed'
+  | 'declined'
+  | 'cancelled'
+  | 'unreachable';
 
 export interface CallRecord {
   id: string;

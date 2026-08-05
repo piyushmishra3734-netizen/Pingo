@@ -9,6 +9,7 @@ import { SnapEditor } from '../features/camera/SnapEditor.js';
 import { useCamera } from '../features/camera/useCamera.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
+import { usePreferences } from '../features/settings/SettingsContext.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
 /** Opened from a chat attach menu with this thread already chosen. */
@@ -49,6 +50,7 @@ export function CameraScreen() {
   const location = useLocation();
   const { service: chat } = useChat();
   const { service: stories, refresh } = useStories();
+  const { preferences } = usePreferences();
 
   /*
    * When the attach menu opens the camera from a thread, that conversation is
@@ -85,7 +87,12 @@ export function CameraScreen() {
 
   // Nothing is opened until the gate is passed, so arriving here by a mis-tap
   // never triggers the permission prompt.
-  const camera = useCamera(chain, stage !== 'gate');
+  const camera = useCamera(
+    chain,
+    stage !== 'gate',
+    // Settings → Camera & Pings → Default Camera. 'front' is the selfie lens.
+    preferences.camera.defaultCamera === 'back' ? 'environment' : 'user',
+  );
 
   useEffect(() => {
     if (!shot) return;
@@ -350,7 +357,11 @@ export function CameraScreen() {
           )}
         </div>
 
-        <FilterRail selected={filterId} onSelect={(id) => void chooseFilter(id)} />
+        <FilterRail
+          selected={filterId}
+          onSelect={(id) => void chooseFilter(id)}
+          enabled={preferences.camera.filters}
+        />
 
         <div className="flex shrink-0 gap-3 px-6 pt-1 pb-[max(2rem,env(safe-area-inset-bottom))]">
           <button
@@ -516,7 +527,14 @@ export function CameraScreen() {
           ref={camera.canvasRef}
           className={cn(
             'absolute inset-0 size-full object-cover',
-            camera.facing === 'user' && '-scale-x-100',
+            /*
+              Mirrored on the front lens, unless Settings says otherwise.
+              That switch was read by nothing, so turning it off changed the
+              preview not at all - and the settings page claimed it took effect
+              immediately. Rear-facing is never mirrored either way: there is
+              nothing to mirror, you are looking outward.
+            */
+            camera.facing === 'user' && preferences.camera.mirror && '-scale-x-100',
             !ready && 'opacity-0',
           )}
         />
@@ -623,7 +641,12 @@ export function CameraScreen() {
         without a stream, but the filter itself still applies to the still - so
         hiding the rail here would hide a feature that works.
       */}
-      <FilterRail selected={filterId} onSelect={setFilterId} disabled={!ready} />
+      <FilterRail
+        selected={filterId}
+        onSelect={setFilterId}
+        disabled={!ready}
+        enabled={preferences.camera.filters}
+      />
 
       <div className="shrink-0 px-6 pt-1 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-center gap-8">
@@ -676,15 +699,28 @@ export function CameraScreen() {
   );
 }
 
+/**
+ * The looks, along the bottom.
+ *
+ * Hidden entirely when Settings → Camera & Pings → Filters is off. That switch
+ * existed and was read by nothing: the page said filters "need image processing
+ * that is not built yet" while the filter rail sat in the camera working
+ * perfectly. The processing was built; the switch was simply never connected to
+ * it, which is a worse kind of missing than a feature that is honestly absent.
+ */
 function FilterRail({
   selected,
   onSelect,
   disabled,
+  enabled = true,
 }: {
   selected: string;
   onSelect: (id: string) => void;
   disabled?: boolean;
+  enabled?: boolean;
 }) {
+  if (!enabled) return null;
+
   return (
     <div className="shrink-0 overflow-x-auto px-4 py-3">
       <div className="flex gap-2">

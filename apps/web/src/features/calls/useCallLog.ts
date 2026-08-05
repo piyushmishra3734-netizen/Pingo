@@ -30,7 +30,10 @@ const OUTCOME: Record<string, CallOutcome> = {
   // picked up" and gets a different word.
   busy: 'unreachable',
   failed: 'unreachable',
-  cancelled: 'unreachable',
+  // You hung up before they picked up. Nothing failed - filing this under
+  // "unreachable" told people the network broke on a call that did what they
+  // asked it to.
+  cancelled: 'cancelled',
 };
 
 export function useCallLog(call: Call | undefined): void {

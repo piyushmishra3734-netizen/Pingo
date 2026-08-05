@@ -114,9 +114,11 @@ export function CallsScreen() {
                           ? 'Missed'
                           : call.outcome === 'declined'
                             ? 'Declined'
-                            : call.outcome === 'unreachable'
-                              ? 'Not connected'
-                              : formatDuration(call.duration)}
+                            : call.outcome === 'cancelled'
+                              ? 'Cancelled'
+                              : call.outcome === 'unreachable'
+                                ? 'Not connected'
+                                : formatDuration(call.duration)}
                       </span>
                       <span className="text-text-tertiary">·</span>
                       <span className="text-text-tertiary">

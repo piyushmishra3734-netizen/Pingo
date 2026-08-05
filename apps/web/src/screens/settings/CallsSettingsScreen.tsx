@@ -120,9 +120,18 @@ export function CallsSettingsScreen() {
         )}
       </Group>
 
+      {/*
+        This used to read "Calling is not built yet, so these are saved and wait
+        for it." Calling has been built for a while: there is a call service, a
+        TURN endpoint, an overlay and a history screen, and `CallProvider` reads
+        every switch above and passes it into `getUserMedia`. The note was left
+        behind by the feature it described, and telling somebody their settings
+        do nothing - about settings that do something - is worse than saying
+        nothing at all.
+      */}
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        Calling is not built yet, so these are saved and wait for it. The microphone test is
-        live and uses your real microphone.
+        These apply to your next call. The microphone test uses your real microphone and does
+        not call anyone.
       </p>
     </SettingsPage>
   );

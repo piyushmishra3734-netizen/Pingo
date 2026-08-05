@@ -229,11 +229,13 @@ export function CallBubble({
         `Duration ${formatDuration(call.durationSeconds)}`
       : call.outcome === 'declined'
         ? 'Declined'
-        : call.outcome === 'unreachable'
-          ? 'Not reachable'
-          : outgoing
-            ? 'No answer'
-            : 'Missed';
+        : call.outcome === 'cancelled'
+          ? 'Cancelled'
+          : call.outcome === 'unreachable'
+            ? 'Not reachable'
+            : outgoing
+              ? 'No answer'
+              : 'Missed';
 
   return (
     <div

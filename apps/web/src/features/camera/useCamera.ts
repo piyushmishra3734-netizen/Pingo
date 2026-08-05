@@ -63,7 +63,18 @@ export interface UseCamera {
  * waits for a deliberate action rather than firing the moment a route
  * renders. A user who arrived by tapping the wrong tab never sees it.
  */
-export function useCamera(chain: FilterInstance[], enabled = true): UseCamera {
+export function useCamera(
+  chain: FilterInstance[],
+  enabled = true,
+  /**
+   * Which lens opens first. Settings → Camera & Pings → Default Camera.
+   *
+   * Was hardcoded to `'user'`, and the setting that claims to choose it was
+   * read by nothing - so anybody who set it to Back still got the front camera
+   * every single time, and the settings page told them it took effect now.
+   */
+  preferred: 'user' | 'environment' = 'user',
+): UseCamera {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement | undefined>(undefined);
   const pipelineRef = useRef<GLPipeline | undefined>(undefined);
@@ -82,7 +93,7 @@ export function useCamera(chain: FilterInstance[], enabled = true): UseCamera {
   chainRef.current = chain;
 
   const [status, setStatus] = useState<CameraStatus>('starting');
-  const [facing, setFacing] = useState<'user' | 'environment'>('user');
+  const [facing, setFacing] = useState<'user' | 'environment'>(preferred);
   const [capabilities, setCapabilities] = useState<CameraCapabilities>({
     torch: false,
     focusPoint: false,
@@ -132,7 +143,7 @@ export function useCamera(chain: FilterInstance[], enabled = true): UseCamera {
 
     void (async () => {
       try {
-        await open('user');
+        await open(preferred);
         if (cancelled) return;
 
         setStatus('ready');

@@ -43,22 +43,21 @@ export function CameraSettingsScreen() {
         />
       </Group>
 
-      <Group title="Processing" note="These need image processing that is not built yet.">
+      {/*
+        Beauty and HDR are gone from this screen rather than left switched off.
+        The group's note claimed all three "need image processing that is not
+        built yet", which was wrong about Filters - the camera has had a working
+        filter rail the whole time, and this switch was simply never wired to
+        it. It is now. Beauty and HDR really are absent, and a switch for an
+        absent feature is worse than no switch: it is a promise the product does
+        not keep, and it comes back the day the processing exists.
+      */}
+      <Group title="Processing">
         <ToggleRow
           label="Filters"
+          description="Show the filter picker in the camera."
           checked={c.filters}
           onChange={(filters) => update('camera', { filters })}
-        />
-        <ToggleRow
-          label="Beauty"
-          description="Smooths skin. Off by default, and it stays that way unless you ask."
-          checked={c.beauty}
-          onChange={(beauty) => update('camera', { beauty })}
-        />
-        <ToggleRow
-          label="HDR"
-          checked={c.hdr}
-          onChange={(hdr) => update('camera', { hdr })}
         />
       </Group>
 
@@ -82,8 +81,8 @@ export function CameraSettingsScreen() {
       </Group>
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        Default Camera and Mirror take effect now. The rest are saved and start working when
-        filters and upload transcoding are built.
+        Everything here takes effect now except Upload Quality, which is saved and starts
+        working when transcoding is built.
       </p>
     </SettingsPage>
   );
