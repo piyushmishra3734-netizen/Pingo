@@ -511,7 +511,18 @@ export class SupabaseAuthService implements AuthService {
   }
 
   async signOut(): Promise<void> {
-    const { error } = await this.client.auth.signOut();
+    /*
+     * This browser only.
+     *
+     * Supabase defaults `signOut` to `scope: 'global'`, which revokes every
+     * refresh token the account has anywhere — so logging out of Edge signed
+     * the same person out of Chrome, their phone, and any tab they had left
+     * open. Nobody means that by "log out"; they mean "not on this machine".
+     *
+     * The device identity stays either way (see below), so signing back in on
+     * any of those devices keeps its history.
+     */
+    const { error } = await this.client.auth.signOut({ scope: 'local' });
     if (error) rethrow(error);
 
     /*

@@ -176,6 +176,14 @@ export interface AuthService {
    */
   onSessionChange(listener: (session: AuthSession | null) => void): Unsubscribe;
 
+  /**
+   * Ends the session **on this device only**.
+   *
+   * Not everywhere. Logging out of one browser used to revoke every token the
+   * account had, so leaving PINGO on a library computer signed the same person
+   * out of their phone — which is not what anybody means by "log out", and is
+   * indistinguishable from being kicked out.
+   */
   signOut(): Promise<void>;
   /**
    * Erases everything this device holds - cached chats, the outbox, and the
