@@ -1,144 +1,106 @@
 /**
- * Somebody else's Journey, on their profile.
+ * The badges somebody has earned, on their profile.
  *
- * ## Only what they earned
+ * ## A row, not a section
  *
- * Not the locked ones. A profile is somebody's own page, and a grid of
- * twenty-two dim badges is a list of things they have not done, shown to
- * whoever opens it. Their own Journey screen is the place for the whole library
- * — there the locked ones are somewhere to go, because they are *theirs* to go
- * to. Here they would only be a measure of how far short of the set this person
- * is.
+ * This was a titled card — a "Journey" heading, a level, a line of copy about
+ * what was or was not shared. On a profile that is a box announcing itself, and
+ * a profile is already a column of boxes. What is left is the only thing that
+ * was ever worth showing: the badges, and how many there are.
  *
- * What that costs is the sense of scale: six badges do not say what six means.
- * That is the trade, and it is the right way round — a profile should show what
- * somebody has done rather than the size of what they have not.
+ * No heading, no level, no sentence. If somebody has earned nothing, or has
+ * never published, nothing is drawn at all — an empty row is quieter than a box
+ * explaining why it is empty.
  *
- * ## Nothing is guessed
+ * ## Five, then the collection
  *
- * Journey is counted on its owner's device, so a profile knows nothing at all
- * about somebody who has not opened the app since this shipped. That case is
- * *named* rather than hidden — hiding the section made the feature look broken
- * — and it is never filled in with a level of one or a count of zero, because
- * neither is known to be true.
+ * Five is what fits without the profile turning into a trophy shelf, and it is
+ * enough to see what kind of person's page this is. "Collection" opens the whole
+ * library for anybody curious about what there is to earn — going to look is a
+ * different act from being shown a list of what somebody has not done.
  *
  * ## Only the public half
  *
- * docs/journey-philosophy.md § 5 splits Journey in two, and this shows one
- * side: the level, and the badges. Missions, Pulse, statistics, memories and
- * anything about who they talk to are not here and have no column in the table
- * this reads — a visible to-do list is a visible failure list, and Pulse names
- * other people.
- *
- * ## Nothing here can be compared with your own
- *
- * No progress bars — the viewer does not know how far along somebody else is
- * and must not. No rank, no side-by-side. The reaction being designed for is
- * "they have really been here", not "I am winning".
+ * docs/journey-philosophy.md § 5: badges are public, and missions, Pulse,
+ * statistics and memories are not. None of them have a column in the table this
+ * reads. No progress bars either — how far along somebody else is is theirs.
  */
-import { Card, cn } from '@pingo/ui';
+import { cn } from '@pingo/ui';
 import { useState } from 'react';
 
 import { Badge } from '../badges/Badge.js';
 import { BADGES } from '../badges/registry.js';
 
-/** Two rows of six, earned only. The rest is behind "Collection". */
-const COLLAPSED = 12;
+/** Enough to show who this is, not enough to become a shelf. */
+const SHOWN = 5;
 
 export function ProfileJourney({
-  level,
   badgeIds,
-  name,
   className,
 }: {
   /** Undefined when they have never published. */
-  level?: number;
   badgeIds?: readonly string[];
-  /** First name, for the line about them. */
-  name: string;
   className?: string;
 }) {
-  /** The whole library, only when asked for. Earned is what a profile shows. */
+  /** The whole library, only when asked for. */
   const [collection, setCollection] = useState(false);
-  const published = level !== undefined;
   const earned = new Set(badgeIds ?? []);
 
   /*
-   * In sheet order rather than in the order they were earned. The library has
-   * an order that means something — messaging, the two times of day, calls,
-   * camera, stories, people — and a handful of badges shown in that order still
-   * reads as part of the set.
+   * Sheet order rather than the order they were earned: the library has an
+   * order that means something, and a handful shown in it still reads as part
+   * of the set.
    */
   const theirs = BADGES.filter((badge) => earned.has(badge.id));
-  const visible = collection ? BADGES : theirs.slice(0, COLLAPSED);
+
+  // Nothing earned, or nothing published. Draw nothing rather than a box
+  // explaining itself.
+  if (theirs.length === 0) return null;
+
+  const visible = collection ? BADGES : theirs.slice(0, SHOWN);
 
   return (
     <section className={cn('px-4', className)}>
-      <Card elevation="flat" className="p-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="text-body font-medium">Journey</h3>
-          {published ? <p className="text-caption text-text-tertiary">Level {level}</p> : null}
-        </div>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-caption text-text-tertiary">
+          {theirs.length === 1 ? '1 badge earned' : `${theirs.length} badges earned`}
+        </p>
 
-        {!published ? (
-          <p className="pt-2 text-caption text-text-secondary">
-            {name} hasn’t shared their Journey yet.
-          </p>
-        ) : theirs.length === 0 ? (
-          <p className="pt-2 text-caption text-text-secondary">
-            {name} is just getting started here.
-          </p>
-        ) : (
-          <>
-            <ul className="grid grid-cols-6 gap-x-2 gap-y-4 pt-4">
-              {visible.map((badge) => {
-                const unlocked = earned.has(badge.id);
-                return (
-                  <li key={badge.id}>
-                    <div className="flex flex-col items-center gap-1.5 text-center">
-                      <Badge badge={badge} unlocked={unlocked} size={40} />
-                      <span
-                        className={cn(
-                          'line-clamp-2 text-[10px] leading-tight',
-                          unlocked ? 'text-text-secondary' : 'text-text-tertiary/70',
-                        )}
-                      >
-                        {badge.title}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+        <button
+          type="button"
+          onClick={() => setCollection((open) => !open)}
+          className="focus-ring rounded-md text-caption text-text-secondary underline underline-offset-2"
+        >
+          {collection ? 'Earned only' : 'Collection'}
+        </button>
+      </div>
 
-            <div className="flex items-baseline justify-between gap-3 pt-4">
-              {/*
-                What they have, never what they are missing. "6 of 28" would
-                turn somebody's profile into a completion score.
-              */}
-              <p className="text-caption text-text-tertiary">
-                {theirs.length === 1 ? '1 badge earned' : `${theirs.length} badges earned`}
-              </p>
-
-              {/*
-                The collection, on request.
-
-                A profile shows what somebody earned. The rest of the library is
-                a thing you can go and look at if you want to know what there is
-                — which is a different act from being shown a list of what they
-                have not done.
-              */}
-              <button
-                type="button"
-                onClick={() => setCollection((open) => !open)}
-                className="focus-ring rounded-md text-caption text-text-secondary underline underline-offset-2"
-              >
-                {collection ? 'Earned only' : 'Collection'}
-              </button>
-            </div>
-          </>
+      <ul
+        className={cn(
+          'gap-x-2 gap-y-4 pt-3',
+          // Five in a row while it is a summary; the full library needs a grid.
+          collection ? 'grid grid-cols-6' : 'flex',
         )}
-      </Card>
+      >
+        {visible.map((badge) => {
+          const unlocked = earned.has(badge.id);
+          return (
+            <li key={badge.id} className={collection ? undefined : 'shrink-0'}>
+              <div className="flex w-14 flex-col items-center gap-1.5 text-center">
+                <Badge badge={badge} unlocked={unlocked} size={40} />
+                <span
+                  className={cn(
+                    'line-clamp-2 text-[10px] leading-tight',
+                    unlocked ? 'text-text-secondary' : 'text-text-tertiary/70',
+                  )}
+                >
+                  {badge.title}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

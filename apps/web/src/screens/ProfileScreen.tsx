@@ -663,8 +663,7 @@ export function ProfileScreen() {
         */}
         {!isSelf ? (
           <ProfileJourney
-            {...(journey ? { level: journey.level, badgeIds: journey.badgeIds } : {})}
-            name={person.displayName.split(' ')[0] ?? person.displayName}
+            {...(journey ? { badgeIds: journey.badgeIds } : {})}
             className="mt-6"
           />
         ) : null}
