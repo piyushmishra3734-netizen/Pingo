@@ -61,6 +61,23 @@ export function SecureBackupScreen() {
   const [lockStep, setLockStep] = useState<'set' | 'change' | 'unlock' | undefined>();
 
   /**
+   * The gap between the tap and the first sign of life.
+   *
+   * Backup and restore both do a surprising amount before the controller
+   * publishes a phase: dynamic imports, a token check, a Drive lookup. On a
+   * phone that is a second or two of a button that looks like it was not
+   * pressed, and the second tap is somebody's instinct. This is set
+   * synchronously in the handler so the label changes on the same frame as the
+   * touch, and the controller's own phases take over once they arrive.
+   */
+  const [starting, setStarting] = useState<'backup' | 'restore' | undefined>();
+
+  const runDrive = (kind: 'backup' | 'restore', work: () => Promise<void>) => {
+    setStarting(kind);
+    void work().finally(() => setStarting(undefined));
+  };
+
+  /**
    * The secret, for as long as this screen is open and no longer.
    *
    * A ref rather than state: it must not survive a re-render into a snapshot,
@@ -202,6 +219,26 @@ export function SecureBackupScreen() {
      * shape you want, and the opposite of a system that asks for a password to
      * save a file.
      */
+    /*
+     * Whose backup this is, written down before anything is uploaded.
+     *
+     * A Google account holding somebody else's PINGO backup is refused here
+     * rather than at restore, because the moment to find out is before two
+     * accounts' archives share a folder.
+     */
+    const { claimOwner, OwnerMismatchError } = await import('../../lib/backup/drive-owner.js');
+    try {
+      await claimOwner(driveTarget.client, userId);
+    } catch (cause) {
+      await driveCtl.reportBlocked(
+        cause instanceof OwnerMismatchError
+          ? 'This Google account already holds a backup for a different PINGO account.'
+          : 'Backup stopped: PINGO could not confirm this Google account.',
+        'Nothing was uploaded. Use a different Google account, or remove the connection and connect the right one.',
+      );
+      return;
+    }
+
     const { ensureArchiveKey, readArchiveLock } = await import('../../lib/backup/archive-key.js');
     const locked = await readArchiveLock(driveTarget.client).catch(() => undefined);
     const archiveKey = locked
@@ -385,6 +422,29 @@ export function SecureBackupScreen() {
        * account alone, which is what those archives were sealed under; setting
        * a lock afterwards is offered above rather than forced here.
        */
+      /*
+       * The dangerous direction, and the reason this check exists.
+       *
+       * Signing in to PINGO as one person and connecting a Google account
+       * belonging to another would otherwise apply *their* history to *this*
+       * device. Each Google account has its own folder, so nobody can read
+       * across — but nothing stopped a restore in the wrong direction.
+       */
+      const me = (await getSupabaseClient().auth.getSession()).data.session?.user?.id;
+      if (me) {
+        const { assertOwner, OwnerMismatchError } = await import('../../lib/backup/drive-owner.js');
+        try {
+          await assertOwner(driveTarget.client, me);
+        } catch (cause) {
+          setError(
+            cause instanceof OwnerMismatchError
+              ? 'This Google account holds a backup for a different PINGO account. Nothing was restored.'
+              : 'PINGO could not confirm this Google account. Nothing was restored.',
+          );
+          return;
+        }
+      }
+
       const { loadArchiveKey, readArchiveLock, ArchiveKeyError } = await import(
         '../../lib/backup/archive-key.js'
       );
@@ -671,11 +731,15 @@ export function SecureBackupScreen() {
           ) : (
             <button
               type="button"
-              disabled={busyDrive}
+              disabled={busyDrive || starting !== undefined}
               className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
-              onClick={() => void recoverFromDrive()}
+              onClick={() => runDrive('restore', recoverFromDrive)}
             >
-              {drive?.phase === 'restoring' ? 'Restoring…' : 'Restore from Google Drive'}
+              {drive?.phase === 'restoring'
+                ? 'Restoring…'
+                : starting === 'restore'
+                  ? 'Starting…'
+                  : 'Restore from Google Drive'}
             </button>
           )}
 
@@ -882,11 +946,11 @@ export function SecureBackupScreen() {
               </p>
               <button
                 type="button"
-                disabled={busyDrive}
+                disabled={busyDrive || starting !== undefined}
                 className="pt-2 text-sm text-accent disabled:opacity-50"
-                onClick={driveBackupNow}
+                onClick={() => runDrive('backup', driveBackupNow)}
               >
-                Try again
+                {starting === 'backup' ? 'Starting…' : 'Try again'}
               </button>
             </div>
           ) : null}
@@ -931,11 +995,15 @@ export function SecureBackupScreen() {
               */}
               <button
                 type="button"
-                disabled={busyDrive}
+                disabled={busyDrive || starting !== undefined}
                 className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
-                onClick={driveBackupNow}
+                onClick={() => runDrive('backup', driveBackupNow)}
               >
-                {drive.phase === 'backing-up' ? 'Backing up…' : 'Backup Now'}
+                {drive.phase === 'backing-up'
+                  ? 'Backing up…'
+                  : starting === 'backup'
+                    ? 'Starting…'
+                    : 'Backup Now'}
               </button>
               <button
                 type="button"
@@ -974,10 +1042,17 @@ export function SecureBackupScreen() {
                 fail.
               */}
               <p className="my-2 text-xs text-muted">
-                Your backup opens with this Google account. Nothing to type.
+                {lock
+                  ? 'Your backup is locked. You will be asked for your passkey or passcode.'
+                  : 'Your backup opens with this Google account. Nothing to type.'}
               </p>
-              <button type="button" className="py-2 text-left text-accent" onClick={() => void confirmRestore()}>
-                Yes, restore from Drive
+              <button
+                type="button"
+                disabled={starting !== undefined}
+                className="py-2 text-left text-accent disabled:opacity-50"
+                onClick={() => runDrive('restore', confirmRestore)}
+              >
+                {starting === 'restore' ? 'Starting…' : 'Yes, restore from Drive'}
               </button>
               <button type="button" className="ml-4 py-2 text-left text-muted" onClick={() => setConfirm(undefined)}>
                 Cancel

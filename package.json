@@ -45,7 +45,8 @@
     "verify:noticing": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-noticing.ts",
     "verify:voice-capture": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-voice-capture.ts",
     "verify:streak": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-streak.ts",
-    "verify:passkey-lock": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-passkey-lock.ts"
+    "verify:passkey-lock": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-passkey-lock.ts",
+    "verify:drive-owner": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-owner.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
