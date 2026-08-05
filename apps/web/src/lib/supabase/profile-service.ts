@@ -586,9 +586,10 @@ export class SupabaseProfileService implements ProfileService {
     const me = await this.requireUserId();
     const ids = rows.map((row) => row.id);
 
-    const [urls, likes, saves, comments] = await Promise.all([
+    const [urls, likeStats, saves, comments] = await Promise.all([
       this.signPosts(rows),
-      this.client.from('post_likes').select('post_id, user_id').in('post_id', ids),
+      // Security-definer RPC: real likes + likes_display_seed (always accurate).
+      this.client.rpc('post_like_display_counts', { ids }),
       // RLS already limits this to the signed-in user's own saves.
       this.client.from('post_saves').select('post_id').in('post_id', ids),
       this.client.from('post_comments').select('post_id').in('post_id', ids),
@@ -596,9 +597,29 @@ export class SupabaseProfileService implements ProfileService {
 
     const likeCount = new Map<string, number>();
     const likedByMe = new Set<string>();
-    for (const like of likes.data ?? []) {
-      likeCount.set(like.post_id, (likeCount.get(like.post_id) ?? 0) + 1);
-      if (like.user_id === me) likedByMe.add(like.post_id);
+
+    if (!likeStats.error && Array.isArray(likeStats.data)) {
+      for (const row of likeStats.data as {
+        post_id: string;
+        like_count: number;
+        liked_by_me: boolean;
+      }[]) {
+        likeCount.set(row.post_id, Number(row.like_count) || 0);
+        if (row.liked_by_me) likedByMe.add(row.post_id);
+      }
+    } else {
+      // Fallback if RPC not migrated yet on an environment.
+      const { data: likes } = await this.client
+        .from('post_likes')
+        .select('post_id, user_id')
+        .in('post_id', ids);
+      for (const like of likes ?? []) {
+        likeCount.set(like.post_id, (likeCount.get(like.post_id) ?? 0) + 1);
+        if (like.user_id === me) likedByMe.add(like.post_id);
+      }
+      if (likeStats.error) {
+        console.warn('[posts] post_like_display_counts', likeStats.error.message);
+      }
     }
 
     const savedByMe = new Set((saves.data ?? []).map((save) => save.post_id));
@@ -609,14 +630,14 @@ export class SupabaseProfileService implements ProfileService {
     }
 
     return rows.map((row) => {
-      const realLikes = likeCount.get(row.id) ?? 0;
-      const seed =
-        typeof row.likes_display_seed === 'number' && row.likes_display_seed > 0
-          ? row.likes_display_seed
-          : 0;
+      // Prefer RPC total; also add seed from row if RPC missing (double-safe).
+      let total = likeCount.get(row.id);
+      if (total === undefined) {
+        const rawSeed = (row as { likes_display_seed?: unknown }).likes_display_seed;
+        total = Math.max(0, Number(rawSeed) || 0);
+      }
       return toPost(row, urls.get(row.image_path) ?? '', {
-        // Display only — real likes still drive likedByMe / toggle.
-        likeCount: realLikes + seed,
+        likeCount: total,
         likedByMe: likedByMe.has(row.id),
         savedByMe: savedByMe.has(row.id),
         commentCount: commentCount.get(row.id) ?? 0,
