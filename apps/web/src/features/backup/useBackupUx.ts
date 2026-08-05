@@ -56,6 +56,8 @@ export interface BackupUx {
   showPrompt: boolean;
   /** The recurring home card. */
   showReminder: boolean;
+  /** The "we found your chats" card. Latched, like the two above it. */
+  showRestore: boolean;
   /** "Yesterday", when a previous backup time is known on this device. */
   backupWhen?: string;
   /** "52.5 MB", when known. */
@@ -66,6 +68,8 @@ export interface BackupUx {
   promptNotNow: () => Promise<void>;
   reminderShown: () => Promise<void>;
   dismissReminder: () => Promise<void>;
+  /** "Not now" on the restore card. Not "never" - see the note on the ref. */
+  skipRestore: () => void;
   setInterval: (interval: ReminderInterval) => Promise<void>;
   markBackupEnabled: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -104,6 +108,7 @@ export function useBackupUx(): BackupUx {
   const [driveMeta, setDriveMeta] = useState<{ at?: number; bytes?: number }>({});
   const [promptOpen, setPromptOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
 
   /**
    * Dismissed here, stays dismissed here.
@@ -116,6 +121,32 @@ export function useBackupUx(): BackupUx {
    */
   const dismissed = useRef(false);
 
+  /**
+   * The restore card's own latch, and it needed one of its own.
+   *
+   * The card rendered straight off `restoreAvailable`, which `refresh` recomputes
+   * from the server every time it runs. Its "Not now" recorded a telemetry event
+   * and changed nothing else, so the button was decorative: the card was still
+   * there afterwards, and no amount of tapping moved it.
+   *
+   * Dismissal is for this session only, not written to disk. "Not now" means now
+   * - and the one thing this card offers is chats that are otherwise not on the
+   * device, which is too important to hide for ever on a single tap. It comes
+   * back next launch, and Settings → Secure Backup can restore at any time.
+   */
+  const restoreSkipped = useRef(false);
+
+  /**
+   * The same latch for the one-time prompt.
+   *
+   * Answering it writes `promptSeen` to disk, and `refresh` re-reads that disk
+   * to decide whether to open. Those are two different clocks: a refresh landing
+   * in the gap between the tap and the write reads the *old* value and puts the
+   * dialog straight back up. In memory the answer is already known, so the
+   * memory is what is consulted.
+   */
+  const promptAnswered = useRef(false);
+
   const refresh = useCallback(async () => {
     try {
       const status = await secureBackupStatus(targets);
@@ -127,7 +158,10 @@ export function useBackupUx(): BackupUx {
        * reinstall case. This is what turns the login prompt from "set up
        * backup" into "we found your chats".
        */
-      setRestoreAvailable(!status.local && (status.targets.some((t) => t.present) ?? false));
+      const canRestore = !status.local && (status.targets.some((t) => t.present) ?? false);
+      setRestoreAvailable(canRestore);
+      // Re-opened on every refresh *unless* it was answered this session.
+      setRestoreOpen(canRestore && !restoreSkipped.current);
       setReminders(stored);
 
       // Whatever this device already knows about the last backup, for the card.
@@ -140,11 +174,16 @@ export function useBackupUx(): BackupUx {
        * Decide once, from what was on disk before this session touched it.
        * Later writes update the schedule without closing what is on screen.
        */
-      if (!status.enabled && !(!status.local && status.targets.some((t) => t.present)) && !stored.promptSeen) {
+      if (
+        !status.enabled &&
+        !canRestore &&
+        !stored.promptSeen &&
+        !promptAnswered.current
+      ) {
         setPromptOpen(true);
       } else if (
         !status.enabled &&
-        !(!status.local && status.targets.some((t) => t.present)) &&
+        !canRestore &&
         stored.promptSeen &&
         shouldShowReminder(stored, status.enabled) &&
         !dismissed.current
@@ -182,18 +221,21 @@ export function useBackupUx(): BackupUx {
     backupSize: driveMeta.bytes ? formatSize(driveMeta.bytes) : undefined,
     showPrompt: ready && promptOpen,
     showReminder: ready && reminderOpen,
+    showRestore: ready && restoreOpen,
 
     markPromptShown: async () => {
       void record('backup.prompt.shown');
       await update(afterShown(reminders));
     },
     promptEnable: async () => {
+      promptAnswered.current = true;
       setPromptOpen(false);
       void record('backup.prompt.enable');
       await update(afterShown(reminders));
     },
     promptNotNow: async () => {
       // "Not now" is an answer too, and it is not asked again this session.
+      promptAnswered.current = true;
       dismissed.current = true;
       setPromptOpen(false);
       void record('backup.prompt.notnow');
@@ -208,6 +250,11 @@ export function useBackupUx(): BackupUx {
       setReminderOpen(false);
       void record('backup.reminder.dismissed');
       await update(afterDismissed(reminders));
+    },
+    skipRestore: () => {
+      restoreSkipped.current = true;
+      setRestoreOpen(false);
+      void record('backup.restore.skipped');
     },
     setInterval: async (interval) => update(withInterval(reminders, interval)),
     markBackupEnabled: async () => {

@@ -130,10 +130,15 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (ux.restoreAvailable) void record('backup.restore.prompt.shown');
-  }, [ux.restoreAvailable]);
+    if (ux.showRestore) void record('backup.restore.prompt.shown');
+  }, [ux.showRestore]);
 
-  if (!ux.ready || !ux.restoreAvailable) return null;
+  /*
+   * `showRestore`, not `restoreAvailable`. The second says a backup exists,
+   * which stays true after somebody has said "Not now" - reading it directly is
+   * what made the dismiss button do nothing at all.
+   */
+  if (!ux.showRestore) return null;
 
   return (
     <section className="mx-3 mb-2 rounded-xl bg-surface p-4 shadow-sm">
@@ -174,8 +179,8 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
       </Button>
       <button
         type="button"
-        className="mt-1 w-full px-3 py-2 text-sm text-muted"
-        onClick={() => void record('backup.restore.skipped')}
+        className="focus-ring mt-1 w-full rounded-md px-3 py-2 text-sm text-muted"
+        onClick={ux.skipRestore}
       >
         Not now
       </button>
