@@ -100,12 +100,23 @@ export function CallsScreen() {
                       >
                         {call.direction === 'outgoing' ? '↗' : '↙'}
                       </span>
+                      {/*
+                        Every outcome gets a word except the one that has a
+                        number.
+
+                        `unreachable` fell through to `formatDuration(0)`, so a
+                        call that never got through read as "0:00" — which looks
+                        like a call that was answered and lasted no time at all.
+                        Four outcomes, four things said.
+                      */}
                       <span className={missed ? 'text-brand' : 'text-text-secondary'}>
                         {missed
                           ? 'Missed'
                           : call.outcome === 'declined'
                             ? 'Declined'
-                            : formatDuration(call.duration)}
+                            : call.outcome === 'unreachable'
+                              ? 'Not connected'
+                              : formatDuration(call.duration)}
                       </span>
                       <span className="text-text-tertiary">·</span>
                       <span className="text-text-tertiary">

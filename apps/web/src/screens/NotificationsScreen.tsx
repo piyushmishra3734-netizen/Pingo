@@ -99,6 +99,13 @@ export function NotificationsScreen() {
       setItems((all) =>
         all?.map((n) => (n.id === item.id ? { ...n, kind: 'follow_accepted' as const } : n)),
       );
+      // Answered, so every other row about the same person stops offering.
+      setPending((open) => {
+        if (!open?.has(item.actorId!)) return open;
+        const next = new Set(open);
+        next.delete(item.actorId!);
+        return next;
+      });
     } finally {
       setActing(undefined);
     }
@@ -106,6 +113,36 @@ export function NotificationsScreen() {
 
   const [items, setItems] = useState<AppNotification[]>();
   const [version, setVersion] = useState(0);
+
+  /**
+   * Who is *still* waiting on an answer.
+   *
+   * The feed used to offer Accept and Ignore on any row of kind
+   * `follow_request`, for ever — so a request accepted a week ago kept its
+   * buttons, and the same screen showed "accepted your follow request" two rows
+   * above the offer to accept it again. Requests screen said "No requests".
+   *
+   * The notification is a record of something that happened; whether it is
+   * still open is a fact about now, and has to be asked for.
+   */
+  const [pending, setPending] = useState<Set<string>>();
+
+  useEffect(() => {
+    let active = true;
+    void profiles
+      .listFollowRequests()
+      .then((list) => {
+        if (active) setPending(new Set(list.map((person) => person.id)));
+      })
+      // Unknown is treated as "not pending": an Accept that silently does
+      // nothing is worse than no button at all.
+      .catch(() => {
+        if (active) setPending(new Set());
+      });
+    return () => {
+      active = false;
+    };
+  }, [profiles, version]);
 
   useEffect(
     () => getRealtimeHub().on('notifications', () => setVersion((n) => n + 1)),
@@ -198,6 +235,7 @@ export function NotificationsScreen() {
                             actorName={actor?.name ?? item.title}
                             actorAvatar={actor?.avatarUrl}
                             acting={acting === item.id}
+                            pendingReply={Boolean(item.actorId && pending?.has(item.actorId))}
                             onOpen={() => open(item)}
                             onAccept={() => void respond(item, true)}
                             onIgnore={() => void respond(item, false)}
@@ -221,6 +259,7 @@ function NotificationRow({
   actorName,
   actorAvatar,
   acting,
+  pendingReply,
   onOpen,
   onAccept,
   onIgnore,
@@ -229,13 +268,15 @@ function NotificationRow({
   actorName: string;
   actorAvatar?: string;
   acting: boolean;
+  /** The request is still open, so it can still be answered. */
+  pendingReply: boolean;
   onOpen: () => void;
   onAccept: () => void;
   onIgnore: () => void;
 }) {
   const { label, Icon } = kindMeta(item.kind);
   const unread = !item.read;
-  const isFollowRequest = item.kind === 'follow_request' && Boolean(item.actorId);
+  const isFollowRequest = pendingReply && item.kind === 'follow_request' && Boolean(item.actorId);
 
   return (
     <button
