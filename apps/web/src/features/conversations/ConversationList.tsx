@@ -20,7 +20,7 @@ import {
   SettingsIcon,
   cn,
 } from '@pingo/ui';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppWordmark } from '../../components/AppWordmark.js';
@@ -62,11 +62,22 @@ import { useUnmuteConfirm } from './useUnmuteConfirm.js';
 export interface ConversationListProps {
   /** Highlighted row in the desktop two-pane layout. */
   activeConversationId?: string;
+  /**
+   * Cards that belong to the list rather than to the app.
+   *
+   * The backup reminder used to be a *sibling* of this component, which put it
+   * above the header — on a phone that reads as a strip floating outside PINGO,
+   * up against the status bar, rather than as something the app is saying.
+   * Passed in here it lands under the header, scrolls with the rows, and
+   * behaves like everything else on the screen.
+   */
+  banner?: ReactNode;
   className?: string;
 }
 
 export function ConversationList({
   activeConversationId,
+  banner,
   className,
 }: ConversationListProps) {
   const { conversations, ready, service } = useChat();
@@ -487,6 +498,7 @@ export function ConversationList({
              */
             !searching && filter === 'all' && !activeList && !selectionMode ? (
               <div className="pb-0.5">
+                {banner}
                 <StoriesRow
                   groups={storyGroups}
                   currentUserId={profile?.id}

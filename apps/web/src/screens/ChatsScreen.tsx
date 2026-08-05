@@ -55,9 +55,20 @@ export function ChatsScreen() {
           Above the list, because a backup that needs attention is about the
           list rather than about any one conversation.
         */}
-        <BackupFoundCard ux={backupUx} />
-        <BackupReminderCard ux={backupUx} />
-        <ConversationList />
+        {/*
+          Inside the list, not above it. As siblings these sat over the header —
+          on a phone that put them against the status bar, outside PINGO's own
+          chrome, which is what made them read as a browser notification nobody
+          could get rid of.
+        */}
+        <ConversationList
+          banner={
+            <>
+              <BackupFoundCard ux={backupUx} />
+              <BackupReminderCard ux={backupUx} />
+            </>
+          }
+        />
         {/*
           Home only, and only with no thread open. An offer to install has no
           business over a conversation somebody is reading.
@@ -87,9 +98,15 @@ export function ChatsScreen() {
           'w-[22rem] xl:w-[25rem]',
         )}
       >
-        <BackupFoundCard ux={backupUx} />
-        <BackupReminderCard ux={backupUx} />
-        <ConversationList activeConversationId={conversation?.id} />
+        <ConversationList
+          {...(conversation?.id ? { activeConversationId: conversation.id } : {})}
+          banner={
+            <>
+              <BackupFoundCard ux={backupUx} />
+              <BackupReminderCard ux={backupUx} />
+            </>
+          }
+        />
       </aside>
 
       <section className="min-w-0 flex-1">

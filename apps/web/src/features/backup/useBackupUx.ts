@@ -9,7 +9,7 @@
  * Stage 1 changes presentation only. Every call underneath is the existing
  * recovery implementation, unmodified.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 
 import { openRecord, sealRecord } from '../../lib/crypto/session.js';
 import { STORE, localGet, localSet } from '../../lib/local/db.js';
@@ -105,6 +105,17 @@ export function useBackupUx(): BackupUx {
   const [promptOpen, setPromptOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
 
+  /**
+   * Dismissed here, stays dismissed here.
+   *
+   * `dismissReminder` widens the schedule on disk, but `load` runs again on
+   * every refresh and re-read the *old* schedule often enough to put the card
+   * straight back — reported as a banner that would not go away however many
+   * times it was closed. A dismissal is an answer to a question, and the
+   * question is not asked twice in one session.
+   */
+  const dismissed = useRef(false);
+
   const refresh = useCallback(async () => {
     try {
       const status = await secureBackupStatus(targets);
@@ -135,7 +146,8 @@ export function useBackupUx(): BackupUx {
         !status.enabled &&
         !(!status.local && status.targets.some((t) => t.present)) &&
         stored.promptSeen &&
-        shouldShowReminder(stored, status.enabled)
+        shouldShowReminder(stored, status.enabled) &&
+        !dismissed.current
       ) {
         setReminderOpen(true);
       }
@@ -181,6 +193,8 @@ export function useBackupUx(): BackupUx {
       await update(afterShown(reminders));
     },
     promptNotNow: async () => {
+      // "Not now" is an answer too, and it is not asked again this session.
+      dismissed.current = true;
       setPromptOpen(false);
       void record('backup.prompt.notnow');
       await update(afterDismissed(afterShown(reminders)));
@@ -190,6 +204,7 @@ export function useBackupUx(): BackupUx {
       await update(afterShown(reminders));
     },
     dismissReminder: async () => {
+      dismissed.current = true;
       setReminderOpen(false);
       void record('backup.reminder.dismissed');
       await update(afterDismissed(reminders));
