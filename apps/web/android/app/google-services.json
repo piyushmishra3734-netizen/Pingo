@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "896975933762-60dvi5esi0qbtln8i0bvhq1kfdnfdet7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "chat.pingo.app",
+            "certificate_hash": "16e8a4ef76f5c839195a568d50cb07a663eb5cf5"
+          }
+        },
+        {
           "client_id": "896975933762-80sgvcmhs2nobs0ejt7g3klgrpqjjg2g.apps.googleusercontent.com",
           "client_type": 3
         }
