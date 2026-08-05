@@ -21,16 +21,24 @@ import { useNavigate } from 'react-router-dom';
  * That one omission is why chats, calls and Pings were all unreachable for a
  * new contact - every one of them needs a conversation to hang off.
  *
+ * ## Nothing is listed until you search
+ *
+ * This screen used to open with every account on PINGO scrolling down it. That
+ * is a user directory, and publishing one is a decision nobody made: it hands
+ * any new sign-up the full membership list, and it puts people who have no wish
+ * to be browsed in front of strangers. You reach somebody here because you
+ * already know who you are looking for, so an empty screen with a search field
+ * is not a missing feature - it is the correct starting state.
+ *
  * ## Filtering happens here; finding happens on the server
  *
- * `listContacts()` is fetched once and narrowed as you type. A round trip per
- * keystroke would make the list flicker and lag behind the field for a roster
- * this size, and `search()` caps at ten results - fine for finding someone by
- * name, wrong for browsing everyone.
+ * `listContacts()` is still fetched once and narrowed as you type, because a
+ * round trip per keystroke would make the results flicker and lag behind the
+ * field. It just no longer renders on its own.
  *
- * But a list can only be narrowed to what is in it. Typing somebody's exact
+ * And a list can only be narrowed to what is in it. Typing somebody's exact
  * @username or pasting their id said "nobody by that name" whenever they were
- * not already a contact — which is precisely when you would be typing it. So
+ * not already a contact - which is precisely when you would be typing it. So
  * when the local filter comes up empty the server is asked, once the typing
  * settles, and whoever it returns is appended to the results.
  *
@@ -65,10 +73,13 @@ export function NewChatScreen() {
     };
   }, [service]);
 
+  /** Whether there is anything to show at all. Blank field means blank screen. */
+  const searching = query.trim().length > 0;
+
   const matches = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!people) return undefined;
-    if (!term) return people;
+    if (!term) return [];
     return people.filter(
       (person) =>
         person.name.toLowerCase().includes(term) ||
@@ -176,16 +187,23 @@ export function NewChatScreen() {
           </p>
         )}
 
-        {!shown ? (
-          <LoadingState label="Loading people" />
+        {/*
+          The resting state is a prompt, not a spinner and not a roster. The
+          roster may still be loading behind this, and nobody needs to know:
+          there is nothing to wait for until something is typed.
+        */}
+        {!searching ? (
+          <EmptyState
+            title="Who are you looking for?"
+            description="Search by name, @username, or paste their ID."
+            icon={<UsersIcon size={26} />}
+          />
+        ) : !shown ? (
+          <LoadingState label="Searching" />
         ) : shown.length === 0 ? (
           <EmptyState
-            title={query ? 'Nobody by that name' : 'Nobody here yet'}
-            description={
-              query
-                ? 'Check the spelling, or try their @username.'
-                : 'When other people join PINGO they will show up here.'
-            }
+            title="Nobody by that name"
+            description="Check the spelling, or try their @username."
             icon={<UsersIcon size={26} />}
           />
         ) : (

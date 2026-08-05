@@ -113,7 +113,12 @@ export function ChangePasswordScreen() {
 
   return (
     <SettingsPage title="Password">
-      <Group title="Current password">
+      {/*
+        No group headings. "CURRENT PASSWORD" above a field labelled "Current
+        password" says the same word twice and makes two fields look like two
+        sections of a form.
+      */}
+      <Group>
         <div className="px-3 py-3">
           <PasswordField
             label="Current password"
@@ -130,7 +135,7 @@ export function ChangePasswordScreen() {
         </div>
       </Group>
 
-      <Group title="New password">
+      <Group>
         <div className="px-3 py-3">
           <PasswordField
             label="New password"
