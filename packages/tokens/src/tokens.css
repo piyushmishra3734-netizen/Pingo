@@ -103,6 +103,21 @@
   /* For text and icons sitting *on* that backdrop, or on a white pill over it. */
   --color-on-backdrop: #f4f5f9;
 
+  /**
+   * The badge sheet's two papers.
+   *
+   * Not `ink` and not `surface`: a badge is a printed object with its own
+   * palette, and it must look like the same object on both themes rather than
+   * inverting with the page. Kept as tokens rather than constants in the
+   * component so the dark page can lift them — see the override below.
+   */
+  --badge-ink: #1c1a18;
+  --badge-paper: #e8e2d5;
+  /* A hairline so a dark disc still has an edge against a dark page. */
+  --badge-edge: rgba(28, 26, 24, 0.12);
+  /* Locked badges are dimmed, never greyed — the paper must stay paper. */
+  --badge-locked: 0.45;
+
   /* ---- Semantic text ---------------------------------------------------- */
   --color-text: #101114;
   --color-text-secondary: #6f7282;
@@ -793,6 +808,19 @@
   --color-hover: rgba(255, 255, 255, 0.06);
   --color-pressed: rgba(255, 255, 255, 0.1);
   --color-selected: rgba(122, 136, 255, 0.16);
+
+  /**
+   * Badges, lifted for a dark page.
+   *
+   * The sheet's near-black disc is nearly the page in dark mode: the artwork
+   * floats with no object under it, and a locked one at 45% is barely there at
+   * all. So the ink is raised a few points, the hairline becomes a light one,
+   * and locked keeps enough presence to read as a badge rather than a smudge.
+   * The paper stays exactly as printed — it separates by itself.
+   */
+  --badge-ink: #26231f;
+  --badge-edge: rgba(232, 226, 213, 0.16);
+  --badge-locked: 0.55;
 
   /*
    * Glass goes dark and *more* opaque. A light translucent panel over a dark

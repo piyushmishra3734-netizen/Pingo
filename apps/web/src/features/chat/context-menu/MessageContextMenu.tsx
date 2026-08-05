@@ -130,7 +130,7 @@ export function MessageContextMenu({
         className={cn(
           'fixed inset-0 z-400',
           // 5-10% dim, and deliberately no blur. docs/13 § 2.
-          'bg-ink/[0.08]',
+          'bg-backdrop/[0.08]',
           'animate-fade-in',
         )}
         style={{ animationDuration: `${ENTER_MS}ms` }}

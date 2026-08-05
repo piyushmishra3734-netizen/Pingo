@@ -61,7 +61,7 @@ export function PostGrid({
             <span
               className={cn(
                 'absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-full',
-                'bg-ink/45 px-2 py-0.5 text-caption text-white backdrop-blur-glass',
+                'bg-backdrop/45 px-2 py-0.5 text-caption text-white backdrop-blur-glass',
               )}
             >
               <HeartIcon size={12} fill={post.likedByMe ? 'currentColor' : 'none'} />

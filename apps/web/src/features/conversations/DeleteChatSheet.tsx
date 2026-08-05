@@ -62,7 +62,7 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
         className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
         onPointerDown={onCancel}
       >
-        <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
+        <div className="absolute inset-0 bg-backdrop/[0.18] animate-fade-in" />
 
         <div
           ref={panelRef}

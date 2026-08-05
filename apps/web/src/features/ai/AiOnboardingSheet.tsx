@@ -113,7 +113,7 @@ export function AiOnboardingSheet({
         className="fixed inset-0 z-[1100] flex items-center justify-center px-4"
         onPointerDown={onClose}
       >
-        <div className="absolute inset-0 animate-fade-in bg-ink/[0.22] backdrop-blur-[2px]" />
+        <div className="absolute inset-0 animate-fade-in bg-backdrop/[0.22] backdrop-blur-[2px]" />
 
         <div
           ref={panelRef}

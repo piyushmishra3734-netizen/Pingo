@@ -61,7 +61,7 @@ export function EditMessageSheet({ body, onCancel, onSave }: EditMessageSheetPro
         className="fixed inset-0 z-500 flex items-center justify-center p-4"
         onPointerDown={onCancel}
       >
-        <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
+        <div className="absolute inset-0 bg-backdrop/[0.18] animate-fade-in" />
 
         <div
           role="dialog"

@@ -36,10 +36,10 @@ import type { BadgeDefinition, BadgeRarity } from './registry.js';
  * sheet is a sheet *of discs*, the disc has to survive — so ink is raised just
  * far enough to separate, and a hairline ring does the rest.
  */
-const INK = '#1C1A18';
-const PAPER = '#E8E2D5';
-/** Barely there, and only on ink — paper separates from the page by itself. */
-const INK_EDGE = 'rgba(232, 226, 213, 0.09)';
+const INK = 'var(--badge-ink)';
+const PAPER = 'var(--badge-paper)';
+/** Only on ink — paper separates from the page by itself. */
+const INK_EDGE = 'var(--badge-edge)';
 
 /**
  * The rarity dot.
@@ -81,8 +81,11 @@ export function Badge({ badge, unlocked, size = 72, celebrate = false, className
            * Desaturating came first and was wrong: it turned the cream discs
            * grey, so a locked paper badge stopped being paper. Opacity alone
            * dims the artwork while leaving both papers recognisably themselves.
+           *
+           * The amount is a token: 45% reads as "not yet" on a light page and
+           * as "not there" on a dark one, so the dark theme lifts it.
            */
-          !unlocked && 'opacity-45',
+          !unlocked && 'opacity-[var(--badge-locked)]',
         )}
         style={{
           backgroundColor: ink ? INK : PAPER,

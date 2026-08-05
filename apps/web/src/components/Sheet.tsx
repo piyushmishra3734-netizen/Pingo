@@ -112,7 +112,7 @@ export function Sheet({
         )}
         onPointerDown={onClose}
       >
-        <div className="absolute inset-0 animate-fade-in bg-ink/[0.18]" />
+        <div className="absolute inset-0 animate-fade-in bg-backdrop/[0.18]" />
 
         <div
           ref={panelRef}

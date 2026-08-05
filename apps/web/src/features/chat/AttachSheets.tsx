@@ -41,7 +41,7 @@ function Sheet({
         className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
         onPointerDown={onClose}
       >
-        <div className="absolute inset-0 bg-ink/[0.18] animate-fade-in" />
+        <div className="absolute inset-0 bg-backdrop/[0.18] animate-fade-in" />
 
         <div
           role="dialog"
