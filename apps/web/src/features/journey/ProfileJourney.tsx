@@ -12,12 +12,12 @@
  * never published, nothing is drawn at all — an empty row is quieter than a box
  * explaining why it is empty.
  *
- * ## Five, then the collection
+ * ## Five, then the rest of theirs
  *
  * Five is what fits without the profile turning into a trophy shelf, and it is
- * enough to see what kind of person's page this is. "Collection" opens the whole
- * library for anybody curious about what there is to earn — going to look is a
- * different act from being shown a list of what somebody has not done.
+ * enough to see whose page this is. "Collection" shows the rest of what *they*
+ * earned — never the library, never a locked badge. What somebody has not done
+ * is not part of their profile.
  *
  * ## Only the public half
  *
@@ -57,7 +57,7 @@ export function ProfileJourney({
   // explaining itself.
   if (theirs.length === 0) return null;
 
-  const visible = collection ? BADGES : theirs.slice(0, SHOWN);
+  const visible = collection ? theirs : theirs.slice(0, SHOWN);
 
   return (
     <section className={cn('px-4', className)}>
@@ -66,34 +66,36 @@ export function ProfileJourney({
           {theirs.length === 1 ? '1 badge earned' : `${theirs.length} badges earned`}
         </p>
 
-        <button
-          type="button"
-          onClick={() => setCollection((open) => !open)}
-          className="focus-ring rounded-md text-caption text-text-secondary underline underline-offset-2"
-        >
-          {collection ? 'Earned only' : 'Collection'}
-        </button>
+        {/*
+          Only when there is more to show. The library itself is never opened
+          from here — a profile is what somebody has, and the locked ones are
+          theirs to look at on their own Journey.
+        */}
+        {theirs.length > SHOWN ? (
+          <button
+            type="button"
+            onClick={() => setCollection((open) => !open)}
+            className="focus-ring rounded-md text-caption text-text-secondary underline underline-offset-2"
+          >
+            {collection ? 'Show less' : 'Collection'}
+          </button>
+        ) : null}
       </div>
 
       <ul
         className={cn(
           'gap-x-1 gap-y-4 pt-3',
-          // Five in a row while it is a summary; the full library needs a grid.
+          // A row while it is a summary; a grid once it is all of them.
           collection ? 'grid grid-cols-6' : 'flex',
         )}
       >
+        {/* Every one of these is earned, so none of them is dimmed. */}
         {visible.map((badge) => {
-          const unlocked = earned.has(badge.id);
           return (
             <li key={badge.id} className={collection ? undefined : 'shrink-0'}>
               <div className="flex w-16 flex-col items-center gap-1.5 text-center">
-                <Badge badge={badge} unlocked={unlocked} size={48} />
-                <span
-                  className={cn(
-                    'line-clamp-2 text-[10px] leading-tight',
-                    unlocked ? 'text-text-secondary' : 'text-text-tertiary/70',
-                  )}
-                >
+                <Badge badge={badge} unlocked size={48} />
+                <span className="line-clamp-2 text-[10px] leading-tight text-text-secondary">
                   {badge.title}
                 </span>
               </div>
