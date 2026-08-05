@@ -59,6 +59,15 @@ export interface Lock {
   iv: string;
   /** Base64 of the sealed PKCS8 private key. */
   sealed: string;
+  /**
+   * SPKI, base64 — the half archives are sealed *to*.
+   *
+   * Stored in the open beside the sealed half, because it is public by
+   * definition and because the alternative is worse: `openLock` returns a
+   * non-extractable key, so a caller that needed the public half would have to
+   * keep an extractable copy of the private one to derive it from.
+   */
+  publicKey: string;
   /** The credential to ask for, on the passkey path. */
   credentialId?: string;
   /**
@@ -190,6 +199,8 @@ export async function createLock(input: {
     ['deriveKey', 'deriveBits'],
   );
 
+  const publicKey = toBase64(new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey)));
+
   // Best effort, and stated as such: a copying collector may already have moved
   // these bytes. It costs one line and clears the copy this code can reach.
   raw.fill(0);
@@ -202,10 +213,11 @@ export async function createLock(input: {
       salt: toBase64(salt),
       iv: toBase64(iv),
       sealed: toBase64(new Uint8Array(sealed)),
+      publicKey,
       ...(input.credentialId ? { credentialId: input.credentialId } : {}),
       version: input.version ?? 1,
     },
-    publicKey: toBase64(new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey))),
+    publicKey,
     privateKey,
   };
 }
@@ -303,6 +315,8 @@ export async function changeLock(input: {
     salt: toBase64(salt),
     iv: toBase64(iv),
     sealed: toBase64(new Uint8Array(sealed)),
+    // The key pair did not change, so neither does its public half.
+    publicKey: input.lock.publicKey,
     ...(input.next.credentialId ? { credentialId: input.next.credentialId } : {}),
     version: input.lock.version + 1,
   };

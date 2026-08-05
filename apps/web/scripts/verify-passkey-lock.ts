@@ -181,6 +181,34 @@ console.log('\n— an unknown KDF is refused rather than guessed —');
   check(refused, 'a lock made by a future PINGO says so instead of failing as "wrong passcode"');
 }
 
+console.log('\n— the lock carries what a backup needs —');
+
+{
+  const { lock, publicKey } = await createLock({
+    method: 'passcode',
+    secret: 'a real password here',
+    passcodeKind: 'password',
+  });
+
+  /*
+   * The public half has to be readable without the secret: a device that has
+   * not unlocked anything still needs somewhere to send the next backup. It is
+   * public by definition, and keeping it beside the sealed half is what stops a
+   * caller holding an extractable copy of the private one to derive it from.
+   */
+  check(lock.publicKey === publicKey, 'the public key is in the envelope, in the open');
+
+  const changed = await changeLock({
+    lock,
+    current: 'a real password here',
+    next: { method: 'passcode', secret: 'something else entirely', passcodeKind: 'password' },
+  });
+  check(
+    changed.publicKey === lock.publicKey,
+    'changing the secret leaves it alone, so archives keep the address they were sealed to',
+  );
+}
+
 console.log('\n— what a passcode is worth, said plainly —');
 
 {

@@ -159,3 +159,71 @@ export async function loadArchiveKey(drive: ArchiveKeyStore): Promise<ArchiveKey
 export async function hasArchiveKey(drive: ArchiveKeyStore): Promise<boolean> {
   return (await drive.find(ARCHIVE_KEY_FILE)) !== undefined;
 }
+
+// ---------------------------------------------------------------------------
+// The locked key
+// ---------------------------------------------------------------------------
+
+/**
+ * The archive key, sealed to a passkey or a passcode.
+ *
+ * Everything above this line is Simple mode: the private key sits in Drive as
+ * plain JSON, so anybody holding the Google account holds the backup — Google
+ * included. That was a stated trade, and this is the file that ends it.
+ *
+ * A locked key is the same key pair inside a `Lock`. The bytes in Drive are
+ * useless without the secret, so "until the passkey verifies, nothing is
+ * recovered" is a property of the file rather than a rule the app follows.
+ *
+ * ## The old file is still read
+ *
+ * An account that backed up before this existed has a plaintext key and an
+ * archive sealed to it. Deleting that key would orphan the archive, so
+ * `loadAnyArchiveKey` reads whichever exists and the caller can then lock it —
+ * the same key pair, newly protected, with nothing re-uploaded.
+ */
+export const LOCKED_KEY_FILE = 'pingo.archivelock.json';
+
+/** Does this account protect its backup with a passkey or passcode? */
+export async function hasLockedArchiveKey(drive: ArchiveKeyStore): Promise<boolean> {
+  return (await drive.find(LOCKED_KEY_FILE)) !== undefined;
+}
+
+/** The stored lock, for the screen that has to ask for the right thing. */
+export async function readArchiveLock(
+  drive: ArchiveKeyStore,
+): Promise<import('./passkey-lock.js').Lock | undefined> {
+  const file = await drive.find(LOCKED_KEY_FILE);
+  if (!file) return undefined;
+  try {
+    return JSON.parse(decoder.decode(await drive.download(file.id))) as import('./passkey-lock.js').Lock;
+  } catch {
+    throw new ArchiveKeyError('The backup lock in Drive could not be read.', 'unreadable');
+  }
+}
+
+export async function writeArchiveLock(
+  drive: ArchiveKeyStore,
+  lock: import('./passkey-lock.js').Lock,
+): Promise<void> {
+  await drive.upload(LOCKED_KEY_FILE, encoder.encode(JSON.stringify(lock)));
+}
+
+/**
+ * Opens the locked key with the secret the user just proved.
+ *
+ * A wrong secret throws from `openLock` and nothing is returned — there is no
+ * partial success and no cached key to fall back on.
+ */
+export async function openArchiveLock(
+  drive: ArchiveKeyStore,
+  secret: string | Uint8Array,
+  seenVersion = 0,
+): Promise<ArchiveKeyPair> {
+  const { openLock } = await import('./passkey-lock.js');
+  const lock = await readArchiveLock(drive);
+  if (!lock) throw new ArchiveKeyError('This backup has no lock in Drive.', 'missing');
+
+  const privateKey = await openLock(lock, secret, seenVersion);
+  return { publicKey: lock.publicKey, privateKey };
+}
