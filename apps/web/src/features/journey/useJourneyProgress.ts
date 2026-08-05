@@ -83,6 +83,9 @@ export function useJourneyProgress(): JourneyState {
    * The last summary published, so the same row is not written on every mount.
    */
   const lastPublished = useRef('');
+
+  /** The account's published row is read once per session, not per count. */
+  const seeded = useRef(false);
   const [progress, setProgress] = useState<JourneyProgress>(EMPTY_PROGRESS);
   const [metrics, setMetrics] = useState<BadgeMetrics>({});
   const [pulse, setPulse] = useState<PulseEntry[]>([]);
@@ -111,9 +114,31 @@ export function useJourneyProgress(): JourneyState {
     let cancelled = false;
 
     void (async () => {
-      const stored = loadProgress(userId);
+      let stored = loadProgress(userId);
       // Show what is already known immediately; the count refines it.
       if (!cancelled) setProgress(stored);
+
+      /*
+       * Learn from the account's own published row.
+       *
+       * The local floor lives in this browser's storage, so a fresh install or
+       * a new browser starts with nothing and would show none of the badges
+       * this person has earned. The published row is the account's copy of that
+       * list — reading it once makes the floor follow the account rather than
+       * the device.
+       */
+      if (!seeded.current) {
+        seeded.current = true;
+        const published = await profiles.publicJourney(userId).catch(() => null);
+        if (published && published.badgeIds.length > 0) {
+          stored = mergeProgress(stored, {
+            momentsEarned: 0,
+            unlockedIds: published.badgeIds,
+            unlockedAt: {},
+          });
+          if (!cancelled) setProgress(stored);
+        }
+      }
 
       const messages: CountableMessage[] = [];
       for (const conversation of conversations) {

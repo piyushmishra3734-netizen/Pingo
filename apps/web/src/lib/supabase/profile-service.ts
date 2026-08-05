@@ -500,11 +500,30 @@ export class SupabaseProfileService implements ProfileService {
     if (!userId) return;
 
     try {
+      /*
+       * Merge with what is already published. Never replace it.
+       *
+       * The row is written from whichever device happens to open the app, and a
+       * device only knows what its own cache holds — a fresh install, a signed
+       * -out-and-back-in browser, a phone that has synced a week. One of those
+       * publishing a straight overwrite takes badges *off* a profile that had
+       * them, which is the one thing Journey may never do. It was observed
+       * doing exactly that: two badges became one after a re-login.
+       *
+       * So the union, and the higher level. The local floor in `progress.ts`
+       * protects a single device; this protects the account.
+       */
+      const existing = await this.publicJourney(userId);
+      const badgeIds = existing
+        ? [...new Set([...existing.badgeIds, ...summary.badgeIds])]
+        : summary.badgeIds;
+      const level = Math.max(existing?.level ?? 1, summary.level);
+
       await this.client.from('journey_public').upsert(
         {
           user_id: userId,
-          level: summary.level,
-          badge_ids: summary.badgeIds,
+          level,
+          badge_ids: badgeIds,
         },
         { onConflict: 'user_id' },
       );
