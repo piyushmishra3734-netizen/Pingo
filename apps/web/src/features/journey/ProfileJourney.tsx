@@ -42,7 +42,7 @@ import { useState } from 'react';
 import { Badge } from '../badges/Badge.js';
 import { BADGES } from '../badges/registry.js';
 
-/** Two rows of six. Past that it is a wall rather than a row of badges. */
+/** Two rows of six, earned only. The rest is behind "Collection". */
 const COLLAPSED = 12;
 
 export function ProfileJourney({
@@ -58,7 +58,8 @@ export function ProfileJourney({
   name: string;
   className?: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  /** The whole library, only when asked for. Earned is what a profile shows. */
+  const [collection, setCollection] = useState(false);
   const published = level !== undefined;
   const earned = new Set(badgeIds ?? []);
 
@@ -69,8 +70,7 @@ export function ProfileJourney({
    * reads as part of the set.
    */
   const theirs = BADGES.filter((badge) => earned.has(badge.id));
-  const visible = expanded ? theirs : theirs.slice(0, COLLAPSED);
-  const hidden = theirs.length - visible.length;
+  const visible = collection ? BADGES : theirs.slice(0, COLLAPSED);
 
   return (
     <section className={cn('px-4', className)}>
@@ -91,37 +91,50 @@ export function ProfileJourney({
         ) : (
           <>
             <ul className="grid grid-cols-6 gap-x-2 gap-y-4 pt-4">
-              {visible.map((badge) => (
-                <li key={badge.id}>
-                  <div className="flex flex-col items-center gap-1.5 text-center">
-                    <Badge badge={badge} unlocked size={40} />
-                    <span className="line-clamp-2 text-[10px] leading-tight text-text-secondary">
-                      {badge.title}
-                    </span>
-                  </div>
-                </li>
-              ))}
+              {visible.map((badge) => {
+                const unlocked = earned.has(badge.id);
+                return (
+                  <li key={badge.id}>
+                    <div className="flex flex-col items-center gap-1.5 text-center">
+                      <Badge badge={badge} unlocked={unlocked} size={40} />
+                      <span
+                        className={cn(
+                          'line-clamp-2 text-[10px] leading-tight',
+                          unlocked ? 'text-text-secondary' : 'text-text-tertiary/70',
+                        )}
+                      >
+                        {badge.title}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
 
             <div className="flex items-baseline justify-between gap-3 pt-4">
               {/*
                 What they have, never what they are missing. "6 of 28" would
-                turn somebody's profile into a completion score, and the locked
-                badges are absent for the same reason.
+                turn somebody's profile into a completion score.
               */}
               <p className="text-caption text-text-tertiary">
                 {theirs.length === 1 ? '1 badge earned' : `${theirs.length} badges earned`}
               </p>
 
-              {hidden > 0 || expanded ? (
-                <button
-                  type="button"
-                  onClick={() => setExpanded((open) => !open)}
-                  className="focus-ring rounded-md text-caption text-brand"
-                >
-                  {expanded ? 'Show less' : `Show all ${theirs.length}`}
-                </button>
-              ) : null}
+              {/*
+                The collection, on request.
+
+                A profile shows what somebody earned. The rest of the library is
+                a thing you can go and look at if you want to know what there is
+                — which is a different act from being shown a list of what they
+                have not done.
+              */}
+              <button
+                type="button"
+                onClick={() => setCollection((open) => !open)}
+                className="focus-ring rounded-md text-caption text-text-secondary underline underline-offset-2"
+              >
+                {collection ? 'Earned only' : 'Collection'}
+              </button>
             </div>
           </>
         )}

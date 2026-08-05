@@ -58,11 +58,13 @@ export function JourneyStrip({
       className={cn(
         'mx-4 mb-2 flex w-[calc(100%-2rem)] items-center gap-3 rounded-xl',
         /*
-         * A faint wash of the brand rather than the same surface as a chat row.
-         * It is the one thing in the list that is not a conversation, and it
-         * should look like it — quietly, at ten per cent.
+         * The same surface as everything else in the list.
+         *
+         * It had a brand-coloured wash and border, to stop it reading as a
+         * settings row. The badge does that job on its own, and the tint only
+         * made the row look like a promotion.
          */
-        'border border-brand/15 bg-brand/[0.06] px-3 py-2.5 text-left',
+        'border border-line/60 bg-surface/70 px-3 py-2.5 text-left',
         'transition-transform duration-instant ease-standard',
         'active:scale-[0.99] motion-reduce:active:scale-100',
         className,
@@ -75,25 +77,7 @@ export function JourneyStrip({
         somebody scrolls past: a specific object, half-earned, rather than a
         progress bar in the abstract. Locked, so it reads as somewhere to go.
       */}
-      {next ? (
-        <span className="relative shrink-0">
-          <Badge badge={next.badge} unlocked={false} size={38} />
-          {/*
-            A ring that fills as the badge does. It sits on the artwork rather
-            than under the text, so the progress belongs to the thing it is
-            progress towards.
-          */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -inset-1 rounded-full"
-            style={{
-              background: `conic-gradient(var(--color-brand, #6C5CE7) ${Math.round(next.fraction * 360)}deg, transparent 0deg)`,
-              mask: 'radial-gradient(circle, transparent 62%, black 64%)',
-              WebkitMask: 'radial-gradient(circle, transparent 62%, black 64%)',
-            }}
-          />
-        </span>
-      ) : null}
+      {next ? <Badge badge={next.badge} unlocked={false} size={38} className="shrink-0" /> : null}
 
       <div className="min-w-0 flex-1">
         {/*
@@ -145,21 +129,17 @@ export function JourneyStrip({
       </div>
 
       {/*
-        The level as one small pill, not a three-line column.
+        Nothing on the right at all.
 
-        On a phone — and in the desktop sidebar, which is narrower still — a
-        right-hand block of "Level / 2 / 1/3 today" took seventy pixels and left
-        the sentence to truncate at "29 more messages afte…". The sentence is
-        the reason anybody taps this; the level is the part that can be two
-        characters.
+        This has been, in order: a three-line column of "Level / 2 / 1/3 today",
+        then a coloured "Lv 2" pill. Both were chrome. The level is on the
+        Journey screen and on the profile, it is not what this row is about, and
+        a pill beside a drawn badge is one decoration too many — enough of them
+        and a screen stops looking designed and starts looking generated.
 
-        Today's mission count is gone from here entirely: the missions are still
-        stand-in data, and a fabricated fraction on the chats list is the one
-        number in the product nobody could check.
+        What is left is the artwork, a sentence, and a hairline. The badge is
+        the thing worth looking at; everything that competed with it is gone.
       */}
-      <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-caption font-medium tabular-nums text-brand">
-        Lv {level.level}
-      </span>
     </button>
   );
 }
