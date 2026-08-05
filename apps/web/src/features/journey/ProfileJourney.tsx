@@ -77,7 +77,7 @@ export function ProfileJourney({
 
       <ul
         className={cn(
-          'gap-x-2 gap-y-4 pt-3',
+          'gap-x-1 gap-y-4 pt-3',
           // Five in a row while it is a summary; the full library needs a grid.
           collection ? 'grid grid-cols-6' : 'flex',
         )}
@@ -86,8 +86,8 @@ export function ProfileJourney({
           const unlocked = earned.has(badge.id);
           return (
             <li key={badge.id} className={collection ? undefined : 'shrink-0'}>
-              <div className="flex w-14 flex-col items-center gap-1.5 text-center">
-                <Badge badge={badge} unlocked={unlocked} size={40} />
+              <div className="flex w-16 flex-col items-center gap-1.5 text-center">
+                <Badge badge={badge} unlocked={unlocked} size={48} />
                 <span
                   className={cn(
                     'line-clamp-2 text-[10px] leading-tight',
