@@ -27,6 +27,7 @@ const asSecret = (choice: SecretChoice): string =>
 export function EnrolmentFlow({
   targets,
   account,
+  existingSecret,
   onDone,
   onCancel,
   cancelLabel = 'Cancel',
@@ -34,7 +35,17 @@ export function EnrolmentFlow({
   targets: BackupTarget[];
   /** Needed only to name the passkey in the platform prompt. */
   account?: { userId: string; userName: string; displayName: string };
-  onDone: () => void;
+  /**
+   * A secret the user has already chosen this session.
+   *
+   * When the Drive lock was set first, asking again would be asking for a
+   * second secret to protect the same history — and two secrets is how people
+   * end up with one they cannot remember. Given one, this enrols with it and
+   * never shows the picker.
+   */
+  existingSecret?: SecretChoice;
+  /** Receives what was chosen, so the caller can use the *same* secret. */
+  onDone: (choice: SecretChoice) => void;
   onCancel: () => void;
   /** Onboarding calls this "Not now"; Settings calls it "Cancel". */
   cancelLabel?: string;
@@ -56,7 +67,7 @@ export function EnrolmentFlow({
       const pending = await beginEnrolment(asSecret(choice));
       await completeEnrolment(pending, targets);
       setStep('done');
-      onDone();
+      onDone(choice);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Secure Backup could not be enabled.');
       setStep('explain');
@@ -85,16 +96,16 @@ export function EnrolmentFlow({
             enabled cannot be restored.
           </p>
           <p className="px-4 text-sm text-muted">
-            You choose what unlocks it — Face ID, a fingerprint, your screen lock, or a
-            password, PIN or pattern you set. Nobody at PINGO can reset it or read your
-            messages.
+            {existingSecret
+              ? 'This uses the same passkey or passcode you already set for your backup — one secret, not two.'
+              : 'You choose what unlocks it — Face ID, a fingerprint, your screen lock, or a password, PIN or pattern you set. Nobody at PINGO can reset it or read your messages.'}
           </p>
           <button
             type="button"
             className="px-4 py-3 text-left text-accent"
-            onClick={() => setStep('choose')}
+            onClick={() => (existingSecret ? void enable(existingSecret) : setStep('choose'))}
           >
-            Choose how to unlock it
+            {existingSecret ? 'Enable with the lock you already set' : 'Choose how to unlock it'}
           </button>
           <button type="button" className="px-4 py-3 text-left text-muted" onClick={onCancel}>
             {cancelLabel}
@@ -113,7 +124,7 @@ export function EnrolmentFlow({
 
       {step === 'done' ? (
         <p className="px-4 text-sm text-muted">
-          Secure Backup is on. Messages from now on can be recovered with your code.
+          Secure Backup is on. Messages from now on can be recovered with what you just set.
         </p>
       ) : null}
     </div>

@@ -72,6 +72,15 @@ export function SecureBackupScreen() {
    */
   const [starting, setStarting] = useState<'backup' | 'restore' | undefined>();
 
+  /**
+   * What the user chose this session, so the two halves stay one secret.
+   *
+   * State rather than a ref because the enrolment flow reads it while
+   * rendering. It is the same material as `unlockedWith` and is dropped with
+   * the screen.
+   */
+  const [lockSecret, setLockSecret] = useState<SecretChoice | undefined>();
+
   const runDrive = (kind: 'backup' | 'restore', work: () => Promise<void>) => {
     setStarting(kind);
     void work().finally(() => setStarting(undefined));
@@ -556,6 +565,7 @@ export function SecureBackupScreen() {
 
       await keyMod.writeArchiveLock(drivePkg, lockToWrite);
       unlockedWith.current = choice.secret;
+      setLockSecret(choice);
       setLockStep(undefined);
       setError(
         existing
@@ -770,9 +780,22 @@ export function SecureBackupScreen() {
           <EnrolmentFlow
             targets={targets}
             {...(profileForPasskey ? { account: profileForPasskey } : {})}
-            onDone={() => {
+            {...(lockSecret ? { existingSecret: lockSecret } : {})}
+            onDone={(choice) => {
               setEnrolling(false);
               void refresh();
+              /*
+                One secret, not two.
+
+                The server package and the Drive lock protect the same history,
+                and asking twice is how somebody ends up with a password they
+                set once and a passkey they set later and no idea which opens
+                what. Enrolling therefore locks Drive with the same choice, if
+                Drive is connected; if it is not, the lock is set with this
+                secret the moment it is.
+              */
+              setLockSecret(choice);
+              if (drive?.connected && !lock) void applyLock(choice);
             }}
             onCancel={() => setEnrolling(false)}
           />

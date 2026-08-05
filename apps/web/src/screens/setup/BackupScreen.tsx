@@ -56,7 +56,7 @@ export function BackupScreen() {
       <EnrolmentFlow
         targets={targets}
         {...(account ? { account } : {})}
-        onDone={done}
+        onDone={() => done()}
         onCancel={done}
         cancelLabel="Not now"
       />
