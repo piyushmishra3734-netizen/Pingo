@@ -689,6 +689,7 @@ export function SecureBackupScreen() {
         <Group title="Enable Secure Backup">
           <EnrolmentFlow
             targets={targets}
+            {...(profileForPasskey ? { account: profileForPasskey } : {})}
             onDone={() => {
               setEnrolling(false);
               void refresh();

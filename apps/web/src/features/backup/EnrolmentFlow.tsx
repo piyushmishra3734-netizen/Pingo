@@ -1,10 +1,7 @@
 import { useState } from 'react';
 
-import {
-  beginEnrolment,
-  completeEnrolment,
-  type PendingEnrolment,
-} from '../../lib/backup/secure-backup.js';
+import { BackupLockPicker, type SecretChoice } from './BackupLock.js';
+import { beginEnrolment, completeEnrolment } from '../../lib/backup/secure-backup.js';
 import type { BackupTarget } from '../../lib/backup/target.js';
 
 /**
@@ -19,57 +16,54 @@ import type { BackupTarget } from '../../lib/backup/target.js';
  *
  * So the sequence lives here and the surroundings are passed in.
  */
-export type EnrolmentStep = 'explain' | 'code' | 'done';
+export type EnrolmentStep = 'explain' | 'choose' | 'done';
+
+/** PRF bytes as a string, so both methods reach the same KDF. */
+const asSecret = (choice: SecretChoice): string =>
+  typeof choice.secret === 'string'
+    ? choice.secret
+    : btoa(String.fromCharCode(...choice.secret));
 
 export function EnrolmentFlow({
   targets,
+  account,
   onDone,
   onCancel,
   cancelLabel = 'Cancel',
 }: {
   targets: BackupTarget[];
+  /** Needed only to name the passkey in the platform prompt. */
+  account?: { userId: string; userName: string; displayName: string };
   onDone: () => void;
   onCancel: () => void;
   /** Onboarding calls this "Not now"; Settings calls it "Cancel". */
   cancelLabel?: string;
 }) {
   const [step, setStep] = useState<EnrolmentStep>('explain');
-  const [pending, setPending] = useState<PendingEnrolment | undefined>();
   const [error, setError] = useState<string | undefined>();
-  const [busy, setBusy] = useState(false);
 
-  const showCode = async () => {
+  /**
+   * One step, not two.
+   *
+   * The old sequence showed twelve words and then asked the user to confirm
+   * they had written them down — a confirmation of an act almost nobody
+   * performed. Choosing a passkey or a passcode *is* the confirmation: the
+   * secret exists because they made it, and there is nothing to transcribe.
+   */
+  const enable = async (choice: SecretChoice) => {
     setError(undefined);
     try {
-      // Nothing has left the device at this point, and nothing will until the
-      // user confirms they have written the code down.
-      setPending(await beginEnrolment());
-      setStep('code');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not prepare Secure Backup.');
-    }
-  };
-
-  const enable = async () => {
-    if (!pending) return;
-    setBusy(true);
-    setError(undefined);
-    try {
+      const pending = await beginEnrolment(asSecret(choice));
       await completeEnrolment(pending, targets);
-      // The code is not retained anywhere. It is on paper or it is gone.
-      setPending(undefined);
       setStep('done');
       onDone();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Secure Backup could not be enabled.');
       setStep('explain');
-    } finally {
-      setBusy(false);
     }
   };
 
   const abandon = () => {
-    setPending(undefined);
     setStep('explain');
     onCancel();
   };
@@ -91,12 +85,16 @@ export function EnrolmentFlow({
             enabled cannot be restored.
           </p>
           <p className="px-4 text-sm text-muted">
-            You will get a 12-word recovery code. It is the only thing that can unlock your
-            backup - nobody at PINGO can reset it or read your messages. Write it down somewhere
-            safe.
+            You choose what unlocks it — Face ID, a fingerprint, your screen lock, or a
+            password, PIN or pattern you set. Nobody at PINGO can reset it or read your
+            messages.
           </p>
-          <button type="button" className="px-4 py-3 text-left text-accent" onClick={showCode}>
-            I understand - show my recovery code
+          <button
+            type="button"
+            className="px-4 py-3 text-left text-accent"
+            onClick={() => setStep('choose')}
+          >
+            Choose how to unlock it
           </button>
           <button type="button" className="px-4 py-3 text-left text-muted" onClick={onCancel}>
             {cancelLabel}
@@ -104,25 +102,13 @@ export function EnrolmentFlow({
         </>
       ) : null}
 
-      {step === 'code' && pending ? (
-        <>
-          <p className="px-4 font-mono text-base leading-7 tracking-wide">{pending.code}</p>
-          <p className="px-4 text-sm text-muted">
-            Write these 12 words down now. They will not be shown again, and nothing has been
-            saved yet.
-          </p>
-          <button
-            type="button"
-            disabled={busy}
-            className="px-4 py-3 text-left text-accent disabled:opacity-50"
-            onClick={enable}
-          >
-            {busy ? 'Enabling…' : 'I have written it down. Enable Secure Backup'}
-          </button>
-          <button type="button" className="px-4 py-3 text-left text-muted" onClick={abandon}>
-            {cancelLabel}
-          </button>
-        </>
+      {step === 'choose' ? (
+        <BackupLockPicker
+          purpose="set"
+          {...(account ? { account } : {})}
+          onChosen={(choice) => void enable(choice)}
+          onCancel={abandon}
+        />
       ) : null}
 
       {step === 'done' ? (

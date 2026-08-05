@@ -85,8 +85,13 @@ const target = new MemoryTarget();
 check((await readState(store)) === undefined, 'nothing enrolled to begin with');
 check(!(await secureBackupStatus([target], store)).enabled, 'status reports disabled');
 
-const pending = await beginEnrolment(store);
-check(pending.code.split(' ').length === 12, 'begin produces a twelve-word code');
+const pending = await beginEnrolment('a passcode the user chose', store);
+/*
+ * The secret is the user's now, not a generated one. What matters is that the
+ * package is sealed to what they chose — a check that it came back as twelve
+ * words was a check on the old design.
+ */
+check(pending.code === 'a passcode the user chose', 'begin seals to the secret it was given');
 check(pending.package.version === 1, 'first package is version 1');
 
 /*
@@ -116,7 +121,7 @@ console.log('\n— cancellation leaves no trace —');
 
 const cancelStore = memoryStore();
 const cancelTarget = new MemoryTarget();
-const abandoned = await beginEnrolment(cancelStore);
+const abandoned = await beginEnrolment('a passcode the user chose', cancelStore);
 check(abandoned.code.length > 0, 'a code was generated');
 // The user closes the sheet. `completeEnrolment` is never called.
 check(cancelTarget.stored === undefined, 'cancelled enrolment wrote nothing to the target');
@@ -131,7 +136,7 @@ console.log('\n— enrolment that cannot be confirmed is a failure —');
 const swallowStore = memoryStore();
 const swallowing = new MemoryTarget();
 swallowing.swallow = true;
-const swallowPending = await beginEnrolment(swallowStore);
+const swallowPending = await beginEnrolment('a passcode the user chose', swallowStore);
 let notConfirmed = false;
 try {
   await completeEnrolment(swallowPending, [swallowing], swallowStore);
@@ -146,7 +151,7 @@ const refusing = new MemoryTarget();
 refusing.failWrites = true;
 let writeFailed = false;
 try {
-  await completeEnrolment(await beginEnrolment(refusingStore), [refusing], refusingStore);
+  await completeEnrolment(await beginEnrolment('a passcode the user chose', refusingStore), [refusing], refusingStore);
 } catch (cause) {
   writeFailed = cause instanceof EnrolmentError && cause.code === 'write-failed';
 }
@@ -154,9 +159,9 @@ check(writeFailed, 'a target that refuses the write fails enrolment');
 
 console.log('\n— re-enrolment rotates rather than repeats —');
 
-const second = await beginEnrolment(store);
+const second = await beginEnrolment('something different this time', store);
 check(second.package.version === 2, 'the next package is version 2');
-check(second.code !== pending.code, 'a new code, not the old one');
+check(second.code !== pending.code, 'sealed to the new secret, not the old one');
 
 await completeEnrolment(second, [target], store);
 check(target.stored?.package.version === 2, 'the target holds the newer package');
@@ -170,7 +175,7 @@ try {
 } catch {
   oldRefused = true;
 }
-check(oldRefused, 'the old code does not open the new package');
+check(oldRefused, 'the old secret does not open the new package');
 
 console.log('\n— status persists —');
 
@@ -190,7 +195,7 @@ check(target.stored !== undefined, 'testing does not remove the package');
 check((await readState(store))?.enabled === true, 'testing does not change enrolment');
 
 const bad = await testRecovery(pending.code, [target], store);
-check(!bad.ok && bad.reason === 'bad-code', 'a superseded code fails');
+check(!bad.ok && bad.reason === 'bad-code', 'a superseded secret fails');
 
 const emptyStore = memoryStore();
 const emptyTarget = new MemoryTarget();
@@ -222,7 +227,7 @@ check(!(await secureBackupStatus([target], store)).enabled, 'status reports disa
  */
 const stubbornStore = memoryStore();
 const stubborn = new MemoryTarget();
-await completeEnrolment(await beginEnrolment(stubbornStore), [stubborn], stubbornStore);
+await completeEnrolment(await beginEnrolment('a passcode the user chose', stubbornStore), [stubborn], stubbornStore);
 stubborn.remove = async () => {
   throw new Error('offline');
 };

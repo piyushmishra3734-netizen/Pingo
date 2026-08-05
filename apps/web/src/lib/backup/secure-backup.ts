@@ -118,10 +118,23 @@ export async function readState(
  * package cannot be replayed over.
  */
 export async function beginEnrolment(
+  /**
+   * What the user chose: a passcode they typed, or a passkey's PRF output as
+   * base64.
+   *
+   * This used to generate twelve words. Nobody wrote them down, so the "only
+   * thing that can unlock your backup" was a string most people closed the
+   * screen on. The mechanism below is unchanged — same KDF, same package, same
+   * rotation — only where the secret comes from.
+   *
+   * Absent still generates a code, because onboarding has a path that has not
+   * been rewritten yet and a half-enrolled account is worse than a code.
+   */
+  secret?: string,
   store: StateStore = sealedStateStore,
 ): Promise<PendingEnrolment> {
   const previous = await readState(store);
-  const code = generateRecoveryCode();
+  const code = secret ?? generateRecoveryCode();
   const created = await createRecoveryKey(code, (previous?.version ?? 0) + 1);
 
   return {
