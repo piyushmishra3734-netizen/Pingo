@@ -46,6 +46,11 @@ export type PostRow = {
   caption: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Display-only offset added to the real `post_likes` count. Operators set it
+   * in SQL; clients cannot raise it. Product logic never reads this.
+   */
+  likes_display_seed?: number;
 };
 
 /** One row of `public.stories`. */

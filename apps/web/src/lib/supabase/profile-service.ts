@@ -608,12 +608,20 @@ export class SupabaseProfileService implements ProfileService {
       commentCount.set(comment.post_id, (commentCount.get(comment.post_id) ?? 0) + 1);
     }
 
-    return rows.map((row) => toPost(row, urls.get(row.image_path) ?? '', {
-      likeCount: likeCount.get(row.id) ?? 0,
-      likedByMe: likedByMe.has(row.id),
-      savedByMe: savedByMe.has(row.id),
-      commentCount: commentCount.get(row.id) ?? 0,
-    }));
+    return rows.map((row) => {
+      const realLikes = likeCount.get(row.id) ?? 0;
+      const seed =
+        typeof row.likes_display_seed === 'number' && row.likes_display_seed > 0
+          ? row.likes_display_seed
+          : 0;
+      return toPost(row, urls.get(row.image_path) ?? '', {
+        // Display only — real likes still drive likedByMe / toggle.
+        likeCount: realLikes + seed,
+        likedByMe: likedByMe.has(row.id),
+        savedByMe: savedByMe.has(row.id),
+        commentCount: commentCount.get(row.id) ?? 0,
+      });
+    });
   }
 
   async listPosts(userId: string): Promise<Post[]> {
