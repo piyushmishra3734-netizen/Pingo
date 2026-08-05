@@ -10,8 +10,6 @@ import {
   disableSecureBackup,
   markBackedUp,
   secureBackupStatus,
-  testRecovery,
-  type RecoveryTestResult,
   type SecureBackupStatus,
 } from '../../lib/backup/secure-backup.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
@@ -30,12 +28,13 @@ import { archiveLines, buildArchive } from '../../lib/backup/archive-builder.js'
  * with onboarding, so the warning and the two-step order cannot drift between
  * the two places that offer the same operation.
  *
- * ## Test Recovery is a rehearsal, not a restore
+ * ## Nothing here asks for a recovery code
  *
- * It opens the package with the entered code and throws the key away. Nothing
- * is decrypted, nothing is written, no identity changes. The question it
- * answers - "are the words I wrote down the words that work?" - is only useful
- * before the phone is lost, and almost nothing offers it.
+ * Restoring opens the archive with a key that lives in the same Drive folder,
+ * so the twelve words are not part of any path the user takes. Every surface
+ * that still mentioned them — the status row, the code test, the restore
+ * instructions — has been removed: a screen that asks for something the product
+ * does not use sends people hunting for a code they were never given.
  */
 export function SecureBackupScreen() {
   const client = useMemo(() => getSupabaseClient(), []);
@@ -43,12 +42,9 @@ export function SecureBackupScreen() {
 
   const [status, setStatus] = useState<SecureBackupStatus | undefined>();
   const [enrolling, setEnrolling] = useState(false);
-  const [busy, setBusy] = useState<'backup' | 'disable' | 'test' | undefined>();
+  const [busy, setBusy] = useState<'backup' | 'disable' | undefined>();
   const [error, setError] = useState<string | undefined>();
 
-  const [testing, setTesting] = useState(false);
-  const [code, setCode] = useState('');
-  const [result, setResult] = useState<RecoveryTestResult | undefined>();
 
   const [drive, setDrive] = useState<DriveView | undefined>();
   const [confirm, setConfirm] = useState<'restore' | 'disconnect' | undefined>();
@@ -184,11 +180,7 @@ export function SecureBackupScreen() {
     void driveCtl.disconnect();
   };
 
-  /*
-   * Restore needs the recovery private key, which only the code can produce, so
-   * the code is asked for here and used once. It is never stored - not in state
-   * beyond this call, not on disk.
-   */
+  /* Restore, which asks for nothing. The note inside says why. */
   const confirmRestore = async () => {
     setConfirm(undefined);
     /*
@@ -375,18 +367,6 @@ export function SecureBackupScreen() {
    */
   const accountEnrolled = status?.targets.some((t) => t.present) ?? false;
 
-  const runTest = async () => {
-    setBusy('test');
-    setResult(undefined);
-    try {
-      setResult(await testRecovery(code.trim(), targets));
-    } finally {
-      setBusy(undefined);
-      // The code is never kept, not even in component state.
-      setCode('');
-    }
-  };
-
   const backupNow = async () => {
     setBusy('backup');
     setError(undefined);
@@ -414,9 +394,18 @@ export function SecureBackupScreen() {
 
   return (
     <SettingsPage title="Secure Backup">
+      {/*
+        Three facts, and none of them is a recovery code.
+
+        Restoring stopped asking for one — nobody keeps a twelve-word code, and
+        this is a messaging app rather than a bank. A row of dots for something
+        the product no longer uses is worse than clutter: it tells somebody they
+        are relying on a code they were never given, and they go looking for it.
+        The internal recovery version went with it; a "v2" nobody can act on is
+        a number for the developer, on a screen for the user.
+      */}
       <Group title="Status">
         <InfoRow label="Status" value={enabled ? '✅ Enabled' : 'Not enabled'} />
-        <InfoRow label="Recovery Version" value={local ? `v${local.version}` : '-'} />
         <InfoRow
           label="Backup Target"
           value={status?.targets.map((t) => t.label).join(', ') || '-'}
@@ -425,12 +414,6 @@ export function SecureBackupScreen() {
           label="Last Backup"
           value={local?.lastBackupAt ? new Date(local.lastBackupAt).toLocaleString() : '-'}
         />
-        {/*
-          Masked, always. The code exists on paper or in the user's head; a
-          screen that could redisplay it would make every unlocked phone a copy
-          of it.
-        */}
-        <InfoRow label="Recovery Code" value={enabled ? '••••••••••••' : '-'} />
       </Group>
 
       {/*
@@ -489,8 +472,8 @@ export function SecureBackupScreen() {
       {!local && accountEnrolled ? (
         <Group title="Restore your history">
           <p className="px-4 pt-3 text-sm text-muted">
-            This account has Secure Backup, but this device has never been set up. Connect Google
-            Drive and enter your 12-word recovery code to bring your chats back.
+            This account has Secure Backup, but this device has never been set up. Connect the
+            same Google account and your chats come back — there is nothing to type.
           </p>
 
           {!drive?.connected || drive?.needsReconnect ? (
@@ -548,66 +531,15 @@ export function SecureBackupScreen() {
         </Group>
       ) : null}
 
-      {enabled ? (
-        <Group title="Test Recovery">
-          <p className="px-4 pt-3 text-sm text-muted">
-            Checks that your recovery code opens your backup. Nothing is restored and nothing
-            changes - it only tells you whether the code works.
-          </p>
+      {/*
+        "Test Recovery" was here, and it tested a code.
 
-          {testing ? (
-            <>
-              <input
-                type="password"
-                value={code}
-                autoComplete="off"
-                placeholder="Enter your 12-word recovery code"
-                onChange={(event) => setCode(event.target.value)}
-                className="mx-4 my-2 rounded-md bg-surface px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                disabled={busy === 'test' || code.trim().length === 0}
-                className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
-                onClick={runTest}
-              >
-                {busy === 'test' ? 'Checking…' : 'Check my code'}
-              </button>
-              <button
-                type="button"
-                className="w-full px-4 py-3 text-left text-muted"
-                onClick={() => {
-                  setTesting(false);
-                  setCode('');
-                  setResult(undefined);
-                }}
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="w-full px-4 py-3 text-left text-accent"
-              onClick={() => setTesting(true)}
-            >
-              Test Recovery
-            </button>
-          )}
-
-          {result ? (
-            <p className={`px-4 pb-3 text-sm ${result.ok ? 'text-success' : 'text-danger'}`}>
-              {result.ok
-                ? `PASS - your code opens recovery package v${result.version} (${
-                    result.source === 'target' ? 'checked against the stored copy' : 'checked on this device'
-                  }). Nothing was restored.`
-                : result.reason === 'no-package'
-                  ? 'No recovery package is available to test on this device.'
-                  : 'FAIL: that code did not open your recovery package.'}
-            </p>
-          ) : null}
-        </Group>
-      ) : null}
+        Restoring asks for nothing now — the key that opens the archive sits
+        in the same Drive folder as the archive — so a passing code test
+        proved something no restore depends on, and a failing one would have
+        frightened somebody whose backup was fine. The rehearsal that means
+        something is a restore, and that is one row further down.
+      */}
 
       {enabled ? (
         <Group title="Google Drive">
