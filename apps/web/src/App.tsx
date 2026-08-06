@@ -14,6 +14,7 @@ import { MessageToastProvider } from './features/notifications/MessageToastProvi
 import { NotificationProvider } from './features/notifications/NotificationContext.js';
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
+import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
 import { StickerProvider } from './features/stickers/StickerContext.js';
 import { StoryProvider } from './features/stories/StoryContext.js';
@@ -219,6 +220,7 @@ export function App() {
         Inside auth, because a profile only exists for a signed-in user; outside
         the router, because the guards need to read it while deciding routes.
       */}
+      <NotificationPrefsSync />
       <ProfileProvider service={services.profile}>
         {/*
           Real conversations and messages, over Realtime. The mock is gone from
