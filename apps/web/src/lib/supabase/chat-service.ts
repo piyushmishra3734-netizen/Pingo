@@ -3049,7 +3049,23 @@ export class SupabaseChatService implements ChatService {
      */
     const rows = data ?? [];
     const lastSeen = await this.#lastSeenFor(rows.map((row) => row.id));
-    const users = rows.map((row) => toUser(row, lastSeen.get(row.id)));
+    /*
+     * The socket's word wins here too.
+     *
+     * This is the list the provider hands every screen as `users`, and it was
+     * writing `offline` for everybody from `last_seen_at` - so whoever was
+     * actually connected went grey the moment contacts loaded or reloaded, and
+     * stayed grey until their next presence event. Which side saw whom online
+     * came down to timing, which is why it worked one way and not the other.
+     *
+     * The same overlay as the conversation roster. Both sites rebuild people
+     * from the database; neither may claim to know who is connected.
+     */
+    const users = rows.map((row) => {
+      const user = toUser(row, lastSeen.get(row.id));
+      const live = this.#livePresence.get(row.id);
+      return live ? { ...user, presence: live } : user;
+    });
     for (const user of users) this.#people.set(user.id, user);
     return users;
   }
