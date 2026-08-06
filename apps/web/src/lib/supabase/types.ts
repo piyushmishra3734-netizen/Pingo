@@ -674,6 +674,37 @@ export type Database = {
         };
         Relationships: [];
       };
+      /** What the pipeline delivered. Own rows readable; never writable here. */
+      push_deliveries: {
+        Row: {
+          notification_id: string;
+          user_id: string;
+          device_count: number;
+          attempts: number;
+          latency_ms: number | null;
+          sent_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      /** Deliveries waiting on the retry worker. Own rows readable. */
+      push_failures: {
+        Row: {
+          id: string;
+          notification_id: string | null;
+          user_id: string;
+          reason: string;
+          last_error: string | null;
+          attempts: number;
+          next_attempt_at: string;
+          created_at: string;
+          last_attempt_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       /**
        * One row per install that can receive a push, keyed on the FCM token.
        *
@@ -703,6 +734,23 @@ export type Database = {
     /* Empty groups, in the shape the generator emits. */
     Views: { [_ in never]: never };
     Functions: {
+      /**
+       * Product-wide push health. Raises for anybody not on the operator
+       * allowlist, so the caller must tolerate a rejection rather than assume
+       * a row.
+       */
+      push_health: {
+        Args: Record<string, never>;
+        Returns: {
+          delivered: number;
+          dead_letters: number;
+          queued: number;
+          pruned_tokens: number;
+          retries_before_success: number;
+          avg_latency_ms: number | null;
+          success_rate_percent: number | null;
+        }[];
+      };
       /** Idempotent: returns the existing direct conversation, or makes one. */
       start_direct_conversation: {
         Args: { other_user: string };

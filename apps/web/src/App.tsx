@@ -54,6 +54,7 @@ import { HelpScreen } from './screens/settings/HelpScreen.js';
 import { LanguageScreen } from './screens/settings/LanguageScreen.js';
 import { NotificationsScreen } from './screens/settings/NotificationsScreen.js';
 import { PrivacyScreen } from './screens/settings/PrivacyScreen.js';
+import { PushDebugScreen } from './screens/settings/PushDebugScreen.js';
 import { SecureBackupScreen } from './screens/settings/SecureBackupScreen.js';
 import { StorageScreen } from './screens/settings/StorageScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
@@ -363,6 +364,7 @@ export function App() {
                   <Route path="/settings/password" element={<ChangePasswordScreen />} />
                   <Route path="/settings/appearance" element={<AppearanceScreen />} />
                   <Route path="/settings/notifications" element={<NotificationsScreen />} />
+                  <Route path="/settings/notifications/debug" element={<PushDebugScreen />} />
                   <Route path="/settings/privacy" element={<PrivacyScreen />} />
                   <Route path="/settings/chats" element={<ChatsSettingsScreen />} />
                   <Route path="/settings/camera-snaps" element={<CameraSettingsScreen />} />

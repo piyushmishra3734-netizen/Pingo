@@ -136,6 +136,55 @@ for (const file of walk(join(ROOT, 'src'))) {
   }
 }
 
+/*
+ * Cycles.
+ *
+ * The order check above compares two providers at a time, and two-at-a-time is
+ * blind to a loop: A needs B, B needs C, C needs A. Every individual pair can
+ * look satisfiable while the whole is impossible - there is no nesting order
+ * that puts all three above each other, so the tree cannot be written at all.
+ *
+ * It cannot happen today, because the order check would reject whichever edge
+ * closed the loop. It becomes possible the moment somebody splits the
+ * composition root, or wires a provider through a context it does not mount
+ * directly. Finding that as "no valid order exists" beats finding it as a
+ * white screen.
+ */
+const edges = new Map();
+for (const file of walk(join(ROOT, 'src'))) {
+  const source = stripComments(readFileSync(file, 'utf8'));
+  for (const component of [...source.matchAll(/export function ([A-Z][A-Za-z0-9]*)/g)].map((m) => m[1])) {
+    if (!mountIndex.has(component)) continue;
+    const needs = new Set(edges.get(component) ?? []);
+    for (const [hook, owner] of Object.entries(HOOK_OWNER)) {
+      if (owner === component || definesHook(source, hook)) continue;
+      if (new RegExp(`\\b${hook}\\s*\\(`).test(source)) needs.add(owner);
+    }
+    edges.set(component, [...needs]);
+  }
+}
+
+/** Depth-first, tracking the path so a found cycle can be named in full. */
+const state = new Map();
+const cycles = [];
+
+function visit(node, path) {
+  if (state.get(node) === 'done') return;
+  if (state.get(node) === 'open') {
+    cycles.push([...path.slice(path.indexOf(node)), node].join(' -> '));
+    return;
+  }
+  state.set(node, 'open');
+  for (const next of edges.get(node) ?? []) visit(next, [...path, node]);
+  state.set(node, 'done');
+}
+
+for (const node of edges.keys()) visit(node, []);
+
+for (const cycle of cycles) {
+  failures.push(`Circular provider dependency: ${cycle}. No nesting order can satisfy this.`);
+}
+
 if (failures.length > 0) {
   console.error('\nProvider order violations:\n');
   for (const failure of failures) console.error('  x ' + failure);
@@ -147,4 +196,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Provider order OK - ${mountIndex.size} providers, no violations.`);
+console.log(`Provider order OK - ${mountIndex.size} providers, ${[...edges.values()].flat().length} dependencies, no cycles.`);

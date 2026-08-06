@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { ChoiceRow, Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
@@ -17,6 +18,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * fact the user can only fix in their browser, not here.
  */
 export function NotificationsScreen() {
+  const navigate = useNavigate();
   const { preferences, update } = usePreferences();
   const n = preferences.notifications;
 
@@ -193,6 +195,24 @@ export function NotificationsScreen() {
         Both halves are now false: these live on your account and the server
         reads them before it sends anything.
       */}
+      {/*
+        Not hidden behind a developer flag.
+
+        Every question about push is asked after the fact by somebody who did
+        not get a notification, and the answer is in a chain of eight things
+        they cannot see. A page that shows the chain is worth more to them than
+        it costs us - it holds nothing another person could not already learn by
+        messaging them, and the product-wide figures on it are refused to anyone
+        who is not an operator.
+      */}
+      <Group>
+        <InfoRow
+          label="Push diagnostics"
+          value="Open"
+          onClick={() => navigate('/settings/notifications/debug')}
+        />
+      </Group>
+
       <p className="px-1 pb-4 text-caption text-text-tertiary">
         Saved to your account, so they follow you to every device you sign in on.
       </p>
