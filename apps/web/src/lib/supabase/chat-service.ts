@@ -54,6 +54,7 @@ import type {
   User,
   UserId,
   UserSettings,
+  PresenceState,
 } from '@pingo/core';
 
 import {
@@ -408,6 +409,15 @@ export class SupabaseChatService implements ChatService {
   #people = new Map<UserId, User>();
 
   /**
+   * Who the socket says is here, kept apart from the roster.
+   *
+   * Separate because the two are refreshed on different clocks: the roster is
+   * re-read from the database and would otherwise overwrite live state every
+   * time it loaded.
+   */
+  #livePresence = new Map<UserId, { state: PresenceState; lastSeenAt: number }>();
+
+  /**
    * AI conversation ids known to this session.
    *
    * Kind is also re-checked on the server row, but the set is the fast path and
@@ -495,8 +505,23 @@ export class SupabaseChatService implements ChatService {
 
     this.#presenceHub = new PresenceHub(client, {
       onPresence: (userId, state) => {
-        const cached = this.#people.get(userId);
         const presence = { state, lastSeenAt: Date.now() };
+
+        /*
+         * Recorded whether or not the person is in the roster yet.
+         *
+         * This used to be `if (cached)`, and presence that arrived before the
+         * contact list finished loading was simply dropped - then the roster
+         * landed, wrote `offline` for everybody from the database, and the
+         * online state was gone. Which of the two won came down to which
+         * request returned first, so somebody was online "sometimes".
+         *
+         * The live map is the authority now: the socket knows who is here and
+         * a table read never does.
+         */
+        this.#livePresence.set(userId, presence);
+
+        const cached = this.#people.get(userId);
         if (cached) this.#people.set(userId, { ...cached, presence });
         this.#emit({ type: 'presence:changed', userId, presence });
       },
@@ -852,7 +877,20 @@ export class SupabaseChatService implements ChatService {
       this.#client.from('profiles').select('*').in('id', missing),
       this.#lastSeenFor(missing),
     ]);
-    for (const row of data ?? []) this.#people.set(row.id, toUser(row, lastSeen.get(row.id)));
+    for (const row of data ?? []) {
+      const user = toUser(row, lastSeen.get(row.id));
+      /*
+       * Whatever the socket already told us wins over the row.
+       *
+       * `toUser` fills in `offline` from a `last_seen_at` column, which is the
+       * best a table can do and is wrong the moment somebody is actually
+       * connected. Without this overlay, loading the roster turned every online
+       * person grey until their next presence event - which for somebody just
+       * sitting in a chat could be minutes.
+       */
+      const live = this.#livePresence.get(row.id);
+      this.#people.set(row.id, live ? { ...user, presence: live } : user);
+    }
   }
 
   /**

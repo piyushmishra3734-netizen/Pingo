@@ -85,7 +85,26 @@ export class PresenceHub {
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
       const online = new Set(Object.keys(state));
+
       for (const id of online) this.#handlers.onPresence(id, 'online');
+
+      /*
+       * Who was here and is not any more.
+       *
+       * `#lastOnline` was being written and never read, which made `sync` a
+       * one-way signal: it could turn somebody on and never off. `leave` was
+       * carrying that alone, and the note above says exactly why it cannot -
+       * a client that reconnects has missed every leave that happened while
+       * the socket was down, so anyone who went away during a dropped
+       * connection stayed lit for the rest of the session.
+       *
+       * Diffing against the previous set is what makes `sync` authoritative,
+       * which is the whole reason it is preferred to the deltas.
+       */
+      for (const id of this.#lastOnline) {
+        if (!online.has(id)) this.#handlers.onPresence(id, 'offline');
+      }
+
       this.#lastOnline = online;
     });
 
