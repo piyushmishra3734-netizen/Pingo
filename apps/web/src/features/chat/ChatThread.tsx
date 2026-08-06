@@ -928,6 +928,14 @@ export function ChatThread({
                           className={cn(
                             'relative flex w-full items-center gap-2 rounded-lg px-1 py-0.5 text-left',
                             'transition-colors duration-instant',
+                            /*
+                              The tick sits beside the bubble, on the bubble's
+                              own side. Fixed to the left it ended up a hand's
+                              width away from a message you sent, with nothing
+                              between them - two unrelated marks rather than a
+                              message and its checkbox.
+                            */
+                            message.authorId === currentUser?.id && 'flex-row-reverse',
                             picked ? 'bg-brand-soft' : 'hover:bg-hover',
                           )}
                         >
