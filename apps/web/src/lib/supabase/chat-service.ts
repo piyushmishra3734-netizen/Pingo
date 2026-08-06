@@ -577,6 +577,46 @@ export class SupabaseChatService implements ChatService {
     });
     this.#authWatcher = data.subscription;
 
+    /*
+     * Coming back to the app has to rejoin everything.
+     *
+     * Android suspends a backgrounded WebView - timers stop, the websocket goes
+     * with it - and nothing on the other side notices, so on resume the app
+     * looks connected while carrying nothing. That is why messages, presence
+     * and typing all appeared only after force-closing and reopening: a cold
+     * start was the sole thing that ever rebuilt the socket.
+     *
+     * The browser has the same problem in a milder form when a tab sleeps, so
+     * this is not gated on being native. `visibilitychange` covers the web and
+     * Capacitor's `appStateChange` covers the app, because a WebView does not
+     * reliably fire the former when the whole process is paused.
+     *
+     * `setAuth` first: the token may well have expired while away, and a
+     * reconnect carrying a dead one rejoins into the same silence.
+     */
+    const resume = () => {
+      void this.#client.auth.getSession().then(({ data: current }) => {
+        if (!current.session) return;
+        this.#client.realtime.setAuth(current.session.access_token);
+        this.#closeChannel();
+        this.#openChannel();
+        this.#presenceHub.stop();
+        this.#presenceHub.start(current.session.user.id);
+      });
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resume();
+    });
+
+    void import('@capacitor/app')
+      .then(({ App }) => {
+        void App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) resume();
+        });
+      })
+      .catch(() => undefined);
+
     // Covers the already-signed-in case, where the listener above fires late.
     void this.#client.auth.getSession().then(({ data: current }) => {
       if (current.session) {
