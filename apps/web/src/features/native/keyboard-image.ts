@@ -53,15 +53,35 @@ function toFile(base64: string, mime: string): File | undefined {
  *
  * @param onImage called with a real `File`, the same shape a paste produces.
  */
+/*
+ * A stack, not a single handler.
+ *
+ * Two things listen: the app, which turns an image into a share, and a
+ * composer, which inserts it into the message being written. Both registering
+ * on one global would mean the second silently replaces the first, and the
+ * first would never come back when the second unmounted - so opening a chat
+ * once would break sharing for the rest of the session.
+ *
+ * Innermost wins, which is the right answer: a composer on screen is somebody
+ * already writing to somebody, and they have answered the only question a
+ * share asks.
+ */
+const handlers: ((file: File) => void)[] = [];
+
 export function receiveKeyboardImages(onImage: (file: File) => void): () => void {
   if (typeof window === 'undefined') return () => undefined;
 
+  handlers.push(onImage);
+
   window.__pingoKeyboardImage = (base64, mime) => {
     const file = toFile(base64, mime);
-    if (file) onImage(file);
+    const innermost = handlers[handlers.length - 1];
+    if (file && innermost) innermost(file);
   };
 
   return () => {
-    delete window.__pingoKeyboardImage;
+    const at = handlers.lastIndexOf(onImage);
+    if (at !== -1) handlers.splice(at, 1);
+    if (handlers.length === 0) delete window.__pingoKeyboardImage;
   };
 }

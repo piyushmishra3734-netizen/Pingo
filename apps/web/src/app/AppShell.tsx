@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
+import { useIncomingShare } from '../features/share/useIncomingShare.js';
 
 /**
  * The shell every signed-in screen renders inside.
@@ -20,6 +21,10 @@ import { useIsDesktop } from '../hooks/useMediaQuery.js';
  * edge, because the composer must sit against the keyboard with the dock hidden.
  */
 export function AppShell() {
+  // A share can start the app, so it is listened for above every screen -
+  // see the note in useIncomingShare.
+  useIncomingShare();
+
   const { ready } = useChat();
   const location = useLocation();
   const isDesktop = useIsDesktop();

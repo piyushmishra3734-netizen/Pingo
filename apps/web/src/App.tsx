@@ -35,6 +35,7 @@ import { DownloadScreen } from './screens/DownloadScreen.js';
 import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen.js';
 import { TermsScreen } from './screens/TermsScreen.js';
 import { NewChatScreen } from './screens/NewChatScreen.js';
+import { ShareScreen } from './screens/ShareScreen.js';
 import { NewGroupScreen } from './screens/NewGroupScreen.js';
 import { JoinGroupScreen } from './screens/JoinGroupScreen.js';
 import { NotificationsScreen as NotificationsFeedScreen } from './screens/NotificationsScreen.js';
@@ -343,6 +344,7 @@ export function App() {
                     reorder away from being read as a conversation id.
                   */}
                   <Route path="/chats/new" element={<NewChatScreen />} />
+                  <Route path="/share" element={<ShareScreen />} />
                   <Route path="/chats/new-group" element={<NewGroupScreen />} />
                   <Route path="/join/:code" element={<JoinGroupScreen />} />
                   <Route path="/chats/:conversationId" element={<ChatsScreen />} />

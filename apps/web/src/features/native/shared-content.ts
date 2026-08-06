@@ -31,14 +31,20 @@ declare global {
  * @returns the function that removes it, so a screen that has gone cannot
  * receive a share meant for the one that replaced it.
  */
+/* A stack, for the same reason as keyboard images - see that file. */
+const handlers: ((text: string) => void)[] = [];
+
 export function receiveSharedText(onText: (text: string) => void): () => void {
   if (typeof window === 'undefined') return () => undefined;
 
-  window.__pingoSharedText = onText;
+  handlers.push(onText);
+  window.__pingoSharedText = (text) => handlers[handlers.length - 1]?.(text);
   askNativeForShare();
 
   return () => {
-    delete window.__pingoSharedText;
+    const at = handlers.lastIndexOf(onText);
+    if (at !== -1) handlers.splice(at, 1);
+    if (handlers.length === 0) delete window.__pingoSharedText;
   };
 }
 
