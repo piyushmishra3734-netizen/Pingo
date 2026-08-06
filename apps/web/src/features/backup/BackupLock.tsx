@@ -62,12 +62,25 @@ const KIND_HINT: Record<PasscodeKind, string> = {
 export function BackupLockPicker({
   purpose,
   account,
+  credentialId,
   onChosen,
   onCancel,
 }: {
   /** Changes the words only. The mechanism is identical. */
   purpose: 'set' | 'change' | 'unlock';
   account?: { userId: string; userName: string; displayName: string };
+  /**
+   * The passkey this lock was sealed to, from the stored envelope.
+   *
+   * Unlock used to ask for *a* passkey rather than *the* passkey. On a browser
+   * that is usually harmless - there is one discoverable credential for the
+   * site and it gets picked. On a phone it is not: anyone who tried setting a
+   * lock more than once has several PINGO passkeys, the picker offers whichever
+   * it likes, and a different credential produces different PRF bytes. The
+   * unwrap then fails, the screen comes back, and it asks again - which reads
+   * as a passkey that simply does not work.
+   */
+  credentialId?: string;
   onChosen: (choice: SecretChoice) => void | Promise<void>;
   onCancel: () => void;
 }) {
@@ -103,7 +116,7 @@ export function BackupLockPicker({
     setError(undefined);
     try {
       if (purpose === 'unlock') {
-        onChosen({ method: 'passkey', secret: await passkeyPrf() });
+        onChosen({ method: 'passkey', secret: await passkeyPrf(credentialId) });
         return;
       }
       if (!account) throw new PasskeyError('No account to attach a passkey to.', 'failed');

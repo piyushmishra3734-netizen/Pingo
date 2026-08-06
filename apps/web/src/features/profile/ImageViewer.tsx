@@ -49,6 +49,8 @@ export interface ImageViewerProps {
 export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
+  /** The picture itself, for the size the pan limits are measured against. */
+  const imageRef = useRef<HTMLImageElement | null>(null);
   /** Set only while a one-finger drag at natural size is in progress. */
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -126,6 +128,63 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
     return { x: sum.x / all.length, y: sum.y / all.length };
   };
 
+  /**
+   * How far the picture may be pushed before its edge comes inside the frame.
+   *
+   * Panning was unbounded, so a zoomed picture could be dragged into empty
+   * space and left there - it looked like the picture had been lost rather
+   * than moved. At natural size there is nothing to pan to and the answer is
+   * zero, which is also what keeps a stray horizontal drag from nudging an
+   * unzoomed photo sideways.
+   */
+  const panLimit = (at: number): Point => {
+    const node = imageRef.current;
+    if (!node || at <= 1) return { x: 0, y: 0 };
+    return {
+      x: (node.offsetWidth * (at - 1)) / 2,
+      y: (node.offsetHeight * (at - 1)) / 2,
+    };
+  };
+
+  const clamp = (value: Point, at: number): Point => {
+    const limit = panLimit(at);
+    return {
+      x: Math.min(limit.x, Math.max(-limit.x, value.x)),
+      y: Math.min(limit.y, Math.max(-limit.y, value.y)),
+    };
+  };
+
+  /**
+   * Zooms so that whatever is under `anchor` stays under `anchor`.
+   *
+   * The old version scaled about the element's centre, which is why zooming in
+   * on a face at the edge of a photo moved that face further away: the middle
+   * of the picture grew and everything else slid outwards. Pinching,
+   * double-tapping and the wheel all go through here, so all three agree about
+   * what a zoom is - the thing you are pointing at gets bigger where it is.
+   */
+  const zoomAround = (nextScale: number, anchor: Point, from: { scale: number; offset: Point }) => {
+    const box = imageRef.current?.getBoundingClientRect();
+    const target = Math.min(MAX_SCALE, Math.max(1, nextScale));
+
+    if (!box || target === 1) {
+      setScale(target);
+      setOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    // The element's own centre, which is what the transform scales about.
+    const middle = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    const ratio = target / from.scale;
+    const next = {
+      x: (anchor.x - middle.x) * (1 - ratio) + from.offset.x * ratio,
+      y: (anchor.y - middle.y) * (1 - ratio) + from.offset.y * ratio,
+    };
+
+    setScale(target);
+    setOffset(clamp(next, target));
+  };
+
   const onPointerDown = (event: React.PointerEvent) => {
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     // A second finger ends the drag rather than blending into it. See above.
@@ -147,14 +206,13 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
     if (pointers.current.size >= 2) {
       const distance = spread();
       if (start.current.distance > 0) {
-        const next = Math.min(
-          MAX_SCALE,
-          Math.max(1, (start.current.scale * distance) / start.current.distance),
+        // Anchored between the fingers, so the picture grows where it is being
+        // pinched rather than out of the middle of the frame.
+        zoomAround(
+          (start.current.scale * distance) / start.current.distance,
+          centre(),
+          { scale: start.current.scale, offset: start.current.offset },
         );
-        setScale(next);
-        // Back to natural size means back to centre, or the picture stays
-        // nudged off to one side with no way to notice why.
-        if (next === 1) setOffset({ x: 0, y: 0 });
       }
       return;
     }
@@ -165,7 +223,12 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
     };
 
     if (scale > 1) {
-      setOffset({ x: start.current.offset.x + moved.x, y: start.current.offset.y + moved.y });
+      setOffset(
+        clamp(
+          { x: start.current.offset.x + moved.x, y: start.current.offset.y + moved.y },
+          scale,
+        ),
+      );
       return;
     }
 
@@ -190,6 +253,33 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
 
     // One finger left after a pinch: re-anchor so the picture does not jump.
     start.current = { point: centre(), offset, distance: spread(), scale };
+  };
+
+  /**
+   * Double tap, and double click, to zoom.
+   *
+   * The only gesture available was a pinch, which does not exist on a laptop -
+   * so on a desktop the viewer could not be zoomed at all, and on a phone it
+   * was the one gesture people reach for second. Toggling rather than stepping:
+   * a second double tap comes back out, so there is always a way back without
+   * hunting for it.
+   */
+  const doubleTapAt = useRef(0);
+
+  const toggleZoom = (at: Point) => {
+    const zoomed = scale > 1;
+    zoomAround(zoomed ? 1 : 2.5, at, { scale, offset });
+  };
+
+  const onPointerUpMaybeDouble = (event: React.PointerEvent) => {
+    const now = Date.now();
+    // Only a tap that did not drag, and only at natural size or already zoomed
+    // - a pinch that ends near a previous tap is not a double tap.
+    const quick = now - doubleTapAt.current < 300;
+    doubleTapAt.current = quick ? 0 : now;
+    if (quick && pointers.current.size === 0 && dragY === 0) {
+      toggleZoom({ x: event.clientX, y: event.clientY });
+    }
   };
 
   /** Fades the scrim as the picture is pulled away - the drag has to feel real. */
@@ -224,8 +314,21 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
           className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
-          onPointerUp={endPointer}
+          onPointerUp={(event) => {
+            onPointerUpMaybeDouble(event);
+            endPointer(event);
+          }}
           onPointerCancel={endPointer}
+          onWheel={(event) => {
+            // Ctrl+wheel is the browser's own zoom gesture and trackpads send
+            // it for a pinch; plain wheel is a scroll nobody expects to zoom.
+            if (!event.ctrlKey && Math.abs(event.deltaY) < 1) return;
+            zoomAround(
+              scale * (event.deltaY < 0 ? 1.12 : 1 / 1.12),
+              { x: event.clientX, y: event.clientY },
+              { scale, offset },
+            );
+          }}
           // The browser must not also pan, zoom or pull-to-refresh underneath.
           style={{ touchAction: 'none' }}
         >
@@ -260,6 +363,9 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
                 stay blurred for ever.
               */
               ref={(node) => {
+                // Kept, so the pan limits can be worked out from the size the
+                // picture is actually laid out at.
+                imageRef.current = node;
                 if (node?.complete && node.naturalWidth > 0) setLoadedSrc(src);
               }}
               onLoad={() => setLoadedSrc(src)}

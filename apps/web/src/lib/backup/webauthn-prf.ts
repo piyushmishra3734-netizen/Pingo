@@ -139,12 +139,21 @@ export async function createBackupPasskey(input: {
     if (!result.ok) throw nativeFailure(result.code, result.payload);
 
     const made = prfFromJson(result.payload);
-    if (made.prf) return { credentialId: made.credentialId, prf: made.prf };
 
     /*
-     * A provider may create the credential and withhold PRF until the first
-     * assertion. Asking now is the honest way to find out whether this passkey
-     * can carry a backup - before anything is sealed to it.
+     * The bytes that are sealed are the bytes unlock will ask for.
+     *
+     * Registration may hand back a PRF output of its own, and it is tempting to
+     * take it: one prompt instead of two. But unlock never sees that value - it
+     * can only ever perform an assertion - so sealing to the registration
+     * output means trusting a provider to make the two identical. Where one
+     * does not, the failure is total and permanent: the lock is set, and every
+     * attempt to open it produces different bytes, so the prompt comes back for
+     * ever with nothing to say what is wrong.
+     *
+     * So the assertion is always performed, and what it returns is what the
+     * backup is sealed to. It costs a second prompt once, at setup, to make the
+     * every-time path the one that was actually tested.
      */
     const prf = await passkeyPrf(made.credentialId).catch(() => undefined);
     if (!prf) {
@@ -196,13 +205,16 @@ export async function createBackupPasskey(input: {
   if (!credential) throw new PasskeyError('No passkey was created.', 'failed');
 
   /*
-   * Some platforms create the credential but return no PRF output until the
-   * first assertion. Asking straight away is the honest way to find out whether
-   * this passkey can actually carry a backup — before anything is sealed to it.
+   * The assertion is always performed, and its output is what gets sealed.
+   *
+   * Registration can return a PRF output of its own and taking it saves a
+   * prompt, but unlock can only ever assert - so sealing to the registration
+   * value means trusting the two to be identical. Where a platform gets that
+   * wrong the lock is set and can never be opened, and the only symptom is a
+   * prompt that keeps coming back. See the native path, which has the same
+   * note for the same reason.
    */
-  const immediate = prfFrom(credential);
   const credentialId = toBase64Url(new Uint8Array(credential.rawId));
-  if (immediate) return { credentialId, prf: immediate };
 
   const prf = await passkeyPrf(credentialId).catch(() => undefined);
   if (!prf) {

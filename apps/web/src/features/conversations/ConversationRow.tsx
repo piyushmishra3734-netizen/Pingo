@@ -254,6 +254,22 @@ export function ConversationRow({
   const shell = cn(
     'group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left',
     /*
+      No system menu on a long press. Android only, and invisible everywhere else.
+
+      This row is a link, and holding a link in a WebView opens the platform's
+      own menu - "open in new tab", "copy link address". So in the app, holding
+      a chat offered to copy a URL instead of offering to archive or delete it,
+      while the same gesture on a desktop browser worked correctly. Nothing in
+      JavaScript can stop that: it is not a `contextmenu` event, so the
+      `preventDefault` in `useLongPress` never sees it. `-webkit-touch-callout`
+      is the only switch there is.
+
+      `select-none` goes with it. The other half of a long press on a link is
+      the text selection handles, which appear over the row the menu was
+      supposed to be.
+    */
+    'select-none [-webkit-touch-callout:none]',
+    /*
       Colour *and* transform. It was colour only, so the most-tapped element in
       the product acknowledged a press by changing shade and nothing else  - 
       which on a touch screen reads as the tap not having landed.

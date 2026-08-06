@@ -849,6 +849,8 @@ export function SecureBackupScreen() {
             <BackupLockPicker
               purpose={lockStep}
               {...(profileForPasskey ? { account: profileForPasskey } : {})}
+              // The passkey this lock was actually sealed to - see the prop.
+              {...(lock?.credentialId ? { credentialId: lock.credentialId } : {})}
               onChosen={(choice) =>
                 lockStep === 'unlock' ? void unlock(choice) : void applyLock(choice)
               }

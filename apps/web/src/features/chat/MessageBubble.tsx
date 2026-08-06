@@ -193,7 +193,21 @@ export function MessageBubble({
   if (message.location || message.contact || message.event || message.call) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
-        <div id={`message-${message.id}`} className={cn(arrive, 'max-w-[72%] min-w-0')}>
+        <div
+          id={`message-${message.id}`}
+          /*
+            These cards had no menu at all.
+
+            Every branch that replaces the bubble - a location, a contact, an
+            event, a call, a photo, a Ping - returned its own markup and quietly
+            dropped `trigger` on the way. So the one thing every message is
+            supposed to offer, holding it to reply or delete it, worked on text
+            and on nothing else. A shared location could not be deleted by its
+            own sender.
+          */
+          {...trigger}
+          className={cn(arrive, 'max-w-[72%] min-w-0', 'outline-none')}
+        >
           {message.location && <LocationBubble location={message.location} mine={mine} />}
           {message.contact && <ContactBubble contact={message.contact} mine={mine} />}
           {message.event && <EventBubble event={message.event} mine={mine} />}
@@ -214,7 +228,13 @@ export function MessageBubble({
    * exclusive and this is the commoner of the pair.
    */
   if (message.photo) {
-    return <PhotoBubble message={message} photo={message.photo} mine={mine} />;
+    return (
+      // Wrapped rather than passed down: the trigger belongs to "this message",
+      // not to the picture, and PhotoBubble already owns its own tap.
+      <div id={`message-${message.id}`} {...trigger} className="w-full outline-none">
+        <PhotoBubble message={message} photo={message.photo} mine={mine} />
+      </div>
+    );
   }
 
   /*
@@ -225,7 +245,7 @@ export function MessageBubble({
   if (message.ping) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
-        <div className={arrive}>
+        <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'outline-none')}>
           <PingBubble message={message} ping={message.ping} mine={mine} />
           <span className="mt-0.5 block text-caption text-text-tertiary">
             {formatTime(message.createdAt)}
