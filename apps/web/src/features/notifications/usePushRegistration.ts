@@ -96,6 +96,37 @@ export function usePushRegistration(): void {
        */
       const { PushNotifications } = await import('@capacitor/push-notifications');
 
+      /*
+       * The channel has to exist before anything can arrive on it.
+       *
+       * Every push carries `channelId: 'pingo_messages'`, and on Android 8 and
+       * up a notification naming a channel that was never created is dropped
+       * without a sound, a log line, or anything else to notice. The server was
+       * sending correctly and the phone was throwing it away.
+       *
+       * Created here rather than in the manifest because a channel is a runtime
+       * object - importance, vibration and lights are set once at creation and
+       * cannot be raised later, so it belongs where the values live rather than
+       * in XML that only claims a default.
+       *
+       * `createChannel` is idempotent: calling it for one that exists updates
+       * the name and description and leaves everything the user has since
+       * changed alone, which is exactly right.
+       */
+      if (currentPlatform() === 'android') {
+        await PushNotifications.createChannel({
+          id: 'pingo_messages',
+          name: 'Messages',
+          description: 'Messages, Pings, calls and friend requests.',
+          // HIGH, not MAX: it lights the screen and makes a sound without
+          // taking over as a full-screen interruption. A message is not a call.
+          importance: 4,
+          visibility: 1,
+          vibration: true,
+          lights: true,
+        }).catch(() => undefined);
+      }
+
       const current = await PushNotifications.checkPermissions();
       let granted = current.receive === 'granted';
 

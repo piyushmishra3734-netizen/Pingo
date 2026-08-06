@@ -58,6 +58,18 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!--
+            The channel a push falls back to if it names one that does not exist.
+
+            Every notification PINGO sends names `pingo_messages`, which the app
+            creates at registration. This is the safety net for the gap between
+            install and that call, and for a payload that ever names something
+            else: without it, Android 8 and up drops a notification with an
+            unknown channel silently - no sound, no log, nothing to notice.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="pingo_messages" />
     </application>
 
     <!-- Permissions -->
