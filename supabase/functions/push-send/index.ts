@@ -202,6 +202,26 @@ function copyFor(request: PushRequest): { title: string; body: string } {
       return { title: who, body: many ? `${many} new messages` : 'Sent you a message' };
     case 'snap':
       return { title: who, body: many ? `${many} new Pings` : 'Sent you a Ping' };
+    case 'voice':
+      /*
+       * Named, because answering one costs more than answering text.
+       * A line of text can be read on a lock screen and replied to with a
+       * thumb; a voice note has to be listened to. Knowing which is waiting is
+       * what lets somebody decide whether to pick the phone up now or later.
+       */
+      return { title: who, body: many ? `${many} voice notes` : 'Sent a voice note' };
+    case 'call':
+      return { title: who, body: 'Missed call' };
+    case 'mention':
+      return { title: who, body: 'Mentioned you' };
+    case 'like':
+      return { title: who, body: 'Liked your post' };
+    case 'comment':
+      return { title: who, body: 'Commented on your post' };
+    case 'story_reply':
+      return { title: who, body: 'Replied to your story' };
+    case 'ai':
+      return { title: 'PINGO AI', body: 'Replied to you' };
     case 'story':
       return { title: who, body: 'Added to their story' };
     case 'follow_request':
