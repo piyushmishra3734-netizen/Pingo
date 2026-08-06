@@ -197,7 +197,26 @@ export function Composer({
   useEffect(() => {
     void onRecordingRef.current?.(listening);
     if (!listening) return;
+
+    /*
+     * Recording repeats itself; typing does not have to.
+     *
+     * Typing re-broadcasts on every keystroke, so the receiver's four-second
+     * expiry keeps being pushed back for as long as somebody is writing.
+     * Recording was announced exactly once, which left it fragile in two ways:
+     * it expired four seconds into a voice note that was still being made, and
+     * any stray stop wiped it with nothing following to put it back.
+     *
+     * A heartbeat inside the expiry window fixes both. It is the same shape as
+     * a keystroke - a continuous state saying so continuously - and the
+     * throttle in `setTyping` is what stops it becoming traffic.
+     */
+    const beat = window.setInterval(() => {
+      void onRecordingRef.current?.(true);
+    }, 2_000);
+
     return () => {
+      window.clearInterval(beat);
       void onRecordingRef.current?.(false);
     };
   }, [listening]);
