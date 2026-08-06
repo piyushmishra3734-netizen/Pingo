@@ -30,6 +30,7 @@ import {
   type PasscodeKind,
 } from '../../lib/backup/passkey-lock.js';
 import { canCarryEffortlessBackup, measurePasskeySupport } from '../../lib/backup/passkey-support.js';
+import { isNative } from '../native/shell.js';
 import { createBackupPasskey, passkeyPrf, PasskeyError } from '../../lib/backup/webauthn-prf.js';
 
 export interface SecretChoice {
@@ -163,6 +164,24 @@ export function BackupLockPicker({
       {passkeyReady && (purpose === 'unlock' || account) ? (
         <p className="text-caption text-text-tertiary">
           {purpose === 'unlock' ? 'Or enter what you set:' : 'Or set something you type:'}
+        </p>
+      ) : null}
+
+      {/*
+        Say why the passkey button is missing, rather than just not drawing it.
+
+        Inside the Android app this runs in a WebView, and a WebView has no
+        WebAuthn - so `passkeyReady` is false and the button vanished with no
+        explanation. Somebody who locked their backup with a passkey saw only a
+        passcode box that could never open it, and no reason for it. An absent
+        option is indistinguishable from a broken screen.
+      */}
+      {passkeyReady === false && purpose === 'unlock' && isNative() ? (
+        <p className="rounded-lg bg-sunken px-3 py-2.5 text-caption text-text-secondary">
+          Face ID, fingerprint and screen lock cannot be used inside the app yet - Android
+          does not offer them to it. If that is what you locked your backup with, restore it
+          in a browser at <span className="text-ink">pingochat.pages.dev</span>, or add a passcode
+          there and it will work in both places.
         </p>
       ) : null}
 
