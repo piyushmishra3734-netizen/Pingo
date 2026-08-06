@@ -9,6 +9,7 @@ import { SnapEditor } from '../features/camera/SnapEditor.js';
 import { useCamera } from '../features/camera/useCamera.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
+import { saveImage } from '../features/native/save-image.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
@@ -181,14 +182,17 @@ export function CameraScreen() {
 
   // ---- send ---------------------------------------------------------------
 
+  /*
+   * A download in a browser, MediaStore in the app.
+   *
+   * This was the anchor alone, and inside an Android WebView an anchor with
+   * `download` does nothing whatsoever - no file, no error, no notification.
+   * Save appeared to work and produced nothing, which is the worst shape a bug
+   * can take, because the person believes they have the photo.
+   */
   const saveToGallery = () => {
     if (!shot) return;
-    // A download, because the web has no gallery API. On a phone this lands in
-    // Photos exactly as a saved image should.
-    const link = document.createElement('a');
-    link.href = shot.url;
-    link.download = `pingo-${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`;
-    link.click();
+    void saveImage(shot.blob, `pingo-${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`);
   };
 
   /**

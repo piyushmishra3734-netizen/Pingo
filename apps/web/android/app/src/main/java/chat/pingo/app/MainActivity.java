@@ -1,9 +1,13 @@
 package chat.pingo.app;
 
 import android.content.ClipDescription;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Base64;
 import android.webkit.WebView;
 
@@ -15,6 +19,7 @@ import com.getcapacitor.BridgeActivity;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * The Android shell, plus the one thing a WebView cannot do on its own.
@@ -175,6 +180,65 @@ public class MainActivity extends BridgeActivity {
             // Same channel a keyboard image uses: it becomes a File on the web
             // side and joins the paste path, so there is one way in, not two.
             deliver(webView, uri, null);
+        }
+    }
+
+    /**
+     * Saves a picture to the phone gallery.
+     *
+     * The web does this with an anchor carrying `download`, and inside a WebView
+     * that does nothing at all - no file, no error, no download notification.
+     * Save on a Ping looked like it worked and never produced anything.
+     *
+     * MediaStore rather than a path. Writing to external storage directly needs
+     * a permission on Android 9 and below and is refused outright on 10 and
+     * above; MediaStore needs neither, because the file is created by the
+     * provider on the app's behalf. Nothing here asks the user for anything.
+     *
+     * @param base64 the image bytes, as the page already has them
+     * @param mime   used to pick the album entry's type
+     * @return true when a file was written, so the page can say so honestly
+     */
+    @android.webkit.JavascriptInterface
+    public boolean saveToGallery(String base64, String mime) {
+        try {
+            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+            String extension = mime != null && mime.contains("png") ? "png" : "jpg";
+            String name = "PINGO-" + System.currentTimeMillis() + "." + extension;
+
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+            values.put(MediaStore.Images.Media.MIME_TYPE, mime == null ? "image/jpeg" : mime);
+
+            /*
+             * Its own album from Android 10 onward.
+             *
+             * RELATIVE_PATH does not exist below that, and setting it there
+             * throws rather than being ignored - so the older path lets the
+             * provider choose, which lands in Pictures.
+             */
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(
+                        MediaStore.Images.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_PICTURES + "/PINGO");
+            }
+
+            Uri target = getContentResolver()
+                    .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (target == null) {
+                return false;
+            }
+
+            try (OutputStream out = getContentResolver().openOutputStream(target)) {
+                if (out == null) {
+                    return false;
+                }
+                out.write(bytes);
+            }
+
+            return true;
+        } catch (Exception failed) {
+            return false;
         }
     }
 

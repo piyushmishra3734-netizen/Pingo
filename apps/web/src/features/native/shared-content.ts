@@ -14,11 +14,14 @@
  * is the one that delivers, and neither has to know about the other's timing.
  */
 
+/*
+ * `AndroidShare` itself is declared in `save-image.ts`, which owns the fuller
+ * shape. Two `declare global` blocks describing the same property have to agree
+ * exactly, and one authority is simpler to keep true than two.
+ */
 declare global {
   interface Window {
     __pingoSharedText?: (text: string) => void;
-    /** Capacitor exposes the activity's `@JavascriptInterface` methods here. */
-    AndroidShare?: { flushShare?: () => void };
   }
 }
 
