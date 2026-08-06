@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "node scripts/check-provider-order.mjs && tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "check:providers": "node scripts/check-provider-order.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",

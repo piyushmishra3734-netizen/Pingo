@@ -3,7 +3,6 @@ import {
   FONT_SCALE,
   type AppearanceSettings,
   type Preferences,
-  useAuth,
 } from '@pingo/core';
 import {
   createContext,

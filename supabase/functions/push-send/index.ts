@@ -239,6 +239,7 @@ Deno.serve(async (request) => {
   let pruned = 0;
   let transient = 0;
   let lastError: string | undefined;
+  let permanentError: string | undefined;
 
   try {
     const payload = (await request.json()) as PushRequest;
@@ -356,6 +357,16 @@ Deno.serve(async (request) => {
 
         if (isPermanent(response.status, text)) {
           dead.push(device.token);
+          /*
+           * Keep what FCM actually said.
+           *
+           * "fcm rejected token" was the whole reason recorded, which is enough
+           * to know a token went and useless for knowing why - and the two
+           * causes need different responses. UNREGISTERED is an uninstall and
+           * is entirely normal; INVALID_ARGUMENT usually means the payload is
+           * wrong, which would prune every healthy device on the product.
+           */
+          permanentError = `${response.status} ${text.slice(0, 180)}`;
         } else {
           // Transient: 429, 5xx, a timeout. The token survives and the
           // notification goes back in the queue below.
@@ -373,7 +384,7 @@ Deno.serve(async (request) => {
       // is gone, and storing dead tokens would only rebuild the table this
       // just cleaned.
       await admin.from('push_pruned_tokens').insert(
-        dead.map(() => ({ user_id: payload.userId, reason: 'fcm rejected token' })),
+        dead.map(() => ({ user_id: payload.userId, reason: permanentError ?? 'fcm rejected token' })),
       );
     }
 
