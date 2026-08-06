@@ -88,6 +88,14 @@ public class MainActivity extends BridgeActivity {
          */
         webView.addJavascriptInterface(new PasskeyBridge(this, webView), "AndroidPasskey");
 
+        /*
+         * Shared files are answered on their own path, so the client has to be
+         * ours. Installed before the share is read, or the very share that
+         * started the app would be described to a page that cannot fetch it.
+         */
+        sharedFiles = new SharedFiles(getContentResolver());
+        getBridge().setWebViewClient(new PingoWebViewClient(getBridge(), sharedFiles));
+
         handleShare(getIntent());
 
         ViewCompat.setOnReceiveContentListener(webView, ACCEPTED, new OnReceiveContentListener() {
@@ -132,7 +140,16 @@ public class MainActivity extends BridgeActivity {
     }
 
     private String pendingText;
-    private final java.util.ArrayList<Uri> pendingImages = new java.util.ArrayList<>();
+    /*
+     * Renamed from `pendingImages`, because it is no longer only images.
+     *
+     * PINGO appears in the share sheet for anything now - a PDF, a video, a
+     * spreadsheet - and every one of them arrives here the same way. The old
+     * name was accurate when the manifest claimed images only, and the moment
+     * that changed it became a comment that lies.
+     */
+    private final java.util.ArrayList<Uri> pendingFiles = new java.util.ArrayList<>();
+    private SharedFiles sharedFiles;
 
     /**
      * Content shared into PINGO from another app.
@@ -160,12 +177,12 @@ public class MainActivity extends BridgeActivity {
         if (Intent.ACTION_SEND.equals(action)) {
             Uri single = intent.getParcelableExtra(Intent.EXTRA_STREAM);
             if (single != null) {
-                pendingImages.add(single);
+                pendingFiles.add(single);
             }
         } else {
             java.util.ArrayList<Uri> many = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
             if (many != null) {
-                pendingImages.addAll(many);
+                pendingFiles.addAll(many);
             }
         }
 
@@ -192,13 +209,35 @@ public class MainActivity extends BridgeActivity {
             pendingText = null;
         }
 
-        java.util.List<Uri> images = new java.util.ArrayList<>(pendingImages);
-        pendingImages.clear();
-        for (Uri uri : images) {
-            // Same channel a keyboard image uses: it becomes a File on the web
-            // side and joins the paste path, so there is one way in, not two.
-            deliver(webView, uri, null);
+        java.util.List<Uri> files = new java.util.ArrayList<>(pendingFiles);
+        pendingFiles.clear();
+        if (files.isEmpty() || sharedFiles == null) {
+            return;
         }
+
+        /*
+         * Described, not delivered.
+         *
+         * Each file is registered and the page is handed a name, a type, a size
+         * and a URL to fetch. It reads them itself, over the WebView's own
+         * request path, so a shared video is streamed rather than turned into a
+         * base64 string a third larger than the file.
+         *
+         * The name matters as much as the bytes: a document that arrives called
+         * `shared-1754500000.bin` is a document nobody can identify afterwards.
+         */
+        java.util.List<org.json.JSONObject> described = new java.util.ArrayList<>();
+        for (Uri uri : files) {
+            org.json.JSONObject one = sharedFiles.offer(uri);
+            if (one != null) described.add(one);
+        }
+        if (described.isEmpty()) {
+            return;
+        }
+
+        final String script = "window.__pingoSharedFiles && window.__pingoSharedFiles("
+                + SharedFiles.arrayOf(described) + ")";
+        webView.post(() -> webView.evaluateJavascript(script, null));
     }
 
     /**

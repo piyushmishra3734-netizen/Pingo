@@ -55,9 +55,14 @@
                 the chat and pasting - which is enough friction that people simply
                 do not share to it.
 
-                Text and images only. A filter claiming */* would put PINGO in
-                front of every share on the phone and then fail on the ones it
-                cannot send, which is worse than not being offered.
+                This used to claim text and images only, on the reasoning that
+                a */* filter puts PINGO in front of every share and then fails
+                on the ones it cannot send. The reasoning was right and the
+                premise was wrong: the attach menu takes any file at all, so
+                there is no such thing as a share PINGO cannot send. Claiming
+                images only meant sharing a PDF or a video from another app
+                simply did not offer PINGO - not because it could not do it,
+                but because it never said it could.
             -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -68,13 +73,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
+                <data android:mimeType="*/*" />
             </intent-filter>
 
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
+                <data android:mimeType="*/*" />
             </intent-filter>
 
         </activity>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
 import { receiveSharedText } from '../native/shared-content.js';
+import { receiveSharedFiles } from '../native/shared-files.js';
 import { putShare } from './share-store.js';
 
 /**
@@ -36,9 +37,22 @@ export function useIncomingShare(): void {
     });
 
     /*
-     * Images arrive on the keyboard channel because that is the one bridge
-     * Java has for handing bytes to the page. A composer that is mounted takes
-     * them as an insert; when none is, they are a share.
+     * Shared files - any kind, all of them at once.
+     *
+     * Separate from the keyboard channel now. That channel carries base64 and
+     * suits a sticker; a share can be a video, and it arrives as a URL to
+     * stream instead. It also carries the file's real name, which the keyboard
+     * channel has no way to know and a document cannot do without.
+     */
+    const stopFiles = receiveSharedFiles((files) => {
+      putShare({ files });
+      navigate('/share');
+    });
+
+    /*
+     * The keyboard channel still routes here as a share when nothing else has
+     * claimed it - a composer that is mounted takes an image as an insert, and
+     * when none is, it is a share.
      */
     const stopImages = receiveKeyboardImages((file) => {
       putShare({ files: [file] });
@@ -47,6 +61,7 @@ export function useIncomingShare(): void {
 
     return () => {
       stopText();
+      stopFiles();
       stopImages();
     };
   }, [navigate]);

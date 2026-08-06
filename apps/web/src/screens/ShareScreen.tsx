@@ -1,4 +1,4 @@
-import { useChat } from '@pingo/core';
+import { formatFileSize, useChat } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -43,10 +43,21 @@ export function ShareScreen() {
   // separately) has to reach a screen that is already open.
   useEffect(() => watchShare(setPayload), []);
 
-  const preview = useMemo(() => {
-    const file = payload?.files?.[0];
-    return file ? URL.createObjectURL(file) : undefined;
-  }, [payload]);
+  const first = payload?.files?.[0];
+
+  /*
+   * A thumbnail only where there is something to see.
+   *
+   * An object URL for a PDF put into an `<img>` is a broken image icon, which
+   * reads as a share that has already gone wrong. A video could be made to
+   * produce a poster frame, and deliberately is not: that means decoding a
+   * shared video to draw a square the size of a thumbnail, on a phone, before
+   * anybody has even chosen who to send it to.
+   */
+  const preview = useMemo(
+    () => (first?.type.startsWith('image/') ? URL.createObjectURL(first) : undefined),
+    [first],
+  );
 
   useEffect(() => {
     if (!preview) return;
@@ -76,7 +87,20 @@ export function ShareScreen() {
       await Promise.all(
         [...selected].map(async (conversationId) => {
           for (const file of payload.files ?? []) {
-            await service.sendMessage({ conversationId, body: '', photo: { image: file } });
+            /*
+             * Sent as what it is.
+             *
+             * Every shared file used to go out as a photo, which was fine while
+             * the app only claimed images in the share sheet and wrong the
+             * moment it stopped. A video sent as a photo is a photo message
+             * holding a video: no player, no filename, and a download card that
+             * calls it a picture.
+             */
+            await service.sendMessage(
+              file.type.startsWith('image/')
+                ? { conversationId, body: '', photo: { image: file } }
+                : { conversationId, body: '', document: { file } },
+            );
           }
           if (payload.text) {
             await service.sendMessage({ conversationId, body: payload.text });
@@ -113,7 +137,29 @@ export function ShareScreen() {
     return null;
   }
 
-  const title = payload.label ?? (payload.files?.length ? 'Send photo' : 'Send link');
+  /*
+   * The title names what is actually being sent.
+   *
+   * "Send photo" over a spreadsheet is the screen telling somebody it has
+   * misunderstood them, at the exact moment they are deciding whether to trust
+   * it with the file.
+   */
+  const count = payload.files?.length ?? 0;
+  const kind = !first
+    ? 'link'
+    : first.type.startsWith('image/')
+      ? count > 1
+        ? 'photos'
+        : 'photo'
+      : first.type.startsWith('video/')
+        ? count > 1
+          ? 'videos'
+          : 'video'
+        : count > 1
+          ? 'files'
+          : 'file';
+
+  const title = payload.label ?? `Send ${kind}`;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-page">
@@ -144,22 +190,36 @@ export function ShareScreen() {
             />
           ) : (
             <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-sunken text-h3">
-              🔗
+              {/* Stands in for the thumbnail there is no point drawing. */}
+              {!first ? '🔗' : first.type.startsWith('video/') ? '🎬' : '📄'}
             </span>
           )}
 
           <div className="min-w-0 flex-1">
-            {payload.files && payload.files.length > 1 ? (
+            {count > 1 ? (
               <p className="text-body font-medium text-ink">
-                {payload.files.length} photos
+                {count} {kind}
+              </p>
+            ) : first && !first.type.startsWith('image/') ? (
+              /*
+                The filename, for anything that has one worth reading.
+
+                A picture is its own label and a document is not: "the PDF" is
+                indistinguishable from every other PDF, and this is the last
+                moment before it is sent to somebody.
+              */
+              <p className="truncate text-body font-medium text-ink" title={first.name}>
+                {first.name}
               </p>
             ) : null}
             {payload.text ? (
               <p className="line-clamp-2 break-words text-caption text-text-secondary">
                 {payload.text}
               </p>
-            ) : payload.files?.length === 1 ? (
-              <p className="text-caption text-text-secondary">Ready to send</p>
+            ) : count === 1 ? (
+              <p className="text-caption text-text-secondary">
+                {first && first.size > 0 ? formatFileSize(first.size) : 'Ready to send'}
+              </p>
             ) : null}
           </div>
         </div>
