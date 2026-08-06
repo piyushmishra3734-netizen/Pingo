@@ -530,6 +530,22 @@ function StoryImage({
   const release = useRef<(() => void) | undefined>(undefined);
   const [ready, setReady] = useState(false);
 
+  /**
+   * Whether the filter can be dropped entirely. See `ImageViewer`, same trap:
+   * `blur(0px)` keeps the picture on a filtered layer and Chrome stops
+   * animating a GIF that sits on one, so a moving story froze on one frame.
+   */
+  const [sharp, setSharp] = useState(false);
+
+  useEffect(() => {
+    if (!ready) {
+      setSharp(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSharp(true), 460);
+    return () => window.clearTimeout(timer);
+  }, [ready, story.id]);
+
   // Taken synchronously, once per story. See the note above.
   if (!release.current && !ready) release.current = hold();
 
@@ -582,7 +598,7 @@ function StoryImage({
             into focus as it decodes. The slight overscale keeps the blur from
             showing soft edges against the frame.
           */
-          filter: ready ? 'blur(0px)' : 'blur(26px)',
+          filter: sharp ? 'none' : ready ? 'blur(0px)' : 'blur(26px)',
           transform: ready ? 'scale(1)' : 'scale(1.06)',
         }}
       />

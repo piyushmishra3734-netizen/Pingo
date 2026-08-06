@@ -586,6 +586,8 @@ export function SnapEditor({
         {/* Caption, view limit - supplied by whoever is using the editor. */}
         {extras}
 
+        {/* Belongs to the pen, so it goes when the pen does. */}
+        {!untouchable && (
         <div className="flex items-center justify-center gap-2">
           {COLOURS.map((swatch) => (
             <button
@@ -606,6 +608,7 @@ export function SnapEditor({
             />
           ))}
         </div>
+        )}
 
         {exportError && (
           <p role="alert" className="text-center text-caption text-danger">

@@ -65,6 +65,32 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   const [loadedSrc, setLoadedSrc] = useState<string>();
   const [failedSrc, setFailedSrc] = useState<string>();
   const photoReady = loadedSrc === src;
+
+  /**
+   * Whether the blur has finished being removed, and the filter can go entirely.
+   *
+   * `blur(0px)` looks like nothing and is not nothing: it keeps the picture on
+   * a filtered compositing layer, and Chrome stops animating a GIF that sits on
+   * one. So a GIF opened full screen froze on whatever frame it happened to be
+   * showing, while the same GIF went on playing in the thread behind it.
+   *
+   * Dropping the filter outright would lose the blur-up, which is the thing
+   * that makes a slow photo feel like it is arriving rather than missing. So
+   * the blur still animates away, and then the filter is removed once it has
+   * nothing left to do.
+   */
+  const [sharp, setSharp] = useState(false);
+
+  useEffect(() => {
+    if (!photoReady) {
+      setSharp(false);
+      return;
+    }
+    // A shade past --duration-slow at its longest setting, so the swap never
+    // lands mid-transition and snaps the blur away early.
+    const timer = window.setTimeout(() => setSharp(true), 460);
+    return () => window.clearTimeout(timer);
+  }, [photoReady, src]);
   const photoFailed = failedSrc === src;
 
   const pointers = useRef(new Map<number, Point>());
@@ -255,7 +281,9 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
                 */
                 transform: `translate3d(${offset.x}px, ${offset.y + dragY}px, 0) scale(${photoReady ? scale : scale * 1.06})`,
                 opacity: 1 - dragProgress * 0.35,
-                filter: photoReady ? 'blur(0px)' : 'blur(22px)',
+                // `none`, not `blur(0px)` - see `sharp`. The difference is
+                // invisible and decides whether a GIF plays.
+                filter: sharp ? 'none' : photoReady ? 'blur(0px)' : 'blur(22px)',
               }}
             />
           )}
