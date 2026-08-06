@@ -37,9 +37,24 @@ export interface PingRecipientsProps {
    * when mutuals are still loading or the direct-chat Ping gate would hide it.
    */
   lockedId?: string;
+  /**
+   * Drops the mutual-follow gate.
+   *
+   * A Ping is an unsolicited picture, so it is held to who may receive one.
+   * Sharing is not: you are forwarding something into a conversation that
+   * already exists, and being unable to send a link to somebody you message
+   * every day - because the follow happens to be one-sided - is a rule
+   * protecting nobody.
+   */
+  anyConversation?: boolean;
 }
 
-export function PingRecipients({ selected, onToggle, lockedId }: PingRecipientsProps) {
+export function PingRecipients({
+  selected,
+  onToggle,
+  lockedId,
+  anyConversation,
+}: PingRecipientsProps) {
   const { conversations, users } = useChat();
   const { profile } = useProfile();
   const mutuals = useMutuals();

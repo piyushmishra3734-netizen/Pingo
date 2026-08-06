@@ -127,7 +127,15 @@ export function ShareScreen() {
         the doubt entirely.
       */}
       <div className="shrink-0 px-4 pb-3">
-        <div className="flex items-center gap-3 rounded-xl bg-surface p-3 shadow-sm">
+        {/*
+          Held to a column, on every screen.
+
+          Stretched to a desktop width the rows became a spreadsheet - a name on
+          the left and a checkbox a foot away on the right, with nothing between
+          them. A share sheet is a small object you reach into, and it should
+          keep that shape wherever it is opened.
+        */}
+        <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl bg-surface p-3 shadow-sm">
           {preview ? (
             <img
               src={preview}
@@ -163,13 +171,13 @@ export function ShareScreen() {
         </p>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2">
-        <PingRecipients selected={selected} onToggle={toggle} />
+      <div className="mx-auto min-h-0 w-full max-w-md flex-1 overflow-y-auto px-2">
+        <PingRecipients selected={selected} onToggle={toggle} anyConversation />
       </div>
 
       <div
         className={cn(
-          'shrink-0 px-4 pt-2',
+          'mx-auto w-full max-w-md shrink-0 px-4 pt-2',
           'pb-[max(1rem,env(safe-area-inset-bottom))]',
         )}
       >
