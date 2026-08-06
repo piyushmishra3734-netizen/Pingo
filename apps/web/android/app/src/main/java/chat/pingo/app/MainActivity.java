@@ -32,13 +32,13 @@ import java.io.OutputStream;
  * does not help, and the keyboard simply has nowhere to put the image. So the
  * picture has to be caught in Java and handed across.
  *
- * <h3>Why setOnReceiveContentListener rather than onCreateInputConnection</h3>
+ * <h3>Two halves, and this is only one of them</h3>
  *
- * The old way is to subclass the view and wrap its InputConnection with
- * InputConnectionCompat, which means owning the WebView Capacitor creates -
- * possible, and a fight with every Capacitor upgrade. AndroidX 1.7 added a
- * listener that sits on any view and receives the same content, so nothing has
- * to be subclassed and nothing about the bridge changes.
+ * The listener below is what a committed image arrives at. It is not what makes
+ * the keyboard offer one: that is a declaration on the input connection, and it
+ * lives in {@link PingoWebView}. This half was built first and alone, which is
+ * why the GIF button went on saying the app did not support images - there was
+ * a catcher in place and nothing was ever thrown.
  *
  * <h3>Base64 rather than a file path</h3>
  *
@@ -50,8 +50,16 @@ import java.io.OutputStream;
  */
 public class MainActivity extends BridgeActivity {
 
-    /** What the keyboard is allowed to send. Images only - nothing else is expected. */
-    private static final String[] ACCEPTED = new String[] { "image/*" };
+    /*
+     * What the keyboard is allowed to send, taken from the view rather than
+     * written out again here.
+     *
+     * The two have to agree exactly: PingoWebView declares this list to the
+     * keyboard, and this listener is what the keyboard's image is delivered to.
+     * Two copies would let them drift, and the failure would be silent - a
+     * keyboard offering a picture this listener then refuses.
+     */
+    private static final String[] ACCEPTED = PingoWebView.ACCEPTED_CONTENT;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -203,7 +211,22 @@ public class MainActivity extends BridgeActivity {
     public boolean saveToGallery(String base64, String mime) {
         try {
             byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
-            String extension = mime != null && mime.contains("png") ? "png" : "jpg";
+            /*
+             * The extension comes from the type rather than from a list of the
+             * two formats somebody thought of at the time. A GIF filed as
+             * `.jpg` is a still picture as far as most galleries are concerned,
+             * and a GIF is now something a keyboard can send.
+             */
+            String extension = "jpg";
+            if (mime != null) {
+                int slash = mime.indexOf('/');
+                if (slash != -1) {
+                    String subtype = mime.substring(slash + 1).split(";")[0].trim().toLowerCase();
+                    if (subtype.matches("[a-z0-9]+") && !subtype.equals("jpeg")) {
+                        extension = subtype;
+                    }
+                }
+            }
             String name = "PINGO-" + System.currentTimeMillis() + "." + extension;
 
             ContentValues values = new ContentValues();

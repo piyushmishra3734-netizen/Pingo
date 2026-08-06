@@ -375,6 +375,20 @@ const DOCUMENT_BUCKET = 'documents';
 const PHOTO_URL_TTL_SECONDS = 60 * 60;
 
 /**
+ * A picture's file extension, from what it actually is.
+ *
+ * Anything unrecognised becomes `jpg`, which is what the upload's content type
+ * falls back to as well - the name and the type saying the same wrong thing is
+ * better than them disagreeing.
+ */
+function imageExtension(mime: string | undefined): string {
+  const subtype = (mime ?? '').toLowerCase().split('/')[1]?.split(';')[0]?.trim();
+  if (!subtype) return 'jpg';
+  if (subtype === 'jpeg') return 'jpg';
+  return /^[a-z0-9]+$/.test(subtype) ? subtype : 'jpg';
+}
+
+/**
  * The bucket key hiding inside a signed storage URL.
  *
  * For threads cached before the path was kept alongside the URL. Their entries
@@ -1976,8 +1990,15 @@ export class SupabaseChatService implements ChatService {
       throw new Error('No image to send.');
     }
     const me = await this.#userId();
-    // The uploader's id leads the path, which is what the storage policy checks.
-    const path = `${me}/${crypto.randomUUID()}.jpg`;
+    /*
+     * The uploader's id leads the path, which is what the storage policy checks.
+     *
+     * The extension follows the bytes rather than always saying `.jpg`. Nothing
+     * reads it - the stored content type is what decides how a picture is
+     * served, and that was always right - but a GIF from the keyboard stored
+     * under a `.jpg` name is a lie waiting to be believed by whoever saves it.
+     */
+    const path = `${me}/${crypto.randomUUID()}.${imageExtension(image.type)}`;
 
     const { error } = await this.#client.storage
       .from(PHOTO_BUCKET)

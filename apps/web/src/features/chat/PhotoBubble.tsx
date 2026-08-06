@@ -219,9 +219,13 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
                     void fetch(url)
                       .then((response) => response.blob())
                       .then(async (blob) => {
+                        // Named after what it is. A GIF saved as `.gif` still
+                        // moves in the gallery; saved as `.jpg` it may not.
+                        const kind = blob.type.split('/')[1]?.split(';')[0] ?? 'jpg';
+                        const day = new Date(message.createdAt).toISOString().slice(0, 10);
                         const ok = await saveImage(
                           blob,
-                          `pingo-${new Date(message.createdAt).toISOString().slice(0, 10)}.jpg`,
+                          `pingo-${day}.${kind === 'jpeg' ? 'jpg' : kind}`,
                         );
                         if (ok) setSaved(true);
                       })
