@@ -50,11 +50,31 @@ interface ServiceAccount {
 interface PushRequest {
   userId: string;
   kind: string;
+  /** The idempotency key. Absent only for sends with no notification row. */
+  notificationId?: string;
   actorId?: string;
   actorName?: string;
   subjectId?: string;
   /** Unread notifications of this kind from this actor, including this one. */
   count?: number;
+  preview?: 'sender_only' | 'sender_and_text' | 'hidden';
+  /** Set by the worker. Only changes what gets logged, never what is sent. */
+  retry?: boolean;
+}
+
+/**
+ * Whether an FCM rejection is worth trying again.
+ *
+ * `UNREGISTERED` is an uninstalled app and `INVALID_ARGUMENT` is a token that
+ * was never valid - retrying either is not persistence, it is a loop that
+ * cannot succeed, and it keeps a dead row alive for a day. Everything else
+ * (429, 5xx, a timeout) is the service having a bad minute.
+ */
+function isPermanent(status: number, body: string): boolean {
+  if (/UNREGISTERED|INVALID_ARGUMENT/.test(body)) return true;
+  // 401/403 are our credentials, not the device's - never prune a token for
+  // a mistake we made.
+  return status === 404;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -217,6 +237,8 @@ Deno.serve(async (request) => {
 
   let sent = 0;
   let pruned = 0;
+  let transient = 0;
+  let lastError: string | undefined;
 
   try {
     const payload = (await request.json()) as PushRequest;
@@ -236,12 +258,41 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    /*
+     * At most once, whoever asked.
+     *
+     * The trigger and the retry worker both call this, and a slow first attempt
+     * can still be in flight when a retry starts. Checking the ledger here -
+     * at the bottom, where both paths meet - is what makes that safe. Doing it
+     * in the callers would mean coordinating two of them, which is a race
+     * waiting for a bad week.
+     */
+    if (payload.notificationId) {
+      const { data: already } = await admin
+        .from('push_deliveries')
+        .select('notification_id')
+        .eq('notification_id', payload.notificationId)
+        .maybeSingle();
+
+      if (already) return json({ skipped: 'already-delivered' });
+    }
+
     const { data: devices } = await admin
       .from('device_tokens')
       .select('token')
       .eq('user_id', payload.userId);
 
-    if (!devices || devices.length === 0) return json({ sent: 0, pruned: 0 });
+    if (!devices || devices.length === 0) {
+      /*
+       * Nobody to send to is not a failure and must never be retried - the
+       * queue would hold it for 24 hours over a person who has not installed
+       * the app. The queue entry goes, if there was one.
+       */
+      if (payload.notificationId) {
+        await admin.from('push_failures').delete().eq('notification_id', payload.notificationId);
+      }
+      return json({ sent: 0, pruned: 0, reason: 'no devices' });
+    }
 
     const token = await accessToken(account);
     const { title, body } = copyFor(payload);
@@ -294,16 +345,23 @@ Deno.serve(async (request) => {
 
         if (response.ok) {
           sent += 1;
+          await admin
+            .from('device_tokens')
+            .update({ last_seen_at: new Date().toISOString() })
+            .eq('token', device.token);
           return;
         }
 
         const text = await response.text();
-        // The two answers that mean "this device is gone". Anything else is
-        // transient and the row stays.
-        if (/UNREGISTERED|INVALID_ARGUMENT/.test(text)) {
+
+        if (isPermanent(response.status, text)) {
           dead.push(device.token);
         } else {
-          console.warn('[push-send] fcm rejected', response.status, text.slice(0, 200));
+          // Transient: 429, 5xx, a timeout. The token survives and the
+          // notification goes back in the queue below.
+          transient += 1;
+          lastError = `${response.status} ${text.slice(0, 180)}`;
+          console.warn('[push-send] fcm transient', response.status, text.slice(0, 200));
         }
       }),
     );
@@ -311,9 +369,74 @@ Deno.serve(async (request) => {
     if (dead.length > 0) {
       await admin.from('device_tokens').delete().in('token', dead);
       pruned = dead.length;
+      // Recorded so pruning is measurable. The token itself is not kept - it
+      // is gone, and storing dead tokens would only rebuild the table this
+      // just cleaned.
+      await admin.from('push_pruned_tokens').insert(
+        dead.map(() => ({ user_id: payload.userId, reason: 'fcm rejected token' })),
+      );
     }
 
-    return json({ sent, pruned });
+    /*
+     * The outcome, written where the worker can see it.
+     *
+     * A send counts as delivered if it reached at least one device. Somebody
+     * with a live phone and a stale tablet has been notified, and holding the
+     * notification in a queue for the tablet would send them a second copy on
+     * the phone a minute later.
+     */
+    if (payload.notificationId) {
+      if (sent > 0) {
+        const { data: row } = await admin
+          .from('notifications')
+          .select('created_at')
+          .eq('id', payload.notificationId)
+          .maybeSingle();
+
+        const latency = row?.created_at
+          ? Date.now() - new Date(row.created_at as string).getTime()
+          : null;
+
+        // Upsert, not insert: an overlapping attempt may have got here first,
+        // and the unique key is the whole point.
+        await admin.from('push_deliveries').upsert(
+          {
+            notification_id: payload.notificationId,
+            user_id: payload.userId,
+            device_count: sent,
+            ...(latency !== null ? { latency_ms: latency } : {}),
+          },
+          { onConflict: 'notification_id' },
+        );
+
+        await admin.from('push_failures').delete().eq('notification_id', payload.notificationId);
+      } else if (transient > 0) {
+        /*
+         * Queued for the worker. `next_attempt_at` is left at its default of
+         * now() so the first retry happens on the next tick rather than a
+         * minute after this row was written - `push_backoff` owns the schedule
+         * from the second attempt onward.
+         */
+        await admin.from('push_failures').upsert(
+          {
+            notification_id: payload.notificationId,
+            user_id: payload.userId,
+            reason: 'fcm transient failure',
+            last_error: lastError,
+            kind: payload.kind,
+            actor_id: payload.actorId ?? null,
+            actor_name: payload.actorName ?? null,
+            subject_id: payload.subjectId ?? null,
+          },
+          { onConflict: 'notification_id', ignoreDuplicates: false },
+        );
+      } else {
+        // Every device was permanently dead. Nothing to retry to.
+        await admin.from('push_failures').delete().eq('notification_id', payload.notificationId);
+      }
+    }
+
+    return json({ sent, pruned, transient, queued: sent === 0 && transient > 0 });
   } catch (cause) {
     console.error('[push-send]', cause);
     return json({ error: 'failed' }, 500);
