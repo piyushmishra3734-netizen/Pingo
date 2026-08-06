@@ -39,6 +39,16 @@ export interface ConversationMenuProps {
   callBlockedReason?: string;
   /** AI threads only - name, vibe, memory. Person settings, not a model panel. */
   onAiSettings?: () => void;
+  /**
+   * Turns the thread into a selection.
+   *
+   * Here rather than only behind a long press on a message: acting on several
+   * messages is a thing you decide to do *to the conversation*, and the header
+   * is where you look for that. A gesture on one message is a fine second way
+   * in and a poor only way in - nobody discovers it, and on a phone it competes
+   * with the reaction bar.
+   */
+  onSelectMessages?: () => void;
 }
 
 export function ConversationMenu({
@@ -46,6 +56,7 @@ export function ConversationMenu({
   onCall,
   callBlockedReason,
   onAiSettings,
+  onSelectMessages,
 }: ConversationMenuProps) {
   const [open, setOpen] = useState(false);
   const [muting, setMuting] = useState(false);
@@ -105,6 +116,15 @@ export function ConversationMenu({
             <>
               <Item label="Voice call" onSelect={() => run(onCall('audio'))} />
               <Item label="Video call" onSelect={() => run(onCall('video'))} />
+              <Divider />
+            </>
+          )}
+
+          {onSelectMessages && (
+            <>
+              {/* Near the top: it acts on the thread you are looking at, which
+                  is what almost everything below this does not. */}
+              <Item label="Select messages" onSelect={() => run(onSelectMessages())} />
               <Divider />
             </>
           )}

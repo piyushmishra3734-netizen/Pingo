@@ -12,6 +12,7 @@ import {
 import {
   Avatar,
   AvatarStack,
+  CheckIcon,
   ChevronLeftIcon,
   IconButton,
   LoadingState,
@@ -39,7 +40,9 @@ import { Composer } from './Composer.js';
 import { EncryptionNotice } from './EncryptionNotice.js';
 import { GroupInfoSheet } from './GroupInfoSheet.js';
 import { ConversationMenu } from './ConversationMenu.js';
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
+import { MessageSelectionBar } from './MessageSelectionBar.js';
 import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
@@ -125,6 +128,7 @@ export function ChatThread({
   className,
 }: ChatThreadProps) {
   const { currentUser, users, service } = useChat();
+  const confirm = useConfirm();
   const {
     messages,
     receipts,
@@ -154,6 +158,29 @@ export function ChatThread({
    * gesture that happens nowhere near it.
    */
   const [replyTo, setReplyTo] = useState<Message>();
+
+  /**
+   * Message ids picked out, or undefined when the thread is being read normally.
+   *
+   * Undefined rather than an empty set, so "am I selecting?" and "have I picked
+   * anything?" stay separate questions - a selection you have emptied is still
+   * a selection, and dropping out of the mode the moment the last message is
+   * unticked would take the header away mid-decision.
+   */
+  const [selection, setSelection] = useState<Set<string> | undefined>();
+
+  const toggleSelected = (id: string) =>
+    setSelection((current) => {
+      if (!current) return current;
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // Leaving the thread, or the conversation changing underneath it, ends the
+  // selection - ids from one conversation mean nothing in another.
+  useEffect(() => setSelection(undefined), [conversation.id]);
 
   /*
    * The avatar that was pressed, arriving.
@@ -630,6 +657,58 @@ export function ChatThread({
           'pt-[max(0.625rem,env(safe-area-inset-top))]',
         )}
       >
+      {selection ? (
+        /*
+          The header becomes the selection rather than growing a second bar
+          beneath it. There is only ever one thing to do with this strip, and
+          two of them stacked would push the conversation down the screen every
+          time somebody started picking messages.
+        */
+        <MessageSelectionBar
+          selected={messages.filter((message) => selection.has(message.id))}
+          mine={(message) => message.authorId === currentUser?.id}
+          onCancel={() => setSelection(undefined)}
+          onCopy={() => {
+            const text = messages
+              .filter((message) => selection.has(message.id) && message.body.trim())
+              .map((message) => message.body)
+              .join('\n\n');
+            void navigator.clipboard?.writeText(text).catch(() => undefined);
+            setSelection(undefined);
+          }}
+          onDelete={(forEveryone) => {
+            void (async () => {
+              const ids = [...selection];
+              const go = await confirm({
+                title:
+                  ids.length === 1
+                    ? forEveryone
+                      ? 'Delete for everyone?'
+                      : 'Delete for you?'
+                    : forEveryone
+                      ? `Delete ${ids.length} messages for everyone?`
+                      : `Delete ${ids.length} messages for you?`,
+                description: forEveryone
+                  ? 'They go from this chat for both of you. They will see that messages were deleted.'
+                  : 'They go from your side only. The other person still has their copies.',
+                confirmLabel: 'Delete',
+              });
+              if (!go) return;
+              /*
+               * One at a time, and failures ignored one at a time with them.
+               * A batch endpoint would be better and does not exist; what
+               * matters is that message nineteen failing does not leave the
+               * other eighteen undeleted.
+               */
+              for (const id of ids) {
+                await service.deleteMessage(id, forEveryone).catch(() => undefined);
+              }
+              setSelection(undefined);
+            })();
+          }}
+        />
+      ) : (
+        <>
         {showBack && (
           <Link
             to="/chats"
@@ -757,8 +836,11 @@ export function ChatThread({
               : {})}
             {...(callBlockedReason && !isAi ? { callBlockedReason } : {})}
             {...(isAi ? { onAiSettings: () => setAiProfileOpen(true) } : {})}
+            onSelectMessages={() => setSelection(new Set())}
           />
         </div>
+        </>
+      )}
       </header>
 
       {callNotice && (
@@ -820,9 +902,65 @@ export function ChatThread({
                           ? ('last' as const)
                           : ('middle' as const);
 
+                  const picked = selection?.has(message.id) ?? false;
+
                   return (
                     <div key={message.id}>
                       {showNewDivider && <NewMessagesDivider />}
+                      {selection ? (
+                        /*
+                          While selecting, the whole row is one control and
+                          nothing inside it is.
+
+                          A bubble carries a reaction bar, a swipe to reply, a
+                          photo that opens and a voice note that plays. Leaving
+                          those live during a selection means every attempt to
+                          tick a message risks doing something else instead, so
+                          the row is covered rather than each of them disabled -
+                          one place that decides, instead of a rule every
+                          bubble has to remember.
+                        */
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={picked}
+                          onClick={() => toggleSelected(message.id)}
+                          className={cn(
+                            'relative flex w-full items-center gap-2 rounded-lg px-1 py-0.5 text-left',
+                            'transition-colors duration-instant',
+                            picked ? 'bg-brand-soft' : 'hover:bg-hover',
+                          )}
+                        >
+                          <span
+                            aria-hidden
+                            className={cn(
+                              'grid size-5 shrink-0 place-items-center rounded-full border-2',
+                              'transition-[background-color,border-color] duration-instant',
+                              picked ? 'border-brand bg-brand text-white' : 'border-line',
+                            )}
+                          >
+                            {picked && <CheckIcon size={12} />}
+                          </span>
+
+                          {/* Inert: the row above is what receives the tap. */}
+                          <span className="pointer-events-none min-w-0 flex-1">
+                            <MessageBubble
+                              message={message}
+                              mine={message.authorId === currentUser?.id}
+                              position={position}
+                              showMeta={index === cluster.length - 1}
+                              replyTo={
+                                message.replyToId ? byId.get(message.replyToId) : undefined
+                              }
+                              replyToAuthor={
+                                message.replyToId
+                                  ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
+                                  : undefined
+                              }
+                            />
+                          </span>
+                        </button>
+                      ) : (
                       <SwipeableMessage
                         mine={message.authorId === currentUser?.id}
                         // Nothing to answer on a tombstone, so the track stays inert.
@@ -890,6 +1028,7 @@ export function ChatThread({
                         )}
                       />
                       </SwipeableMessage>
+                      )}
                     </div>
                   );
                 })}

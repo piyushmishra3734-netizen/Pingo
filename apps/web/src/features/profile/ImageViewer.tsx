@@ -108,12 +108,75 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
     closeRef.current?.focus();
   }, []);
 
+  /*
+   * The keyboard, which had nothing but Escape.
+   *
+   * A viewer that can only be driven by a pinch is a viewer a laptop cannot
+   * use. Arrows move the picture, Ctrl with plus and minus zooms, and Ctrl+0
+   * puts it back - the same keys the browser uses for the same ideas, taken
+   * over here because the picture is what should be zooming, not the page.
+   *
+   * Read through refs rather than closed over: this listener is attached once,
+   * and a version that depended on `scale` and `offset` would be torn down and
+   * rebuilt on every frame of a pan.
+   */
+  const stateRef = useRef({ scale, offset });
+  stateRef.current = { scale, offset };
+
   useEffect(() => {
+    const STEP = 60;
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      const { scale: at, offset: from } = stateRef.current;
+
+      if (event.ctrlKey || event.metaKey) {
+        const box = imageRef.current?.getBoundingClientRect();
+        // Zoom about the middle of the picture: there is no cursor involved in
+        // a keystroke, so the centre is the only honest anchor.
+        const middle = box
+          ? { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+          : { x: 0, y: 0 };
+
+        if (event.key === '+' || event.key === '=') {
+          event.preventDefault();
+          zoomAround(at * 1.25, middle, { scale: at, offset: from });
+        } else if (event.key === '-' || event.key === '_') {
+          event.preventDefault();
+          zoomAround(at / 1.25, middle, { scale: at, offset: from });
+        } else if (event.key === '0') {
+          event.preventDefault();
+          setScale(1);
+          setOffset({ x: 0, y: 0 });
+        }
+        return;
+      }
+
+      // Arrows only mean something once there is somewhere to go.
+      if (at <= 1) return;
+      const move =
+        event.key === 'ArrowLeft'
+          ? { x: STEP, y: 0 }
+          : event.key === 'ArrowRight'
+            ? { x: -STEP, y: 0 }
+            : event.key === 'ArrowUp'
+              ? { x: 0, y: STEP }
+              : event.key === 'ArrowDown'
+                ? { x: 0, y: -STEP }
+                : undefined;
+      if (!move) return;
+
+      event.preventDefault();
+      setOffset(clamp({ x: from.x + move.x, y: from.y + move.y }, at));
     };
+
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
 
   const spread = (): number => {
@@ -205,15 +268,54 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
 
     if (pointers.current.size >= 2) {
       const distance = spread();
-      if (start.current.distance > 0) {
-        // Anchored between the fingers, so the picture grows where it is being
-        // pinched rather than out of the middle of the frame.
-        zoomAround(
-          (start.current.scale * distance) / start.current.distance,
-          centre(),
-          { scale: start.current.scale, offset: start.current.offset },
-        );
+      if (start.current.distance <= 0) return;
+
+      const box = imageRef.current?.getBoundingClientRect();
+      const target = Math.min(
+        MAX_SCALE,
+        Math.max(1, (start.current.scale * distance) / start.current.distance),
+      );
+
+      if (!box || target === 1) {
+        setScale(target);
+        setOffset({ x: 0, y: 0 });
+        return;
       }
+
+      /*
+       * Anchored to where the pinch *started*, not to where the fingers are now.
+       *
+       * The first version passed the live midpoint as the anchor while also
+       * measuring from the gesture's starting offset. Those two disagree the
+       * instant a finger moves - the anchor slides, the offset is recomputed
+       * from an origin that no longer matches it, and the picture wanders off
+       * on its own. It looked like a glitch and it was arithmetic.
+       *
+       * The midpoint's own movement is added separately, as a pan, which is
+       * what makes a two-finger gesture zoom and move together the way one
+       * expects.
+       */
+      const middle = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      const ratio = target / start.current.scale;
+      const anchor = start.current.point;
+      const now = centre();
+
+      setScale(target);
+      setOffset(
+        clamp(
+          {
+            x:
+              (anchor.x - middle.x) * (1 - ratio) +
+              start.current.offset.x * ratio +
+              (now.x - anchor.x),
+            y:
+              (anchor.y - middle.y) * (1 - ratio) +
+              start.current.offset.y * ratio +
+              (now.y - anchor.y),
+          },
+          target,
+        ),
+      );
       return;
     }
 
