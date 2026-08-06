@@ -33,15 +33,47 @@ export type AutoDownload = 'always' | 'wifi' | 'never';
 export type UploadQuality = 'auto' | 'high' | 'data-saver';
 export type CameraFacing = 'front' | 'back';
 
+/**
+ * How much of a notification a locked screen is allowed to show.
+ *
+ * `sender-only` keeps the product's privacy claim whole: no message text ever
+ * enters a push payload, so nothing readable passes through Google's servers on
+ * its way to a lock screen. `sender-and-text` is a trade somebody may choose to
+ * make about their own messages - it is offered, it is explained, and it is not
+ * the default.
+ */
+export type LockScreenPreview = 'sender-only' | 'sender-and-text' | 'hidden';
+
+/**
+ * What is worth interrupting somebody for.
+ *
+ * Split along one line: things another person did, and things PINGO wants. The
+ * first group defaults on, because a messenger that stays quiet about messages
+ * is broken. The second defaults off, because a product should have to earn the
+ * right to interrupt you about its own goals rather than be granted it silently.
+ *
+ * These live on the server. They used to live in `localStorage`, which meant
+ * the thing doing the sending could not read them - a person could switch
+ * notifications off and keep receiving them.
+ */
 export interface NotificationPreferences {
+  /** Overrides everything below while on. */
+  muteAll: boolean;
+
+  // Things a person did.
   messages: boolean;
   groups: boolean;
   calls: boolean;
-  communities: boolean;
-  streakReminder: boolean;
-  friendBirthday: boolean;
-  /** Overrides everything above while on. */
-  muteAll: boolean;
+  friendRequests: boolean;
+  stories: boolean;
+  ai: boolean;
+
+  // Things PINGO would like to say. Off until asked for.
+  journey: boolean;
+  marketing: boolean;
+
+  preview: LockScreenPreview;
+
   quietHours: boolean;
   quietHoursStart: string;
   quietHoursEnd: string;
@@ -124,13 +156,23 @@ export interface Preferences {
 export const DEFAULT_PREFERENCES: Preferences = {
   appearance: DEFAULT_APPEARANCE,
   notifications: {
+    muteAll: false,
     messages: true,
     groups: true,
     calls: true,
-    communities: false,
-    streakReminder: true,
-    friendBirthday: true,
-    muteAll: false,
+    friendRequests: true,
+    stories: true,
+    ai: true,
+    /*
+     * Off, and this one is a philosophy commitment rather than a taste.
+     * docs/journey-philosophy.md: never pressure, never punish, never
+     * manipulate. "Your streak is about to break" is all three at once, which
+     * is why the streak reminder that used to default to `true` here is gone
+     * rather than merely switched off.
+     */
+    journey: false,
+    marketing: false,
+    preview: 'sender-only',
     quietHours: false,
     quietHoursStart: '22:00',
     quietHoursEnd: '07:00',

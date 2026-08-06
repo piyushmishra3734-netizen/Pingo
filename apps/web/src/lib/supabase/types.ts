@@ -614,6 +614,67 @@ export type Database = {
         Relationships: [];
       };
       /**
+       * What a person is willing to be interrupted for.
+       *
+       * On the server rather than the device because the thing that acts on
+       * them is a Postgres trigger, which cannot read a browser's localStorage.
+       * Left local, "turn off notifications" changed nothing at all.
+       */
+      notification_prefs: {
+        Row: {
+          user_id: string;
+          muted: boolean;
+          messages: boolean;
+          groups: boolean;
+          calls: boolean;
+          friend_requests: boolean;
+          stories: boolean;
+          ai: boolean;
+          journey: boolean;
+          marketing: boolean;
+          preview: 'sender_only' | 'sender_and_text' | 'hidden';
+          quiet_enabled: boolean;
+          quiet_start_minute: number;
+          quiet_end_minute: number;
+          utc_offset_minutes: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          muted?: boolean;
+          messages?: boolean;
+          groups?: boolean;
+          calls?: boolean;
+          friend_requests?: boolean;
+          stories?: boolean;
+          ai?: boolean;
+          journey?: boolean;
+          marketing?: boolean;
+          preview?: 'sender_only' | 'sender_and_text' | 'hidden';
+          quiet_enabled?: boolean;
+          quiet_start_minute?: number;
+          quiet_end_minute?: number;
+          utc_offset_minutes?: number;
+        };
+        Update: {
+          muted?: boolean;
+          messages?: boolean;
+          groups?: boolean;
+          calls?: boolean;
+          friend_requests?: boolean;
+          stories?: boolean;
+          ai?: boolean;
+          journey?: boolean;
+          marketing?: boolean;
+          preview?: 'sender_only' | 'sender_and_text' | 'hidden';
+          quiet_enabled?: boolean;
+          quiet_start_minute?: number;
+          quiet_end_minute?: number;
+          utc_offset_minutes?: number;
+        };
+        Relationships: [];
+      };
+      /**
        * One row per install that can receive a push, keyed on the FCM token.
        *
        * Keyed on the token rather than the user because a device changes hands:

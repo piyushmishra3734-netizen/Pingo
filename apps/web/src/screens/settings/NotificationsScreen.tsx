@@ -1,9 +1,9 @@
-import { useProfile } from '@pingo/core';
+
 import { useEffect, useState } from 'react';
 
-import { Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
+import { ChoiceRow, Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
-import { canAccessCommunities } from '../../lib/community-access.js';
+
 
 /**
  * Notifications.
@@ -18,9 +18,7 @@ import { canAccessCommunities } from '../../lib/community-access.js';
  */
 export function NotificationsScreen() {
   const { preferences, update } = usePreferences();
-  const { profile } = useProfile();
   const n = preferences.notifications;
-  const showCommunitiesToggle = canAccessCommunities(profile?.username);
 
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(
     'unsupported',
@@ -87,39 +85,79 @@ export function NotificationsScreen() {
           disabled={n.muteAll}
           onChange={(calls) => update('notifications', { calls })}
         />
-        {showCommunitiesToggle && (
-          <ToggleRow
-            label="Communities"
-            checked={n.communities}
-            disabled={n.muteAll}
-            onChange={(communities) => update('notifications', { communities })}
-          />
-        )}
-      </Group>
-
-      <Group
-        title="Reminders"
-        note="The only two reminders PINGO will ever send. No re-engagement nudges, no “you have unread messages”."
-      >
         <ToggleRow
-          label="Streak Reminder"
-          description="Before a streak is about to break."
-          checked={n.streakReminder}
+          label="Friend requests"
+          checked={n.friendRequests}
           disabled={n.muteAll}
-          onChange={(streakReminder) => update('notifications', { streakReminder })}
+          onChange={(friendRequests) => update('notifications', { friendRequests })}
         />
         <ToggleRow
-          label="Friend Birthday"
-          checked={n.friendBirthday}
+          label="Stories"
+          checked={n.stories}
           disabled={n.muteAll}
-          onChange={(friendBirthday) => update('notifications', { friendBirthday })}
+          onChange={(stories) => update('notifications', { stories })}
+        />
+        <ToggleRow
+          label="PINGO AI"
+          description="Replies from your AI chat."
+          checked={n.ai}
+          disabled={n.muteAll}
+          onChange={(ai) => update('notifications', { ai })}
         />
       </Group>
 
+      {/*
+        Lock screen preview.
+
+        The default sends no message text at all - only who it is from - so
+        nothing readable passes through Google's servers on the way to a locked
+        phone. The middle option is a trade somebody may want to make about
+        their own messages, and it says plainly what it costs rather than
+        hiding it behind a friendly label.
+      */}
       <Group
-        title="Quiet Hours"
-        note="Saved on this device. Push delivery is not built yet, so nothing is scheduled against these times so far."
+        title="Lock screen"
+        note="With previews on, the text of your messages travels through Google's notification service to reach your lock screen. On the default it never does - only who sent it."
       >
+        <ChoiceRow
+          label="Preview"
+          value={n.preview}
+          options={[
+            { value: 'sender-only', label: 'Sender only' },
+            { value: 'sender-and-text', label: 'Sender + preview' },
+            { value: 'hidden', label: 'Hide everything' },
+          ]}
+          onChange={(preview) => update('notifications', { preview })}
+        />
+      </Group>
+
+      {/*
+        Journey and marketing default to off and are the only two switches here
+        that start that way. Everything above is somebody trying to reach you;
+        these two are PINGO wanting your attention for its own reasons, and
+        that is permission a product should be given rather than assume.
+      */}
+      <Group
+        title="From PINGO"
+        note="Both off unless you ask. Journey will never tell you a streak is about to break - see the philosophy: never pressure, never punish, never manipulate."
+      >
+        <ToggleRow
+          label="Journey"
+          description="Badges earned, and the occasional weekly reflection."
+          checked={n.journey}
+          disabled={n.muteAll}
+          onChange={(journey) => update('notifications', { journey })}
+        />
+        <ToggleRow
+          label="Product news"
+          description="New features. Rare, and never about what you have not read."
+          checked={n.marketing}
+          disabled={n.muteAll}
+          onChange={(marketing) => update('notifications', { marketing })}
+        />
+      </Group>
+
+      <Group title="Quiet Hours">
         <ToggleRow
           label="Quiet Hours"
           description={`${n.quietHoursStart} - ${n.quietHoursEnd}`}
@@ -150,10 +188,13 @@ export function NotificationsScreen() {
         )}
       </Group>
 
-      {/* Page-level caveat, not a per-row one. */}
+      {/*
+        This page used to end with "saved on this device… once push is built".
+        Both halves are now false: these live on your account and the server
+        reads them before it sends anything.
+      */}
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        These choices are saved on this device. They start affecting delivery once push
-        notifications are built.
+        Saved to your account, so they follow you to every device you sign in on.
       </p>
     </SettingsPage>
   );

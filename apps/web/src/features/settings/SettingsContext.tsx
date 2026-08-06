@@ -3,6 +3,7 @@ import {
   FONT_SCALE,
   type AppearanceSettings,
   type Preferences,
+  useAuth,
 } from '@pingo/core';
 import {
   createContext,
@@ -13,6 +14,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+
+import { loadPrefs, savePrefs } from './notification-sync.js';
 
 /**
  * Every preference, held here and applied to the document root.
@@ -97,6 +100,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
   );
 
+  const { session } = useAuth();
+  const userId = session?.user.id;
+
+  /**
+   * Pulls the server's notification preferences once there is a session.
+   *
+   * Keyed on the user, so switching accounts on one device loads that person's
+   * settings rather than leaving the previous one's switches on screen.
+   *
+   * The local values are handed over as the seed. Somebody who turned messages
+   * off before these lived on the server would otherwise have them switched
+   * back on by the defaults the first time this ran - which is the one
+   * migration outcome that is genuinely unacceptable.
+   */
+  useEffect(() => {
+    if (!userId) return;
+
+    let active = true;
+    void loadPrefs(userId, preferences.notifications).then((server) => {
+      if (!active || !server) return;
+      setPreferences((previous) => ({ ...previous, notifications: server }));
+    });
+
+    return () => {
+      active = false;
+    };
+    // Deliberately not depending on `preferences.notifications`: it is the seed
+    // for a first write, not an input that should re-run the fetch on every
+    // toggle. Re-running on each change would fight the optimistic update.
+
+  }, [userId]);
+
   const { appearance } = preferences;
 
   // `auto` has to keep following the OS after load, not just sample it once.
@@ -158,16 +193,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const update = useCallback(
     <K extends keyof Preferences>(group: K, changes: Partial<Preferences[K]>) => {
-      setPreferences((previous) => ({
-        ...previous,
-        [group]:
-          // Scalars (`language`) are replaced; groups are merged.
-          typeof previous[group] === 'object' && previous[group] !== null
-            ? { ...previous[group], ...changes }
-            : changes,
-      }));
+      setPreferences((previous) => {
+        const next = {
+          ...previous,
+          [group]:
+            // Scalars (`language`) are replaced; groups are merged.
+            typeof previous[group] === 'object' && previous[group] !== null
+              ? { ...previous[group], ...changes }
+              : changes,
+        };
+
+        /*
+         * Notifications are the one group that also lives on the server.
+         *
+         * Every other preference here describes *this device* - the theme, the
+         * font size, whether Enter sends - and syncing those would be wrong,
+         * because a phone and a desktop may reasonably differ. Notifications
+         * are decided by a Postgres trigger, which cannot read a browser's
+         * storage, so a switch left purely local changed nothing at all.
+         *
+         * Written optimistically: the toggle moves now and the request follows.
+         * A failed write leaves the server on its previous value and the next
+         * load corrects the screen, which is the right way round - a switch
+         * that waits on a round trip feels broken on a slow connection.
+         */
+        if (group === 'notifications' && userId) {
+          void savePrefs(userId, next.notifications);
+        }
+
+        return next;
+      });
     },
-    [],
+    [userId],
   );
 
   const reset = useCallback(() => setPreferences(DEFAULT_PREFERENCES), []);
