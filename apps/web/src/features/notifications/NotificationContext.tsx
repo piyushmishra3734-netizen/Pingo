@@ -1,6 +1,7 @@
 import { useChat } from '@pingo/core';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { useBrowserBadge } from './useBrowserBadge.js';
 import { usePushRegistration } from './usePushRegistration.js';
 
 /**
@@ -44,6 +45,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
    * the other.
    */
   usePushRegistration();
+
+  /*
+   * Mounted here for the same reason: this provider owns "how does somebody
+   * find out something happened". A lock screen, an in-app badge and a browser
+   * tab are three answers to one question, and keeping them together is what
+   * stops a change to one forgetting the others.
+   */
+  useBrowserBadge();
 
   useEffect(() => {
     // Waits for the session: an unauthenticated count is always zero and the
