@@ -33,9 +33,22 @@ export interface PhotoBubbleProps {
 export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
   const { service } = useChat();
 
-  /** Filled once a limited photo has been opened. Unlimited ones start with it. */
-  const [url, setUrl] = useState(photo.url);
-  const [viewsLeft, setViewsLeft] = useState(photo.viewsLeft);
+  /*
+   * What opening a limited photo returned, and only that.
+   *
+   * This used to be `useState(photo.url)`, which reads the prop once and then
+   * ignores it for the life of the component. A signed URL lasts an hour and a
+   * thread stays mounted for longer, so a re-signed photo arriving in props was
+   * dropped and the bubble went on showing a URL that had expired. Taking the
+   * prop directly means the freshest signature always wins; the state is only
+   * for the one thing props cannot know, which is that this reader has spent a
+   * view.
+   */
+  const [opened, setOpened] = useState<{ url: string; viewsLeft?: number } | undefined>(
+    undefined,
+  );
+  const url = opened?.url ?? photo.url;
+  const viewsLeft = opened?.viewsLeft ?? photo.viewsLeft;
   const [opening, setOpening] = useState(false);
   const [spent, setSpent] = useState(false);
   /*
@@ -60,10 +73,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
       // Undefined means the views are used up, which reads the same as never
       // having had any - the thread does not explain which.
       if (!view) setSpent(true);
-      else {
-        setUrl(view.url);
-        setViewsLeft(view.viewsLeft);
-      }
+      else setOpened({ url: view.url, viewsLeft: view.viewsLeft });
     } finally {
       setOpening(false);
     }

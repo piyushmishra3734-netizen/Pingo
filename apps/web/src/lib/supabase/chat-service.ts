@@ -182,6 +182,7 @@ function toAttachments(row: MessageRow): Attachment[] {
         // The generic type is what a server falls back to when it cannot tell,
         // so it is the honest value here rather than an empty string.
         mimeType: row.file_mime ?? 'application/octet-stream',
+        storagePath: row.file_path,
         ...(row.file_size !== null ? { size: row.file_size } : {}),
       },
     ];
@@ -305,7 +306,14 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
      * request per row for a thread that renders fifty of them.
      */
     ...(row.kind === 'photo' && row.photo_path
-      ? { photo: { ...(row.view_limit ? { viewLimit: row.view_limit } : {}) } }
+      ? {
+          photo: {
+            ...(row.view_limit ? { viewLimit: row.view_limit } : {}),
+            // Kept even though the URL is not: this is what a cached page
+            // re-signs from once the hour is up.
+            storagePath: row.photo_path,
+          },
+        }
       : {}),
     // The structured kinds are read straight off `meta`, which is the shape the
     // client wrote and the only thing that reads it.
@@ -1551,7 +1559,16 @@ export class SupabaseChatService implements ChatService {
           // Nothing has happened here since last time. The cached page is the
           // answer, and no message was fetched or decrypted to establish that.
           this.#deltaStats.hits += 1;
-          return cached;
+          /*
+           * Still signed, though.
+           *
+           * The messages are unchanged; their URLs are not. A signature lasts
+           * an hour and this cache lasts until the thread changes, so a quiet
+           * conversation came back with every photo pointing at an expired
+           * URL - a thread of broken images, from the one path that returned
+           * without signing anything.
+           */
+          return this.#signPhotos([], cached);
         }
 
         const decrypted = await openRows(changed);
@@ -1953,11 +1970,27 @@ export class SupabaseChatService implements ChatService {
    * Limited photos are skipped deliberately: their URL only exists after the
    * reader spends a view, and handing one out here would let the picture be
    * seen without the limit ever being consulted.
+   *
+   * ## Why the message carries the path and the row is only a hint
+   *
+   * These passes used to pair `messages[i]` with `rows[i]`, which holds on a
+   * fresh page and nowhere else. The delta path calls this with every message
+   * in the thread and only the handful of rows that changed, so the pairing
+   * slid: most photos were skipped, and the ones at the start of the page were
+   * handed a URL belonging to a different message. Matching on the id cannot
+   * slide, and falling back to the path stored on the message itself is what
+   * lets a page that has no rows at all - a cache hit - still be signed.
    */
   async #signPhotos(rows: MessageRow[], messages: Message[]): Promise<Message[]> {
-    const paths = rows
-      .filter((row) => row.kind === 'photo' && row.photo_path && !row.view_limit)
-      .map((row) => row.photo_path!);
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+
+    /** Where this message's picture lives, or nothing if it has none to sign. */
+    const pathOf = (message: Message): string | undefined => {
+      if (!message.photo || message.photo.viewLimit !== undefined) return undefined;
+      return rowById.get(message.id)?.photo_path ?? message.photo.storagePath ?? undefined;
+    };
+
+    const paths = [...new Set(messages.map(pathOf).filter((path) => path !== undefined))];
 
     // No photos on this page still leaves the voice pass to run - returning
     // here outright would silently skip it for any thread of only voice notes.
@@ -1965,11 +1998,13 @@ export class SupabaseChatService implements ChatService {
 
     const urlByPath = await this.#signStoragePaths(PHOTO_BUCKET, paths);
 
-    const withPhotos = messages.map((message, index) => {
-      const row = rows[index];
-      if (!message.photo || !row?.photo_path) return message;
-      const url = urlByPath.get(row.photo_path);
-      return url ? { ...message, photo: { ...message.photo, url } } : message;
+    const withPhotos = messages.map((message) => {
+      const path = pathOf(message);
+      if (!path || !message.photo) return message;
+      const url = urlByPath.get(path);
+      // The path is kept alongside the URL so the next read can re-sign it
+      // without needing the row back.
+      return url ? { ...message, photo: { ...message.photo, url, storagePath: path } } : message;
     });
 
     return this.#signVoice(rows, withPhotos);
@@ -1983,46 +2018,44 @@ export class SupabaseChatService implements ChatService {
    * both, so the two never contend.
    */
   async #signVoice(rows: MessageRow[], messages: Message[]): Promise<Message[]> {
-    const paths = [
-      ...new Set(
-        rows
-          .filter((row) => row.kind === 'voice' && row.voice_path)
-          .map((row) => row.voice_path!),
-      ),
-    ];
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+
+    /** By id, and by the path the attachment already carries. See `#signPhotos`. */
+    const pathOf = (message: Message): string | undefined =>
+      rowById.get(message.id)?.voice_path ??
+      message.attachments.find((a) => a.kind === 'audio')?.storagePath;
+
+    const paths = [...new Set(messages.map(pathOf).filter((path) => path !== undefined))];
 
     if (paths.length === 0) return this.#signDocuments(rows, messages);
 
     const urlByPath = await this.#signStoragePaths(VOICE_BUCKET, paths);
 
-    const signed = messages.map((message, index) => {
-      const row = rows[index];
-      if (!row?.voice_path) return message;
-      const url = urlByPath.get(row.voice_path);
+    const signed = messages.map((message) => {
+      const path = pathOf(message);
+      if (!path) return message;
+      const url = urlByPath.get(path);
       if (!url) return message;
 
+      const row = rowById.get(message.id);
+
       // Guarantee an audio attachment even if mapping earlier dropped it.
-      const attachments =
-        message.attachments.some((a) => a.kind === 'audio')
-          ? message.attachments.map((attachment) =>
-              attachment.kind === 'audio'
-                ? {
-                    ...attachment,
-                    url,
-                    storagePath: attachment.storagePath ?? row.voice_path ?? undefined,
-                  }
-                : attachment,
-            )
-          : [
-              {
-                id: row.id,
-                kind: 'audio' as const,
-                url,
-                duration: row.voice_duration ?? 0,
-                waveform: normalizeWaveform(row.voice_waveform),
-                storagePath: row.voice_path ?? undefined,
-              },
-            ];
+      const attachments = message.attachments.some((a) => a.kind === 'audio')
+        ? message.attachments.map((attachment) =>
+            attachment.kind === 'audio'
+              ? { ...attachment, url, storagePath: attachment.storagePath ?? path }
+              : attachment,
+          )
+        : [
+            {
+              id: message.id,
+              kind: 'audio' as const,
+              url,
+              duration: row?.voice_duration ?? 0,
+              waveform: normalizeWaveform(row?.voice_waveform),
+              storagePath: path,
+            },
+          ];
 
       return { ...message, attachments };
     });
@@ -2101,24 +2134,29 @@ export class SupabaseChatService implements ChatService {
    * is only ever one kind, so the passes never contend.
    */
   async #signDocuments(rows: MessageRow[], messages: Message[]): Promise<Message[]> {
-    const paths = rows
-      .filter((row) => row.kind === 'document' && row.file_path)
-      .map((row) => row.file_path!);
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+
+    /** By id, and by the path the attachment already carries. See `#signPhotos`. */
+    const pathOf = (message: Message): string | undefined =>
+      rowById.get(message.id)?.file_path ??
+      message.attachments.find((a) => a.kind === 'file')?.storagePath;
+
+    const paths = [...new Set(messages.map(pathOf).filter((path) => path !== undefined))];
 
     if (paths.length === 0) return messages;
 
     const urlByPath = await this.#signStoragePaths(DOCUMENT_BUCKET, paths);
 
-    return messages.map((message, index) => {
-      const row = rows[index];
-      if (!row?.file_path) return message;
-      const url = urlByPath.get(row.file_path);
+    return messages.map((message) => {
+      const path = pathOf(message);
+      if (!path) return message;
+      const url = urlByPath.get(path);
       if (!url) return message;
 
       return {
         ...message,
         attachments: message.attachments.map((attachment) =>
-          attachment.kind === 'file' ? { ...attachment, url } : attachment,
+          attachment.kind === 'file' ? { ...attachment, url, storagePath: path } : attachment,
         ),
       };
     });

@@ -111,6 +111,12 @@ export interface FileAttachment extends AttachmentBase {
   url: string;
   fileName: string;
   mimeType: string;
+  /**
+   * Private storage path (bucket key). Same reason as the one on a voice note
+   * and a photo: `url` expires, a cached thread does not, and this is what a
+   * fresh signature is minted from.
+   */
+  storagePath?: string;
 }
 
 export type Attachment =
@@ -268,6 +274,15 @@ export interface PhotoRef {
    * sitting in the message is a copy the limit cannot govern.
    */
   url?: string;
+  /**
+   * Private storage path (bucket key), for re-signing.
+   *
+   * `url` expires in an hour and a cached thread outlives that by days, so a
+   * photo read back from the cache had a dead URL and rendered as a broken
+   * image. The path does not expire, so it is what survives on disk and what a
+   * fresh signature is minted from. Voice notes already worked this way.
+   */
+  storagePath?: string;
   /** Shape, so the bubble can reserve the right space before the bytes land. */
   width?: number;
   height?: number;
