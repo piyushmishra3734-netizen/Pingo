@@ -12,6 +12,7 @@ import {
   HeartIcon,
   LoadingState,
   PhoneIcon,
+  SearchField,
   UserIcon,
   UsersIcon,
   cn,
@@ -20,6 +21,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import {
+  FILTERS,
+  describe,
+  groupNotifications,
+  sectionByDay,
+  type FilterKey,
+  type HistoryEntry,
+} from '../features/notifications/group-history.js';
+import { markDismissed, markOpened } from '../features/notifications/history-actions.js';
 import { useNotifications } from '../features/notifications/NotificationContext.js';
 import { canAccessCommunities } from '../lib/community-access.js';
 import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
@@ -83,6 +93,10 @@ export function NotificationsScreen() {
   const { clear } = useNotifications();
   const { profile, service: profiles } = useProfile();
   const [acting, setActing] = useState<string>();
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [query, setQuery] = useState('');
+  /** Hidden for this visit; the write to dismissed_at follows behind. */
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   /*
    * Primary dock tab for most accounts (no back). Allowlisted community
    * accounts still open this from the chats header, so they keep a back button.
@@ -169,27 +183,64 @@ export function NotificationsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- clear is a badge setter
   }, [service, version]);
 
+  /**
+   * A timeline, not a log.
+   *
+   * Filter, then search, then group, then split by day - in that order, because
+   * grouping a filtered list is right and filtering a grouped one is not: a
+   * chip that hides half a run would leave an entry claiming four messages
+   * while showing one.
+   *
+   * Grouping is what stops this being the thing it used to be. Four messages
+   * from one person in two minutes were four rows; the one real event - that
+   * somebody wanted you - was harder to see with four copies of it than with
+   * one. `groupNotifications` collapses a consecutive run into a single entry
+   * that counts it, and only a consecutive run: two messages this morning and
+   * two tonight are two moments in a day, and merging them across the gap would
+   * say something untrue about when they happened.
+   */
   const sections = useMemo(() => {
-    if (!items?.length) return [] as { key: DayKey; items: AppNotification[] }[];
-    const buckets: Record<DayKey, AppNotification[]> = {
-      today: [],
-      yesterday: [],
-      earlier: [],
-    };
-    for (const item of items) {
-      buckets[dayKey(item.createdAt)].push(item);
-    }
-    return (['today', 'yesterday', 'earlier'] as const)
-      .filter((key) => buckets[key].length > 0)
-      .map((key) => ({ key, items: buckets[key] }));
-  }, [items]);
+    if (!items?.length) return [];
 
-  const open = (item: AppNotification) => {
+    const term = query.trim().toLowerCase();
+    const visible = items
+      .filter((item) => !dismissed.has(item.id))
+      .filter(FILTERS[filter])
+      .filter((item) => {
+        if (!term) return true;
+        const actor = users.find((u) => u.id === item.actorId);
+        return (
+          (actor?.name ?? item.title).toLowerCase().includes(term) ||
+          item.body.toLowerCase().includes(term)
+        );
+      });
+
+    return sectionByDay(groupNotifications(visible));
+  }, [items, filter, query, dismissed, users]);
+
+  const open = (entry: HistoryEntry) => {
+    const item = entry.latest;
+    // Every id in the run, so opening a group of four counts as four opened -
+    // an open rate built on the newest one alone would understate every burst.
+    void markOpened(entry.ids);
+
     if (item.kind === 'follow_request' || item.kind === 'follow_accepted') {
       navigate('/requests');
     } else if (item.conversationId) {
       navigate(`/chats/${item.conversationId}`);
     }
+  };
+
+  /*
+   * Hidden immediately, recorded in the background.
+   *
+   * The row leaves on the tap; the write follows. A dismissal that waited on a
+   * round trip would leave a row sitting under a finger that has already moved
+   * on, which reads as the gesture not having worked.
+   */
+  const dismiss = (entry: HistoryEntry) => {
+    setDismissed((all) => new Set([...all, ...entry.ids]));
+    void markDismissed(entry.ids);
   };
 
   return (
@@ -205,6 +256,54 @@ export function NotificationsScreen() {
 
       <ScreenHeader title="Notifications" showBack={showBack} className="relative z-10" />
 
+      {/*
+        Search and filters, above the timeline.
+
+        Rendered only once there is something to search. A filter row over an
+        empty screen is furniture that explains nothing, and the empty state
+        already says what to do.
+      */}
+      {items && items.length > 0 && (
+        <div className="relative z-10 shrink-0 px-4 pb-2">
+          <div className="mx-auto w-full max-w-2xl">
+            <SearchField
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search notifications"
+              aria-label="Search notifications"
+            />
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+              {(
+                [
+                  ['all', 'All'],
+                  ['messages', 'Messages'],
+                  ['stories', 'Stories'],
+                  ['calls', 'Calls'],
+                  ['people', 'People'],
+                  ['pings', 'Pings'],
+                ] as [FilterKey, string][]
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFilter(key)}
+                  aria-pressed={filter === key}
+                  className={cn(
+                    'focus-ring shrink-0 rounded-full px-3 py-1.5 text-caption font-medium',
+                    'transition-colors duration-instant',
+                    filter === key
+                      ? 'bg-brand text-white'
+                      : 'bg-surface text-text-secondary hover:text-ink',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">
         <div className="mx-auto w-full max-w-2xl">
           {!items ? (
@@ -214,12 +313,13 @@ export function NotificationsScreen() {
           ) : (
             <div className="space-y-6">
               {sections.map((section) => (
-                <section key={section.key}>
+                <section key={section.label}>
                   <h2 className="mb-2.5 px-1 text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-text-tertiary">
-                    {DAY_LABEL[section.key]}
+                    {section.label}
                   </h2>
                   <ul className="glass-surface overflow-hidden rounded-2xl shadow-sm">
-                    {section.items.map((item, index) => {
+                    {section.entries.map((entry, index) => {
+                      const item = entry.latest;
                       const actor = users.find((u) => u.id === item.actorId);
                       return (
                         <li
@@ -232,11 +332,19 @@ export function NotificationsScreen() {
                         >
                           <NotificationRow
                             item={item}
+                            /*
+                              The grouped sentence, not the row's own body.
+                              "Sent you 4 messages" is what happened; "Sent you
+                              a message" repeated four times is a transcript of
+                              the delivery mechanism.
+                            */
+                            summary={describe(entry)}
                             actorName={actor?.name ?? item.title}
                             actorAvatar={actor?.avatarUrl}
                             acting={acting === item.id}
                             pendingReply={Boolean(item.actorId && pending?.has(item.actorId))}
-                            onOpen={() => open(item)}
+                            onOpen={() => open(entry)}
+                            onDismiss={() => dismiss(entry)}
                             onAccept={() => void respond(item, true)}
                             onIgnore={() => void respond(item, false)}
                           />
@@ -256,21 +364,26 @@ export function NotificationsScreen() {
 
 function NotificationRow({
   item,
+  summary,
   actorName,
   actorAvatar,
   acting,
   pendingReply,
   onOpen,
+  onDismiss,
   onAccept,
   onIgnore,
 }: {
   item: AppNotification;
+  /** The grouped sentence: "Sent you 4 messages". */
+  summary: string;
   actorName: string;
   actorAvatar?: string;
   acting: boolean;
   /** The request is still open, so it can still be answered. */
   pendingReply: boolean;
   onOpen: () => void;
+  onDismiss: () => void;
   onAccept: () => void;
   onIgnore: () => void;
 }) {
@@ -328,11 +441,8 @@ function NotificationRow({
             )}
           >
             <span className="font-semibold tracking-tight">{item.title}</span>
-            {item.body ? (
-              <span className="font-normal text-text-secondary">
-                {' '}
-                {item.body}
-              </span>
+            {summary ? (
+              <span className="font-normal text-text-secondary"> {summary}</span>
             ) : null}
           </span>
           {unread && (
@@ -341,6 +451,31 @@ function NotificationRow({
               className="mt-1.5 size-1.5 shrink-0 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.12)]"
             />
           )}
+          {/*
+            A button, not a swipe.
+
+            Swipe-to-dismiss is the gesture people expect here and it is not
+            built yet - a half-built swipe that sometimes scrolls the list
+            instead is worse than an obvious control. This does the same thing
+            and works with a keyboard, which the gesture never will.
+          */}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={(event) => {
+              // The row itself opens; this must not.
+              event.stopPropagation();
+              onDismiss();
+            }}
+            className={cn(
+              'focus-ring -mr-1 ml-1 shrink-0 rounded-full p-1 text-text-tertiary',
+              'transition-colors duration-instant hover:bg-hover hover:text-ink',
+            )}
+          >
+            <span aria-hidden className="block text-caption leading-none">
+              ×
+            </span>
+          </button>
         </span>
 
         <span className="mt-1.5 flex items-center gap-1.5 text-caption text-text-tertiary">

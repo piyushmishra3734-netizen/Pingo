@@ -751,6 +751,15 @@ export type Database = {
           success_rate_percent: number | null;
         }[];
       };
+      /** Sets opened_at and read_at together - see the migration. */
+      notification_opened: { Args: { target: string }; Returns: undefined };
+      /** Hides a notification from history without destroying the row. */
+      notification_dismissed: { Args: { target: string }; Returns: undefined };
+      /** Open rates per kind. Operator only; raises for everybody else. */
+      notification_engagement: {
+        Args: Record<string, never>;
+        Returns: { kind: string; delivered: number; opened: number; ignored: number; open_rate_percent: number | null }[];
+      };
       /** Idempotent: returns the existing direct conversation, or makes one. */
       start_direct_conversation: {
         Args: { other_user: string };
