@@ -154,8 +154,25 @@ export class PresenceHub {
 
         const map = this.#typists.get(conversationId) ?? new Map<UserId, { until: number; kind: ChatActivity }>();
         // A sender on an older build sends no kind, and meant typing.
-        if (typing) map.set(userId, { until: Date.now() + TYPING_TIMEOUT_MS, kind: kind ?? 'typing' });
-        else map.delete(userId);
+        const stopping = kind ?? 'typing';
+
+        if (typing) {
+          map.set(userId, { until: Date.now() + TYPING_TIMEOUT_MS, kind: stopping });
+        } else if (map.get(userId)?.kind === stopping) {
+          /*
+           * A stop only clears the kind it names.
+           *
+           * This used to delete the person outright, so "stopped recording"
+           * also cancelled "is typing" - two different facts sharing one
+           * entry. Combined with the composer broadcasting `recording: false`
+           * on every render, that meant a constant stream of stops erasing an
+           * indicator nobody had asked to remove. Typing flashed and died.
+           *
+           * A stop for a kind they are not doing is now simply ignored, which
+           * is what it always meant.
+           */
+          map.delete(userId);
+        }
         this.#typists.set(conversationId, map);
         this.#publish(conversationId);
       });

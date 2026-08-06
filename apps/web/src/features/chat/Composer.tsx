@@ -177,13 +177,30 @@ export function Composer({
    */
   const listening = recorder.recording && !recorder.capped;
 
+  /*
+   * The callback in a ref, so only `listening` can re-run the effect.
+   *
+   * `onRecording` is an inline arrow at the call site, so it is a new function
+   * on every render - and with it in the dependency list this effect ran on
+   * every render too, broadcasting `recording: false` continuously. That was
+   * harmless-looking and was not: the receiver deleted the sender's activity on
+   * any `false`, whatever kind it named, so a stream of "not recording" wiped
+   * the *typing* indicator over and over. Typing appeared for an instant and
+   * vanished, and it started the day the recording indicator was added.
+   *
+   * The other half of that fix is in `presence.ts`, where a stop now only
+   * clears the kind it actually refers to.
+   */
+  const onRecordingRef = useRef(onRecording);
+  onRecordingRef.current = onRecording;
+
   useEffect(() => {
-    void onRecording?.(listening);
+    void onRecordingRef.current?.(listening);
     if (!listening) return;
     return () => {
-      void onRecording?.(false);
+      void onRecordingRef.current?.(false);
     };
-  }, [listening, onRecording]);
+  }, [listening]);
 
   /** Set while a press is being treated as hold-to-record. */
   const heldRef = useRef(false);
