@@ -50,8 +50,11 @@ interface ServiceAccount {
 interface PushRequest {
   userId: string;
   kind: string;
+  actorId?: string;
   actorName?: string;
   subjectId?: string;
+  /** Unread notifications of this kind from this actor, including this one. */
+  count?: number;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -164,12 +167,21 @@ async function accessToken(account: ServiceAccount): Promise<string> {
  */
 function copyFor(request: PushRequest): { title: string; body: string } {
   const who = request.actorName?.trim() || 'Someone';
+  const many = request.count && request.count > 1 ? request.count : 0;
 
   switch (request.kind) {
     case 'message':
-      return { title: who, body: 'Sent you a message' };
+      /*
+       * "3 new messages", not three notifications saying "Sent you a message".
+       *
+       * Somebody typing "hey", "hey??", "bro???" in five seconds produces three
+       * rows, and three lock-screen lines for one thought is what makes people
+       * mute an app. Paired with the collapse key below, the newest push
+       * replaces the previous one and the count is the only thing that moves.
+       */
+      return { title: who, body: many ? `${many} new messages` : 'Sent you a message' };
     case 'snap':
-      return { title: who, body: 'Sent you a Ping' };
+      return { title: who, body: many ? `${many} new Pings` : 'Sent you a Ping' };
     case 'story':
       return { title: who, body: 'Added to their story' };
     case 'follow_request':
@@ -260,7 +272,21 @@ Deno.serve(async (request) => {
               },
               android: {
                 priority: 'HIGH',
-                notification: { channelId: 'pingo_messages', sound: 'default' },
+                /*
+                 * One tray entry per conversation, updated in place.
+                 *
+                 * `tag` is what makes Android replace rather than append, and
+                 * keying it on the actor and kind means a rapid burst from one
+                 * person collapses while a message from somebody else still
+                 * arrives separately - which is the distinction that matters.
+                 */
+                collapseKey: `${payload.kind}:${payload.actorId ?? 'system'}`,
+                notification: {
+                  channelId: 'pingo_messages',
+                  sound: 'default',
+                  tag: `${payload.kind}:${payload.actorId ?? 'system'}`,
+                  notificationCount: payload.count && payload.count > 1 ? payload.count : 1,
+                },
               },
             },
           }),
