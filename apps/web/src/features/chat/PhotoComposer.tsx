@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SnapEditor } from '../camera/SnapEditor.js';
 
 import { Overlay } from '../../components/Overlay.js';
+import { isAnimatedImage } from './animated-image.js';
 
 /**
  * Reviewing pictures before they are sent.
@@ -55,6 +56,27 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
    */
   const [edited, setEdited] = useState<Record<number, Blob>>({});
 
+  /**
+   * Which of these move, by position.
+   *
+   * Undefined until the bytes have been read - a moment, and a moment in which
+   * the editor must not be shown, because showing tools and then taking them
+   * away is worse than a beat of nothing. Reading the header is the only way to
+   * know: a keyboard's stickers are WebP, and a WebP animates or does not
+   * depending on a flag inside the file.
+   */
+  const [animated, setAnimated] = useState<boolean[]>();
+
+  useEffect(() => {
+    let live = true;
+    void Promise.all(files.map(isAnimatedImage)).then((all) => {
+      if (live) setAnimated(all);
+    });
+    return () => {
+      live = false;
+    };
+  }, [files]);
+
   const last = index === sources.length - 1;
 
   const finish = async (blob: Blob) => {
@@ -71,8 +93,9 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
     try {
       /*
        * Every picture, in the order they were chosen. Any the user skipped past
-       * without editing are flattened by the editor anyway, because reaching
-       * the end means each one went through it.
+       * without editing are flattened by the editor anyway - or handed straight
+       * back untouched, if they move - because reaching the end means each one
+       * went through it.
        */
       const blobs = sources.map((_, position) => all[position]).filter(Boolean) as Blob[];
       await onSend(blobs, caption.trim(), once ? 1 : undefined);
@@ -81,6 +104,15 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
       setBusy(false);
     }
   };
+
+  // A blank backdrop for the instant the headers are being read. See `animated`.
+  if (!animated) {
+    return (
+      <Overlay>
+        <div className="fixed inset-0 z-500 bg-backdrop" />
+      </Overlay>
+    );
+  }
 
   return (
     <Overlay>
@@ -91,6 +123,9 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
           src={sources[index]!}
           onCancel={onCancel}
           onDone={(blob) => void finish(blob)}
+          // The original bytes when this one moves, which is what stops the
+          // export turning a GIF into a picture of its first frame.
+          {...(animated[index] ? { untouchable: files[index]! } : {})}
           busy={busy}
           doneLabel={last ? (sources.length > 1 ? 'Send all' : 'Send') : 'Next photo'}
           extras={

@@ -84,6 +84,7 @@ export function SnapEditor({
   busy,
   extras,
   doneLabel = 'Next',
+  untouchable,
 }: {
   src: string;
   onCancel: () => void;
@@ -93,6 +94,19 @@ export function SnapEditor({
   extras?: React.ReactNode;
   /** 'Next' from the camera, 'Send' when the picture is going straight out. */
   doneLabel?: string;
+  /**
+   * Bytes to hand back as they are, instead of exporting the canvas.
+   *
+   * For a picture that moves. Export paints onto a canvas, and a canvas holds
+   * one frame - so a GIF came out the far end as a poster of its first moment,
+   * which is exactly what it looked like it was not going to do, because the
+   * editor was showing the real file animating the whole time.
+   *
+   * The tools go with it. There is no honest way to draw on an animation here:
+   * keeping the frames means not painting on them, and the alternative is
+   * offering a pen that silently flattens what it touches.
+   */
+  untouchable?: Blob;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -176,6 +190,18 @@ export function SnapEditor({
 
   const flatten = useCallback(async () => {
     if (exporting) return;
+
+    /*
+     * A moving picture leaves exactly as it arrived.
+     *
+     * Before anything else, because everything below this line turns the
+     * picture into a single frame.
+     */
+    if (untouchable) {
+      onDone(untouchable);
+      return;
+    }
+
     setExportError(undefined);
     setExporting(true);
 
@@ -355,7 +381,7 @@ export function SnapEditor({
     } finally {
       setExporting(false);
     }
-  }, [strokes, items, rotation, crop, onDone, exporting]);
+  }, [strokes, items, rotation, crop, onDone, exporting, untouchable]);
 
   // ---- render -------------------------------------------------------------
 
@@ -441,6 +467,15 @@ export function SnapEditor({
           'pb-[max(calc(1rem+8px),calc(env(safe-area-inset-bottom)+8px))]',
         )}
       >
+        {/*
+          No tools on a picture that moves - see `untouchable`. Every one of
+          them writes onto a single frame, so offering them would be offering to
+          quietly turn an animation into a still. The caption and the view limit
+          below still apply, because those are properties of the send rather
+          than of the pixels.
+        */}
+        {!untouchable && (
+        <>
         <div className="scrollbar-none flex items-center justify-center gap-1 overflow-x-auto">
           <ToolButton active={tool === 'draw'} onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}>
             Draw
@@ -544,6 +579,8 @@ export function SnapEditor({
               Done cropping
             </ToolButton>
           </div>
+        )}
+        </>
         )}
 
         {/* Caption, view limit - supplied by whoever is using the editor. */}
