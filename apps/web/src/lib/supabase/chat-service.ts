@@ -73,7 +73,7 @@ import {
 import { STORE, localDelete, localGet, localSet } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
-import { PresenceHub } from './presence.js';
+import { PresenceHub, type ChatActivity } from './presence.js';
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
 
 /** Until a settings table exists, these are what every session starts from. */
@@ -416,6 +416,9 @@ export class SupabaseChatService implements ChatService {
    * time it loaded.
    */
   #livePresence = new Map<UserId, { state: PresenceState; lastSeenAt: number }>();
+
+  /** Who is typing or recording, per conversation. Same argument as presence. */
+  #liveTyping = new Map<ConversationId, { userIds: UserId[]; activity: ChatActivity }>();
 
   /**
    * AI conversation ids known to this session.
@@ -1124,7 +1127,23 @@ export class SupabaseChatService implements ChatService {
             ? { archivedAt: Date.parse(preview.archived_at) }
             : {}),
           listIds: listsByConversation.get(row.id) ?? [],
-          typingUserIds: [],
+          /*
+           * Whoever the socket says is typing, not an empty list.
+           *
+           * This was hardcoded to `[]`, and that is why typing appeared for a
+           * moment and vanished. The indicator was set correctly by the
+           * `typing:changed` event - and then the next conversation reload,
+           * which realtime triggers constantly, rebuilt the row from the
+           * database and wiped it. The dots lasted exactly until the next
+           * refresh, which is usually a fraction of a second.
+           *
+           * Typing lives on the socket and no table has it, so a rebuild must
+           * carry it across rather than assume nobody is there.
+           */
+          typingUserIds: [...(this.#liveTyping.get(row.id)?.userIds ?? [])],
+          ...(this.#liveTyping.get(row.id)?.activity
+            ? { typingActivity: this.#liveTyping.get(row.id)!.activity }
+            : {}),
           updatedAt: Date.parse(row.last_message_at),
           // Omitted entirely when there is no streak, so the row renders nothing.
           ...(streakByConversation.has(row.id)
