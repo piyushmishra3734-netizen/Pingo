@@ -3,6 +3,7 @@ import { IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
+import { receiveSharedText } from '../native/shared-content.js';
 import { AttachMenu } from './AttachMenu.js';
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
@@ -149,6 +150,22 @@ export function Composer({
       takeImages([file]);
     });
   }, [onPasteFiles]);
+
+  /*
+   * Text shared into PINGO from another app - a link, a quote, an address.
+   *
+   * Appended rather than replacing, because somebody may already be typing
+   * when they switch away to share something, and throwing away what they had
+   * written is not a trade worth making for a tidier implementation.
+   */
+  useEffect(
+    () =>
+      receiveSharedText((text) => {
+        setValue((current) => (current ? `${current}\n${text}` : text));
+        textareaRef.current?.focus();
+      }),
+    [],
+  );
 
   useEffect(() => {
     const el = textareaRef.current;

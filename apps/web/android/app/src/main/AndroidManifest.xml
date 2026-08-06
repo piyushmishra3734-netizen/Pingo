@@ -47,6 +47,36 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!--
+                Share to PINGO from anywhere.
+
+                Without these the app is absent from the system share sheet, and
+                sharing a photo or a link means copying it, opening PINGO, finding
+                the chat and pasting - which is enough friction that people simply
+                do not share to it.
+
+                Text and images only. A filter claiming */* would put PINGO in
+                front of every share on the phone and then fail on the ones it
+                cannot send, which is worse than not being offered.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+
         </activity>
 
         <provider

@@ -1,6 +1,7 @@
 package chat.pingo.app;
 
 import android.content.ClipDescription;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
@@ -56,6 +57,16 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
+        /*
+         * The page needs a way to say "I am ready now", because a share often
+         * arrives before the WebView has loaded. Only flushShare is exposed -
+         * an interface is a hole in the sandbox, and it should be exactly the
+         * size of the one thing that has to cross.
+         */
+        webView.addJavascriptInterface(this, "AndroidShare");
+
+        handleShare(getIntent());
+
         ViewCompat.setOnReceiveContentListener(webView, ACCEPTED, new OnReceiveContentListener() {
             @Override
             public ContentInfoCompat onReceiveContent(android.view.View view, ContentInfoCompat payload) {
@@ -83,6 +94,88 @@ public class MainActivity extends BridgeActivity {
                 return remaining;
             }
         });
+    }
+
+    /*
+     * `singleTask`, so a share into an already running app arrives here rather
+     * than through onCreate. Without this the first share works and every one
+     * after it silently does nothing, which is the classic shape of this bug.
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleShare(intent);
+    }
+
+    private String pendingText;
+    private final java.util.ArrayList<Uri> pendingImages = new java.util.ArrayList<>();
+
+    /**
+     * Content shared into PINGO from another app.
+     *
+     * Collected first, delivered second. A share can arrive before the WebView
+     * has finished loading - the app is often starting *because* of the share -
+     * and posting into a page that does not exist yet loses it with nothing to
+     * show for it. So it is held, and handed over when the page asks.
+     */
+    private void handleShare(Intent intent) {
+        if (intent == null || intent.getAction() == null) {
+            return;
+        }
+
+        String action = intent.getAction();
+        if (!Intent.ACTION_SEND.equals(action) && !Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            return;
+        }
+
+        String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+        if (text != null) {
+            pendingText = text;
+        }
+
+        if (Intent.ACTION_SEND.equals(action)) {
+            Uri single = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (single != null) {
+                pendingImages.add(single);
+            }
+        } else {
+            java.util.ArrayList<Uri> many = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (many != null) {
+                pendingImages.addAll(many);
+            }
+        }
+
+        flushShare();
+    }
+
+    /**
+     * Hands whatever is waiting to the page, if the page is listening.
+     *
+     * Called on arrival and again from JavaScript once a composer mounts, so
+     * whichever of the two happens second is the one that delivers.
+     */
+    @android.webkit.JavascriptInterface
+    public void flushShare() {
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView == null) {
+            return;
+        }
+
+        if (pendingText != null) {
+            final String script = "window.__pingoSharedText && window.__pingoSharedText("
+                    + org.json.JSONObject.quote(pendingText) + ")";
+            webView.post(() -> webView.evaluateJavascript(script, null));
+            pendingText = null;
+        }
+
+        java.util.List<Uri> images = new java.util.ArrayList<>(pendingImages);
+        pendingImages.clear();
+        for (Uri uri : images) {
+            // Same channel a keyboard image uses: it becomes a File on the web
+            // side and joins the paste path, so there is one way in, not two.
+            deliver(webView, uri, null);
+        }
     }
 
     /**
