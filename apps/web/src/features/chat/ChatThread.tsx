@@ -96,8 +96,12 @@ function RecordingPulse() {
       aria-hidden
       className="relative inline-flex h-3 w-3 items-center justify-center text-brand"
     >
-      <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-brand/40 motion-reduce:hidden" />
-      <svg viewBox="0 0 24 24" className="relative h-3 w-3" fill="currentColor">
+      <span className="absolute inline-flex h-3 w-3 animate-mic-breath rounded-full bg-brand/40 motion-reduce:hidden" />
+      <svg
+        viewBox="0 0 24 24"
+        className="relative h-3 w-3 animate-mic-settle motion-reduce:animate-none"
+        fill="currentColor"
+      >
         <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" />
         <path d="M18 11a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-3.06A8 8 0 0 0 20 11h-2Z" />
       </svg>
