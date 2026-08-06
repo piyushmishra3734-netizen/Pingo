@@ -90,16 +90,26 @@ const DIVIDER_HOLD_MS = 600;
  * `motion-reduce` drops the animation and leaves the icon, because the
  * information is the microphone, not the movement.
  */
-function RecordingPulse() {
+/**
+ * @param size in pixels. Small beside the name in the header, larger where it
+ * stands alone in the thread - with no bubble and no words around it, the mark
+ * has to carry the meaning by itself, and at 12px it reads as a speck.
+ */
+function RecordingPulse({ size = 12 }: { size?: number }) {
   return (
     <span
       aria-hidden
-      className="relative inline-flex h-3 w-3 items-center justify-center text-brand"
+      className="relative inline-flex items-center justify-center text-brand"
+      style={{ width: size, height: size }}
     >
-      <span className="absolute inline-flex h-3 w-3 animate-mic-breath rounded-full bg-brand/40 motion-reduce:hidden" />
+      <span
+        className="absolute inline-flex animate-mic-breath rounded-full bg-brand/40 motion-reduce:hidden"
+        style={{ width: size, height: size }}
+      />
       <svg
         viewBox="0 0 24 24"
-        className="relative h-3 w-3 animate-mic-settle motion-reduce:animate-none"
+        className="relative animate-mic-settle motion-reduce:animate-none"
+        style={{ width: size, height: size }}
         fill="currentColor"
       >
         <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" />
@@ -900,31 +910,28 @@ export function ChatThread({
               </p>
             )}
 
-            {isTyping && (
-              <div className="flex justify-start pt-1">
-                <div className="flex items-center gap-2 rounded-lg bg-surface px-4 py-3 shadow-sm">
-                  {/*
-                    A microphone, not the dots.
+            {isTyping &&
+              /*
+                Recording gets the mark alone: no bubble, no words.
 
-                    The bubble in the thread was showing typing dots for a voice
-                    note too, so holding the microphone looked exactly like
-                    writing - which is the one thing the separate `recording`
-                    activity exists to distinguish. The header already made this
-                    distinction; this bubble did not.
-                  */}
-                  {isRecording ? (
-                    <RecordingPulse />
-                  ) : (
-                    <PingoDot state="typing" size={7} label={typingLabel || 'typing'} />
-                  )}
-                  {isRecording && (
-                    <span className="text-caption text-text-secondary">
-                      {typingLabel || 'recording a voice note'}
-                    </span>
-                  )}
+                A bubble is the shape of a message, and a bubble that says
+                "recording a voice note" is the app narrating itself - the
+                pulsing microphone already says the whole thing, and saying it
+                twice is what makes an interface feel padded. Typing keeps its
+                bubble because dots inside one read as a message being formed,
+                which is exactly what they mean.
+              */
+              (isRecording ? (
+                <div className="flex justify-start pt-1 pl-1">
+                  <RecordingPulse size={22} />
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="flex justify-start pt-1">
+                  <div className="rounded-lg bg-surface px-4 py-3 shadow-sm">
+                    <PingoDot state="typing" size={7} label={typingLabel || 'typing'} />
+                  </div>
+                </div>
+              ))}
 
             {/*
               Sits under the typing indicator (never above it). Human threads
