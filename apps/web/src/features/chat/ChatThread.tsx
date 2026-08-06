@@ -898,12 +898,26 @@ export function ChatThread({
 
             {isTyping && (
               <div className="flex justify-start pt-1">
-                <div className="rounded-lg bg-surface px-4 py-3 shadow-sm">
-                  <PingoDot
-                    state="typing"
-                    size={7}
-                    label={typingLabel || 'typing'}
-                  />
+                <div className="flex items-center gap-2 rounded-lg bg-surface px-4 py-3 shadow-sm">
+                  {/*
+                    A microphone, not the dots.
+
+                    The bubble in the thread was showing typing dots for a voice
+                    note too, so holding the microphone looked exactly like
+                    writing - which is the one thing the separate `recording`
+                    activity exists to distinguish. The header already made this
+                    distinction; this bubble did not.
+                  */}
+                  {isRecording ? (
+                    <RecordingPulse />
+                  ) : (
+                    <PingoDot state="typing" size={7} label={typingLabel || 'typing'} />
+                  )}
+                  {isRecording && (
+                    <span className="text-caption text-text-secondary">
+                      {typingLabel || 'recording a voice note'}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
