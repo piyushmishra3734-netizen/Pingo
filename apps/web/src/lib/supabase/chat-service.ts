@@ -545,6 +545,29 @@ export class SupabaseChatService implements ChatService {
      */
     const { data } = this.#client.auth.onAuthStateChange((_event, session) => {
       if (session) {
+        /*
+         * The socket needs the user's token, and needs it again on every
+         * refresh.
+         *
+         * This was never called. A Realtime connection opened without it
+         * carries the anon key, so anything the socket does on the user's
+         * behalf - presence `track`, a broadcast into a channel with policies
+         * on `realtime.messages` - is done by nobody in particular. Worse, the
+         * access token expires every hour (`jwt_expiry` in config.toml) and the
+         * socket keeps the stale one: the channel stays "joined" and silently
+         * stops carrying anything.
+         *
+         * That is the shape of the bug it caused. Presence appeared on one side
+         * and not the other, depending on which socket happened to be
+         * authorised when it tracked; typing arrived once and then never again.
+         * Both look like intermittent bugs in two separate features and are one
+         * missing line.
+         *
+         * `onAuthStateChange` fires on TOKEN_REFRESHED as well as sign-in,
+         * which is exactly when this has to run.
+         */
+        this.#client.realtime.setAuth(session.access_token);
+
         this.#openChannel();
         this.#presenceHub.start(session.user.id);
       } else {
@@ -557,6 +580,9 @@ export class SupabaseChatService implements ChatService {
     // Covers the already-signed-in case, where the listener above fires late.
     void this.#client.auth.getSession().then(({ data: current }) => {
       if (current.session) {
+        // Same reason as the listener above: an already-signed-in tab reaches
+        // here instead, and a socket without the token is the same dead socket.
+        this.#client.realtime.setAuth(current.session.access_token);
         this.#openChannel();
         this.#presenceHub.start(current.session.user.id);
         /*
