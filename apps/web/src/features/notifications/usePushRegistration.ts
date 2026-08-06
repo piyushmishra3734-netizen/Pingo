@@ -1,7 +1,8 @@
 import { useAuth } from '@pingo/core';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 
 import { currentPlatform, isNative } from '../native/shell.js';
+import { requestWebPushToken } from '../../lib/firebase/web-push.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 
 /**
@@ -27,16 +28,57 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
  * rather than left beside it. Without that, signing in as somebody else on a
  * shared phone would deliver their messages to the previous account's tray.
  *
- * ## Nothing here runs in a browser yet
+ * ## A browser is registered the same way
  *
- * Web push uses the same table and the same send path - an FCM token is an FCM
- * token - but a browser needs a VAPID key from the Firebase project before it
- * can be issued one. Until that exists this is a no-op off-native, rather than
- * a half-registration that fails at send time.
+ * Web push goes through FCM too, so a browser produces the same kind of token
+ * an Android phone does and lands in the same row of the same table. Everything
+ * downstream - backoff, pruning, idempotency - is unaware there are two
+ * platforms, which is the point: a second delivery path would mean a second
+ * place for a delivery bug to live.
+ *
+ * The two differ only in how the token is obtained, which is why that is the
+ * only branch below.
  */
 export function usePushRegistration(): void {
   const { session } = useAuth();
   const userId = session?.user.id;
+
+  /** One upsert, whichever platform produced the token. */
+  const remember = useCallback(
+    (token: string) => {
+      if (!userId) return;
+      void getSupabaseClient()
+        .from('device_tokens')
+        .upsert(
+          {
+            token,
+            user_id: userId,
+            platform: currentPlatform(),
+            last_seen_at: new Date().toISOString(),
+          },
+          { onConflict: 'token' },
+        )
+        .then(undefined, () => undefined);
+    },
+    [userId],
+  );
+
+  // ---- Web ------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!userId || isNative()) return;
+
+    let cancelled = false;
+    void requestWebPushToken().then((token) => {
+      if (!cancelled && token) remember(token);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, remember]);
+
+  // ---- Android / iOS --------------------------------------------------------
 
   useEffect(() => {
     if (!userId || !isNative()) return;
@@ -68,20 +110,7 @@ export function usePushRegistration(): void {
 
       const registration = await PushNotifications.addListener(
         'registration',
-        (token) => {
-          void getSupabaseClient()
-            .from('device_tokens')
-            .upsert(
-              {
-                token: token.value,
-                user_id: userId,
-                platform: currentPlatform(),
-                last_seen_at: new Date().toISOString(),
-              },
-              { onConflict: 'token' },
-            )
-            .then(undefined, () => undefined);
-        },
+        (token) => remember(token.value),
       );
       listeners.push(registration);
 
@@ -106,5 +135,5 @@ export function usePushRegistration(): void {
       cancelled = true;
       for (const listener of listeners) listener.remove();
     };
-  }, [userId]);
+  }, [userId, remember]);
 }
