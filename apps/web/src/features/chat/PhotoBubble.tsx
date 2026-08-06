@@ -1,7 +1,10 @@
 import { useChat, type Message, type PhotoRef } from '@pingo/core';
 import { EyeIcon, ImageIcon, PingoDot, cn } from '@pingo/ui';
+
 import { useState } from 'react';
 
+import { saveImage } from '../native/save-image.js';
+import { ImageViewer } from '../profile/ImageViewer.js';
 import { MessageText } from './MessageText.js';
 
 /**
@@ -35,6 +38,16 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
   const [viewsLeft, setViewsLeft] = useState(photo.viewsLeft);
   const [opening, setOpening] = useState(false);
   const [spent, setSpent] = useState(false);
+  /*
+   * Whether the picture is open full screen.
+   *
+   * A photo in a thread was a flat image: no tap, no zoom, no way to save it.
+   * Every other messenger opens one, and somebody who has been sent a picture
+   * usually wants to look at it properly rather than at thumbnail size inside
+   * a bubble.
+   */
+  const [viewing, setViewing] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const caption = message.body.trim();
   const limited = photo.viewLimit !== undefined;
@@ -66,16 +79,34 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
         )}
       >
         {url ? (
-          <img
-            src={url}
-            alt={caption || 'Photo'}
+          /*
+           * A button, not a bare image.
+           *
+           * Tapping a photo to see it properly is the one interaction people
+           * arrive already knowing, and it was the one thing this bubble did
+           * not do. A button rather than a click handler on the image, so it
+           * is reachable by keyboard and announced as something you can open.
+           */
+          <button
+            type="button"
+            onClick={() => setViewing(true)}
+            aria-label={caption ? `Open photo: ${caption}` : 'Open photo'}
             className={cn(
-              'max-h-[22rem] w-full rounded-lg object-cover',
-              // A limited photo that is currently open is ringed, so it is
-              // obvious this is the version that goes away.
-              limited && 'ring-2 ring-brand',
+              'focus-ring block w-full overflow-hidden rounded-lg',
+              'transition-transform duration-instant active:scale-[0.99]',
             )}
-          />
+          >
+            <img
+              src={url}
+              alt={caption || 'Photo'}
+              className={cn(
+                'max-h-[22rem] w-full rounded-lg object-cover',
+                // A limited photo that is currently open is ringed, so it is
+                // obvious this is the version that goes away.
+                limited && 'ring-2 ring-brand',
+              )}
+            />
+          </button>
         ) : !limited ? (
           /*
            * An unlimited photo with no URL is one whose signing has not landed
@@ -144,6 +175,63 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           </p>
         )}
       </div>
+
+      {viewing && url && (
+        <ImageViewer
+          src={url}
+          alt={caption || 'Photo'}
+          onClose={() => {
+            setViewing(false);
+            // The next open starts from "Save" again. A button still reading
+            // "Saved" for a photo you came back to later is answering a
+            // question nobody asked.
+            setSaved(false);
+          }}
+          footer={
+            <div className="flex flex-col items-center gap-3">
+              {caption && (
+                <p className="max-w-lg text-center text-body text-white/85">{caption}</p>
+              )}
+
+              {/*
+                No save on a photo with a view limit.
+
+                The whole promise of one is that it goes away, and a download
+                button beside it would be the product handing over the tool to
+                break its own word. A screenshot is still possible - that is a
+                phone, not something PINGO controls - but it is not something
+                PINGO should offer.
+              */}
+              {!limited && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void fetch(url)
+                      .then((response) => response.blob())
+                      .then(async (blob) => {
+                        const ok = await saveImage(
+                          blob,
+                          `pingo-${new Date(message.createdAt).toISOString().slice(0, 10)}.jpg`,
+                        );
+                        if (ok) setSaved(true);
+                      })
+                      .catch(() => undefined);
+                  }}
+                  className={cn(
+                    'focus-ring flex items-center gap-2 rounded-full px-5 py-2.5',
+                    'bg-white/12 text-body text-white backdrop-blur-glass',
+                    'transition-transform duration-instant active:scale-95',
+                  )}
+                >
+                  {/* Says what happened rather than resetting to "Save" - a
+                      button that forgets is a button people press twice. */}
+                  {saved ? 'Saved to your photos' : 'Save'}
+                </button>
+              )}
+            </div>
+          }
+        />
+      )}
     </div>
   );
 }

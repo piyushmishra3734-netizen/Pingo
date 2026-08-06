@@ -1,6 +1,5 @@
 import {
   formatEventTime,
-  formatFileSize,
   formatTime,
   useChat,
   type Message,
@@ -8,7 +7,6 @@ import {
 import {
   CheckDoubleIcon,
   CheckIcon,
-  FileIcon,
   PingoDot,
   cn,
 } from '@pingo/ui';
@@ -20,6 +18,7 @@ import {
   EventBubble,
   LocationBubble,
 } from './AttachmentBubbles.js';
+import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { PingBubble } from './PingBubble.js';
@@ -345,54 +344,7 @@ export function MessageBubble({
             />
           )}
 
-          {file && (
-            /*
-             * A file you cannot open is a filename.
-             *
-             * This rendered the name and size and nothing else, so a sent
-             * document was a dead card, the one failure mode this codebase
-             * keeps producing. `download` asks for the original name back,
-             * because the storage key is a uuid and saving `9f3c-…` helps
-             * nobody.
-             */
-            <a
-              href={file.url}
-              download={file.fileName}
-              target="_blank"
-              rel="noopener noreferrer"
-              // The bubble's tap opens the reaction bar; this one has a job.
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              className={cn(
-                'focus-ring -m-1 flex items-center gap-3 rounded-lg p-1',
-                'transition-opacity duration-instant hover:opacity-80',
-                hasBody && 'mb-2',
-              )}
-            >
-              <span
-                className={cn(
-                  'grid size-10 shrink-0 place-items-center rounded-md',
-                  mine ? 'bg-white/20 text-white' : 'bg-surface text-brand',
-                )}
-                aria-hidden
-              >
-                <FileIcon size={20} />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-body">{file.fileName}</span>
-                {file.size !== undefined && (
-                  <span
-                    className={cn(
-                      'block text-caption',
-                      mine ? 'text-white/70' : 'text-text-secondary',
-                    )}
-                  >
-                    {formatFileSize(file.size)}
-                  </span>
-                )}
-              </span>
-            </a>
-          )}
+          {file && <FileBubble file={file} mine={mine} spaced={hasBody} />}
 
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
