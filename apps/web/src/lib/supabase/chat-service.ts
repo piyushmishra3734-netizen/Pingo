@@ -375,6 +375,29 @@ const DOCUMENT_BUCKET = 'documents';
 const PHOTO_URL_TTL_SECONDS = 60 * 60;
 
 /**
+ * The bucket key hiding inside a signed storage URL.
+ *
+ * For threads cached before the path was kept alongside the URL. Their entries
+ * carry an expired URL and nothing to re-sign from, so without this they stay
+ * broken until something else in the conversation changes - which on a quiet
+ * chat may be never. The path is right there in the URL; taking it back is
+ * exact, and it makes every already-cached thread heal on its next read.
+ */
+function pathFromSignedUrl(url: string | undefined, bucket: string): string | undefined {
+  if (!url) return undefined;
+  try {
+    const { pathname } = new URL(url);
+    const marker = `/object/sign/${bucket}/`;
+    const at = pathname.indexOf(marker);
+    if (at === -1) return undefined;
+    return decodeURIComponent(pathname.slice(at + marker.length)) || undefined;
+  } catch {
+    // Not a URL we minted. Nothing to recover, and nothing to report either.
+    return undefined;
+  }
+}
+
+/**
  * A minute. The URL only has to outlive the fetch that immediately follows it;
  * anything longer is a window where a shared link outlives the snap.
  */
@@ -1987,7 +2010,11 @@ export class SupabaseChatService implements ChatService {
     /** Where this message's picture lives, or nothing if it has none to sign. */
     const pathOf = (message: Message): string | undefined => {
       if (!message.photo || message.photo.viewLimit !== undefined) return undefined;
-      return rowById.get(message.id)?.photo_path ?? message.photo.storagePath ?? undefined;
+      return (
+        rowById.get(message.id)?.photo_path ??
+        message.photo.storagePath ??
+        pathFromSignedUrl(message.photo.url, PHOTO_BUCKET)
+      );
     };
 
     const paths = [...new Set(messages.map(pathOf).filter((path) => path !== undefined))];
@@ -2021,9 +2048,14 @@ export class SupabaseChatService implements ChatService {
     const rowById = new Map(rows.map((row) => [row.id, row]));
 
     /** By id, and by the path the attachment already carries. See `#signPhotos`. */
-    const pathOf = (message: Message): string | undefined =>
-      rowById.get(message.id)?.voice_path ??
-      message.attachments.find((a) => a.kind === 'audio')?.storagePath;
+    const pathOf = (message: Message): string | undefined => {
+      const audio = message.attachments.find((a) => a.kind === 'audio');
+      return (
+        rowById.get(message.id)?.voice_path ??
+        audio?.storagePath ??
+        pathFromSignedUrl(audio?.url, VOICE_BUCKET)
+      );
+    };
 
     const paths = [...new Set(messages.map(pathOf).filter((path) => path !== undefined))];
 
@@ -2137,9 +2169,14 @@ export class SupabaseChatService implements ChatService {
     const rowById = new Map(rows.map((row) => [row.id, row]));
 
     /** By id, and by the path the attachment already carries. See `#signPhotos`. */
-    const pathOf = (message: Message): string | undefined =>
-      rowById.get(message.id)?.file_path ??
-      message.attachments.find((a) => a.kind === 'file')?.storagePath;
+    const pathOf = (message: Message): string | undefined => {
+      const file = message.attachments.find((a) => a.kind === 'file');
+      return (
+        rowById.get(message.id)?.file_path ??
+        file?.storagePath ??
+        pathFromSignedUrl(file?.url, DOCUMENT_BUCKET)
+      );
+    };
 
     const paths = [...new Set(messages.map(pathOf).filter((path) => path !== undefined))];
 
