@@ -41,9 +41,30 @@ export function HelpScreen() {
         />
       </Group>
 
+      {/*
+        An address, not a support inbox.
+
+        This page used to say there was nowhere to write, while the privacy
+        policy told people to ask for their data "through the Help screen" -
+        two pages contradicting each other about the one route somebody uses
+        when they are already stuck. An email is not a helpdesk, and it is
+        honest about being one person; it is reachable, which is the whole
+        requirement.
+      */}
+      <Group title="Get in touch">
+        <InfoRow
+          label="Email"
+          value="piyushmishra3734@gmail.com"
+          onClick={() => {
+            const body = encodeURIComponent(`\n\n---\n${diagnostics}`);
+            window.location.href = `mailto:piyushmishra3734@gmail.com?subject=${encodeURIComponent('PINGO')}&body=${body}`;
+          }}
+        />
+      </Group>
+
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        There is no support inbox yet, so there is no “Contact Support” button here - it
-        would open nothing. It appears the day there is somewhere for it to go.
+        Writing from here attaches the diagnostics above. They contain no message content
+        and no names - an account id, a version, and what device you are on.
       </p>
     </SettingsPage>
   );

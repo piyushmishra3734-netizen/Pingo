@@ -78,7 +78,10 @@ const SECTIONS: Section[] = [
     body: [
       'Pings are opened a fixed number of times. Once the views are spent, the path to the media is cleared and the file is removed from storage. The row survives in the conversation so the thread makes sense, but the picture is gone.',
       'Stories expire 24 hours after posting.',
-      'Deleting a message deletes it. Deleting your account removes your profile, messages, media and connections.',
+      'Deleting a message deletes it.',
+      // Account deletion is not built. Claiming it was is the one promise on this
+      // page that a person could act on and find missing at the worst moment.
+      'Account deletion is not built yet, and this page said it was. Deleting an account has to remove messages other people are still holding a copy of, which needs work on the server that has not been done. Until it is, ask and it will be done by hand.',
     ],
   },
   {
@@ -99,6 +102,7 @@ const SECTIONS: Section[] = [
       'Cloudflare Pages serves the app and sees the IP address of every request, as any web host does.',
       'Google, in one case only: if you choose to sign in with a Google account. Nothing else in PINGO contacts Google.',
       'jsDelivr, a public CDN, serves the emoji and sticker artwork. It receives an IP address when those images load. Self-hosting them is the same job already done for the typeface and the camera models, and it is next.',
+      'Google, again, if you turn on notifications: the browser fetches the messaging library from gstatic.com, and every push is delivered through Firebase Cloud Messaging. What travels is who sent it and what kind of thing it was - never the text of a message, unless you switch that on yourself in Settings.',
     ],
   },
   {
@@ -116,7 +120,7 @@ const SECTIONS: Section[] = [
     body: [
       'Privacy settings decide who can find you, who can see your stories and who may message you. Blocking someone stops all of it at the database, not just in the interface.',
       'You can delete any message, remove a story, replace a post or delete your account outright, at any time, without asking us.',
-      'If you want a copy of your data or want it erased and cannot do it from the app, ask through the Help screen.',
+      'If you want a copy of your data, or want it erased, email piyushmishra3734@gmail.com. There is no support inbox in the app yet, and pointing you at one that does not exist would be worse than giving you an address.',
     ],
   },
   {
