@@ -1,0 +1,28 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "chat.pingo.app",
+      "sha256_cert_fingerprints": [
+        "68:26:73:54:65:8E:29:95:10:F3:AE:F9:D6:5B:11:B6:EB:D6:AA:3C:F6:77:7A:8B:58:87:6C:6B:99:AE:48:28"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "chat.pingo.app.debug",
+      "sha256_cert_fingerprints": [
+        "AE:13:C2:D1:83:E6:C2:90:18:CD:72:5F:EC:39:5A:A4:FC:A2:8D:1E:E0:80:02:41:A2:72:75:C0:59:D3:E5:7F"
+      ]
+    }
+  }
+]

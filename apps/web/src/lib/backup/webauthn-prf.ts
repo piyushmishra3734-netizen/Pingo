@@ -23,8 +23,29 @@
  * the rest of the system cannot tell the difference.
  */
 
+import {
+  nativePasskeyAvailable,
+  nativePasskeyCreate,
+  nativePasskeyGet,
+} from '../../features/native/passkey.js';
+
 /** The salt is fixed and public: PRF's secrecy comes from the authenticator. */
 const PRF_SALT = new TextEncoder().encode('pingo/backup-lock/v1');
+
+/**
+ * The relying party the app registers passkeys against.
+ *
+ * In a browser this is simply the host you are on. In the app it cannot be:
+ * the WebView is served from `https://localhost`, and a relying party has to be
+ * a domain the app can prove it owns - which it does through the asset links
+ * file served at this one.
+ *
+ * Both paths therefore name the same relying party, which is what makes a
+ * passkey created on the website work in the app and the other way round. If
+ * PINGO ever moves to another domain, this and `assetlinks.json` move together
+ * or every existing passkey stops opening its backup.
+ */
+const NATIVE_RP_ID = 'pingochat.pages.dev';
 
 export class PasskeyError extends Error {
   constructor(
@@ -49,6 +70,33 @@ const prfFrom = (credential: PublicKeyCredential): Uint8Array | undefined => {
 const randomId = () => crypto.getRandomValues(new Uint8Array(32));
 
 /**
+ * The PRF output inside a WebAuthn JSON response.
+ *
+ * The app path gets JSON rather than a credential object, because that is what
+ * Credential Manager speaks. Same field, same meaning, encoded as base64url
+ * instead of an ArrayBuffer.
+ */
+function prfFromJson(json: string): { credentialId: string; prf?: Uint8Array } {
+  const parsed = JSON.parse(json) as {
+    id?: string;
+    rawId?: string;
+    clientExtensionResults?: { prf?: { results?: { first?: string } } };
+  };
+  const first = parsed.clientExtensionResults?.prf?.results?.first;
+  return {
+    credentialId: parsed.id ?? parsed.rawId ?? '',
+    ...(first ? { prf: fromBase64Url(first) } : {}),
+  };
+}
+
+/** Turns a native failure code into the error the rest of the flow expects. */
+function nativeFailure(code: string, detail: string): PasskeyError {
+  return code === 'cancelled'
+    ? new PasskeyError('The passkey prompt was dismissed.', 'cancelled')
+    : new PasskeyError(detail || 'That passkey could not be used.', 'failed');
+}
+
+/**
  * Creates a passkey for this account and returns its first PRF output.
  *
  * The credential is discoverable and platform-bound: it must be *this* device's
@@ -60,7 +108,55 @@ export async function createBackupPasskey(input: {
   userName: string;
   displayName: string;
 }): Promise<{ credentialId: string; prf: Uint8Array }> {
-  if (typeof window === 'undefined' || !('PublicKeyCredential' in window)) {
+  if (typeof window === 'undefined') {
+    throw new PasskeyError('This browser does not support passkeys.', 'unsupported');
+  }
+
+  if (nativePasskeyAvailable()) {
+    const result = await nativePasskeyCreate(
+      JSON.stringify({
+        challenge: toBase64Url(randomId()),
+        rp: { id: NATIVE_RP_ID, name: 'PINGO' },
+        user: {
+          id: toBase64Url(new TextEncoder().encode(input.userId)),
+          name: input.userName,
+          displayName: input.displayName,
+        },
+        pubKeyCredParams: [
+          { type: 'public-key', alg: -7 },
+          { type: 'public-key', alg: -257 },
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',
+          residentKey: 'required',
+          userVerification: 'required',
+        },
+        timeout: 60_000,
+        extensions: { prf: { eval: { first: toBase64Url(PRF_SALT) } } },
+      }),
+    );
+
+    if (!result.ok) throw nativeFailure(result.code, result.payload);
+
+    const made = prfFromJson(result.payload);
+    if (made.prf) return { credentialId: made.credentialId, prf: made.prf };
+
+    /*
+     * A provider may create the credential and withhold PRF until the first
+     * assertion. Asking now is the honest way to find out whether this passkey
+     * can carry a backup - before anything is sealed to it.
+     */
+    const prf = await passkeyPrf(made.credentialId).catch(() => undefined);
+    if (!prf) {
+      throw new PasskeyError(
+        'This device made a passkey but cannot use it to protect a backup.',
+        'no-prf',
+      );
+    }
+    return { credentialId: made.credentialId, prf };
+  }
+
+  if (!('PublicKeyCredential' in window)) {
     throw new PasskeyError('This browser does not support passkeys.', 'unsupported');
   }
 
@@ -120,7 +216,34 @@ export async function createBackupPasskey(input: {
 
 /** Asks the authenticator to produce the same 32 bytes again. */
 export async function passkeyPrf(credentialId?: string): Promise<Uint8Array> {
-  if (typeof window === 'undefined' || !('PublicKeyCredential' in window)) {
+  if (typeof window === 'undefined') {
+    throw new PasskeyError('This browser does not support passkeys.', 'unsupported');
+  }
+
+  if (nativePasskeyAvailable()) {
+    const result = await nativePasskeyGet(
+      JSON.stringify({
+        challenge: toBase64Url(randomId()),
+        rpId: NATIVE_RP_ID,
+        userVerification: 'required',
+        timeout: 60_000,
+        ...(credentialId
+          ? { allowCredentials: [{ type: 'public-key', id: credentialId }] }
+          : {}),
+        extensions: { prf: { eval: { first: toBase64Url(PRF_SALT) } } },
+      }),
+    );
+
+    if (!result.ok) throw nativeFailure(result.code, result.payload);
+
+    const prf = prfFromJson(result.payload).prf;
+    if (!prf) {
+      throw new PasskeyError('This passkey cannot produce a backup key on this device.', 'no-prf');
+    }
+    return prf;
+  }
+
+  if (!('PublicKeyCredential' in window)) {
     throw new PasskeyError('This browser does not support passkeys.', 'unsupported');
   }
 

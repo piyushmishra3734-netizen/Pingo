@@ -115,6 +115,15 @@ dependencies {
      * dependency graph means an appcompat bump could quietly take them away.
      */
     implementation "androidx.core:core:$androidxCoreVersion"
+    /*
+     * Passkeys, asked for by the app rather than by the page. See PasskeyBridge
+     * for why the WebView cannot do it. The play-services artefact is not
+     * optional - without it Credential Manager has no provider to talk to on
+     * the devices most people are holding, and every request fails at runtime
+     * with nothing at compile time to warn you.
+     */
+    implementation "androidx.credentials:credentials:$androidxCredentialsVersion"
+    implementation "androidx.credentials:credentials-play-services-auth:$androidxCredentialsVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

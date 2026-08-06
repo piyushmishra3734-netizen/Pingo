@@ -78,6 +78,16 @@ public class MainActivity extends BridgeActivity {
          */
         webView.addJavascriptInterface(this, "AndroidShare");
 
+        /*
+         * Passkeys for the backup lock.
+         *
+         * Its own object rather than more methods on this one: the share
+         * bridge is two small calls and this is a credential API, and putting
+         * them on one interface would mean every method of both is reachable
+         * from any page the WebView ever loads.
+         */
+        webView.addJavascriptInterface(new PasskeyBridge(this, webView), "AndroidPasskey");
+
         handleShare(getIntent());
 
         ViewCompat.setOnReceiveContentListener(webView, ACCEPTED, new OnReceiveContentListener() {
