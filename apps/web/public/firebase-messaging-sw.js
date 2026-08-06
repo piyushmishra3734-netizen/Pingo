@@ -31,12 +31,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'FIREBASE_WEB_API_KEY',
+  apiKey: 'AIzaSyBM-moLL73RSgKzULVrEkeUNrJEJZtzdeY',
   authDomain: 'bingo-5176a.firebaseapp.com',
   projectId: 'bingo-5176a',
   storageBucket: 'bingo-5176a.firebasestorage.app',
   messagingSenderId: '896975933762',
-  appId: 'FIREBASE_WEB_APP_ID',
+  appId: '1:896975933762:web:be0d230cc8b1ef2dc6b8db',
 });
 
 const messaging = firebase.messaging();

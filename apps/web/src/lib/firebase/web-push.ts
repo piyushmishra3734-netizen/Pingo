@@ -22,11 +22,25 @@
  * project can be pointed at without editing code, not because they need hiding.
  */
 
+/*
+ * Named exactly as Firebase's own config object names them.
+ *
+ * The first version read `VITE_FIREBASE_SENDER_ID`, which is not what anybody
+ * copying from the Firebase console would type - and a variable that is set
+ * under a name nothing reads is indistinguishable from one that is missing.
+ * The console says `messagingSenderId`, so this says the same.
+ *
+ * `authDomain` is taken from the environment rather than derived from the
+ * project id: they are the same string for a default project and different the
+ * moment a custom auth domain exists, and deriving it would break silently.
+ */
 const CONFIG = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
-  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID as string}.firebaseapp.com`,
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ??
+    `${import.meta.env.VITE_FIREBASE_PROJECT_ID as string}.firebaseapp.com`) as string,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_SENDER_ID as string | undefined,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined,
   appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
 };
 
