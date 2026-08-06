@@ -120,14 +120,6 @@ export function ConversationMenu({
             </>
           )}
 
-          {onSelectMessages && (
-            <>
-              {/* Near the top: it acts on the thread you are looking at, which
-                  is what almost everything below this does not. */}
-              <Item label="Select messages" onSelect={() => run(onSelectMessages())} />
-              <Divider />
-            </>
-          )}
 
           {/*
             Stated once, in the one place with room for a sentence. An icon that
@@ -200,7 +192,18 @@ export function ConversationMenu({
           <Divider />
 
           {/*
-            Confirmed, unlike pin, favourite, archive and mark-as-read above  - 
+            Beside Clear messages, because they are the same kind of thing:
+            both act on what is *in* the thread rather than on the thread's
+            place in the list. Put at the very top it was the first row in a
+            menu whose first rows are about the conversation itself, which is
+            not where anybody would look for it.
+          */}
+          {onSelectMessages && (
+            <Item label="Select messages" onSelect={() => run(onSelectMessages())} />
+          )}
+
+          {/*
+            Confirmed, unlike pin, favourite, archive and mark-as-read above  -
             those are all one tap to undo. Clearing a thread is not, and it sits
             directly above Delete chat where a thumb aiming for one can find the
             other.
