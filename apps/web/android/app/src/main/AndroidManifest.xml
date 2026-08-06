@@ -70,6 +70,18 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="pingo_messages" />
+
+        <!--
+            Without these two, Android silhouettes the launcher icon - a colour
+            bitmap whose every opaque pixel becomes white - and the result is a
+            featureless white square in the status bar.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/colorPrimary" />
     </application>
 
     <!-- Permissions -->

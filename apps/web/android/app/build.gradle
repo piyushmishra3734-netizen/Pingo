@@ -7,8 +7,20 @@ android {
         applicationId "chat.pingo.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        /*
+         * Bumped together, and never reused.
+         *
+         * Play refuses an upload whose versionCode it has seen before, so this
+         * is the one number that must move on every release. It had never
+         * moved: the APK people are downloading is still the first build, from
+         * before end-to-end encryption, stories, calls, AI, Drive backup and
+         * push existed.
+         *
+         * versionName is what a person reads; versionCode is what Play orders
+         * by. They are allowed to disagree and it is clearer when they do not.
+         */
+        versionCode 2
+        versionName "1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
