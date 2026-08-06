@@ -383,7 +383,23 @@ export function liveReceiptStore(drive: {
       const files = await drive.list(RECEIPT_PREFIX);
       let best: { id: string; generation: number } | undefined;
       for (const file of files) {
-        const match = new RegExp(`^${RECEIPT_PREFIX}(\d+)\.json$`).exec(file.name);
+        /*
+         * `\\d`, not `\d`.
+         *
+         * This is a template literal, and JavaScript turns an unrecognised
+         * escape into the bare character - so `\d` became `d` and the pattern
+         * compiled to `^pingo.receipt.g(d+).json$`, looking for a literal
+         * letter d where the generation number is. It never matched anything.
+         *
+         * Every receipt was written correctly and none was ever found, so a
+         * restore said "Restored 5499 records across 4 stores. No backup record
+         * was found, so it could not be verified." Both halves were true and
+         * the second one was our own bug rather than a missing receipt.
+         *
+         * The `.` was silently wrong too: unescaped it matched any character,
+         * which is harmless here and would not have stayed harmless.
+         */
+        const match = new RegExp(`^${RECEIPT_PREFIX}(\\d+)\\.json$`).exec(file.name);
         if (!match) continue;
         const generation = Number(match[1]);
         if (!best || generation > best.generation) best = { id: file.id, generation };
