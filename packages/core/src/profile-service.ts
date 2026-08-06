@@ -199,6 +199,23 @@ export interface ProfileService {
   find(handleOrId: string): Promise<Profile | null>;
 
   /**
+   * People whose handle or name begins with what has been typed.
+   *
+   * Distinct from `find`, which is an exact lookup for a handle somebody
+   * already has in full - a profile link, a contact card, a pasted id. Search
+   * is the other situation entirely: somebody knows roughly who they are
+   * looking for. Answering that with an exact match means the feature only
+   * works for people who can already spell the answer, which is nobody who
+   * needs to search.
+   *
+   * Ordered so the closest match leads, and capped: a search box is a
+   * shortcut, and a hundred rows is a directory. Privacy is not applied here -
+   * it is applied by the database, so a person who asked not to be findable is
+   * absent from the answer rather than filtered out of it afterwards.
+   */
+  search(term: string, limit?: number): Promise<Profile[]>;
+
+  /**
    * Whether a handle can be claimed.
    *
    * Advisory only. Two people can pass this check with the same handle in the

@@ -157,6 +157,55 @@ export class SupabaseProfileService implements ProfileService {
     return data ? toProfile(data) : null;
   }
 
+  async search(term: string, limit = 12): Promise<Profile[]> {
+    const needle = term.trim().replace(/^@/u, '');
+    /*
+     * Two characters, not one.
+     *
+     * A single letter matches a large share of every account on the service
+     * and answers a question nobody asked; the shortest useful search is a
+     * couple of letters of somebody's name.
+     */
+    if (needle.length < 2) return [];
+
+    /*
+     * `%` and `_` are wildcards to LIKE, and a person may type either - `_` is
+     * a legal character in a PINGO handle, so searching `piyush_` without this
+     * quietly matches `piyushX` as well. Escaped with a backslash, which is
+     * what Postgres expects by default.
+     */
+    const escaped = needle.replace(/([\\%_])/gu, '\\$1');
+
+    const { data, error } = await this.client
+      .from('profiles')
+      .select('*')
+      // Handle or name: people search for whichever of the two they remember.
+      .or(`username.ilike.${escaped}%,display_name.ilike.%${escaped}%`)
+      .limit(limit);
+
+    if (error) rethrow(error);
+
+    const rows = (data ?? []).map(toProfile);
+
+    /*
+     * A handle that starts with what was typed comes first, then a name that
+     * starts with it, then the rest. Sorted here rather than in SQL because
+     * the ordering depends on the term, and expressing that in PostgREST costs
+     * more than sorting a dozen rows.
+     */
+    const lower = needle.toLowerCase();
+    const rank = (profile: Profile) =>
+      profile.username.toLowerCase() === lower
+        ? 0
+        : profile.username.toLowerCase().startsWith(lower)
+          ? 1
+          : profile.displayName.toLowerCase().startsWith(lower)
+            ? 2
+            : 3;
+
+    return rows.sort((a, b) => rank(a) - rank(b) || a.username.localeCompare(b.username));
+  }
+
   async isUsernameAvailable(username: string): Promise<boolean> {
     const handle = normaliseUsername(username);
     if (!isValidUsername(handle)) return false;

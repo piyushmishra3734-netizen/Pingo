@@ -98,26 +98,37 @@ export function NewChatScreen() {
    * than one per keystroke. `find` takes a handle *or* an id, which is why
    * pasting somebody's id works too.
    */
-  const [found, setFound] = useState<User>();
+  const [found, setFound] = useState<User[]>([]);
 
   useEffect(() => {
     const term = query.trim().replace(/^@/u, '');
-    setFound(undefined);
-    if (term.length < 3 || (matches && matches.length > 0)) return;
+    setFound([]);
+    /*
+     * Two characters, and always asked.
+     *
+     * This used to require three and to give up entirely as soon as the local
+     * filter matched anything - so typing two letters of a stranger's name
+     * found nobody, and typing a name shared with one of your own contacts
+     * found only the contact. Both are the search saying "no such person"
+     * about people who exist.
+     */
+    if (term.length < 2) return;
 
     let active = true;
     const timer = window.setTimeout(() => {
       void profiles
-        .find(term)
-        .then((profile) => {
-          if (!active || !profile) return;
-          setFound({
-            id: profile.id,
-            name: profile.displayName,
-            handle: profile.username,
-            ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
-            presence: { state: 'offline', lastSeenAt: 0 },
-          });
+        .search(term)
+        .then((results) => {
+          if (!active) return;
+          setFound(
+            results.map((profile) => ({
+              id: profile.id,
+              name: profile.displayName,
+              handle: profile.username,
+              ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+              presence: { state: 'offline' as const, lastSeenAt: 0 },
+            })),
+          );
         })
         .catch(() => undefined);
     }, 300);
@@ -126,16 +137,23 @@ export function NewChatScreen() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [profiles, query, matches]);
+    // `matches` is deliberately not a dependency any more: the search runs
+    // whatever the local filter found, so re-running it when that list changes
+    // would only repeat the same request.
+  }, [profiles, query]);
 
   /*
-   * Appended rather than replacing, so a search matching one contact and one
-   * stranger shows both.
+   * Contacts first, then everybody else the search turned up.
+   *
+   * Appended rather than replacing, so a search matching one contact and three
+   * strangers shows all four - and de-duplicated, because somebody you have
+   * spoken to before is in both lists and should appear once, in the place
+   * that knows whether they are online.
    */
   const shown = useMemo(() => {
     if (!matches) return undefined;
-    if (!found || matches.some((person) => person.id === found.id)) return matches;
-    return [...matches, found];
+    const known = new Set(matches.map((person) => person.id));
+    return [...matches, ...found.filter((person) => !known.has(person.id))];
   }, [matches, found]);
 
   const open = async (person: User) => {
