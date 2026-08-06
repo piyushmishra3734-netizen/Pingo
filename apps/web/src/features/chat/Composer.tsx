@@ -2,6 +2,7 @@ import type { Sticker } from '@pingo/core';
 import { IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { receiveKeyboardImages } from '../native/keyboard-image.js';
 import { AttachMenu } from './AttachMenu.js';
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
@@ -135,6 +136,19 @@ export function Composer({
     onPasteFiles?.(images);
     return true;
   };
+
+  /*
+   * The Android keyboard cannot reach the page on its own - see
+   * keyboard-image.ts. It arrives here as a File and joins the paste path,
+   * because a GIF from Gboard and a pasted screenshot are the same event as
+   * far as the composer is concerned.
+   */
+  useEffect(() => {
+    if (!onPasteFiles) return;
+    return receiveKeyboardImages((file) => {
+      takeImages([file]);
+    });
+  }, [onPasteFiles]);
 
   useEffect(() => {
     const el = textareaRef.current;
