@@ -60,7 +60,7 @@ export function Dock() {
       { to: '/camera', label: 'Camera', Icon: CameraIcon },
       communities
         ? { to: '/communities', label: 'Communities', Icon: UsersIcon }
-        : { to: '/notifications', label: 'Notifications', Icon: BellIcon },
+        : { to: '/notifications', label: 'Activity', Icon: BellIcon },
       { to: '/profile', label: 'Profile', Icon: UserIcon, matchPrefix: '/profile' },
     ],
     [communities],

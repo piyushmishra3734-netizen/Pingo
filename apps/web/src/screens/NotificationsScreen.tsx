@@ -254,7 +254,7 @@ export function NotificationsScreen() {
         <div className="absolute top-8 right-[-10%] size-48 rounded-full bg-brand-alt/10 blur-3xl" />
       </div>
 
-      <ScreenHeader title="Notifications" showBack={showBack} className="relative z-10" />
+      <ScreenHeader title="Activity" showBack={showBack} className="relative z-10" />
 
       {/*
         Search and filters, above the timeline.
@@ -269,8 +269,8 @@ export function NotificationsScreen() {
             <SearchField
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search notifications"
-              aria-label="Search notifications"
+              placeholder="Search activity"
+              aria-label="Search activity"
             />
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
               {(
@@ -307,7 +307,7 @@ export function NotificationsScreen() {
       <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">
         <div className="mx-auto w-full max-w-2xl">
           {!items ? (
-            <LoadingState label="Loading notifications" />
+            <LoadingState label="Loading activity" />
           ) : items.length === 0 ? (
             <PremiumEmpty />
           ) : (

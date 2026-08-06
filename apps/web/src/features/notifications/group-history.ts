@@ -55,12 +55,30 @@ export function groupNotifications(items: AppNotification[]): HistoryEntry[] {
     const last = entries[entries.length - 1];
     const window = WINDOW_MS[item.kind] ?? DEFAULT_WINDOW_MS;
 
-    const continues =
+    const sameThing =
       last !== undefined &&
       last.latest.kind === item.kind &&
-      last.latest.actorId === item.actorId &&
+      last.latest.actorId === item.actorId;
+
+    /*
+     * An unread run keeps collecting, however long it goes on.
+     *
+     * The window exists to stop two separate moments being merged - and two
+     * moments are only separate if the first one *landed*. Nothing you have not
+     * read yet is a past moment; it is all one outstanding thing, and splitting
+     * it at an arbitrary hour would give somebody two rows saying the same
+     * person is waiting.
+     *
+     * Both sides have to be unread. A read notification must not extend a run
+     * backwards into things already dealt with.
+     */
+    const stillWaiting = sameThing && last !== undefined && last.unread && !item.read;
+
+    const continues =
+      sameThing &&
+      last !== undefined &&
       // The list is newest first, so `last` is always the more recent one.
-      last.latest.createdAt - item.createdAt <= window;
+      (stillWaiting || last.latest.createdAt - item.createdAt <= window);
 
     if (continues && last) {
       last.ids.push(item.id);
