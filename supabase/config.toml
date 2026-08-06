@@ -68,3 +68,9 @@ redirect_uri = "http://localhost:5173/auth/google"
 # two was wrong. See the header of `functions/username-login/index.ts`.
 [functions.username-login]
 verify_jwt = false
+
+# Called by Postgres, which has no user session to verify. The check is the
+# service-role key in the Authorization header, compared in constant time -
+# see the header of `functions/push-send/index.ts`.
+[functions.push-send]
+verify_jwt = false
