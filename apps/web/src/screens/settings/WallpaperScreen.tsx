@@ -40,8 +40,16 @@ export function WallpaperScreen() {
     <div className="flex h-full min-h-0 flex-col bg-page">
       <ScreenHeader title="Chat wallpaper" showBack />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
-        <p className="pt-1 pb-4 text-caption text-text-secondary">
+      {/*
+        Held to a column, and clear of the dock.
+
+        Stretched to a desktop width the swatches became six enormous panels -
+        a wallpaper is previewed at the size of a phone, because that is the
+        thing it will be behind. `pb-28` is what the other settings pages use
+        to keep their last row above the tab bar.
+      */}
+      <div className="mx-auto min-h-0 w-full max-w-md flex-1 overflow-y-auto px-4 pt-1 pb-28">
+        <p className="pb-4 text-caption text-text-secondary">
           What sits behind your conversations. It is the same on every chat, and
           it is stored on this device only.
         </p>
@@ -52,7 +60,7 @@ export function WallpaperScreen() {
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-3">
           {WALLPAPERS.map((wallpaper) => {
             const isCustom = wallpaper.id === 'custom';
             const image = isCustom
