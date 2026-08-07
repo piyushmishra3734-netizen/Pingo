@@ -38,8 +38,22 @@
  * shallow - the header measures 1520 by 69 - so its short edge is smaller than
  * a chip's. Measured on the deployed build: five glass surfaces on the chat
  * screen, four of them under the threshold, no filters generated at all.
+ *
+ * ## And why it came down from 24,000
+ *
+ * That number was measured on a desktop window, and a phone is the product.
+ * A chat header on a 360pt screen is about 360 by 56, which is 20,160 - under
+ * the old threshold - and the composer is smaller still. So the effect this
+ * module exists for was switched off on every phone, on exactly the screen it
+ * was written for, and only ever appeared on a wide desktop window.
+ *
+ * At 14,000 both of those qualify. A long two-line bubble can now creep over
+ * the line as well, which is a change in kind rather than a mistake: a handful
+ * of the largest bubbles get a lens, the fifty-bubble case this guard exists to
+ * prevent still cannot happen, and a bubble that big is one worth bending the
+ * wallpaper through.
  */
-const MIN_AREA = 24_000;
+const MIN_AREA = 14_000;
 
 /** And a floor on height, so a hairline strip never gets one either. */
 const MIN_HEIGHT = 40;
@@ -79,7 +93,25 @@ function ensureDefs(): SVGDefsElement {
  * Small on purpose. Past about ten pixels the middle of a header starts to
  * swim when the thread scrolls behind it.
  */
-const MAGNIFY_PX = 9;
+const MAGNIFY_PX = 6;
+
+/**
+ * How much of the edge band the rim bend uses, and how sharply it falls off.
+ *
+ * These two are not free numbers. Sampling position along an axis works out to
+ * `d - BEVEL * edge * (1 - d/edge) ** BEVEL_FALLOFF`, and that only stays
+ * monotonic - no pixel overtaking its neighbour - while
+ * `BEVEL * BEVEL_FALLOFF <= 1`. Past that, a pixel well inside the edge gets
+ * pulled all the way out to it, the same content appears twice, and the rim
+ * looks *torn* rather than bent.
+ *
+ * It was 1 and 3, which is 3, and every panel edge in the product was folding.
+ * It read as smearing and was easy to mistake for too much blur. 0.45 and 2
+ * comes to 0.9: stronger than the old value across most of the band, spread
+ * over a wider one, and it cannot fold.
+ */
+const BEVEL = 0.45;
+const BEVEL_FALLOFF = 2;
 
 /**
  * A lens normal map for one panel size.
@@ -118,7 +150,7 @@ function lensMap(w: number, h: number, edge: number): string {
    * One scale for the whole map, so both effects share the encoding. Whatever
    * the largest displacement either of them asks for is what 255 means.
    */
-  const span = MAGNIFY_PX + edge;
+  const span = MAGNIFY_PX + edge * BEVEL;
 
   const image = ctx.createImageData(w, h);
   for (let y = 0; y < h; y += 1) {
@@ -134,8 +166,12 @@ function lensMap(w: number, h: number, edge: number): string {
       // Away from the nearest edge, and only within `edge` of it.
       const dx = Math.min(x, w - 1 - x);
       const dy = Math.min(y, h - 1 - y);
-      if (dx < edge) vx += (x < halfW ? -1 : 1) * (1 - dx / edge) ** 3 * edge;
-      if (dy < edge) vy += (y < halfH ? -1 : 1) * (1 - dy / edge) ** 3 * edge;
+      if (dx < edge) {
+        vx += (x < halfW ? -1 : 1) * (1 - dx / edge) ** BEVEL_FALLOFF * edge * BEVEL;
+      }
+      if (dy < edge) {
+        vy += (y < halfH ? -1 : 1) * (1 - dy / edge) ** BEVEL_FALLOFF * edge * BEVEL;
+      }
 
       const i = (y * w + x) * 4;
       image.data[i] = Math.max(0, Math.min(255, 128 + (vx / span) * 127));
@@ -152,10 +188,15 @@ function lensMap(w: number, h: number, edge: number): string {
 }
 
 function filterFor(w: number, h: number): string | undefined {
-  // Follows the shorter side, which on chrome is the height - that is the
-  // dimension whose curve you actually see.
+  /*
+   * Follows the shorter side, which on chrome is the height - that is the
+   * dimension whose curve you actually see.
+   *
+   * Held to about a third of it, and capped. At 45% the band reached halfway
+   * across a shallow surface, so the backdrop did not refract, it melted.
+   */
   const small = Math.min(w, h);
-  const edge = Math.max(8, Math.min(26, small * 0.45));
+  const edge = Math.max(6, Math.min(20, small * 0.32));
 
   /*
    * `scale` has to match what the map was drawn against, or the two effects
@@ -163,7 +204,7 @@ function filterFor(w: number, h: number): string | undefined {
    * displacements over `MAGNIFY_PX + edge`, and feDisplacementMap moves a pixel
    * by `scale * (channel - 0.5)` - so the full range needs twice that span.
    */
-  const scale = (MAGNIFY_PX + edge) * 2;
+  const scale = (MAGNIFY_PX + edge * BEVEL) * 2;
   const key = `${w}x${h}`;
 
   const existing = filters.get(key);
@@ -222,11 +263,16 @@ function applyTo(el: HTMLElement): void {
    *
    * The blur and saturation are repeated here rather than inherited, because
    * setting `backdrop-filter` inline replaces the stylesheet's value outright.
+   * Which is also why the two materials have to be told apart: writing the
+   * slab's sixteen pixels onto a water surface would turn it back into the
+   * frosted panel the variant exists to replace.
    */
+  const water = el.className.includes('glass-water');
   const blur = getComputedStyle(document.documentElement)
-    .getPropertyValue('--glass-blur')
+    .getPropertyValue(water ? '--water-blur' : '--glass-blur')
     .trim();
-  const rest = ` blur(${blur || '16px'}) saturate(175%)`;
+  const fallback = water ? '5px' : '16px';
+  const rest = ` blur(${blur || fallback}) saturate(${water ? '160%' : '175%'})`;
   el.style.setProperty('backdrop-filter', `url(#${id})${rest}`);
   el.style.setProperty('-webkit-backdrop-filter', `url(#${id})${rest}`);
 }
@@ -240,9 +286,10 @@ export function refreshLenses(): void {
 
   window.cancelAnimationFrame(frame);
   frame = window.requestAnimationFrame(() => {
-    for (const el of document.querySelectorAll<HTMLElement>('[class*="glass-surface"]')) {
-      applyTo(el);
-    }
+    const surfaces = document.querySelectorAll<HTMLElement>(
+      '[class*="glass-surface"], [class*="glass-water"]',
+    );
+    for (const el of surfaces) applyTo(el);
   });
 }
 

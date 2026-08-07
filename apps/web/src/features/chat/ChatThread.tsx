@@ -756,7 +756,7 @@ export function ChatThread({
             The composer already floats. This is the header catching up, and
             it is most of what was still missing.
           */
-          'glass-surface mx-2 mt-2 rounded-xl',
+          'glass-water mx-2 mt-2 rounded-xl',
           'px-3 py-2.5',
           'mt-[max(0.5rem,env(safe-area-inset-top))]',
         )}
@@ -1001,7 +1001,7 @@ export function ChatThread({
                     */}
                     <span
                       className={cn(
-                        'glass-surface inline-block rounded-full px-3 py-1',
+                        'glass-water inline-block rounded-full px-3 py-1',
                         'text-caption text-text-secondary',
                       )}
                     >
@@ -1193,7 +1193,7 @@ export function ChatThread({
                 </div>
               ) : (
                 <div className="flex justify-start pt-1">
-                  <div className="glass-surface rounded-lg px-4 py-3">
+                  <div className="glass-water rounded-lg px-4 py-3">
                     <PingoDot state="typing" size={7} label={typingLabel || 'typing'} />
                   </div>
                 </div>

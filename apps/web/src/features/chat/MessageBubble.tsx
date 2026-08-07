@@ -329,7 +329,7 @@ export function MessageBubble({
                 keeps the brand gradient: it is the mark that identifies PINGO
                 at a glance, and it is the one thing worth not being glass.
               */
-              : 'glass-surface text-ink',
+              : 'glass-water text-ink',
             // A failed send desaturates and outlines, rather than turning red.
             message.status === 'failed' && 'opacity-60 ring-1 ring-danger/40',
           )}

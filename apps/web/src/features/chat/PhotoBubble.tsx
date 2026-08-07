@@ -127,7 +127,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           <div
             className={cn(
               'grid h-40 w-56 place-items-center rounded-lg',
-              'glass-surface',
+              'glass-water',
             )}
           >
             <PingoDot state="loading" size={5} label="Loading photo" />
@@ -139,7 +139,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
             disabled={spent || opening}
             className={cn(
               'focus-ring grid h-40 w-56 place-items-center rounded-lg',
-              'glass-surface',
+              'glass-water',
               'transition-colors duration-instant',
               !spent && 'hover:bg-hover',
             )}
@@ -178,7 +178,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           <p
             className={cn(
               'mt-1 rounded-lg px-3 py-2 text-body break-words whitespace-pre-wrap',
-              mine ? 'bg-brand-gradient text-white' : 'glass-surface text-ink',
+              mine ? 'bg-brand-gradient text-white' : 'glass-water text-ink',
             )}
           >
             <MessageText body={caption} mine={mine} />

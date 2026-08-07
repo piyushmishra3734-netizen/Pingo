@@ -856,6 +856,108 @@
 }
 
 /**
+ * Water, not ice. The material inside a conversation.
+ *
+ * `glass-surface` is a frosted slab: sixteen pixels of blur, a body of added
+ * light, and a drawn rim a pixel and a half wide. Over the product's own chrome
+ * that is right - there is nothing behind a settings sheet worth seeing, and the
+ * slab reads as a solid piece of the interface.
+ *
+ * Inside a chat there *is* something behind it, and it is the person's own
+ * photograph. Sixteen pixels of blur destroys it and the panel becomes frosted
+ * glass with a bright outline: ice. What is wanted there is a bead of water
+ * sitting on the picture - you can nearly see through it, and its edge is a
+ * curve rather than a line.
+ *
+ * Three differences, and that is the whole of it:
+ *
+ * 1. **A fifth of the blur.** Five pixels rather than sixteen. The wallpaper
+ *    stays legible through a bubble.
+ *
+ * 2. **A tint instead of a lift.** With the blur gone, a bright photograph
+ *    comes through almost intact and the text on top of it disappears. The
+ *    answer is not to put the blur back, it is a luminance floor - a thin wash
+ *    that never hides the picture but stops it reaching full brightness under
+ *    the words. Which is why this takes `background-color` where the slab takes
+ *    additive light.
+ *
+ * 3. **No rim.** The masked ring is gone. In its place a falloff over a few
+ *    pixels - brightest along the top, fading inward - the way the meniscus of
+ *    a drop thickens towards its edge. A hard ring is an outline somebody drew;
+ *    a falloff is a surface that curves.
+ *
+ * The box is identical to `glass-surface`, transparent border included, so
+ * swapping one for the other moves nothing by a pixel.
+ */
+@utility glass-water {
+  background-color: var(--water-tint, rgb(255 255 255 / 0.34));
+  corner-shape: squircle;
+
+  /* Prefixed first, standard last - the minifier note on `glass-surface`
+     applies here for exactly the same reason. */
+  -webkit-backdrop-filter: blur(var(--water-blur, 5px)) saturate(160%);
+  backdrop-filter: blur(var(--water-blur, 5px)) saturate(160%);
+
+  /*
+   * A drop reads as sitting *on* something. Tighter and darker than the slab's
+   * ambient shadow, which is lit for a panel floating above a page.
+   */
+  box-shadow:
+    0 2px 10px -4px rgb(18 20 38 / 0.3),
+    0 16px 40px -20px rgb(34 38 82 / 0.45);
+
+  border: 1px solid transparent;
+  position: relative;
+  isolation: isolate;
+
+  /* Text that has to survive landing on the brightest part of a photograph.
+     Nothing in light mode, where the ink is dark and the tint is pale. */
+  text-shadow: var(--water-halo, none);
+
+  /*
+   * The meniscus.
+   *
+   * Measured in pixels rather than percentages, and deliberately small: these
+   * numbers land on a 40px chat row as well as on a 69px header, and the first
+   * attempt at 22px covered half a row in white.
+   */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    corner-shape: inherit;
+    pointer-events: none;
+    mix-blend-mode: plus-lighter;
+    background:
+      linear-gradient(
+        to bottom,
+        rgb(255 255 255 / 0.28) 0,
+        rgb(255 255 255 / 0.05) 4px,
+        rgb(255 255 255 / 0) 10px
+      ),
+      linear-gradient(to top, rgb(255 255 255 / 0.13) 0, rgb(255 255 255 / 0) 7px),
+      linear-gradient(to right, rgb(255 255 255 / 0.09) 0, rgb(255 255 255 / 0) 6px),
+      linear-gradient(to left, rgb(255 255 255 / 0.08) 0, rgb(255 255 255 / 0) 6px);
+  }
+
+  /*
+   * And the darker underside, where the drop meets what it is lying on.
+   * Without it a bead has no weight and floats like a sticker.
+   */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    corner-shape: inherit;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    background: linear-gradient(to top, rgb(30 34 60 / 0.16) 0, rgb(30 34 60 / 0) 8px);
+  }
+}
+
+/**
  * Something for the glass to be glass over.
  *
  * ## Why a chat needs a backdrop at all
@@ -931,6 +1033,12 @@
   /* Glass over a photograph takes a shade rather than a lift. */
   --glass-fill: rgba(18, 19, 26, 0.3);
   --glass-lift: rgb(255 255 255 / 0.1);
+  /*
+   * Water over a dark photograph shades rather than lightens, for the same
+   * reason - and the ink above it is now white, so it gets the halo.
+   */
+  --water-tint: rgb(16 18 30 / 0.34);
+  --water-halo: 0 1px 2px rgb(0 0 0 / 0.45);
 }
 
 /**
@@ -1113,6 +1221,8 @@
   /* Dark's default: mostly fill, barely any lift. See the level notes below. */
   --glass-fill: rgba(22, 23, 29, 0.42);
   --glass-lift: rgb(255 255 255 / 0.05);
+  --water-tint: rgb(16 18 30 / 0.38);
+  --water-halo: 0 1px 2px rgb(0 0 0 / 0.45);
   --color-scrim: rgba(0, 0, 0, 0.5);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -1227,29 +1337,46 @@
   --glass-blur: 0px;
   --glass-fill: var(--color-surface);
   --glass-lift: transparent;
+  --water-blur: 0px;
+  --water-tint: var(--color-surface);
+  --water-halo: none;
 }
 
 :root[data-glass='0'] .glass-surface,
-:root[data-glass='0'] [class*='glass-surface'] {
+:root[data-glass='0'] [class*='glass-surface'],
+:root[data-glass='0'] .glass-water,
+:root[data-glass='0'] [class*='glass-water'] {
   /* Same ordering rule as `glass-surface` above - see the note there. */
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
+/*
+ * Water moves across a much smaller range than the slab does.
+ *
+ * The slab runs 8 to 32, because at the top end it is meant to hide what is
+ * behind it. Water is never allowed to: past about ten pixels the photograph
+ * under a bubble stops being a photograph and the material is ice again, which
+ * is the one thing this variant exists to avoid. So the setting still does
+ * something, and it cannot undo the point.
+ */
 :root[data-glass='25'] {
   --glass-blur: 8px;
   --glass-fill: rgba(255, 255, 255, 0.58);
   --glass-lift: rgb(255 255 255 / 0.06);
+  --water-blur: 3px;
 }
 
 :root[data-glass='75'] {
   --glass-blur: 24px;
   --glass-lift: rgb(255 255 255 / 0.15);
+  --water-blur: 7px;
 }
 
 :root[data-glass='100'] {
   --glass-blur: 32px;
   --glass-lift: rgb(255 255 255 / 0.17);
+  --water-blur: 9px;
 }
 
 /*

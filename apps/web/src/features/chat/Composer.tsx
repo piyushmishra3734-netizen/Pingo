@@ -405,7 +405,7 @@ export function Composer({
        */
       <div
         className={cn(
-          'glass-surface flex min-w-0 flex-1 items-end gap-1 rounded-xl px-1.5 py-1.5',
+          'glass-water flex min-w-0 flex-1 items-end gap-1 rounded-xl px-1.5 py-1.5',
           'transition-[box-shadow] duration-instant ease-standard',
           'focus-within:shadow-sm',
         )}
