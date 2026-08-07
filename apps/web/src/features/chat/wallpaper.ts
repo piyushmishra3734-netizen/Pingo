@@ -31,6 +31,8 @@ export interface Wallpaper {
   css?: string;
   /** True where the picture is dark enough that the thread should invert. */
   dark?: boolean;
+  /** Drawn by a canvas rather than by CSS. Rain is the only one so far. */
+  live?: boolean;
 }
 
 /*
@@ -79,6 +81,14 @@ export const WALLPAPERS: Wallpaper[] = [
     name: 'None',
     css: '',
   },
+  /*
+   * Live, and the only one that is.
+   *
+   * It rains over whatever else is chosen - your photo if you have set one,
+   * the default light if you have not - because rain is weather on a window,
+   * and a window has to be looking at something.
+   */
+  { id: 'rain', name: 'Rain', live: true },
   { id: 'custom', name: 'Your photo' },
 ];
 
@@ -151,7 +161,28 @@ export function wallpaperCss(): string {
 export function wallpaperIsDark(): boolean {
   const id = chosenWallpaperId();
   if (id === 'custom') return window.localStorage.getItem(PHOTO_KEY + ':dark') === '1';
+  /*
+   * Rain darkens whatever it falls on - a wet blurred pane loses a lot of its
+   * brightness - so the thread takes light text under it regardless of what is
+   * behind the water.
+   */
+  if (id === 'rain') return true;
   return WALLPAPERS.find((w) => w.id === id)?.dark === true;
+}
+
+/** True when the choice needs a canvas rather than a CSS background. */
+export function wallpaperIsLive(): boolean {
+  return chosenWallpaperId() === 'rain';
+}
+
+/**
+ * What the rain should fall in front of.
+ *
+ * Your photograph if you have one, and otherwise a scene of its own - rain on
+ * a window with nothing behind it is just a grey rectangle with dots.
+ */
+export function rainScene(): string {
+  return customWallpaperPhoto() ?? '/pingo-splash.jpg';
 }
 
 export function setWallpaper(id: string): void {
