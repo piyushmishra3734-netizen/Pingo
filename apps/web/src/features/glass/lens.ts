@@ -30,8 +30,19 @@
  * look perfectly good with.
  */
 
-/** Below this, a panel is a bubble or a pill and gets no lens. */
-const MIN_EDGE = 120;
+/**
+ * Below this, a panel is a pill and gets no lens.
+ *
+ * Area, not the shorter edge. The first version gated on `min(width, height)`
+ * and excluded exactly the surfaces it was written for: chrome is wide and
+ * shallow - the header measures 1520 by 69 - so its short edge is smaller than
+ * a chip's. Measured on the deployed build: five glass surfaces on the chat
+ * screen, four of them under the threshold, no filters generated at all.
+ */
+const MIN_AREA = 24_000;
+
+/** And a floor on height, so a hairline strip never gets one either. */
+const MIN_HEIGHT = 40;
 
 /** Displacement maps, keyed by the size they were built for. */
 const maps = new Map<string, string>();
@@ -99,6 +110,8 @@ function lensMap(w: number, h: number, edge: number): string {
 }
 
 function filterFor(w: number, h: number): string | undefined {
+  // Follows the shorter side, which on chrome is the height - that is the
+  // dimension whose curve you actually see.
   const small = Math.min(w, h);
   const edge = Math.max(8, Math.min(26, small * 0.45));
   const scale = Math.max(10, Math.min(34, small * 0.55));
@@ -142,7 +155,7 @@ function applyTo(el: HTMLElement): void {
   const w = Math.round(rect.width);
   const h = Math.round(rect.height);
 
-  if (Math.min(w, h) < MIN_EDGE || w < 2 || h < 2) {
+  if (w * h < MIN_AREA || h < MIN_HEIGHT) {
     // Too small to be chrome. Anything left over from a previous size goes,
     // so a panel that shrank does not keep a lens built for its old shape.
     el.style.removeProperty('backdrop-filter');
