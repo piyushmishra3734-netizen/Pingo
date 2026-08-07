@@ -79,9 +79,20 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
   let running = false;
 
   void import('raindrop-fx')
-    .then(({ default: RaindropFX }) => {
+    .then((mod) => {
       // The thread may have closed, or the wallpaper changed, while it loaded.
       if (stopped) return;
+
+      /*
+       * The package is CommonJS - its types say `export =` - so depending on
+       * how the bundler interops it, the constructor is either the module's
+       * default or the module object itself. Taking only `.default` gave
+       * "RaindropFX is not a constructor", thrown inside this callback, where
+       * the catch below swallowed it: the rain was simply black and silent.
+       */
+      const RaindropFX = ((mod as unknown as { default?: unknown }).default ??
+        mod) as unknown as new (o: Record<string, unknown>) => typeof fx & object;
+
       fx = new RaindropFX({
         canvas,
         background: options.image ?? '',
@@ -101,9 +112,17 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
       });
       begin();
     })
-    .catch(() => {
-      // A shader that will not compile, or a chunk that will not arrive, is
-      // not worth a broken screen.
+    .catch((cause: unknown) => {
+      /*
+       * Reported, not swallowed.
+       *
+       * The first version caught silently, and when the constructor turned out
+       * to be in the wrong place the only symptom was a black rectangle behind
+       * every conversation - no error, nothing in the console, nothing to
+       * search for. A wallpaper that fails should still not break the screen,
+       * but it should say why it failed.
+       */
+      console.warn('[rain] could not start', cause);
     });
 
   const begin = () => {
