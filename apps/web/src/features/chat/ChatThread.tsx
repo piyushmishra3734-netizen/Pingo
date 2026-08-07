@@ -695,8 +695,19 @@ export function ChatThread({
         the feature.
       */
       style={{
-        ...(wallpaper.css ? { backgroundImage: wallpaper.css } : { backgroundImage: 'none' }),
-        ...(wallpaper.dark ? { backgroundColor: '#14151d' } : {}),
+        /*
+          A live wallpaper *is* the background, so the element must not paint
+          one of its own underneath it - see the canvas below for what that
+          cost the first time.
+        */
+        ...(wallpaper.live
+          ? { backgroundImage: 'none', backgroundColor: '#0d0e13' }
+          : {
+              ...(wallpaper.css
+                ? { backgroundImage: wallpaper.css }
+                : { backgroundImage: 'none' }),
+              ...(wallpaper.dark ? { backgroundColor: '#14151d' } : {}),
+            }),
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
@@ -704,15 +715,20 @@ export function ChatThread({
     >
       {wallpaper.live && (
         /*
-          Behind everything, and inert. `-z-10` rather than a lower stacking
-          order on the children, because the children are a scrolling list and
-          giving each of them a z-index is how a thread starts painting in the
-          wrong order.
+          First in the DOM, and no z-index at all.
+
+          It was `-z-10`, which puts an element behind its own parent's
+          background - and this parent paints one. So the rain was drawn, every
+          frame, underneath an opaque sheet of page colour: the canvas measured
+          as animating and the screen was flat black. Painting order alone does
+          the job, because everything after it in the flow paints over it, and
+          giving the thread's children z-indexes is how a scrolling list starts
+          painting in the wrong order.
         */
         <canvas
           ref={rainRef}
           aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 size-full"
+          className="pointer-events-none absolute inset-0 size-full"
         />
       )}
       {/* ---- Header ------------------------------------------------------- */}
