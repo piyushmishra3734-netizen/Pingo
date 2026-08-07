@@ -744,10 +744,35 @@
     corner-shape: inherit;
     pointer-events: none;
     /*
-     * The body of the glass: light added to the backdrop, not laid over it.
-     * See the note on `background-color` above for where 0.14 comes from.
+     * Two things, in one layer.
+     *
+     * The flat lift is the body of the glass - light added to the backdrop
+     * rather than laid over it. See the note on `background-color` above for
+     * where the number comes from.
+     *
+     * Over it, the thickness.
+     *
+     * A rim on its own is a line drawn round a shape. Real glass has depth
+     * behind that line: the light entering the top edge travels a little way
+     * into the material and falls off, which is what stops the edge looking
+     * like a stroke and starts it looking like a cross-section. A few pixels
+     * of glow under the top rim, and a fainter one rising off the bottom, is
+     * the whole of it - past about eight pixels it stops being thickness and
+     * becomes a gradient somebody applied.
      */
-    background: var(--glass-lift, rgb(255 255 255 / 0.14));
+    background:
+      linear-gradient(
+        to bottom,
+        rgb(255 255 255 / 0.16) 0,
+        rgb(255 255 255 / 0.04) 7px,
+        rgb(255 255 255 / 0) 18px
+      ),
+      linear-gradient(
+        to top,
+        rgb(255 255 255 / 0.07) 0,
+        rgb(255 255 255 / 0) 10px
+      ),
+      var(--glass-lift, rgb(255 255 255 / 0.14));
     mix-blend-mode: plus-lighter;
   }
 
@@ -783,14 +808,24 @@
        range was too flat and too dim to read as an edge once the body stopped
        carrying the panel.
     */
+    /*
+       Down the panel, not across it.
+
+       This was a 158-degree wash, which on anything wider than it is tall runs
+       almost horizontally: the *left end* of a header lit up and the right end
+       went dark. Light comes from above, so brightness has to depend on how
+       far down the edge is and on nothing else - then the top rim is bright,
+       the left and right rims fade as they descend, and the bottom rim catches
+       the faint bounce off whatever the panel is lying on. Which is what a
+       slab under a ceiling light actually does, at any width.
+    */
     background: linear-gradient(
-      158deg,
-      rgb(255 255 255 / var(--glass-rim, 0.6)) 0%,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.42)) 15%,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.08)) 40%,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.08)) 58%,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.34)) 84%,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.8)) 100%
+      to bottom,
+      rgb(255 255 255 / var(--glass-rim, 0.6)) 0,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.55)) 18%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.1)) 52%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.16)) 78%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.42)) 100%
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
