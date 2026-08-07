@@ -1117,7 +1117,16 @@ export function ChatThread({
       {/* ---- Composer ----------------------------------------------------- */}
       <div
         className={cn(
-          'shrink-0 border-t border-line bg-page/80 backdrop-blur-glass',
+          /*
+            No bar behind the bar.
+
+            This used to be a full-width translucent strip with its own blur
+            and a rule along the top, and the composer sat inside it - two
+            stacked surfaces where there is one object. Now the composer pill
+            is the surface, and this is only the space it floats in, so the
+            conversation runs behind it the way it does behind the header.
+          */
+          'shrink-0',
           'px-3 py-3',
           'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
         )}

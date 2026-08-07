@@ -390,7 +390,26 @@ export function Composer({
           onSend={sendRecording}
         />
       ) : (
-      <>
+      /*
+       * One pill, with everything inside it.
+       *
+       * Attach, the field, emoji and send used to be three separate objects
+       * sitting in a row with gaps between them - so the thing you use most in
+       * the product read as scattered parts rather than as one control. They
+       * are one control: you are writing a message, and everything here is a
+       * way of putting something into it or sending it.
+       *
+       * Glass rather than a flat sunken rectangle, so the composer is the same
+       * material as the header and the dock instead of the one surface that
+       * opted out.
+       */
+      <div
+        className={cn(
+          'glass-surface flex min-w-0 flex-1 items-end gap-1 rounded-xl px-1.5 py-1.5',
+          'transition-[box-shadow] duration-instant ease-standard',
+          'focus-within:shadow-sm',
+        )}
+      >
       {attach && (
         <AttachMenu
           onGallery={attach.gallery}
@@ -402,14 +421,7 @@ export function Composer({
         />
       )}
 
-      <div
-        className={cn(
-          'flex min-w-0 flex-1 items-end gap-2 bg-sunken',
-          'rounded-xl border border-transparent px-3 py-2',
-          'transition-[background-color,border-color,box-shadow] duration-instant ease-standard',
-          'focus-within:bg-surface focus-within:border-line-strong focus-within:shadow-sm',
-        )}
-      >
+      <div className="flex min-w-0 flex-1 items-end gap-1 px-1">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -488,10 +500,15 @@ export function Composer({
 
       </div>
 
-      </>
-      )}
+      {/*
+        Send, or the microphone, in the same place.
 
-      {!recorder.recording && (hasText ? (
+        One slot that changes what it offers: until there is something to send
+        it is a voice note, and the moment a character is typed it becomes
+        Send. Two buttons side by side would mean the primary action moves
+        depending on whether you have started writing.
+      */}
+      {hasText ? (
         <IconButton
           label="Send message"
           variant="gradient"
@@ -580,7 +597,9 @@ export function Composer({
         >
           <MicIcon size={20} />
         </IconButton>
-      ))}
+      )}
+      </div>
+      )}
       </div>
     </div>
   );
