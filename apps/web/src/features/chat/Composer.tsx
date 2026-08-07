@@ -476,7 +476,13 @@ export function Composer({
           aria-label={ariaLabel}
           className={cn(
             'min-w-0 flex-1 resize-none bg-transparent outline-none',
-            'py-1.5 text-body text-ink placeholder:text-text-tertiary',
+            /*
+              `py-2`, so one line of text is exactly as tall as the buttons.
+              At `py-1.5` the field measured 36 against controls of 40, and the
+              whole row sat a couple of pixels out of true - close enough to
+              look wrong and not close enough to name.
+            */
+            'py-2 text-body text-ink placeholder:text-text-tertiary',
             'scrollbar-none',
           )}
         />
