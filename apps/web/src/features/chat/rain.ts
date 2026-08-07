@@ -103,11 +103,11 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
          * is behind it: fewer and smaller drops, a slower spawn, and the mist
          * left on so the pane reads as wet rather than merely spotted.
          */
-        spawnInterval: [0.18, 0.28],
-        spawnSize: [38, 66],
-        spawnLimit: 380,
-        dropletsPerSeconds: 220,
-        dropletSize: [6, 18],
+        spawnInterval: [0.09, 0.15],
+        spawnSize: [40, 72],
+        spawnLimit: 900,
+        dropletsPerSeconds: 420,
+        dropletSize: [7, 22],
         /*
          * Mist off.
          *
