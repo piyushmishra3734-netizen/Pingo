@@ -85,8 +85,32 @@ export const WALLPAPERS: Wallpaper[] = [
 const KEY = 'pingo:wallpaper';
 const PHOTO_KEY = 'pingo:wallpaper-photo';
 
-/** Longest edge of a stored photo. A screen's worth, and nothing more. */
-const MAX_EDGE = 1400;
+/**
+ * How big a stored photo should be, in real device pixels.
+ *
+ * The first version capped the long edge at 1400 and encoded at 0.72, which on
+ * a phone is *below* the screen it is being shown on: a modern handset is
+ * around 1200 by 2600 physical pixels, so a 1400-tall picture was being
+ * stretched, and 0.72 put visible blocking in the smooth gradients that
+ * wallpapers are mostly made of. It looked worse than the file the person
+ * chose, which is the one thing it must never do.
+ *
+ * So it is sized to this screen rather than to a fixed number, and encoded
+ * well. The cap is there because a desktop reporting a 4K display does not
+ * need a 4K wallpaper behind a chat.
+ */
+const MAX_EDGE = 2400;
+
+/** Tried in order until the result fits. See `setWallpaperPhoto`. */
+const QUALITIES = [0.92, 0.86, 0.78, 0.7];
+
+/**
+ * Roughly what `localStorage` will take, allowing for everything else in it.
+ *
+ * Browsers give an origin about 5MB and base64 costs a third on top of the
+ * bytes, so this is the point past which storing would throw.
+ */
+const MAX_STORED = 3_200_000;
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -150,7 +174,23 @@ export function setWallpaper(id: string): void {
 export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+
+    /*
+     * The target is this screen, in the pixels it actually has.
+     *
+     * `screen.height` is in CSS pixels, so it has to be multiplied by the
+     * device ratio - on a phone that is usually 2.5 or 3, and leaving it out is
+     * exactly how a wallpaper ends up a third of the resolution of the display
+     * it is stretched across.
+     */
+    const ratio = Math.min(3, window.devicePixelRatio || 1);
+    const target = Math.min(
+      MAX_EDGE,
+      Math.round(Math.max(window.screen.width, window.screen.height) * ratio),
+    );
+
+    // Never upscale: enlarging a small picture only makes a bigger blurry one.
+    const scale = Math.min(1, target / Math.max(bitmap.width, bitmap.height));
     const w = Math.max(1, Math.round(bitmap.width * scale));
     const h = Math.max(1, Math.round(bitmap.height * scale));
 
@@ -173,7 +213,20 @@ export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
     }
     const luminance = sum / (sample.length / 4);
 
-    const url = canvas.toDataURL('image/jpeg', 0.72);
+    /*
+     * The best quality that fits, rather than one quality for everything.
+     *
+     * A wallpaper is mostly smooth gradient, which is where JPEG blocking is
+     * most visible, so this starts high and only steps down when the result
+     * would not survive being stored.
+     */
+    let url = '';
+    for (const quality of QUALITIES) {
+      url = canvas.toDataURL('image/jpeg', quality);
+      if (url.length <= MAX_STORED) break;
+    }
+    if (!url || url.length > MAX_STORED) return false;
+
     window.localStorage.setItem(PHOTO_KEY, url);
     window.localStorage.setItem(PHOTO_KEY + ':dark', luminance < 128 ? '1' : '0');
     setWallpaper('custom');

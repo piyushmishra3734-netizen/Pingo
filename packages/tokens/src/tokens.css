@@ -158,7 +158,19 @@
    * was applied to it.
    */
   --glass-fill: transparent;
-  --glass-lift: rgb(255 255 255 / 0.14);
+  /*
+   * Less in the middle, more at the edge.
+   *
+   * Every liquid-glass reference has the same shape to it: through the body of
+   * the panel the backdrop is very nearly untouched - in the clearest of them
+   * you can read a letter through the glass, distorted but not dimmed - and
+   * all of the character is in a bright, thin, varying rim. 0.14 in the body
+   * was measured off a *widget over a photograph*, where the panel has to
+   * carry text; on a header sitting over a wallpaper it reads as a veil.
+   */
+  --glass-lift: rgb(255 255 255 / 0.08);
+  /* The rim's brightest point. See the note on the rim in `glass-surface`. */
+  --glass-rim: 0.6;
   --color-scrim: rgba(16, 17, 20, 0.32);
 
   /* ---- Typeface --------------------------------------------------------- */
@@ -762,14 +774,23 @@
     corner-shape: inherit;
     pointer-events: none;
     mix-blend-mode: plus-lighter;
+    /*
+       Brighter, and it varies more.
+
+       In every reference the rim is the thing you actually see: a distinct
+       line of light at the top-left that thins almost to nothing as the
+       surface turns away and comes back along the bottom-right. The previous
+       range was too flat and too dim to read as an edge once the body stopped
+       carrying the panel.
+    */
     background: linear-gradient(
       158deg,
-      rgb(255 255 255 / 0.42) 0%,
-      rgb(255 255 255 / 0.17) 17%,
-      rgb(255 255 255 / 0.05) 42%,
-      rgb(255 255 255 / 0.05) 60%,
-      rgb(255 255 255 / 0.15) 85%,
-      rgb(255 255 255 / 0.32) 100%
+      rgb(255 255 255 / var(--glass-rim, 0.6)) 0%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.42)) 15%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.08)) 40%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.08)) 58%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.34)) 84%,
+      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.8)) 100%
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
