@@ -68,11 +68,37 @@ function ensureDefs(): SVGDefsElement {
 }
 
 /**
+ * How far, in pixels, the magnification pulls at the very edge of a panel.
+ *
+ * This is what makes the glass a *lens* rather than a bevel. In the reference
+ * images you can read a letter through the glass and it is visibly larger than
+ * the same letter beside it - the body of the panel is doing something, not
+ * only its rim. Edge distortion alone gives a pane with a moulded border; this
+ * is the part that says there is a thickness of glass in front of you.
+ *
+ * Small on purpose. Past about ten pixels the middle of a header starts to
+ * swim when the thread scrolls behind it.
+ */
+const MAGNIFY_PX = 9;
+
+/**
  * A lens normal map for one panel size.
  *
- * Cubed falloff rather than linear: a linear ramp bends the whole panel
- * slightly, which reads as a smeared rectangle. The eye wants the middle
- * untouched and the last few pixels to move a lot.
+ * Two effects in one map, added together.
+ *
+ * **Magnification.** `feDisplacementMap` builds each output pixel by reading
+ * the source somewhere else, so sampling *nearer the centre* than you are makes
+ * the backdrop look bigger. The pull is proportional to how far out the pixel
+ * is - zero in the middle, strongest at the edges - which is a plain uniform
+ * magnification, the same thing a thick flat pane does.
+ *
+ * Normalised per axis rather than radially, so a wide shallow header magnifies
+ * by the same visible amount as a square sheet instead of smearing sideways
+ * because it happens to be long.
+ *
+ * **Edge distortion.** On top of that, a hard outward push in the last few
+ * pixels, cubed so the middle is untouched and only the curve bends. That is
+ * the pinch you see where a line runs into the side of an Apple panel.
  */
 function lensMap(w: number, h: number, edge: number): string {
   const key = `${w}x${h}x${edge}`;
@@ -85,19 +111,35 @@ function lensMap(w: number, h: number, edge: number): string {
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
+  const halfW = Math.max(1, w / 2);
+  const halfH = Math.max(1, h / 2);
+
+  /*
+   * One scale for the whole map, so both effects share the encoding. Whatever
+   * the largest displacement either of them asks for is what 255 means.
+   */
+  const span = MAGNIFY_PX + edge;
+
   const image = ctx.createImageData(w, h);
   for (let y = 0; y < h; y += 1) {
     for (let x = 0; x < w; x += 1) {
+      // -1 at the left/top, 0 in the middle, +1 at the right/bottom.
+      const nx = (x - halfW) / halfW;
+      const ny = (y - halfH) / halfH;
+
+      // Toward the centre: negative of where you are. This is the magnifying half.
+      let vx = -nx * MAGNIFY_PX;
+      let vy = -ny * MAGNIFY_PX;
+
+      // Away from the nearest edge, and only within `edge` of it.
       const dx = Math.min(x, w - 1 - x);
       const dy = Math.min(y, h - 1 - y);
-
-      // Push outward, away from whichever edge is nearest, and only near it.
-      const px = dx < edge ? (x < w / 2 ? -1 : 1) * (1 - dx / edge) ** 3 : 0;
-      const py = dy < edge ? (y < h / 2 ? -1 : 1) * (1 - dy / edge) ** 3 : 0;
+      if (dx < edge) vx += (x < halfW ? -1 : 1) * (1 - dx / edge) ** 3 * edge;
+      if (dy < edge) vy += (y < halfH ? -1 : 1) * (1 - dy / edge) ** 3 * edge;
 
       const i = (y * w + x) * 4;
-      image.data[i] = Math.max(0, Math.min(255, 128 + px * 127));
-      image.data[i + 1] = Math.max(0, Math.min(255, 128 + py * 127));
+      image.data[i] = Math.max(0, Math.min(255, 128 + (vx / span) * 127));
+      image.data[i + 1] = Math.max(0, Math.min(255, 128 + (vy / span) * 127));
       image.data[i + 2] = 128;
       image.data[i + 3] = 255;
     }
@@ -114,7 +156,14 @@ function filterFor(w: number, h: number): string | undefined {
   // dimension whose curve you actually see.
   const small = Math.min(w, h);
   const edge = Math.max(8, Math.min(26, small * 0.45));
-  const scale = Math.max(10, Math.min(34, small * 0.55));
+
+  /*
+   * `scale` has to match what the map was drawn against, or the two effects
+   * come out at the wrong strength relative to each other. The map encodes
+   * displacements over `MAGNIFY_PX + edge`, and feDisplacementMap moves a pixel
+   * by `scale * (channel - 0.5)` - so the full range needs twice that span.
+   */
+  const scale = (MAGNIFY_PX + edge) * 2;
   const key = `${w}x${h}`;
 
   const existing = filters.get(key);
