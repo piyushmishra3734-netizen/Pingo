@@ -43,6 +43,7 @@ import { ConversationMenu } from './ConversationMenu.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { MessageSelectionBar } from './MessageSelectionBar.js';
+import { onWallpaperChange, wallpaperCss, wallpaperIsDark } from './wallpaper.js';
 import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
@@ -181,6 +182,22 @@ export function ChatThread({
   // Leaving the thread, or the conversation changing underneath it, ends the
   // selection - ids from one conversation mean nothing in another.
   useEffect(() => setSelection(undefined), [conversation.id]);
+
+  /**
+   * The wallpaper, and a repaint when it is changed elsewhere.
+   *
+   * Read on every render rather than held in state, so an open conversation
+   * shows a new choice the moment the picker sets it - somebody trying
+   * wallpapers is switching back and forth, and a thread that needs a reload
+   * to catch up makes that impossible to judge.
+   */
+  const [wallpaperTick, setWallpaperTick] = useState(0);
+  useEffect(() => onWallpaperChange(() => setWallpaperTick((n) => n + 1)), []);
+  const wallpaper = useMemo(
+    () => ({ css: wallpaperCss(), dark: wallpaperIsDark() }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [wallpaperTick],
+  );
 
   /*
    * The avatar that was pressed, arriving.
@@ -647,7 +664,22 @@ export function ChatThread({
       : `${members.length} members`;
 
   return (
-    <div className={cn('chat-wallpaper flex h-full min-h-0 flex-col', className)}>
+    <div
+      className={cn('chat-wallpaper flex h-full min-h-0 flex-col', className)}
+      /*
+        The chosen wallpaper, read straight rather than through a provider.
+        It has to be right in the first painted frame - a thread that starts
+        plain and changes under you a moment later is worse than not having
+        the feature.
+      */
+      style={{
+        ...(wallpaper.css ? { backgroundImage: wallpaper.css } : { backgroundImage: 'none' }),
+        ...(wallpaper.dark ? { backgroundColor: '#14151d' } : {}),
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+      data-wallpaper-dark={wallpaper.dark ? '' : undefined}
+    >
       {/* ---- Header ------------------------------------------------------- */}
       <header
         className={cn(

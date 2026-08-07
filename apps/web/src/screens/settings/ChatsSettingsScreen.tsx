@@ -6,6 +6,8 @@ import {
   ToggleRow,
 } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
+import { useNavigate } from 'react-router-dom';
+import { WALLPAPERS, chosenWallpaperId } from '../../features/chat/wallpaper.js';
 
 /**
  * Chats.
@@ -20,6 +22,8 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  */
 export function ChatsSettingsScreen() {
   const { preferences, update } = usePreferences();
+  const navigate = useNavigate();
+  const wallpaper = WALLPAPERS.find((w) => w.id === chosenWallpaperId());
   const c = preferences.chats;
 
   return (
@@ -44,7 +48,15 @@ export function ChatsSettingsScreen() {
           ]}
           onChange={(bubbleStyle) => update('chats', { bubbleStyle })}
         />
-        <InfoRow label="Chat Wallpaper" value="Default" />
+        {/*
+          Was a dead row reading "Default" that did nothing when tapped.
+          It now goes where it always looked like it went.
+        */}
+        <InfoRow
+          label="Chat Wallpaper"
+          value={wallpaper?.name ?? 'Default'}
+          onClick={() => navigate('/settings/wallpaper')}
+        />
       </Group>
 
       <Group title="Media">
