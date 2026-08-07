@@ -1,427 +1,147 @@
 /**
  * Rain on the glass, behind a conversation.
  *
- * ## How a raindrop is drawn
+ * ## Why this is a library and not ours
  *
- * Not as a blob of white. A drop on a window is a lens: the scene behind it
- * arrives through a bead of water, magnified and turned over, and it is sharp
- * while everything around it is not. So the background is painted twice - once
- * blurred, as the wet pane, and then once more inside each drop, magnified and
- * flipped, clipped to the bead. That single trick is the whole effect; the
- * highlight and the shadow on top of it are seasoning.
+ * The first version was hand-written: a 2D canvas drawing each drop as a
+ * clipped, flipped, magnified crop of the background, with trails and merging
+ * and a shaded rim. It worked, and it never looked like water. The reason is
+ * that a convincing raindrop is a refraction problem rather than a drawing
+ * problem - the bead has to bend the whole scene through itself, per pixel -
+ * and a 2D canvas can only ever paste a rectangle of pixels into a circle.
  *
- * ## Why the drops slide and eat each other
+ * `raindrop-fx` does it properly, in WebGL2, with a real refraction shader,
+ * mist that clears where drops pass, and droplet erasure along the trails. MIT,
+ * and about 600 drops at two or three milliseconds a frame. Four hundred lines
+ * of ours were a worse answer to a solved problem.
  *
- * Rain on a window is not a field of static dots. Small drops cling, big ones
- * lose their grip and run, and a running one sweeps up everything in its path
- * and gets heavier as it goes - which is why real trails accelerate and why a
- * pane clears in streaks rather than evenly. A version without that reads as a
- * texture rather than as weather, and everyone can tell, even if not why.
+ * ## What is still ours
  *
- * ## What it costs, and what stops it
+ * The plumbing: what the rain falls in front of, and everything that makes it
+ * stop. A chat is not a screensaver. This must not run in a hidden tab, must
+ * not run for a thread scrolled out of a desktop two-pane layout, and must not
+ * run at all for somebody who has asked for less motion.
  *
- * One canvas, one animation frame, a few hundred drops. It stops itself when
- * the tab is hidden, when the thread is off screen, and when the person has
- * asked for less motion - in that last case the drops are still drawn, just
- * still, because the picture is the point and the movement is the flourish.
+ * ## Loaded only if it is raining
+ *
+ * The library is 240KB, which is a fifth of the whole application, for a
+ * wallpaper most people will never choose. It is imported on demand, so
+ * everybody else downloads none of it - which is the only reason a shader this
+ * size is a reasonable thing to add at all.
  */
 
-interface Drop {
-  x: number;
-  y: number;
-  r: number;
-  /** Pixels per second. Zero while it is still clinging. */
-  speed: number;
-  /** Sideways wander, so a trail is not a ruled line. */
-  drift: number;
-  /** Counts down; at zero a clinging drop may let go. */
-  cling: number;
-  /**
-   * What it has left behind, newest last.
-   *
-   * A drop running down a window does not travel over dry glass - it drags a
-   * tail of water and leaves a line of small beads clinging where it passed.
-   * That tail is most of what makes rain read as rain: without it the drops
-   * are dots that change position, and the eye reads them as a moving texture
-   * rather than as water going somewhere.
-   */
-  trail: { x: number; y: number; r: number }[];
-  /** Distance since the last bead was dropped, so trails do not clump. */
-  since: number;
-}
-
-/** Below this radius a drop never moves on its own. */
-const CLING_RADIUS = 3.4;
-
-/** Above this, it is heavy enough that it always runs. */
-const RUN_RADIUS = 5.6;
-
 export interface RainOptions {
-  /** The scene behind the water. A data URL, an object URL, or a CSS gradient. */
+  /** The scene behind the water. A URL or a data URL. */
   image?: string;
-  /** Drops per second arriving. Higher is a downpour. */
-  rate?: number;
-  /** Stop animating and draw one still frame. */
-  still?: boolean;
 }
 
 export interface RainHandle {
   stop: () => void;
 }
 
-/**
- * Starts rain on a canvas.
- *
- * @returns a handle whose `stop` releases the frame loop and the observers.
- * Calling it twice is safe.
- */
-export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}): RainHandle {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return { stop: () => undefined };
+/** WebGL2 is required. Without it there is no rain, rather than a bad rain. */
+function canRender(): boolean {
+  try {
+    return Boolean(document.createElement('canvas').getContext('webgl2'));
+  } catch {
+    return false;
+  }
+}
 
-  const reduced =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const still = options.still ?? reduced;
+export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}): RainHandle {
+  const nothing: RainHandle = { stop: () => undefined };
+  if (typeof window === 'undefined') return nothing;
 
   /*
-   * Two copies of the scene: one sharp, for the insides of drops, and one
-   * blurred, for the pane itself. Drawn to offscreen canvases once rather than
-   * filtered every frame - `filter: blur()` on a per-frame draw is the single
-   * most expensive thing this could do.
+   * Motion is the whole of this wallpaper, so there is no still version to
+   * fall back to: somebody who has asked for less of it gets none at all.
    */
-  let sharp: HTMLCanvasElement | undefined;
-  let blurred: HTMLCanvasElement | undefined;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return nothing;
+  if (!canRender()) return nothing;
 
-  let drops: Drop[] = [];
-  let raf = 0;
-  let last = 0;
-  let running = false;
-  let width = 0;
-  let height = 0;
-  let dpr = 1;
-
-  // Heavier than it sounds: most arrivals are pinpricks that cling and never
-  // move, so a low rate leaves a pane that looks barely rained on.
-  const rate = options.rate ?? 46;
-
-  function buildScene(source: CanvasImageSource, sw: number, sh: number) {
-    const make = (blur: number) => {
-      const c = document.createElement('canvas');
-      c.width = width;
-      c.height = height;
-      const g = c.getContext('2d');
-      if (!g) return c;
-      if (blur > 0) g.filter = `blur(${blur}px)`;
-      // Cover, the way a background-size: cover would.
-      const scale = Math.max(width / sw, height / sh);
-      const dw = sw * scale;
-      const dh = sh * scale;
-      g.drawImage(source, (width - dw) / 2, (height - dh) / 2, dw, dh);
-      return c;
-    };
-    sharp = make(0);
-    /*
-     * The pane is not evenly frosted - it is wet. A modest blur reads as water
-     * on the glass; a heavy one reads as the picture being out of focus, which
-     * is a different and much less interesting thing.
-     */
-    blurred = make(14 * dpr);
-  }
-
-  function resize() {
+  /*
+   * Sized in CSS pixels, deliberately not multiplied by the device ratio.
+   * This is a full-screen shader; at 3x on a phone it is nine times the work
+   * for rain nobody is inspecting closely.
+   */
+  const size = () => {
     const rect = canvas.getBoundingClientRect();
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    width = Math.max(1, Math.round(rect.width * dpr));
-    height = Math.max(1, Math.round(rect.height * dpr));
-    canvas.width = width;
-    canvas.height = height;
-    if (scene) buildScene(scene, sceneW, sceneH);
-    // Drops are positioned in device pixels, so a resize invalidates them.
-    drops = [];
-    seed();
-  }
+    return [Math.max(1, Math.round(rect.width)), Math.max(1, Math.round(rect.height))] as const;
+  };
 
-  function seed() {
-    const target = still ? 220 : 150;
-    for (let i = 0; i < target; i += 1) drops.push(born(Math.random() * height));
-  }
+  const [w, h] = size();
+  canvas.width = w;
+  canvas.height = h;
 
-  function born(y: number): Drop {
-    /*
-     * Sizes are not uniform. Real rain leaves a great many pinpricks and a few
-     * fat ones, so the radius is biased small - a flat distribution gives an
-     * evenly-spotted pane that looks printed.
-     */
-    const bias = Math.random() ** 2.4;
-    const r = (1.6 + bias * 7) * dpr;
-    return {
-      x: Math.random() * width,
-      y,
-      r,
-      speed: 0,
-      drift: (Math.random() - 0.5) * 6 * dpr,
-      cling: 0.4 + Math.random() * 3.5,
-      trail: [],
-      since: 0,
-    };
-  }
+  /** Set once the module has arrived. Everything guards on it being absent. */
+  let fx: { start: () => Promise<void>; stop: () => void; resize: (w: number, h: number) => void } | undefined;
+  let stopped = false;
+  let running = false;
 
-  /**
-   * One bead, drawn as a lens.
-   *
-   * @param stretch how much taller than wide. A still drop is round; a running
-   * one is pulled out behind itself, which is what a drop on a window actually
-   * looks like and the reason a field of perfect circles reads as bubbles.
-   */
-  function drawBead(x: number, y: number, r: number, stretch = 1) {
-    if (!sharp || !ctx) return;
-    const ry = r * stretch;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);
-    ctx.clip();
-
-    /*
-     * The lens, and it has to pull from further away than feels natural.
-     *
-     * A bead magnifies whatever is behind it - but if the scene is a soft
-     * photograph, a small magnified crop of it is the same colour as the blur
-     * around it, and the drop vanishes. Sampling a *wider* area and squeezing
-     * it into the bead is what puts contrast inside one: the drop shows a
-     * whole region of the picture at once, which is also what a real drop on a
-     * window does when the thing behind it is far away.
-     */
-    const crop = r * 7;
-    ctx.translate(x, y);
-    ctx.scale(1, -1);
-    ctx.drawImage(sharp, x - crop / 2, y - crop / 2, crop, crop, -r, -ry, r * 2, ry * 2);
-    ctx.restore();
-
-    /*
-     * Volume, and it does most of the work.
-     *
-     * The lens alone leaves a drop that disappears wherever the picture behind
-     * it happens to be flat. Water does not do that: it has a bright point
-     * where the light enters, a dark band round the inside of the far edge
-     * where the surface curves away, and a hard little rim. Those three read
-     * as a bead against absolutely any backdrop, which is what makes this the
-     * part worth spending on.
-     */
-    ctx.save();
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);
-    ctx.clip();
-
-    const shade = ctx.createRadialGradient(
-      x - r * 0.3,
-      y - ry * 0.35,
-      r * 0.05,
-      x + r * 0.15,
-      y + ry * 0.2,
-      Math.max(r, ry) * 1.15,
-    );
-    shade.addColorStop(0, 'rgba(255,255,255,0.72)');
-    shade.addColorStop(0.22, 'rgba(255,255,255,0.14)');
-    shade.addColorStop(0.62, 'rgba(0,0,0,0.10)');
-    shade.addColorStop(1, 'rgba(0,0,0,0.42)');
-    ctx.fillStyle = shade;
-    ctx.fillRect(x - r, y - ry, r * 2, ry * 2);
-    ctx.restore();
-
-    // The rim: a thin bright line low and right, where the pane's own light
-    // comes back up through the water. Only worth drawing above a size where
-    // it would be more than one pixel.
-    if (r > 2.2 * dpr) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(x, y, r * 0.94, ry * 0.94, 0, Math.PI * 0.15, Math.PI * 0.85);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = Math.max(1, r * 0.14);
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  function drawDrop(drop: Drop) {
-    // The tail first, so the head sits over it rather than under.
-    for (let i = 0; i < drop.trail.length; i += 1) {
-      const bead = drop.trail[i]!;
-      // Older beads are further back and smaller - a tail thins as it dries.
-      const age = (i + 1) / (drop.trail.length + 1);
-      drawBead(bead.x, bead.y, bead.r * (0.35 + age * 0.5));
-    }
-
-    /*
-     * The head, pulled out by how fast it is going. A drop barely moving is
-     * round; one sliding fast is drawn out behind itself. Capped, because past
-     * about twice its width it stops being a drop and becomes a stripe.
-     */
-    const stretch = Math.min(2.1, 1 + drop.speed / (140 * dpr));
-    drawBead(drop.x, drop.y, drop.r, stretch);
-  }
-
-  function step(dt: number) {
-    // New arrivals, at the top and scattered, because rain does not queue.
-    if (!still && Math.random() < rate * dt) drops.push(born(-10 * dpr));
-
-    for (const drop of drops) {
-      if (still) continue;
-
-      if (drop.speed === 0) {
-        drop.cling -= dt;
-        // Heavy ones always go; middling ones go when they have waited.
-        if (drop.r > RUN_RADIUS || (drop.cling <= 0 && drop.r > CLING_RADIUS)) {
-          drop.speed = (18 + drop.r * 9) * dpr;
-        }
-        continue;
-      }
-
-      const moved = drop.speed * dt;
-      drop.y += moved;
-      drop.x += drop.drift * dt;
-      // A running drop keeps gathering weight, so it keeps speeding up.
-      drop.speed += 42 * dpr * dt;
-
-      /*
-       * It leaves water behind it.
-       *
-       * A bead every so many pixels rather than every frame: tied to distance,
-       * a slow drop lays a dense tail and a fast one a stretched broken line,
-       * which is what actually happens. Tied to frames, both would look the
-       * same and the whole thing would change with the refresh rate.
-       */
-      drop.since += moved;
-      const gap = drop.r * 1.5;
-      if (drop.since > gap) {
-        drop.since = 0;
-        drop.trail.push({ x: drop.x, y: drop.y, r: drop.r });
-        // The tail is finite. Longer than this and it reads as a drawn line.
-        if (drop.trail.length > 14) drop.trail.shift();
+  void import('raindrop-fx')
+    .then(({ default: RaindropFX }) => {
+      // The thread may have closed, or the wallpaper changed, while it loaded.
+      if (stopped) return;
+      fx = new RaindropFX({
+        canvas,
+        background: options.image ?? '',
         /*
-         * And the drop pays for it. Water left on the glass is water no longer
-         * in the bead, so a runner thins as it goes and eventually stops -
-         * which is why a window does not simply empty itself.
+         * Tuned down from the library's defaults, which are built for a
+         * full-screen demo. Here a conversation is the subject and the weather
+         * is behind it: fewer and smaller drops, a slower spawn, and the mist
+         * left on so the pane reads as wet rather than merely spotted.
          */
-        drop.r *= 0.985;
-      }
+        spawnInterval: [0.18, 0.28],
+        spawnSize: [38, 66],
+        spawnLimit: 380,
+        dropletsPerSeconds: 220,
+        dropletSize: [6, 18],
+        mist: true,
+        backgroundBlurSteps: 4,
+      });
+      begin();
+    })
+    .catch(() => {
+      // A shader that will not compile, or a chunk that will not arrive, is
+      // not worth a broken screen.
+    });
 
-      /*
-       * It sweeps up what it passes. This is what makes trails read as trails:
-       * the runner grows, the pane behind it clears, and the next one down the
-       * same track goes faster still.
-       */
-      for (const other of drops) {
-        if (other === drop || other.r <= 0 || other.speed > 0) continue;
-        const dx = other.x - drop.x;
-        const dy = other.y - drop.y;
-        if (dx * dx + dy * dy < (drop.r + other.r) ** 2) {
-          // Volume adds, not radius - two equal drops make one about 1.26x wide.
-          drop.r = Math.cbrt(drop.r ** 3 + other.r ** 3);
-          other.r = 0;
-        }
-      }
-    }
-
-    /*
-     * Gone when it has run off the bottom, or when it has left so much of
-     * itself behind that there is nothing to see. Its tail goes with it, which
-     * is right: the beads it left are its own water.
-     */
-    drops = drops.filter((d) => d.r > 0.7 * dpr && d.y - d.r < height + 40 * dpr);
-    // A ceiling, so a long session cannot accumulate its way into a slideshow.
-    if (drops.length > 520) drops.splice(0, drops.length - 520);
-  }
-
-  function frame(now: number) {
-    if (!running) return;
-    const dt = Math.min(0.05, (now - last) / 1000 || 0);
-    last = now;
-
-    if (blurred && ctx) {
-      ctx.clearRect(0, 0, width, height);
-      ctx.drawImage(blurred, 0, 0);
-      step(dt);
-      for (const drop of drops) if (drop.r > 0) drawDrop(drop);
-    }
-
-    if (still) {
-      running = false;
-      return;
-    }
-    raf = window.requestAnimationFrame(frame);
-  }
-
-  let scene: CanvasImageSource | undefined;
-  let sceneW = 0;
-  let sceneH = 0;
-
-  function begin() {
-    if (running) return;
+  const begin = () => {
+    if (stopped || running || !fx) return;
     running = true;
-    last = performance.now();
-    raf = window.requestAnimationFrame(frame);
-  }
+    void fx.start();
+  };
 
-  function halt() {
+  const halt = () => {
+    if (!running || !fx) return;
     running = false;
-    window.cancelAnimationFrame(raf);
-  }
-
-  /* ---- Loading the scene, then starting ---- */
-
-  const image = new Image();
-  image.crossOrigin = 'anonymous';
-  image.onload = () => {
-    scene = image;
-    sceneW = image.naturalWidth;
-    sceneH = image.naturalHeight;
-    resize();
-    begin();
+    fx.stop();
   };
-  image.onerror = () => {
-    /*
-     * No picture is not a reason to have no rain. A flat wash stands in, and
-     * the drops still lens it - which on a plain colour reads as water on a
-     * misted window, which is fine.
-     */
-    const c = document.createElement('canvas');
-    c.width = 64;
-    c.height = 128;
-    const g = c.getContext('2d');
-    if (g) {
-      const wash = g.createLinearGradient(0, 0, 0, 128);
-      wash.addColorStop(0, '#5f6ea8');
-      wash.addColorStop(1, '#2b3350');
-      g.fillStyle = wash;
-      g.fillRect(0, 0, 64, 128);
-    }
-    scene = c;
-    sceneW = 64;
-    sceneH = 128;
-    resize();
-    begin();
-  };
-  image.src = options.image || '';
-
-  /* ---- Everything that should stop it ---- */
 
   const onVisibility = () => (document.hidden ? halt() : begin());
   document.addEventListener('visibilitychange', onVisibility);
 
-  const onResize = () => resize();
+  const onResize = () => {
+    if (!fx) return;
+    const [width, height] = size();
+    canvas.width = width;
+    canvas.height = height;
+    fx.resize(width, height);
+  };
   window.addEventListener('resize', onResize);
 
-  // Off screen is off. A conversation in a background tab, or scrolled out of
-  // a desktop two-pane layout, has no business running an animation.
+  // Off screen is off. A thread in a background tab has no business running a
+  // shader, and neither has one scrolled out of a two-pane desktop layout.
   const seen = new IntersectionObserver((entries) => {
     for (const entry of entries) (entry.isIntersecting ? begin : halt)();
   });
   seen.observe(canvas);
 
+  begin();
+
   return {
     stop: () => {
+      stopped = true;
       halt();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
