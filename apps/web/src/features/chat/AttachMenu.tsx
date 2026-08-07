@@ -75,7 +75,12 @@ export function AttachMenu({
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
         className={cn(
-          'focus-ring touch-target mb-0.5 grid size-10 place-items-center rounded-full',
+          /*
+            No bottom margin. It existed to lift this button off the baseline
+            when it sat outside the composer; inside the pill it only knocked
+            it out of line with everything beside it.
+          */
+          'focus-ring touch-target grid size-10 place-items-center rounded-full',
           /*
            * `rotate`, not `transform`.
            *

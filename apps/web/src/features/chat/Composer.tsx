@@ -488,14 +488,19 @@ export function Composer({
           be the open one. Emoji leads because it is what the button is reached
           for nine times in ten.
         */}
+        {/*
+          The same size as attach, because they are the same kind of thing:
+          two ways of putting something into the message. They were 36 and 40,
+          which is close enough to look like a mistake rather than a decision.
+        */}
         <IconButton
           label="Emoji and stickers"
-          size="sm"
+          size="md"
           variant="ghost"
-          className={cn('mb-0.5', pickerOpen && 'text-brand')}
+          className={cn(pickerOpen && 'text-brand')}
           onClick={() => setPickerOpen((was) => !was)}
         >
-          <SmileIcon size={20} />
+          <SmileIcon size={22} />
         </IconButton>
 
       </div>
@@ -526,7 +531,7 @@ export function Composer({
             animate once and then sit still for the rest of the conversation.
           */
           key={sent}
-          className="mb-0.5 glass-press motion-safe:animate-send-pop"
+          className="glass-press motion-safe:animate-send-pop"
         >
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={21} className="-translate-x-px translate-y-px" />
@@ -545,7 +550,7 @@ export function Composer({
           label="Record voice message"
           variant="filled"
           size="lg"
-          className="mb-0.5"
+          
           onPointerDown={(event) => {
             // Secondary buttons and the context menu are not this gesture.
             if (event.button !== 0) return;
@@ -592,7 +597,7 @@ export function Composer({
         <IconButton
           label="Voice messages aren't available here"
           variant="ghost"
-          className="mb-0.5 text-text-tertiary"
+          className="text-text-tertiary"
           onClick={() => setNotice("Voice messages aren't available here.")}
         >
           <MicIcon size={20} />
