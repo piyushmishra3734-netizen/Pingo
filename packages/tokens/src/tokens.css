@@ -835,6 +835,32 @@
     radial-gradient(60% 40% at 84% 96%, rgb(120 90 220 / 0.1), transparent 64%);
 }
 
+/*
+ * A dark wallpaper flips the text above it, wherever that text is.
+ *
+ * The thread measures a chosen photograph when it is stored and marks itself
+ * when the picture is dark. Without this the mark did nothing: a night
+ * photograph went behind the conversation and the header, the composer's
+ * placeholder and the encryption line stayed near-black on it - present,
+ * technically legible, and unreadable in practice.
+ *
+ * Repointing the tokens rather than restyling the components, which is the same
+ * mechanism the dark theme uses. Anything inside that reads `text-ink` or
+ * `text-text-secondary` follows without knowing why, including screens added
+ * later that nobody remembers to check against a wallpaper.
+ */
+[data-wallpaper-dark] {
+  --color-text: #f4f5f9;
+  --color-ink: #f4f5f9;
+  --color-text-secondary: rgba(244, 245, 249, 0.72);
+  --color-text-tertiary: rgba(244, 245, 249, 0.5);
+  --color-line: rgba(255, 255, 255, 0.12);
+  --color-line-strong: rgba(255, 255, 255, 0.2);
+  /* Glass over a photograph takes a shade rather than a lift. */
+  --glass-fill: rgba(18, 19, 26, 0.34);
+  --glass-lift: rgb(255 255 255 / 0.06);
+}
+
 /**
  * A glass control that gives when you press it.
  *
