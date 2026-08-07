@@ -758,6 +758,58 @@
 }
 
 /**
+ * Something for the glass to be glass over.
+ *
+ * ## Why a chat needs a backdrop at all
+ *
+ * Glass is a material that shows what is behind it. Behind PINGO's chrome was
+ * `--color-page`, which is one step off white - so a header blurring it
+ * produced white, and a panel lifting it produced white. Measured on the
+ * deployed build: at the strongest setting, 48px of blur and a 45% panel, the
+ * header was indistinguishable from the page. Every bit of craft in the
+ * material was invisible because nothing was being shown through it.
+ *
+ * ## Why this one, and not a photograph
+ *
+ * A photograph belongs to the person, and choosing one for them is a decision
+ * they should make - this is the default, and it has to be the version nobody
+ * would object to. Four very soft brand-hued blooms over the page colour: at
+ * this strength it reads as light in the room rather than as a pattern, it
+ * never competes with a message, and it gives the glass a colour to bend.
+ *
+ * The stops are deliberately low. A wallpaper you notice is a wallpaper you
+ * will be asked to turn off.
+ */
+@utility chat-wallpaper {
+  background-color: var(--color-page);
+  background-image:
+    radial-gradient(72% 44% at 6% 2%, rgb(139 93 255 / 0.14), transparent 62%),
+    radial-gradient(60% 40% at 96% 14%, rgb(92 108 255 / 0.13), transparent 64%),
+    radial-gradient(70% 46% at 82% 98%, rgb(245 148 80 / 0.1), transparent 62%),
+    radial-gradient(52% 36% at 10% 88%, rgb(40 220 150 / 0.08), transparent 68%);
+  /*
+   * Fixed to the element, not the content, so the light does not slide up the
+   * screen as the conversation scrolls. A backdrop that moves is a pattern.
+   */
+  background-attachment: local;
+  background-repeat: no-repeat;
+}
+
+/*
+ * Dark takes about half as much, and warmer stops go first.
+ *
+ * The same values over a dark page read as smears rather than as light, and
+ * the orange in particular turns muddy where a message sits on it.
+ */
+:root[data-theme='dark'] .chat-wallpaper,
+:root[data-theme='dark'] [class*='chat-wallpaper'] {
+  background-image:
+    radial-gradient(72% 44% at 6% 2%, rgb(139 93 255 / 0.16), transparent 62%),
+    radial-gradient(60% 40% at 96% 14%, rgb(92 108 255 / 0.14), transparent 64%),
+    radial-gradient(60% 40% at 84% 96%, rgb(120 90 220 / 0.1), transparent 64%);
+}
+
+/**
  * A glass control that gives when you press it.
  *
  * Three things at once, and all three are needed for it to read as a material

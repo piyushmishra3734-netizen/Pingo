@@ -647,7 +647,7 @@ export function ChatThread({
       : `${members.length} members`;
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col bg-page', className)}>
+    <div className={cn('chat-wallpaper flex h-full min-h-0 flex-col', className)}>
       {/* ---- Header ------------------------------------------------------- */}
       <header
         className={cn(
