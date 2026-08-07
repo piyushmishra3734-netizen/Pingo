@@ -108,7 +108,18 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
         spawnLimit: 380,
         dropletsPerSeconds: 220,
         dropletSize: [6, 18],
-        mist: true,
+        /*
+         * Mist off.
+         *
+         * The library fogs the pane over time - its mist colour is very nearly
+         * black and it accumulates at `dt / mistTime`, so after about ten
+         * seconds the whole background has drained to grey and only the tracks
+         * the drops clear show any colour at all. On a demo page that is the
+         * effect; behind somebody's own photograph it is the photograph being
+         * taken away, and it is why the wallpaper turned black and white a few
+         * seconds after opening a chat.
+         */
+        mist: false,
         backgroundBlurSteps: 4,
       });
       begin();
