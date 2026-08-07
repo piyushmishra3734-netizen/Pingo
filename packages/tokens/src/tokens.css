@@ -657,8 +657,34 @@
    * Tailwind's own `backdrop-blur-*` utilities were unaffected because they
    * already emit in this order, which is what made the difference visible.
    */
-  -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
-  backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
+  /*
+   * 16px, not 24.
+   *
+   * At 24 the backdrop is smeared past the point where you can tell what is
+   * behind the panel, and a material whose whole job is to show what is behind
+   * it should stop short of that. 16 with the saturation up is what the
+   * reference build used and what Apple's own panels look closest to: you can
+   * still make out the shape of the wallpaper through them.
+   */
+  -webkit-backdrop-filter: blur(var(--glass-blur, 16px)) saturate(175%);
+  backdrop-filter: blur(var(--glass-blur, 16px)) saturate(175%);
+
+  /*
+   * The ambient shadow, tinted rather than black.
+   *
+   * Two layers: a tight contact shadow that grounds the panel, and a wide soft
+   * one carrying the blue of the light around it. A black shadow under a
+   * bright translucent panel is the fastest way to make an interface look
+   * cheap.
+   *
+   * A `shadow-*` utility on the same element replaces this outright, and that
+   * is acceptable here in a way it was not for the specular: a bigger ambient
+   * shadow doing the same job is a fine substitute, where losing the lit edge
+   * left the panel with no edge at all.
+   */
+  box-shadow:
+    0 1px 1px rgb(18 20 38 / 0.06),
+    0 14px 34px -16px rgb(34 38 82 / 0.38);
 
   /*
    * Transparent, and still one pixel.
@@ -1119,12 +1145,12 @@
 }
 
 :root[data-glass='75'] {
-  --glass-blur: 36px;
+  --glass-blur: 24px;
   --glass-lift: rgb(255 255 255 / 0.15);
 }
 
 :root[data-glass='100'] {
-  --glass-blur: 48px;
+  --glass-blur: 32px;
   --glass-lift: rgb(255 255 255 / 0.17);
 }
 

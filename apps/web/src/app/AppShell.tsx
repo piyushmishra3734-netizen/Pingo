@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useChat } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
@@ -5,6 +6,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Dock } from './Dock.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
+import { startLensing } from '../features/glass/lens.js';
 
 /**
  * The shell every signed-in screen renders inside.
@@ -24,6 +26,13 @@ export function AppShell() {
   // A share can start the app, so it is listened for above every screen -
   // see the note in useIncomingShare.
   useIncomingShare();
+
+  /*
+   * The refracting rim on every glass surface. Started once, above every
+   * screen: glass is applied by a class from the stylesheet, so nothing in
+   * React knows which elements have it.
+   */
+  useEffect(() => startLensing(), []);
 
   const { ready } = useChat();
   const location = useLocation();
