@@ -148,8 +148,17 @@
   --color-danger-soft: rgba(229, 84, 75, 0.1);
 
   /* ---- Glass ------------------------------------------------------------ */
-  --color-glass: rgba(255, 255, 255, 0.72);
-  --color-glass-line: rgba(255, 255, 255, 0.55);
+  /*
+   * The default material, and the one almost everybody sees.
+   *
+   * No fill at all and 0.14 of added light - the values measured off Apple's
+   * own render. The old default was 0.72 white composited normally, which is
+   * three quarters of a white panel: nothing behind it survived, so every
+   * glass surface in the product looked like plain white however much blur
+   * was applied to it.
+   */
+  --glass-fill: transparent;
+  --glass-lift: rgb(255 255 255 / 0.14);
   --color-scrim: rgba(16, 17, 20, 0.32);
 
   /* ---- Typeface --------------------------------------------------------- */
@@ -609,7 +618,31 @@
  * the saturation boost is what keeps colour behind the panel from going flat.
  */
 @utility glass-surface {
-  background-color: var(--color-glass);
+  /*
+   * Normally transparent. The lift is added below rather than composited here.
+   *
+   * Measured off Apple's own iOS 26 render: a neutral backdrop of 97 became
+   * 138 inside a panel, and a saturated teal of 42 became 81. The lift is
+   * roughly *constant*, not proportional - a translucent white composited the
+   * ordinary way would raise a dark pixel far more than a bright one, and
+   * these do not. So the material adds light rather than painting over it,
+   * which is why Apple's glass keeps its colour and a white panel goes chalky.
+   *
+   * `--glass-fill` stays for the levels that are not really glass at all: at
+   * `data-glass='0'` the surface is solid, and adding light to a solid colour
+   * would blow it out.
+   */
+  background-color: var(--glass-fill, transparent);
+
+  /*
+   * Continuous curvature, where the browser has it.
+   *
+   * Apple's corners ease into the straight edge instead of meeting it at a
+   * tangent, and it is the most recognisable thing about their geometry.
+   * Unsupported browsers ignore the line and keep ordinary rounded corners,
+   * so there is nothing to fall back to.
+   */
+  corner-shape: squircle;
   /*
    * Prefixed first, standard last. The order is load-bearing.
    *
@@ -626,9 +659,26 @@
    */
   -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
   backdrop-filter: blur(var(--glass-blur, 24px)) saturate(180%);
-  border: 1px solid var(--color-glass-line);
+
+  /*
+   * Transparent, and still one pixel.
+   *
+   * The rim is drawn by `::after` now, because a `border` is a line and glass
+   * has an edge - measured, Apple's rim peaks at 167 against a panel body of
+   * 141, which is the backdrop lifted further rather than anything like white.
+   * The pixel stays so that every glass surface keeps the exact box it had:
+   * removing it would give each one two more pixels of content width and
+   * shift the layout of every header, sheet and dock in the product.
+   */
+  border: 1px solid transparent;
 
   position: relative;
+  /*
+   * The additive layers blend against this surface and nothing beneath it.
+   * Without it, `plus-lighter` reaches through to whatever the panel happens
+   * to be sitting on and the effect changes from screen to screen.
+   */
+  isolation: isolate;
 
   /*
    * The specular edge - what separates glass from frosted plastic.
@@ -653,13 +703,57 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
+    corner-shape: inherit;
     pointer-events: none;
+    /*
+     * The body of the glass: light added to the backdrop, not laid over it.
+     * See the note on `background-color` above for where 0.14 comes from.
+     */
+    background: var(--glass-lift, rgb(255 255 255 / 0.14));
+    mix-blend-mode: plus-lighter;
+  }
+
+  /*
+   * The rim.
+   *
+   * This replaces the old top-edge gradient, which ran a near-white hairline
+   * across the top and nothing anywhere else - so a panel had a lit lip and
+   * three dead sides, and read as a rectangle with a highlight painted on.
+   *
+   * Real glass is brightest where the light enters and again, faintly, where
+   * it leaves: bright at the upper left, thinning as the surface turns away,
+   * returning at the lower right. Additive for the same reason as the body -
+   * at 255 it stops being an edge and becomes a stroke drawn round a box.
+   *
+   * The ring is made by masking the fill against its own content box, so it
+   * follows the corner shape rather than assuming a rectangle.
+   */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    corner-shape: inherit;
+    pointer-events: none;
+    mix-blend-mode: plus-lighter;
     background: linear-gradient(
-      to bottom,
-      rgb(255 255 255 / 0.55) 0,
-      rgb(255 255 255 / 0.06) 2px,
-      transparent 55%
+      158deg,
+      rgb(255 255 255 / 0.42) 0%,
+      rgb(255 255 255 / 0.17) 17%,
+      rgb(255 255 255 / 0.05) 42%,
+      rgb(255 255 255 / 0.05) 60%,
+      rgb(255 255 255 / 0.15) 85%,
+      rgb(255 255 255 / 0.32) 100%
     );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    padding: 1.5px;
   }
 }
 
@@ -840,8 +934,9 @@
    * Glass goes dark and *more* opaque. A light translucent panel over a dark
    * page reads as fog rather than glass, and thin white borders glow.
    */
-  --color-glass: rgba(22, 23, 29, 0.72);
-  --color-glass-line: rgba(255, 255, 255, 0.08);
+  /* Dark's default: mostly fill, barely any lift. See the level notes below. */
+  --glass-fill: rgba(22, 23, 29, 0.42);
+  --glass-lift: rgb(255 255 255 / 0.05);
   --color-scrim: rgba(0, 0, 0, 0.5);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -943,9 +1038,19 @@
 /* because a live filter that blurs by nothing still costs a compositor layer  */
 /* on every scroll.                                                            */
 
+/*
+ * The levels set two things now, not one.
+ *
+ * `--glass-fill` is a colour composited the ordinary way; `--glass-lift` is
+ * light added to whatever is behind. More glass means less of the first and a
+ * little more of the second. At 0 there is no glass at all, so the fill is
+ * solid and the lift has to be nothing - adding light to an opaque surface
+ * would only blow it out.
+ */
 :root[data-glass='0'] {
   --glass-blur: 0px;
-  --color-glass: var(--color-surface);
+  --glass-fill: var(--color-surface);
+  --glass-lift: transparent;
 }
 
 :root[data-glass='0'] .glass-surface,
@@ -957,27 +1062,38 @@
 
 :root[data-glass='25'] {
   --glass-blur: 8px;
-  --color-glass: rgba(255, 255, 255, 0.88);
+  --glass-fill: rgba(255, 255, 255, 0.58);
+  --glass-lift: rgb(255 255 255 / 0.06);
 }
 
 :root[data-glass='75'] {
   --glass-blur: 36px;
-  --color-glass: rgba(255, 255, 255, 0.6);
+  --glass-lift: rgb(255 255 255 / 0.15);
 }
 
 :root[data-glass='100'] {
   --glass-blur: 48px;
-  --color-glass: rgba(255, 255, 255, 0.45);
+  --glass-lift: rgb(255 255 255 / 0.17);
 }
 
+/*
+ * Dark keeps a fill and takes far less light.
+ *
+ * Added light is what makes the material work over a photograph, and over a
+ * dark interface it is what turns every panel grey. So in the dark the fill
+ * does most of the work and the lift is a suggestion.
+ */
 :root[data-theme='dark'][data-glass='25'] {
-  --color-glass: rgba(22, 23, 29, 0.9);
+  --glass-fill: rgba(22, 23, 29, 0.78);
+  --glass-lift: rgb(255 255 255 / 0.03);
 }
 
 :root[data-theme='dark'][data-glass='75'] {
-  --color-glass: rgba(22, 23, 29, 0.6);
+  --glass-fill: rgba(22, 23, 29, 0.26);
+  --glass-lift: rgb(255 255 255 / 0.07);
 }
 
 :root[data-theme='dark'][data-glass='100'] {
-  --color-glass: rgba(22, 23, 29, 0.45);
+  --glass-fill: rgba(22, 23, 29, 0.16);
+  --glass-lift: rgb(255 255 255 / 0.08);
 }
