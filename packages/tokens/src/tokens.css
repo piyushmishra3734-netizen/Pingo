@@ -168,9 +168,25 @@
    * was measured off a *widget over a photograph*, where the panel has to
    * carry text; on a header sitting over a wallpaper it reads as a veil.
    */
-  --glass-lift: rgb(255 255 255 / 0.08);
+  /*
+   * Nearly clear, because adding light to a light backdrop only makes fog.
+   *
+   * 0.14, and then 0.08, were measured off Apple's widgets sitting over a
+   * *photograph* - a dark, busy one, where the panel has to carry white text
+   * and the lift is what makes that readable. PINGO's default wallpaper is
+   * pale. Adding light to something already bright has nowhere to go: the
+   * panel turns milky, and milky is the exact opposite of what these
+   * references look like, where you can read a letter straight through the
+   * glass.
+   *
+   * So over a light backdrop the body does almost nothing and the rim, the
+   * shadow and the refraction carry the whole object. That is what the
+   * reference images actually show. The dark-wallpaper and dark-theme rules
+   * further down put the lift back, because there it has somewhere to go.
+   */
+  --glass-lift: rgb(255 255 255 / 0.03);
   /* The rim's brightest point. See the note on the rim in `glass-surface`. */
-  --glass-rim: 0.6;
+  --glass-rim: 0.72;
   --color-scrim: rgba(16, 17, 20, 0.32);
 
   /* ---- Typeface --------------------------------------------------------- */
@@ -913,8 +929,8 @@
   --color-line: rgba(255, 255, 255, 0.12);
   --color-line-strong: rgba(255, 255, 255, 0.2);
   /* Glass over a photograph takes a shade rather than a lift. */
-  --glass-fill: rgba(18, 19, 26, 0.34);
-  --glass-lift: rgb(255 255 255 / 0.06);
+  --glass-fill: rgba(18, 19, 26, 0.3);
+  --glass-lift: rgb(255 255 255 / 0.1);
 }
 
 /**
