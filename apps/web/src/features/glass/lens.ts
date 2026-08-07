@@ -20,14 +20,23 @@
  * one filter per panel size rather than one for the product. That means
  * measuring elements, which is a thing only JavaScript can do.
  *
- * ## Chrome only, deliberately
+ * ## What it costs, and what it does not
  *
- * Each lens is a second backdrop sample. On the header, the composer and a
- * sheet - three surfaces - that is free. On a thread of fifty bubbles it is
- * not, and `backdrop-filter` on a scrolling list is the one effect that
- * reliably drops frames on cheap Android. So panels below a minimum size are
- * left with the plain material, which is what they had before and what they
- * look perfectly good with.
+ * The original rule here was "chrome only", on the reasoning that each lens is
+ * a second backdrop sample and a thread of fifty bubbles could not afford
+ * fifty of them. That is true of an element which had no `backdrop-filter`
+ * before. It is not true of one that already has: the lens is another function
+ * in the *same* property, so it replaces the value rather than adding a layer,
+ * and a glass bubble has already paid for its backdrop sample. What is left is
+ * the displacement pass, which is a fraction of the blur it sits in front of.
+ *
+ * The cost that is real is building the maps - a pixel loop and a PNG encode
+ * per distinct size, and forty bubbles are forty slightly different sizes. So
+ * sizes are quantised onto a grid and the map is stretched to fit, which turns
+ * those forty into a handful shared between them.
+ *
+ * Surfaces that are *not* already glass still have to clear the old bar,
+ * because for those the original reasoning holds exactly.
  */
 
 /**
@@ -57,6 +66,29 @@ const MIN_AREA = 14_000;
 
 /** And a floor on height, so a hairline strip never gets one either. */
 const MIN_HEIGHT = 40;
+
+/**
+ * The bar for something that is already glass, which is nearly everything in a
+ * conversation. Low enough for a one-line bubble, high enough that a day pill
+ * and a tick badge are left alone - below about this size the bend is smaller
+ * than the corner radius and there is nothing to see.
+ */
+const WATER_MIN_AREA = 3_000;
+const WATER_MIN_HEIGHT = 32;
+
+/**
+ * Sizes are rounded onto this grid before a map is built for them.
+ *
+ * Coarser across than down, because the edge band is driven by the shorter
+ * side - which on a bubble is the height - so height is where accuracy is
+ * worth paying for and width is where the sharing is worth having. Forty
+ * bubbles in a thread land on a handful of buckets between them, and the map
+ * is stretched to the element by `preserveAspectRatio="none"`.
+ */
+const STEP_W = 32;
+const STEP_H = 8;
+
+const bucket = (value: number, step: number) => Math.max(step, Math.round(value / step) * step);
 
 /** Displacement maps, keyed by the size they were built for. */
 const maps = new Map<string, string>();
@@ -187,7 +219,12 @@ function lensMap(w: number, h: number, edge: number): string {
   return url;
 }
 
-function filterFor(w: number, h: number): string | undefined {
+function filterFor(width: number, height: number): string | undefined {
+  // Onto the grid, so a thread of bubbles shares maps instead of each having
+  // its own. See the note on `STEP_W`.
+  const w = bucket(width, STEP_W);
+  const h = bucket(height, STEP_H);
+
   /*
    * Follows the shorter side, which on chrome is the height - that is the
    * dimension whose curve you actually see.
@@ -221,8 +258,18 @@ function filterFor(w: number, h: number): string | undefined {
   filter.setAttribute('width', '100%');
   filter.setAttribute('height', '100%');
   filter.setAttribute('color-interpolation-filters', 'sRGB');
+  /*
+   * The map is placed by percentage, not by pixel count.
+   *
+   * Written as `width="${w}"` the filter carried one exact size in it, so a
+   * filter could only ever serve elements of precisely that size - which
+   * defeats the bucketing entirely. At 100% the primitive fills the filter
+   * region, which is the element, and `preserveAspectRatio="none"` stretches
+   * the bucket's map across whatever the element actually measures.
+   */
   filter.innerHTML =
-    `<feImage href="${href}" width="${w}" height="${h}" preserveAspectRatio="none" result="m"/>` +
+    `<feImage href="${href}" x="0%" y="0%" width="100%" height="100%" ` +
+    `preserveAspectRatio="none" result="m"/>` +
     `<feDisplacementMap in="SourceGraphic" in2="m" scale="${scale}" ` +
     `xChannelSelector="R" yChannelSelector="G"/>`;
 
@@ -245,9 +292,16 @@ function applyTo(el: HTMLElement): void {
   const w = Math.round(rect.width);
   const h = Math.round(rect.height);
 
-  if (w * h < MIN_AREA || h < MIN_HEIGHT) {
-    // Too small to be chrome. Anything left over from a previous size goes,
-    // so a panel that shrank does not keep a lens built for its old shape.
+  // Water has already paid for its backdrop sample, so it gets in far cheaper.
+  // See the note at the top of the file.
+  const water = el.className.includes('glass-water');
+  const minArea = water ? WATER_MIN_AREA : MIN_AREA;
+  const minHeight = water ? WATER_MIN_HEIGHT : MIN_HEIGHT;
+
+  if (w * h < minArea || h < minHeight) {
+    // Too small for the bend to be visible past the corner radius. Anything
+    // left over from a previous size goes, so a panel that shrank does not keep
+    // a lens built for its old shape.
     el.style.removeProperty('backdrop-filter');
     el.style.removeProperty('-webkit-backdrop-filter');
     return;
@@ -267,7 +321,6 @@ function applyTo(el: HTMLElement): void {
    * slab's sixteen pixels onto a water surface would turn it back into the
    * frosted panel the variant exists to replace.
    */
-  const water = el.className.includes('glass-water');
   const blur = getComputedStyle(document.documentElement)
     .getPropertyValue(water ? '--water-blur' : '--glass-blur')
     .trim();

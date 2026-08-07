@@ -182,7 +182,7 @@ export function PingBubble({
       <div
         className={cn(
           'flex w-56 items-center gap-2.5 rounded-lg px-4 py-3',
-          'bg-brand-gradient text-white shadow-brand',
+          'bg-brand-glass text-white',
         )}
       >
         <CameraIcon size={18} />
@@ -206,7 +206,7 @@ export function PingBubble({
       }. Opening it spends a view.`}
       className={cn(
         'focus-ring flex w-56 items-center gap-2.5 rounded-lg px-4 py-3',
-        'bg-brand-gradient text-white shadow-brand',
+        'bg-brand-glass text-white',
         // Lifts under the finger. The one bubble in a thread that costs
         // something to open should feel like it is waiting to be pressed.
         'transition-transform duration-quick ease-standard',

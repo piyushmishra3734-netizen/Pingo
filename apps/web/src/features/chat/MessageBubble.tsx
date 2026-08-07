@@ -316,7 +316,7 @@ export function MessageBubble({
             'px-4 py-2.5',
             SHAPE[mine ? 'mine' : 'theirs'][position],
             mine
-              ? 'bg-brand-gradient text-white shadow-brand'
+              ? 'bg-brand-glass text-white'
               /*
                 Incoming bubbles are glass, the same glass as the header and
                 the composer.

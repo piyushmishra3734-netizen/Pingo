@@ -633,6 +633,48 @@
   );
 }
 
+/**
+ * The same gradient, as glass. The outgoing bubble.
+ *
+ * A conversation has two materials in it and they have to be the same
+ * substance in different colours, or the screen reads as glass panels with
+ * plastic chips scattered between them. The received bubble became water and
+ * the sent one stayed an opaque slab of brand colour, which is exactly what
+ * that looks like.
+ *
+ * So: the brand gradient at 88%, over the same backdrop blur the water uses.
+ * The wallpaper comes through it faintly - enough that the bubble belongs to
+ * the picture behind it - and 88% is still far past the contrast white text
+ * needs, so nothing about legibility changes.
+ *
+ * `color-mix` rather than literal rgba stops because the accent setting
+ * rewrites `--gradient-from` and `--gradient-to` as hex; hard-coding the
+ * alpha versions would quietly ignore whatever accent somebody chose.
+ *
+ * The inset highlight along the top is the lit edge of the bead, and the two
+ * outer shadows are the brand's own colour rather than black - a black shadow
+ * under a saturated translucent panel is the fastest way to make it look
+ * cheap.
+ */
+@utility bg-brand-glass {
+  corner-shape: squircle;
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--gradient-from, #6d7cff) 88%, transparent) 0%,
+    color-mix(in srgb, var(--gradient-to, #a16eff) 88%, transparent) 100%
+  );
+
+  /* Prefixed first, standard last - see the note on `glass-surface`. */
+  -webkit-backdrop-filter: blur(var(--water-blur, 5px)) saturate(160%);
+  backdrop-filter: blur(var(--water-blur, 5px)) saturate(160%);
+
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    inset 0 -1px 0 rgb(255 255 255 / 0.14),
+    0 2px 8px -3px color-mix(in srgb, var(--gradient-from, #6d7cff) 55%, transparent),
+    0 14px 30px -16px color-mix(in srgb, var(--gradient-from, #6d7cff) 85%, transparent);
+}
+
 /** A softened wash of the same gradient, for large calm surfaces like splash. */
 @utility bg-brand-wash {
   background-image:
@@ -902,8 +944,18 @@
    * A drop reads as sitting *on* something. Tighter and darker than the slab's
    * ambient shadow, which is lit for a panel floating above a page.
    */
+  /*
+   * Three layers, and the first is the one that was missing.
+   *
+   * A bead reads as sitting *on* a surface because of the tight dark line
+   * directly beneath it, not because of the wide soft one - the wide one only
+   * says "somewhere above". Without the contact shadow the panel floats at an
+   * unreadable distance and the whole thing goes back to looking like a
+   * translucent rectangle laid over a photograph.
+   */
   box-shadow:
-    0 2px 10px -4px rgb(18 20 38 / 0.3),
+    0 1px 2px -1px rgb(18 20 38 / 0.22),
+    0 4px 12px -5px rgb(18 20 38 / 0.28),
     0 16px 40px -20px rgb(34 38 82 / 0.45);
 
   border: 1px solid transparent;
@@ -932,13 +984,13 @@
     background:
       linear-gradient(
         to bottom,
-        rgb(255 255 255 / 0.28) 0,
-        rgb(255 255 255 / 0.05) 4px,
-        rgb(255 255 255 / 0) 10px
+        rgb(255 255 255 / 0.44) 0,
+        rgb(255 255 255 / 0.1) 4px,
+        rgb(255 255 255 / 0) 12px
       ),
-      linear-gradient(to top, rgb(255 255 255 / 0.13) 0, rgb(255 255 255 / 0) 7px),
-      linear-gradient(to right, rgb(255 255 255 / 0.09) 0, rgb(255 255 255 / 0) 6px),
-      linear-gradient(to left, rgb(255 255 255 / 0.08) 0, rgb(255 255 255 / 0) 6px);
+      linear-gradient(to top, rgb(255 255 255 / 0.24) 0, rgb(255 255 255 / 0) 9px),
+      linear-gradient(to right, rgb(255 255 255 / 0.15) 0, rgb(255 255 255 / 0) 8px),
+      linear-gradient(to left, rgb(255 255 255 / 0.13) 0, rgb(255 255 255 / 0) 8px);
   }
 
   /*
