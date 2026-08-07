@@ -1,0 +1,12 @@
+rain.mp3
+
+"Rain (loopable)" by Ylmir — https://opengameart.org/content/rain-loopable
+Licence: CC0 1.0 (public domain dedication). No attribution is required;
+this file exists so that the provenance of an asset in the repository is
+never a question somebody has to research.
+
+Chosen from the four loops in that pack by measuring them rather than by
+listening: this one has the most high-frequency content and the least
+low-frequency rumble, which is the difference between light rain and a
+downpour, and it is the steadiest and the longest, which is what keeps a
+loop from announcing itself.

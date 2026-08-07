@@ -9,6 +9,7 @@ import {
   setWallpaper,
   setWallpaperPhoto,
 } from '../../features/chat/wallpaper.js';
+import { rainSoundEnabled, setRainSoundEnabled } from '../../features/chat/rain-sound.js';
 
 /**
  * Choosing what sits behind a conversation.
@@ -24,6 +25,7 @@ import {
 export function WallpaperScreen() {
   const [chosen, setChosen] = useState(chosenWallpaperId);
   const [photo, setPhoto] = useState(customWallpaperPhoto);
+  const [sound, setSound] = useState(rainSoundEnabled);
   const [error, setError] = useState<string>();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -122,6 +124,33 @@ export function WallpaperScreen() {
             );
           })}
         </div>
+
+        {/*
+          Only while it is raining, because it is the only thing that makes a
+          sound. A switch for something that cannot happen is a switch that
+          teaches somebody the setting does nothing.
+        */}
+        {chosen === 'rain' && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={sound}
+            onClick={() => {
+              setRainSoundEnabled(!sound);
+              setSound(!sound);
+            }}
+            className={cn(
+              'focus-ring mt-4 flex w-full items-center justify-between rounded-xl',
+              'border border-line px-4 py-3 text-left',
+              'transition-colors duration-instant hover:bg-hover',
+            )}
+          >
+            <span className="text-body text-ink">Rain sound</span>
+            <span className="text-caption text-text-secondary">
+              {sound ? 'On, quietly' : 'Off'}
+            </span>
+          </button>
+        )}
 
         {/* Replacing an existing photo, without having to clear it first. */}
         {photo && (

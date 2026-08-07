@@ -44,6 +44,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { MessageSelectionBar } from './MessageSelectionBar.js';
 import { startRain } from './rain.js';
+import { startRainSound } from './rain-sound.js';
 import {
   onWallpaperChange,
   rainScene,
@@ -218,7 +219,13 @@ export function ChatThread({
   useEffect(() => {
     if (!wallpaper.live || !rainRef.current) return;
     const handle = startRain(rainRef.current, { image: rainScene() });
-    return () => handle.stop();
+    // The sound belongs to the same lifetime: it starts with the rain and it
+    // stops when you leave the conversation, not when you leave the app.
+    const sound = startRainSound();
+    return () => {
+      handle.stop();
+      sound.stop();
+    };
   }, [wallpaper.live, wallpaperTick]);
 
   /*
