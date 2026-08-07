@@ -919,7 +919,22 @@ export function ChatThread({
               <div key={cluster[0]!.id} className="flex flex-col gap-0.5">
                 {divider && (
                   <div className="py-3 text-center">
-                    <span className="text-caption text-text-tertiary">{divider}</span>
+                    {/*
+                      A pill of the same glass, not bare text.
+
+                      Loose words floating on a wallpaper are the first thing
+                      that stops being readable when somebody sets a
+                      photograph, and the day marker is exactly the kind of
+                      small grey text that disappears first.
+                    */}
+                    <span
+                      className={cn(
+                        'glass-surface inline-block rounded-full px-3 py-1',
+                        'text-caption text-text-secondary',
+                      )}
+                    >
+                      {divider}
+                    </span>
                   </div>
                 )}
 
@@ -1106,7 +1121,7 @@ export function ChatThread({
                 </div>
               ) : (
                 <div className="flex justify-start pt-1">
-                  <div className="rounded-lg bg-surface px-4 py-3 shadow-sm">
+                  <div className="glass-surface rounded-lg px-4 py-3">
                     <PingoDot state="typing" size={7} label={typingLabel || 'typing'} />
                   </div>
                 </div>

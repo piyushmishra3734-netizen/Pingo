@@ -38,7 +38,7 @@ function Card({
   const className = cn(
     'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left',
     'transition-opacity duration-instant hover:opacity-90',
-    mine ? 'bg-brand-gradient text-white shadow-brand' : 'bg-surface text-ink shadow-sm',
+    mine ? 'bg-brand-gradient text-white shadow-brand' : 'glass-surface text-ink',
   );
 
   if (!onOpen) return <div className={className}>{children}</div>;
@@ -124,7 +124,7 @@ export function ContactBubble({ contact, mine }: { contact: ContactRef; mine: bo
       <div
         className={cn(
           'flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
-          mine ? 'bg-brand-gradient text-white shadow-brand' : 'bg-surface text-ink shadow-sm',
+          mine ? 'bg-brand-gradient text-white shadow-brand' : 'glass-surface text-ink',
         )}
       >
         <Avatar name={contact.name} id={contact.name} size="sm" />
@@ -153,7 +153,7 @@ export function ContactBubble({ contact, mine }: { contact: ContactRef; mine: bo
       className={cn(
         'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
         'transition-opacity duration-instant hover:opacity-90',
-        mine ? 'bg-brand-gradient text-white shadow-brand' : 'bg-surface text-ink shadow-sm',
+        mine ? 'bg-brand-gradient text-white shadow-brand' : 'glass-surface text-ink',
       )}
     >
       {body}
@@ -241,7 +241,7 @@ export function CallBubble({
     <div
       className={cn(
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
-        mine ? 'bg-brand-gradient text-white shadow-brand' : 'bg-surface text-ink shadow-sm',
+        mine ? 'bg-brand-gradient text-white shadow-brand' : 'glass-surface text-ink',
       )}
     >
       <span

@@ -317,10 +317,19 @@ export function MessageBubble({
             SHAPE[mine ? 'mine' : 'theirs'][position],
             mine
               ? 'bg-brand-gradient text-white shadow-brand'
-              // Incoming bubbles are white on the near-white page, so they need a
-              // shadow to read at all, Soft White against Background is only two
-              // steps of luminance apart and disappears entirely without one.
-              : 'bg-surface text-ink shadow-sm',
+              /*
+                Incoming bubbles are glass, the same glass as the header and
+                the composer.
+
+                They were an opaque white card needing a shadow to be seen at
+                all against a near-white page. With a wallpaper behind, that
+                card is the one surface in the conversation that refuses to
+                admit there is anything behind it - and one material used
+                everywhere is what the whole look depends on. The sent bubble
+                keeps the brand gradient: it is the mark that identifies PINGO
+                at a glance, and it is the one thing worth not being glass.
+              */
+              : 'glass-surface text-ink',
             // A failed send desaturates and outlines, rather than turning red.
             message.status === 'failed' && 'opacity-60 ring-1 ring-danger/40',
           )}
@@ -341,9 +350,16 @@ export function MessageBubble({
                 'border-l-2 px-2 py-1 text-left',
                 'transition-opacity duration-instant',
                 onJumpToReply && 'hover:opacity-80',
+                /*
+                  Tinted against the bubble it sits in, both sides. On an
+                  incoming bubble that bubble is now glass, so a solid `bg-hover`
+                  panel inside it was the one opaque rectangle left in the
+                  conversation - a quote is part of this message, and it should
+                  be made of the same thing the message is.
+                */
                 mine
                   ? 'border-white/60 bg-white/15 text-white/85'
-                  : 'border-brand bg-hover text-text-secondary',
+                  : 'border-brand bg-white/22 text-text-secondary',
               )}
             >
               {replyToAuthor && (
