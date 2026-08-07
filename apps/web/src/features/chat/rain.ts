@@ -36,6 +36,18 @@ interface Drop {
   drift: number;
   /** Counts down; at zero a clinging drop may let go. */
   cling: number;
+  /**
+   * What it has left behind, newest last.
+   *
+   * A drop running down a window does not travel over dry glass - it drags a
+   * tail of water and leaves a line of small beads clinging where it passed.
+   * That tail is most of what makes rain read as rain: without it the drops
+   * are dots that change position, and the eye reads them as a moving texture
+   * rather than as water going somewhere.
+   */
+  trail: { x: number; y: number; r: number }[];
+  /** Distance since the last bead was dropped, so trails do not clump. */
+  since: number;
 }
 
 /** Below this radius a drop never moves on its own. */
@@ -112,7 +124,7 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
      * on the glass; a heavy one reads as the picture being out of focus, which
      * is a different and much less interesting thing.
      */
-    blurred = make(6 * dpr);
+    blurred = make(14 * dpr);
   }
 
   function resize() {
@@ -148,16 +160,25 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
       speed: 0,
       drift: (Math.random() - 0.5) * 6 * dpr,
       cling: 0.4 + Math.random() * 3.5,
+      trail: [],
+      since: 0,
     };
   }
 
-  function drawDrop(drop: Drop) {
+  /**
+   * One bead, drawn as a lens.
+   *
+   * @param stretch how much taller than wide. A still drop is round; a running
+   * one is pulled out behind itself, which is what a drop on a window actually
+   * looks like and the reason a field of perfect circles reads as bubbles.
+   */
+  function drawBead(x: number, y: number, r: number, stretch = 1) {
     if (!sharp || !ctx) return;
-    const { x, y, r } = drop;
+    const ry = r * stretch;
 
     ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);
     ctx.clip();
 
     /*
@@ -171,22 +192,40 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
     const crop = (r * 2) / magnify;
     ctx.translate(x, y);
     ctx.scale(1, -1);
-    ctx.drawImage(sharp, x - crop / 2, y - crop / 2, crop, crop, -r, -r, r * 2, r * 2);
+    ctx.drawImage(sharp, x - crop / 2, y - crop / 2, crop, crop, -r, -ry, r * 2, ry * 2);
     ctx.restore();
 
     // A bead is brightest where the light enters and darkest just inside the
     // far edge - the two together are what give it volume rather than outline.
     ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);
     ctx.clip();
-    const shine = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, 0, x, y, r);
-    shine.addColorStop(0, 'rgba(255,255,255,0.42)');
-    shine.addColorStop(0.45, 'rgba(255,255,255,0.05)');
-    shine.addColorStop(1, 'rgba(0,0,0,0.12)');
+    const shine = ctx.createRadialGradient(x - r * 0.35, y - ry * 0.4, 0, x, y, Math.max(r, ry));
+    shine.addColorStop(0, 'rgba(255,255,255,0.5)');
+    shine.addColorStop(0.4, 'rgba(255,255,255,0.06)');
+    shine.addColorStop(1, 'rgba(0,0,0,0.16)');
     ctx.fillStyle = shine;
-    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.fillRect(x - r, y - ry, r * 2, ry * 2);
     ctx.restore();
+  }
+
+  function drawDrop(drop: Drop) {
+    // The tail first, so the head sits over it rather than under.
+    for (let i = 0; i < drop.trail.length; i += 1) {
+      const bead = drop.trail[i]!;
+      // Older beads are further back and smaller - a tail thins as it dries.
+      const age = (i + 1) / (drop.trail.length + 1);
+      drawBead(bead.x, bead.y, bead.r * (0.35 + age * 0.5));
+    }
+
+    /*
+     * The head, pulled out by how fast it is going. A drop barely moving is
+     * round; one sliding fast is drawn out behind itself. Capped, because past
+     * about twice its width it stops being a drop and becomes a stripe.
+     */
+    const stretch = Math.min(2.1, 1 + drop.speed / (140 * dpr));
+    drawBead(drop.x, drop.y, drop.r, stretch);
   }
 
   function step(dt: number) {
@@ -205,10 +244,34 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
         continue;
       }
 
-      drop.y += drop.speed * dt;
+      const moved = drop.speed * dt;
+      drop.y += moved;
       drop.x += drop.drift * dt;
       // A running drop keeps gathering weight, so it keeps speeding up.
       drop.speed += 42 * dpr * dt;
+
+      /*
+       * It leaves water behind it.
+       *
+       * A bead every so many pixels rather than every frame: tied to distance,
+       * a slow drop lays a dense tail and a fast one a stretched broken line,
+       * which is what actually happens. Tied to frames, both would look the
+       * same and the whole thing would change with the refresh rate.
+       */
+      drop.since += moved;
+      const gap = drop.r * 1.5;
+      if (drop.since > gap) {
+        drop.since = 0;
+        drop.trail.push({ x: drop.x, y: drop.y, r: drop.r });
+        // The tail is finite. Longer than this and it reads as a drawn line.
+        if (drop.trail.length > 14) drop.trail.shift();
+        /*
+         * And the drop pays for it. Water left on the glass is water no longer
+         * in the bead, so a runner thins as it goes and eventually stops -
+         * which is why a window does not simply empty itself.
+         */
+        drop.r *= 0.985;
+      }
 
       /*
        * It sweeps up what it passes. This is what makes trails read as trails:
@@ -227,7 +290,12 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
       }
     }
 
-    drops = drops.filter((d) => d.r > 0 && d.y - d.r < height + 20 * dpr);
+    /*
+     * Gone when it has run off the bottom, or when it has left so much of
+     * itself behind that there is nothing to see. Its tail goes with it, which
+     * is right: the beads it left are its own water.
+     */
+    drops = drops.filter((d) => d.r > 0.7 * dpr && d.y - d.r < height + 40 * dpr);
     // A ceiling, so a long session cannot accumulate its way into a slideshow.
     if (drops.length > 420) drops.splice(0, drops.length - 420);
   }
