@@ -62,6 +62,33 @@ export function WallpaperScreen() {
           </p>
         )}
 
+        {/*
+          Only while it is raining, because it is the only thing that makes a
+          sound. A switch for something that cannot happen is a switch that
+          teaches somebody the setting does nothing.
+        */}
+        {chosen === 'rain' && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={sound}
+            onClick={() => {
+              setRainSoundEnabled(!sound);
+              setSound(!sound);
+            }}
+            className={cn(
+              'focus-ring mb-4 flex w-full items-center justify-between rounded-xl',
+              'border border-line px-4 py-3 text-left',
+              'transition-colors duration-instant hover:bg-hover',
+            )}
+          >
+            <span className="text-body text-ink">Rain sound</span>
+            <span className="text-caption text-text-secondary">
+              {sound ? 'On, quietly' : 'Off'}
+            </span>
+          </button>
+        )}
+
         <div className="grid grid-cols-3 gap-3">
           {WALLPAPERS.map((wallpaper) => {
             const isCustom = wallpaper.id === 'custom';
@@ -124,33 +151,6 @@ export function WallpaperScreen() {
             );
           })}
         </div>
-
-        {/*
-          Only while it is raining, because it is the only thing that makes a
-          sound. A switch for something that cannot happen is a switch that
-          teaches somebody the setting does nothing.
-        */}
-        {chosen === 'rain' && (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={sound}
-            onClick={() => {
-              setRainSoundEnabled(!sound);
-              setSound(!sound);
-            }}
-            className={cn(
-              'focus-ring mt-4 flex w-full items-center justify-between rounded-xl',
-              'border border-line px-4 py-3 text-left',
-              'transition-colors duration-instant hover:bg-hover',
-            )}
-          >
-            <span className="text-body text-ink">Rain sound</span>
-            <span className="text-caption text-text-secondary">
-              {sound ? 'On, quietly' : 'Off'}
-            </span>
-          </button>
-        )}
 
         {/* Replacing an existing photo, without having to clear it first. */}
         {photo && (
