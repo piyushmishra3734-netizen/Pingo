@@ -198,6 +198,24 @@ export function ConversationMenu({
             menu whose first rows are about the conversation itself, which is
             not where anybody would look for it.
           */}
+          {/*
+            Here, not only in Settings.
+
+            It was reachable at Settings - Chats - Chat Wallpaper, which is
+            three taps away from the thing it changes and nowhere near where
+            anybody looks. Changing the wallpaper is something you decide while
+            looking at a conversation, so it belongs in the conversation's own
+            menu. The settings row stays, because that is where somebody who
+            has forgotten will go hunting.
+          */}
+          <Item
+            label="Chat wallpaper"
+            onSelect={() => {
+              setOpen(false);
+              navigate('/settings/wallpaper');
+            }}
+          />
+
           {onSelectMessages && (
             <Item label="Select messages" onSelect={() => run(onSelectMessages())} />
           )}
