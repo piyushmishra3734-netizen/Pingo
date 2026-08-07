@@ -78,6 +78,7 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
   let stopped = false;
   let running = false;
 
+  function rebuild() {
   void import('raindrop-fx')
     .then((mod) => {
       // The thread may have closed, or the wallpaper changed, while it loaded.
@@ -122,23 +123,51 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
        * search for. A wallpaper that fails should still not break the screen,
        * but it should say why it failed.
        */
-      console.warn('[rain] could not start', cause);
-    });
+        console.warn('[rain] could not start', cause);
+      });
+  }
 
-  const begin = () => {
+  function begin() {
     if (stopped || running || !fx) return;
     running = true;
     void fx.start();
-  };
+  }
 
-  const halt = () => {
+  function halt() {
     if (!running || !fx) return;
     running = false;
     fx.stop();
-  };
+  }
 
   const onVisibility = () => (document.hidden ? halt() : begin());
   document.addEventListener('visibilitychange', onVisibility);
+
+  /*
+   * A lost context has to be asked for again.
+   *
+   * The browser takes the GPU context back whenever it feels the need -
+   * backgrounding the app, another tab wanting the memory, the driver
+   * resetting. Nothing tells the library, so it goes on running its loop
+   * against a dead context and the wallpaper is black for the rest of the
+   * session. Observed here: the rain rendered, the tab lost focus for a
+   * moment, and it never came back.
+   *
+   * `preventDefault` on the loss is what makes restoration possible at all;
+   * without it the browser does not bother firing the restored event.
+   */
+  const onLost = (event: Event) => {
+    event.preventDefault();
+    running = false;
+    fx = undefined;
+  };
+  const onRestored = () => {
+    if (stopped) return;
+    // The old instance is bound to a context that no longer exists, so this
+    // builds a new one rather than trying to revive it.
+    rebuild();
+  };
+  canvas.addEventListener('webglcontextlost', onLost);
+  canvas.addEventListener('webglcontextrestored', onRestored);
 
   const onResize = () => {
     if (!fx) return;
@@ -156,7 +185,7 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
   });
   seen.observe(canvas);
 
-  begin();
+  rebuild();
 
   return {
     stop: () => {
@@ -164,6 +193,8 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
       halt();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
       seen.disconnect();
     },
   };
