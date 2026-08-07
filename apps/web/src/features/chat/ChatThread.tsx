@@ -684,9 +684,23 @@ export function ChatThread({
       <header
         className={cn(
           'z-100 flex shrink-0 items-center gap-3',
-          'glass-surface border-x-0 border-t-0 border-b-line',
+          /*
+            A panel that floats, not a bar that spans.
+
+            This was full width with square corners and a rule along the
+            bottom - a wall across the top of the screen. Every liquid-glass
+            reference does the opposite: the chrome is an object sitting over
+            the content with space all round it, and the content runs behind
+            and past it. A slab of glass has edges on all four sides; drawn
+            edge to edge it has two, and reads as a painted strip rather than
+            as a thing lying on top.
+
+            The composer already floats. This is the header catching up, and
+            it is most of what was still missing.
+          */
+          'glass-surface mx-2 mt-2 rounded-xl',
           'px-3 py-2.5',
-          'pt-[max(0.625rem,env(safe-area-inset-top))]',
+          'mt-[max(0.5rem,env(safe-area-inset-top))]',
         )}
       >
       {selection ? (
