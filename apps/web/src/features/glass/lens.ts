@@ -72,8 +72,14 @@ const MIN_HEIGHT = 40;
  * conversation. Low enough for a one-line bubble, high enough that a day pill
  * and a tick badge are left alone - below about this size the bend is smaller
  * than the corner radius and there is nothing to see.
+ *
+ * 2,000 rather than 3,000 because a real thread showed the difference: a
+ * four-letter reply measures 65 by 46, which is 2,990, and missed by ten square
+ * pixels. Short replies are most of a conversation, and having them be the one
+ * kind of bubble without refraction is the sort of inconsistency that reads as
+ * a bug without ever being noticed as one.
  */
-const WATER_MIN_AREA = 3_000;
+const WATER_MIN_AREA = 2_000;
 const WATER_MIN_HEIGHT = 32;
 
 /**

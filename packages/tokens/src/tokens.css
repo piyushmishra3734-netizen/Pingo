@@ -1088,9 +1088,19 @@
   /*
    * Water over a dark photograph shades rather than lightens, for the same
    * reason - and the ink above it is now white, so it gets the halo.
+   *
+   * The shade is light, and the halo carries what it used to.
+   *
+   * At 0.34 every bubble was a grey chip laid on the picture: the floor was set
+   * for the brightest patch a wallpaper might have and then charged to all of
+   * it, including the parts that were already dark enough to read white text
+   * against. Measured in a live thread over a photograph - at 0.20 the teal
+   * comes through the bubble and the rim bloom is finally visible, and the
+   * text stays legible because the halo is doing the work exactly where it is
+   * needed, which is per-glyph rather than per-panel.
    */
-  --water-tint: rgb(16 18 30 / 0.34);
-  --water-halo: 0 1px 2px rgb(0 0 0 / 0.45);
+  --water-tint: rgb(16 18 30 / 0.2);
+  --water-halo: 0 1px 3px rgb(0 0 0 / 0.55);
 }
 
 /**
