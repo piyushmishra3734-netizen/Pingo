@@ -101,7 +101,9 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
   let height = 0;
   let dpr = 1;
 
-  const rate = options.rate ?? 26;
+  // Heavier than it sounds: most arrivals are pinpricks that cling and never
+  // move, so a low rate leaves a pane that looks barely rained on.
+  const rate = options.rate ?? 46;
 
   function buildScene(source: CanvasImageSource, sw: number, sh: number) {
     const make = (blur: number) => {
@@ -141,7 +143,7 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
   }
 
   function seed() {
-    const target = still ? 160 : 70;
+    const target = still ? 220 : 150;
     for (let i = 0; i < target; i += 1) drops.push(born(Math.random() * height));
   }
 
@@ -182,32 +184,64 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
     ctx.clip();
 
     /*
-     * The lens. A bead of water inverts what is behind it and magnifies it, so
-     * the crop is taken from a small area, flipped, and blown up to fill the
-     * drop. `1.9` is where it stops looking like a smudge and starts looking
-     * like water; past about 3 the crop is so small that every drop shows the
-     * same flat colour.
+     * The lens, and it has to pull from further away than feels natural.
+     *
+     * A bead magnifies whatever is behind it - but if the scene is a soft
+     * photograph, a small magnified crop of it is the same colour as the blur
+     * around it, and the drop vanishes. Sampling a *wider* area and squeezing
+     * it into the bead is what puts contrast inside one: the drop shows a
+     * whole region of the picture at once, which is also what a real drop on a
+     * window does when the thing behind it is far away.
      */
-    const magnify = 1.9;
-    const crop = (r * 2) / magnify;
+    const crop = r * 7;
     ctx.translate(x, y);
     ctx.scale(1, -1);
     ctx.drawImage(sharp, x - crop / 2, y - crop / 2, crop, crop, -r, -ry, r * 2, ry * 2);
     ctx.restore();
 
-    // A bead is brightest where the light enters and darkest just inside the
-    // far edge - the two together are what give it volume rather than outline.
+    /*
+     * Volume, and it does most of the work.
+     *
+     * The lens alone leaves a drop that disappears wherever the picture behind
+     * it happens to be flat. Water does not do that: it has a bright point
+     * where the light enters, a dark band round the inside of the far edge
+     * where the surface curves away, and a hard little rim. Those three read
+     * as a bead against absolutely any backdrop, which is what makes this the
+     * part worth spending on.
+     */
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);
     ctx.clip();
-    const shine = ctx.createRadialGradient(x - r * 0.35, y - ry * 0.4, 0, x, y, Math.max(r, ry));
-    shine.addColorStop(0, 'rgba(255,255,255,0.5)');
-    shine.addColorStop(0.4, 'rgba(255,255,255,0.06)');
-    shine.addColorStop(1, 'rgba(0,0,0,0.16)');
-    ctx.fillStyle = shine;
+
+    const shade = ctx.createRadialGradient(
+      x - r * 0.3,
+      y - ry * 0.35,
+      r * 0.05,
+      x + r * 0.15,
+      y + ry * 0.2,
+      Math.max(r, ry) * 1.15,
+    );
+    shade.addColorStop(0, 'rgba(255,255,255,0.72)');
+    shade.addColorStop(0.22, 'rgba(255,255,255,0.14)');
+    shade.addColorStop(0.62, 'rgba(0,0,0,0.10)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.42)');
+    ctx.fillStyle = shade;
     ctx.fillRect(x - r, y - ry, r * 2, ry * 2);
     ctx.restore();
+
+    // The rim: a thin bright line low and right, where the pane's own light
+    // comes back up through the water. Only worth drawing above a size where
+    // it would be more than one pixel.
+    if (r > 2.2 * dpr) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 0.94, ry * 0.94, 0, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = Math.max(1, r * 0.14);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawDrop(drop: Drop) {
@@ -297,7 +331,7 @@ export function startRain(canvas: HTMLCanvasElement, options: RainOptions = {}):
      */
     drops = drops.filter((d) => d.r > 0.7 * dpr && d.y - d.r < height + 40 * dpr);
     // A ceiling, so a long session cannot accumulate its way into a slideshow.
-    if (drops.length > 420) drops.splice(0, drops.length - 420);
+    if (drops.length > 520) drops.splice(0, drops.length - 520);
   }
 
   function frame(now: number) {
