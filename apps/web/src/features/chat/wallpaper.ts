@@ -13,16 +13,34 @@
  * ## Presets are CSS, the custom one is a photograph
  *
  * A preset is a few hundred bytes of gradient, so all of them together cost
- * less than one icon. A photograph is the person's own and is kept as a data
- * URL in `localStorage` - which is a deliberate choice over IndexedDB: the
- * wallpaper has to be on screen in the first frame, and a store that has to be
- * opened asynchronously means a conversation that starts plain and changes
- * under you a moment later.
+ * less than one icon. The custom one is the person's own file, and it is kept
+ * exactly as they chose it.
  *
- * The picture is downscaled before it is stored. A modern phone camera
- * produces four megabytes; nothing behind a chat needs more than a screen's
- * worth, and `localStorage` would refuse the original anyway.
+ * ## Two copies, and why
+ *
+ * The original goes into IndexedDB as a `Blob`, untouched - not resized, not
+ * re-encoded, not even read. That is the copy you actually see. It never
+ * leaves the device, so there is no storage to be careful with beyond the
+ * browser's own quota, and being careful was costing the two things that
+ * matter: the quality the picture was picked for, and - on an animated GIF -
+ * the animation itself. A canvas can only ever hand back one frame, so
+ * anything that goes through one arrives as a poster.
+ *
+ * Beside it, in `localStorage`, sits a small downscaled preview.
+ *
+ * That is not a hedge, it is the first frame. IndexedDB has to be opened
+ * asynchronously, and a conversation that starts plain and gains a wallpaper a
+ * moment later is worse than one that never had it. So the preview - a few
+ * hundred kilobytes, synchronous, always there - paints immediately, and the
+ * original replaces it through `onWallpaperChange` as soon as the store
+ * answers. On a still picture the swap is invisible; on a GIF it is the moment
+ * it starts moving.
+ *
+ * The preview is also what the brightness test is run against, since deciding
+ * whether a thread needs light text only needs one frame of it.
  */
+
+import { STORE, localGet, localSet } from '../../lib/local/db.js';
 
 export interface Wallpaper {
   id: string;
@@ -93,34 +111,33 @@ export const WALLPAPERS: Wallpaper[] = [
 ];
 
 const KEY = 'pingo:wallpaper';
+/** The synchronous preview. The original lives in `STORE.media`. */
 const PHOTO_KEY = 'pingo:wallpaper-photo';
+/** Key of the original inside `STORE.media`. */
+const ORIGINAL = 'wallpaper';
 
 /**
- * How big a stored photo should be, in real device pixels.
+ * The preview's long edge, in real device pixels.
  *
- * The first version capped the long edge at 1400 and encoded at 0.72, which on
- * a phone is *below* the screen it is being shown on: a modern handset is
- * around 1200 by 2600 physical pixels, so a 1400-tall picture was being
- * stretched, and 0.72 put visible blocking in the smooth gradients that
- * wallpapers are mostly made of. It looked worse than the file the person
- * chose, which is the one thing it must never do.
- *
- * So it is sized to this screen rather than to a fixed number, and encoded
- * well. The cap is there because a desktop reporting a 4K display does not
- * need a 4K wallpaper behind a chat.
+ * Deliberately modest. This is only ever on screen for as long as IndexedDB
+ * takes to answer, and it has to fit in `localStorage` next to everything else
+ * the app keeps there - so it is sized to be unobjectionable for a few hundred
+ * milliseconds rather than to be the wallpaper. The original, which is what
+ * you look at, is not resized at all.
  */
-const MAX_EDGE = 2400;
+const PREVIEW_EDGE = 900;
 
-/** Tried in order until the result fits. See `setWallpaperPhoto`. */
-const QUALITIES = [0.92, 0.86, 0.78, 0.7];
+/** Tried in order until the preview fits. See `setWallpaperPhoto`. */
+const QUALITIES = [0.82, 0.7, 0.6];
 
 /**
  * Roughly what `localStorage` will take, allowing for everything else in it.
  *
  * Browsers give an origin about 5MB and base64 costs a third on top of the
- * bytes, so this is the point past which storing would throw.
+ * bytes. The preview is nowhere near this; the ladder above exists so that a
+ * very wide picture still lands under it rather than failing the whole upload.
  */
-const MAX_STORED = 3_200_000;
+const MAX_PREVIEW = 900_000;
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -133,13 +150,50 @@ export function chosenWallpaperId(): string {
   }
 }
 
+/**
+ * The original, once IndexedDB has answered. An object URL, or nothing yet.
+ *
+ * Module-level rather than passed around because every reader of this file is
+ * synchronous by design - see the note at the top - and they all need to get
+ * the better copy the moment it exists without any of them knowing it arrived.
+ */
+let originalUrl: string | undefined;
+
+/** The best copy available right now: the original if it has loaded, else the preview. */
 export function customWallpaperPhoto(): string | undefined {
+  if (originalUrl) return originalUrl;
   try {
     return window.localStorage.getItem(PHOTO_KEY) ?? undefined;
   } catch {
     return undefined;
   }
 }
+
+/** Points `originalUrl` at a blob, and releases whatever it pointed at before. */
+function adoptOriginal(blob: Blob | undefined): void {
+  if (originalUrl) URL.revokeObjectURL(originalUrl);
+  originalUrl = blob ? URL.createObjectURL(blob) : undefined;
+}
+
+/**
+ * Fetches the original in the background and tells everyone when it lands.
+ *
+ * Runs on import rather than being wired into a screen: the wallpaper is read
+ * by plain functions with no lifecycle of their own, and a chat opened in the
+ * first second should not have to wait for a component to remember to ask.
+ * Nothing depends on it having finished - until it does, the preview is what
+ * `customWallpaperPhoto` returns.
+ */
+async function hydrateOriginal(): Promise<void> {
+  const blob = await localGet<Blob>(STORE.media, ORIGINAL);
+  // A picture may have been chosen while this was in flight, and that one is
+  // newer than what the store had when this started.
+  if (!blob || originalUrl) return;
+  adoptOriginal(blob);
+  for (const listen of listeners) listen();
+}
+
+if (typeof window !== 'undefined') void hydrateOriginal();
 
 /**
  * The `background-image` for whatever is currently chosen.
@@ -196,32 +250,38 @@ export function setWallpaper(id: string): void {
 }
 
 /**
- * Stores a photograph as the custom wallpaper.
+ * Stores a picture as the custom wallpaper, at the size and quality it came in.
  *
- * @returns false when the picture could not be read or would not fit, so the
- * caller can say so rather than leaving somebody looking at the old one and
- * wondering.
+ * The file itself is written to IndexedDB untouched. Everything below that is
+ * about the preview and the brightness test, neither of which the person ever
+ * looks at directly.
+ *
+ * @returns false when the picture could not be read or the store refused it,
+ * so the caller can say so rather than leaving somebody looking at the old one
+ * and wondering.
  */
 export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
   try {
-    const bitmap = await createImageBitmap(file);
+    /*
+     * The original first, and byte for byte.
+     *
+     * `localSet` resolves to the key it wrote and to `undefined` on failure,
+     * which is how a quota refusal is caught - the alternative is a silent
+     * success where the wallpaper simply never comes back after a reload.
+     */
+    const stored = await localSet(STORE.media, ORIGINAL, file);
+    if (stored === undefined) return false;
 
     /*
-     * The target is this screen, in the pixels it actually has.
+     * Then the preview, which is a separate picture made for a separate job:
+     * something to paint in the first frame while the store is opening.
      *
-     * `screen.height` is in CSS pixels, so it has to be multiplied by the
-     * device ratio - on a phone that is usually 2.5 or 3, and leaving it out is
-     * exactly how a wallpaper ends up a third of the resolution of the display
-     * it is stretched across.
+     * `createImageBitmap` hands back a single frame, so on a GIF this is the
+     * poster - correct here, and exactly the reason the original above does
+     * not go anywhere near a canvas.
      */
-    const ratio = Math.min(3, window.devicePixelRatio || 1);
-    const target = Math.min(
-      MAX_EDGE,
-      Math.round(Math.max(window.screen.width, window.screen.height) * ratio),
-    );
-
-    // Never upscale: enlarging a small picture only makes a bigger blurry one.
-    const scale = Math.min(1, target / Math.max(bitmap.width, bitmap.height));
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, PREVIEW_EDGE / Math.max(bitmap.width, bitmap.height));
     const w = Math.max(1, Math.round(bitmap.width * scale));
     const h = Math.max(1, Math.round(bitmap.height * scale));
 
@@ -233,10 +293,7 @@ export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
     ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close();
 
-    /*
-     * How bright the picture is, so the thread knows whether to use light text.
-     * Sampled off the downscaled copy, which is the one that will be shown.
-     */
+    // How bright it is, so the thread knows whether to use light text.
     const sample = ctx.getImageData(0, 0, w, h).data;
     let sum = 0;
     for (let i = 0; i < sample.length; i += 4) {
@@ -244,22 +301,29 @@ export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
     }
     const luminance = sum / (sample.length / 4);
 
-    /*
-     * The best quality that fits, rather than one quality for everything.
-     *
-     * A wallpaper is mostly smooth gradient, which is where JPEG blocking is
-     * most visible, so this starts high and only steps down when the result
-     * would not survive being stored.
-     */
     let url = '';
     for (const quality of QUALITIES) {
       url = canvas.toDataURL('image/jpeg', quality);
-      if (url.length <= MAX_STORED) break;
+      if (url.length <= MAX_PREVIEW) break;
     }
-    if (!url || url.length > MAX_STORED) return false;
 
-    window.localStorage.setItem(PHOTO_KEY, url);
-    window.localStorage.setItem(PHOTO_KEY + ':dark', luminance < 128 ? '1' : '0');
+    /*
+     * A preview that will not fit is survivable, and losing the wallpaper over
+     * it would not be. The original is already stored; without a preview the
+     * thread simply starts on the default and swaps when IndexedDB answers,
+     * which is the behaviour on any second visit anyway.
+     */
+    try {
+      if (url && url.length <= MAX_PREVIEW) window.localStorage.setItem(PHOTO_KEY, url);
+      else window.localStorage.removeItem(PHOTO_KEY);
+      window.localStorage.setItem(PHOTO_KEY + ':dark', luminance < 128 ? '1' : '0');
+    } catch {
+      // A full store costs the first frame and nothing else.
+    }
+
+    // Straight onto the real thing - this path has the file in hand and does
+    // not need to wait for `hydrateOriginal` to come round again.
+    adoptOriginal(file);
     setWallpaper('custom');
     return true;
   } catch {

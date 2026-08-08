@@ -1,11 +1,12 @@
 import { CheckIcon, cn } from '@pingo/ui';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
 import {
   WALLPAPERS,
   chosenWallpaperId,
   customWallpaperPhoto,
+  onWallpaperChange,
   setWallpaper,
   setWallpaperPhoto,
 } from '../../features/chat/wallpaper.js';
@@ -28,6 +29,14 @@ export function WallpaperScreen() {
   const [sound, setSound] = useState(rainSoundEnabled);
   const [error, setError] = useState<string>();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * The original arrives after this screen has already rendered, since
+   * IndexedDB is opened asynchronously. Without this the swatch would keep
+   * showing the small preview - and on a GIF, a still one - until the screen
+   * was left and come back to.
+   */
+  useEffect(() => onWallpaperChange(() => setPhoto(customWallpaperPhoto())), []);
 
   const pick = (id: string) => {
     if (id === 'custom' && !photo) {

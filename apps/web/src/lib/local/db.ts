@@ -40,7 +40,7 @@ const DB_NAME = 'pingo';
  * `openDatabase` no longer depends on anyone remembering to change this. It is
  * still correct to change it, and it saves the reopen.
  */
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 /**
  * The stores, and what each is for.
@@ -89,6 +89,17 @@ export const STORE = {
    * to agree on real data.
    */
   messageRows: 'message-rows',
+  /**
+   * Files kept whole, exactly as they were chosen. The chat wallpaper so far.
+   *
+   * Blobs rather than strings, which is the reason this is not in
+   * `localStorage` with the rest of the wallpaper settings: a photograph
+   * straight off a phone is several megabytes, base64 adds a third to that,
+   * and the whole origin gets about five. Re-encoding it small enough to fit
+   * is what this store exists to stop - it costs the quality the person picked
+   * the picture for, and on an animated GIF it costs the animation.
+   */
+  media: 'media',
 } as const;
 
 /** Zero-padded so lexicographic order is chronological order. */
@@ -328,9 +339,19 @@ export async function requestPersistentStorage(): Promise<boolean> {
   }
 }
 
-/** Wipes everything. Called on sign-out - one device, one account's cache. */
+/**
+ * Wipes the account's cache. Called on sign-out - one device, one account.
+ *
+ * `media` is left alone, because it is not cache. What is in it is a display
+ * setting that belongs to the device: the chat wallpaper, which has always
+ * survived signing out - it lived in `localStorage` before it was large enough
+ * to need a store - and which nobody asked to start losing.
+ */
+const KEEP_ON_SIGN_OUT: StoreName[] = [STORE.media];
+
 export async function localClear(): Promise<void> {
   for (const name of Object.values(STORE)) {
+    if (KEEP_ON_SIGN_OUT.includes(name)) continue;
     await withStore(name, 'readwrite', (s) => s.clear());
   }
 }
