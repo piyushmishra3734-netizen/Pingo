@@ -217,6 +217,191 @@ async function round(size) {
   return sharp(square).composite([{ input: circle, blend: 'dest-in' }]).png().toBuffer();
 }
 
+/**
+ * The penguin with the tile taken away too, for the browser tab.
+ *
+ * Cutting the paper leaves the tile, and the tile is a pale glass square - so
+ * in a tab it still reads as a white box with a bird in it. What is wanted
+ * there is the mark alone.
+ *
+ * It cannot be lifted by colour: the tile's wash and the penguin's belly are
+ * within a point of each other. Connectivity separates them again, and this
+ * time the barrier is the bird itself. Flooding from the tile's own upper
+ * corners fills the wash around the head and stops dead at the dark plumage;
+ * the belly is sealed behind it - head above, flippers to either side, the
+ * tile's own bottom edge below - so the flood can never reach it. What
+ * survives is the penguin, entire, including the parts that are the same
+ * colour as what was removed.
+ */
+function penguinOnly() {
+  const at = (x, y) => rgb(left + x, top + y);
+
+  /*
+   * The bird is its plumage plus everything the plumage encloses.
+   *
+   * Three attempts went the other way - find the tile's wash and subtract it -
+   * and all three failed for the same reason, which only measuring the artwork
+   * revealed: the head carries a specular highlight that reaches pure white.
+   * It is brighter than the wash it was supposed to be separated from, so every
+   * flood walked straight through the head, into the face, and ate the belly.
+   * The bird came back as a penguin-shaped hole.
+   *
+   * Turning it around removes the problem instead of fighting it. The dark
+   * plumage is unambiguous at any sensible threshold. Fill what it encloses and
+   * the highlight is filled too - it is a hole in the head, and holes are
+   * exactly what this fills - so the gloss stops being a leak and becomes part
+   * of the mark, which is what it always was.
+   *
+   * The bottom edge is sealed because the artwork crops the penguin there: the
+   * belly is genuinely open at that edge, and a flood allowed in from below
+   * would empty it again.
+   */
+  const PLUMAGE = 150;
+
+  /*
+   * Filled by row, not by flooding.
+   *
+   * Flooding the space around the plumage should have worked and did not: the
+   * highlight touches the top of the dome, so there is a bright path from the
+   * wash into the head and down into the belly, and no tolerance closes it
+   * without also eating the bird.
+   *
+   * Every horizontal line across this penguin, though, enters through plumage
+   * and leaves through plumage - the dome at the top, a flipper on each side
+   * lower down. So the bird on any row is simply everything between its first
+   * and last dark pixel. No connectivity, no tolerance, nothing for the gloss
+   * to escape through, and the face and belly are included because they are
+   * between the flippers rather than because anything decided they were
+   * enclosed.
+   */
+  const dark = new Uint8Array(side * side);
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const p = at(x, y);
+      if ((p[0] + p[1] + p[2]) / 3 < PLUMAGE) dark[y * side + x] = 1;
+    }
+  }
+  /*
+   * Only the bird's own plumage defines a row.
+   *
+   * The tile's rim is dark enough in places to qualify, and a single rim pixel
+   * on a row above the head opens a span the full width of the tile - which
+   * showed up as a hairline bar floating over the mark. Keeping the largest
+   * connected piece of dark leaves the penguin, whose head joins both flippers,
+   * and drops everything that is merely dark.
+   */
+  {
+    const seen = new Int32Array(side * side).fill(-1);
+    let bestId = -1;
+    let bestSize = 0;
+    for (let s = 0; s < side * side; s++) {
+      if (!dark[s] || seen[s] !== -1) continue;
+      let size = 0;
+      const q = [s];
+      seen[s] = s;
+      while (q.length) {
+        const k = q.pop();
+        size++;
+        const x = k % side;
+        const y = (k - x) / side;
+        for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+          if (nx < 0 || ny < 0 || nx >= side || ny >= side) continue;
+          const n = ny * side + nx;
+          if (!dark[n] || seen[n] !== -1) continue;
+          seen[n] = s;
+          q.push(n);
+        }
+      }
+      if (size > bestSize) {
+        bestSize = size;
+        bestId = s;
+      }
+    }
+    for (let k = 0; k < side * side; k++) if (seen[k] !== bestId) dark[k] = 0;
+  }
+
+  const inside = new Uint8Array(side * side).fill(1);
+  for (let y = 0; y < side; y++) {
+    let first = -1;
+    let last = -1;
+    for (let x = 0; x < side; x++) {
+      if (!dark[y * side + x]) continue;
+      if (first < 0) first = x;
+      last = x;
+    }
+    // `inside` means "not the bird", so a row with no plumage stays excluded.
+    if (first < 0) continue;
+    for (let x = first; x <= last; x++) inside[y * side + x] = 0;
+  }
+
+
+  /*
+   * Only the bird, and nothing that merely survived alongside it.
+   *
+   * The flood stops where the wash stops, which leaves the tile's rim behind -
+   * a hairline arc at each corner, invisible on a white tab and plainly there
+   * on a dark one. It is not attached to the penguin, so taking the largest
+   * connected piece of what remains discards it without needing to describe
+   * what it is.
+   */
+  const survives = new Uint8Array(side * side);
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const k = y * side + x;
+      if (!inside[k] && !outside[(top + y) * W + (left + x)]) survives[k] = 1;
+    }
+  }
+  const label = new Int32Array(side * side).fill(-1);
+  let best = -1;
+  let bestSize = 0;
+  for (let seed = 0; seed < side * side; seed++) {
+    if (!survives[seed] || label[seed] !== -1) continue;
+    const id = seed;
+    let size = 0;
+    const q = [seed];
+    label[seed] = id;
+    while (q.length) {
+      const k = q.pop();
+      size++;
+      const x = k % side;
+      const y = (k - x) / side;
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        if (nx < 0 || ny < 0 || nx >= side || ny >= side) continue;
+        const n = ny * side + nx;
+        if (!survives[n] || label[n] !== -1) continue;
+        label[n] = id;
+        q.push(n);
+      }
+    }
+    if (size > bestSize) {
+      bestSize = size;
+      best = id;
+    }
+  }
+
+  const out = Buffer.alloc(side * side * 4);
+  let l = side, r = 0, t = side, b = 0;
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const k = y * side + x;
+      const keep = survives[k] && label[k] === best;
+      const p = at(x, y);
+      const i = k * 4;
+      out[i] = p[0];
+      out[i + 1] = p[1];
+      out[i + 2] = p[2];
+      out[i + 3] = keep ? 255 : 0;
+      if (keep) {
+        if (x < l) l = x;
+        if (x > r) r = x;
+        if (y < t) t = y;
+        if (y > b) b = y;
+      }
+    }
+  }
+  return { buffer: out, box: { left: l, top: t, width: r - l + 1, height: b - t + 1 } };
+}
+
 /** The adaptive icon's foreground layer: artwork only, on nothing. */
 async function foreground(size) {
   const art = await sharp(transparentTile)
@@ -266,6 +451,22 @@ console.log(`source ${W}x${H}, tile at ${left},${top} size ${side}, ground rgb($
 console.log('web:');
 await write('public/pingo-icon.png', await plain(512));
 await write('public/pingo-maskable.png', await bleed(512, 0.78));
+
+/*
+ * Squared around the mark before scaling, so the penguin is not stretched by
+ * being taller than it is wide.
+ */
+const { buffer: penguin, box } = penguinOnly();
+const markSide = Math.max(box.width, box.height);
+await write(
+  'public/pingo-favicon.png',
+  await sharp(penguin, { raw: { width: side, height: side, channels: 4 } })
+    .extract(box)
+    .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer(),
+);
+console.log(`   mark ${box.width}x${box.height} at ${box.left},${box.top} (square ${markSide})`);
 
 console.log('android:');
 const DENSITIES = [

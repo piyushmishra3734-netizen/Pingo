@@ -64,7 +64,7 @@ export default defineConfig({
        * costs correctness.
        */
       registerType: 'autoUpdate',
-      includeAssets: ['pingo-icon.png', 'pingo-maskable.png', 'pingo-wordmark.png'],
+      includeAssets: ['pingo-icon.png', 'pingo-favicon.png', 'pingo-maskable.png', 'pingo-wordmark.png'],
 
       manifest: {
         name: 'PINGO. Connect. Privately.',

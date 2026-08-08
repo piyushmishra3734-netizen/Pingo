@@ -68,7 +68,7 @@ function faviconLink(): HTMLLinkElement | undefined {
   // default, and one can be added for it to replace.
   const link = document.createElement('link');
   link.rel = 'icon';
-  link.href = '/pingo-icon.png';
+  link.href = '/pingo-favicon.png';
   document.head.appendChild(link);
   return link;
 }
@@ -154,7 +154,7 @@ export function useBrowserBadge(): void {
     const link = faviconLink();
     if (!captured.current) {
       originalTitle ??= document.title;
-      originalHref ??= link?.getAttribute('href') ?? '/pingo-icon.png';
+      originalHref ??= link?.getAttribute('href') ?? '/pingo-favicon.png';
       captured.current = true;
     }
 
@@ -169,7 +169,7 @@ export function useBrowserBadge(): void {
     document.title = `(${unreadChats > 9 ? '9+' : unreadChats}) ${base}`;
 
     let cancelled = false;
-    void loadBase(originalHref ?? '/pingo-icon.png').then((image) => {
+    void loadBase(originalHref ?? '/pingo-favicon.png').then((image) => {
       if (cancelled || !image || !link) return;
       const url = draw(image, unreadChats);
       if (url) link.href = url;
