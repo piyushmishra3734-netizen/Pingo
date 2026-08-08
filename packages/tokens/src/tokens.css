@@ -1214,6 +1214,44 @@
 }
 
 /**
+ * Opaque panels are not on the wallpaper, and must stop inheriting its ink.
+ *
+ * `[data-wallpaper-dark]` flips every foreground to white so that anything
+ * drawn *over* a dark photograph stays readable. A menu, a sheet or a popover
+ * is not drawn over the photograph - it paints its own solid surface first and
+ * sits on that. It inherited the white ink anyway, because it is inside the
+ * element carrying the attribute, and `--color-surface` is still white.
+ *
+ * Reported on the attach menu and the overflow menu: Gallery, Camera,
+ * Document, Location, Contact, Event, all white text on a white panel. There
+ * were fourteen files drawing opaque surfaces inside a thread, so this is
+ * keyed on the thing they have in common rather than fixed in each - and
+ * anything added later is covered without anybody remembering.
+ *
+ * ## Light theme only, deliberately
+ *
+ * The bug needs two things: ink flipped to white, and a surface that stayed
+ * white. In the dark theme the surface is already dark and the theme's own ink
+ * is already light, so the two agree and there is nothing to undo - applying
+ * this there would invert a panel that was correct.
+ */
+:root:not([data-theme='dark']) [data-wallpaper-dark] :is(.bg-surface, [class*='bg-surface']) {
+  /* The `:root` values, restated. Changing those means changing these. */
+  --color-text: #101114;
+  --color-ink: #101114;
+  --color-text-secondary: #6f7282;
+  --color-text-tertiary: rgba(16, 17, 20, 0.38);
+  --color-line: rgba(16, 17, 20, 0.07);
+  --color-line-strong: rgba(16, 17, 20, 0.12);
+  --color-sunken: #f8f9fd;
+  --color-hover: rgba(92, 108, 255, 0.06);
+  --color-pressed: rgba(92, 108, 255, 0.11);
+  /* Glyphs on a solid panel need no halo, and one would look like grime. */
+  --water-glyph-halo: none;
+  --water-halo: none;
+}
+
+/**
  * A glass control that gives when you press it.
  *
  * Three things at once, and all three are needed for it to read as a material
