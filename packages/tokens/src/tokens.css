@@ -1088,6 +1088,27 @@
   --color-text-tertiary: rgba(244, 245, 249, 0.5);
   --color-line: rgba(255, 255, 255, 0.12);
   --color-line-strong: rgba(255, 255, 255, 0.2);
+
+  /*
+   * The surfaces have to turn with the ink, and this is where they were left
+   * out.
+   *
+   * Every colour above is a *foreground*. Anything drawing itself on the
+   * wallpaper with `text-ink` got white text, and anything filling itself with
+   * `bg-sunken` kept `#f8f9fd` - so a filled control came out white on white.
+   * Measured on the deployed build: the composer's microphone button, a 44px
+   * circle of `#f8f9fd` holding a `#f4f5f9` icon, contrast 1.04. The icon was
+   * there the whole time and could not be seen. The reaction pills use the
+   * same pair and were one dark wallpaper away from the same thing.
+   *
+   * Translucent white rather than a fixed grey, so a control still reads as
+   * sitting on the photograph rather than as a chip cut out of it - which is
+   * the same reason the glass above takes a shade instead of a colour.
+   */
+  --color-sunken: rgba(255, 255, 255, 0.16);
+  --color-hover: rgba(255, 255, 255, 0.12);
+  --color-pressed: rgba(255, 255, 255, 0.2);
+
   /* Glass over a photograph takes a shade rather than a lift. */
   --glass-fill: rgba(18, 19, 26, 0.3);
   --glass-lift: rgb(255 255 255 / 0.1);
