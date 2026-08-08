@@ -146,6 +146,21 @@
   --color-away: #f0b252;
   --color-danger: #e5544b;
   --color-danger-soft: rgba(229, 84, 75, 0.1);
+  /*
+   * Caution, which is not failure.
+   *
+   * `text-warning` was already being written in six places - a backup that is
+   * enrolled on the account but not on this device, a lock about to run out of
+   * attempts - and there was no token behind it, so every one of them rendered
+   * as ordinary body text. The most consequential sentence on the backup screen
+   * looked exactly like the paragraph next to it.
+   *
+   * Its own colour rather than `danger`, because these are all states somebody
+   * can still act on, and a product that shouts in red at things that are
+   * merely worth noticing teaches people to ignore red.
+   */
+  --color-warning: #b7791f;
+  --color-warning-soft: rgba(183, 121, 31, 0.12);
 
   /* ---- Glass ------------------------------------------------------------ */
   /*

@@ -102,7 +102,7 @@ export function EnrolmentFlow({
           </p>
           <button
             type="button"
-            className="px-4 py-3 text-left text-accent"
+            className="px-4 py-3 text-left text-brand"
             onClick={() => (existingSecret ? void enable(existingSecret) : setStep('choose'))}
           >
             {existingSecret ? 'Enable with the lock you already set' : 'Choose how to unlock it'}

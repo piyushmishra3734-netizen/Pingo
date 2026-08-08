@@ -733,7 +733,7 @@ export function SecureBackupScreen() {
             <button
               type="button"
               disabled={drive?.phase === 'connecting'}
-              className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+              className="w-full px-4 py-3 text-left text-brand disabled:opacity-50"
               onClick={connectDrive}
             >
               {drive?.phase === 'connecting' ? 'Connecting…' : 'Connect Google Drive'}
@@ -742,7 +742,7 @@ export function SecureBackupScreen() {
             <button
               type="button"
               disabled={busyDrive || starting !== undefined}
-              className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+              className="w-full px-4 py-3 text-left text-brand disabled:opacity-50"
               onClick={() => runDrive('restore', recoverFromDrive)}
             >
               {drive?.phase === 'restoring'
@@ -767,7 +767,7 @@ export function SecureBackupScreen() {
           </p>
           <button
             type="button"
-            className="w-full px-4 py-3 text-left text-accent"
+            className="w-full px-4 py-3 text-left text-brand"
             onClick={() => setEnrolling(true)}
           >
             Enable Secure Backup
@@ -860,7 +860,7 @@ export function SecureBackupScreen() {
             <>
               <button
                 type="button"
-                className="w-full px-4 py-3 text-left text-accent"
+                className="w-full px-4 py-3 text-left text-brand"
                 onClick={() => setLockStep(lock ? (unlockedWith.current ? 'change' : 'unlock') : 'set')}
               >
                 {lock
@@ -972,7 +972,7 @@ export function SecureBackupScreen() {
               <button
                 type="button"
                 disabled={busyDrive || starting !== undefined}
-                className="pt-2 text-sm text-accent disabled:opacity-50"
+                className="pt-2 text-sm text-brand disabled:opacity-50"
                 onClick={() => runDrive('backup', driveBackupNow)}
               >
                 {starting === 'backup' ? 'Starting…' : 'Try again'}
@@ -1000,7 +1000,7 @@ export function SecureBackupScreen() {
             <button
               type="button"
               disabled={drive?.phase === 'connecting'}
-              className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+              className="w-full px-4 py-3 text-left text-brand disabled:opacity-50"
               onClick={connectDrive}
             >
               {drive?.phase === 'connecting'
@@ -1021,7 +1021,7 @@ export function SecureBackupScreen() {
               <button
                 type="button"
                 disabled={busyDrive || starting !== undefined}
-                className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+                className="w-full px-4 py-3 text-left text-brand disabled:opacity-50"
                 onClick={() => runDrive('backup', driveBackupNow)}
               >
                 {drive.phase === 'backing-up'
@@ -1033,7 +1033,7 @@ export function SecureBackupScreen() {
               <button
                 type="button"
                 disabled={busyDrive}
-                className="w-full px-4 py-3 text-left text-accent disabled:opacity-50"
+                className="w-full px-4 py-3 text-left text-brand disabled:opacity-50"
                 onClick={() => setConfirm('restore')}
               >
                 {drive.phase === 'restoring' ? 'Restoring…' : 'Restore Backup'}
@@ -1074,7 +1074,7 @@ export function SecureBackupScreen() {
               <button
                 type="button"
                 disabled={starting !== undefined}
-                className="py-2 text-left text-accent disabled:opacity-50"
+                className="py-2 text-left text-brand disabled:opacity-50"
                 onClick={() => runDrive('restore', confirmRestore)}
               >
                 {starting === 'restore' ? 'Starting…' : 'Yes, restore from Drive'}
