@@ -29,8 +29,8 @@ interface Look {
   detail?: string;
   /** A spinner reads as work in progress; an icon reads as a condition. */
   busy: boolean;
-  /** Filled, in its own colour. See the note on why this is not glass. */
-  fill: string;
+  /** The state's colour. Carried by the disc and the glow, not by the panel. */
+  tint: string;
   glow: string;
 }
 
@@ -45,14 +45,14 @@ const LOOKS: Record<NoticeKey, Look> = {
     label: 'No internet connection',
     detail: 'Messages will send when you reconnect',
     busy: false,
-    fill: 'linear-gradient(135deg, #e5544b, #d63a5c)',
-    glow: 'rgb(229 84 75 / 0.45)',
+    tint: '#e5544b',
+    glow: 'rgb(229 84 75 / 0.30)',
   },
   connecting: {
     label: 'Connecting…',
     busy: true,
-    fill: 'linear-gradient(135deg, #d99323, #c47a15)',
-    glow: 'rgb(200 130 30 / 0.42)',
+    tint: '#d9821f',
+    glow: 'rgb(200 130 30 / 0.28)',
   },
   /*
    * "Poor connection" and not "slow": slow sounds like the app, poor sounds
@@ -62,8 +62,8 @@ const LOOKS: Record<NoticeKey, Look> = {
     label: 'Poor connection',
     detail: 'This may take longer than usual',
     busy: true,
-    fill: 'linear-gradient(135deg, #d99323, #c47a15)',
-    glow: 'rgb(200 130 30 / 0.42)',
+    tint: '#d9821f',
+    glow: 'rgb(200 130 30 / 0.28)',
   },
   /*
    * Two recoveries, because they are not the same event.
@@ -77,14 +77,14 @@ const LOOKS: Record<NoticeKey, Look> = {
   restored: {
     label: 'Connected',
     busy: false,
-    fill: 'linear-gradient(135deg, #23b26b, #17a67a)',
-    glow: 'rgb(35 178 107 / 0.45)',
+    tint: '#17a67a',
+    glow: 'rgb(35 178 107 / 0.30)',
   },
   reconnected: {
     label: 'Back online',
     busy: false,
-    fill: 'linear-gradient(135deg, #23b26b, #17a67a)',
-    glow: 'rgb(35 178 107 / 0.45)',
+    tint: '#17a67a',
+    glow: 'rgb(35 178 107 / 0.30)',
   },
 };
 
@@ -179,29 +179,38 @@ export function ConnectionBanner() {
       )}
     >
       {/*
-        Filled, not glass.
+        Glass, with the colour concentrated rather than spread.
 
-        Everything else that floats in this product is glass, and glass is a
-        material for chrome that should recede. This is the one thing on screen
-        that has to be noticed before anything else - the first version was a
-        pale capsule with a small coloured dot and it read as decoration. So it
-        takes its own colour, at full strength, with a glow in that colour
-        underneath: the only saturated object on the screen, which is exactly
-        how the eye finds it.
+        It was a solid slab in the state's colour, which found the eye and did
+        it by being the one thing in the product that does not belong to the
+        product: everything else that floats here is glass, and PINGO's whole
+        argument is chrome that recedes until it has something to say.
+
+        A saturated block the width of the screen says it at the volume of an
+        alarm. So the panel is the app's own material and the colour lives in
+        one 32px disc and a soft bloom under the capsule - the same move the
+        unread badge makes, and it is found just as fast, because the eye goes
+        to the most saturated thing on screen and not to the largest.
       */}
       <div
         className={cn(
-          'flex items-center gap-3 rounded-2xl py-2.5 pr-5 pl-3.5',
-          'text-white motion-safe:animate-toast-in',
+          'glass-surface flex items-center gap-3 rounded-2xl py-2.5 pr-5 pl-3',
+          'motion-safe:animate-toast-in',
         )}
         style={{
-          backgroundImage: look.fill,
-          boxShadow: `0 2px 6px -2px ${look.glow}, 0 14px 34px -10px ${look.glow}`,
+          // Two shadows: a tight neutral one that grounds the capsule, and a
+          // wide one carrying the state's colour so the glow reads as belonging
+          // to the message rather than to the glass.
+          boxShadow: `0 1px 2px -1px rgb(18 20 38 / 0.22), 0 16px 40px -14px ${look.glow}`,
         }}
       >
         <span
           aria-hidden
-          className="relative grid size-8 shrink-0 place-items-center rounded-full bg-white/20"
+          className="relative grid size-8 shrink-0 place-items-center rounded-full text-white"
+          style={{
+            backgroundImage: `linear-gradient(140deg, ${look.tint}, color-mix(in srgb, ${look.tint} 72%, #000))`,
+            boxShadow: `0 4px 12px -4px ${look.glow}`,
+          }}
         >
           {/*
             A halo, only while something is wrong. It breathes rather than
@@ -209,7 +218,10 @@ export function ConnectionBanner() {
             the moment the news is good, so "Back online" reads as settled.
           */}
           {look.busy && (
-            <span className="absolute inset-0 rounded-full bg-white/30 motion-safe:animate-notice-halo" />
+            <span
+              className="absolute inset-0 rounded-full motion-safe:animate-notice-halo"
+              style={{ backgroundColor: look.tint }}
+            />
           )}
           {look.busy ? (
             <span className="relative size-4 rounded-full border-2 border-white/90 border-t-transparent motion-safe:animate-spin" />
@@ -221,10 +233,17 @@ export function ConnectionBanner() {
           )}
         </span>
 
+        {/*
+          The words are ink, not the state's colour. Colouring a whole sentence
+          is how a status turns into a warning label - the disc has already said
+          which kind of news this is, and the sentence only has to be readable.
+        */}
         <span className="min-w-0">
-          <span className="block text-caption font-semibold">{look.label}</span>
+          <span className="block text-caption font-semibold text-ink">{look.label}</span>
           {look.detail && (
-            <span className="block text-[11px] leading-tight text-white/80">{look.detail}</span>
+            <span className="block text-[11px] leading-tight text-text-secondary">
+              {look.detail}
+            </span>
           )}
         </span>
       </div>

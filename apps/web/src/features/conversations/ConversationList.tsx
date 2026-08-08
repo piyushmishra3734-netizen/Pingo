@@ -261,21 +261,21 @@ export function ConversationList({
                   }
                 />
                 <SelectionMenuItem
-                  label={`Select all (${ordered.length})`}
+                  label={t('select.selectAll', { n: ordered.length })}
                   onSelect={() => setSelectedIds(new Set(ordered.map((c) => c.id)))}
                 />
                 <SelectionMenuItem
-                  label={allSelected ? 'Remove from favourites' : 'Add to favourites'}
+                  label={allSelected ? t('select.removeFav') : t('select.addFav')}
                   onSelect={() =>
                     andClose(actions.favorite(selected.map((c) => c.id), !allSelected))
                   }
                 />
                 <SelectionMenuItem
-                  label="Add to list"
+                  label={t('select.addList')}
                   onSelect={() => setListsFor(selected.map((c) => c.id))}
                 />
                 <SelectionMenuItem
-                  label={allMuted ? 'Unmute notifications' : 'Mute notifications'}
+                  label={allMuted ? t('select.unmute') : t('select.mute')}
                   onSelect={() => {
                     if (!allMuted) {
                       // Muting asks *how long* rather than whether, which is a
@@ -290,7 +290,7 @@ export function ConversationList({
                   }}
                 />
                 <SelectionMenuItem
-                  label="Clear messages"
+                  label={t('select.clear')}
                   onSelect={() => {
                     void (async () => {
                       const go = await confirm({
@@ -300,7 +300,7 @@ export function ConversationList({
                             : `Clear ${selected.length} chats?`,
                         description:
                           'Every message goes from your side. The other people keep theirs, and the chats stay in your list.',
-                        confirmLabel: 'Clear messages',
+                        confirmLabel: t('select.clear'),
                       });
                       if (go) andClose(actions.clear(selected.map((c) => c.id)));
                     })();
@@ -315,7 +315,7 @@ export function ConversationList({
                 {only && (
                   <>
                     <SelectionMenuItem
-                      label="Chat info"
+                      label={t('select.chatInfo')}
                       onSelect={() => {
                         clearSelection();
                         navigate(`/chats/${only.id}`);
@@ -331,7 +331,7 @@ export function ConversationList({
                 )}
 
                 <SelectionMenuItem
-                  label="Delete"
+                  label={t('select.delete')}
                   danger
                   onSelect={() => setPendingDelete(selected)}
                 />

@@ -6,6 +6,7 @@ import { useReturnFocus } from './focus-restore.js';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * Filing chats into the user's own lists - "Work", "Family".
@@ -43,6 +44,7 @@ export interface ChatListsSheetProps {
 type Membership = 'none' | 'some' | 'all';
 
 export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsSheetProps) {
+  const t = useT();
   const { service, conversations } = useChat();
 
   /** Resolved live, so a filing that lands is a tick that appears. */
@@ -184,7 +186,7 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Add to list"
+          aria-label={t('lists.addTo')}
           onPointerDown={(event) => event.stopPropagation()}
           className={cn(
             'animate-panel-in relative flex w-full max-w-sm flex-col',
@@ -193,7 +195,7 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
           )}
         >
           <div className="shrink-0 px-4 pt-4 pb-2">
-            <h2 className="text-h2 text-ink">Add to list</h2>
+            <h2 className="text-h2 text-ink">{t('lists.addTo')}</h2>
             <p className="mt-1 text-caption text-text-secondary">
               {selected.length === 1
                 ? 'This chat can be in more than one.'
@@ -329,8 +331,8 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
                     if (event.key === 'Escape') setCreating(false);
                   }}
                   maxLength={40}
-                  placeholder="List name"
-                  aria-label="New list name"
+                  placeholder={t('lists.namePlaceholder')}
+                  aria-label={t('lists.newNameAria')}
                   className={cn(
                     'focus-ring min-w-0 flex-1 rounded-lg border border-line bg-page',
                     'px-3 py-2 text-body text-ink placeholder:text-text-tertiary',

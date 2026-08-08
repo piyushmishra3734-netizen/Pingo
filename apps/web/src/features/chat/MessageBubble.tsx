@@ -12,6 +12,7 @@ import {
 } from '@pingo/ui';
 import { useCallback } from 'react';
 
+import { useT } from '../i18n/useT.js';
 import {
   CallBubble,
   ContactBubble,
@@ -474,21 +475,22 @@ export function MessageBubble({
  * the one transition that carries meaning for the sender: they've seen it.
  */
 function DeliveryIndicator({ status }: { status: Message['status'] }) {
+  const t = useT();
   if (status === 'sending') {
-    return <PingoDot state="loading" size={3} label="Sending" className="ml-0.5" />;
+    return <PingoDot state="loading" size={3} label={t('thread.sending')} className="ml-0.5" />;
   }
 
   if (status === 'failed') {
-    return <span className="text-caption text-danger">Not sent</span>;
+    return <span className="text-caption text-danger">{t('thread.notSent')}</span>;
   }
 
   if (status === 'read') {
-    return <CheckDoubleIcon size={14} className="text-brand" title="Read" />;
+    return <CheckDoubleIcon size={14} className="text-brand" title={t('thread.read')} />;
   }
 
   if (status === 'delivered') {
-    return <CheckDoubleIcon size={14} className="text-text-tertiary" title="Delivered" />;
+    return <CheckDoubleIcon size={14} className="text-text-tertiary" title={t('thread.delivered')} />;
   }
 
-  return <CheckIcon size={14} className="text-text-tertiary" title="Sent" />;
+  return <CheckIcon size={14} className="text-text-tertiary" title={t('thread.sent')} />;
 }

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AuthScreen } from '../../features/auth/AuthScreen.js';
+import { useT } from '../../features/i18n/useT.js';
 import { useProfileSetup } from '../../features/profile/ProfileSetupFlow.js';
 import { SETUP_PROGRESS } from './progress.js';
 
@@ -25,6 +26,7 @@ import { SETUP_PROGRESS } from './progress.js';
 const MAX_NAME_LENGTH = 50;
 
 export function NameScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { displayName, setDisplayName } = useProfileSetup();
   const [touched, setTouched] = useState(false);
@@ -41,16 +43,16 @@ export function NameScreen() {
   return (
     <AuthScreen
       progress={SETUP_PROGRESS.name}
-      title="What should people call you?"
+      title={t('setup.nameTitle')}
       showBack={false}
       footer={
         <Button variant="primary" size="lg" block disabled={!valid} onClick={submit}>
-          Continue
+          {t('common.continue')}
         </Button>
       }
     >
       <TextField
-        label="Name"
+        label={t('setup.nameLabel')}
         value={displayName}
         onChange={(event) => {
           setDisplayName(event.target.value);
@@ -59,7 +61,7 @@ export function NameScreen() {
         onKeyDown={(event) => {
           if (event.key === 'Enter') submit();
         }}
-        placeholder="Piyush"
+        placeholder={t('setup.namePlaceholder')}
         // Names are proper nouns, so capitalise - but never autocorrect one.
         autoCapitalize="words"
         autoCorrect="off"

@@ -2,6 +2,8 @@ import { useChat, type Message, type PingRef } from '@pingo/core';
 import { CameraIcon, StorageIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { useT } from '../i18n/useT.js';
+
 /**
  * A Ping in the thread: closed, open, or gone.
  *
@@ -44,6 +46,7 @@ export function PingBubble({
   ping: PingRef;
   mine: boolean;
 }) {
+  const t = useT();
   const { service } = useChat();
 
   const [url, setUrl] = useState<string>();
@@ -187,7 +190,7 @@ export function PingBubble({
       >
         <CameraIcon size={18} />
         <span className="min-w-0 flex-1">
-          <span className="block text-caption font-medium">Ping sent</span>
+          <span className="block text-caption font-medium">{t('thread.pingSent')}</span>
           <span className="block text-caption text-white/70">
             {ping.views === 1 ? '1 view' : '2 views'}
           </span>

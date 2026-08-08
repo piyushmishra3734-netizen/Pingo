@@ -1,6 +1,8 @@
 import type { Message } from '@pingo/core';
 import { CloseIcon, IconButton, TrashIcon, cn } from '@pingo/ui';
 
+import { useT } from '../i18n/useT.js';
+
 /**
  * What the thread header becomes while messages are selected.
  *
@@ -46,6 +48,7 @@ export function MessageSelectionBar({
   onCopy,
   onDelete,
 }: MessageSelectionBarProps) {
+  const t = useT();
   const count = selected.length;
   const allMine = count > 0 && selected.every(mine);
 
@@ -58,12 +61,12 @@ export function MessageSelectionBar({
 
   return (
     <div className="flex items-center gap-1 px-1">
-      <IconButton label="Cancel selection" onClick={onCancel}>
+      <IconButton label={t('select.cancel')} onClick={onCancel}>
         <CloseIcon size={20} />
       </IconButton>
 
       <span className="flex-1 px-1 text-body font-medium text-ink" aria-live="polite">
-        {count} selected
+        {t('select.nSelected', { n: count })}
       </span>
 
       {anyText && (
@@ -75,7 +78,7 @@ export function MessageSelectionBar({
             'transition-colors duration-instant hover:bg-hover',
           )}
         >
-          Copy
+          {t('select.copy')}
         </button>
       )}
 
@@ -88,12 +91,12 @@ export function MessageSelectionBar({
             'text-danger transition-colors duration-instant hover:bg-danger-soft',
           )}
         >
-          Delete for everyone
+          {t('select.deleteEveryone')}
         </button>
       )}
 
       {/* Last, and an icon, because it is the destructive one you reach for. */}
-      <IconButton label="Delete for me" onClick={() => onDelete(false)}>
+      <IconButton label={t('select.deleteMe')} onClick={() => onDelete(false)}>
         <TrashIcon size={19} />
       </IconButton>
     </div>

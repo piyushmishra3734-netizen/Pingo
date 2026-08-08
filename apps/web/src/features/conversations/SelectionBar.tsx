@@ -11,6 +11,8 @@ import {
 } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { useT } from '../i18n/useT.js';
+
 /**
  * What the header becomes while chats are selected.
  *
@@ -50,6 +52,7 @@ export function SelectionBar({
   onDelete,
   menu,
 }: SelectionBarProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -79,10 +82,10 @@ export function SelectionBar({
   return (
     <div
       role="toolbar"
-      aria-label={`${selected.length} selected`}
+      aria-label={t('select.nSelected', { n: selected.length })}
       className="animate-panel-in flex items-center gap-1"
     >
-      <IconButton label="Cancel selection" variant="ghost" onClick={onCancel}>
+      <IconButton label={t('select.cancel')} variant="ghost" onClick={onCancel}>
         <CloseIcon size={21} />
       </IconButton>
 
@@ -96,7 +99,7 @@ export function SelectionBar({
       </span>
 
       <IconButton
-        label={allPinned ? 'Unpin' : 'Pin'}
+        label={allPinned ? t('select.unpin') : t('select.pin')}
         variant="ghost"
         onClick={() => onPin(!allPinned)}
       >
@@ -104,20 +107,20 @@ export function SelectionBar({
       </IconButton>
 
       <IconButton
-        label={allArchived ? 'Unarchive' : 'Archive'}
+        label={allArchived ? t('select.unarchive') : t('select.archive')}
         variant="ghost"
         onClick={() => onArchive(!allArchived)}
       >
         {allArchived ? <UnarchiveIcon size={20} /> : <ArchiveIcon size={20} />}
       </IconButton>
 
-      <IconButton label="Delete" variant="ghost" onClick={onDelete}>
+      <IconButton label={t('select.delete')} variant="ghost" onClick={onDelete}>
         <TrashIcon size={20} className="text-danger" />
       </IconButton>
 
       <div className="relative" ref={menuRef}>
         <IconButton
-          label="More actions"
+          label={t('select.more')}
           variant="ghost"
           onClick={() => setOpen((was) => !was)}
         >
@@ -127,7 +130,7 @@ export function SelectionBar({
         {open && (
           <div
             role="menu"
-            aria-label="More actions"
+            aria-label={t('select.more')}
             onClick={() => setOpen(false)}
             className={cn(
               'animate-panel-in absolute top-full right-0 z-200 mt-1 w-56 origin-top-right',

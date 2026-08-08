@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
+import { useT } from '../../features/i18n/useT.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
@@ -32,6 +33,7 @@ import { SETUP_PROGRESS } from './progress.js';
 type Outcome = 'granted' | 'denied' | 'unsupported';
 
 export function PermissionsScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const [asking, setAsking] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | undefined>();
@@ -67,8 +69,8 @@ export function PermissionsScreen() {
   return (
     <AuthScreen
       progress={SETUP_PROGRESS.permissions}
-      title="Allow Notifications"
-      subtitle="Stay updated."
+      title={t('setup.permissionsTitle')}
+      subtitle={t('setup.permissionsSub')}
       showBack={false}
       message={
         outcome === 'denied' ? (

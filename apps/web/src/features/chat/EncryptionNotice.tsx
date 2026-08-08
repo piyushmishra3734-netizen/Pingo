@@ -1,5 +1,7 @@
 import { LockIcon, cn } from '@pingo/ui';
 
+import { useT } from '../i18n/useT.js';
+
 /**
  * Quiet line under the typing indicator in a thread.
  *
@@ -8,6 +10,7 @@ import { LockIcon, cn } from '@pingo/ui';
  */
 
 export function EncryptionNotice({ className }: { className?: string }) {
+  const t = useT();
   return (
     <p
       className={cn(
@@ -17,7 +20,7 @@ export function EncryptionNotice({ className }: { className?: string }) {
       )}
     >
       <LockIcon size={11} className="shrink-0 text-text-tertiary" aria-hidden />
-      <span>End-to-end encrypted</span>
+      <span>{t('thread.e2ee')}</span>
     </p>
   );
 }

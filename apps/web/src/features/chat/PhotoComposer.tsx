@@ -2,6 +2,7 @@ import { cn } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
 
 import { SnapEditor } from '../camera/SnapEditor.js';
+import { useT } from '../i18n/useT.js';
 
 import { Overlay } from '../../components/Overlay.js';
 import { isAnimatedImage } from './animated-image.js';
@@ -37,6 +38,7 @@ export interface PhotoComposerProps {
 }
 
 export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
+  const t = useT();
   /** Object URLs, made once per file and revoked together. */
   const sources = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
   useEffect(() => () => sources.forEach(URL.revokeObjectURL), [sources]);
@@ -164,8 +166,8 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
               <input
                 value={caption}
                 onChange={(event) => setCaption(event.target.value)}
-                placeholder="Add a caption"
-                aria-label="Caption"
+                placeholder={t('thread.caption')}
+                aria-label={t('thread.caption')}
                 maxLength={1000}
                 className={cn(
                   'focus-ring w-full rounded-full border border-white/20 bg-white/10',
@@ -185,7 +187,7 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
                   once ? 'bg-white/20' : 'bg-transparent',
                 )}
               >
-                <span className="text-body text-white">View once</span>
+                <span className="text-body text-white">{t('thread.viewOnce')}</span>
                 <span className="text-caption text-white/60">
                   {once ? 'Opens once, then gone' : 'Stays in the chat'}
                 </span>

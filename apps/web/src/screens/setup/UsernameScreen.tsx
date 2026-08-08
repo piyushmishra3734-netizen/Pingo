@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
+import { useT } from '../../features/i18n/useT.js';
 import { useProfileSetup } from '../../features/profile/ProfileSetupFlow.js';
 import { SETUP_PROGRESS } from './progress.js';
 
@@ -43,6 +44,7 @@ import { SETUP_PROGRESS } from './progress.js';
 const DEBOUNCE_MS = 400;
 
 export function UsernameScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { service, create } = useProfile();
   const { displayName } = useProfileSetup();
@@ -119,7 +121,7 @@ export function UsernameScreen() {
   return (
     <AuthScreen
       progress={SETUP_PROGRESS.username}
-      title="Choose Username"
+      title={t('setup.usernameTitle')}
       showBack={false}
       message={error && <AuthMessage>{error}</AuthMessage>}
       footer={
@@ -136,7 +138,7 @@ export function UsernameScreen() {
       }
     >
       <TextField
-        label="Username"
+        label={t('setup.usernameLabel')}
         value={username}
         // § 9.2: normalised as typed, so nothing is "corrected" after the fact.
         onChange={(event) => setUsername(normaliseUsername(event.target.value))}
@@ -154,7 +156,7 @@ export function UsernameScreen() {
         leading={<span className="text-body text-text-secondary">@</span>}
         trailing={
           checking ? (
-            <PingoDot state="loading" size={5} label="Checking" />
+            <PingoDot state="loading" size={5} label={t('setup.usernameChecking')} />
           ) : available === true ? (
             <span className="grid size-5 place-items-center rounded-full bg-brand text-white">
               <CheckIcon size={12} strokeWidth={3} />
@@ -188,7 +190,7 @@ export function UsernameScreen() {
 
       {suggestions.length > 0 && (
         <div className="mt-5">
-          <p className="text-caption font-medium text-text-secondary">Try one of these</p>
+          <p className="text-caption font-medium text-text-secondary">{t('setup.usernameTry')}</p>
           <div className="mt-2.5 flex flex-wrap gap-2">
             {suggestions.map((suggestion) => (
               <button

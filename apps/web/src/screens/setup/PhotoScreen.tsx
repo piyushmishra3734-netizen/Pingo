@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
+import { useT } from '../../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../../features/profile/AvatarPhotoEditor.js';
 import { SETUP_PROGRESS } from './progress.js';
 
@@ -26,6 +27,7 @@ import { SETUP_PROGRESS } from './progress.js';
 const MAX_BYTES = 8 * 1024 * 1024;
 
 export function PhotoScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { service, profile, update } = useProfile();
 
@@ -116,7 +118,7 @@ export function PhotoScreen() {
 
       <AuthScreen
         progress={SETUP_PROGRESS.photo}
-        title="Add Profile Photo"
+        title={t('setup.photoTitle')}
         showBack={false}
         message={error && <AuthMessage>{error}</AuthMessage>}
         footer={

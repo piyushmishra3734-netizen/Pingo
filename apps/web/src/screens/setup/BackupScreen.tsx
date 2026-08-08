@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AuthScreen } from '../../features/auth/AuthScreen.js';
 import { EnrolmentFlow } from '../../features/backup/EnrolmentFlow.js';
+import { useT } from '../../features/i18n/useT.js';
 import { ServerBackupTarget } from '../../lib/backup/server-target.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { SETUP_PROGRESS } from './progress.js';
@@ -25,6 +26,7 @@ import { SETUP_PROGRESS } from './progress.js';
  * they never chose to keep.
  */
 export function BackupScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const client = useMemo(() => getSupabaseClient(), []);
   const targets = useMemo(() => [new ServerBackupTarget(client)], [client]);
@@ -45,8 +47,8 @@ export function BackupScreen() {
   return (
     <AuthScreen
       progress={SETUP_PROGRESS.backup}
-      title="Secure Backup"
-      subtitle="Keep your chats if you lose this phone."
+      title={t('setup.backupTitle')}
+      subtitle={t('setup.backupSub')}
     >
       {/*
         The sequence, the warning and the cancel semantics all live in

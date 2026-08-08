@@ -1,5 +1,7 @@
 import { cn } from '@pingo/ui';
 
+import { useT } from '../i18n/useT.js';
+
 /**
  * Quiet in-thread boundary between older and newly arrived messages.
  *
@@ -7,10 +9,11 @@ import { cn } from '@pingo/ui';
  * divider rather than a banner.
  */
 export function NewMessagesDivider({ className }: { className?: string }) {
+  const t = useT();
   return (
     <div
       role="separator"
-      aria-label="New messages"
+      aria-label={t('thread.newMessages')}
       className={cn(
         'flex items-center gap-3 py-3',
         'motion-safe:animate-[fade-in_var(--duration-quick)_var(--ease-standard)_both]',
@@ -18,7 +21,7 @@ export function NewMessagesDivider({ className }: { className?: string }) {
       )}
     >
       <span className="h-px min-w-0 flex-1 bg-divider" aria-hidden />
-      <span className="shrink-0 text-caption text-text-tertiary">New Messages</span>
+      <span className="shrink-0 text-caption text-text-tertiary">{t('thread.newMessages')}</span>
       <span className="h-px min-w-0 flex-1 bg-divider" aria-hidden />
     </div>
   );

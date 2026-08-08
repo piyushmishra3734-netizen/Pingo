@@ -268,7 +268,7 @@ export function EditProfileScreen() {
         */}
         <div className="mt-8 space-y-4">
           <TextField
-            label="Display name"
+            label={t('profile.displayName')}
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             maxLength={50}
@@ -284,7 +284,7 @@ export function EditProfileScreen() {
           />
 
           <TextField
-            label="Username"
+            label={t('profile.username')}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             leading={<span className="text-text-tertiary">@</span>}
@@ -333,7 +333,7 @@ export function EditProfileScreen() {
                 onChange={(event) => setBio(event.target.value.slice(0, BIO_LIMIT))}
                 rows={4}
                 maxLength={BIO_LIMIT}
-                placeholder="A line about you. Emoji, a link, whatever fits."
+                placeholder={t('profile.bioPlaceholder')}
                 className={cn(
                   'w-full resize-none bg-transparent px-4 pt-3 pb-8',
                   'text-body text-ink outline-none placeholder:text-text-tertiary',
