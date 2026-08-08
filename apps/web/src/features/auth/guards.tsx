@@ -3,6 +3,7 @@ import { PingoDot } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
+import { isAddingAccount } from './adding-account.js';
 import { guestAuthPath, hasIntroSeen } from './intro-seen.js';
 
 /**
@@ -78,8 +79,16 @@ export function RequireGuest({ children }: { children?: ReactNode }) {
    * `?add=1` is set only by that button. Signing in from here replaces the
    * current session, which is safe because it has already been saved - the
    * switcher brings it back in a tap.
+   *
+   * The query string alone was not enough. It only survives the screen it is
+   * on, and Welcome hands off to `/login` or `/signup` without it - so the
+   * guard fired on the very next tap and returned the person to the account
+   * they were adding one alongside. The flag carries the intent through the
+   * whole flow; the query string stays because it is what makes the first hop
+   * work when storage is blocked.
    */
-  const addingAccount = new URLSearchParams(location.search).get('add') === '1';
+  const addingAccount =
+    new URLSearchParams(location.search).get('add') === '1' || isAddingAccount();
 
   if (status === 'loading') return <Resolving />;
   if (status === 'authenticated' && !addingAccount) return <Navigate to="/chats" replace />;

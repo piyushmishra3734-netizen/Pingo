@@ -8,6 +8,7 @@ import { ConnectionBanner } from '../features/connection/ConnectionBanner.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
 import { startLensing } from '../features/glass/lens.js';
+import { doneAddingAccount } from '../features/auth/adding-account.js';
 
 /**
  * The shell every signed-in screen renders inside.
@@ -34,6 +35,15 @@ export function AppShell() {
    * React knows which elements have it.
    */
   useEffect(() => startLensing(), []);
+
+  /*
+   * Whatever they were in the middle of, they are inside the app now.
+   *
+   * This shell only mounts behind the session gate, so reaching it means the
+   * add-an-account journey has either finished or been abandoned. Left set, the
+   * flag would keep `RequireGuest` open on Welcome for the rest of the tab.
+   */
+  useEffect(() => doneAddingAccount(), []);
 
   const { ready } = useChat();
   const location = useLocation();

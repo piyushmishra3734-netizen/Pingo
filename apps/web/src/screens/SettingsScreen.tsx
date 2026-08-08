@@ -23,6 +23,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useAppearance } from '../features/settings/SettingsContext.js';
 import { SettingsRow } from '../features/settings/SettingsRow.js';
 import { useSignOut } from '../features/settings/useSignOut.js';
+import { beginAddingAccount } from '../features/auth/adding-account.js';
 import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
 
 /**
@@ -236,6 +237,10 @@ export function SettingsScreen() {
            * saved. Coming back through the switcher restores it in a tap.
            */
           setSwitcherOpen(false);
+          // Carried in storage as well as the URL: the query string does not
+          // survive Welcome handing off to Log In or Sign up, and without it
+          // the guard sent people straight back here.
+          beginAddingAccount();
           navigate('/welcome?add=1');
         }}
       />

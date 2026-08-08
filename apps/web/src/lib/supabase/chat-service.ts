@@ -1305,15 +1305,25 @@ export class SupabaseChatService implements ChatService {
      * back only when it fails - so an offline launch opens on the conversations
      * you had rather than on an empty screen with an error.
      */
+    /*
+     * Keyed by account, not by the word "all".
+     *
+     * One record per device meant the offline fallback below could hand a
+     * signed-in account the previous account's conversation list - the same
+     * crossing as the startup snapshot, and the list carries a preview line
+     * from every chat. Two accounts on one phone is the ordinary case here.
+     */
+    const key = await this.#userId();
+
     try {
       const live = await this.#listConversationsFromNetwork();
       // Sealed too. The list carries message previews, which is to say it
       // carries the first line of every conversation you have.
-      void sealRecord(live).then((sealed) => localSet(STORE.conversations, 'all', sealed));
+      void sealRecord(live).then((sealed) => localSet(STORE.conversations, key, sealed));
       return live;
     } catch (cause) {
       const cached = await openRecord<Conversation[]>(
-        await localGet<unknown>(STORE.conversations, 'all'),
+        await localGet<unknown>(STORE.conversations, key),
       );
       if (cached) return cached;
       throw cause;
@@ -1696,7 +1706,28 @@ export class SupabaseChatService implements ChatService {
     // A snapshot with no conversations is indistinguishable from a fresh
     // account, and painting an empty list that fills in a second later is
     // worse than waiting. Treated as absent.
-    return snapshot && snapshot.conversations.length > 0 ? snapshot : undefined;
+    if (!snapshot || snapshot.conversations.length === 0) return undefined;
+
+    /*
+     * And it has to belong to whoever is signed in now.
+     *
+     * There is one snapshot per device, not one per account, so after
+     * switching accounts this handed the new session the previous account's
+     * conversations, contacts and profile - painted instantly, before any
+     * network call could correct it. It is why switching appeared not to work
+     * at all: you tapped a different face and arrived at the same chat list.
+     *
+     * It is also the more serious half of that bug. The cache is sealed to the
+     * device rather than to the account, so it opens perfectly well for the
+     * wrong person - two accounts on one phone is the ordinary case here, not
+     * an exotic one.
+     *
+     * Discarded rather than deleted: the other account's snapshot is still
+     * correct for the other account, and leaving it is what keeps switching
+     * back fast.
+     */
+    const me = await this.#userId();
+    return snapshot.currentUser.id === me ? snapshot : undefined;
   }
 
   async cacheStartup(snapshot: StartupSnapshot): Promise<void> {
