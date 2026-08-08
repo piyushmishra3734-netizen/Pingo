@@ -189,7 +189,7 @@ export function ShareScreen() {
               className="size-14 shrink-0 rounded-lg object-cover"
             />
           ) : (
-            <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-sunken text-h3">
+            <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-sunken text-h2">
               {/* Stands in for the thumbnail there is no point drawing. */}
               {!first ? '🔗' : first.type.startsWith('video/') ? '🎬' : '📄'}
             </span>

@@ -162,13 +162,13 @@ export function Dock() {
                 */}
                 {to === '/notifications' && !isActive && unreadNotifications > 0 && (
                   <span
-                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.18)] ring-2 ring-glass"
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.18)] ring-2 ring-surface"
                     aria-label={`${unreadNotifications} unread notifications`}
                   />
                 )}
                 {to === '/profile' && communities && unreadNotifications > 0 && (
                   <span
-                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.18)] ring-2 ring-glass"
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.18)] ring-2 ring-surface"
                     aria-label={`${unreadNotifications} unread notifications`}
                   />
                 )}

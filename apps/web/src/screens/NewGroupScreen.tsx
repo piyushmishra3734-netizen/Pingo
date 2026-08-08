@@ -175,7 +175,7 @@ export function NewGroupScreen() {
             placeholder="Group name"
             autoFocus
             className={cn(
-              'w-full rounded-md border border-border bg-surface px-3.5 py-2.5 text-body',
+              'w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-body',
               'placeholder:text-text-tertiary',
               'transition-colors duration-quick',
               'focus:border-brand focus:outline-none',
@@ -246,7 +246,7 @@ export function NewGroupScreen() {
                         'transition-colors duration-quick',
                         on
                           ? 'border-brand bg-brand text-on-brand'
-                          : 'border-border text-transparent',
+                          : 'border-line text-transparent',
                       )}
                     >
                       <CheckIcon size={14} />

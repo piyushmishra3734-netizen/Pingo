@@ -57,7 +57,7 @@ export function JourneyOverview({
     <section className="px-4 pt-5">
       <Card elevation="flat" className="p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-title">Level {level.level}</p>
+          <p className="text-h2">Level {level.level}</p>
           <p className="text-caption text-text-tertiary">
             {moments(level.xpTotal)}
           </p>
@@ -370,7 +370,7 @@ export function StatisticsPlaceholder({
         {items.map((item) => (
           <Card key={item.id} elevation="flat" className="p-3.5">
             <p className="text-caption text-text-tertiary">{item.label}</p>
-            <p aria-hidden className="pt-2 text-title text-text-tertiary/40">
+            <p aria-hidden className="pt-2 text-h2 text-text-tertiary/40">
               —
             </p>
           </Card>

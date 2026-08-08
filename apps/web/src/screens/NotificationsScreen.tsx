@@ -418,14 +418,14 @@ function NotificationRow({
           size="md"
           className={cn(
             'transition-[box-shadow,ring] duration-quick',
-            unread && 'ring-2 ring-brand/25 ring-offset-2 ring-offset-glass',
+            unread && 'ring-2 ring-brand/25 ring-offset-2 ring-offset-page',
           )}
         />
         <span
           aria-hidden
           className={cn(
             'absolute -right-0.5 -bottom-0.5 grid size-5 place-items-center rounded-full',
-            'bg-surface text-brand shadow-sm ring-2 ring-glass',
+            'bg-surface text-brand shadow-sm ring-2 ring-surface',
           )}
         >
           <Icon size={11} strokeWidth={2.2} />

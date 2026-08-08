@@ -141,7 +141,7 @@ export function MessageInfoSheet({
             </p>
           )}
 
-          <section className="border-t border-border pt-4 text-caption text-text-tertiary">
+          <section className="border-t border-line pt-4 text-caption text-text-tertiary">
             <p>Sent {new Date(message.createdAt).toLocaleString()}</p>
             {message.editedAt && <p>Edited {new Date(message.editedAt).toLocaleString()}</p>}
           </section>

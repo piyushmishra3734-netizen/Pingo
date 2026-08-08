@@ -145,7 +145,7 @@ export function JourneyScreen() {
   })).filter((section) => section.entries.length > 0);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="flex min-h-dvh flex-col bg-page">
       <ScreenHeader title="Journey" showBack />
 
       {/*

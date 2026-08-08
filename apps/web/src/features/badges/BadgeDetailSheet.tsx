@@ -52,7 +52,7 @@ export function BadgeDetailSheet({
         <Badge badge={badge} unlocked={unlocked} size={104} celebrate={unlocked} />
 
         <div className="space-y-1.5">
-          <h3 className="text-title">{badge.title}</h3>
+          <h3 className="text-h2">{badge.title}</h3>
           <p className="mx-auto max-w-xs text-body text-text-secondary">{badge.description}</p>
         </div>
 

@@ -84,7 +84,7 @@ export function LifeChapters({ chapters }: { chapters: Chapter[] }) {
             return (
               <li key={chapter.year}>
                 <div className="flex items-baseline gap-3">
-                  <h3 className="text-title tabular-nums">{chapter.year}</h3>
+                  <h3 className="text-h2 tabular-nums">{chapter.year}</h3>
                   {note ? <p className="text-caption text-text-tertiary">{note}</p> : null}
                 </div>
 
@@ -127,7 +127,7 @@ function MomentRow({ moment }: { moment: ChapterMoment }) {
               // Joining is the one moment with no badge that still deserves a
               // filled mark; everything else is an outline, so the line does
               // not read as a row of buttons.
-              moment.kind === 'joined' ? 'bg-brand' : 'border border-line bg-bg',
+              moment.kind === 'joined' ? 'bg-brand' : 'border border-line bg-page',
             )}
           />
         )}

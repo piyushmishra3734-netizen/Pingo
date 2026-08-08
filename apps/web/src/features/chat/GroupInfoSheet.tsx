@@ -224,7 +224,7 @@ export function GroupInfoSheet({
       </ul>
 
       {iAmAdmin && (
-        <section className="mt-5 border-t border-border pt-4">
+        <section className="mt-5 border-t border-line pt-4">
           <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
             Invite link
           </h3>
@@ -262,7 +262,7 @@ export function GroupInfoSheet({
         </section>
       )}
 
-      <div className={cn('mt-5 border-t border-border pt-4')}>
+      <div className={cn('mt-5 border-t border-line pt-4')}>
         <Button
           variant="text"
           className="w-full text-danger"
