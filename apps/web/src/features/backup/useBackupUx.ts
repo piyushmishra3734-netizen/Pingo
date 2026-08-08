@@ -20,8 +20,10 @@ import {
   INITIAL_REMINDERS,
   afterDismissed,
   afterEnabled,
+  afterRestoreSkipped,
   afterShown,
   shouldShowReminder,
+  shouldShowRestore,
   withInterval,
   type ReminderInterval,
   type ReminderState,
@@ -160,8 +162,14 @@ export function useBackupUx(): BackupUx {
        */
       const canRestore = !status.local && (status.targets.some((t) => t.present) ?? false);
       setRestoreAvailable(canRestore);
-      // Re-opened on every refresh *unless* it was answered this session.
-      setRestoreOpen(canRestore && !restoreSkipped.current);
+      /*
+       * Answered *ever*, not answered this session.
+       *
+       * The skip lived in a ref, so it lasted exactly as long as the page did
+       * and the card came back on every launch - which is the pop-up on the
+       * chat list, and it took no notice of the reminder interval at all.
+       */
+      setRestoreOpen(shouldShowRestore(stored, canRestore) && !restoreSkipped.current);
       setReminders(stored);
 
       // Whatever this device already knows about the last backup, for the card.
@@ -255,6 +263,9 @@ export function useBackupUx(): BackupUx {
       restoreSkipped.current = true;
       setRestoreOpen(false);
       void record('backup.restore.skipped');
+      // Written down, so it is still true after a reload. The ref above only
+      // stops it flashing back before this resolves.
+      void update(afterRestoreSkipped(reminders));
     },
     setInterval: async (interval) => update(withInterval(reminders, interval)),
     markBackupEnabled: async () => {

@@ -1,4 +1,4 @@
-import { Button } from '@pingo/ui';
+import { Button, StorageIcon, cn } from '@pingo/ui';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -141,11 +141,38 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
   if (!ux.showRestore) return null;
 
   return (
-    <section className="mx-3 mb-2 rounded-xl bg-surface p-4 shadow-sm">
-      <p className="text-sm font-semibold text-ink">Backup found</p>
-      <p className="pt-1 text-caption text-text-secondary">
-        We found your chats in Google Drive. Restore them to this device?
-      </p>
+    <section
+      className={cn(
+        'relative mx-3 mb-2 overflow-hidden rounded-2xl',
+        'border border-line/60 bg-surface p-4',
+        'shadow-[0_1px_2px_-1px_rgb(18_20_38/0.18),0_10px_30px_-16px_rgb(34_38_82/0.35)]',
+      )}
+    >
+      {/*
+        A wash of the brand behind the top edge, so the card reads as the
+        product speaking rather than as a system alert. Very low, because this
+        appears above somebody's conversations and has to be the second thing
+        they look at, not the first.
+      */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-brand/[0.07] to-transparent"
+      />
+
+      <div className="relative flex items-start gap-3">
+        <span
+          aria-hidden
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand"
+        >
+          <StorageIcon size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-body font-semibold text-ink">Your chats are backed up</p>
+          <p className="pt-0.5 text-caption text-text-secondary">
+            This device is new. Bring your history back from Google Drive.
+          </p>
+        </div>
+      </div>
 
       {/*
         Where it is, when it was, how big.
@@ -154,36 +181,51 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
         connected Drive yet has no date or size, and inventing one to look
         confident would be the wrong kind of reassurance.
       */}
-      <dl className="pt-2 text-caption text-text-secondary">
-        <div className="flex justify-between py-0.5">
-          <dt>Google Drive</dt>
-          <dd>{ux.backupWhen ?? ' - '}</dd>
-        </div>
-        {ux.backupSize ? (
-          <div className="flex justify-between py-0.5">
-            <dt>Size</dt>
-            <dd>{ux.backupSize}</dd>
-          </div>
-        ) : null}
-      </dl>
-      <Button
-        block
-        size="sm"
-        className="mt-3"
-        onClick={() => {
-          void record('backup.restore.accepted');
-          navigate('/settings/secure-backup');
-        }}
-      >
-        Restore chats
-      </Button>
-      <button
-        type="button"
-        className="focus-ring mt-1 w-full rounded-md px-3 py-2 text-sm text-muted"
-        onClick={ux.skipRestore}
-      >
-        Not now
-      </button>
+      {(ux.backupWhen || ux.backupSize) && (
+        <dl className="relative mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-sunken px-3 py-2 text-caption">
+          {ux.backupWhen && (
+            <div className="flex gap-1.5">
+              <dt className="text-text-tertiary">Last backup</dt>
+              <dd className="text-ink">{ux.backupWhen}</dd>
+            </div>
+          )}
+          {ux.backupSize && (
+            <div className="flex gap-1.5">
+              <dt className="text-text-tertiary">Size</dt>
+              <dd className="text-ink">{ux.backupSize}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+
+      <div className="relative mt-3 flex items-center gap-2">
+        <Button
+          size="sm"
+          className="flex-1"
+          onClick={() => {
+            void record('backup.restore.accepted');
+            navigate('/settings/secure-backup');
+          }}
+        >
+          {/*
+            It opens the restore screen; it does not restore. The old label was
+            "Restore chats", which is a promise this button cannot keep - the
+            restore needs Drive connected first, so people pressed it, arrived
+            somewhere else, and reported that restoring had not worked.
+          */}
+          Set up restore
+        </Button>
+        <button
+          type="button"
+          className={cn(
+            'focus-ring shrink-0 rounded-lg px-3 py-2 text-caption text-text-secondary',
+            'transition-colors duration-instant hover:bg-hover hover:text-ink',
+          )}
+          onClick={ux.skipRestore}
+        >
+          Not now
+        </button>
+      </div>
     </section>
   );
 }

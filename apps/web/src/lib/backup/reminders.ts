@@ -30,6 +30,15 @@ export interface ReminderState {
   dismissals: number;
   /** Set once the first prompt has been shown, so it is never shown twice. */
   promptSeen: boolean;
+  /**
+   * When "Not now" was last pressed on the *restore* card.
+   *
+   * Separate from `lastShownAt`, which belongs to the reminder about turning
+   * backup on. These are two different cards answering two different
+   * questions, and conflating them would mean dismissing one silenced the
+   * other.
+   */
+  restoreSkippedAt?: number;
 }
 
 export const INITIAL_REMINDERS: ReminderState = {
@@ -67,6 +76,37 @@ export function shouldShowReminder(
   if (state.interval === 'never') return false;
   if (state.lastShownAt === undefined) return true;
   return now - state.lastShownAt >= REMINDER_MS[state.interval];
+}
+
+/**
+ * Should the "we found your chats" card be on screen?
+ *
+ * "Not now" used to live in a `useRef`, so it survived exactly as long as the
+ * page did: the card returned on every launch, on the chat list, for as long as
+ * a restorable backup existed. That is the pop-up people were seeing - and it
+ * ignored the reminder interval entirely, so setting a week changed nothing
+ * about the thing actually appearing every day.
+ *
+ * It answers to that interval now. Not to a permanent "never": a person who
+ * skips today may well want their history next week, and the offer expiring
+ * for good the first time it is inconvenient is worse than showing it again in
+ * seven days.
+ */
+export function shouldShowRestore(
+  state: ReminderState,
+  canRestore: boolean,
+  now = Date.now(),
+): boolean {
+  if (!canRestore) return false;
+  if (state.restoreSkippedAt === undefined) return true;
+  // "Never" silences this too - it is the same person saying the same thing.
+  if (state.interval === 'never') return false;
+  return now - state.restoreSkippedAt >= REMINDER_MS[state.interval];
+}
+
+/** Records a "Not now" on the restore card. */
+export function afterRestoreSkipped(state: ReminderState, now = Date.now()): ReminderState {
+  return { ...state, restoreSkippedAt: now };
 }
 
 /** Records that it was shown, without changing the schedule. */
