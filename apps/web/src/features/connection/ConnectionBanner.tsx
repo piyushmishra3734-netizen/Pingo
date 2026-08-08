@@ -214,9 +214,9 @@ export function ConnectionBanner() {
           {look.busy ? (
             <span className="relative size-4 rounded-full border-2 border-white/90 border-t-transparent motion-safe:animate-spin" />
           ) : (
-            {/* Keyed on the state, not the wording - the wording now has two
-                recovery variants and matching on it showed a dead-wifi glyph
-                for a successful reconnection. */}
+            // Keyed on the state, not the wording: there are two recovery
+            // wordings now, and matching on the label drew the dead-wifi glyph
+            // for a successful reconnection.
             <Glyph restored={key === 'restored' || key === 'reconnected'} />
           )}
         </span>
