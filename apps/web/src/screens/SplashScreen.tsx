@@ -5,98 +5,133 @@ import { useNavigate } from 'react-router-dom';
 import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
 import {
   loadSplashUrls,
+  localSplashUrl,
   preloadImage,
+  readSplashCache,
   type SplashUrls,
 } from '../lib/supabase/onboarding-slides.js';
 
 /**
  * Splash.
  *
- * Full-screen art only — PC and mobile variants. `@piuxxh` publishes art from
- * Settings → Controlling. Once a custom splash is live, the built-in files are
- * never painted first (that caused a millisecond flash of the old art).
+ * Full-screen art (PC + mobile). Operator art from Controlling; built-in only
+ * when nothing custom is published.
  *
- * Paint order:
- *   1. Solid brand ground (or last known *custom* URLs from localStorage)
- *   2. Fetch current splash rows + preload image bytes
- *   3. Reveal only the final pair — no swap from built-in → remote
+ * ## Why dwell starts *after* the image is visible
  *
- * ## The dwell is a ceiling
- *
- * It never waits for the session check. If auth has not resolved by the time
- * the timer fires, this routes to Home and lets Home show its own loading
- * state - a splash that waits for the network is a splash that hangs on a bad
- * connection ([11 § 1.1](../../../../docs/11-performance-budget.md#11-the-splash-is-a-ceiling-not-a-spinner)).
+ * A slow network or device used to lose the race: mount → 1.8s timer → leave
+ * while art was still loading → user never saw the splash. Dwell is now a
+ * minimum time **on screen**, not from mount. A load budget + hard ceiling
+ * still prevent hanging forever on a dead connection
+ * ([11 § 1.1](../../../../docs/11-performance-budget.md#11-the-splash-is-a-ceiling-not-a-spinner)).
  *
  * | Condition | Destination |
  * | --- | --- |
  * | Valid session | Home |
- * | Anonymous | Intro slides (Skip only if this device has seen them / had an account) |
+ * | Anonymous | Intro slides |
  */
 
-/** Comfortably inside the 2s ceiling, and long enough for the mark to register. */
+/** Minimum time the splash art stays visible once painted. */
 const DWELL_MS = 1800;
 
-/** Sampled from the default artwork's edges, so letterbox bands stay seamless. */
+/** Max wait for remote art before falling back to cache / built-in. */
+const LOAD_BUDGET_MS = 2000;
+
+/** Absolute max time on this route from mount (load + dwell, worst case). */
+const HARD_CEILING_MS = 5000;
+
 const SPLASH_GROUND = '#EDECFB';
+
+function builtInSplash(): SplashUrls {
+  return {
+    desktop: localSplashUrl('desktop'),
+    mobile: localSplashUrl('mobile'),
+    fromRemote: false,
+  };
+}
+
+/**
+ * Resolve art with a budget: prefer live operator URLs, then cache, then built-in.
+ * Always preloads so the first paint is a complete frame.
+ */
+async function resolveSplashArt(): Promise<SplashUrls> {
+  const load = (async (): Promise<SplashUrls> => {
+    const next = await loadSplashUrls();
+    await Promise.all([preloadImage(next.desktop), preloadImage(next.mobile)]);
+    return next;
+  })();
+
+  const raced = await Promise.race([
+    load.then((u) => ({ kind: 'ok' as const, u })),
+    new Promise<{ kind: 'timeout' }>((resolve) => {
+      setTimeout(() => resolve({ kind: 'timeout' }), LOAD_BUDGET_MS);
+    }),
+  ]);
+
+  if (raced.kind === 'ok') return raced.u;
+
+  // Budget spent — still show *something* so splash is never skipped.
+  const cache = readSplashCache();
+  if (cache) {
+    await Promise.all([preloadImage(cache.desktop), preloadImage(cache.mobile)]);
+    return cache;
+  }
+
+  const fallback = builtInSplash();
+  await Promise.all([preloadImage(fallback.desktop), preloadImage(fallback.mobile)]);
+  return fallback;
+}
 
 export function SplashScreen() {
   const navigate = useNavigate();
   const { status } = useAuth();
 
-  /*
-   * No initial image. Solid ground only until we know the final pair — never
-   * mount built-in art first (that was the old-splash flash). Cache is used
-   * inside `loadSplashUrls` only when the network fails after a custom upload.
-   */
   const [urls, setUrls] = useState<SplashUrls | null>(null);
   const [visible, setVisible] = useState(false);
 
-  /*
-   * Read through a ref so the timer sees the latest status without restarting
-   * every time it changes - a `status` dependency would reset the dwell on each
-   * transition and make the splash outstay its ceiling.
-   */
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const next = await loadSplashUrls();
-      if (cancelled) return;
-
-      // Decode before paint so we never flash a half-loaded or previous frame.
-      await Promise.all([preloadImage(next.desktop), preloadImage(next.mobile)]);
-      if (cancelled) return;
-
-      setUrls(next);
-      setVisible(true);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const leftRef = useRef(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    leftRef.current = false;
+    let dwellTimer: ReturnType<typeof setTimeout> | undefined;
+    let ceilingTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const leave = () => {
+      if (leftRef.current) return;
+      leftRef.current = true;
+      if (dwellTimer) clearTimeout(dwellTimer);
+      if (ceilingTimer) clearTimeout(ceilingTimer);
+
       const current = statusRef.current;
-
       if (current === 'anonymous') {
-        // Always open the five intro slides after splash for signed-out users.
-        // First-time: no Skip. Returning / logged-out: Skip is available on that screen.
         navigate('/intro', { replace: true });
         return;
       }
-
-      // Authenticated, or still resolving. Either way Home is correct: the
-      // route guard finishes the check and redirects if it has to.
       navigate('/chats', { replace: true });
-    }, DWELL_MS);
+    };
 
-    return () => clearTimeout(timer);
+    // Never stuck on this route if load + dwell misbehave.
+    ceilingTimer = setTimeout(leave, HARD_CEILING_MS);
+
+    void (async () => {
+      const next = await resolveSplashArt();
+      if (leftRef.current) return;
+
+      setUrls(next);
+      setVisible(true);
+
+      // Dwell starts only once art is actually on screen.
+      dwellTimer = setTimeout(leave, DWELL_MS);
+    })();
+
+    return () => {
+      leftRef.current = true;
+      if (dwellTimer) clearTimeout(dwellTimer);
+      if (ceilingTimer) clearTimeout(ceilingTimer);
+    };
   }, [navigate]);
 
   return (
@@ -105,8 +140,8 @@ export function SplashScreen() {
       style={{ backgroundColor: SPLASH_GROUND }}
     >
       {/*
-        Ground only until we know the final art. Never mount the built-in
-        files as a placeholder — that was the old-art flash.
+        Solid ground while resolving. Image mounts only when ready — no old-art
+        flash, and navigation cannot fire before this paint + DWELL_MS.
       */}
       {visible && urls ? (
         <picture className="h-full w-full">
