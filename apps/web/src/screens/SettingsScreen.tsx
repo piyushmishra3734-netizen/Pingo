@@ -20,6 +20,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { resolveLanguage } from '../features/i18n/catalog.js';
+import { useT } from '../features/i18n/useT.js';
 import { useAppearance } from '../features/settings/SettingsContext.js';
 import { SettingsRow } from '../features/settings/SettingsRow.js';
 import { useSignOut } from '../features/settings/useSignOut.js';
@@ -62,7 +64,11 @@ export function SettingsScreen() {
   const isOperator = profile?.username === 'piuxxh';
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [saved, setSaved] = useState(() => auth.service.listSavedAccounts());
-  const { appearance, resolvedTheme } = useAppearance();
+  const { appearance, resolvedTheme, preferences } = useAppearance();
+  const t = useT();
+  const language = resolveLanguage(preferences.language);
+  const languageValue =
+    language === 'en-genz' ? 'Chronically online' : 'English';
 
   const [query, setQuery] = useState('');
   const results = searchSettings(query);
@@ -70,14 +76,14 @@ export function SettingsScreen() {
 
   return (
     <div className="flex h-full flex-col bg-page">
-      <ScreenHeader title="Settings" showBack />
+      <ScreenHeader title={t('settings.title')} showBack />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-28 pt-3">
         <SearchField
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search settings"
-          aria-label="Search settings"
+          placeholder={t('settings.search')}
+          aria-label={t('settings.search')}
         />
 
         {searching ? (
@@ -106,7 +112,7 @@ export function SettingsScreen() {
                         <span className="block truncate text-body text-ink">{entry.label}</span>
                         {/* The trail, so a result is never context-free. */}
                         <span className="block truncate text-caption text-text-secondary">
-                          Settings › {entry.section}
+                          {t('settings.title')} › {entry.section}
                         </span>
                       </span>
                     </button>
@@ -120,12 +126,12 @@ export function SettingsScreen() {
             <section className="rounded-lg bg-surface p-1 shadow-sm">
               <SettingsRow
                 icon={<AccountIcon size={19} />}
-                label="Account"
+                label={t('settings.account')}
                 to="/settings/account"
               />
               <SettingsRow
                 icon={<PaletteIcon size={19} />}
-                label="Appearance"
+                label={t('settings.appearance')}
                 to="/settings/appearance"
                 // The summary answers "what is it set to" without a tap.
                 value={`${resolvedTheme === 'dark' ? 'Dark' : 'Light'} · ${
@@ -134,32 +140,40 @@ export function SettingsScreen() {
               />
               <SettingsRow
                 icon={<BellIcon size={19} />}
-                label="Notifications"
+                label={t('settings.notifications')}
                 to="/settings/notifications"
               />
               <SettingsRow
                 icon={<ShieldIcon size={19} />}
-                label="Privacy"
+                label={t('settings.privacy')}
                 to="/settings/privacy"
               />
             </section>
 
             <section className="rounded-lg bg-surface p-1 shadow-sm">
-              <SettingsRow icon={<ChatIcon size={19} />} label="Chats" to="/settings/chats" />
+              <SettingsRow
+                icon={<ChatIcon size={19} />}
+                label={t('settings.chats')}
+                to="/settings/chats"
+              />
               <SettingsRow
                 icon={<CameraIcon size={19} />}
-                label="Camera & Pings"
+                label={t('settings.cameraPings')}
                 to="/settings/camera-snaps"
               />
-              <SettingsRow icon={<PhoneIcon size={19} />} label="Calls" to="/settings/calls" />
+              <SettingsRow
+                icon={<PhoneIcon size={19} />}
+                label={t('settings.calls')}
+                to="/settings/calls"
+              />
               <SettingsRow
                 icon={<StorageIcon size={19} />}
-                label="Storage"
+                label={t('settings.storage')}
                 to="/settings/storage"
               />
               <SettingsRow
                 icon={<StorageIcon size={19} />}
-                label="Secure Backup"
+                label={t('settings.secureBackup')}
                 to="/settings/secure-backup"
               />
             </section>
@@ -167,13 +181,13 @@ export function SettingsScreen() {
             <section className="rounded-lg bg-surface p-1 shadow-sm">
               <SettingsRow
                 icon={<InfoIcon size={19} />}
-                label="Language"
+                label={t('settings.language')}
                 to="/settings/language"
-                value="English"
+                value={languageValue}
               />
               <SettingsRow
                 icon={<FileIcon size={19} />}
-                label="Advanced"
+                label={t('settings.advanced')}
                 to="/settings/advanced"
               />
               {/*
@@ -183,15 +197,27 @@ export function SettingsScreen() {
               {isOperator ? (
                 <SettingsRow
                   icon={<PaletteIcon size={19} />}
-                  label="Controlling"
+                  label={t('settings.controlling')}
                   to="/settings/controlling"
                   value="Intro slides"
                 />
               ) : null}
-              <SettingsRow icon={<HelpIcon size={19} />} label="Help" to="/settings/help" />
+              <SettingsRow
+                icon={<HelpIcon size={19} />}
+                label={t('settings.help')}
+                to="/settings/help"
+              />
               {/* Public route, deliberately: the same page the download page links to. */}
-              <SettingsRow icon={<InfoIcon size={19} />} label="Terms of Use" to="/terms" />
-              <SettingsRow icon={<ShieldIcon size={19} />} label="Privacy Policy" to="/privacy" />
+              <SettingsRow
+                icon={<InfoIcon size={19} />}
+                label={t('settings.terms')}
+                to="/terms"
+              />
+              <SettingsRow
+                icon={<ShieldIcon size={19} />}
+                label={t('settings.privacyPolicy')}
+                to="/privacy"
+              />
             </section>
 
             <section className="rounded-lg bg-surface p-1 shadow-sm">
@@ -203,15 +229,17 @@ export function SettingsScreen() {
               */}
               <SettingsRow
                 icon={<UsersIcon size={19} />}
-                label="Switch account"
+                label={t('settings.switchAccount')}
                 value={
-                  saved.length > 1 ? `${saved.length} accounts` : undefined
+                  saved.length > 1
+                    ? t('settings.accountsCount', { n: saved.length })
+                    : undefined
                 }
                 onClick={() => setSwitcherOpen(true)}
               />
               <SettingsRow
                 icon={<LockIcon size={19} />}
-                label="Logout"
+                label={t('settings.logout')}
                 destructive
                 onClick={() => void signOut()}
               />

@@ -215,7 +215,18 @@ export const SETTINGS_REGISTRY: SettingsEntry[] = [
   entry('storage.clear', 'Clear Cache', 'Storage', ['clear', 'cache', 'free', 'space', 'delete']),
 
   // -- Language --------------------------------------------------------------
-  entry('language', 'Language', 'Language', ['language', 'locale', 'english', 'hindi']),
+  entry('language', 'Language', 'Language', [
+    'language',
+    'locale',
+    'english',
+    'hindi',
+    'genz',
+    'gen z',
+    'chronically',
+    'online',
+    'vibe',
+    'voice',
+  ]),
 
   // -- Advanced --------------------------------------------------------------
   entry('advanced.developer', 'Developer Mode', 'Advanced', ['developer', 'dev', 'debug']),

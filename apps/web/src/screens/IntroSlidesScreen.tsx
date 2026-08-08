@@ -9,6 +9,7 @@ import {
   markIntroSeen,
 } from '../features/auth/intro-seen.js';
 import { hasOnboarded } from '../features/auth/onboarded.js';
+import { useT } from '../features/i18n/useT.js';
 import { loadIntroSlideUrls, SLIDE_COUNT } from '../lib/supabase/onboarding-slides.js';
 
 /**
@@ -25,6 +26,7 @@ const SWIPE_THRESHOLD_PX = 48;
 export function IntroSlidesScreen() {
   const navigate = useNavigate();
   const { status } = useAuth();
+  const t = useT();
   const [params] = useSearchParams();
   const replay = params.get('replay') === '1';
 
@@ -211,7 +213,7 @@ export function IntroSlidesScreen() {
                   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60',
                 )}
               >
-                Skip
+                {t('intro.skip')}
               </button>
             ) : (
               <span className="w-[4.5rem]" aria-hidden />
@@ -227,7 +229,7 @@ export function IntroSlidesScreen() {
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
               )}
             >
-              {isLast ? 'Continue' : 'Next'}
+              {isLast ? t('intro.continue') : t('intro.next')}
             </button>
           </div>
         </div>

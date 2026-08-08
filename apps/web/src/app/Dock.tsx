@@ -13,6 +13,7 @@ import {
 import { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 
+import { useT } from '../features/i18n/useT.js';
 import { useNotifications } from '../features/notifications/NotificationContext.js';
 import { canAccessCommunities } from '../lib/community-access.js';
 
@@ -48,6 +49,7 @@ interface DockItem {
 }
 
 export function Dock() {
+  const t = useT();
   const { totalUnread } = useChat();
   const { profile } = useProfile();
   const { unread: unreadNotifications } = useNotifications();
@@ -55,20 +57,20 @@ export function Dock() {
 
   const items = useMemo<DockItem[]>(
     () => [
-      { to: '/chats', label: 'Chats', Icon: ChatIcon, matchPrefix: '/chats' },
-      { to: '/calls', label: 'Calls', Icon: PhoneIcon },
-      { to: '/camera', label: 'Camera', Icon: CameraIcon },
+      { to: '/chats', label: t('nav.chats'), Icon: ChatIcon, matchPrefix: '/chats' },
+      { to: '/calls', label: t('nav.calls'), Icon: PhoneIcon },
+      { to: '/camera', label: t('nav.camera'), Icon: CameraIcon },
       communities
-        ? { to: '/communities', label: 'Communities', Icon: UsersIcon }
-        : { to: '/notifications', label: 'Activity', Icon: BellIcon },
-      { to: '/profile', label: 'Profile', Icon: UserIcon, matchPrefix: '/profile' },
+        ? { to: '/communities', label: t('nav.communities'), Icon: UsersIcon }
+        : { to: '/notifications', label: t('nav.activity'), Icon: BellIcon },
+      { to: '/profile', label: t('nav.profile'), Icon: UserIcon, matchPrefix: '/profile' },
     ],
-    [communities],
+    [communities, t],
   );
 
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t('nav.primary')}
       className={cn(
         'pointer-events-none fixed inset-x-0 bottom-0 z-200',
         'flex justify-center',

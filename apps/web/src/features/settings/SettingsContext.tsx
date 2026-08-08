@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { syncDocumentVoice } from '../i18n/catalog.js';
 import { loadPrefs, savePrefs } from './notification-sync.js';
 
 /**
@@ -153,6 +154,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', resolvedTheme === 'dark' ? '#0c0d11' : '#FBFBFE');
+
+    // Voice / language mode for copy (`en` vs `en-genz`).
+    syncDocumentVoice(preferences.language);
 
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
