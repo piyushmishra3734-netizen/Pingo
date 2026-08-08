@@ -20,13 +20,12 @@ import { applyPageSeo } from '../lib/seo.js';
  * three-post shelf, the mutual-follow rule - rather than the generic clauses a
  * template would supply for features this product does not have.
  *
- * The encryption section says what is true rather than what sounds best:
- * messages are encrypted in transit and at rest but are **not** end-to-end
- * encrypted, so PINGO can technically read them. Saying so here is the whole
- * reason a page like this is worth writing.
+ * Encryption is stated as the product actually works: human chats are
+ * end-to-end encrypted for message bodies; PINGO AI is not, because the
+ * assistant must process text. Privacy Policy has the full map.
  */
 
-const UPDATED = '28 July 2026';
+const UPDATED = '8 August 2026';
 
 interface Section {
   /** Anchor target, so the download page can link straight to a section. */
@@ -40,7 +39,7 @@ const SECTIONS: Section[] = [
     id: 'summary',
     title: 'The short version',
     body: [
-      'PINGO is free. You own what you post. We do not sell your data or show you advertising. Messages are private between the people in a conversation, but they are not end-to-end encrypted yet, the section on data below explains exactly what that means.',
+      'PINGO is free. You own what you post. We do not sell your data or show you advertising. Human chats use end-to-end encryption for message bodies; PINGO AI is not E2EE because it must read your words to reply. The Privacy Policy explains both in detail.',
       'If you break the rules below, we may suspend or remove your account.',
     ],
   },
@@ -86,10 +85,20 @@ const SECTIONS: Section[] = [
     id: 'data',
     title: 'How your data is handled',
     body: [
-      'Everything travels over HTTPS. Voice and video calls are peer-to-peer and encrypted by WebRTC, the media does not pass through our servers at all.',
-      'Messages, photos and voice notes are encrypted in transit and encrypted at rest on our database. They are not end-to-end encrypted, which means PINGO could technically read them. We do not, and there is no process that does, but we would rather state the limit plainly than let the word "encrypted" imply something stronger than what is built.',
+      'Everything travels over HTTPS. Voice and video calls use WebRTC encryption between devices; a relay may help connect you without keeping a recording of the call.',
+      'Human direct and group message bodies are end-to-end encrypted on your devices before they are stored. The server holds ciphertext for those bodies, plus the metadata and media files the product needs to deliver chat.',
+      'PINGO AI chats are not end-to-end encrypted. The assistant processes your AI messages on our systems and with our model provider so it can reply. AI memories exist only when you explicitly save them.',
       'We do not sell personal data, and there is no advertising on PINGO.',
-      'The Privacy Policy sets out exactly what is held, what is not, and who else touches it.',
+      'The Privacy Policy sets out exactly what is held, what is not, who else processes data, and answers common questions.',
+    ],
+  },
+  {
+    id: 'ai',
+    title: 'PINGO AI',
+    body: [
+      'PINGO AI is an optional assistant inside the app. It is not a human recipient and it is not an E2EE sealed chat.',
+      'Do not send passwords, recovery secrets, or material you need the server never to see into AI chat. Use human chats for private conversation with people.',
+      'You remain responsible for what you ask the assistant to do when it affects other people or breaks the conduct rules above.',
     ],
   },
   {

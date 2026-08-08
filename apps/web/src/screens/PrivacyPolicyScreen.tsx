@@ -11,20 +11,16 @@ import { applyPageSeo } from '../lib/seo.js';
  *
  * `/settings/privacy` is a set of toggles - who can find you, who sees your
  * stories. This is the document about what PINGO collects and who else touches
- * it. Conflating the two is what made the download page's "Privacy" link point
- * at a page of switches, which is the sort of thing a visitor notices.
+ * it.
  *
- * ## Written from the schema, not from a template
+ * ## Written from the live product
  *
- * Every item in the list of what is collected corresponds to a table or a
- * storage bucket that actually exists. Nothing here describes data PINGO does
- * not hold, and - more importantly - nothing that *is* held has been left out
- * because it was awkward. The read-cursor history is in here. So is the fact
- * that Google sees an IP address for every visitor because the typeface is
- * served from their CDN, which almost no policy of this size mentions.
+ * Human DMs use client-side end-to-end encryption. PINGO AI cannot, by design.
+ * Pings, stories, profiles, calls, push, backup and onboarding assets are
+ * described as they actually work — not as a generic template.
  */
 
-const UPDATED = '28 July 2026';
+const UPDATED = '8 August 2026';
 
 interface Section {
   id: string;
@@ -39,102 +35,168 @@ const SECTIONS: Section[] = [
     id: 'summary',
     title: 'The short version',
     body: [
-      'PINGO stores what it needs to deliver your messages and nothing that exists to profile you. There is no advertising, no analytics, no tracking SDK and no third party we sell anything to.',
-      'The one thing we want you to notice rather than skim: your messages are encrypted in transit and at rest, but they are not end-to-end encrypted. PINGO could technically read them. We do not, and nothing in the product does, but that is a policy, not a mathematical guarantee, and you should know which of the two you are relying on.',
+      'PINGO is a private messaging product. There is no advertising, no data brokering, and no analytics SDK built to profile you.',
+      'Human chats (direct messages and groups between people) are designed so message bodies leave your device as ciphertext. We call that end-to-end encryption for human chat. The server stores ciphertext, delivery metadata, and media files needed to deliver the product.',
+      'PINGO AI is different on purpose: the assistant must read what you type to reply. AI chats, AI memories you save, and the model provider that generates replies are not end-to-end encrypted.',
+      'This page is the honest map. Privacy settings inside the app control who can find you and contact you; this document explains what exists on servers and devices.',
     ],
   },
   {
     id: 'collected',
     title: 'What PINGO holds',
-    body: ['Everything below exists because a feature needs it. Nothing is kept "just in case".'],
+    body: [
+      'Everything below exists because a feature needs it. Nothing is kept only to build an advertising profile.',
+    ],
     list: [
-      'Account: your email address or phone number, and a password that is stored only as a hash. If you sign in with Google, we receive your email address and nothing else.',
-      'Profile: username, display name, avatar and bio.',
-      'Messages: text, photos, voice notes, documents and stickers, with the time they were sent.',
-      'Delivery: how far each person has read in each conversation, and when their read position moved. This is what draws the second tick and the "Seen" line.',
-      'Stories: the media, caption, chosen audience, and who has viewed or liked each one.',
-      'Posts: up to three per profile, with their captions, likes, comments and saves.',
-      'Connections: who follows whom, who you have blocked, and reports you have filed.',
-      'Calls: who called whom, when, and for how long. The audio and video themselves are never recorded or stored.',
-      'Per-chat preferences: pinned, muted, archived, and which lists a chat is filed under.',
+      'Account: email and/or phone (when you use them), password stored only as a secure hash, or Google sign-in identifiers if you choose Google. Username login resolves your handle without exposing your email in error messages.',
+      'Profile: username, display name, avatar, bio, and profile presentation fields the product shows (including display counts where the product uses them).',
+      'Human messages: ciphertext for text and structured message kinds, plus metadata the app needs (sender, conversation, time, kind, reply targets, edit/delete state, reactions). Recipients decrypt on their devices with keys that stay on devices.',
+      'Message media: Pings (disappearing chat photos), chat photos, voice notes, documents, and similar attachments stored as files so the other person can open them. Access is limited by account rules; files are not a public gallery.',
+      'Delivery and read state: how far each person has read, mute/pin/archive preferences, and chat-list organisation.',
+      'Stories: media, caption, audience rules, expiry, and view activity the product shows.',
+      'Posts: up to three on a profile, with captions and social counts the product displays (likes, comments where enabled).',
+      'Social graph: follows and follow requests, blocks, and mutual connections used for messaging and discovery rules.',
+      'Groups: membership, roles, invite codes, and group messages under the same encryption model as other human chats.',
+      'Calls: who called whom, when, and duration for history. Call audio and video are not recorded by PINGO. Media is WebRTC between devices; a relay may carry encrypted packets when direct connection fails.',
+      'Device keys: public keys for your devices so others can encrypt to you. Private keys are generated and kept on the device (and in recovery material you choose to create).',
+      'Secure backup / recovery: if you enable it, encrypted backup packages and recovery helpers you set up so a new device can restore history. We cannot usefully read a correctly sealed backup as chat plaintext.',
+      'Push tokens: device tokens so we can send notifications. Notification payloads are kept minimal (who / what kind); full message text is not required for delivery.',
+      'PINGO AI: AI conversation membership, plaintext of AI threads (required to generate replies), and AI memories only when you explicitly save them. Model inference is performed by our AI provider under our account.',
+      'Product chrome: splash and intro artwork published for everyone, public legal pages, and basic server logs needed to run and secure the service (for example connection metadata on the host).',
+      'On your device: local databases and caches so chats feel instant offline or on slow networks. Clearing app data or site storage removes that local copy.',
+    ],
+  },
+  {
+    id: 'encryption',
+    title: 'Encryption: human chat vs AI',
+    body: [
+      'Human direct messages and human group messages are end-to-end encrypted for message bodies: your device encrypts before upload; other people\'s devices decrypt. PINGO operators and the database see ciphertext for those bodies, not readable chat text, under normal operation.',
+      'Metadata still exists so the product works: who is in a conversation, timestamps, message kind, delivery and read markers, and pointers to media files. Metadata is not the same as reading the sealed body.',
+      'Chat media (Pings, voice notes, photos, files) is stored so recipients can open it. It is protected by account and storage rules and HTTPS; it is not the same construction as sealing a text body with your device keys. Treat sensitive photos and voice as sensitive even inside a chat.',
+      'PINGO AI cannot be end-to-end encrypted: the assistant must process your words. AI chat content and AI memories are processed on our systems and by the model provider. Do not put secrets in AI chat that you would not trust a server-side assistant with.',
+      'Everything between your app and our infrastructure uses HTTPS. Passwords are hashed. Database access is constrained with row-level security so one account cannot simply request another account\'s rows.',
     ],
   },
   {
     id: 'notheld',
-    title: 'What PINGO does not hold',
+    title: 'What PINGO does not hold (or does not keep)',
     body: [],
     list: [
-      'Your contacts. PINGO never reads your address book.',
-      'Your location, unless you deliberately attach one to a message or a story.',
-      'Any advertising or behavioural profile. There is no ad network in this product.',
-      'Analytics. There is no tracking script, no session recorder and no product-analytics SDK anywhere in the app.',
-      'Typing indicators and online status, which are broadcast live and never written down.',
-      'The content of calls. Voice and video go directly between devices.',
+      'Your phone address book. PINGO does not upload contacts for ranking or ads.',
+      'Continuous background location. Location is only stored if you deliberately send a location message (or similar explicit share).',
+      'Advertising IDs for resale, third-party ad pixels, or behavioural ad profiles.',
+      'A product analytics stack whose job is to build a marketing dossier of you. Operational logs may exist to keep the service up and secure; they are not an ad graph.',
+      'The content of live calls as a recording. PINGO does not keep a tape of your voice or video call.',
+      'Readable plaintext of human E2EE message bodies on the server under normal design (ciphertext is what is stored for those bodies).',
     ],
   },
   {
     id: 'ephemeral',
-    title: 'Things that are deleted',
+    title: 'Things that expire or disappear',
     body: [
-      'Pings are opened a fixed number of times. Once the views are spent, the path to the media is cleared and the file is removed from storage. The row survives in the conversation so the thread makes sense, but the picture is gone.',
-      'Stories expire 24 hours after posting.',
-      'Deleting a message deletes it.',
-      // Account deletion is not built. Claiming it was is the one promise on this
-      // page that a person could act on and find missing at the worst moment.
-      'Account deletion is not built yet, and this page said it was. Deleting an account has to remove messages other people are still holding a copy of, which needs work on the server that has not been done. Until it is, ask and it will be done by hand.',
+      'Pings are limited-view chat media. When views are spent or the Ping is consumed, the media path is cleared so it cannot be opened again through the product. Thread history may still show that a Ping was sent.',
+      'Stories expire about 24 hours after posting and are then removed from the live product surface.',
+      'Deleting a message removes it according to the product rules for that conversation (including tombstones or cleared bodies where the UI needs them).',
+      'Intro and splash art are product assets, not your private chat. Changing them updates what everyone sees after launch.',
+      'Account deletion as a one-tap self-serve flow may still be incomplete. If you need an account removed, email the address at the bottom of this page and we will handle it. Until self-serve deletion is finished, that is the honest path.',
+    ],
+  },
+  {
+    id: 'ai',
+    title: 'PINGO AI',
+    body: [
+      'PINGO AI is an in-app assistant in a separate conversation type from human E2EE chats.',
+      'To answer you, the service sends recent AI-thread context (and any memories you explicitly saved) to our systems and the model provider. That content is processed to produce the reply.',
+      'AI memories are not harvested automatically from everything you type. They are stored when you ask the product to remember something (or use an explicit memory action the product provides).',
+      'Do not use AI chat for passwords, recovery secrets, or anything you need the server never to see. Use human E2EE chat with people for private human conversation; use AI with that limit in mind.',
+    ],
+  },
+  {
+    id: 'devices',
+    title: 'Devices, local data and backup',
+    body: [
+      'PINGO is local-first where it can be: recent chats and keys live on the device so opening the app is fast and partly works offline.',
+      'A new device does not magically receive old human ciphertext it cannot decrypt. Restoring history depends on signing in and, when you use it, Secure Backup / recovery you set up.',
+      'If you lose every device and every recovery path, sealed human history may be unrecoverable. That is a consequence of E2EE, not a hidden server vault of plaintext.',
+      'Uninstalling the app or clearing site data removes local copies on that device. It does not by itself delete the server account.',
     ],
   },
   {
     id: 'security',
-    title: 'How it is protected',
+    title: 'How access is protected',
     body: [
-      'Every connection uses HTTPS. Data is encrypted at rest in the database and in file storage.',
-      'Access is enforced at the database itself, not just in the app. Every table has row-level security, so a request for somebody else’s messages is refused by the database even if the app asked for it. That is the difference between a rule and a check.',
-      'Calls are peer-to-peer and encrypted by WebRTC. When two devices cannot reach each other directly, the connection falls back to a relay server, which passes the encrypted packets along without being able to read them.',
+      'HTTPS for network traffic. Hashed passwords. Session tokens for signed-in requests.',
+      'Row-level security on application tables so authorization is enforced in the database, not only in the user interface.',
+      'Private media buckets are not a free-for-all: reads are constrained so random accounts should not list other people\'s private chat files. Public surfaces (avatars, published splash/intro art, public profile content you chose to show) are intentionally visible.',
+      'Calls use WebRTC encryption between peers; TURN relays, when used, forward packets for connectivity without being designed as a recording service.',
+      'No security system is perfect. We work to fix issues responsibly. Do not attempt to break into accounts that are not yours.',
     ],
   },
   {
     id: 'third-parties',
-    title: 'Who else touches your data',
-    body: ['Three, and each only for what it says.'],
-    list: [
-      'Supabase runs the database, authentication, file storage and the realtime connection. Your data lives on their infrastructure.',
-      'Cloudflare Pages serves the app and sees the IP address of every request, as any web host does.',
-      'Google, in one case only: if you choose to sign in with a Google account. Nothing else in PINGO contacts Google.',
-      'jsDelivr, a public CDN, serves the emoji and sticker artwork. It receives an IP address when those images load. Self-hosting them is the same job already done for the typeface and the camera models, and it is next.',
-      'Google, again, if you turn on notifications: the browser fetches the messaging library from gstatic.com, and every push is delivered through Firebase Cloud Messaging. What travels is who sent it and what kind of thing it was - never the text of a message, unless you switch that on yourself in Settings.',
-    ],
-  },
-  {
-    id: 'moved',
-    title: 'Things that used to be third parties',
+    title: 'Who else may process data',
     body: [
-      'Two contacts have been removed rather than disclosed, because the better answer to "who else sees this?" is "nobody".',
-      'The typeface came from Google Fonts, so Google received an IP address for every visitor on every cold load, before sign-in, before anything. It is now served from PINGO’s own servers.',
-      'The camera’s face, hand and gesture tracking downloaded its models from Google, so turning on a filter announced itself. Those forty megabytes now come from PINGO too. The tracking always ran on your device and no image ever left it; what left was a request saying somebody was about to use a filter, which was a small thing to leak and an unnecessary one.',
+      'Infrastructure partners process data only to run PINGO — not to sell your chats as a product.',
+    ],
+    list: [
+      'Supabase: database, auth, file storage, realtime. Your account and app data live on this infrastructure under our project.',
+      'Cloudflare: hosts the web app (and related edge delivery). Like any host, it sees connection metadata such as IP addresses for requests it serves. Cloudflare may also provide call relay (TURN) credentials so calls connect on hard networks.',
+      'Google: only if you use Google sign-in, and/or if you enable push notifications that use Firebase Cloud Messaging / browser push libraries. Push content is kept minimal; we do not need FCM to store your full chat history.',
+      'AI model provider: processes AI-chat prompts and context to generate assistant replies. Human E2EE DM bodies are not sent there for ordinary human chat.',
+      'App stores / OS vendors: if you install a native build, their normal install and update channels apply under their policies.',
     ],
   },
   {
     id: 'control',
     title: 'What you control',
     body: [
-      'Privacy settings decide who can find you, who can see your stories and who may message you. Blocking someone stops all of it at the database, not just in the interface.',
-      'You can delete any message, remove a story, replace a post or delete your account outright, at any time, without asking us.',
-      'If you want a copy of your data, or want it erased, email piyushmishra3734@gmail.com. There is no support inbox in the app yet, and pointing you at one that does not exist would be worse than giving you an address.',
+      'In-app Privacy settings: who can find you, message you, call you, and related visibility choices the product exposes.',
+      'Blocking: stops further contact according to product rules, enforced in data access where implemented.',
+      'Content you send: delete messages, remove stories, replace profile posts where the product allows.',
+      'AI memories: only what you explicitly save; you should be able to clear or stop saving memories as the product UI provides.',
+      'Notifications: system permission plus in-app notification preferences.',
+      'Secure Backup: optional; you choose whether to create recovery material.',
+      'Copies and erasure requests: email piyushmishra3734@gmail.com. We will respond as required by applicable law and as the product allows us to fulfil.',
     ],
   },
   {
     id: 'children',
     title: 'Children',
     body: [
-      'PINGO is not for anybody under 13. If we learn that an account belongs to a child under 13, we remove it.',
+      'PINGO is not directed at children under 13. If we learn an account belongs to a child under 13, we will remove it.',
+      'If local law sets a higher digital consent age, you must meet that age to use the service.',
+    ],
+  },
+  {
+    id: 'questions',
+    title: 'Questions people actually ask',
+    body: [],
+    list: [
+      'Can PINGO staff read my human DMs? Under the E2EE design, message bodies are ciphertext on the server. Staff are not meant to read your private human chat as plaintext. Metadata and some media handling still exist for delivery.',
+      'Can PINGO staff read my AI chat? Yes, in principle — AI requires server-side processing. Treat AI chat as assistant processing, not as a sealed human DM.',
+      'Are Pings private forever? No. They are limited-view media. Screenshots and screen recording by a recipient are outside any app\'s full control.',
+      'If I log out, is my data deleted? No. Logout ends the session on that device. Your account and server-held data remain until you delete or request erasure.',
+      'If I get a new phone, do old chats appear automatically? Not always. Local history and E2EE keys live on devices. Use Secure Backup / recovery when you want a deliberate restore path.',
+      'Do you sell my data? No.',
+      'Is there advertising? No ads in the product today.',
+      'Who sees my profile? Username and public profile fields are part of a social messaging product. Use Privacy settings and blocking for finer control.',
+      'What about voice notes and photos in chat? They are stored so the recipient can open them, under account rules. Prefer not to send highly sensitive media if your threat model requires zero server-held files.',
+      'What law applies / where do I complain? Contact us at the email below first. Depending on where you live, local consumer or data-protection authorities may also apply.',
     ],
   },
   {
     id: 'changes',
     title: 'Changes',
     body: [
-      'If this policy changes in a way that materially affects you, we will say so in the app rather than quietly editing this page. The date at the top is always the current version.',
+      'If this policy changes in a way that materially affects you, we will say so in the product when we can, rather than only editing this page in silence. The date at the top is the current version.',
+    ],
+  },
+  {
+    id: 'contact',
+    title: 'Contact',
+    body: [
+      'Privacy and data requests: piyushmishra3734@gmail.com',
+      'Related: Terms of Use describe acceptable use, Pings, stories, groups, and account rules. In-app Privacy settings control day-to-day visibility after you sign in.',
     ],
   },
 ];
@@ -153,7 +215,7 @@ export function PrivacyPolicyScreen() {
       applyPageSeo({
         title: 'Privacy Policy | PINGO',
         description:
-          'Privacy Policy for PINGO: what we collect, how messages and media are handled, and who can access your account data. Written from the live product schema.',
+          'PINGO Privacy Policy: end-to-end encrypted human chats, PINGO AI processing limits, Pings, stories, backup, push, and what we store. Written from the live product.',
         path: '/privacy',
         type: 'article',
       }),
@@ -233,8 +295,8 @@ export function PrivacyPolicyScreen() {
               <Link to="/terms" className="text-brand underline-offset-2 hover:underline">
                 Terms of Use
               </Link>{' '}
-              cover the rest. After you sign in, Privacy settings in the app is where you change
-              who can see what.
+              cover acceptable use and product rules. After you sign in, Privacy settings is where
+              you change who can see what day to day.
             </p>
           </footer>
         </article>

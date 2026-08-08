@@ -220,7 +220,7 @@ const FAQ = [
   },
   {
     q: 'Is my data encrypted?',
-    a: 'Everything travels over HTTPS, and calls are peer-to-peer and encrypted by WebRTC. PINGO never sees a frame of them. Messages are encrypted in transit and at rest on the server, which means PINGO could technically read them; they are not yet end-to-end encrypted, and we would rather say so than imply otherwise.',
+    a: 'Yes, with an important split. Human chats use end-to-end encryption for message bodies so the server stores ciphertext, not readable chat text. Calls use WebRTC encryption between devices. PINGO AI is not E2EE — the assistant must process what you type to reply. Full detail is in the Privacy Policy.',
   },
   {
     q: 'How do I update the app?',
