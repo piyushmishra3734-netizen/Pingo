@@ -1,4 +1,12 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from 'react';
 
 import { SearchIcon } from '../icons/index.js';
 import { cn } from '../utils/cn.js';
@@ -54,6 +62,26 @@ export function TextField({
   const id = providedId ?? generatedId;
   const hintId = hint ? `${id}-hint` : undefined;
 
+  /*
+   * The refusal, shaken once per refusal.
+   *
+   * `invalid` is a state, not an event, so rendering the animation class
+   * whenever it is true fires the shake exactly once and never again - a
+   * second wrong password with the field already invalid would sit perfectly
+   * still, which is the moment the feedback is most needed. So the class is
+   * added on each *rising edge* and taken away when the animation ends, which
+   * is what lets it restart.
+   *
+   * Every form in the product gets this by being a form, rather than by
+   * remembering to ask for it.
+   */
+  const [shaking, setShaking] = useState(false);
+  const wasInvalid = useRef(invalid);
+  useEffect(() => {
+    if (invalid && !wasInvalid.current) setShaking(true);
+    wasInvalid.current = invalid;
+  }, [invalid]);
+
   return (
     <div className={cn('w-full', className)}>
       {label && (
@@ -79,8 +107,10 @@ export function TextField({
           shape === 'pill' ? 'rounded-full px-4 h-12' : 'rounded-xl px-4 h-12',
           // Soft invalid - never a red wall.
           invalid && 'border-danger/30 bg-danger-soft/80',
+          shaking && 'motion-safe:animate-shake',
           fieldClassName,
         )}
+        onAnimationEnd={() => setShaking(false)}
       >
         {leading && (
           <span className="text-text-tertiary shrink-0" aria-hidden>

@@ -296,6 +296,20 @@
      linear return just says the button was pushed. */
   --animate-send-pop: send-pop 360ms var(--ease-spring);
 
+  /**
+   * Refusal. The one thing the product had no motion for at all.
+   *
+   * A rejected password, a name already taken, a code that does not match -
+   * all of them turned some text red and left the field sitting there. Red
+   * text is a thing you have to notice; a head-shake is a thing you cannot
+   * miss, and it says "not that" before a single word has been read.
+   *
+   * Short, and it settles rather than ringing: five diminishing swings over
+   * about a third of a second. Anything longer stops reading as a correction
+   * and starts reading as a fault in the app.
+   */
+  --animate-shake: shake 400ms var(--ease-standard);
+
   /* The install banner arriving. Slower and further than a sheet, because it
      is an offer rather than a response -- it should be noticed on its way in,
      which is the one thing a banner has to earn. */
@@ -427,6 +441,28 @@
   }
   to {
     transform: scale(0.88);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-6px);
+  }
+  32% {
+    transform: translateX(5px);
+  }
+  49% {
+    transform: translateX(-3.5px);
+  }
+  66% {
+    transform: translateX(2px);
+  }
+  83% {
+    transform: translateX(-1px);
   }
 }
 
@@ -1251,6 +1287,36 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/**
+ * Every control answers a press, whether or not anybody remembered.
+ *
+ * The shared primitives - `Button`, `Chip`, `ListRow`, `IconButton` - have
+ * always given back a press. Anything hand-rolled did not, and a lot is
+ * hand-rolled: counted across the app, two hundred `<button>` elements had
+ * neither a press state nor a transition, concentrated exactly where screens
+ * were built in a hurry. The result is an interface that feels responsive in
+ * the places somebody polished and dead everywhere else, which is worse than
+ * one that is uniformly plain - inconsistency reads as breakage.
+ *
+ * So the floor moves instead of two hundred call sites. `:where()` keeps the
+ * specificity at zero, so every existing `active:scale-*` still wins and
+ * nothing that was deliberately tuned changes. The scale is a shade gentler
+ * than the primitives' 0.96, because this lands on things of every size -
+ * including full-bleed overlays, where a large scale would read as the screen
+ * lurching.
+ *
+ * Reduced motion is already handled above and takes this with it.
+ */
+@layer base {
+  :where(button, [role='button'], summary) {
+    transition: transform var(--duration-instant) var(--ease-standard);
+  }
+
+  :where(button, [role='button'], summary):active:not(:disabled, [aria-disabled='true']) {
+    transform: scale(0.97);
   }
 }
 
