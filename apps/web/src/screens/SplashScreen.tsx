@@ -1,22 +1,19 @@
 import { useAuth } from '@pingo/core';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
+import {
+  loadSplashUrls,
+  localSplashUrl,
+} from '../lib/supabase/onboarding-slides.js';
 
 /**
  * Splash.
  *
- * The supplied artwork, shown full screen. Nothing is drawn on top of it and
- * nothing is reconstructed - `public/pingo-splash.jpg` is the screen.
- *
- * ## Why the image is contained, not cropped
- *
- * The artwork is 16:9 with the wordmark running across its middle third. Under
- * `object-fit: cover` a portrait phone would keep only a narrow vertical band  - 
- * about 500px of the 1600px width - which slices the wordmark down to "NG".
- * So it is `contain`, on a ground sampled from the artwork's own edges, and the
- * mark survives at every aspect ratio.
+ * Full-screen art only — PC and mobile variants. Defaults to shipped files
+ * (`/pingo-splash.jpg` / `/pingo-splash-mobile.png`); `@piuxxh` can replace
+ * them from Settings → Controlling without a redesign pass.
  *
  * ## The dwell is a ceiling
  *
@@ -34,12 +31,15 @@ import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
 /** Comfortably inside the 2s ceiling, and long enough for the mark to register. */
 const DWELL_MS = 1800;
 
-/** Sampled from the artwork's edges, so the letterbox bands are seamless. */
+/** Sampled from the default artwork's edges, so letterbox bands stay seamless. */
 const SPLASH_GROUND = '#EDECFB';
 
 export function SplashScreen() {
   const navigate = useNavigate();
   const { status } = useAuth();
+
+  const [desktopSrc, setDesktopSrc] = useState(() => localSplashUrl('desktop'));
+  const [mobileSrc, setMobileSrc] = useState(() => localSplashUrl('mobile'));
 
   /*
    * Read through a ref so the timer sees the latest status without restarting
@@ -48,6 +48,19 @@ export function SplashScreen() {
    */
   const statusRef = useRef(status);
   statusRef.current = status;
+
+  // Operator uploads win when present; fail open to shipped art.
+  useEffect(() => {
+    let cancelled = false;
+    void loadSplashUrls().then((urls) => {
+      if (cancelled) return;
+      setDesktopSrc(urls.desktop);
+      setMobileSrc(urls.mobile);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -74,23 +87,14 @@ export function SplashScreen() {
       style={{ backgroundColor: SPLASH_GROUND }}
     >
       {/*
-        Two pieces of artwork, one per shape of screen.
-
-        The landscape image is 16:9 and was the only one, so a portrait phone
-        got it letterboxed with empty bands above and below - the desktop
-        splash, on mobile. The official mobile artwork is portrait and is used
-        as drawn; neither file is recomposed here, they are simply chosen
-        between.
-
-        `object-cover` rather than `contain`, now that the aspect ratio roughly
-        matches the screen in both cases. Contain guarantees empty bands
-        whenever the fit is not exact, and both images carry a wide soft margin
-        around the logo, so filling the screen crops only gradient.
+        Two artworks, one per shape of screen. Remote operator uploads (when
+        set) replace the shipped files; neither is stretched across the wrong
+        form factor — `picture` picks mobile vs desktop.
       */}
       <picture className="h-full w-full">
-        <source media="(orientation: portrait)" srcSet="/pingo-splash-mobile.png" />
+        <source media="(orientation: portrait)" srcSet={mobileSrc} />
         <img
-          src="/pingo-splash.jpg"
+          src={desktopSrc}
           alt="PINGO. Connect. Privately."
           width={1600}
           height={900}

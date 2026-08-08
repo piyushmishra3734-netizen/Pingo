@@ -152,3 +152,102 @@ export function previewUrlFor(row: OnboardingSlideRow | undefined, slide: number
   if (row) return publicObjectUrl(row.storage_path, row.updated_at);
   return localFallbackUrl(slide, variant);
 }
+
+// ---------------------------------------------------------------------------
+// Splash (desktop + mobile) — same bucket, separate table
+// ---------------------------------------------------------------------------
+
+export interface AppSplashRow {
+  variant: SlideVariant;
+  storage_path: string;
+  content_type: string | null;
+  updated_at: string;
+}
+
+/** Built-in splash files shipped with the app (used until operator uploads). */
+export function localSplashUrl(variant: SlideVariant): string {
+  return variant === 'mobile' ? '/pingo-splash-mobile.png' : '/pingo-splash.jpg';
+}
+
+export async function loadSplashUrls(): Promise<{ desktop: string; mobile: string }> {
+  const desktop = localSplashUrl('desktop');
+  const mobile = localSplashUrl('mobile');
+
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('app_splash')
+      .select('variant, storage_path, content_type, updated_at');
+
+    if (error || !data) return { desktop, mobile };
+
+    let d = desktop;
+    let m = mobile;
+    for (const row of data as AppSplashRow[]) {
+      const url = publicObjectUrl(row.storage_path, row.updated_at);
+      if (row.variant === 'desktop') d = url;
+      else m = url;
+    }
+    return { desktop: d, mobile: m };
+  } catch {
+    return { desktop, mobile };
+  }
+}
+
+export async function listAppSplashRows(): Promise<AppSplashRow[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from('app_splash')
+    .select('variant, storage_path, content_type, updated_at');
+  if (error) throw error;
+  return (data ?? []) as AppSplashRow[];
+}
+
+export async function uploadAppSplash(
+  variant: SlideVariant,
+  file: File,
+): Promise<AppSplashRow> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only image files are allowed');
+  }
+
+  const ext = extensionFor(file);
+  const storage_path = `splash/${variant}.${ext}`;
+  const client = getSupabaseClient();
+
+  const siblings = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'bin']
+    .map((e) => `splash/${variant}.${e}`)
+    .filter((p) => p !== storage_path);
+  try {
+    await client.storage.from(ONBOARDING_BUCKET).remove(siblings);
+  } catch {
+    // best-effort
+  }
+
+  const { error: upErr } = await client.storage.from(ONBOARDING_BUCKET).upload(storage_path, file, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: true,
+    cacheControl: '31536000',
+  });
+  if (upErr) throw upErr;
+
+  const row = {
+    variant,
+    storage_path,
+    content_type: file.type || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await client
+    .from('app_splash')
+    .upsert(row, { onConflict: 'variant' })
+    .select('variant, storage_path, content_type, updated_at')
+    .single();
+  if (error) throw error;
+  return data as AppSplashRow;
+}
+
+export function previewSplashUrl(row: AppSplashRow | undefined, variant: SlideVariant): string {
+  if (row) return publicObjectUrl(row.storage_path, row.updated_at);
+  return localSplashUrl(variant);
+}
