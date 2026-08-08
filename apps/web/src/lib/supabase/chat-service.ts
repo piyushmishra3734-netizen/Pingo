@@ -73,6 +73,7 @@ import {
 import { STORE, localDelete, localGet, localSet } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
+import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
 
@@ -114,8 +115,39 @@ function toUser(row: ProfileRow, lastSeenAt?: number): User {
      * for someone who has not signed in since devices were recorded, and it is
      * at least a real moment they existed.
      */
-    presence: { state: 'offline', lastSeenAt: lastSeenAt ?? Date.parse(row.created_at) },
+    presence: presenceFrom(lastSeenAt ?? Date.parse(row.created_at)),
   };
+}
+
+/**
+ * How long after somebody's last heartbeat they are still called online.
+ *
+ * The heartbeat runs once a minute while the app is in front, so two minutes is
+ * one missed beat plus room for a slow write - long enough that a tunnel or a
+ * lock screen does not blink somebody offline and back, short enough that
+ * "online" still means they are there. A person who quits is grey within two
+ * minutes, which is the promise this makes.
+ */
+const PRESENCE_WINDOW_MS = 120_000;
+
+/**
+ * Presence from a timestamp, for everyone Realtime has not spoken about.
+ *
+ * This used to be a flat `offline`, on the reasoning that a green dot which
+ * means nothing is worse than no dot at all. That was right when the column
+ * behind it was the moment a session *started* - it could be hours stale and
+ * said nothing about now. With a heartbeat keeping it to within a minute the
+ * same column answers the question honestly, and a socket is no longer the only
+ * evidence that somebody is here: presence is missed entirely for anyone whose
+ * roster row loads before their presence event, and for anyone connected to a
+ * different realtime node.
+ *
+ * A live socket still overrides this wherever there is one - it is instant and
+ * this is not.
+ */
+function presenceFrom(lastSeenAt: number): { state: PresenceState; lastSeenAt: number } {
+  const fresh = Number.isFinite(lastSeenAt) && Date.now() - lastSeenAt < PRESENCE_WINDOW_MS;
+  return { state: fresh ? 'online' : 'offline', lastSeenAt };
 }
 
 /**
@@ -709,6 +741,17 @@ export class SupabaseChatService implements ChatService {
      * read and send, it just cannot be encrypted *to* until it has.
      */
     void publishDeviceKey(this.#client, id);
+
+    /*
+     * And then keep that row's timestamp honest.
+     *
+     * `publishDeviceKey` is memoised, so it writes `last_seen_at` once per page
+     * load - which is what made "last seen" report the moment the app was
+     * opened rather than the moment the person left. The heartbeat is what
+     * turns that column into an answer to the question the header actually
+     * asks. Idempotent, so calling it on every session resolve is safe.
+     */
+    startHeartbeat();
 
     // Plaintext left on disk by a build that predates sealing. Runs once, and
     // costs one refetch for any conversation it clears.
