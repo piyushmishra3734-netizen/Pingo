@@ -4,6 +4,7 @@ import { LoadingState, cn } from '@pingo/ui';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
+import { ConnectionBanner } from '../features/connection/ConnectionBanner.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
 import { startLensing } from '../features/glass/lens.js';
@@ -107,6 +108,12 @@ export function AppShell() {
 
   return (
     <div className="flex h-full flex-col bg-page">
+      {/*
+        Above every screen, because losing the network is not a property of the
+        one you happen to be on.
+      */}
+      <ConnectionBanner />
+
       <main
         className={cn(
           'min-h-0 flex-1',

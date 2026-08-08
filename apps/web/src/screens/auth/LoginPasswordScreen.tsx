@@ -3,6 +3,7 @@ import { Button } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { AuthAlert } from '../../features/auth/AuthAlert.js';
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { formatIdentity, useIdentityFlow } from '../../features/auth/IdentityFlow.js';
 import { PasswordField } from '../../features/auth/PasswordField.js';
@@ -19,9 +20,26 @@ import { ALREADY_REGISTERED_MESSAGE, authErrorMessage } from '../../features/aut
  * | Identity recap with `Change` | The user can see which account they are entering, and correct it without starting over |
  * | Generic failure | *"That password doesn't match"* covers a wrong password **and** an identifier with no account. Anything more specific is an enumeration oracle |
  * | Focus returns, content selected | The next keystroke replaces the attempt. No clearing the field for them |
- * | **No shake** | § 13.2: a shake is a scold, and the user already knows |
+ * | **Shake, and a notice** | Reversed. See below |
  * | Rate limiting surfaced | With a countdown and a reason. A user who does not know they are throttled assumes the app is broken |
  * | Loading keeps the width | `Button`'s `loading` swaps the label for the brand dots without reflowing |
+ *
+ * ## § 13.2's "no shake" is reversed, deliberately
+ *
+ * That rule read "a shake is a scold, and the user already knows". The second
+ * half is the part that does not hold: what the screen actually does on a wrong
+ * password is turn one line of small text red, above the footer, at the bottom
+ * of a tall screen - while the person is looking at the field they just typed
+ * into. They know they pressed the button; they do not necessarily know it came
+ * back, and on a slow connection they cannot tell a rejection from a wait.
+ *
+ * So the field shakes once and a card comes up over the flow and leaves on its
+ * own, which is what every app these users already have does here.
+ *
+ * § 19 is untouched, and it is the rule that mattered. Nothing blocks, there is
+ * nothing to dismiss, focus stays in the field with its contents selected, and
+ * the caption below is still the record. The generic wording is unchanged - it
+ * is louder, not more specific, so it is still not an enumeration oracle.
  *
  * One screen serves all three doors, exactly as `CreatePasswordScreen` does for
  * the two that can create an account. Email, phone and username differ only in
@@ -119,6 +137,12 @@ export function LoginPasswordScreen() {
       title={collision ? 'Welcome back' : 'Enter your password'}
       subtitle={collision ? ALREADY_REGISTERED_MESSAGE : undefined}
       onBack={() => navigate(changePath)}
+      /*
+        The same sentence the caption carries, put where the eye already is.
+        Keyed on the attempt count so a second wrong password says so again -
+        see the note in `AuthAlert`.
+      */
+      alert={<AuthAlert message={lockedOut ? undefined : error} attempt={attempts} />}
       message={
         lockedOut ? (
           <AuthMessage>

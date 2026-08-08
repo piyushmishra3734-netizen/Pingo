@@ -36,6 +36,21 @@ export interface AuthScreenProps {
    * Never a dialog: § 19 forbids blocking the flow over a recoverable problem.
    */
   message?: ReactNode;
+  /**
+   * The same failure, said louder: a card that comes up over the flow and
+   * leaves on its own.
+   *
+   * § 13.2 previously ruled this out on the grounds that an inline caption is
+   * enough and a shake is a scold. In practice the caption is a line of small
+   * text at the bottom of a tall screen, and somebody who has just mistyped a
+   * password is looking at the field, not at it. Every app these users already
+   * have says it again in a way that is hard to miss.
+   *
+   * It is still not a dialog. Nothing is blocked, nothing needs dismissing,
+   * focus does not move, and the caption stays where it was - so the rule that
+   * mattered in § 19 is intact even though § 13.2's conclusion is not.
+   */
+  alert?: ReactNode;
   /** Defaults to browser history. Pass a function where Back must undo flow state. */
   onBack?: () => void;
   showBack?: boolean;
@@ -48,6 +63,7 @@ export function AuthScreen({
   children,
   footer,
   message,
+  alert,
   onBack,
   showBack = true,
 }: AuthScreenProps) {
@@ -55,7 +71,8 @@ export function AuthScreen({
   const goBack = onBack ?? (() => navigate(-1));
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-brand-wash">
+    <div className="relative flex h-full flex-col overflow-y-auto bg-brand-wash">
+      {alert}
       {/*
         2px, brand gradient, top edge. The track is always present so the bar
         grows within a fixed line rather than appearing from nothing.
