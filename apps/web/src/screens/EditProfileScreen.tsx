@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { useT } from '../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 
 /**
@@ -36,6 +37,7 @@ import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 const BIO_LIMIT = 200;
 
 export function EditProfileScreen() {
+  const t = useT();
   const { profile, update, service } = useProfile();
   const navigate = useNavigate();
 
@@ -154,7 +156,7 @@ export function EditProfileScreen() {
   if (!profile) {
     return (
       <div className="h-full overflow-y-auto">
-        <ScreenHeader title="Edit profile" showBack />
+        <ScreenHeader title={t('profile.editTitle')} showBack />
       </div>
     );
   }
@@ -186,7 +188,7 @@ export function EditProfileScreen() {
       )}
 
       {/* Header is navigation only - one primary Save lives at the form foot. */}
-      <ScreenHeader title="Edit profile" showBack />
+      <ScreenHeader title={t('profile.editTitle')} showBack />
 
       <div className="mx-auto w-full max-w-md px-5 pb-12">
         {/* ---- photo ---------------------------------------------------- */}

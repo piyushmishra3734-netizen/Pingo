@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppWordmark } from '../../components/AppWordmark.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { canAccessCommunities } from '../../lib/community-access.js';
+import { useT } from '../i18n/useT.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
@@ -80,6 +81,7 @@ export function ConversationList({
   banner,
   className,
 }: ConversationListProps) {
+  const t = useT();
   const { conversations, ready, service } = useChat();
   /*
    * The same count the Journey screen runs, from the same cache. It is keyed on
@@ -353,7 +355,7 @@ export function ConversationList({
 
               <div className="flex items-center gap-0.5">
                 <IconButton
-                  label="Search"
+                  label={t('common.search')}
                   variant="ghost"
                   onClick={() => searchRef.current?.focus()}
                 >
@@ -362,7 +364,11 @@ export function ConversationList({
 
                 {showHeaderNotifications && (
                   <IconButton
-                    label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+                    label={
+                      unread > 0
+                        ? t('chats.notifsUnread', { n: unread })
+                        : t('chats.notifsAria')
+                    }
                     variant="ghost"
                     onClick={() => navigate('/notifications')}
                   >
@@ -381,7 +387,7 @@ export function ConversationList({
                 )}
 
                 <IconButton
-                  label="Start a chat or a group"
+                  label={t('chats.startSomething')}
                   variant="ghost"
                   onClick={() => setStarting(true)}
                 >
@@ -389,7 +395,7 @@ export function ConversationList({
                 </IconButton>
 
                 <IconButton
-                  label="Settings"
+                  label={t('settings.title')}
                   variant="ghost"
                   onClick={() => navigate('/settings')}
                 >
@@ -408,8 +414,8 @@ export function ConversationList({
                 inputRef={searchRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search chats"
-                aria-label="Search chats"
+                placeholder={t('chats.search')}
+                aria-label={t('chats.searchAria')}
                 /*
                   Border almost disappears: idle line ~8–10% softer than default
                   line-strong, so the field is a recess rather than a box.
@@ -418,7 +424,7 @@ export function ConversationList({
               />
             </div>
 
-            <ChipGroup label="Filter conversations" className="mt-2">
+            <ChipGroup label={t('chats.filter')} className="mt-2">
               {conversationFilters.map((f) => (
                 <Chip
                   key={f}
@@ -431,7 +437,15 @@ export function ConversationList({
                   }}
                   count={f === 'all' ? undefined : counts[f]}
                 >
-                  {conversationFilterLabels[f]}
+                  {f === 'all'
+                    ? t('chats.filterAll')
+                    : f === 'unread'
+                      ? t('chats.filterUnread')
+                      : f === 'favorites'
+                        ? t('chats.filterFavorites')
+                        : f === 'groups'
+                          ? t('chats.filterGroups')
+                          : conversationFilterLabels[f]}
                 </Chip>
               ))}
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 import { useStories } from './StoryContext.js';
 
 /**
@@ -26,6 +27,7 @@ import { useStories } from './StoryContext.js';
  */
 
 export function StoryViewersSheet({ story, onClose }: { story: Story; onClose: () => void }) {
+  const t = useT();
   const { service } = useStories();
 
   const [viewers, setViewers] = useState<StoryViewer[]>();
@@ -50,11 +52,16 @@ export function StoryViewersSheet({ story, onClose }: { story: Story; onClose: (
   }, [service, story.id]);
 
   return (
-    <Sheet title="Story insights" description="Only you can see this." onClose={onClose} elevated>
+    <Sheet
+      title={t('stories.insights')}
+      description={t('stories.insightsOnlyYou')}
+      onClose={onClose}
+      elevated
+    >
       <dl className="mt-4 grid grid-cols-3 gap-2">
-        <Stat label="Views" value={insights?.views} />
-        <Stat label="Likes" value={insights?.likes} />
-        <Stat label="Replies" value={insights?.replies} />
+        <Stat label={t('stories.views')} value={insights?.views} />
+        <Stat label={t('stories.likes')} value={insights?.likes} />
+        <Stat label={t('stories.replies')} value={insights?.replies} />
       </dl>
 
       <div className="mt-4">
@@ -104,7 +111,7 @@ export function StoryViewersSheet({ story, onClose }: { story: Story; onClose: (
       </div>
 
       <div className="mt-2">
-        <SheetCancel onClick={onClose} label="Done" />
+        <SheetCancel onClick={onClose} label={t('stories.done')} />
       </div>
     </Sheet>
   );

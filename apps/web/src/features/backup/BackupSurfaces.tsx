@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { record } from '../../lib/backup/ux-telemetry.js';
+import { useT } from '../i18n/useT.js';
 import type { BackupUx } from './useBackupUx.js';
 
 /**
@@ -24,6 +25,7 @@ import type { BackupUx } from './useBackupUx.js';
 
 /** First login, once: the WhatsApp-shaped question. */
 export function BackupPrompt({ ux }: { ux: BackupUx }) {
+  const t = useT();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -50,10 +52,8 @@ export function BackupPrompt({ ux }: { ux: BackupUx }) {
           "Only you can read them" is the one security claim, and it stays a
           sentence a person can act on rather than a word they have to learn.
         */}
-        <h2 className="text-lg font-semibold text-ink">Protect your chats</h2>
-        <p className="pt-2 text-sm text-muted">
-          Back up securely to Google Drive. Only you can read them.
-        </p>
+        <h2 className="text-lg font-semibold text-ink">{t('backup.protectTitle')}</h2>
+        <p className="pt-2 text-sm text-muted">{t('backup.protectBody')}</p>
 
         {/* The design system's primary, so the fill matches every other one. */}
         <Button
@@ -64,10 +64,10 @@ export function BackupPrompt({ ux }: { ux: BackupUx }) {
             navigate('/settings/secure-backup');
           }}
         >
-          Enable Backup
+          {t('backup.enable')}
         </Button>
         <Button block variant="text" className="mt-2" onClick={() => void ux.promptNotNow()}>
-          Not now
+          {t('backup.notNow')}
         </Button>
       </div>
     </div>
@@ -76,6 +76,7 @@ export function BackupPrompt({ ux }: { ux: BackupUx }) {
 
 /** The recurring nudge, on Home, dismissible. */
 export function BackupReminderCard({ ux }: { ux: BackupUx }) {
+  const t = useT();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -93,11 +94,8 @@ export function BackupReminderCard({ ux }: { ux: BackupUx }) {
             someone they have already failed at something; this tells them what
             they can have.
           */}
-          <p className="text-sm font-medium text-ink">Protect your chats</p>
-          <p className="pt-0.5 text-caption text-text-secondary">
-            Turn on Google Drive backup so you don&rsquo;t lose your messages if you switch
-            phones.
-          </p>
+          <p className="text-sm font-medium text-ink">{t('backup.protectTitle')}</p>
+          <p className="pt-0.5 text-caption text-text-secondary">{t('backup.reminderBody')}</p>
         </div>
         {/*
           Dismiss is a real dismissal, not a snooze: it widens the interval, and
@@ -105,7 +103,7 @@ export function BackupReminderCard({ ux }: { ux: BackupUx }) {
         */}
         <button
           type="button"
-          aria-label="Dismiss backup reminder"
+          aria-label={t('backup.dismiss')}
           className="shrink-0 px-2 py-1 text-text-secondary"
           onClick={() => void ux.dismissReminder()}
         >
@@ -127,6 +125,7 @@ export function BackupReminderCard({ ux }: { ux: BackupUx }) {
  * offers to bring it back - it does not ask them to prove anything.
  */
 export function BackupFoundCard({ ux }: { ux: BackupUx }) {
+  const t = useT();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -167,7 +166,7 @@ export function BackupFoundCard({ ux }: { ux: BackupUx }) {
           <StorageIcon size={18} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-body font-semibold text-ink">Your chats are backed up</p>
+          <p className="text-body font-semibold text-ink">{t('backup.backedUp')}</p>
           <p className="pt-0.5 text-caption text-text-secondary">
             This device is new. Bring your history back from Google Drive.
           </p>

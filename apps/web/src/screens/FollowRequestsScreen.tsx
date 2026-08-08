@@ -95,11 +95,11 @@ export function FollowRequestsScreen() {
         )}
 
         {!requests ? (
-          <LoadingState label="Loading requests" />
+          <LoadingState label={t('follow.loading')} />
         ) : requests.length === 0 ? (
           <EmptyState
-            title="No requests"
-            description="When someone asks to follow you, they will appear here."
+            title={t('follow.empty')}
+            description={t('follow.emptyHint')}
             icon={<UsersIcon size={26} />}
           />
         ) : (

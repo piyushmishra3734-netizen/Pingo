@@ -12,6 +12,7 @@ import {
 } from '@pingo/ui';
 
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * The `⋯` on a story - two different menus for two different situations.
@@ -37,21 +38,30 @@ export function MyStoryMenu({
   onShare: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
-    <Sheet title="Your story" hideTitle onClose={onClose} elevated>
+    <Sheet title={t('stories.yourStory')} hideTitle onClose={onClose} elevated>
       <div className="flex flex-col gap-1">
-        <SheetItem icon={<UsersIcon size={20} />} label="View insights" onClick={onInsights} />
-        <SheetItem icon={<ShareIcon size={20} />} label="Share" onClick={onShare} />
+        <SheetItem
+          icon={<UsersIcon size={20} />}
+          label={t('stories.viewInsights')}
+          onClick={onInsights}
+        />
+        <SheetItem icon={<ShareIcon size={20} />} label={t('stories.share')} onClick={onShare} />
         <SheetItem
           icon={<StorageIcon size={20} />}
-          label="Save"
+          label={t('stories.save')}
           hint="Downloads the picture to this device"
           onClick={onSave}
         />
-        <SheetItem icon={<ArchiveIcon size={20} />} label="Archive" onClick={onArchive} />
+        <SheetItem
+          icon={<ArchiveIcon size={20} />}
+          label={t('stories.archive')}
+          onClick={onArchive}
+        />
         <SheetItem
           icon={<TrashIcon size={20} />}
-          label="Delete story"
+          label={t('stories.delete')}
           tone="danger"
           onClick={onDelete}
         />
@@ -78,13 +88,18 @@ export function OtherStoryMenu({
   onReport: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const first = story.authorName.split(' ')[0];
 
   return (
     <Sheet title={story.authorName} hideTitle onClose={onClose} elevated>
       <div className="flex flex-col gap-1">
-        <SheetItem icon={<ShareIcon size={20} />} label="Share" onClick={onShare} />
-        <SheetItem icon={<LinkIcon size={20} />} label="Copy link" onClick={onCopyLink} />
+        <SheetItem icon={<ShareIcon size={20} />} label={t('stories.share')} onClick={onShare} />
+        <SheetItem
+          icon={<LinkIcon size={20} />}
+          label={t('stories.copyLink')}
+          onClick={onCopyLink}
+        />
         <SheetItem
           icon={muted ? <BlockIcon size={20} /> : <MuteIcon size={20} />}
           label={muted ? `Unmute ${first}'s stories` : `Mute ${first}'s stories`}
@@ -97,7 +112,7 @@ export function OtherStoryMenu({
         />
         <SheetItem
           icon={<FlagIcon size={20} />}
-          label="Report story"
+          label={t('stories.report')}
           tone="danger"
           onClick={onReport}
         />

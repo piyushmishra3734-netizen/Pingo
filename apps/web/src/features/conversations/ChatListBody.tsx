@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useFlipList } from '../../hooks/useFlipList.js';
+import { useT } from '../i18n/useT.js';
 import { ConversationRow } from './ConversationRow.js';
 import { SwipeableRow } from './SwipeableRow.js';
 import type { ConversationActions } from './useConversationActions.js';
@@ -84,6 +85,7 @@ export function ChatListBody({
   header,
   empty,
 }: ChatListBodyProps) {
+  const t = useT();
   /*
    * Collapsed by default, and the state is local rather than persisted. The
    * shelf is a door, not a preference - leaving it open across sessions would
@@ -319,7 +321,7 @@ export function ChatListBody({
 
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline gap-2">
-                <span className="min-w-0 flex-1 truncate text-body text-ink">Archived</span>
+                <span className="min-w-0 flex-1 truncate text-body text-ink">{t('chats.archived')}</span>
                 {latestArchived && (
                   <span className="shrink-0 text-caption tabular-nums text-ink/45">
                     {formatConversationTimestamp(latestArchived.updatedAt)}
@@ -366,7 +368,7 @@ export function ChatListBody({
             <>
               <SectionLabel icon={<PinIcon size={12} />} label={`Pinned`} />
               {pinned.map((conversation, index) => row(conversation, index))}
-              {rest.length > 0 && <SectionLabel label="All chats" />}
+              {rest.length > 0 && <SectionLabel label={t('chats.allChats')} />}
             </>
           )}
 
@@ -404,11 +406,12 @@ export function ChatListEmpty({
   listName?: string;
   greeting?: string;
 }) {
+  const t = useT();
   if (reason === 'search') {
     return (
       <EmptyState
-        title="No matches"
-        description={`Nothing found for "${query?.trim()}".`}
+        title={t('chats.emptyMatches')}
+        description={t('chats.emptyMatchesHint', { query: query?.trim() ?? '' })}
         icon={<ChatIcon size={26} />}
       />
     );
@@ -417,8 +420,8 @@ export function ChatListEmpty({
   if (reason === 'favorites') {
     return (
       <EmptyState
-        title="No favourites yet"
-        description="Hold a chat and star it to keep it close."
+        title={t('chats.emptyFavorites')}
+        description={t('chats.emptyFavoritesHint')}
         icon={<StarIcon size={26} />}
       />
     );
@@ -427,8 +430,8 @@ export function ChatListEmpty({
   if (reason === 'archive') {
     return (
       <EmptyState
-        title="Nothing archived"
-        description="Swipe a chat left to put it away without leaving it."
+        title={t('chats.emptyArchive')}
+        description={t('chats.emptyArchiveHint')}
         icon={<ArchiveIcon size={26} />}
       />
     );
@@ -437,8 +440,8 @@ export function ChatListEmpty({
   if (reason === 'list') {
     return (
       <EmptyState
-        title={`${listName} is empty`}
-        description="Hold a chat and add it to this list."
+        title={t('chats.emptyList', { name: listName ?? '' })}
+        description={t('chats.emptyListHint')}
         icon={<ListIcon size={26} />}
       />
     );
@@ -447,8 +450,8 @@ export function ChatListEmpty({
   if (reason === 'filter') {
     return (
       <EmptyState
-        title="Nothing here"
-        description="Try another filter to see the rest of your conversations."
+        title={t('chats.emptyFilter')}
+        description={t('chats.emptyFilterHint')}
         icon={<ChatIcon size={26} />}
       />
     );
@@ -462,8 +465,12 @@ export function ChatListEmpty({
    */
   return (
     <EmptyState
-      title={greeting ? `👋 Welcome ${greeting}` : '👋 Welcome'}
-      description="Start your first conversation."
+      title={
+        greeting
+          ? t('chats.emptyHomeNamed', { name: greeting })
+          : t('chats.emptyHome')
+      }
+      description={t('chats.emptyHomeHint')}
       icon={<ChatIcon size={26} />}
       action={
         <div className="mt-2 w-full max-w-[16rem]">

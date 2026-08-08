@@ -53,7 +53,7 @@ export function StoryArchiveScreen() {
       <div className="mx-auto w-full max-w-2xl px-5 pb-10">
         <p className="flex items-center justify-center gap-1.5 py-3 text-caption text-text-tertiary">
           <LockIcon size={13} />
-          Only you can see this
+          {t('stories.onlyYouArchive')}
         </p>
 
         {!stories ? (

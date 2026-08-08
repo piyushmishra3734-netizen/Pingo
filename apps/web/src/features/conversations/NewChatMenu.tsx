@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * What the `+` opens.
@@ -16,6 +17,7 @@ import { Sheet } from '../../components/Sheet.js';
  * choice and starts being a screen, and this one is opened by reflex.
  */
 export function NewChatMenu({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const navigate = useNavigate();
   const { service } = useChat();
   const [openingAi, setOpeningAi] = useState(false);
@@ -35,19 +37,19 @@ export function NewChatMenu({ onClose }: { onClose: () => void }) {
       onClose();
       navigate(`/chats/${id}`);
     } catch (cause) {
-      setAiError(cause instanceof Error ? cause.message : 'Could not open chat.');
+      setAiError(cause instanceof Error ? cause.message : t('common.error'));
       setOpeningAi(false);
     }
   };
 
   return (
-    <Sheet title="Start something" onClose={onClose}>
+    <Sheet title={t('chats.menuStart')} onClose={onClose}>
       <ul className="flex flex-col">
         <li>
           <Row
             icon={<ChatIcon size={20} />}
-            title="Message PINGO"
-            detail="A chat that feels like a person"
+            title={t('chats.menuAi')}
+            detail={t('chats.menuAiDetail')}
             onClick={() => void openPingo()}
             disabled={openingAi}
           />
@@ -55,16 +57,16 @@ export function NewChatMenu({ onClose }: { onClose: () => void }) {
         <li>
           <Row
             icon={<UserIcon size={20} />}
-            title="New chat"
-            detail="Message someone you already know"
+            title={t('chats.menuNew')}
+            detail={t('chats.menuNewDetail')}
             onClick={go('/chats/new')}
           />
         </li>
         <li>
           <Row
             icon={<UsersIcon size={20} />}
-            title="New group"
-            detail="Add friends, or share a link with anyone"
+            title={t('chats.menuGroup')}
+            detail={t('chats.menuGroupDetail')}
             onClick={go('/chats/new-group')}
           />
         </li>
