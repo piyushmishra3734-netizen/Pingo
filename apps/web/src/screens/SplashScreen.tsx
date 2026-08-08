@@ -1,5 +1,5 @@
 import { useAuth } from '@pingo/core';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
@@ -12,33 +12,30 @@ import {
 } from '../lib/supabase/onboarding-slides.js';
 
 /**
- * Splash.
+ * Splash — must be *seen*, not only mounted.
  *
- * Full-screen art (PC + mobile). Operator art from Controlling; built-in only
- * when nothing custom is published.
+ * Earlier bugs:
+ * 1. Dwell ran from mount while art was still loading → leave before paint.
+ * 2. Effect cleanup set a shared "left" flag that poisoned remounts / races.
  *
- * ## Why dwell starts *after* the image is visible
- *
- * A slow network or device used to lose the race: mount → 1.8s timer → leave
- * while art was still loading → user never saw the splash. Dwell is now a
- * minimum time **on screen**, not from mount. A load budget + hard ceiling
- * still prevent hanging forever on a dead connection
- * ([11 § 1.1](../../../../docs/11-performance-budget.md#11-the-splash-is-a-ceiling-not-a-spinner)).
- *
- * | Condition | Destination |
- * | --- | --- |
- * | Valid session | Home |
- * | Anonymous | Intro slides |
+ * Rules now:
+ * - Always paint an image as soon as possible (custom cache, else built-in).
+ * - Refresh to live operator art in the background (preloaded before swap).
+ * - Leave only after BOTH: min time from mount AND image `onLoad` (+ short hold).
+ * - Hard ceiling so a dead network never traps the user.
  */
 
-/** Minimum time the splash art stays visible once painted. */
-const DWELL_MS = 1800;
+/** Minimum time spent on this route after open. */
+const MIN_ROUTE_MS = 2200;
 
-/** Max wait for remote art before falling back to cache / built-in. */
-const LOAD_BUDGET_MS = 2000;
+/** Extra hold after the browser has actually loaded the image pixels. */
+const AFTER_PAINT_MS = 600;
 
-/** Absolute max time on this route from mount (load + dwell, worst case). */
-const HARD_CEILING_MS = 5000;
+/** Never stay longer than this (load + hold worst case). */
+const HARD_MAX_MS = 7000;
+
+/** How long to wait for operator URLs before accepting cache/built-in as final. */
+const LOAD_BUDGET_MS = 1800;
 
 const SPLASH_GROUND = '#EDECFB';
 
@@ -50,10 +47,11 @@ function builtInSplash(): SplashUrls {
   };
 }
 
-/**
- * Resolve art with a budget: prefer live operator URLs, then cache, then built-in.
- * Always preloads so the first paint is a complete frame.
- */
+/** First paint candidate: last custom art if any, else shipped files. */
+function initialSplash(): SplashUrls {
+  return readSplashCache() ?? builtInSplash();
+}
+
 async function resolveSplashArt(): Promise<SplashUrls> {
   const load = (async (): Promise<SplashUrls> => {
     const next = await loadSplashUrls();
@@ -70,7 +68,6 @@ async function resolveSplashArt(): Promise<SplashUrls> {
 
   if (raced.kind === 'ok') return raced.u;
 
-  // Budget spent — still show *something* so splash is never skipped.
   const cache = readSplashCache();
   if (cache) {
     await Promise.all([preloadImage(cache.desktop), preloadImage(cache.mobile)]);
@@ -85,80 +82,133 @@ async function resolveSplashArt(): Promise<SplashUrls> {
 export function SplashScreen() {
   const navigate = useNavigate();
   const { status } = useAuth();
-
-  const [urls, setUrls] = useState<SplashUrls | null>(null);
-  const [visible, setVisible] = useState(false);
-
   const statusRef = useRef(status);
   statusRef.current = status;
 
+  // Always have pixels on the first frame — blank ground was reading as "skip".
+  const [urls, setUrls] = useState<SplashUrls>(() => initialSplash());
+
+  const mountedAtRef = useRef(0);
+  const paintedAtRef = useRef<number | null>(null);
   const leftRef = useRef(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  const leave = useCallback(() => {
+    if (leftRef.current) return;
+    leftRef.current = true;
+    const current = statusRef.current;
+    if (current === 'anonymous') {
+      navigate('/intro', { replace: true });
+      return;
+    }
+    navigate('/chats', { replace: true });
+  }, [navigate]);
+
+  /**
+   * Schedule leave when both clocks are satisfied.
+   * Re-checks until ready; safe to call many times.
+   */
+  const armLeave = useCallback(() => {
+    if (leftRef.current) return;
+
+    const tick = () => {
+      if (leftRef.current) return;
+      const now = Date.now();
+      const mountedAt = mountedAtRef.current || now;
+      const paintedAt = paintedAtRef.current;
+
+      const routeReady = now - mountedAt >= MIN_ROUTE_MS;
+      const paintReady =
+        paintedAt != null && now - paintedAt >= AFTER_PAINT_MS;
+
+      if (routeReady && paintReady) {
+        leave();
+        return;
+      }
+
+      const waitRoute = Math.max(0, MIN_ROUTE_MS - (now - mountedAt));
+      const waitPaint =
+        paintedAt == null
+          ? AFTER_PAINT_MS
+          : Math.max(0, AFTER_PAINT_MS - (now - paintedAt));
+      window.setTimeout(tick, Math.max(waitRoute, waitPaint, 32));
+    };
+
+    tick();
+  }, [leave]);
+
+  const markPainted = useCallback(() => {
+    if (paintedAtRef.current != null) return;
+    paintedAtRef.current = Date.now();
+    armLeave();
+  }, [armLeave]);
 
   useEffect(() => {
     leftRef.current = false;
-    let dwellTimer: ReturnType<typeof setTimeout> | undefined;
-    let ceilingTimer: ReturnType<typeof setTimeout> | undefined;
+    paintedAtRef.current = null;
+    mountedAtRef.current = Date.now();
 
-    const leave = () => {
-      if (leftRef.current) return;
-      leftRef.current = true;
-      if (dwellTimer) clearTimeout(dwellTimer);
-      if (ceilingTimer) clearTimeout(ceilingTimer);
+    let cancelled = false;
+    const hardTimer = window.setTimeout(() => {
+      if (!cancelled) leave();
+    }, HARD_MAX_MS);
 
-      const current = statusRef.current;
-      if (current === 'anonymous') {
-        navigate('/intro', { replace: true });
-        return;
-      }
-      navigate('/chats', { replace: true });
-    };
+    // Cached / built-in img may already be complete before onLoad binds.
+    const el = imgRef.current;
+    if (el?.complete && el.naturalWidth > 0) {
+      markPainted();
+    } else {
+      // If the image never fires onLoad (rare), still release after route min.
+      window.setTimeout(() => {
+        if (!cancelled && paintedAtRef.current == null) markPainted();
+      }, MIN_ROUTE_MS);
+    }
 
-    // Never stuck on this route if load + dwell misbehave.
-    ceilingTimer = setTimeout(leave, HARD_CEILING_MS);
+    armLeave();
 
     void (async () => {
-      const next = await resolveSplashArt();
-      if (leftRef.current) return;
-
-      setUrls(next);
-      setVisible(true);
-
-      // Dwell starts only once art is actually on screen.
-      dwellTimer = setTimeout(leave, DWELL_MS);
+      try {
+        const next = await resolveSplashArt();
+        if (cancelled || leftRef.current) return;
+        // Only swap when different — avoids re-flicker when cache already correct.
+        setUrls((prev) => {
+          if (prev.desktop === next.desktop && prev.mobile === next.mobile) return prev;
+          return next;
+        });
+      } catch {
+        // Keep whatever is on screen.
+      }
     })();
 
     return () => {
-      leftRef.current = true;
-      if (dwellTimer) clearTimeout(dwellTimer);
-      if (ceilingTimer) clearTimeout(ceilingTimer);
+      cancelled = true;
+      window.clearTimeout(hardTimer);
+      // Do NOT set leftRef here — that poisoned remounts / concurrent loads.
     };
-  }, [navigate]);
+  }, [armLeave, leave, markPainted]);
 
   return (
     <div
       className="grid h-full w-full place-items-center overflow-hidden"
       style={{ backgroundColor: SPLASH_GROUND }}
     >
-      {/*
-        Solid ground while resolving. Image mounts only when ready — no old-art
-        flash, and navigation cannot fire before this paint + DWELL_MS.
-      */}
-      {visible && urls ? (
-        <picture className="h-full w-full">
-          <source media="(orientation: portrait)" srcSet={urls.mobile} />
-          <img
-            key={`${urls.desktop}|${urls.mobile}`}
-            src={urls.desktop}
-            alt="PINGO. Connect. Privately."
-            width={1600}
-            height={900}
-            decoding="async"
-            fetchPriority="high"
-            draggable={false}
-            className="h-full w-full select-none object-cover animate-fade-in"
-          />
-        </picture>
-      ) : null}
+      <picture className="h-full w-full">
+        <source media="(orientation: portrait)" srcSet={urls.mobile} />
+        <img
+          ref={imgRef}
+          key={`${urls.desktop}|${urls.mobile}`}
+          src={urls.desktop}
+          alt="PINGO. Connect. Privately."
+          width={1600}
+          height={900}
+          decoding="async"
+          fetchPriority="high"
+          draggable={false}
+          onLoad={markPainted}
+          onError={markPainted}
+          className="h-full w-full select-none object-cover"
+        />
+      </picture>
     </div>
   );
 }
