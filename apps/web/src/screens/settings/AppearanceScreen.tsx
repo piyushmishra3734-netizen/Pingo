@@ -155,11 +155,40 @@ export function AppearanceScreen() {
 
         <Group title="Glass Intensity">
           {/*
-            A live glass panel over a patterned ground - the only way to judge
-            blur is against something worth blurring.
+            A live glass panel over something worth blurring.
+
+            The intent here was always right and the ground was wrong: it was
+            the flat brand gradient, and a blurred gradient is the same
+            gradient. There was nothing for the material to do, so every level
+            from 0 to 100 looked identical and the control appeared broken -
+            while being, at the accent's full saturation, the loudest block on
+            the screen.
+
+            Detail is the whole point. Text and hairlines are what blur visibly
+            destroys, which is why every reference render of this material has
+            a letter behind it: you judge glass by what you can still read
+            through it.
           */}
           <div className="relative overflow-hidden rounded-lg bg-brand-gradient p-5">
-            <div className="glass-surface rounded-md px-4 py-3">
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              <span
+                className={cn(
+                  'absolute -top-1 left-3 font-serif text-[5rem] leading-none',
+                  'font-medium text-white/85 select-none',
+                )}
+              >
+                Pingo
+              </span>
+              <span
+                className="absolute inset-0"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(115deg, rgb(255 255 255 / 0.22) 0 2px, transparent 2px 9px)',
+                }}
+              />
+            </div>
+
+            <div className="glass-surface relative rounded-md px-4 py-3">
               <p className="text-body text-ink">Glass</p>
               <p className="text-caption text-text-secondary">
                 {appearance.glass === 0 ? 'Off, solid surfaces' : `${appearance.glass}%`}
