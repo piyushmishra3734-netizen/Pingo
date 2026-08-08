@@ -21,7 +21,7 @@
       content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
     />
     <meta property="og:url" content="https://pingochat.pages.dev/" />
-    <meta property="og:image" content="https://pingochat.pages.dev/pingo-icon.png" />
+    <meta property="og:image" content="https://pingochat.pages.dev/pingo-maskable.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
@@ -35,7 +35,7 @@
       content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
     />
     <meta name="twitter:url" content="https://pingochat.pages.dev/" />
-    <meta name="twitter:image" content="https://pingochat.pages.dev/pingo-icon.png" />
+    <meta name="twitter:image" content="https://pingochat.pages.dev/pingo-maskable.png" />
     <meta name="twitter:image:alt" content="PINGO app icon" />
 
     <!-- Tints browser chrome to the page colour so the app has no visible seam. -->
@@ -71,13 +71,23 @@
     <link rel="preload" href="/pingo-icon.png" as="image" type="image/png" />
 
     <!--
-      The official app icon, used as supplied. Not a redraw, not a generated
-      size set - one file, referenced everywhere the mark appears.
+      The official app icon, used as supplied - cropped to its tile and lifted
+      off the paper it was rendered on, and nothing else. Both files come from
+      `scripts/icons.mjs`, from the one piece of artwork.
+
+      Two of them, because transparency is right in one place and wrong in the
+      other. A browser tab wants the tile with its corners cut, so it sits on
+      whatever colour the tab strip is. iOS ignores transparency on
+      `apple-touch-icon` and composites it onto black, which would put black
+      wedges in the corners, and it rounds the icon itself anyway - so that one
+      is the opaque, full-bleed copy. The social cards take the opaque one for
+      the same reason: a transparent PNG lands on whatever colour the chat app
+      showing it happens to use.
     -->
     <link rel="icon" href="/pingo-icon.png" type="image/png" sizes="512x512" />
     <link rel="icon" href="/pingo-icon.png" type="image/png" sizes="any" />
     <link rel="shortcut icon" href="/pingo-icon.png" type="image/png" />
-    <link rel="apple-touch-icon" href="/pingo-icon.png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/pingo-maskable.png" sizes="512x512" />
 
     <!-- JSON-LD: organization + software application (public product surface). -->
     <script type="application/ld+json">

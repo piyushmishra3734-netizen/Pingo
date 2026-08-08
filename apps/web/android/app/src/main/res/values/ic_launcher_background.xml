@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The tile's own wash, sampled from the official artwork. A white
-         background would put the mark on a white circle inside whatever
-         colour the launcher sits on, which reads as a sticker. -->
-    <color name="ic_launcher_background">#F0ECFC</color>
+    <!-- The tile's own wash, sampled from the official artwork - now the warm
+         off-white of the penguin tile rather than the previous mark's lilac.
+
+         It has to match, because the adaptive foreground is the tile itself:
+         where the two agree the join is invisible and the launcher shows the
+         artwork, and where they do not it shows a tile pasted onto a coloured
+         card. Sampled at the tile's own interior, not guessed. -->
+    <color name="ic_launcher_background">#F3EDEA</color>
 </resources>
