@@ -547,6 +547,9 @@ function NotificationRow({
 }
 
 function PremiumEmpty() {
+  // Its own, because a hook cannot be borrowed from the component above it.
+  const t = useT();
+
   return (
     <div className="flex flex-col items-center px-6 pt-16 pb-10 text-center">
       <div className="relative mb-7">
