@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useT } from '../features/i18n/useT.js';
 import { useMutuals } from '../features/profile/useMutuals.js';
 
 /**
@@ -41,6 +42,7 @@ import { useMutuals } from '../features/profile/useMutuals.js';
  * it is missing.
  */
 export function NewGroupScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { service } = useChat();
   const mutuals = useMutuals();
@@ -154,7 +156,7 @@ export function NewGroupScreen() {
           <IconButton label="Back" variant="ghost" onClick={() => navigate('/chats')}>
             <ChevronLeftIcon size={22} />
           </IconButton>
-          <h1 className="text-h2 text-ink">New group</h1>
+          <h1 className="text-h2 text-ink">{t('chats.newGroup')}</h1>
         </div>
 
         <div className="mt-3 px-1">

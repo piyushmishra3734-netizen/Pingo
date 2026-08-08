@@ -22,6 +22,7 @@ import { NativeDriveAuth } from '../../lib/backup/drive/native-auth.js';
 import { WebDriveAuth } from '../../lib/backup/drive/web-auth.js';
 import { policyFor } from '../../lib/backup/drive/policy.js';
 import { archiveLines, buildArchive } from '../../lib/backup/archive-builder.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Secure Backup.
@@ -39,6 +40,7 @@ import { archiveLines, buildArchive } from '../../lib/backup/archive-builder.js'
  * does not use sends people hunting for a code they were never given.
  */
 export function SecureBackupScreen() {
+  const t = useT();
   const client = useMemo(() => getSupabaseClient(), []);
   const targets = useMemo(() => [new ServerBackupTarget(client)], [client]);
 
@@ -646,7 +648,7 @@ export function SecureBackupScreen() {
   };
 
   return (
-    <SettingsPage title="Secure Backup">
+    <SettingsPage title={t('page.secureBackup')}>
       {/*
         Three facts, and none of them is a recovery code.
 

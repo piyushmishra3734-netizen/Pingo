@@ -9,6 +9,7 @@ import { CheckIcon, cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
+import { useT } from '../../features/i18n/useT.js';
 import { useAppearance } from '../../features/settings/SettingsContext.js';
 
 /**
@@ -47,11 +48,13 @@ const MOTIONS: { value: MotionLevel; label: string; hint: string }[] = [
 const GLASS_LEVELS: GlassLevel[] = [0, 25, 50, 75, 100];
 
 export function AppearanceScreen() {
+  const t = useT();
   const { appearance, updateAppearance, resolvedTheme } = useAppearance();
+  // voice title via t('page.appearance')
 
   return (
     <div className="flex h-full flex-col bg-page">
-      <ScreenHeader title="Appearance" showBack />
+      <ScreenHeader title={t('page.appearance')} showBack />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-4">
         <Group

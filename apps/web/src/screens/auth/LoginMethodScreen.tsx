@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../../components/AppLogo.js';
 import { readLastMethod } from '../../features/auth/last-method.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Log In - [docs/01 § 13.1](../../../../../docs/01-onboarding-auth.md#131-method-selection).
@@ -24,28 +25,21 @@ interface MethodRow {
   path: string;
 }
 
-const METHODS: MethodRow[] = [
-  { kind: 'google', label: 'Continue with Google', icon: <GoogleMark />, path: '/auth/google' },
-  /*
-   * Above email and phone, because it is the identifier a returning user
-   * actually knows. People remember the handle they hand out; the address they
-   * signed up with a year ago is the one they get wrong.
-   *
-   * It is a log-in row only - there is no matching row on Welcome, since a
-   * username cannot create an account. It is chosen once the account exists.
-   */
-  { kind: 'username', label: 'Username', icon: <UserIcon size={20} />, path: '/login/username' },
-  { kind: 'email', label: 'Email', icon: <AtIcon size={20} />, path: '/login/email' },
-  { kind: 'phone', label: 'Phone number', icon: <PhoneIcon size={20} />, path: '/login/phone' },
-];
-
 export function LoginMethodScreen() {
   const navigate = useNavigate();
   const { service } = useAuth();
+  const t = useT();
 
   const lastUsed = readLastMethod();
 
-  const available = METHODS.filter((method) => service.supportedMethods.includes(method.kind));
+  const methods: MethodRow[] = [
+    { kind: 'google', label: t('login.continueGoogle'), icon: <GoogleMark />, path: '/auth/google' },
+    { kind: 'username', label: t('login.username'), icon: <UserIcon size={20} />, path: '/login/username' },
+    { kind: 'email', label: t('login.email'), icon: <AtIcon size={20} />, path: '/login/email' },
+    { kind: 'phone', label: t('login.phone'), icon: <PhoneIcon size={20} />, path: '/login/phone' },
+  ];
+
+  const available = methods.filter((method) => service.supportedMethods.includes(method.kind));
   const ordered = [
     ...available.filter((method) => method.kind === lastUsed),
     ...available.filter((method) => method.kind !== lastUsed),
@@ -61,7 +55,7 @@ export function LoginMethodScreen() {
       <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-10 px-6 py-12">
         <div className="flex flex-col items-center">
           <AppLogo size={64} alt="" />
-          <h1 className="mt-8 text-h1 text-ink animate-rise">Welcome back</h1>
+          <h1 className="mt-8 text-h1 text-ink animate-rise">{t('login.welcomeBack')}</h1>
         </div>
 
         <div className="animate-rise" style={{ animationDelay: '60ms' }}>
@@ -71,7 +65,7 @@ export function LoginMethodScreen() {
                 key={method.kind}
                 icon={method.icon}
                 label={method.label}
-                description={method.kind === lastUsed ? 'Last used' : undefined}
+                description={method.kind === lastUsed ? t('login.lastUsed') : undefined}
                 onClick={() => navigate(method.path)}
               />
             ))}
@@ -82,9 +76,9 @@ export function LoginMethodScreen() {
           className="flex flex-col items-center gap-1 animate-rise"
           style={{ animationDelay: '120ms' }}
         >
-          <p className="text-caption text-text-secondary">New to PINGO?</p>
+          <p className="text-caption text-text-secondary">{t('login.newTo')}</p>
           <Button variant="text" size="lg" onClick={() => navigate('/signup')}>
-            Get Started
+            {t('login.getStarted')}
           </Button>
         </div>
       </div>

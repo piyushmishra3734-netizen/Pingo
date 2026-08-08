@@ -3,6 +3,7 @@ import { ArchiveIcon, EmptyState, LockIcon, Skeleton, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { useT } from '../features/i18n/useT.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
 /**
@@ -26,6 +27,7 @@ import { useStories } from '../features/stories/StoryContext.js';
  */
 
 export function StoryArchiveScreen() {
+  const t = useT();
   const { service } = useStories();
   const [stories, setStories] = useState<Story[]>();
 
@@ -46,7 +48,7 @@ export function StoryArchiveScreen() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <ScreenHeader title="Story archive" showBack />
+      <ScreenHeader title={t('profile.storyArchive')} showBack />
 
       <div className="mx-auto w-full max-w-2xl px-5 pb-10">
         <p className="flex items-center justify-center gap-1.5 py-3 text-caption text-text-tertiary">
@@ -63,7 +65,7 @@ export function StoryArchiveScreen() {
         ) : stories.length === 0 ? (
           <EmptyState
             icon={<ArchiveIcon size={28} />}
-            title="Nothing archived yet"
+            title={t('profile.archiveEmpty')}
             description="Stories land here on their own once they are a day old. Nobody else ever sees them."
           />
         ) : (

@@ -1,5 +1,6 @@
 import { useAuth } from '@pingo/core';
 
+import { useT } from '../../features/i18n/useT.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
 
 /**
@@ -14,6 +15,7 @@ import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.j
  * When support has an address, this is where it goes.
  */
 export function HelpScreen() {
+  const t = useT();
   const { session } = useAuth();
 
   const diagnostics = [
@@ -23,7 +25,7 @@ export function HelpScreen() {
   ].join('\n');
 
   return (
-    <SettingsPage title="Help">
+    <SettingsPage title={t('page.help')}>
       <Group title="About">
         <InfoRow label="Version" value="0.1.0" />
         <InfoRow label="Build" value={import.meta.env.MODE} />

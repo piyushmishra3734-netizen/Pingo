@@ -9,6 +9,7 @@ import { PasswordField } from '../../features/auth/PasswordField.js';
 import { PasswordMeter } from '../../features/auth/PasswordMeter.js';
 import { writeLastMethod } from '../../features/auth/last-method.js';
 import { authErrorMessage } from '../../features/auth/messages.js';
+import { useT } from '../../features/i18n/useT.js';
 import { SIGNUP_PROGRESS } from './progress.js';
 
 /**
@@ -36,6 +37,7 @@ import { SIGNUP_PROGRESS } from './progress.js';
  */
 export function CreatePasswordScreen() {
   const navigate = useNavigate();
+  const t = useT();
   const { service } = useAuth();
   const { identity } = useIdentityFlow();
 
@@ -91,8 +93,8 @@ export function CreatePasswordScreen() {
   return (
     <AuthScreen
       progress={SIGNUP_PROGRESS.password}
-      title="Create a password"
-      subtitle="This is what you'll use to sign in."
+      title={t('auth.passwordCreate')}
+      subtitle={t('auth.passwordCreateSub')}
       onBack={() => navigate(identity.kind === 'email' ? '/signup/email' : '/signup/phone')}
       message={error && <AuthMessage>{error}</AuthMessage>}
       footer={

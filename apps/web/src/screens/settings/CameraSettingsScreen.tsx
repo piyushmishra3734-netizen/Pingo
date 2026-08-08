@@ -5,6 +5,7 @@ import {
   ToggleRow,
 } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Camera & Pings.
@@ -19,11 +20,12 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * when they ask for it.
  */
 export function CameraSettingsScreen() {
+  const t = useT();
   const { preferences, update } = usePreferences();
   const c = preferences.camera;
 
   return (
-    <SettingsPage title="Camera & Pings">
+    <SettingsPage title={t('page.camera')}>
       <Group title="Capture">
         <ChoiceRow
           label="Default Camera"

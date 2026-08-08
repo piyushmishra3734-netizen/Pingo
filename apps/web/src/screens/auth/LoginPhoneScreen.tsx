@@ -7,6 +7,7 @@ import { AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
 import { PhoneField, toE164 } from '../../features/auth/PhoneField.js';
 import { defaultCountry } from '../../features/auth/countries.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Log In - the number.
@@ -18,6 +19,7 @@ import { defaultCountry } from '../../features/auth/countries.js';
  */
 export function LoginPhoneScreen() {
   const navigate = useNavigate();
+  const t = useT();
   const { setIdentity } = useIdentityFlow();
 
   const [country, setCountry] = useState(defaultCountry);
@@ -34,11 +36,11 @@ export function LoginPhoneScreen() {
 
   return (
     <AuthScreen
-      title="What's your number?"
+      title={t('auth.phoneTitle')}
       onBack={() => navigate('/login')}
       footer={
         <Button variant="primary" size="lg" block disabled={!valid} onClick={submit}>
-          Continue
+          {t('common.continue')}
         </Button>
       }
     >

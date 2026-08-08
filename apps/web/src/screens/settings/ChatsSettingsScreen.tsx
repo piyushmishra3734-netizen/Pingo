@@ -8,6 +8,7 @@ import {
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useNavigate } from 'react-router-dom';
 import { WALLPAPERS, chosenWallpaperId } from '../../features/chat/wallpaper.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Chats.
@@ -21,13 +22,14 @@ import { WALLPAPERS, chosenWallpaperId } from '../../features/chat/wallpaper.js'
  * and the note says so.
  */
 export function ChatsSettingsScreen() {
+  const t = useT();
   const { preferences, update } = usePreferences();
   const navigate = useNavigate();
   const wallpaper = WALLPAPERS.find((w) => w.id === chosenWallpaperId());
   const c = preferences.chats;
 
   return (
-    <SettingsPage title="Chats">
+    <SettingsPage title={t('page.chats')}>
       <Group title="Reading" note="Font size rescales the entire app, not only messages.">
         <ChoiceRow
           label="Font Size"

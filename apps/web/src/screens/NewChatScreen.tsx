@@ -12,6 +12,8 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useT } from '../features/i18n/useT.js';
+
 /**
  * Start a new direct conversation.
  *
@@ -49,6 +51,7 @@ import { useNavigate } from 'react-router-dom';
  * thread you already have rather than an empty one beside it.
  */
 export function NewChatScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { service } = useChat();
   const { service: profiles } = useProfile();
@@ -184,7 +187,7 @@ export function NewChatScreen() {
           <IconButton label="Back" variant="ghost" onClick={() => navigate('/chats')}>
             <ChevronLeftIcon size={22} />
           </IconButton>
-          <h1 className="text-h2 text-ink">New chat</h1>
+          <h1 className="text-h2 text-ink">{t('chats.new')}</h1>
         </div>
 
         <div className="mt-3 px-1">

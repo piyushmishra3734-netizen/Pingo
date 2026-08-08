@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 
 import { Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Calls.
@@ -16,6 +17,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * and it is the one control here that would be a lie to fake.
  */
 export function CallsSettingsScreen() {
+  const t = useT();
   const { preferences, update } = usePreferences();
   const c = preferences.calls;
 
@@ -65,7 +67,7 @@ export function CallsSettingsScreen() {
   };
 
   return (
-    <SettingsPage title="Calls">
+    <SettingsPage title={t('page.calls')}>
       <Group title="Audio">
         <ToggleRow
           label="Noise Cancellation"

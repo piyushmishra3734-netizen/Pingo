@@ -2,6 +2,7 @@ import { CheckIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
+import { useT } from '../../features/i18n/useT.js';
 import {
   WALLPAPERS,
   chosenWallpaperId,
@@ -24,6 +25,7 @@ import { rainSoundEnabled, setRainSoundEnabled } from '../../features/chat/rain-
  * message is still easy to read on it.
  */
 export function WallpaperScreen() {
+  const t = useT();
   const [chosen, setChosen] = useState(chosenWallpaperId);
   const [photo, setPhoto] = useState(customWallpaperPhoto);
   const [sound, setSound] = useState(rainSoundEnabled);
@@ -49,7 +51,7 @@ export function WallpaperScreen() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-page">
-      <ScreenHeader title="Chat wallpaper" showBack />
+      <ScreenHeader title={t('page.wallpaper')} showBack />
 
       {/*
         Held to a column, and clear of the dock.

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { PasswordField } from '../../features/auth/PasswordField.js';
 import { PasswordMeter } from '../../features/auth/PasswordMeter.js';
+import { useT } from '../../features/i18n/useT.js';
 import { Group, SettingsPage } from '../../features/settings/controls.js';
 
 /**
@@ -39,6 +40,7 @@ import { Group, SettingsPage } from '../../features/settings/controls.js';
  * typo problem a confirm field exists for, without doubling the typing.
  */
 export function ChangePasswordScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { service, session } = useAuth();
 
@@ -79,7 +81,7 @@ export function ChangePasswordScreen() {
 
   if (googleOnly) {
     return (
-      <SettingsPage title="Password">
+      <SettingsPage title={t('page.password')}>
         <Group note="Adding an email address to this account is not built yet, so there is no way to set a password on it today.">
           <div className="px-3 py-4">
             <p className="text-body text-ink">This account signs in with Google.</p>
@@ -94,7 +96,7 @@ export function ChangePasswordScreen() {
 
   if (done) {
     return (
-      <SettingsPage title="Password">
+      <SettingsPage title={t('page.password')}>
         <Group>
           <div className="px-3 py-4">
             <p className="text-body text-ink">Password changed.</p>
@@ -112,7 +114,7 @@ export function ChangePasswordScreen() {
   }
 
   return (
-    <SettingsPage title="Password">
+    <SettingsPage title={t('page.password')}>
       {/*
         No group headings. "CURRENT PASSWORD" above a field labelled "Current
         password" says the same word twice and makes two fields look like two

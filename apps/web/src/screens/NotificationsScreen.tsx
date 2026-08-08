@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { useT } from '../features/i18n/useT.js';
 import {
   FILTERS,
   describe,
@@ -88,6 +89,7 @@ function kindMeta(kind: AppNotification['kind']): {
 }
 
 export function NotificationsScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { service, users } = useChat();
   const { clear } = useNotifications();
@@ -254,7 +256,7 @@ export function NotificationsScreen() {
         <div className="absolute top-8 right-[-10%] size-48 rounded-full bg-brand-alt/10 blur-3xl" />
       </div>
 
-      <ScreenHeader title="Activity" showBack={showBack} className="relative z-10" />
+      <ScreenHeader title={t('notifications.title')} showBack={showBack} className="relative z-10" />
 
       {/*
         Search and filters, above the timeline.
@@ -566,7 +568,7 @@ function PremiumEmpty() {
         </div>
       </div>
 
-      <h2 className="text-h2 tracking-tight text-ink">All quiet</h2>
+      <h2 className="text-h2 tracking-tight text-ink">{t('notifications.quiet')}</h2>
       <p className="mt-2 max-w-[16rem] text-body leading-relaxed text-text-secondary">
         Follows, messages and Pings land here the moment something needs you.
       </p>

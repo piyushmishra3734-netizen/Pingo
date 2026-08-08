@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
 import { ConnectionBanner } from '../features/connection/ConnectionBanner.js';
+import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
 import { startLensing } from '../features/glass/lens.js';
@@ -27,6 +28,7 @@ import { usePushTapRouting } from '../features/notifications/usePushTapRouting.j
  * edge, because the composer must sit against the keyboard with the dock hidden.
  */
 export function AppShell() {
+  const t = useT();
   // A share can start the app, so it is listened for above every screen -
   // see the note in useIncomingShare.
   useIncomingShare();
@@ -94,7 +96,7 @@ export function AppShell() {
   if (!ready) {
     return (
       <div className="grid h-full place-items-center bg-page">
-        <LoadingState label="Opening PINGO" />
+        <LoadingState label={t('common.opening')} />
       </div>
     );
   }

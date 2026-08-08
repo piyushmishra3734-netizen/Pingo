@@ -11,6 +11,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useT } from '../features/i18n/useT.js';
+
 /**
  * People waiting on you.
  *
@@ -30,6 +32,7 @@ import { useNavigate } from 'react-router-dom';
  * refused.
  */
 export function FollowRequestsScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { service } = useProfile();
 
@@ -78,7 +81,7 @@ export function FollowRequestsScreen() {
         <IconButton label="Back" variant="ghost" onClick={() => navigate(-1)}>
           <ChevronLeftIcon size={22} />
         </IconButton>
-        <h1 className="text-h2 text-ink">Follow requests</h1>
+        <h1 className="text-h2 text-ink">{t('profile.followRequests')}</h1>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">

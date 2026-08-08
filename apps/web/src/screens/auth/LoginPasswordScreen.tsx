@@ -9,6 +9,7 @@ import { formatIdentity, useIdentityFlow } from '../../features/auth/IdentityFlo
 import { PasswordField } from '../../features/auth/PasswordField.js';
 import { writeLastMethod } from '../../features/auth/last-method.js';
 import { ALREADY_REGISTERED_MESSAGE, authErrorMessage } from '../../features/auth/messages.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Log In - [docs/01 § 13.2](../../../../../docs/01-onboarding-auth.md#132-password).
@@ -67,6 +68,7 @@ const COOLDOWN_SECONDS = 300;
 export function LoginPasswordScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const t = useT();
   const { service } = useAuth();
   const { identity } = useIdentityFlow();
 
@@ -134,7 +136,7 @@ export function LoginPasswordScreen() {
 
   return (
     <AuthScreen
-      title={collision ? 'Welcome back' : 'Enter your password'}
+      title={collision ? t('auth.welcomeBackCollision') : t('auth.passwordTitle')}
       subtitle={collision ? ALREADY_REGISTERED_MESSAGE : undefined}
       onBack={() => navigate(changePath)}
       /*

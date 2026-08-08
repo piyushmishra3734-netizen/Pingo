@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Log In - the username.
@@ -28,6 +29,7 @@ import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
  */
 export function LoginUsernameScreen() {
   const navigate = useNavigate();
+  const t = useT();
   const { identity, setIdentity } = useIdentityFlow();
 
   const [username, setUsername] = useState(
@@ -44,16 +46,16 @@ export function LoginUsernameScreen() {
 
   return (
     <AuthScreen
-      title="What's your username?"
+      title={t('auth.usernameTitle')}
       onBack={() => navigate('/login')}
       footer={
         <Button variant="primary" size="lg" block disabled={!valid} onClick={submit}>
-          Continue
+          {t('common.continue')}
         </Button>
       }
     >
       <TextField
-        label="Username"
+        label={t('auth.usernameLabel')}
         value={username}
         /*
          * Lowercased as you type, exactly as sign-up does it. Usernames are

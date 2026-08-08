@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../../components/AppLogo.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Welcome - [docs/01 § 4](../../../../../docs/01-onboarding-auth.md#4-welcome).
@@ -37,40 +38,37 @@ interface MethodRow {
   path: string;
 }
 
-const METHODS: MethodRow[] = [
-  {
-    kind: 'google',
-    label: 'Continue with Google',
-    caption: 'Fastest, no password',
-    icon: <GoogleMark />,
-    // Both doors share one interstitial, see `GoogleConnectingScreen`.
-    path: '/auth/google',
-  },
-  {
-    kind: 'email',
-    label: 'Continue with Email',
-    // Deliberately none. § 4.2: "there is nothing to add".
-    icon: <AtIcon size={20} />,
-    path: '/signup/email',
-  },
-  {
-    kind: 'phone',
-    label: 'Continue with Phone',
-    caption: 'Helps friends find you',
-    // The branding board's own phone glyph, already in `@pingo/ui`. An earlier
-    // pass drew a keypad here instead - a second icon for an idea the set had
-    // covered, in a family whose whole point is consistency.
-    icon: <PhoneIcon size={20} />,
-    path: '/signup/phone',
-  },
-];
-
 export function SignUpMethodScreen() {
   const navigate = useNavigate();
   const { service } = useAuth();
+  const t = useT();
 
-  const available = METHODS.filter((method) => service.supportedMethods.includes(method.kind));
+  const methods: MethodRow[] = [
+    {
+      kind: 'google',
+      label: t('signup.continueGoogle'),
+      caption: t('signup.googleCaption'),
+      icon: <GoogleMark />,
+      path: '/auth/google',
+    },
+    {
+      kind: 'email',
+      label: t('signup.continueEmail'),
+      icon: <AtIcon size={20} />,
+      path: '/signup/email',
+    },
+    {
+      kind: 'phone',
+      label: t('signup.continuePhone'),
+      caption: t('signup.phoneCaption'),
+      icon: <PhoneIcon size={20} />,
+      path: '/signup/phone',
+    },
+  ];
+
+  const available = methods.filter((method) => service.supportedMethods.includes(method.kind));
   const showsGoogle = available.some((method) => method.kind === 'google');
+  const tagline = t('signup.tagline').split('\n');
 
   return (
     <div className="relative flex h-full flex-col overflow-y-auto bg-brand-wash">
@@ -79,23 +77,22 @@ export function SignUpMethodScreen() {
         aria-hidden
       />
 
-      {/* ≥ 35% of the viewport stays empty - § 4.2. `justify-center` is what holds it. */}
       <div className="relative mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-10 px-6 py-12">
         <div className="flex flex-col items-center">
           <AppLogo size={64} alt="" />
 
-          {/* Title → words → card → Log In, staggered 60ms (§ 4.2). */}
-          <h1 className="mt-8 text-h1 text-ink animate-rise">Welcome to PINGO</h1>
+          <h1 className="mt-8 text-h1 text-ink animate-rise">{t('signup.welcome')}</h1>
 
           <p
             className="mt-5 text-h2 leading-relaxed text-text-secondary text-center animate-rise"
             style={{ animationDelay: '60ms' }}
           >
-            Private.
-            <br />
-            Beautiful.
-            <br />
-            Calm.
+            {tagline.map((line, index) => (
+              <span key={line}>
+                {index > 0 ? <br /> : null}
+                {line}
+              </span>
+            ))}
           </p>
         </div>
 
@@ -112,15 +109,8 @@ export function SignUpMethodScreen() {
             ))}
           </ListGroup>
 
-          {/*
-            § 4.3 - stated before the choice rather than discovered in a consent
-            dialog. Tied to the row's presence: no Google row, no claim about
-            Google.
-          */}
           {showsGoogle && (
-            <p className="mt-3 px-3 text-caption text-text-tertiary">
-              Google shares your name, email and profile photo with PINGO. Nothing else.
-            </p>
+            <p className="mt-3 px-3 text-caption text-text-tertiary">{t('signup.googleNote')}</p>
           )}
         </div>
 
@@ -128,9 +118,9 @@ export function SignUpMethodScreen() {
           className="flex flex-col items-center gap-1 animate-rise"
           style={{ animationDelay: '180ms' }}
         >
-          <p className="text-caption text-text-secondary">Already have an account?</p>
+          <p className="text-caption text-text-secondary">{t('signup.already')}</p>
           <Button variant="text" size="lg" onClick={() => navigate('/login')}>
-            Log In
+            {t('signup.logIn')}
           </Button>
         </div>
       </div>

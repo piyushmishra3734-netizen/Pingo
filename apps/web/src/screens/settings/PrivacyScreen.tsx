@@ -9,6 +9,7 @@ import {
   ToggleRow,
 } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Privacy.
@@ -25,6 +26,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * setting with something on the other side of it.
  */
 export function PrivacyScreen() {
+  const t = useT();
   const { preferences, update } = usePreferences();
   const { service: profiles } = useProfile();
   const p = preferences.privacy;
@@ -68,7 +70,7 @@ export function PrivacyScreen() {
   };
 
   return (
-    <SettingsPage title="Privacy">
+    <SettingsPage title={t('page.privacy')}>
       <Group title="Who can reach me">
         <ChoiceRow
           label="Who can call me"

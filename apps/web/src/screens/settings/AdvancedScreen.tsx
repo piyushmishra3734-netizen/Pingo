@@ -1,5 +1,6 @@
 import { Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Advanced.
@@ -13,11 +14,12 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * Settings that is not account deletion, and it belongs behind one more tap.
  */
 export function AdvancedScreen() {
+  const t = useT();
   const { preferences, update, reset } = usePreferences();
   const a = preferences.advanced;
 
   return (
-    <SettingsPage title="Advanced">
+    <SettingsPage title={t('page.advanced')}>
       <Group title="Diagnostics">
         <ToggleRow
           label="Debug Logs"

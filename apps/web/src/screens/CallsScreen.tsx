@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useCall } from '../features/calls/CallProvider.js';
+import { useT } from '../features/i18n/useT.js';
 
 /**
  * Call history.
@@ -25,6 +26,7 @@ import { useCall } from '../features/calls/CallProvider.js';
  * screen opens.
  */
 export function CallsScreen() {
+  const t = useT();
   const { service, users } = useChat();
   const { startCall } = useCall();
   const [calls, setCalls] = useState<CallRecord[] | undefined>();
@@ -41,15 +43,15 @@ export function CallsScreen() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <ScreenHeader title="Calls" />
+      <ScreenHeader title={t('calls.title')} />
 
       <div className="mx-auto w-full max-w-2xl px-3 py-3">
         {!calls ? (
-          <LoadingState label="Loading calls" />
+          <LoadingState label={t('calls.loading')} />
         ) : calls.length === 0 ? (
           <EmptyState
-            title="No calls yet"
-            description="Voice and video calls will appear here."
+            title={t('calls.empty')}
+            description={t('calls.emptyHint')}
             icon={<PhoneIcon size={26} />}
           />
         ) : (

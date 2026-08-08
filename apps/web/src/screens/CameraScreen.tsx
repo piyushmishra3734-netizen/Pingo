@@ -10,6 +10,7 @@ import { useCamera } from '../features/camera/useCamera.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
 import { saveImage } from '../features/native/save-image.js';
+import { useT } from '../features/i18n/useT.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
@@ -47,6 +48,7 @@ type Stage = 'gate' | 'live' | 'filter' | 'edit' | 'send';
 const TIMERS = [0, 3, 5, 10] as const;
 
 export function CameraScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const { service: chat } = useChat();
@@ -304,7 +306,7 @@ export function CameraScreen() {
             <CameraIcon size={34} />
           </span>
 
-          <h1 className="mt-7 text-h1 text-white">Open the camera?</h1>
+          <h1 className="mt-7 text-h1 text-white">{t('camera.openAsk')}</h1>
           <p className="mt-2 max-w-xs text-body text-white/60">
             PINGO will ask for camera access. Nothing is captured or sent until
             you take a Ping.
@@ -591,7 +593,7 @@ export function CameraScreen() {
               <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-white/10 text-white">
                 <CameraIcon size={28} />
               </span>
-              <p className="mt-6 text-body text-white">No camera here.</p>
+              <p className="mt-6 text-body text-white">{t('camera.none')}</p>
               <p className="mt-2 text-caption text-white/60">
                 Pick a photo instead - filters and editing work exactly the same.
               </p>

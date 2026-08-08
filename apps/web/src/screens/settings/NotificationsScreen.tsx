@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { ChoiceRow, Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
+import { useT } from '../../features/i18n/useT.js';
 
 
 /**
@@ -18,6 +19,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
  * fact the user can only fix in their browser, not here.
  */
 export function NotificationsScreen() {
+  const t = useT();
   const navigate = useNavigate();
   const { preferences, update } = usePreferences();
   const n = preferences.notifications;
@@ -36,7 +38,7 @@ export function NotificationsScreen() {
   };
 
   return (
-    <SettingsPage title="Notifications">
+    <SettingsPage title={t('page.notifications')}>
       {permission !== 'granted' && (
         <Group
           note={

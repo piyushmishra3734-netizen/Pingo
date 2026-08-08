@@ -8,6 +8,7 @@ import { BackupFoundCard, BackupPrompt, BackupReminderCard } from '../features/b
 import { useBackupUx } from '../features/backup/useBackupUx.js';
 import { ChatThread } from '../features/chat/ChatThread.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
+import { useT } from '../features/i18n/useT.js';
 import { DailyJourneyCard } from '../features/journey/DailyJourneyCard.js';
 import { DUMMY_DAILY_NOTE, DUMMY_MISSIONS } from '../features/journey/dummy-journey.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
@@ -27,6 +28,7 @@ import { useIsDesktop } from '../hooks/useMediaQuery.js';
  * same behaviour in sync.
  */
 export function ChatsScreen() {
+  const t = useT();
   const { conversationId } = useParams<{ conversationId: string }>();
   const { profile } = useProfile();
   const { conversations, ready } = useChat();
@@ -127,8 +129,8 @@ export function ChatsScreen() {
               */}
               <AppLogo size={64} alt="" className="opacity-45" />
               <EmptyState
-                title="Pick a conversation"
-                description="Choose someone from the list to start reading."
+                title={t('chats.pick')}
+                description={t('chats.pickHint')}
                 className="pt-6"
               />
             </div>

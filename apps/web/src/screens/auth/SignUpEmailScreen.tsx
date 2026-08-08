@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
+import { useT } from '../../features/i18n/useT.js';
 import { SIGNUP_PROGRESS } from './progress.js';
 
 /**
@@ -25,6 +26,7 @@ import { SIGNUP_PROGRESS } from './progress.js';
  */
 export function SignUpEmailScreen() {
   const navigate = useNavigate();
+  const t = useT();
   const { identity, setIdentity } = useIdentityFlow();
 
   const [email, setEmail] = useState(identity?.kind === 'email' ? identity.value : '');
@@ -40,17 +42,17 @@ export function SignUpEmailScreen() {
   return (
     <AuthScreen
       progress={SIGNUP_PROGRESS.identifier}
-      title="What's your email?"
-      subtitle="You'll use this to sign in."
+      title={t('auth.emailTitle')}
+      subtitle={t('auth.emailSubtitle')}
       onBack={() => navigate('/signup')}
       footer={
         <Button variant="primary" size="lg" block disabled={!valid} onClick={submit}>
-          Continue
+          {t('common.continue')}
         </Button>
       }
     >
       <TextField
-        label="Email"
+        label={t('auth.emailLabel')}
         type="email"
         inputMode="email"
         value={email}
@@ -58,7 +60,7 @@ export function SignUpEmailScreen() {
         onKeyDown={(event) => {
           if (event.key === 'Enter') submit();
         }}
-        placeholder="you@example.com"
+        placeholder={t('auth.emailPlaceholder')}
         // § 6.1: email keyboard, no autocapitalise, no autocorrect. An address
         // is not prose, and a capitalised first letter is a failed sign-in.
         autoComplete="email"

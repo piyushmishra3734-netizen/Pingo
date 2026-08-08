@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '../../features/i18n/useT.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
 
 /**
@@ -18,6 +19,7 @@ import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.j
  * labelled "Clear Cache" would be a surprise ejection from the product.
  */
 export function StorageScreen() {
+  const t = useT();
   const [usage, setUsage] = useState<{ used: number; quota: number } | undefined>();
   const [clearing, setClearing] = useState(false);
   const [cleared, setCleared] = useState(false);
@@ -45,17 +47,20 @@ export function StorageScreen() {
   };
 
   return (
-    <SettingsPage title="Storage">
+    <SettingsPage title={t('page.storage')}>
       <Group
-        title="On this device"
+        title={t('page.storageDevice')}
         note="Reported by your browser for this site. It includes cached files and offline data."
       >
-        <InfoRow label="Used" value={usage ? formatBytes(usage.used) : '-'} />
-        <InfoRow label="Available" value={usage ? formatBytes(usage.quota) : '-'} />
+        <InfoRow label={t('page.storageUsed')} value={usage ? formatBytes(usage.used) : '-'} />
+        <InfoRow
+          label={t('page.storageAvailable')}
+          value={usage ? formatBytes(usage.quota) : '-'}
+        />
       </Group>
 
       <Group
-        title="Cache"
+        title={t('page.storageCache')}
         note={
           cleared
             ? 'Cleared. Your account and messages are untouched, only cached files were removed.'
@@ -63,7 +68,7 @@ export function StorageScreen() {
         }
       >
         <InfoRow
-          label="Clear Cache"
+          label={t('page.storageClear')}
           value={clearing ? 'Clearing…' : 'Clear'}
           onClick={() => void clear()}
           destructive

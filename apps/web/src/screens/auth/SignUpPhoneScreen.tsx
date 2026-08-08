@@ -7,6 +7,7 @@ import { AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
 import { PhoneField, toE164 } from '../../features/auth/PhoneField.js';
 import { defaultCountry } from '../../features/auth/countries.js';
+import { useT } from '../../features/i18n/useT.js';
 import { SIGNUP_PROGRESS } from './progress.js';
 
 /**
@@ -27,6 +28,7 @@ import { SIGNUP_PROGRESS } from './progress.js';
  */
 export function SignUpPhoneScreen() {
   const navigate = useNavigate();
+  const t = useT();
   const { setIdentity } = useIdentityFlow();
 
   const [country, setCountry] = useState(defaultCountry);
@@ -44,12 +46,12 @@ export function SignUpPhoneScreen() {
   return (
     <AuthScreen
       progress={SIGNUP_PROGRESS.identifier}
-      title="What's your number?"
-      subtitle="You'll use this to sign in."
+      title={t('auth.phoneTitle')}
+      subtitle={t('auth.phoneSubtitle')}
       onBack={() => navigate('/signup')}
       footer={
         <Button variant="primary" size="lg" block disabled={!valid} onClick={submit}>
-          Continue
+          {t('common.continue')}
         </Button>
       }
     >

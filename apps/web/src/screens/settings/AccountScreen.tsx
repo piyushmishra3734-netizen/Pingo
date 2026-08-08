@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
 import { useSignOut } from '../../features/settings/useSignOut.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Account.
@@ -39,6 +40,7 @@ import { useSignOut } from '../../features/settings/useSignOut.js';
  * secret with no way to rotate it is one you are stuck with after every scare.
  */
 export function AccountScreen() {
+  const t = useT();
   const auth = useAuth();
   const { session } = auth;
   const navigate = useNavigate();
@@ -64,7 +66,7 @@ export function AccountScreen() {
 
   if (!profile) {
     return (
-      <SettingsPage title="Account">
+      <SettingsPage title={t('page.account')}>
         <div className="grid place-items-center py-16">
           <PingoDot state="loading" size={7} label="Loading" />
         </div>
@@ -116,7 +118,7 @@ export function AccountScreen() {
   };
 
   return (
-    <SettingsPage title="Account">
+    <SettingsPage title={t('page.account')}>
       <div className="mb-7 flex flex-col items-center">
         <span className="relative">
           <Avatar

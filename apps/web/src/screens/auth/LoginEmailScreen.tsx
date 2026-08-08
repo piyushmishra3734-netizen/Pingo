@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
+import { useT } from '../../features/i18n/useT.js';
 
 /**
  * Log In - the address.
@@ -19,6 +20,7 @@ import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
  */
 export function LoginEmailScreen() {
   const navigate = useNavigate();
+  const t = useT();
   const { identity, setIdentity } = useIdentityFlow();
 
   const [email, setEmail] = useState(identity?.kind === 'email' ? identity.value : '');
@@ -33,16 +35,16 @@ export function LoginEmailScreen() {
 
   return (
     <AuthScreen
-      title="What's your email?"
+      title={t('auth.emailTitle')}
       onBack={() => navigate('/login')}
       footer={
         <Button variant="primary" size="lg" block disabled={!valid} onClick={submit}>
-          Continue
+          {t('common.continue')}
         </Button>
       }
     >
       <TextField
-        label="Email"
+        label={t('auth.emailLabel')}
         type="email"
         inputMode="email"
         value={email}
@@ -50,7 +52,7 @@ export function LoginEmailScreen() {
         onKeyDown={(event) => {
           if (event.key === 'Enter') submit();
         }}
-        placeholder="you@example.com"
+        placeholder={t('auth.emailPlaceholder')}
         autoComplete="email"
         autoCapitalize="none"
         autoCorrect="off"
