@@ -218,6 +218,16 @@ function groupError(error: { code?: string; message?: string }): Error {
 /** How many changed rows one delta will accept before giving up on itself. */
 const DELTA_LIMIT = 200;
 
+/**
+ * How many messages the cached page keeps as live ones are appended.
+ *
+ * Matches the page `useMessages` asks for, so a thread opened from cache shows
+ * the same window it would have fetched. Larger would make every open slower
+ * for history the screen does not show; smaller would drop messages that were
+ * on screen a moment ago.
+ */
+const MESSAGE_PAGE_CACHE = 50;
+
 /** Before any message. A cursor that has never advanced. */
 const EPOCH = '1970-01-01T00:00:00Z';
 
@@ -761,7 +771,10 @@ export class SupabaseChatService implements ChatService {
           void openRow(row)
             .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
             .then(([message]) => {
-              if (message) this.#emit({ type: 'message:new', message });
+              if (message) {
+                void this.#appendToCachedPage(message);
+                this.#emit({ type: 'message:new', message });
+              }
             });
 
           // The list needs the new preview and a bumped position, and only a
@@ -1746,6 +1759,38 @@ export class SupabaseChatService implements ChatService {
 
   async cacheStartup(snapshot: StartupSnapshot): Promise<void> {
     await localSet(STORE.meta, 'startup', await sealRecord(snapshot));
+  }
+
+  /**
+   * Keeps the cached page current as messages arrive.
+   *
+   * The cache was only ever written by a network load, so a thread you were
+   * *watching* went stale the moment somebody replied: the live message
+   * rendered, the stored page did not change, and closing and reopening the
+   * thread painted the page from before it - then the network answered and the
+   * missing messages appeared. That is the "old chat loads first, then the new
+   * one" report, and it is not a race worth tuning; the cache was simply wrong.
+   *
+   * Only for threads that already have a page. A conversation nobody has opened
+   * has nothing to keep current, and writing one here would build a cache for
+   * every conversation on the account from the socket alone.
+   */
+  async #appendToCachedPage(message: Message): Promise<void> {
+    try {
+      const cached = await openRecord<Message[]>(
+        await localGet<unknown>(STORE.messages, message.conversationId),
+      );
+      if (!cached) return;
+      if (cached.some((m) => m.id === message.id)) return;
+
+      // Trimmed from the front: the page is the newest window, and letting it
+      // grow without bound would make every open slower than the last.
+      const next = [...cached, message].slice(-MESSAGE_PAGE_CACHE);
+      await localSet(STORE.messages, message.conversationId, await sealRecord(next));
+    } catch {
+      // A cache that cannot be updated is a cache that will be corrected by the
+      // next load. It must never break delivery.
+    }
   }
 
   async cachedMessages(conversationId: ConversationId): Promise<Message[] | undefined> {

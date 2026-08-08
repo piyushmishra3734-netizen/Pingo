@@ -185,6 +185,42 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
       }
 
       /*
+       * The connection came back, so this thread is out of date by however
+       * long it was gone.
+       *
+       * Live events are the only thing that had ever updated an open thread
+       * after its first load, and a live event cannot arrive over a socket
+       * that is not there. So a phone that was in another app - or simply
+       * locked - came back to a thread frozen at the moment it left, and
+       * nothing would correct it until the conversation was closed and opened
+       * again. That is the "not real time" report, and it is why the messages
+       * appear all at once the moment you back out and return.
+       *
+       * A read, not a replay: nothing was queued for this device while the
+       * socket was down, so the gap can only be closed by asking.
+       *
+       * Deliberately not cache-first. The cache is exactly the stale thing
+       * being corrected, and painting it again on the way to the truth is how
+       * "old messages, then new ones" happens.
+       */
+      if (event.type === 'connection:changed' && event.state === 'connected') {
+        void service
+          .listMessages(conversationId, { limit: PAGE_SIZE })
+          .then((history) => {
+            setMessages((previous) => {
+              // Anything optimistic and still unsent is ours and is not in the
+              // server's answer; dropping it would make a queued message
+              // vanish while it was waiting to go out.
+              const known = new Set(history.map((m) => m.id));
+              const pending = previous.filter((m) => !known.has(m.id) && m.status === 'sending');
+              return [...history, ...pending];
+            });
+            setHasOlder(history.length >= PAGE_SIZE);
+          })
+          .catch(() => undefined);
+      }
+
+      /*
        * Somebody read us while we were watching.
        *
        * Merged rather than replaced: the event carries only the member whose

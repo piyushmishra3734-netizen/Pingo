@@ -63,6 +63,8 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
     service.connectionState(),
   );
   const [ready, setReady] = useState(false);
+  /** Whether the last thing we saw was a loss, so a `connected` means recovery. */
+  const wasDisconnected = useRef(false);
 
   const load = useCallback(async () => {
     const [user, contacts, list] = await Promise.all([
@@ -172,6 +174,25 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
 
         case 'connection:changed': {
           setConnection(event.state);
+
+          /*
+           * Back online means the list is behind by however long we were gone.
+           *
+           * `conversation:updated` events are the only thing that had kept it
+           * current, and none of them arrive over a socket that is not there -
+           * so a phone returning from another app showed the previews, unread
+           * counts and ordering from the moment it left. Reading once on the
+           * way back is what makes the chat list agree with the threads inside
+           * it.
+           *
+           * Guarded on the transition rather than the state: `connected` is
+           * emitted on the first subscribe too, and reloading there would
+           * duplicate the initial load on every launch.
+           */
+          if (event.state === 'connected' && wasDisconnected.current) {
+            void load().catch(() => undefined);
+          }
+          wasDisconnected.current = event.state !== 'connected';
           break;
         }
 
