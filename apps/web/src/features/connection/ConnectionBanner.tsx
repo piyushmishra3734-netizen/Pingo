@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useConnectionStatus, type ConnectionQuality } from './useConnectionStatus.js';
 
@@ -51,22 +51,35 @@ const RESTORED_MS = 1_800;
 export function ConnectionBanner() {
   const quality = useConnectionStatus();
   const [showRestored, setShowRestored] = useState(false);
-  const [wasBad, setWasBad] = useState(false);
+  /*
+   * A ref, and that is the whole point.
+   *
+   * As state it has to be a dependency of the effect below, and the effect
+   * sets it - so scheduling the dismissal immediately re-ran the effect, whose
+   * cleanup cancelled the timer it had just scheduled. On the re-run the
+   * connection was good and the flag was already cleared, so nothing
+   * rescheduled it: "Back online" appeared and then stayed there for the rest
+   * of the session. Measured live - still on screen 2.8s after a 1.8s timer.
+   *
+   * Nothing renders from it, only the effect reads it, so a ref is also what
+   * it should have been on the merits.
+   */
+  const wasBad = useRef(false);
 
   useEffect(() => {
     if (quality !== 'good') {
-      setWasBad(true);
+      wasBad.current = true;
       setShowRestored(false);
       return;
     }
 
     // Only worth confirming if there was something to recover from.
-    if (!wasBad) return;
-    setWasBad(false);
+    if (!wasBad.current) return;
+    wasBad.current = false;
     setShowRestored(true);
     const timer = window.setTimeout(() => setShowRestored(false), RESTORED_MS);
     return () => window.clearTimeout(timer);
-  }, [quality, wasBad]);
+  }, [quality]);
 
   const key = quality !== 'good' ? quality : showRestored ? 'restored' : undefined;
   if (!key) return null;
