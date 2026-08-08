@@ -5,15 +5,21 @@ import { useNavigate } from 'react-router-dom';
 import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
 import {
   loadSplashUrls,
-  localSplashUrl,
+  preloadImage,
+  type SplashUrls,
 } from '../lib/supabase/onboarding-slides.js';
 
 /**
  * Splash.
  *
- * Full-screen art only — PC and mobile variants. Defaults to shipped files
- * (`/pingo-splash.jpg` / `/pingo-splash-mobile.png`); `@piuxxh` can replace
- * them from Settings → Controlling without a redesign pass.
+ * Full-screen art only — PC and mobile variants. `@piuxxh` publishes art from
+ * Settings → Controlling. Once a custom splash is live, the built-in files are
+ * never painted first (that caused a millisecond flash of the old art).
+ *
+ * Paint order:
+ *   1. Solid brand ground (or last known *custom* URLs from localStorage)
+ *   2. Fetch current splash rows + preload image bytes
+ *   3. Reveal only the final pair — no swap from built-in → remote
  *
  * ## The dwell is a ceiling
  *
@@ -38,8 +44,13 @@ export function SplashScreen() {
   const navigate = useNavigate();
   const { status } = useAuth();
 
-  const [desktopSrc, setDesktopSrc] = useState(() => localSplashUrl('desktop'));
-  const [mobileSrc, setMobileSrc] = useState(() => localSplashUrl('mobile'));
+  /*
+   * No initial image. Solid ground only until we know the final pair — never
+   * mount built-in art first (that was the old-splash flash). Cache is used
+   * inside `loadSplashUrls` only when the network fails after a custom upload.
+   */
+  const [urls, setUrls] = useState<SplashUrls | null>(null);
+  const [visible, setVisible] = useState(false);
 
   /*
    * Read through a ref so the timer sees the latest status without restarting
@@ -49,14 +60,21 @@ export function SplashScreen() {
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  // Operator uploads win when present; fail open to shipped art.
   useEffect(() => {
     let cancelled = false;
-    void loadSplashUrls().then((urls) => {
+
+    void (async () => {
+      const next = await loadSplashUrls();
       if (cancelled) return;
-      setDesktopSrc(urls.desktop);
-      setMobileSrc(urls.mobile);
-    });
+
+      // Decode before paint so we never flash a half-loaded or previous frame.
+      await Promise.all([preloadImage(next.desktop), preloadImage(next.mobile)]);
+      if (cancelled) return;
+
+      setUrls(next);
+      setVisible(true);
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -87,23 +105,25 @@ export function SplashScreen() {
       style={{ backgroundColor: SPLASH_GROUND }}
     >
       {/*
-        Two artworks, one per shape of screen. Remote operator uploads (when
-        set) replace the shipped files; neither is stretched across the wrong
-        form factor — `picture` picks mobile vs desktop.
+        Ground only until we know the final art. Never mount the built-in
+        files as a placeholder — that was the old-art flash.
       */}
-      <picture className="h-full w-full">
-        <source media="(orientation: portrait)" srcSet={mobileSrc} />
-        <img
-          src={desktopSrc}
-          alt="PINGO. Connect. Privately."
-          width={1600}
-          height={900}
-          decoding="async"
-          fetchPriority="high"
-          draggable={false}
-          className="h-full w-full select-none object-cover animate-fade-in"
-        />
-      </picture>
+      {visible && urls ? (
+        <picture className="h-full w-full">
+          <source media="(orientation: portrait)" srcSet={urls.mobile} />
+          <img
+            key={`${urls.desktop}|${urls.mobile}`}
+            src={urls.desktop}
+            alt="PINGO. Connect. Privately."
+            width={1600}
+            height={900}
+            decoding="async"
+            fetchPriority="high"
+            draggable={false}
+            className="h-full w-full select-none object-cover animate-fade-in"
+          />
+        </picture>
+      ) : null}
     </div>
   );
 }

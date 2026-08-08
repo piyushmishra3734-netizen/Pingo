@@ -169,9 +169,84 @@ export function localSplashUrl(variant: SlideVariant): string {
   return variant === 'mobile' ? '/pingo-splash-mobile.png' : '/pingo-splash.jpg';
 }
 
-export async function loadSplashUrls(): Promise<{ desktop: string; mobile: string }> {
-  const desktop = localSplashUrl('desktop');
-  const mobile = localSplashUrl('mobile');
+/** Last known *operator* splash URLs — never store built-in paths here. */
+const SPLASH_CACHE_KEY = 'pingo:splash_urls_v1';
+
+export interface SplashUrls {
+  desktop: string;
+  mobile: string;
+  /** True when at least one variant came from Controlling upload. */
+  fromRemote: boolean;
+}
+
+export function readSplashCache(): SplashUrls | null {
+  try {
+    const raw = localStorage.getItem(SPLASH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SplashUrls;
+    if (
+      typeof parsed?.desktop === 'string' &&
+      typeof parsed?.mobile === 'string' &&
+      parsed.fromRemote === true
+    ) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSplashCache(urls: SplashUrls): void {
+  if (!urls.fromRemote) return;
+  try {
+    localStorage.setItem(
+      SPLASH_CACHE_KEY,
+      JSON.stringify({
+        desktop: urls.desktop,
+        mobile: urls.mobile,
+        fromRemote: true,
+      }),
+    );
+  } catch {
+    // private mode
+  }
+}
+
+export function clearSplashCache(): void {
+  try {
+    localStorage.removeItem(SPLASH_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!src) {
+      resolve();
+      return;
+    }
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve();
+    img.onerror = () => resolve(); // still resolve — blank better than hang
+    img.src = src;
+  });
+}
+
+/**
+ * Resolves splash URLs.
+ *
+ * Operator uploads win completely when present (both or either). Built-in
+ * files are only returned when the table has no rows — never mixed mid-paint.
+ */
+export async function loadSplashUrls(): Promise<SplashUrls> {
+  const fallback: SplashUrls = {
+    desktop: localSplashUrl('desktop'),
+    mobile: localSplashUrl('mobile'),
+    fromRemote: false,
+  };
 
   try {
     const client = getSupabaseClient();
@@ -179,18 +254,32 @@ export async function loadSplashUrls(): Promise<{ desktop: string; mobile: strin
       .from('app_splash')
       .select('variant, storage_path, content_type, updated_at');
 
-    if (error || !data) return { desktop, mobile };
+    if (error || !data || data.length === 0) {
+      clearSplashCache();
+      return fallback;
+    }
 
-    let d = desktop;
-    let m = mobile;
+    let desktop: string | null = null;
+    let mobile: string | null = null;
     for (const row of data as AppSplashRow[]) {
       const url = publicObjectUrl(row.storage_path, row.updated_at);
-      if (row.variant === 'desktop') d = url;
-      else m = url;
+      if (row.variant === 'desktop') desktop = url;
+      else if (row.variant === 'mobile') mobile = url;
     }
-    return { desktop: d, mobile: m };
+
+    // Partial upload: missing side keeps last cache or built-in for that side only.
+    const cache = readSplashCache();
+    const resolved: SplashUrls = {
+      desktop: desktop ?? cache?.desktop ?? fallback.desktop,
+      mobile: mobile ?? cache?.mobile ?? fallback.mobile,
+      fromRemote: true,
+    };
+    writeSplashCache(resolved);
+    return resolved;
   } catch {
-    return { desktop, mobile };
+    const cache = readSplashCache();
+    if (cache) return cache;
+    return fallback;
   }
 }
 
