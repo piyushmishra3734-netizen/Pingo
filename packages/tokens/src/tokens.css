@@ -1152,8 +1152,22 @@
 [data-wallpaper-dark] {
   --color-text: #f4f5f9;
   --color-ink: #f4f5f9;
-  --color-text-secondary: rgba(244, 245, 249, 0.72);
-  --color-text-tertiary: rgba(244, 245, 249, 0.5);
+  /*
+   * Both raised, because these are the values for a *page* and this block is
+   * for a photograph.
+   *
+   * 0.72 and 0.5 are settled against a flat dark surface, where the only thing
+   * competing with the ink is the ink. Over a picture the backdrop is busy and
+   * bright in places, and translucent ink cannot get further from it than its
+   * own alpha allows - a 72% white glyph over a pale patch is 72% of the way to
+   * that patch, which is why the attach and overflow controls read as washed
+   * out even with a shadow under them.
+   *
+   * This is the block that exists to adapt to a photograph, so the adaptation
+   * belongs here rather than in the one or two components that were noticed.
+   */
+  --color-text-secondary: rgba(244, 245, 249, 0.9);
+  --color-text-tertiary: rgba(244, 245, 249, 0.68);
   --color-line: rgba(255, 255, 255, 0.12);
   --color-line-strong: rgba(255, 255, 255, 0.2);
 
