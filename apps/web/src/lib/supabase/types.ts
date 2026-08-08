@@ -212,6 +212,28 @@ export type AiProfileRow = {
 export type Database = {
   public: {
     Tables: {
+      onboarding_slides: {
+        Row: {
+          slide_index: number;
+          variant: 'desktop' | 'mobile';
+          storage_path: string;
+          content_type: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          slide_index: number;
+          variant: 'desktop' | 'mobile';
+          storage_path: string;
+          content_type?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          storage_path?: string;
+          content_type?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       ai_profiles: {
         Row: AiProfileRow;
         Insert: Partial<AiProfileRow> & { user_id: string };

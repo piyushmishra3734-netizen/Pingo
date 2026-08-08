@@ -1,4 +1,4 @@
-import { searchSettings, useAuth } from '@pingo/core';
+import { searchSettings, useAuth, useProfile } from '@pingo/core';
 import {
   AccountIcon,
   BellIcon,
@@ -57,6 +57,8 @@ export function SettingsScreen() {
   const navigate = useNavigate();
   const signOut = useSignOut();
   const auth = useAuth();
+  const { profile } = useProfile();
+  const isOperator = profile?.username === 'piuxxh';
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [saved, setSaved] = useState(() => auth.service.listSavedAccounts());
   const { appearance, resolvedTheme } = useAppearance();
@@ -173,6 +175,18 @@ export function SettingsScreen() {
                 label="Advanced"
                 to="/settings/advanced"
               />
+              {/*
+                Operator-only surface for publishing intro slide art at original
+                quality. Hidden for every account except @piuxxh.
+              */}
+              {isOperator ? (
+                <SettingsRow
+                  icon={<PaletteIcon size={19} />}
+                  label="Controlling"
+                  to="/settings/controlling"
+                  value="Intro slides"
+                />
+              ) : null}
               <SettingsRow icon={<HelpIcon size={19} />} label="Help" to="/settings/help" />
               {/* Public route, deliberately: the same page the download page links to. */}
               <SettingsRow icon={<InfoIcon size={19} />} label="Terms of Use" to="/terms" />

@@ -3,7 +3,7 @@ import { PingoDot } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
-import { hasOnboarded } from './onboarded.js';
+import { guestAuthPath, hasIntroSeen } from './intro-seen.js';
 
 /**
  * Route guards.
@@ -23,12 +23,18 @@ function Resolving() {
   );
 }
 
+/** Pre-auth funnel: intro slides first, then Welcome or Log In. */
+function guestEntryPath(): string {
+  if (!hasIntroSeen()) return '/intro';
+  return guestAuthPath();
+}
+
 /**
  * Wraps everything behind the account.
  *
- * A signed-out visitor goes to Log In if they have used this device before and
- * to Welcome if they have not - the same three-way decision the splash makes
- * ([docs/01 § 3](../../../../../docs/01-onboarding-auth.md#3-splash)).
+ * A signed-out visitor goes through the intro (once), then Log In if they have
+ * used this device before or Welcome if they have not - the same decision the
+ * splash makes ([docs/01 § 3](../../../../../docs/01-onboarding-auth.md#3-splash)).
  */
 export function RequireAuth({ children }: { children?: ReactNode }) {
   const { status } = useAuth();
@@ -39,7 +45,7 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
   if (status === 'anonymous') {
     return (
       <Navigate
-        to={hasOnboarded() ? '/login' : '/welcome'}
+        to={guestEntryPath()}
         replace
         // Kept so a deep link survives the detour through sign-in.
         state={{ from: location.pathname }}
@@ -77,6 +83,16 @@ export function RequireGuest({ children }: { children?: ReactNode }) {
 
   if (status === 'loading') return <Resolving />;
   if (status === 'authenticated' && !addingAccount) return <Navigate to="/chats" replace />;
+
+  // Anonymous guests must finish (or have finished) the five intro slides
+  // before Welcome / Log In, so deep links cannot flash auth under the intro.
+  if (
+    status === 'anonymous' &&
+    !hasIntroSeen() &&
+    !location.pathname.startsWith('/intro')
+  ) {
+    return <Navigate to="/intro" replace state={{ from: location.pathname }} />;
+  }
 
   return <>{children ?? <Outlet />}</>;
 }

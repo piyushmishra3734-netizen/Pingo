@@ -59,8 +59,10 @@ import { PrivacyScreen } from './screens/settings/PrivacyScreen.js';
 import { PushDebugScreen } from './screens/settings/PushDebugScreen.js';
 import { SecureBackupScreen } from './screens/settings/SecureBackupScreen.js';
 import { StorageScreen } from './screens/settings/StorageScreen.js';
+import { IntroSlidesScreen } from './screens/IntroSlidesScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
 import { SplashScreen } from './screens/SplashScreen.js';
+import { ControllingScreen } from './screens/settings/ControllingScreen.js';
 import { ToastFeelLab } from './screens/dev/ToastFeelLab.js';
 import { CreatePasswordScreen } from './screens/auth/CreatePasswordScreen.js';
 import { GoogleConnectingScreen } from './screens/auth/GoogleConnectingScreen.js';
@@ -250,6 +252,13 @@ export function App() {
             <Route path="/" element={<SplashScreen />} />
 
             {/*
+              Pre-auth intro carousel. Outside RequireGuest so @piuxxh can
+              Preview while signed in (`?replay=1`). Anonymous users land here
+              from splash; first-time cannot Skip (handled in the screen).
+            */}
+            <Route path="/intro" element={<IntroSlidesScreen />} />
+
+            {/*
               Public, and outside every guard.
 
               These were nested under `RequireGuest`, which exists to bounce a
@@ -377,6 +386,7 @@ export function App() {
                   <Route path="/settings/secure-backup" element={<SecureBackupScreen />} />
                   <Route path="/settings/language" element={<LanguageScreen />} />
                   <Route path="/settings/advanced" element={<AdvancedScreen />} />
+                  <Route path="/settings/controlling" element={<ControllingScreen />} />
                   <Route path="/settings/help" element={<HelpScreen />} />
                 </Route>
               </Route>

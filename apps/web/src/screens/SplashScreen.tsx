@@ -2,7 +2,7 @@ import { useAuth } from '@pingo/core';
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { ONBOARDED_KEY, hasOnboarded } from '../features/auth/onboarded.js';
+import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
 
 /**
  * Splash.
@@ -28,8 +28,7 @@ import { ONBOARDED_KEY, hasOnboarded } from '../features/auth/onboarded.js';
  * | Condition | Destination |
  * | --- | --- |
  * | Valid session | Home |
- * | Onboarded, no session | Log In |
- * | Never onboarded | Welcome |
+ * | Anonymous | Intro slides (Skip only if this device has seen them / had an account) |
  */
 
 /** Comfortably inside the 2s ceiling, and long enough for the mark to register. */
@@ -55,7 +54,9 @@ export function SplashScreen() {
       const current = statusRef.current;
 
       if (current === 'anonymous') {
-        navigate(hasOnboarded() ? '/login' : '/welcome', { replace: true });
+        // Always open the five intro slides after splash for signed-out users.
+        // First-time: no Skip. Returning / logged-out: Skip is available on that screen.
+        navigate('/intro', { replace: true });
         return;
       }
 
