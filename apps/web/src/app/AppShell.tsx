@@ -53,6 +53,23 @@ export function AppShell() {
   const cameraIsFullscreen = location.pathname === '/camera';
   const fullscreen = threadIsFullscreen || cameraIsFullscreen;
 
+  /**
+   * Which screens are allowed the whole window.
+   *
+   * Only the ones whose content genuinely is the width: the chat list beside a
+   * thread, and the viewfinder. Everything else is a list of rows, and a row of
+   * one word with its chevron fifteen hundred pixels away is not a layout, it
+   * is the absence of one. On Appearance it was worse than untidy - the glass
+   * slider became a saturated block the full width of the display, which made a
+   * *setting* the loudest thing on the screen.
+   *
+   * Done here rather than in each screen because there are thirteen of them and
+   * this is the kind of rule that is remembered for the first eight. Phones are
+   * untouched: the cap is above any phone width, so it only ever engages on a
+   * desktop window.
+   */
+  const wide = fullscreen || /^\/(chats|camera)(\/|$)/.test(location.pathname);
+
   if (!ready) {
     return (
       <div className="grid h-full place-items-center bg-page">
@@ -116,7 +133,11 @@ export function AppShell() {
         */}
         <div
           key={screenKey(location.pathname)}
-          className={cn('h-full', back ? 'animate-screen-back' : 'animate-screen-in')}
+          className={cn(
+            'h-full',
+            !wide && 'mx-auto w-full max-w-2xl',
+            back ? 'animate-screen-back' : 'animate-screen-in',
+          )}
         >
           <Outlet />
         </div>
