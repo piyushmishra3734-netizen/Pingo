@@ -121,8 +121,29 @@ export function useConnectionStatus(): ConnectionQuality {
   useEffect(() => {
     window.clearTimeout(timer.current);
 
-    // Good news, and the total loss of a network, are both immediate.
-    if (raw === 'good' || raw === 'offline') {
+    /*
+     * Patience applies to getting worse, never to getting better.
+     *
+     * The delays exist so a two-second reconnect is not announced. Applied in
+     * both directions they do the opposite: coming back from offline to a
+     * merely slow link is an *improvement*, and waiting four seconds to admit
+     * it left "No internet connection" on screen for four seconds after the
+     * network had returned. Measured live, dropping and restoring the network
+     * while the link was slow - which is the ordinary shape of a bad signal,
+     * not an edge case.
+     *
+     * Losing the network entirely stays immediate in both directions: there is
+     * no chance it is a blip worth hiding, and it is the one reading that is
+     * never ambiguous.
+     */
+    const RANK: Record<ConnectionQuality, number> = {
+      good: 0,
+      poor: 1,
+      connecting: 2,
+      offline: 3,
+    };
+
+    if (raw === 'offline' || RANK[raw] <= RANK[quality]) {
       setQuality(raw);
       return;
     }
@@ -130,7 +151,7 @@ export function useConnectionStatus(): ConnectionQuality {
     const delay = raw === 'connecting' ? CONNECTING_DELAY_MS : POOR_DELAY_MS;
     timer.current = window.setTimeout(() => setQuality(raw), delay);
     return () => window.clearTimeout(timer.current);
-  }, [raw]);
+  }, [raw, quality]);
 
   return quality;
 }
