@@ -34,7 +34,9 @@ interface Look {
   glow: string;
 }
 
-const LOOKS: Record<Exclude<ConnectionQuality, 'good'> | 'restored', Look> = {
+type NoticeKey = Exclude<ConnectionQuality, 'good'> | 'restored' | 'reconnected';
+
+const LOOKS: Record<NoticeKey, Look> = {
   /*
    * Says what is true rather than what is wrong with you: the device has no
    * internet, which is a fact about the room, not an accusation.
@@ -63,7 +65,22 @@ const LOOKS: Record<Exclude<ConnectionQuality, 'good'> | 'restored', Look> = {
     fill: 'linear-gradient(135deg, #d99323, #c47a15)',
     glow: 'rgb(200 130 30 / 0.42)',
   },
+  /*
+   * Two recoveries, because they are not the same event.
+   *
+   * "Back online" is only true if the network had actually gone. Saying it
+   * after a merely slow link claims something that never happened - you were
+   * online the whole time - and a notice that overstates once is a notice
+   * people stop reading. `restored` is the honest version for everything
+   * short of a real disconnection.
+   */
   restored: {
+    label: 'Connected',
+    busy: false,
+    fill: 'linear-gradient(135deg, #23b26b, #17a67a)',
+    glow: 'rgb(35 178 107 / 0.45)',
+  },
+  reconnected: {
     label: 'Back online',
     busy: false,
     fill: 'linear-gradient(135deg, #23b26b, #17a67a)',
@@ -116,10 +133,13 @@ export function ConnectionBanner() {
    * it should have been on the merits.
    */
   const wasBad = useRef(false);
+  /** Whether the network itself went, as opposed to merely misbehaving. */
+  const wasOffline = useRef(false);
 
   useEffect(() => {
     if (quality !== 'good') {
       wasBad.current = true;
+      if (quality === 'offline') wasOffline.current = true;
       setShowRestored(false);
       return;
     }
@@ -128,11 +148,21 @@ export function ConnectionBanner() {
     if (!wasBad.current) return;
     wasBad.current = false;
     setShowRestored(true);
-    const timer = window.setTimeout(() => setShowRestored(false), RESTORED_MS);
+    const timer = window.setTimeout(() => {
+      setShowRestored(false);
+      wasOffline.current = false;
+    }, RESTORED_MS);
     return () => window.clearTimeout(timer);
   }, [quality]);
 
-  const key = quality !== 'good' ? quality : showRestored ? 'restored' : undefined;
+  const key: NoticeKey | undefined =
+    quality !== 'good'
+      ? quality
+      : showRestored
+        ? wasOffline.current
+          ? 'reconnected'
+          : 'restored'
+        : undefined;
   if (!key) return null;
 
   const look = LOOKS[key];
@@ -184,7 +214,10 @@ export function ConnectionBanner() {
           {look.busy ? (
             <span className="relative size-4 rounded-full border-2 border-white/90 border-t-transparent motion-safe:animate-spin" />
           ) : (
-            <Glyph restored={look.label === 'Back online'} />
+            {/* Keyed on the state, not the wording - the wording now has two
+                recovery variants and matching on it showed a dead-wifi glyph
+                for a successful reconnection. */}
+            <Glyph restored={key === 'restored' || key === 'reconnected'} />
           )}
         </span>
 
