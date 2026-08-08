@@ -304,6 +304,9 @@ export class MockChatService implements ChatService {
     return undefined;
   }
 
+  /** No socket to rebuild: the mock is always connected to itself. */
+  reconnect(): void {}
+
   async cacheStartup(): Promise<void> {
     /* nothing to write to */
   }

@@ -9,6 +9,8 @@ import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
 import { startLensing } from '../features/glass/lens.js';
 import { doneAddingAccount } from '../features/auth/adding-account.js';
+import { useLiveOnResume } from '../features/notifications/useLiveOnResume.js';
+import { usePushTapRouting } from '../features/notifications/usePushTapRouting.js';
 
 /**
  * The shell every signed-in screen renders inside.
@@ -44,6 +46,14 @@ export function AppShell() {
    * flag would keep `RequireGuest` open on Welcome for the rest of the tab.
    */
   useEffect(() => doneAddingAccount(), []);
+
+  /*
+   * Two things that only make sense above every screen: a tap on a
+   * notification has to be able to reach any thread, and coming back from the
+   * background has to make the app live again wherever it was left.
+   */
+  usePushTapRouting();
+  useLiveOnResume();
 
   const { ready } = useChat();
   const location = useLocation();

@@ -250,6 +250,21 @@ export interface ChatService {
   /** Records the snapshot above after a successful network load. */
   cacheStartup(snapshot: StartupSnapshot): Promise<void>;
 
+  /**
+   * Rebuild the live connection, because the platform quietly broke it.
+   *
+   * A backgrounded mobile WebView has its socket closed by the OS, and it is
+   * closed *without* the client being told - so the channel believes it is
+   * subscribed, no reconnect is attempted, and messages simply stop arriving
+   * until something else forces a load. Coming back to the foreground is the
+   * one moment that is always worth spending a socket on.
+   *
+   * Idempotent and cheap: a channel that is genuinely alive is torn down and
+   * remade in a few hundred milliseconds, which is a fair price for never
+   * being silently offline.
+   */
+  reconnect(): void;
+
   // -- Sending -------------------------------------------------------------
   /** Resolves with the optimistic message; watch events for delivery status. */
   sendMessage(draft: OutgoingMessage): Promise<Message>;

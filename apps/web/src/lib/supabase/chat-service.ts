@@ -722,6 +722,20 @@ export class SupabaseChatService implements ChatService {
     this.#channel = undefined;
   }
 
+  /**
+   * Tear the channel down and build it again.
+   *
+   * `#openChannel` is deliberately idempotent - it returns early when a channel
+   * exists - which is right for token refreshes and wrong for this: after the
+   * OS has killed the socket the channel object is still there, still claiming
+   * to be subscribed, and asking to open one is a no-op. Closing first is what
+   * makes the reopen mean anything.
+   */
+  reconnect(): void {
+    this.#closeChannel();
+    this.#openChannel();
+  }
+
   #openChannel(): void {
     // Idempotent: `onAuthStateChange` fires on token refresh too, and tearing
     // the socket down every hour would drop messages during the gap.
