@@ -1,6 +1,6 @@
 import type { Sticker } from '@pingo/core';
-import { IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Avatar, IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
 import { receiveSharedText } from '../native/shared-content.js';
@@ -9,6 +9,17 @@ import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
 import { VoiceRecorderBar } from './VoiceRecorderBar.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
+
+/** Someone you can @mention from the composer. */
+export interface MentionOption {
+  id: string;
+  /** Inserted as `@handle` (no @ prefix here). */
+  handle: string;
+  name: string;
+  avatarUrl?: string;
+  /** AI is pinned to the top of the list. */
+  kind?: 'ai' | 'person';
+}
 
 /**
  * The message composer.
@@ -63,9 +74,29 @@ export interface ComposerProps {
    * appears to do nothing at all — which is exactly how it looked.
    */
   onPasteFiles?: (files: File[]) => void;
+  /**
+   * People (and PINGO AI) available for `@` autocomplete.
+   *
+   * When empty / omitted, typing `@` does nothing special. Groups pass members
+   * plus AI when the bot is in the room.
+   */
+  mentions?: MentionOption[];
   /** Announced to screen readers, e.g. "Message Anaya Sharma". */
   ariaLabel?: string;
   className?: string;
+}
+
+/** Active `@query` at the caret, if any. */
+function mentionQueryAt(
+  text: string,
+  caret: number,
+): { start: number; query: string } | undefined {
+  const before = text.slice(0, caret);
+  // Last @ that is not mid-email-ish: start of text or after whitespace/newline.
+  const match = /(?:^|[\s([{])@([a-zA-Z0-9_]*)$/.exec(before);
+  if (!match) return undefined;
+  const atIndex = before.lastIndexOf('@');
+  return { start: atIndex, query: match[1] ?? '' };
 }
 
 /** Growth cap, in px. Roughly six lines before the field starts to scroll. */
@@ -88,6 +119,7 @@ export function Composer({
   onTyping,
   onRecording,
   onPasteFiles,
+  mentions,
   placeholder = 'Type a message...',
   ariaLabel = 'Message',
   className,
@@ -110,6 +142,58 @@ export function Composer({
   const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
+
+  /** `@…` autocomplete while typing. */
+  const [mention, setMention] = useState<{ start: number; query: string }>();
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const mentionList = useMemo(() => {
+    if (!mentions?.length || !mention) return [];
+    const q = mention.query.toLowerCase();
+    const filtered = mentions.filter(
+      (m) =>
+        !q ||
+        m.handle.toLowerCase().includes(q) ||
+        m.name.toLowerCase().includes(q),
+    );
+    // AI first, then A–Z by name.
+    return [...filtered].sort((a, b) => {
+      if (a.kind === 'ai' && b.kind !== 'ai') return -1;
+      if (b.kind === 'ai' && a.kind !== 'ai') return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [mentions, mention]);
+
+  useEffect(() => {
+    setMentionIndex(0);
+  }, [mention?.query, mentionList.length]);
+
+  const applyMention = (option: MentionOption) => {
+    if (!mention) return;
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? value.length;
+    const before = value.slice(0, mention.start);
+    const after = value.slice(caret);
+    // Space after so the next word is not glued to the handle.
+    const next = `${before}@${option.handle} ${after}`;
+    setValue(next);
+    setMention(undefined);
+    void onTyping?.(next.length > 0);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      const pos = before.length + option.handle.length + 2; // @ + handle + space
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const syncMentionFromCaret = (text: string, caret: number) => {
+    if (!mentions?.length) {
+      setMention(undefined);
+      return;
+    }
+    setMention(mentionQueryAt(text, caret));
+  };
 
   /*
    * Images inserted by the keyboard without a paste.
@@ -421,19 +505,83 @@ export function Composer({
         />
       )}
 
-      <div className="flex min-w-0 flex-1 items-end gap-1 px-1">
+      <div className="relative flex min-w-0 flex-1 items-end gap-1 px-1">
+        {mention && mentionList.length > 0 && (
+          <ul
+            role="listbox"
+            aria-label="Mentions"
+            className={cn(
+              'absolute bottom-full left-0 right-0 z-30 mb-2 max-h-48 overflow-y-auto',
+              'rounded-xl border border-line bg-surface py-1 shadow-lg',
+              'origin-bottom animate-panel-in',
+            )}
+          >
+            {mentionList.map((option, index) => {
+              const active = index === mentionIndex;
+              return (
+                <li key={option.id} role="option" aria-selected={active}>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => {
+                      // Prevent textarea blur before click applies the mention.
+                      event.preventDefault();
+                      applyMention(option);
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2.5 px-3 py-2 text-left',
+                      'transition-colors duration-instant',
+                      active ? 'bg-brand/10' : 'hover:bg-hover',
+                    )}
+                  >
+                    <Avatar
+                      name={option.name}
+                      id={option.id}
+                      src={option.avatarUrl}
+                      size="sm"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-body text-ink">
+                        {option.name}
+                        {option.kind === 'ai' ? (
+                          <span className="ml-1.5 text-caption text-brand">AI</span>
+                        ) : null}
+                      </span>
+                      <span className="block truncate text-caption text-text-tertiary">
+                        @{option.handle}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <textarea
           ref={textareaRef}
           rows={1}
           value={value}
           onChange={(event) => {
-            setValue(event.target.value);
+            const next = event.target.value;
+            setValue(next);
             /*
               Reported on every keystroke; the service throttles. Stopping is
               sent the moment the field empties, because a late "still typing"
               is harmless and a late "stopped" leaves the dots up.
             */
-            void onTyping?.(event.target.value.length > 0);
+            void onTyping?.(next.length > 0);
+            syncMentionFromCaret(next, event.target.selectionStart ?? next.length);
+          }}
+          onSelect={(event) => {
+            const el = event.currentTarget;
+            syncMentionFromCaret(el.value, el.selectionStart ?? el.value.length);
+          }}
+          onClick={(event) => {
+            const el = event.currentTarget;
+            syncMentionFromCaret(el.value, el.selectionStart ?? el.value.length);
+          }}
+          onBlur={() => {
+            // Delay so a listbox mousedown can fire first.
+            window.setTimeout(() => setMention(undefined), 120);
           }}
           onPaste={(event) => {
             if (!onPasteFiles) return;
@@ -466,14 +614,43 @@ export function Composer({
             if (takeImages(candidates)) event.preventDefault();
           }}
           onKeyDown={(event) => {
+            if (mention && mentionList.length > 0) {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setMentionIndex((i) => (i + 1) % mentionList.length);
+                return;
+              }
+              if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setMentionIndex((i) => (i - 1 + mentionList.length) % mentionList.length);
+                return;
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                const option = mentionList[mentionIndex] ?? mentionList[0];
+                if (option) applyMention(option);
+                return;
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setMention(undefined);
+                return;
+              }
+            }
+
             const touch = window.matchMedia('(pointer: coarse)').matches;
             if (event.key === 'Enter' && !event.shiftKey && !touch) {
               event.preventDefault();
               submit();
             }
           }}
-          placeholder={placeholder}
+          placeholder={
+            mentions?.some((m) => m.kind === 'ai')
+              ? `${placeholder.replace(/\.\.\.$/, '')} · @pingoai to ask AI`
+              : placeholder
+          }
           aria-label={ariaLabel}
+          aria-autocomplete={mentions?.length ? 'list' : undefined}
           className={cn(
             'min-w-0 flex-1 resize-none bg-transparent outline-none',
             /*

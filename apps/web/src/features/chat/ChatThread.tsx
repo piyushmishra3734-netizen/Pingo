@@ -44,7 +44,7 @@ import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
-import { Composer } from './Composer.js';
+import { Composer, type MentionOption } from './Composer.js';
 import { EncryptionNotice } from './EncryptionNotice.js';
 import { GroupInfoSheet } from './GroupInfoSheet.js';
 import { ConversationMenu } from './ConversationMenu.js';
@@ -230,13 +230,20 @@ export function ChatThread({
 
   const [wallpaperTick, setWallpaperTick] = useState(0);
   useEffect(() => {
-    hydrateWallpaper(conversation.id);
+    // Groups: also pull the shared photo into IndexedDB so GIF display matches DMs
+    // (blob URL of original bytes, not a frozen CSS/server still).
+    hydrateWallpaper(
+      conversation.id,
+      conversation.kind === 'group' || conversation.kind === 'community'
+        ? conversation.wallpaperPhotoUrl
+        : undefined,
+    );
     return onWallpaperChange((changedId) => {
       if (!changedId || changedId === conversation.id) {
         setWallpaperTick((n) => n + 1);
       }
     });
-  }, [conversation.id]);
+  }, [conversation.id, conversation.kind, conversation.wallpaperPhotoUrl]);
 
   const wallpaper = useMemo(() => {
     const id = chosenWallpaperId(wallpaperScope);
@@ -737,6 +744,50 @@ export function ChatThread({
     : partner
       ? formatPresence(partner)
       : `${members.length} members`;
+
+  const PINGO_AI_ID = 'a1000000-0000-4000-8000-0000000000a1';
+  /**
+   * @ autocomplete for groups (and AI DMs).
+   * AI is listed when it is a member of the room so @pingoai is discoverable.
+   */
+  const mentionOptions = useMemo((): MentionOption[] | undefined => {
+    if (isAi) {
+      return [
+        {
+          id: PINGO_AI_ID,
+          handle: 'pingoai',
+          name: 'PINGO AI',
+          kind: 'ai',
+        },
+      ];
+    }
+    if (!isGroup) return undefined;
+
+    const options: MentionOption[] = [];
+    const hasAi = conversation.participantIds.includes(PINGO_AI_ID);
+    if (hasAi) {
+      options.push({
+        id: PINGO_AI_ID,
+        handle: 'pingoai',
+        name: 'PINGO AI',
+        kind: 'ai',
+      });
+    }
+
+    for (const person of members) {
+      if (person.id === currentUser?.id) continue;
+      if (person.id === PINGO_AI_ID) continue;
+      options.push({
+        id: person.id,
+        handle: person.handle || person.id.slice(0, 8),
+        name: person.name,
+        ...(person.avatarUrl ? { avatarUrl: person.avatarUrl } : {}),
+        kind: 'person',
+      });
+    }
+
+    return options.length > 0 ? options : undefined;
+  }, [isAi, isGroup, conversation.participantIds, members, currentUser?.id]);
 
   return (
     <div
@@ -1371,6 +1422,7 @@ export function ChatThread({
           )}
 
           <Composer
+            mentions={mentionOptions}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
               // turn this into a plain message.

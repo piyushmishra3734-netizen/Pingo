@@ -488,7 +488,8 @@ const PINGO_AI_USER_ID = 'a1000000-0000-4000-8000-0000000000a1';
 
 /** @pingoai / @pingo_ai — triggers a reply when PINGO AI is a group member. */
 export function mentionsPingoAi(text: string): boolean {
-  return /@pingo_?ai\b/i.test(text.trim());
+  // Accept both the autocomplete handle and the profile username form.
+  return /@pingo_?ai\b/i.test(text);
 }
 
 export class SupabaseChatService implements ChatService {
