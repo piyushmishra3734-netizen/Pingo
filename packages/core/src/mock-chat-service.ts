@@ -429,6 +429,11 @@ export class MockChatService implements ChatService {
     this.#updateConversation(conversationId, { participantIds });
   }
 
+  async addPingoAiToGroup(conversationId: ConversationId): Promise<void> {
+    const bot = 'a1000000-0000-4000-8000-0000000000a1';
+    await this.addGroupMembers(conversationId, [bot]);
+  }
+
   async setGroupWallpaper(
     conversationId: ConversationId,
     wallpaperId: string,

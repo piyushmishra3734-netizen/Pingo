@@ -56,8 +56,10 @@ export function GroupInfoSheet({
   const avatarInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
 
+  const PINGO_AI_ID = 'a1000000-0000-4000-8000-0000000000a1';
   const adminIds = conversation.adminIds ?? [];
   const iAmAdmin = currentUser ? adminIds.includes(currentUser.id) : false;
+  const aiInGroup = conversation.participantIds.includes(PINGO_AI_ID);
   const memberSet = useMemo(
     () => new Set(conversation.participantIds),
     [conversation.participantIds],
@@ -79,9 +81,20 @@ export function GroupInfoSheet({
   ]);
 
   const members = conversation.participantIds
-    .map((id) =>
-      id === currentUser?.id ? currentUser : users.find((u) => u.id === id),
-    )
+    .map((id) => {
+      if (id === currentUser?.id) return currentUser;
+      if (id === PINGO_AI_ID) {
+        return (
+          users.find((u) => u.id === id) ?? {
+            id: PINGO_AI_ID,
+            name: 'PINGO AI',
+            handle: 'pingo_ai',
+            presence: { state: 'online' as const, lastSeenAt: Date.now() },
+          }
+        );
+      }
+      return users.find((u) => u.id === id);
+    })
     .filter((u): u is User => Boolean(u))
     .sort((a, b) => {
       const rank = Number(adminIds.includes(b.id)) - Number(adminIds.includes(a.id));
@@ -526,7 +539,11 @@ export function GroupInfoSheet({
                   {isMe ? 'You' : person.name}
                 </span>
                 <span className="block truncate text-caption text-text-tertiary">
-                  {isAdmin ? t('group.admin') : `@${person.handle}`}
+                  {person.id === PINGO_AI_ID
+                    ? 'AI · @pingoai'
+                    : isAdmin
+                      ? t('group.admin')
+                      : `@${person.handle}`}
                 </span>
               </span>
 
@@ -554,6 +571,43 @@ export function GroupInfoSheet({
           );
         })}
       </ul>
+
+      {iAmAdmin && (
+        <section className="mt-5 border-t border-line pt-4">
+          <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+            PINGO AI
+          </h3>
+          {aiInGroup ? (
+            <p className="text-caption text-text-secondary">
+              PINGO AI is in this group. Anyone can type{' '}
+              <span className="font-medium text-ink">@pingoai</span> and it will reply
+              here. Messages that mention AI are readable by the server so it can answer
+              (not end-to-end encrypted).
+            </p>
+          ) : (
+            <>
+              <p className="mb-2.5 text-caption text-text-tertiary">
+                Add PINGO AI so members can @pingoai and get a reply in this chat.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy || !service.addPingoAiToGroup}
+                onClick={() =>
+                  void run(
+                    (service.addPingoAiToGroup
+                      ? service.addPingoAiToGroup(conversation.id)
+                      : Promise.reject(new Error('AI add is unavailable.'))
+                    ).then(() => undefined),
+                  )
+                }
+              >
+                Add PINGO AI
+              </Button>
+            </>
+          )}
+        </section>
+      )}
 
       {iAmAdmin && (
         <section className="mt-5 border-t border-line pt-4">

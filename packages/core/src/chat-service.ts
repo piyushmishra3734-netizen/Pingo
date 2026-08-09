@@ -446,6 +446,11 @@ export interface ChatService {
   /** Admin only. Every id must be a mutual follow of the person adding. */
   addGroupMembers(conversationId: ConversationId, memberIds: UserId[]): Promise<void>;
 
+  /**
+   * Admin only. Adds the PINGO AI bot to a group so members can @pingoai.
+   */
+  addPingoAiToGroup?(conversationId: ConversationId): Promise<void>;
+
   /** Admin only, and never yourself - leaving has its own door. */
   removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void>;
 

@@ -486,6 +486,11 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
 /** Fixed AI identity - same uuid as `public.pingo_ai_user_id()` and the Edge Function. */
 const PINGO_AI_USER_ID = 'a1000000-0000-4000-8000-0000000000a1';
 
+/** @pingoai / @pingo_ai — triggers a reply when PINGO AI is a group member. */
+export function mentionsPingoAi(text: string): boolean {
+  return /@pingo_?ai\b/i.test(text.trim());
+}
+
 export class SupabaseChatService implements ChatService {
   readonly #client: PingoSupabaseClient;
 
@@ -2557,11 +2562,18 @@ export class SupabaseChatService implements ChatService {
      */
     /*
      * AI threads are never end-to-end encrypted: the server must read them to
-     * reply. Human threads still go through sealBody when the roster is ready.
+     * reply. Group messages that @mention PINGO AI are also plaintext so the
+     * model can see the ask — other group messages stay sealed as usual.
      */
     const isAi = await this.#isAiConversation(draft.conversationId);
+    const conversationSnap = await this.getConversation(draft.conversationId);
+    const groupHasAi =
+      (conversationSnap?.kind === 'group' || conversationSnap?.kind === 'community') &&
+      Boolean(conversationSnap.participantIds.includes(PINGO_AI_USER_ID));
+    const callAiInGroup = groupHasAi && mentionsPingoAi(draft.body);
+    const plaintextForAi = isAi || callAiInGroup;
 
-    const sealed = isAi
+    const sealed = plaintextForAi
       ? { body: draft.body, encryption: null as string | null, envelope: null as null }
       : await sealBody(this.#client, draft.conversationId, draft.body);
 
@@ -2663,8 +2675,8 @@ export class SupabaseChatService implements ChatService {
     const conversation = await this.getConversation(draft.conversationId);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
 
-    // Person-shaped AI: reply arrives as another message in the same thread.
-    if (isAi && draft.body.trim()) {
+    // Person-shaped AI: 1:1 thread always replies; groups only on @pingoai.
+    if ((isAi || callAiInGroup) && draft.body.trim()) {
       void this.#requestAiReply(draft.conversationId, draft.body).catch((cause) => {
         console.error('[pingo-ai]', cause);
       });
@@ -2688,6 +2700,18 @@ export class SupabaseChatService implements ChatService {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Admin: put PINGO AI in a group so members can @pingoai for a reply.
+   */
+  async addPingoAiToGroup(conversationId: ConversationId): Promise<void> {
+    const { error } = await this.#client.rpc('add_pingo_ai_to_group', {
+      conv: conversationId,
+    });
+    if (error) throw groupError(error);
+    this.#rememberAiPerson('PINGO AI');
+    await this.#announce(conversationId);
   }
 
   /** Local typing dots for the AI person - not a Realtime presence channel. */

@@ -817,6 +817,10 @@ export type Database = {
         Returns: string;
       };
       /** One AI conversation per user - person-shaped row in Chats. */
+      add_pingo_ai_to_group: {
+        Args: { conv: string };
+        Returns: undefined;
+      };
       ensure_ai_conversation: {
         Args: Record<string, never>;
         Returns: string;

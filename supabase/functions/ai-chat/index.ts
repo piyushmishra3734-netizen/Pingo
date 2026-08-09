@@ -71,6 +71,8 @@ Deno.serve(async (request) => {
     const body = (await request.json()) as {
       conversationId?: string;
       userMessage?: string;
+      /** Group mode: only set when the bot is a member and the user @mentioned AI. */
+      mode?: 'dm' | 'group';
     };
     const conversationId = body.conversationId;
     if (!conversationId) {
@@ -83,8 +85,35 @@ Deno.serve(async (request) => {
       .eq('id', conversationId)
       .maybeSingle();
 
-    if (!conv || conv.kind !== 'ai') {
+    if (!conv) {
+      return json(request, { error: 'Conversation not found.' }, 404);
+    }
+
+    const isAiDm = conv.kind === 'ai';
+    const isGroup = conv.kind === 'group' || conv.kind === 'community';
+    if (!isAiDm && !isGroup) {
       return json(request, { error: 'Not an AI conversation.' }, 403);
+    }
+
+    if (isGroup) {
+      const { data: botMember } = await userClient
+        .from('conversation_members')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', BOT_ID)
+        .maybeSingle();
+      if (!botMember) {
+        return json(request, { error: 'PINGO AI is not in this group.' }, 403);
+      }
+      const { data: meMember } = await userClient
+        .from('conversation_members')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!meMember) {
+        return json(request, { error: 'Not a group member.' }, 403);
+      }
     }
 
     const { data: profile } = await userClient
@@ -123,13 +152,13 @@ Deno.serve(async (request) => {
       memories = data ?? [];
     }
 
-    // Recent plaintext only — more turns = better context stickiness.
+    // Load a deep thread — context stickiness needs more than a few bubbles.
     const { data: rows } = await userClient
       .from('messages')
       .select('sender_id, body, created_at, encryption')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
-      .limit(48);
+      .limit(80);
 
     const chronological = [...(rows ?? [])]
       .reverse()
@@ -143,16 +172,23 @@ Deno.serve(async (request) => {
           !/<<<\s*(REPLY|ASK)\s*>>>/i.test(row.body),
       );
 
-    const history = chronological.map((row) => {
-      const raw = stripMarkers(row.body.trim()).slice(0, 2000);
-      const role = (row.sender_id === BOT_ID ? 'assistant' : 'user') as
-        | 'assistant'
-        | 'user';
-      // Never re-teach the model its own spam loops from chat history.
-      const content =
-        role === 'assistant' ? sanitizeHistoryAssistant(raw) : raw;
-      return { role, content };
-    }).filter((m) => m.content.trim().length > 0);
+    const history = chronological
+      .map((row) => {
+        const raw = stripMarkers(row.body.trim()).slice(0, 2000);
+        const role = (row.sender_id === BOT_ID ? 'assistant' : 'user') as
+          | 'assistant'
+          | 'user';
+        // Soft-scrub spam from assistant only — keep real content for context.
+        const content =
+          role === 'assistant' ? sanitizeHistoryAssistant(raw) : raw;
+        return { role, content };
+      })
+      .filter(
+        (m) =>
+          m.content.trim().length > 0 &&
+          m.content.trim() !== '(previous reply)' &&
+          m.content.trim() !== '(earlier message)',
+      );
 
     const live = body.userMessage?.trim();
     if (live) {
@@ -162,7 +198,7 @@ Deno.serve(async (request) => {
       }
     }
 
-    // Collapse runaway alternating empty / glitch-only threads.
+    // Collapse same-role streaks (e.g. dual AI bubbles) without dropping topics.
     const cleanHistory = collapseHistory(history);
 
     if (cleanHistory.length === 0) {
@@ -171,15 +207,27 @@ Deno.serve(async (request) => {
 
     const recentAssistant = cleanHistory
       .filter((m) => m.role === 'assistant')
-      .slice(-10)
+      .slice(-12)
       .map((m) => m.content);
 
-    const system = buildSystemPrompt(
-      profile as AiProfile | null,
-      memories,
-      memoryOn,
-      justSaved,
-    );
+    const system =
+      buildSystemPrompt(
+        profile as AiProfile | null,
+        memories,
+        memoryOn,
+        justSaved,
+      ) +
+      (isGroup
+        ? [
+
+            '',
+            '## Group chat mode',
+            'You are PINGO AI inside a multi-person group. Someone mentioned you with @pingoai / @pingo_ai.',
+            'Reply as yourself in the group — short, clear, helpful. Address the room, not just one private DM tone.',
+            'You only see plaintext lines (encrypted human-only messages may be missing). Rely on the latest @mention message.',
+            'Do not claim to be a human. Do not spam long dual-bubble questions — one solid reply is enough.',
+          ].join('\n')
+        : '');
     const focus = buildFocusDirective(
       cleanHistory,
       profile as AiProfile | null,
@@ -189,7 +237,7 @@ Deno.serve(async (request) => {
       justSaved,
     );
 
-    // Keep history short so the model does not copy-paste its own loops.
+    // Longer window so the model can follow multi-turn threads.
     const historyForModel = trimHistoryForModel(cleanHistory);
 
     const messages = [
@@ -215,32 +263,20 @@ Deno.serve(async (request) => {
     const model = Deno.env.get('NVIDIA_MODEL') ?? DEFAULT_MODEL;
     const length = profile?.response_length ?? 'short';
 
-    // Hard caps so "short" cannot drift into essay territory.
+    // Soft intent hint only — never a hard-coded answer bank for specific words.
+    const intent = detectIntent(live ?? '');
     const maxTokens =
-      length === 'detailed' ? 640 : length === 'balanced' ? 280 : 160;
+      length === 'detailed' ? 640 : length === 'balanced' ? 360 : 280;
 
-    const nvidia = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        // Higher temp + penalties so it stops looping the same 3 lines.
-        temperature: 0.85,
-        top_p: 0.9,
-        frequency_penalty: 0.65,
-        presence_penalty: 0.45,
-        max_tokens: maxTokens,
-        stream: false,
-      }),
+    const raw1 = await callChatModel(apiKey, base, model, messages, {
+      temperature: 0.55,
+      top_p: 0.9,
+      frequency_penalty: 0.2,
+      presence_penalty: 0.1,
+      max_tokens: maxTokens,
     });
 
-    if (!nvidia.ok) {
-      const detail = await nvidia.text();
-      console.error('nvidia', nvidia.status, detail);
+    if (raw1 == null) {
       const { data: id } = await userClient.rpc('post_ai_reply', {
         target_conversation: conversationId,
         reply_body: "Something went wrong on my side. Say that again? 😅",
@@ -248,27 +284,71 @@ Deno.serve(async (request) => {
       return json(request, { messageId: id, error: 'model_failed' }, 200);
     }
 
-    const payload = (await nvidia.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    let raw = payload.choices?.[0]?.message?.content?.trim() ?? '';
-    raw = cleanModelArtifacts(raw);
-    let { reply, ask } = parseModelPayload(raw, length);
-
-    // Absolute last line of defence — markers must never reach the chat UI.
+    let { reply, ask } = parseModelPayload(raw1, length);
     reply = finalizeBubble(reply, length);
     ask = finalizeAsk(ask);
 
-    // Kill repetitive uncle-bot loops before they hit the chat.
-    reply = diversifyReply(reply, live ?? '', recentAssistant, length);
-    ask = diversifyAsk(ask, live ?? '', reply, recentAssistant);
+    // Second pass if first answer is off/vague — keep full thread context.
+    if (shouldRetryAnswer(reply, live ?? '', intent)) {
+      const threadBrief = formatThreadForPrompt(historyForModel, 16, 320);
+      const retryMessages = [
+        {
+          role: 'system' as const,
+          content: buildRetrySystem(profile as AiProfile | null),
+        },
+        {
+          role: 'user' as const,
+          content: [
+            'Full recent conversation (USE THIS — do not forget earlier turns):',
+            threadBrief || '(none)',
+            '',
+            `Latest user message: """${(live ?? '').slice(0, 800)}"""`,
+            '',
+            'If they use ye/uska/wo/upar/pehle/that/it — resolve from the conversation above.',
+            'Step 1 (silent): What do they want, given the whole thread?',
+            'Step 2: Answer with that context. General knowledge OK. No vague filler.',
+            'Return ONLY JSON: {"reply":"...","ask":""}',
+          ].join('\n'),
+        },
+      ];
+      const raw2 = await callChatModel(apiKey, base, model, retryMessages, {
+        temperature: 0.4,
+        top_p: 0.9,
+        frequency_penalty: 0.1,
+        presence_penalty: 0.05,
+        max_tokens: maxTokens,
+      });
+      if (raw2) {
+        const second = parseModelPayload(raw2, length);
+        const r2 = finalizeBubble(second.reply, length);
+        if (r2 && !shouldRetryAnswer(r2, live ?? '', intent)) {
+          reply = r2;
+          ask = finalizeAsk(second.ask);
+        } else if (
+          r2 &&
+          qualityScore(r2, live ?? '') > qualityScore(reply, live ?? '')
+        ) {
+          reply = r2;
+          ask = finalizeAsk(second.ask);
+        }
+      }
+    }
 
-    // If main already ends with a question, skip second bubble (users hate double spam).
-    if (/\?\s*$/.test(reply.trim())) {
+    // Spam cleanup only — keep real answers.
+    reply = diversifyReply(reply, live ?? '', recentAssistant, length, intent);
+    ask = diversifyAsk(ask, live ?? '', reply, recentAssistant, intent);
+
+    // Clear requests / greetings → one bubble (no random second question).
+    if (
+      /\?\s*$/.test(reply.trim()) ||
+      looksLikeClearRequest(live ?? '') ||
+      intent === 'greeting'
+    ) {
       ask = '';
     }
 
-    const mainBody = reply || contextualFallbackReply(live ?? '');
+    const mainBody =
+      reply || smartFallbackReply(live ?? '', recentAssistant, intent);
 
     const { data: messageId, error: postError } = await userClient.rpc('post_ai_reply', {
       target_conversation: conversationId,
@@ -279,9 +359,10 @@ Deno.serve(async (request) => {
       return json(request, { error: postError.message }, 500);
     }
 
-    // Second bubble only if the ask is fresh and useful — skip spam loops.
+    // Second bubble only in 1:1 DMs. Groups get one reply to keep noise down.
     let askId: string | null = null;
     if (
+      !isGroup &&
       ask &&
       ask !== mainBody &&
       !looksLikeMarkerGarbage(ask) &&
@@ -321,6 +402,75 @@ function json(request: Request, body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },
   });
+}
+
+type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+async function callChatModel(
+  apiKey: string,
+  base: string,
+  model: string,
+  messages: ChatMessage[],
+  opts: {
+    temperature: number;
+    top_p: number;
+    frequency_penalty: number;
+    presence_penalty: number;
+    max_tokens: number;
+  },
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: opts.temperature,
+        top_p: opts.top_p,
+        frequency_penalty: opts.frequency_penalty,
+        presence_penalty: opts.presence_penalty,
+        max_tokens: opts.max_tokens,
+        stream: false,
+      }),
+    });
+    if (!res.ok) {
+      console.error('nvidia', res.status, await res.text());
+      return null;
+    }
+    const payload = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    return cleanModelArtifacts(payload.choices?.[0]?.message?.content?.trim() ?? '');
+  } catch (err) {
+    console.error('nvidia-call', err);
+    return null;
+  }
+}
+
+/** Minimal system for the retry pass — maximum comprehension, minimum rules. */
+function buildRetrySystem(profile: AiProfile | null): string {
+  const name = profile?.display_name?.trim() || 'PINGO';
+  const lang = languageLabel(profile?.language);
+  const personality = profile?.personality ?? 'friendly';
+  return [
+    `You are ${name}, a sharp chat friend on PINGO.`,
+    'You understand ANY message: typos, Hinglish, slang, English, questions, jokes, rants, math, definitions.',
+    'You have the conversation transcript — USE it. Do not forget earlier turns.',
+    'If they refer to something earlier (ye/wo/uska/pehle/that), resolve it from the transcript.',
+    'Figure out what they want given the whole thread, then answer usefully.',
+    'Never invent memories or that they live somewhere.',
+    'Never use spam openers like "Bhai full drama" or "Kya hua koi baat hai".',
+    'Never reply with empty filler when they asked something clear.',
+    personality === 'genz'
+      ? 'Voice: Gen Z / desi chat energy, still actually answer.'
+      : `Voice: ${personality}, still actually answer.`,
+    lang ? `Prefer language: ${lang}` : 'Match their language.',
+    'Output ONLY JSON: {"reply":"your answer","ask":""}',
+  ].join('\n');
 }
 
 function languageLabel(code: string | null | undefined): string | null {
@@ -432,9 +582,10 @@ function lengthBlock(length: string): string {
     ].join('\n');
   }
   return [
-    '## LENGTH LAW: short — hard limit',
-    '<<<REPLY>>> must be 1–2 short chat lines only (max ~120 characters total).',
-    'If you write more, you fail the task. Punchy. No filler. No lists.',
+    '## LENGTH LAW: short',
+    'Keep reply to 1–2 short chat lines when chatting casually.',
+    'EXCEPTION: definitions, jokes, and explanations may use 2–4 lines so the answer is complete.',
+    'No filler. No walls of text.',
   ].join('\n');
 }
 
@@ -482,8 +633,35 @@ function buildSystemPrompt(
 
   return [
     `You are ${name} inside the PINGO messenger — a person in chat, not a product demo.`,
-    'Not ChatGPT. Not a support bot. Real chat energy.',
+    'Not a support bot. Real chat energy. Hindi / Hinglish / English / slang / typos — you handle all of it.',
     'No markdown headings. No "As an AI…".',
+    '',
+    '## GENERAL REASONING (works for EVERY prompt, not special keywords)',
+    '1. Read the full conversation history, then the latest user message.',
+    '2. Infer what they want: answer, joke, meaning, help, opinion, vent, plan, math, story, greeting, follow-up, etc.',
+    '3. Satisfy that want with real content. Do not dodge with empty chat filler.',
+    '4. Stay on their topic — do not answer a different imagined question.',
+    '5. You have general world knowledge: define ANY word; jokes; simple reasoning.',
+    '6. If the request is unclear, ask ONE clarifying question — but if it is clear, ANSWER.',
+    '',
+    '## CONTEXT MEMORY (critical — users complain you forget)',
+    'You MUST use earlier turns in this chat. The message list above/below is the live thread.',
+    'If they say ye / uska / wo / upar / pehle / wahi / that / it / "uske baare me" — resolve from prior messages.',
+    'If they continue a topic (exam, crush, city, plan, joke thread) — stay on that thread.',
+    'Refer back naturally: names, choices, facts they already told you this chat.',
+    'Long-term Memory list = durable notes. Chat history = short-term context. Use BOTH.',
+    'Never pretend the conversation just started if there are earlier messages.',
+    '',
+    '## BAD (never do this)',
+    '- Ignoring a clear ask and saying "open karke bata" / "kya feel ho raha?"',
+    '- Greeting replies like "serious ya joke?" to "hi/hlo"',
+    '- Forgetting what they said 2–10 messages ago',
+    '- Asking them to re-explain something already in the thread',
+    '- Spam loops: "Bhai full drama", "Kya hua koi baat hai", "Tumne kaha tha… maine socha tha"',
+    '',
+    '## GOOD patterns',
+    'Clear request → fulfill it. Casual share → specific react. Follow-up → use prior turns.',
+    'Challenge / "maine kab kaha" → apologize once, no invented quote.',
     '',
     personalityBlock(profile),
     '',
@@ -491,46 +669,25 @@ function buildSystemPrompt(
     '',
     lang
       ? [
-          '## LANGUAGE LAW — hard',
-          `Write <<<REPLY>>> and <<<ASK>>> primarily in: ${lang}.`,
-          'Do not default to English if their language preference is not English.',
+          '## LANGUAGE',
+          `Write reply and ask primarily in: ${lang}.`,
           'Only mix languages if they mixed first.',
         ].join('\n')
       : '## LANGUAGE\nMatch the language they write in.',
     '',
     '## Emoji',
-    '1–3 natural chat emojis in the reply field when it fits. No spam.',
+    '1–3 natural chat emojis when it fits. No spam.',
     '',
-    '## Output format (STRICT — JSON only, no other text)',
-    'Return ONLY a JSON object with exactly two string fields:',
-    '{"reply":"main answer here","ask":"one short follow-up question?"}',
-    'No markdown. No <<<REPLY>>> markers. No text outside the JSON.',
-    'ask: one short on-topic question under 12 words, specific to THIS message.',
+    '## Output (JSON only)',
+    '{"reply":"main answer","ask":"optional short follow-up or empty string"}',
+    'No text outside JSON. Prefer ask:"" when you already fully answered.',
     '',
-    '## ANTI-REPEAT LAW (multiple users complained — break this and you FAIL hard)',
-    'NEVER use these templates (anywhere in reply or ask):',
-    '- "Bhai full drama hai"',
-    '- "Bhai full topic change"',
-    '- "Bhai full ..." + anything',
-    '- "Hey cutie, kya hua"',
-    '- "Bhai kya hua? Kuch to bata"',
-    '- "Kya hua, koi baat hai?" / "Aur kya hua..." / "Kya hoga, koi baat/plan"',
-    '- "Tumne kaha tha \'...\' to maine socha tha..."',
-    '- Echoing the user\'s exact last message back as your reply',
-    'Do NOT re-quote old user lines every turn. Answer THIS message only.',
-    'Every reply must feel NEW — different opener, different energy, specific to their words.',
-    'Good asks (rotate, never spam the same): "serious ya joke?", "aur detail?", "kaise feel ho raha?", "kab se?", "kya soch rahe ho ispe?"',
-    'If user says topic change / sense nahi / abbe — drop old topic completely. Fresh reply only.',
-    '',
-    '## Truth rules (critical — you fail if you break these)',
-    '1. Answer the latest user message only — actually react to their words.',
-    '2. NEVER invent that the user said or lives somewhere. Asking weather ≠ they live there.',
-    '3. NEVER invent memories. ONLY the Memory list above counts as long-term memory. Chat history ≠ memory list.',
-    '4. If they say "maine kab kaha?" / challenge you: apologize once — do not invent a quote.',
-    '5. If they say topic change / abbe sense nahi: acknowledge and move on — do not re-quote old lines.',
-    '6. When asked about memory/exam/place: answer only if that fact is in Memory list.',
-    '7. Do not claim "tum meri gf ho" / invent relationship status from flirty jokes.',
-    '8. Do NOT auto-save anything. Saving only happens when they explicitly ask (yaad rakh / remember).',
+    '## Truth',
+    '1. Answer the latest message.',
+    '2. Never invent that they live somewhere or said something they did not.',
+    '3. Long-term memory = Memory list only.',
+    '4. Save only on explicit yaad rakh / remember.',
+    '5. Do not invent relationship status from jokes.',
     '',
     userName
       ? `Call the user ${userName} when a name fits. That is the user, not the product owner.`
@@ -574,17 +731,20 @@ function buildFocusDirective(
       ? 'LENGTH: detailed OK'
       : length === 'balanced'
         ? 'LENGTH: balanced — 2–4 short lines'
-        : 'LENGTH: SHORT — 1–2 lines, ~120 chars max in reply';
+        : 'LENGTH: SHORT chat lines, but never drop required context/facts';
 
+  // More user lines so pronouns and follow-ups resolve.
   const recentUser = history
     .filter((m) => m.role === 'user')
-    .slice(-6)
-    .map((m) => `- ${m.content.slice(0, 200)}`)
+    .slice(-12)
+    .map((m, i, arr) => `${arr.length - i}. ${m.content.slice(0, 280)}`)
     .join('\n');
 
-  const bannedRecent = recentAssistant
-    .slice(-6)
-    .map((t) => `- ${t.slice(0, 100)}`)
+  const thread = formatThreadForPrompt(history, 14, 280);
+
+  const avoidOpeners = recentAssistant
+    .slice(-4)
+    .map((t) => `- ${t.slice(0, 80)}`)
     .join('\n');
 
   const denial =
@@ -607,46 +767,170 @@ function buildFocusDirective(
         ? '(empty — nothing saved)'
         : '(memory OFF)';
 
+  const intent = detectIntent(lastUser);
+  const needsContext = refersToPriorContext(lastUser);
+
   return [
-    'HARD CONSTRAINTS FOR THIS TURN:',
+    'THIS TURN — use the whole conversation, then answer the latest line:',
     `Latest user message: """${lastUser.slice(0, 800)}"""`,
-    'React to THAT message. Do not ignore it and recycle old drama.',
-    'Recent USER lines only (not long-term memory):',
+    `Soft intent hint: ${intent}`,
+    needsContext
+      ? 'CRITICAL: This message depends on earlier turns (ye/wo/uska/pehle/that/it…). Resolve from THREAD below. Do not ask them to repeat.'
+      : 'Answer the latest want; still keep thread continuity when relevant.',
+    looksLikeClearRequest(lastUser)
+      ? 'Clear request — real answer, prefer ask:"".'
+      : 'React specifically; use prior context if this continues a topic.',
+    '',
+    'THREAD (recent turns — short-term memory):',
+    thread || '(none)',
+    '',
+    'USER messages recently (numbered, oldest→newest among these):',
     recentUser || '(none)',
-    'Your LAST replies (DO NOT repeat openers/asks from these):',
-    bannedRecent || '(none)',
-    'LONG-TERM MEMORY LIST (only real saved notes):',
+    '',
+    'Avoid copy-pasting these openers:',
+    avoidOpeners || '(none)',
+    '',
+    'LONG-TERM MEMORY LIST (durable notes):',
     memoryLines,
     justSaved
-      ? `User JUST asked to save: "${justSaved.value}" — confirm it is saved, briefly.`
-      : 'Do NOT claim you saved anything unless they used yaad rakh/remember/memory me save.',
+      ? `User JUST asked to save: "${justSaved.value}" — confirm briefly.`
+      : 'Do not claim you saved anything unless yaad rakh/remember.',
     voice,
     len,
     lang ? `LANGUAGE: write in ${lang}` : 'LANGUAGE: match user',
-    '1–3 emojis in reply.',
-    'Return ONLY JSON: {"reply":"...","ask":"..."}',
-    'BANNED forever (anywhere): "Bhai full drama", "Bhai full", "Kya hua/hoga koi baat/plan", "Tumne kaha tha", "maine socha tha tum", "Hey cutie kya hua", "Kuch to bata".',
-    'ask must be unique this turn and specific to their latest line. Prefer ONE short reply bubble if unsure.',
+    'Return ONLY JSON: {"reply":"...","ask":""}',
+    'Spam banned: "Bhai full drama", "Kya hua koi baat", "Tumne kaha tha", "maine socha tha tum".',
     denial
-      ? 'User is annoyed / challenging you / wants topic change — apologize briefly if needed, MOVE ON, do not re-quote old messages. Fresh reply only.'
+      ? 'User annoyed / topic change — brief apology if needed, then follow THEIR new topic (still remember if they refer back).'
       : memoryQuery
-        ? 'User is asking what you remember — answer ONLY from LONG-TERM MEMORY LIST. If empty or missing topic, say not saved. Do not invent from chat history.'
-        : 'Stay on their latest message.',
+        ? 'Memory question — use LONG-TERM MEMORY LIST; chat history is extra context only.'
+        : 'Answer with real content and continuous context.',
   ].join('\n');
 }
 
-/** Drop older turns so the model cannot keep parroting a long bad loop. */
+/** Pronouns / follow-ups that require earlier turns. */
+function refersToPriorContext(text: string): boolean {
+  return /\b(ye|yeh|wo|woh|uska|uski|uske|unki|unke|upar|pehle|pahle|wahi|usi|us\b|that|this|it\b|them|those|earlier|before|same|wale|wali|baare\s*me|bare\s*me|ke\s*baare|phir\s*se|dobara)\b/i.test(
+    text,
+  ) || /^(aur|phir|fir|uske\s+baad|phir\s+se)\b/i.test(text.trim());
+}
+
+/** Compact transcript for system/retry prompts. */
+function formatThreadForPrompt(
+  history: { role: string; content: string }[],
+  maxTurns = 14,
+  maxChars = 280,
+): string {
+  return history
+    .slice(-maxTurns)
+    .map((m) => {
+      const who = m.role === 'user' ? 'User' : 'You';
+      const body = m.content.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+      return `${who}: ${body}`;
+    })
+    .join('\n');
+}
+
+type ChatIntent =
+  | 'greeting'
+  | 'joke'
+  | 'define'
+  | 'explain'
+  | 'memory'
+  | 'romance'
+  | 'topic_change'
+  | 'chat';
+
+function detectIntent(lastUser: string): ChatIntent {
+  const u = lastUser.trim();
+  const low = u.toLowerCase();
+
+  if (/^h+i+$|^h+e+y+$|^hlo+\b|^hello\b|^yo\b|^sup\b|^hola\b|^namaste\b|^kaise\s*ho|^kya\s*haal/i.test(low)) {
+    return 'greeting';
+  }
+  if (
+    /\bjoke\b|joke\s*suna|suna\s*(na\s+)?joke|has[aai]|funny\s*(suna|bata)|ek\s*joke|koi\s*joke/i.test(
+      low,
+    )
+  ) {
+    return 'joke';
+  }
+  // Definition / meaning — highest priority over romance keyword false positives.
+  if (
+    /\b(mtlb|matlab|meaning|means|define|definition|kya\s+hota\s+hai|ka\s+kya\s+mtlb|ka\s+kya\s+matlab|what\s+does|what\s+is\s+\w+\s*\?)/i.test(
+      low,
+    ) ||
+    /ka\s+kya\s+(mtlb|matlab)|kya\s+(mtlb|matlab)\s+hota/i.test(low)
+  ) {
+    return 'define';
+  }
+  if (
+    /\b(samjha|samjhao|explain|kaise\s+kaam|how\s+does|kyun|why\s+is|kya\s+farq)\b/i.test(low) &&
+    low.length > 8
+  ) {
+    return 'explain';
+  }
+  if (
+    /yaad\s*(hai|he|hain)|tujhe\s+yaad|tumhe\s+yaad|memory\s*se|kya\s+yaad|what do you remember/i.test(
+      low,
+    ) &&
+    !parseExplicitMemory(u)
+  ) {
+    return 'memory';
+  }
+  if (/topic change|sense nahi|sense nhi|abbe\s+iss|iss baat ka kuch sense/i.test(low)) {
+    return 'topic_change';
+  }
+  // Romance only when they state interest — not when asking "what does lowkey mean".
+  if (
+    /\b(propose|girlfriend|boyfriend|\bgf\b|\bbf\b|crush|meri gf|lowkey interested|i('m| am) interested)\b/i.test(
+      low,
+    ) &&
+    !/\b(mtlb|matlab|meaning)\b/i.test(low)
+  ) {
+    return 'romance';
+  }
+  return 'chat';
+}
+
+/** Pull a term from common "what does X mean" shapes — structure-based, any word. */
+function extractDefineTerm(message: string): string | null {
+  const m = message.trim();
+  const patterns = [
+    /['"]([^'"]+)['"]\s*ka\s+kya\s+(?:mtlb|matlab)/i,
+    /([A-Za-z\u0900-\u097f][\w\u0900-\u097f'-]{1,40})\s+ka\s+kya\s+(?:mtlb|matlab)/i,
+    /(?:mtlb|matlab|meaning)\s+(?:of\s+)?['"]?([A-Za-z\u0900-\u097f][\w\u0900-\u097f'-]{1,40})/i,
+    /what\s+does\s+['"]?([A-Za-z][\w'-]{1,40})['"]?\s+mean/i,
+    /(?:kya\s+hota\s+hai)\s+['"]?([A-Za-z\u0900-\u097f][\w\u0900-\u097f'-]{1,40})/i,
+    /^([A-Za-z\u0900-\u097f][\w\u0900-\u097f'-]{1,40})\s+ka\s+kya/i,
+  ];
+  for (const re of patterns) {
+    const hit = m.match(re);
+    if (hit?.[1]) return hit[1].trim();
+  }
+  return null;
+}
+
+/** Keep a deep enough window that multi-turn topics stay coherent. */
 function trimHistoryForModel(
   history: { role: 'user' | 'assistant'; content: string }[],
 ): { role: 'user' | 'assistant'; content: string }[] {
-  // Last 10 turns max; scrub assistant spam; keep user lines longer.
-  return history.slice(-10).map((m) => ({
-    role: m.role,
-    content:
-      m.role === 'assistant'
-        ? sanitizeHistoryAssistant(m.content).slice(0, 220)
-        : m.content.slice(0, 800),
-  }));
+  // ~28 turns ≈ strong short-term context for 8B without blowing the window.
+  return history
+    .slice(-28)
+    .map((m) => ({
+      role: m.role,
+      content:
+        m.role === 'assistant'
+          ? sanitizeHistoryAssistant(m.content).slice(0, 500)
+          : m.content.slice(0, 1200),
+    }))
+    .filter(
+      (m) =>
+        m.content.trim().length > 0 &&
+        m.content.trim() !== '(previous reply)' &&
+        m.content.trim() !== '(earlier message)',
+    );
 }
 
 /** Phrases users reported looping forever — ban anywhere in reply/ask. */
@@ -659,22 +943,33 @@ const BANNED_ASK =
 const BANNED_REPLY_OPEN =
   /^(bhai\s+full|hey\s+cutie|arey,?\s*piuxxh\s+to\s+samajh|bhai\s+kya\s+hua|yaad\s+rakh,?\s*tumne)/i;
 
-/** Strip loop spam from past assistant bubbles before the model sees them. */
+/**
+ * Soft-scrub spam from past assistant bubbles.
+ * Keep real answers — aggressive wiping was making the model forget the thread.
+ */
 function sanitizeHistoryAssistant(text: string): string {
   let t = text.replace(/\r\n/g, '\n').trim();
-  // Drop dual-bubble spam lines entirely.
+  // Drop only pure spam lines; keep useful content lines.
   t = t
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line && !containsBannedLoop(line) && !isBannedAsk(line))
+    .filter((line) => {
+      if (!line) return false;
+      if (isBannedAsk(line) && line.length < 80) return false;
+      if (/^(bhai full drama|hey cutie|kya hua,?\s*koi baat)/i.test(line)) return false;
+      return true;
+    })
     .join('\n');
   t = stripLoopTemplates(t);
   t = t.replace(/\s{2,}/g, ' ').trim();
-  // If the whole bubble was spam, replace with neutral stub so model has no pattern to copy.
-  if (!t || containsBannedLoop(t) || t.length < 3) {
-    return '(previous reply)';
+  if (!t || t.length < 2) {
+    return '(earlier message)';
   }
-  return t.slice(0, 280);
+  // Soft: if still mostly banned spam, stub; otherwise keep.
+  if (containsBannedLoop(t) && meaningfulLen(t) < 20) {
+    return '(earlier message)';
+  }
+  return t.slice(0, 500);
 }
 
 function containsBannedLoop(text: string): boolean {
@@ -723,23 +1018,124 @@ function isTooSimilarToRecent(text: string, recent: string[]): boolean {
     const rn = normalizeChat(r);
     if (!rn || rn === 'previous reply') return false;
     if (rn === norm) return true;
-    // Substantial substring overlap
-    if (norm.length > 12 && rn.length > 12) {
+    // Near-exact: one contains the other fully (only when both substantial).
+    if (norm.length > 24 && rn.length > 24) {
       if (rn.includes(norm) || norm.includes(rn)) return true;
     }
-    // Same first 3–4 content words → loop
-    const a = words.slice(0, 4).join(' ');
-    const b = rn.split(' ').slice(0, 4).join(' ');
-    if (a.length > 6 && a === b) return true;
-    // Jaccard-ish on first 12 words
-    const aw = new Set(words.slice(0, 12));
-    const bw = new Set(rn.split(' ').slice(0, 12));
-    if (aw.size === 0 || bw.size === 0) return false;
+    // Same first 5 content words → loop opener
+    const a = words.slice(0, 5).join(' ');
+    const b = rn.split(' ').slice(0, 5).join(' ');
+    if (a.length > 12 && a === b) return true;
+    // Very high overlap only (was 0.72 — killed legit different answers).
+    const aw = new Set(words.slice(0, 14));
+    const bw = new Set(rn.split(' ').slice(0, 14));
+    if (aw.size < 4 || bw.size < 4) return false;
     let inter = 0;
     for (const w of aw) if (bw.has(w)) inter++;
     const union = aw.size + bw.size - inter;
-    return union > 0 && inter / union >= 0.72;
+    return union > 0 && inter / union >= 0.88;
   });
+}
+
+/** Vague filler we never want as the main reply when the user asked something real. */
+function isVagueFiller(text: string): boolean {
+  return /hmm\s+samajh\s+gaya|thoda\s+open\s+karke|kya\s+feel\s+ho\s+raha|seedha\s+usi\s+pe\s+baat|main\s+sun\s+raha\s+hoon|aage\s+kya\??\s*$|serious\s+ya\s+joke|thoda\s+detail\s+de\s+to\s+better|continue\s+kar\s*✨?\s*$/i.test(
+    text,
+  );
+}
+
+/** Clear ask / question / instruction — any language, not a fixed word list. */
+function looksLikeClearRequest(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (/[?？]/.test(t)) return true;
+  // Imperatives / question / need shapes (structure-based, not a slang whitelist).
+  return /\b(kya|kaise|kyun|kab|kahan|kitna|konsa|kaun|mtlb|matlab|meaning|means|define|explain|samjha|samjhao|bata|batao|suna|sunao|help|how|what|why|when|where|who|which|tell|show|give|calculate|solve|joke|story|plan|suggest|recommend|translate|yaad|chahiye|need|want|please|plz)\b/i.test(
+    t,
+  ) || /\d\s*[\+\-\*\/x×]\s*\d/i.test(t);
+}
+
+const STOP_WORDS = new Set(
+  [
+    'a','an','the','is','are','am','was','were','be','to','of','in','on','for','and','or','but',
+    'i','you','me','my','your','we','they','it','this','that','with','from','as','at','by',
+    'hai','hain','ho','hu','hun','hota','hoti','tha','thi','the','ka','ke','ki','ko','se','me',
+    'mein','mai','main','tum','tu','aap','ye','yeh','wo','woh','bhi','to','toh','na','nahi',
+    'no','yes','haan','ji','ya','aur','kya','hi','ek','do','ab','phir','bas','sirf','only',
+    'please','plz','yaar','bhai','bro','hey','hi','hello','hlo','ok','okay','acha','accha',
+  ],
+);
+
+function contentWords(text: string): string[] {
+  return normalizeChat(text)
+    .split(' ')
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w) && !/^\d+$/.test(w));
+}
+
+/**
+ * Soft off-topic detector — general, not trained on specific slang.
+ * A clear request with a short vague reply and zero content overlap → retry.
+ */
+function isLikelyOffTopic(reply: string, user: string): boolean {
+  if (!reply || isVagueFiller(reply)) return true;
+  if (!looksLikeClearRequest(user)) return false;
+  // Math / numeric answers
+  if (/\d/.test(reply) && /(\d|kitna|calculate|solve|\+|\-|hota)/i.test(user)) return false;
+  // Joke requests — punchlines rarely reuse the word "joke"
+  if (/\bjoke\b|hasao|funny\s*(suna|bata)|suna\s*joke/i.test(user) && meaningfulLen(reply) >= 16) {
+    return false;
+  }
+  const uw = contentWords(user);
+  const rw = contentWords(reply);
+  if (uw.length === 0) return false;
+  const hit = uw.some(
+    (w) =>
+      rw.includes(w) ||
+      rw.some((r) => r.includes(w) || w.includes(r)) ||
+      normalizeChat(reply).includes(w),
+  );
+  if (hit) return false;
+  // Substantive answer may use synonyms (still OK).
+  if (meaningfulLen(reply) >= 40 && !isVagueFiller(reply)) return false;
+  return true;
+}
+
+function shouldRetryAnswer(
+  reply: string,
+  user: string,
+  _intent: ChatIntent,
+): boolean {
+  const trimmed = reply.trim();
+  if (!trimmed || (meaningfulLen(trimmed) < 3 && !/\d/.test(trimmed))) return true;
+  if (containsBannedLoop(reply) || BANNED_REPLY_OPEN.test(reply)) return true;
+  // Vague filler is never a good final answer — retry for any message shape.
+  if (isVagueFiller(reply)) return true;
+  if (isLikelyOffTopic(reply, user)) return true;
+  // Forgot thread: user pointed at prior context, model asked them to re-explain.
+  if (
+    refersToPriorContext(user) &&
+    /\b(dobara|phir se bata|kiske baare|kaunsi baat|which (one|thing)|remind me what|clear nahi|kya bol rahe|kis cheez|what do you mean)\b/i.test(
+      reply,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Higher is better — used to pick between first and retry replies. */
+function qualityScore(reply: string, user: string): number {
+  if (!reply) return 0;
+  let s = Math.min(40, meaningfulLen(reply));
+  if (isVagueFiller(reply)) s -= 30;
+  if (containsBannedLoop(reply)) s -= 40;
+  if (isLikelyOffTopic(reply, user)) s -= 20;
+  const uw = contentWords(user);
+  const rn = normalizeChat(reply);
+  for (const w of uw) if (rn.includes(w)) s += 6;
+  if (looksLikeClearRequest(user) && meaningfulLen(reply) >= 20) s += 8;
+  return s;
 }
 
 /** User message echoed back as the whole reply. */
@@ -763,6 +1159,7 @@ function diversifyReply(
   lastUser: string,
   recent: string[],
   length: string,
+  intent: ChatIntent = 'chat',
 ): string {
   const original = reply.trim();
   let r = stripLoopTemplates(original);
@@ -773,30 +1170,57 @@ function diversifyReply(
     r = lines.slice(1).join('\n').trim();
   }
 
-  // If stripping nuked most of the reply, treat as spam → full fallback.
+  // If stripping nuked most of the reply, treat as spam → smart fallback.
   const strippedTooHard =
-    meaningfulLen(original) > 20 && meaningfulLen(r) < Math.min(12, meaningfulLen(original) * 0.35);
+    meaningfulLen(original) > 20 &&
+    meaningfulLen(r) < Math.min(12, meaningfulLen(original) * 0.35);
 
-  const bad =
+  // Only kill true spam / empty / wrong-intent filler — keep real model answers.
+  const spam =
     !r ||
-    meaningfulLen(r) < 6 ||
+    meaningfulLen(r) < 4 ||
     strippedTooHard ||
     BANNED_REPLY_OPEN.test(r) ||
     containsBannedLoop(r) ||
-    isTooSimilarToRecent(r, recent) ||
     isEchoOfUser(r, lastUser);
 
-  if (bad) {
-    r = contextualFallbackReply(lastUser, recent);
+  const missesIntent =
+    (intent === 'joke' || intent === 'define' || intent === 'explain') &&
+    (isVagueFiller(r) || missesIntentCheck(r, intent, lastUser));
+
+  // Exact-duplicate of last assistant only (not soft jaccard — that killed good answers).
+  const exactDup = recent.some((x) => normalizeChat(x) === normalizeChat(r));
+
+  if (spam || missesIntent || exactDup) {
+    r = smartFallbackReply(lastUser, recent, intent);
   }
 
-  // Second pass: strip again after fallback shouldn't need it, but safe.
   r = stripLoopTemplates(r);
-  if (!r || meaningfulLen(r) < 6 || containsBannedLoop(r) || isTooSimilarToRecent(r, recent)) {
-    r = contextualFallbackReply(lastUser, recent);
+  if (
+    !r ||
+    meaningfulLen(r) < 4 ||
+    containsBannedLoop(r) ||
+    (isVagueFiller(r) && intent !== 'chat')
+  ) {
+    r = smartFallbackReply(lastUser, recent, intent);
   }
 
-  return shapeReply(r, length);
+  // Definitions / jokes need more than the ultra-short bubble cap.
+  const shapeLen =
+    intent === 'define' || intent === 'joke' || intent === 'explain'
+      ? length === 'short'
+        ? 'balanced'
+        : length
+      : length;
+  return shapeReply(r, shapeLen);
+}
+
+/** Structural miss — clear request got filler / off-topic fluff. */
+function missesIntentCheck(reply: string, intent: ChatIntent, lastUser: string): boolean {
+  if (isVagueFiller(reply)) return true;
+  if (looksLikeClearRequest(lastUser) && isLikelyOffTopic(reply, lastUser)) return true;
+  if (intent === 'greeting' && /serious\s+ya\s+joke|koi\s+baat\s+hai/i.test(reply)) return true;
+  return false;
 }
 
 function diversifyAsk(
@@ -804,7 +1228,18 @@ function diversifyAsk(
   lastUser: string,
   reply: string,
   recent: string[],
+  intent: ChatIntent = 'chat',
 ): string {
+  // No second bubble for clear Q&A / greetings.
+  if (
+    intent === 'define' ||
+    intent === 'joke' ||
+    intent === 'greeting' ||
+    intent === 'explain'
+  ) {
+    return '';
+  }
+
   let a = stripLoopTemplates(ask.trim());
   if (
     !a ||
@@ -812,18 +1247,10 @@ function diversifyAsk(
     containsBannedLoop(a) ||
     isTooSimilarToRecent(a, recent) ||
     isTooSimilarToRecent(a, [reply]) ||
-    isEchoOfUser(a, lastUser)
+    isEchoOfUser(a, lastUser) ||
+    isVagueFiller(a)
   ) {
-    a = contextualFallbackAsk(lastUser, recent);
-  }
-  // Still banned / same as recent? skip second bubble entirely.
-  if (
-    !a ||
-    isBannedAsk(a) ||
-    containsBannedLoop(a) ||
-    isTooSimilarToRecent(a, recent) ||
-    isTooSimilarToRecent(a, [reply])
-  ) {
+    // Prefer skip over spam second bubble.
     return '';
   }
   return shapeAsk(a);
@@ -842,88 +1269,54 @@ function pickUnused(pool: string[], recent: string[], seed: string): string {
   return list[(h + recent.length) % list.length]!;
 }
 
-function contextualFallbackReply(lastUser: string, recent: string[] = []): string {
-  const u = lastUser.toLowerCase();
-  if (/propose|propose ker|girlfriend|gf thi|boyfriend|bf\b|interested|crush|lowkey interested/i.test(u)) {
+/**
+ * Absolute last resort after two model passes failed.
+ * Structural only — no hard-coded answers for specific slang words.
+ */
+function smartFallbackReply(
+  lastUser: string,
+  recent: string[] = [],
+  intent: ChatIntent = detectIntent(lastUser),
+): string {
+  if (intent === 'greeting' || /^(hlo+|hi+|hey+|hello|yo|sup)\b/i.test(lastUser.trim())) {
     return pickUnused(
-      [
-        'Okay wait 😭 that got real — serious bol rahe ho ya testing me?',
-        'Arre slow down 😳 pehle vibes clear karo, fir baat aage badhegi.',
-        'Acha hold on — ye proposal wala bit joke hai ya actual feel?',
-      ],
+      ['Heyyy ✨ kya scene hai aaj?', 'Yo 👋 kya chal raha?', 'Hello hello — mood kaisa hai?'],
       recent,
       lastUser,
     );
   }
-  if (/topic change|sense nahi|sense nhi|abbe|iss baat ka/i.test(u)) {
-    return pickUnused(
-      [
-        'Haan sorry — pehle wala loop band. Fresh start, bol kya chal raha hai.',
-        'Theek hai, topic drop. Naya scene kya hai?',
-        'Got it, reset 🔄 seedha bol ab kya baat karni hai.',
-      ],
-      recent,
-      lastUser,
-    );
+
+  if (intent === 'memory') {
+    return 'Jo memory list me clear save hai wahi bolunga — invent nahi karunga 🫶';
   }
-  if (/weather|mausam|mosaam|mhow/i.test(u)) {
-    return pickUnused(
-      [
-        'Weather wala point — mujhe live weather nahi dikhta, bas jo tumne bataya woh ☀️',
-        'Mausam yaad se: jo tumne bola wahi — live forecast nahi hai mere paas.',
-      ],
-      recent,
-      lastUser,
-    );
+
+  if (intent === 'topic_change') {
+    return 'Theek hai, reset 🔄 naya topic bol — pehle wala loop chhod diya.';
   }
-  if (/exam|padhai|study|paper/i.test(u)) {
-    return pickUnused(
-      [
-        'Exam wala stress real hai 😭 — prep kaisa chal raha?',
-        'Padhai mode on? Bata kya paper next hai.',
-      ],
-      recent,
-      lastUser,
-    );
+
+  if (looksLikeClearRequest(lastUser)) {
+    const term = extractDefineTerm(lastUser);
+    if (term) {
+      // Do not invent a fake definition dictionary — ask for context so any word works.
+      return `"${term}" ka matlab usually context se clear hota hai — ek example sentence bhej, usi pe exact sense bataunga 😊`;
+    }
+    const clipped = lastUser.trim().slice(0, 90);
+    return `Ispe seedha try: "${clipped}" — main clear answer dena chahta hoon. Ek line me thoda specific kar do?`;
   }
-  if (/^h+i+$|^h+e+y+$|^hlo|^hello|^yo\b|^sup\b/i.test(u.trim())) {
-    return pickUnused(
-      [
-        'Heyyy ✨ kya scene hai aaj?',
-        'Yo 👋 kya chal raha?',
-        'Aree wapas aa gaye — mood kaisa hai?',
-      ],
-      recent,
-      lastUser,
-    );
-  }
-  if (/yaad|remember|memory|exam se related/i.test(u)) {
-    return 'Jo memory list me clear save hai wahi bolunga — random purani lines invent nahi 🫶';
-  }
-  if (/talent|think abt me|about me|what do u think/i.test(u)) {
-    return pickUnused(
-      [
-        'Honestly? alag energy hai — curious + thoda chaotic cute 😌',
-        'Vibe check: interesting person energy, boring nahi lagte ✨',
-        'Tumhare messages se lagta hai main character arc chal raha 😂',
-      ],
-      recent,
-      lastUser,
-    );
-  }
-  if (/gf|girlfriend|meri gf/i.test(u)) {
-    return 'Arre 😭 main AI hoon — flirty ban sakta hoon, lekin real gf claim mat karwa 😅';
-  }
+
   return pickUnused(
     [
-      'Okay got you — seedha usi pe baat 😊',
-      'Hmm samajh gaya, aur thoda open karke bata?',
-      'Interesting 👀 main sun raha hoon — aage kya?',
-      'Acha theek, main usi point pe rehta hoon.',
+      'Okay 👀 bol, main sun raha hoon.',
+      'Hmm, continue — kya scene hai uske baad?',
+      'Gotchu — aage kya?',
     ],
     recent,
     lastUser,
   );
+}
+
+function contextualFallbackReply(lastUser: string, recent: string[] = []): string {
+  return smartFallbackReply(lastUser, recent);
 }
 
 function contextualFallbackAsk(lastUser: string, recent: string[] = []): string {
@@ -1108,14 +1501,14 @@ function collapseHistory(
   for (const msg of history) {
     const prev = out[out.length - 1];
     if (prev && prev.role === msg.role) {
-      // Merge same-role streaks so the model does not get confused.
-      prev.content = `${prev.content}\n${msg.content}`.slice(0, 3000);
+      // Merge dual bubbles / rapid same-role sends; keep both bodies for context.
+      prev.content = `${prev.content}\n${msg.content}`.slice(0, 4000);
     } else {
       out.push({ ...msg });
     }
   }
-  // Cap to last 30 turns after merge.
-  return out.slice(-30);
+  // Cap after merge — still deep enough for multi-topic chats.
+  return out.slice(-40);
 }
 
 function cleanModelArtifacts(text: string): string {
