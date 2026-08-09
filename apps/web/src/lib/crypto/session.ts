@@ -191,6 +191,22 @@ export function recoveryWrapId(userId: string): string {
 }
 
 /**
+ * PINGO AI is a server-side bot: it never publishes device keys, and it never
+ * should. When it is a group member (so people can @pingoai), it must not
+ * count toward "everyone has a key" - otherwise any group that already had
+ * encrypted history becomes unsendable the moment AI is added.
+ *
+ * @pingoai asks are intentionally plaintext (see `sendMessage`); every other
+ * group message still seals to the human members only.
+ */
+export const PINGO_AI_USER_ID = 'a1000000-0000-4000-8000-0000000000a1';
+
+/** Members that take part in end-to-end keying (people, not the AI bot). */
+function keyingMemberIds(userIds: string[]): string[] {
+  return userIds.filter((id) => id !== PINGO_AI_USER_ID);
+}
+
+/**
  * Errors propagate rather than being swallowed.
  *
  * A failed lookup means *not known*, and treating it as *nobody has keys* is
@@ -209,7 +225,9 @@ export async function conversationKeying(
   if (membersError) throw membersError;
 
   const userIds = (members ?? []).map((m) => m.user_id);
-  if (userIds.length === 0) return { devices: [], everyoneReady: false, recovery: [] };
+  // AI is listed on the roster for @mentions, but has no keys to publish.
+  const humans = keyingMemberIds(userIds);
+  if (humans.length === 0) return { devices: [], everyoneReady: false, recovery: [] };
 
   /*
    * Both lookups together, because they answer one question.
@@ -220,8 +238,8 @@ export async function conversationKeying(
    */
   const [{ data: rows, error: devicesError }, { data: packages, error: recoveryError }] =
     await Promise.all([
-      client.from('device_keys').select('device_id,public_key,user_id').in('user_id', userIds),
-      client.from('recovery_packages').select('user_id,public_key').in('user_id', userIds),
+      client.from('device_keys').select('device_id,public_key,user_id').in('user_id', humans),
+      client.from('recovery_packages').select('user_id,public_key').in('user_id', humans),
     ]);
 
   if (devicesError) throw devicesError;
@@ -243,7 +261,7 @@ export async function conversationKeying(
       deviceId: row.device_id,
       publicKey: row.public_key,
     })),
-    everyoneReady: userIds.every((id) => covered.has(id)),
+    everyoneReady: humans.every((id) => covered.has(id)),
     recovery: recoveryError
       ? []
       : (packages ?? []).map((row) => ({
