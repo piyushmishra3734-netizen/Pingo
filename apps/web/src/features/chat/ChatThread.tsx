@@ -46,6 +46,8 @@ import { MessageSelectionBar } from './MessageSelectionBar.js';
 import { startRain } from './rain.js';
 import { startRainSound } from './rain-sound.js';
 import {
+  chosenWallpaperId,
+  customWallpaperPhoto,
   hydrateWallpaper,
   onWallpaperChange,
   rainScene,
@@ -228,16 +230,18 @@ export function ChatThread({
     });
   }, [conversation.id]);
 
-  const wallpaper = useMemo(
-    () => ({
+  const wallpaper = useMemo(() => {
+    const id = chosenWallpaperId(wallpaperScope);
+    const photo = id === 'custom' ? customWallpaperPhoto(wallpaperScope) : undefined;
+    return {
       css: wallpaperCss(wallpaperScope),
+      /** Custom photo URL for an <img> layer (GIF-safe). Absent on presets. */
+      photo,
       dark: wallpaperIsDark(wallpaperScope),
       live: wallpaperIsLive(wallpaperScope),
       scene: rainScene(wallpaperScope),
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [wallpaperTick, wallpaperScope],
-  );
+    };
+  }, [wallpaperTick, wallpaperScope]);
 
   /*
    * The rain, when it is raining.
@@ -738,20 +742,37 @@ export function ChatThread({
           A live wallpaper *is* the background, so the element must not paint
           one of its own underneath it - see the canvas below for what that
           cost the first time.
+
+          Custom photos use a real <img> (see below). CSS background-image freezes
+          GIFs in Android WebView; the img path keeps them moving for everyone.
         */
         ...(wallpaper.live
           ? { backgroundImage: 'none', backgroundColor: '#0d0e13' }
-          : {
-              ...(wallpaper.css
-                ? { backgroundImage: wallpaper.css }
-                : { backgroundImage: 'none' }),
-              ...(wallpaper.dark ? { backgroundColor: '#14151d' } : {}),
-            }),
+          : wallpaper.photo
+            ? {
+                backgroundImage: 'none',
+                backgroundColor: wallpaper.dark ? '#14151d' : 'var(--color-page)',
+              }
+            : {
+                ...(wallpaper.css
+                  ? { backgroundImage: wallpaper.css }
+                  : { backgroundImage: 'none' }),
+                ...(wallpaper.dark ? { backgroundColor: '#14151d' } : {}),
+              }),
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
       data-wallpaper-dark={wallpaper.dark ? '' : undefined}
     >
+      {wallpaper.photo && !wallpaper.live ? (
+        <img
+          src={wallpaper.photo}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      ) : null}
       {wallpaper.live && (
         /*
           First in the DOM, and no z-index at all.

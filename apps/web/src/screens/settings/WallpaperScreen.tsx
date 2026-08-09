@@ -146,10 +146,24 @@ export function WallpaperScreen() {
     setChosen(id);
   };
 
-  const uploadSharedPhoto = async (file: File) => {
-    if (!conversationId || !currentUser) return false;
+  const uploadSharedPhoto = async (
+    file: File,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> => {
+    if (!conversationId || !currentUser) {
+      return { ok: false, reason: 'That picture could not be used.' };
+    }
     const prepared = await prepareSharedWallpaperPhoto(file);
-    if (!prepared) return false;
+    if (!prepared) {
+      const gif =
+        file.type === 'image/gif' ||
+        file.name.toLowerCase().endsWith('.gif');
+      return {
+        ok: false,
+        reason: gif
+          ? 'That GIF is too large (max 6 MB) or could not be used.'
+          : 'That picture could not be used. Try a smaller one.',
+      };
+    }
 
     const client = getSupabaseClient();
     // Avatars bucket only allows uploads under the caller's uid folder.
@@ -157,16 +171,29 @@ export function WallpaperScreen() {
     const path = `${currentUser.id}/wallpapers/${conversationId}/${crypto.randomUUID()}.${prepared.ext}`;
     const { error: upErr } = await client.storage.from('avatars').upload(path, prepared.blob, {
       contentType: prepared.contentType,
+      cacheControl: '3600',
       upsert: false,
     });
-    if (upErr) return false;
+    if (upErr) {
+      return {
+        ok: false,
+        reason: upErr.message || 'Upload failed. Try a smaller GIF (under 6 MB).',
+      };
+    }
 
     const { data } = client.storage.from('avatars').getPublicUrl(path);
     const url = data.publicUrl;
-    await service.setGroupWallpaper(conversationId, 'custom', url);
+    try {
+      await service.setGroupWallpaper(conversationId, 'custom', url);
+    } catch (cause) {
+      return {
+        ok: false,
+        reason: cause instanceof Error ? cause.message : 'Could not save wallpaper.',
+      };
+    }
     setPhoto(url);
     setChosen('custom');
-    return true;
+    return { ok: true };
   };
 
   const onPickFile = async (file: File) => {
@@ -174,14 +201,8 @@ export function WallpaperScreen() {
     setBusy(true);
     try {
       if (isGroup && conversationId) {
-        const ok = await uploadSharedPhoto(file);
-        if (!ok) {
-          setError(
-            file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
-              ? 'That GIF is too large (max 6 MB) or could not be used.'
-              : 'That picture could not be used. Try a smaller one.',
-          );
-        }
+        const result = await uploadSharedPhoto(file);
+        if (!result.ok) setError(result.reason);
         return;
       }
 
@@ -274,9 +295,7 @@ export function WallpaperScreen() {
           {WALLPAPERS.map((wallpaper) => {
             const isCustom = wallpaper.id === 'custom';
             const image = isCustom
-              ? photo
-                ? `url(${JSON.stringify(photo)})`
-                : undefined
+              ? undefined
               : wallpaper.css;
             const selected = chosen === wallpaper.id;
 
@@ -301,13 +320,26 @@ export function WallpaperScreen() {
                 }}
               >
                 {/*
+                  Custom photos use <img> so GIFs animate in the swatch (and
+                  match the chat thread, which also avoids CSS background GIFs).
+                */}
+                {isCustom && photo ? (
+                  <img
+                    src={photo}
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                    className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : null}
+                {/*
                   A message on every swatch. The question a wallpaper has to
                   answer is whether words survive on it, and a bare rectangle
                   of colour does not ask that question.
                 */}
                 <span
                   className={cn(
-                    'glass-surface absolute right-3 bottom-9 left-3 rounded-lg px-2.5 py-1.5',
+                    'glass-surface absolute right-3 bottom-9 left-3 z-[1] rounded-lg px-2.5 py-1.5',
                     'text-caption',
                     wallpaper.dark ? 'text-white' : 'text-ink',
                   )}
@@ -317,7 +349,7 @@ export function WallpaperScreen() {
 
                 <span
                   className={cn(
-                    'absolute inset-x-0 bottom-0 px-3 py-2 text-caption font-medium',
+                    'absolute inset-x-0 bottom-0 z-[1] px-3 py-2 text-caption font-medium',
                     'bg-surface/85 backdrop-blur-glass text-ink',
                   )}
                 >
@@ -327,7 +359,7 @@ export function WallpaperScreen() {
                 {selected && (
                   <span
                     aria-hidden
-                    className="absolute top-2 right-2 grid size-6 place-items-center rounded-full bg-brand text-white"
+                    className="absolute top-2 right-2 z-[1] grid size-6 place-items-center rounded-full bg-brand text-white"
                   >
                     <CheckIcon size={14} />
                   </span>

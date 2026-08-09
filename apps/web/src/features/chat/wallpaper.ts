@@ -512,25 +512,76 @@ function extForContentType(type: string): string {
 }
 
 /**
+ * Sniff image type from magic bytes so a GIF mislabeled as PNG/octet-stream
+ * still keeps its animation (Android keyboards often hand wrong MIME types).
+ */
+async function sniffImageContentType(file: Blob): Promise<string | undefined> {
+  try {
+    const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    const ascii = (at: number, n: number) =>
+      String.fromCharCode(...bytes.subarray(at, at + n));
+    if (ascii(0, 4) === 'GIF8') return 'image/gif';
+    if (ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP') return 'image/webp';
+    if (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47
+    ) {
+      return 'image/png';
+    }
+    if (bytes[0] === 0xff && bytes[1] === 0xd8) return 'image/jpeg';
+  } catch {
+    // fall through
+  }
+  return undefined;
+}
+
+/**
  * Prepare a file for group wallpaper upload.
  *
  * Animated media is uploaded as-is (within size limits). Everything else is
  * scaled to a long edge of 1600px and encoded as JPEG.
+ *
+ * ## Never canvas-encode a GIF
+ *
+ * `createImageBitmap` + `toBlob('image/jpeg')` freezes animation to one frame.
+ * That was the original group-wallpaper bug. Detection uses header sniffing
+ * *and* MIME/extension, because some pickers label a GIF as `image/png`.
  */
 export async function prepareSharedWallpaperPhoto(
   file: Blob,
 ): Promise<SharedWallpaperPhoto | undefined> {
   try {
     const { isAnimatedImage } = await import('./animated-image.js');
-    if (await isAnimatedImage(file)) {
+    const sniffed = await sniffImageContentType(file);
+    const name =
+      typeof File !== 'undefined' && file instanceof File
+        ? file.name.toLowerCase()
+        : '';
+    const looksGif =
+      sniffed === 'image/gif' ||
+      file.type === 'image/gif' ||
+      name.endsWith('.gif');
+    const animated = looksGif || (await isAnimatedImage(file));
+
+    if (animated) {
       if (file.size > MAX_ANIMATED_SHARED) return undefined;
-      // Prefer the browser's type; GIF headers are the usual case when type is empty.
       const contentType =
-        file.type && file.type.startsWith('image/')
-          ? file.type
-          : 'image/gif';
+        sniffed === 'image/gif' || looksGif
+          ? 'image/gif'
+          : sniffed === 'image/webp' || file.type === 'image/webp'
+            ? 'image/webp'
+            : sniffed === 'image/png' || file.type === 'image/png'
+              ? 'image/png'
+              : file.type.startsWith('image/')
+                ? file.type
+                : 'image/gif';
+      // Re-wrap so storage always gets the correct Content-Type header.
+      const blob =
+        file.type === contentType ? file : new Blob([file], { type: contentType });
       return {
-        blob: file,
+        blob,
         contentType,
         ext: extForContentType(contentType),
       };
