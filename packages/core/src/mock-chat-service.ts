@@ -498,7 +498,14 @@ export class MockChatService implements ChatService {
 
   async updateGroup(
     conversationId: ConversationId,
-    changes: { title: string; avatarUrl?: string },
+    changes: {
+      title: string;
+      description?: string;
+      avatarUrl?: string;
+      coverUrl?: string;
+      clearAvatar?: boolean;
+      clearCover?: boolean;
+    },
   ): Promise<void> {
     this.#requireAdmin(conversationId);
     const title = changes.title.trim();
@@ -506,7 +513,17 @@ export class MockChatService implements ChatService {
 
     this.#updateConversation(conversationId, {
       title,
-      ...(changes.avatarUrl ? { avatarUrl: changes.avatarUrl } : { avatarUrl: undefined }),
+      description: changes.description?.trim() || undefined,
+      ...(changes.clearAvatar
+        ? { avatarUrl: undefined }
+        : changes.avatarUrl
+          ? { avatarUrl: changes.avatarUrl }
+          : {}),
+      ...(changes.clearCover
+        ? { coverUrl: undefined }
+        : changes.coverUrl
+          ? { coverUrl: changes.coverUrl }
+          : {}),
     });
   }
 

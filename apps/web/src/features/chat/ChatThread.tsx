@@ -932,6 +932,13 @@ export function ChatThread({
                 }
               />
             </span>
+          ) : conversation.avatarUrl ? (
+            <Avatar
+              name={conversation.title}
+              id={conversation.id}
+              src={conversation.avatarUrl}
+              size="sm"
+            />
           ) : (
             <AvatarStack
               people={members.map((m) => ({ id: m.id, name: m.name, src: m.avatarUrl }))}

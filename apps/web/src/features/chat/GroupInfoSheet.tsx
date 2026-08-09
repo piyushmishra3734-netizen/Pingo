@@ -9,38 +9,20 @@ import {
   SearchField,
   cn,
 } from '@pingo/ui';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { useT } from '../i18n/useT.js';
 import { useMutuals } from '../profile/useMutuals.js';
 
 /**
- * Group info - who is in it, who runs it, and how to get somebody else in.
+ * Group info — profile of the room: cover, face, name, bio, roster, invites.
  *
- * ## Admin controls appear, they do not grey out
- *
- * A member sees the roster and the leave button and nothing else. Showing them
- * a row of disabled admin actions would be telling them about powers they do
- * not have every time they check who is in the group, which is both noise and
- * a small insult. The rule the app enforces is the rule the database enforces,
- * so nothing here is decoration.
- *
- * ## Promotion is one tap, and it is confirmed
- *
- * WhatsApp makes it one tap; this keeps that. But it also asks first, in line
- * with the rest of the app - making somebody an admin hands them the power to
- * remove you, and that is not a thing to do by brushing a list.
- *
- * ## Two doors in, not one
- *
- * Friends can be added straight from the roster (mutual follow, same rule as
- * create-group). Everyone else needs an invite link. The link is not shown
- * until it is asked for - `groupInviteCode` mints one if there is not already
- * one, so rendering it on open would create a live invite for every admin who
- * ever glanced at this sheet.
+ * Admins can edit the profile pieces; everyone sees the roster and can leave.
+ * Invite link and add-members stay admin-only, same as before.
  */
 export function GroupInfoSheet({
   conversation,
@@ -59,9 +41,20 @@ export function GroupInfoSheet({
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [contacts, setContacts] = useState<User[] | undefined>();
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  const [titleDraft, setTitleDraft] = useState(conversation.title);
+  const [descDraft, setDescDraft] = useState(conversation.description ?? '');
+  const [avatarUrl, setAvatarUrl] = useState(conversation.avatarUrl);
+  const [coverUrl, setCoverUrl] = useState(conversation.coverUrl);
+  const [clearAvatar, setClearAvatar] = useState(false);
+  const [clearCover, setClearCover] = useState(false);
+
+  const avatarInput = useRef<HTMLInputElement>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
 
   const adminIds = conversation.adminIds ?? [];
   const iAmAdmin = currentUser ? adminIds.includes(currentUser.id) : false;
@@ -70,21 +63,26 @@ export function GroupInfoSheet({
     [conversation.participantIds],
   );
 
-  /*
-   * `users` does not contain you.
-   *
-   * It is the directory of *other* people, so resolving the roster through it
-   * alone silently dropped the viewer: a group of two rendered one row and
-   * called itself "1 member", and a group you had just made looked like it had
-   * nobody in it but the person you added.
-   */
+  useEffect(() => {
+    setTitleDraft(conversation.title);
+    setDescDraft(conversation.description ?? '');
+    setAvatarUrl(conversation.avatarUrl);
+    setCoverUrl(conversation.coverUrl);
+    setClearAvatar(false);
+    setClearCover(false);
+  }, [
+    conversation.id,
+    conversation.title,
+    conversation.description,
+    conversation.avatarUrl,
+    conversation.coverUrl,
+  ]);
+
   const members = conversation.participantIds
     .map((id) =>
       id === currentUser?.id ? currentUser : users.find((u) => u.id === id),
     )
     .filter((u): u is User => Boolean(u))
-    // Admins first, then alphabetical - the people who can act on your behalf
-    // are the ones you came here to find.
     .sort((a, b) => {
       const rank = Number(adminIds.includes(b.id)) - Number(adminIds.includes(a.id));
       return rank !== 0 ? rank : a.name.localeCompare(b.name);
@@ -106,34 +104,21 @@ export function GroupInfoSheet({
     };
   }, [adding, iAmAdmin, service]);
 
-  /*
-   * Friends who are not already in the group.
-   *
-   * Same mutual gate as create-group: the server refuses non-friends, so the
-   * list must not offer them. Already-in members are dropped so the picker is
-   * only people you can still act on.
-   */
-  const candidates = useMemo(() => {
-    if (!contacts || !mutuals) return undefined;
-    return contacts.filter(
-      (person) => mutuals.has(person.id) && !memberSet.has(person.id),
-    );
-  }, [contacts, mutuals, memberSet]);
-
   const matches = useMemo(() => {
-    if (!candidates) return undefined;
+    if (!contacts || !mutuals) return undefined;
     const term = query.trim().toLowerCase().replace(/^@/u, '');
-    if (!term) return candidates;
-    return candidates.filter(
-      (person) =>
-        person.name.toLowerCase().includes(term) ||
-        person.handle.toLowerCase().includes(term) ||
-        person.id.toLowerCase().includes(term),
-    );
-  }, [candidates, query]);
+    return contacts
+      .filter((p) => !memberSet.has(p.id))
+      .filter((p) => mutuals.has(p.id))
+      .filter(
+        (p) =>
+          !term ||
+          p.name.toLowerCase().includes(term) ||
+          p.handle.toLowerCase().includes(term),
+      );
+  }, [contacts, memberSet, mutuals, query]);
 
-  const run = async (work: Promise<unknown>) => {
-    if (busy) return;
+  const run = async (work: Promise<void>) => {
     setBusy(true);
     setError(undefined);
     try {
@@ -145,13 +130,104 @@ export function GroupInfoSheet({
     }
   };
 
+  const uploadImage = async (file: File, kind: 'avatar' | 'cover') => {
+    if (!currentUser) return undefined;
+    const ext =
+      file.type === 'image/png'
+        ? 'png'
+        : file.type === 'image/webp'
+          ? 'webp'
+          : file.type === 'image/gif'
+            ? 'gif'
+            : 'jpg';
+    const path = `${currentUser.id}/groups/${conversation.id}/${kind}-${crypto.randomUUID()}.${ext}`;
+    const client = getSupabaseClient();
+    const { error: upErr } = await client.storage.from('avatars').upload(path, file, {
+      contentType: file.type || 'image/jpeg',
+      upsert: false,
+    });
+    if (upErr) throw new Error(upErr.message || 'Upload failed');
+    return client.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+  };
+
+  const onPickAvatar = async (file: File) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const url = await uploadImage(file, 'avatar');
+      if (!url) return;
+      setAvatarUrl(url);
+      setClearAvatar(false);
+      await service.updateGroup(conversation.id, {
+        title: titleDraft.trim() || conversation.title,
+        description: descDraft,
+        avatarUrl: url,
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('group.fail'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPickCover = async (file: File) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const url = await uploadImage(file, 'cover');
+      if (!url) return;
+      setCoverUrl(url);
+      setClearCover(false);
+      await service.updateGroup(conversation.id, {
+        title: titleDraft.trim() || conversation.title,
+        description: descDraft,
+        coverUrl: url,
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('group.fail'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    const title = titleDraft.trim();
+    if (!title) {
+      setError('A group needs a name.');
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    try {
+      await service.updateGroup(conversation.id, {
+        title,
+        description: descDraft,
+        ...(clearAvatar
+          ? { clearAvatar: true }
+          : avatarUrl && avatarUrl !== conversation.avatarUrl
+            ? { avatarUrl }
+            : {}),
+        ...(clearCover
+          ? { clearCover: true }
+          : coverUrl && coverUrl !== conversation.coverUrl
+            ? { coverUrl }
+            : {}),
+      });
+      setEditing(false);
+      setClearAvatar(false);
+      setClearCover(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('group.fail'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const promote = async (person: User) => {
     const ok = await confirm({
       title: `Make ${person.name} an admin?`,
-      description:
-        'They will be able to add and remove people, rename the group, and make other admins.',
+      description: 'They will be able to add and remove people, and change this group.',
       confirmLabel: t('group.makeAdmin'),
-      tone: 'normal',
     });
     if (ok) await run(service.setGroupAdmin(conversation.id, person.id, true));
   };
@@ -159,9 +235,8 @@ export function GroupInfoSheet({
   const demote = async (person: User) => {
     const ok = await confirm({
       title: `Dismiss ${person.name} as admin?`,
-      description: 'They stay in the group as an ordinary member.',
+      description: t('group.dismissAdminHint'),
       confirmLabel: 'Dismiss',
-      tone: 'normal',
     });
     if (ok) await run(service.setGroupAdmin(conversation.id, person.id, false));
   };
@@ -169,8 +244,8 @@ export function GroupInfoSheet({
   const remove = async (person: User) => {
     const ok = await confirm({
       title: `Remove ${person.name}?`,
-      description: 'They will not be able to come back unless someone adds them or sends a link.',
-      confirmLabel: 'Remove',
+      description: 'They will leave the group and stop receiving messages.',
+      confirmLabel: t('group.remove'),
     });
     if (ok) await run(service.removeGroupMember(conversation.id, person.id));
   };
@@ -184,7 +259,6 @@ export function GroupInfoSheet({
       confirmLabel: 'Leave',
     });
     if (!ok) return;
-
     await run(service.leaveGroup(conversation.id));
     onClose();
   };
@@ -209,19 +283,17 @@ export function GroupInfoSheet({
 
   const revoke = async () => {
     const ok = await confirm({
-      title: 'Revoke this link?',
-      description: 'Anyone still holding it will not be able to join. You can make a new one.',
-      confirmLabel: 'Revoke',
+      title: t('group.revokeLink'),
+      description: 'Anyone still holding this link will not be able to join.',
+      confirmLabel: t('group.revoke'),
     });
     if (!ok) return;
-
-    await run(service.revokeGroupInvite(conversation.id));
-    setLink(undefined);
+    await run(service.revokeGroupInvite(conversation.id).then(() => setLink(undefined)));
   };
 
   const togglePick = (id: string) => {
-    setPicked((previous) => {
-      const next = new Set(previous);
+    setPicked((prev) => {
+      const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -229,14 +301,12 @@ export function GroupInfoSheet({
   };
 
   const addPicked = async () => {
-    if (picked.size === 0 || busy) return;
-    const ids = [...picked];
+    if (picked.size === 0) return;
     setBusy(true);
     setError(undefined);
     try {
-      await service.addGroupMembers(conversation.id, ids);
+      await service.addGroupMembers(conversation.id, [...picked]);
       setPicked(new Set());
-      setQuery('');
       setAdding(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('group.fail'));
@@ -245,28 +315,203 @@ export function GroupInfoSheet({
     }
   };
 
+  const memberLabel =
+    conversation.participantIds.length === 1
+      ? '1 member'
+      : `${conversation.participantIds.length} members`;
+
+  const faceSrc = clearAvatar ? undefined : avatarUrl;
+  const bannerSrc = clearCover ? undefined : coverUrl;
+
   return (
-    <Sheet
-      title={conversation.title}
-      /*
-       * Counted from the roster the server sent, not from the rows that
-       * resolved to a name. A member whose profile has not been fetched yet is
-       * still in the group, and a headcount that quietly drops them is worse
-       * than one that is briefly ahead of the list beneath it.
-       */
-      description={
-        conversation.participantIds.length === 1
-          ? '1 member'
-          : `${conversation.participantIds.length} members`
-      }
-      onClose={onClose}
-    >
+    <Sheet title={conversation.title} description={memberLabel} onClose={onClose} elevated>
       {error && (
         <p role="alert" className="mb-3 text-caption text-danger">
           {error}
         </p>
       )}
 
+      {/* ---- Profile card: cover + face + name + bio -------------------- */}
+      <section className="mb-5 overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="relative h-28 bg-brand-wash sm:h-32">
+          {bannerSrc ? (
+            <img
+              src={bannerSrc}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : null}
+          {iAmAdmin && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => coverInput.current?.click()}
+              className={cn(
+                'absolute right-2 top-2 rounded-full px-2.5 py-1',
+                'bg-black/45 text-caption font-medium text-white',
+                'hover:bg-black/55 disabled:opacity-50',
+              )}
+            >
+              {bannerSrc ? 'Change cover' : 'Add cover'}
+            </button>
+          )}
+        </div>
+
+        <div className="relative px-4 pb-4">
+          <button
+            type="button"
+            disabled={!iAmAdmin || busy}
+            onClick={() => iAmAdmin && avatarInput.current?.click()}
+            className={cn(
+              'relative -mt-10 inline-grid size-[4.5rem] place-items-center rounded-full',
+              'bg-surface p-1 shadow-md ring-2 ring-surface',
+              iAmAdmin && 'active:scale-[0.98]',
+              (!iAmAdmin || busy) && 'cursor-default',
+            )}
+            aria-label={iAmAdmin ? 'Change group photo' : undefined}
+          >
+            <Avatar
+              name={titleDraft || conversation.title}
+              id={conversation.id}
+              src={faceSrc}
+              size="lg"
+            />
+          </button>
+
+          {editing ? (
+            <div className="mt-3 space-y-2.5">
+              <label className="block">
+                <span className="mb-1 block text-caption text-text-tertiary">Name</span>
+                <input
+                  value={titleDraft}
+                  maxLength={60}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  className={cn(
+                    'w-full rounded-xl border border-line bg-page px-3 py-2.5',
+                    'text-body text-ink outline-none focus:border-brand/40',
+                  )}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-caption text-text-tertiary">Description</span>
+                <textarea
+                  value={descDraft}
+                  maxLength={280}
+                  rows={3}
+                  onChange={(e) => setDescDraft(e.target.value)}
+                  placeholder="What is this group about?"
+                  className={cn(
+                    'w-full resize-none rounded-xl border border-line bg-page px-3 py-2.5',
+                    'text-body text-ink outline-none focus:border-brand/40',
+                    'placeholder:text-text-tertiary',
+                  )}
+                />
+                <span className="mt-1 block text-right text-caption text-text-tertiary">
+                  {descDraft.length}/280
+                </span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {faceSrc && (
+                  <Button
+                    variant="text"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setClearAvatar(true);
+                      setAvatarUrl(undefined);
+                    }}
+                  >
+                    Remove photo
+                  </Button>
+                )}
+                {bannerSrc && (
+                  <Button
+                    variant="text"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setClearCover(true);
+                      setCoverUrl(undefined);
+                    }}
+                  >
+                    Remove cover
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="primary" size="sm" disabled={busy} onClick={() => void saveProfile()}>
+                  Save
+                </Button>
+                <Button
+                  variant="text"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    setEditing(false);
+                    setTitleDraft(conversation.title);
+                    setDescDraft(conversation.description ?? '');
+                    setAvatarUrl(conversation.avatarUrl);
+                    setCoverUrl(conversation.coverUrl);
+                    setClearAvatar(false);
+                    setClearCover(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2">
+              <h2 className="text-h2 text-ink">{conversation.title}</h2>
+              <p className="mt-0.5 text-caption text-text-tertiary">{memberLabel}</p>
+              {conversation.description ? (
+                <p className="mt-2 text-body text-text-secondary">{conversation.description}</p>
+              ) : iAmAdmin ? (
+                <p className="mt-2 text-caption text-text-tertiary">No description yet.</p>
+              ) : null}
+              {iAmAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3"
+                  disabled={busy}
+                  onClick={() => setEditing(true)}
+                >
+                  Edit group
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <input
+        ref={avatarInput}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void onPickAvatar(file);
+        }}
+      />
+      <input
+        ref={coverInput}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void onPickCover(file);
+        }}
+      />
+
+      {/* ---- Members ---------------------------------------------------- */}
+      <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+        Members
+      </h3>
       <ul className="flex flex-col">
         {members.map((person) => {
           const isAdmin = adminIds.includes(person.id);
@@ -285,11 +530,6 @@ export function GroupInfoSheet({
                 </span>
               </span>
 
-              {/*
-                Admin controls, and only for an admin. `isMe` is excluded from
-                remove because leaving is a different act with different
-                consequences, and it has its own button below.
-              */}
               {iAmAdmin && !isMe && (
                 <span className="flex shrink-0 gap-1">
                   <Button
@@ -306,7 +546,7 @@ export function GroupInfoSheet({
                     disabled={busy}
                     onClick={() => void remove(person)}
                   >
-                    Remove
+                    {t('group.remove')}
                   </Button>
                 </span>
               )}
@@ -323,9 +563,7 @@ export function GroupInfoSheet({
 
           {adding ? (
             <div className="flex flex-col gap-2.5">
-              <p className="text-caption text-text-tertiary">
-                {t('group.onlyFriends')}
-              </p>
+              <p className="text-caption text-text-tertiary">{t('group.onlyFriends')}</p>
               <SearchField
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -337,9 +575,7 @@ export function GroupInfoSheet({
                 <LoadingState label={t('group.loadingFriends')} />
               ) : matches.length === 0 ? (
                 <p className="py-3 text-caption text-text-tertiary">
-                  {query.trim()
-                    ? 'Nobody by that name among your friends outside this group.'
-                    : t('group.noFriendsLeft')}
+                  {query.trim() ? t('group.nobodyMatch') : t('group.noFriendsLeft')}
                 </p>
               ) : (
                 <ul className="max-h-56 overflow-y-auto">
@@ -458,7 +694,7 @@ export function GroupInfoSheet({
                   )}
                 </Button>
                 <Button variant="text" size="sm" disabled={busy} onClick={() => void revoke()}>
-                  Revoke
+                  {t('group.revoke')}
                 </Button>
               </div>
             </>
@@ -472,7 +708,7 @@ export function GroupInfoSheet({
         </section>
       )}
 
-      <div className={cn('mt-5 border-t border-line pt-4')}>
+      <div className="mt-5 border-t border-line pt-4">
         <Button
           variant="text"
           className="w-full text-danger"

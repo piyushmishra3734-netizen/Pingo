@@ -1285,6 +1285,12 @@ export class SupabaseChatService implements ChatService {
               : otherUser?.avatarUrl
                 ? { avatarUrl: otherUser.avatarUrl }
                 : {}),
+          ...((row.kind === 'group' || row.kind === 'community') && row.description
+            ? { description: row.description }
+            : {}),
+          ...((row.kind === 'group' || row.kind === 'community') && row.cover_url
+            ? { coverUrl: row.cover_url }
+            : {}),
           participantIds: roster.map((m) => m.user_id),
           // Only groups have ranks, so a direct chat carries an empty list
           // rather than an absent field the screens would have to guard.
@@ -2902,12 +2908,23 @@ export class SupabaseChatService implements ChatService {
 
   async updateGroup(
     conversationId: ConversationId,
-    changes: { title: string; avatarUrl?: string },
+    changes: {
+      title: string;
+      description?: string;
+      avatarUrl?: string;
+      coverUrl?: string;
+      clearAvatar?: boolean;
+      clearCover?: boolean;
+    },
   ): Promise<void> {
     const { error } = await this.#client.rpc('update_group', {
       conv: conversationId,
       title: changes.title,
       avatar_url: changes.avatarUrl ?? null,
+      description: changes.description ?? null,
+      cover_url: changes.coverUrl ?? null,
+      clear_avatar: Boolean(changes.clearAvatar),
+      clear_cover: Boolean(changes.clearCover),
     });
     if (error) throw groupError(error);
     await this.#announce(conversationId);

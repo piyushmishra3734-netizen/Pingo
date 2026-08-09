@@ -464,10 +464,23 @@ export interface ChatService {
     admin: boolean,
   ): Promise<void>;
 
-  /** Admin only. An empty `avatarUrl` removes the picture. */
+  /**
+   * Admin only. Updates name, face, cover and bio.
+   *
+   * Pass `avatarUrl` / `coverUrl` to set; pass `clearAvatar` / `clearCover` to
+   * remove. Omit a field to leave it alone (except `title` and `description`,
+   * which always write — use empty description to clear the bio).
+   */
   updateGroup(
     conversationId: ConversationId,
-    changes: { title: string; avatarUrl?: string },
+    changes: {
+      title: string;
+      description?: string;
+      avatarUrl?: string;
+      coverUrl?: string;
+      clearAvatar?: boolean;
+      clearCover?: boolean;
+    },
   ): Promise<void>;
 
   /**

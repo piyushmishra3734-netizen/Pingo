@@ -340,6 +340,12 @@ export interface Conversation {
   /** Derived from the other participant for direct chats; explicit otherwise. */
   title: string;
   avatarUrl?: string;
+  /**
+   * Group/community bio. Absent on direct chats and on groups that never set one.
+   */
+  description?: string;
+  /** Wide banner on group info. Absent when unset. */
+  coverUrl?: string;
   participantIds: UserId[];
   /**
    * Who runs this group. Empty for a direct chat, which has no ranks.
