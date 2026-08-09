@@ -95,12 +95,12 @@ const RING: Record<AvatarSize, number> = {
  * visual noise the product is built to avoid.
  */
 const GRADIENTS = [
-  'linear-gradient(135deg, #DCE1FF 0%, #EFE2FF 100%)',
-  'linear-gradient(135deg, #D6E2FF 0%, #E8DEFF 100%)',
-  'linear-gradient(135deg, #E2DEFF 0%, #FBE4FF 100%)',
-  'linear-gradient(135deg, #D2DCFF 0%, #E4DCFF 100%)',
-  'linear-gradient(135deg, #DEE7FF 0%, #F1E4FF 100%)',
-  'linear-gradient(135deg, #D8D9FF 0%, #ECDDFF 100%)',
+  'linear-gradient(135deg, #E8E8EA 0%, #F2F2F4 100%)',
+  'linear-gradient(135deg, #E4E5E8 0%, #F0F0F2 100%)',
+  'linear-gradient(135deg, #E6E7EA 0%, #F4F4F5 100%)',
+  'linear-gradient(135deg, #E2E3E6 0%, #EEEFF1 100%)',
+  'linear-gradient(135deg, #E9E9EB 0%, #F5F5F6 100%)',
+  'linear-gradient(135deg, #E5E6E9 0%, #F1F1F3 100%)',
 ] as const;
 
 type PhotoPhase = 'empty' | 'loading' | 'ready' | 'failed';
@@ -215,7 +215,7 @@ export function Avatar({
                 cy={px / 2}
                 r={px / 2 - stroke}
                 fill="none"
-                stroke="rgba(92, 108, 255, 0.18)"
+                stroke="rgba(17, 17, 19, 0.12)"
                 strokeWidth={stroke}
               />
               <circle

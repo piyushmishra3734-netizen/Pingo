@@ -49,7 +49,7 @@ import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
  */
 
 const ACCENT_LABEL: Record<string, string> = {
-  blue: 'Blue',
+  blue: 'Ink',
   purple: 'Purple',
   green: 'Green',
   pink: 'Pink',

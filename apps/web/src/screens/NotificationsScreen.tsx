@@ -450,7 +450,7 @@ function NotificationRow({
           {unread && (
             <span
               aria-label="Unread"
-              className="mt-1.5 size-1.5 shrink-0 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.12)]"
+              className="mt-1.5 size-1.5 shrink-0 rounded-full bg-dot shadow-[0_0_0_3px_rgba(17,17,19,0.1)]"
             />
           )}
           {/*

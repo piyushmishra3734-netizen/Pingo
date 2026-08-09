@@ -1,15 +1,15 @@
-import { Button } from '@pingo/ui';
+import { cn } from '@pingo/ui';
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
+import { FunnelBackdrop } from '../features/auth/FunnelBackdrop.js';
+import { FunnelCta } from '../features/auth/FunnelCta.js';
 import { useT } from '../features/i18n/useT.js';
 import { applyPageSeo } from '../lib/seo.js';
 
 /**
- * Welcome - the first screen a new user sees, after the splash / intro slides.
- *
- * Copy follows the active language voice (`en` / `en-genz`).
+ * Welcome — snappy enter, solid dock, black CTA. Productive first screen.
  */
 export function OnboardingScreen() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export function OnboardingScreen() {
       applyPageSeo({
         title: 'Welcome to PINGO. Private messaging',
         description:
-          'Welcome to PINGO. Private, fast, beautiful messaging with disappearing Pings, expiring stories, and a three-post profile. Get started free.',
+          'Welcome to PINGO. Private, fast, beautiful messaging. Get started free.',
         path: '/welcome',
       }),
     [],
@@ -29,21 +29,35 @@ export function OnboardingScreen() {
   const tagline = t('welcome.tagline').split('\n');
 
   return (
-    <div className="relative flex h-full flex-col overflow-y-auto bg-brand-wash">
-      <div
-        className="pointer-events-none absolute -left-32 -top-20 size-[26rem] rounded-full bg-brand/10 blur-3xl"
-        aria-hidden
-      />
-
-      <main className="relative mx-auto flex w-full max-w-sm flex-1 flex-col px-6 pb-8 pt-10">
+    <FunnelBackdrop>
+      <main
+        className={cn(
+          'mx-auto flex w-full max-w-[22rem] flex-1 flex-col',
+          'px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))]',
+          'pt-[max(2.5rem,env(safe-area-inset-top))]',
+        )}
+      >
         <div className="flex flex-1 flex-col items-center justify-center text-center">
-          <AppLogo size={88} alt="" fetchPriority="high" />
+          <div className="funnel-enter funnel-logo-breathe">
+            <AppLogo size={80} alt="" fetchPriority="high" />
+          </div>
 
-          <h1 className="mt-9 text-h1 text-ink animate-rise">{t('welcome.title')}</h1>
+          <h1
+            className={cn(
+              'funnel-enter mt-9 text-[2rem] font-semibold leading-[1.1]',
+              'tracking-[-0.035em] text-[#111113]',
+            )}
+            style={{ animationDelay: '30ms' }}
+          >
+            {t('welcome.title')}
+          </h1>
 
           <p
-            className="mt-6 text-h2 leading-relaxed text-text-secondary animate-rise"
-            style={{ animationDelay: '60ms' }}
+            className={cn(
+              'funnel-enter mt-3 max-w-[16.5rem] text-[0.9375rem] leading-relaxed',
+              'tracking-[-0.01em] text-[#6B6B6F]',
+            )}
+            style={{ animationDelay: '50ms' }}
           >
             {tagline.map((line, index) => (
               <span key={line}>
@@ -54,24 +68,34 @@ export function OnboardingScreen() {
           </p>
         </div>
 
-        <div className="animate-rise" style={{ animationDelay: '120ms' }}>
-          <Button variant="primary" size="lg" block onClick={() => navigate('/signup')}>
-            {t('welcome.getStarted')}
-          </Button>
+        <div
+          className={cn(
+            'funnel-enter rounded-2xl border border-black/[0.06] bg-white p-4',
+            'shadow-[0_8px_28px_rgba(0,0,0,0.05)]',
+          )}
+          style={{ animationDelay: '70ms' }}
+        >
+          <FunnelCta onClick={() => navigate('/signup')}>{t('welcome.getStarted')}</FunnelCta>
 
-          <p className="mt-5 text-center text-caption text-text-tertiary">
+          <p className="mt-3.5 text-center text-[0.75rem] leading-relaxed text-[#8B8B90]">
             {t('welcome.legal')}{' '}
-            <Link to="/terms" className="text-brand underline-offset-2 hover:underline">
+            <Link
+              to="/terms"
+              className="font-medium text-[#111113] underline-offset-2 hover:underline"
+            >
               {t('welcome.terms')}
             </Link>{' '}
             and{' '}
-            <Link to="/privacy" className="text-brand underline-offset-2 hover:underline">
+            <Link
+              to="/privacy"
+              className="font-medium text-[#111113] underline-offset-2 hover:underline"
+            >
               {t('welcome.privacy')}
             </Link>
             .
           </p>
         </div>
       </main>
-    </div>
+    </FunnelBackdrop>
   );
 }

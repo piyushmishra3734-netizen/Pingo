@@ -100,7 +100,7 @@
 
   /* Selection in brand colour rather than the browser's default blue. */
   ::selection {
-    background-color: rgba(139, 93, 255, 0.18);
+    background-color: rgba(17, 17, 19, 0.12);
   }
 }
 

@@ -549,7 +549,7 @@ export function AvatarPhotoEditor({
                 className="absolute inset-0 rounded-full"
                 style={{
                   boxShadow:
-                    'inset 0 0 0 1px rgba(255,255,255,0.88), 0 0 0 1px rgba(92,108,255,0.18), 0 0 24px rgba(92,108,255,0.12)',
+                    'inset 0 0 0 1px rgba(255,255,255,0.88), 0 0 0 1px rgba(17,17,19,0.14), 0 0 24px rgba(17,17,19,0.08)',
                 }}
               />
               {phase === 'uploading' && (

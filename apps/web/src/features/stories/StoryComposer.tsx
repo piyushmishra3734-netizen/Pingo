@@ -212,7 +212,7 @@ export function StoryComposer({
       */
       className={cn(
         'border-line/55 bg-page',
-        'shadow-[0_4px_20px_rgba(16,17,20,0.05),0_14px_36px_rgba(92,108,255,0.07)]',
+        'shadow-[0_4px_20px_rgba(16,17,20,0.05),0_14px_36px_rgba(16,17,20,0.06)]',
       )}
     >
       {src && (

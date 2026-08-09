@@ -32,7 +32,7 @@ const THEMES: { value: ThemeMode; label: string; hint: string }[] = [
 ];
 
 const ACCENTS: { value: AccentName; label: string }[] = [
-  { value: 'blue', label: 'Blue' },
+  { value: 'blue', label: 'Ink' },
   { value: 'purple', label: 'Purple' },
   { value: 'green', label: 'Green' },
   { value: 'pink', label: 'Pink' },

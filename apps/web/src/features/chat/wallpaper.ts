@@ -54,25 +54,25 @@ export const WALLPAPERS: Wallpaper[] = [
     id: 'default',
     name: 'PINGO light',
     css:
-      'radial-gradient(72% 44% at 6% 2%, rgb(139 93 255 / 0.14), transparent 62%),' +
-      'radial-gradient(60% 40% at 96% 14%, rgb(92 108 255 / 0.13), transparent 64%),' +
-      'radial-gradient(70% 46% at 82% 98%, rgb(245 148 80 / 0.1), transparent 62%),' +
-      'radial-gradient(52% 36% at 10% 88%, rgb(40 220 150 / 0.08), transparent 68%)',
+      'radial-gradient(72% 44% at 6% 2%, rgb(17 17 19 / 0.05), transparent 62%),' +
+      'radial-gradient(60% 40% at 96% 14%, rgb(60 70 90 / 0.06), transparent 64%),' +
+      'radial-gradient(70% 46% at 82% 98%, rgb(245 148 80 / 0.07), transparent 62%),' +
+      'radial-gradient(52% 36% at 10% 88%, rgb(40 180 140 / 0.06), transparent 68%)',
   },
   {
     id: 'dawn',
     name: 'Dawn',
     css:
       'radial-gradient(80% 50% at 50% 0%, rgb(255 176 120 / 0.2), transparent 62%),' +
-      'radial-gradient(70% 46% at 12% 96%, rgb(139 93 255 / 0.14), transparent 64%),' +
-      'radial-gradient(60% 40% at 92% 78%, rgb(92 108 255 / 0.12), transparent 66%)',
+      'radial-gradient(70% 46% at 12% 96%, rgb(17 17 19 / 0.05), transparent 64%),' +
+      'radial-gradient(60% 40% at 92% 78%, rgb(60 70 90 / 0.06), transparent 66%)',
   },
   {
     id: 'sea',
     name: 'Sea glass',
     css:
       'radial-gradient(76% 48% at 8% 6%, rgb(40 200 200 / 0.16), transparent 62%),' +
-      'radial-gradient(64% 42% at 94% 24%, rgb(92 108 255 / 0.13), transparent 64%),' +
+      'radial-gradient(64% 42% at 94% 24%, rgb(50 80 120 / 0.08), transparent 64%),' +
       'radial-gradient(66% 44% at 78% 96%, rgb(40 220 150 / 0.12), transparent 64%)',
   },
   {

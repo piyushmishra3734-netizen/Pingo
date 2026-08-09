@@ -45,16 +45,16 @@ export const radius = {
 export const shadow = {
   none: 'none',
   /** Resting cards and list rows. */
-  sm: '0 1px 2px rgba(16, 17, 20, 0.04), 0 1px 3px rgba(92, 108, 255, 0.04)',
+  sm: '0 1px 2px rgba(17, 17, 19, 0.04), 0 1px 3px rgba(17, 17, 19, 0.03)',
   /** Raised cards, hovered rows. */
-  md: '0 2px 6px rgba(16, 17, 20, 0.04), 0 6px 16px rgba(92, 108, 255, 0.06)',
+  md: '0 2px 6px rgba(17, 17, 19, 0.05), 0 6px 16px rgba(17, 17, 19, 0.06)',
   /** Popovers, the floating dock. */
-  lg: '0 4px 12px rgba(16, 17, 20, 0.05), 0 16px 40px rgba(92, 108, 255, 0.10)',
+  lg: '0 4px 12px rgba(17, 17, 19, 0.06), 0 16px 40px rgba(17, 17, 19, 0.08)',
   /** Modals and sheets. */
-  xl: '0 8px 24px rgba(16, 17, 20, 0.06), 0 32px 72px rgba(92, 108, 255, 0.14)',
-  /** Primary buttons - a coloured glow that ties the action to the brand. */
-  brand: '0 4px 14px rgba(109, 124, 255, 0.32)',
-  brandPressed: '0 2px 6px rgba(109, 124, 255, 0.28)',
+  xl: '0 8px 24px rgba(17, 17, 19, 0.07), 0 32px 72px rgba(17, 17, 19, 0.1)',
+  /** Primary buttons. */
+  brand: '0 4px 14px rgba(17, 17, 19, 0.22)',
+  brandPressed: '0 2px 6px rgba(17, 17, 19, 0.18)',
 } as const;
 
 /** Liquid-glass surface recipe for the floating dock and overlay chrome. */

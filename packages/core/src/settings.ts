@@ -47,7 +47,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 };
 
 export const ACCENT_SWATCHES: Record<Exclude<AccentName, 'custom'>, string> = {
-  blue: '#5c6cff',
+  /** Product default — near-black ink (key kept as `blue` for stored prefs). */
+  blue: '#111113',
   purple: '#8b5dff',
   green: '#17a67a',
   pink: '#e0559b',

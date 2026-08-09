@@ -1,13 +1,10 @@
 import { cn } from '../utils/cn.js';
 
 /**
- * The purple dot - PINGO's brand element, used on its own.
+ * The brand dot - PINGO's live mark, used on its own.
  *
- * The board assigns it five jobs: online indicator, typing animation, loading
- * state, notification badge and live status. Because they are all the same dot,
- * they are all this one component, switched by `state`. That is what keeps the
- * brand element consistent as it appears across avatars, list rows and headers,
- * instead of being redrawn slightly differently in each place.
+ * Online indicator, typing, loading, badge and status all share this component
+ * so the mark stays consistent across avatars, list rows and headers.
  */
 
 export type DotState =

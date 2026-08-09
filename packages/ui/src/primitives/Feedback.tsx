@@ -7,9 +7,7 @@ import { cn } from '../utils/cn.js';
  * Loading and empty states.
  *
  * Both are treated as designed screens rather than afterthoughts, because they
- * are what a user sees first on a slow connection and on their first day. A
- * spinner and the word "Empty" would undo the calm the rest of the product works
- * for.
+ * are what a user sees first on a slow connection and on their first day.
  */
 
 // ---------------------------------------------------------------------------
@@ -68,10 +66,10 @@ export function ConversationSkeleton({ rows = 5 }: { rows?: number }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Full-area loading, using the monogram's loading state.
+ * Full-area loading — three soft ink dots, nothing else.
  *
- * The brand mark is the product's spinner. Introducing a generic circular
- * spinner anywhere would be the one moment the design system broke character.
+ * No card, no spinner arc. Calm centre of the screen; the wait is small and
+ * confident rather than decorated.
  */
 export function LoadingState({
   label = 'Loading',
@@ -83,12 +81,15 @@ export function LoadingState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-4 py-16',
+        'flex flex-col items-center justify-center gap-4 py-20',
+        'motion-safe:animate-loader-enter',
         className,
       )}
     >
-      <PingoLoader size={44} label={label} />
-      <p className="text-caption text-text-tertiary">{label}</p>
+      <PingoLoader size={48} label={label} />
+      <p className="text-[0.8125rem] font-medium tracking-[-0.02em] text-text-tertiary">
+        {label}
+      </p>
     </div>
   );
 }

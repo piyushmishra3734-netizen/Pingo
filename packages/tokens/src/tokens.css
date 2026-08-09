@@ -71,13 +71,13 @@
  */
 
 @theme {
-  /* ---- Palette (branding board, verbatim) ------------------------------- */
-  --color-primary-blue: #5c6cff;
-  --color-primary-purple: #8b5dff;
-  --color-soft-white: #f8f9fd;
-  --color-page: #fbfbfe;
-  --color-ink: #101114;
-  --color-muted: #6f7282;
+  /* ---- Palette (ink product theme) -------------------------------------- */
+  --color-primary-blue: #111113;
+  --color-primary-purple: #2a2a2e;
+  --color-soft-white: #f4f4f5;
+  --color-page: #f7f7f8;
+  --color-ink: #111113;
+  --color-muted: #6b6b6f;
 
   /* ---- Semantic surfaces ------------------------------------------------ */
   --color-surface: #ffffff;
@@ -124,22 +124,25 @@
   --color-text-tertiary: rgba(16, 17, 20, 0.38);
   --color-on-brand: #ffffff;
 
-  /* ---- Brand ------------------------------------------------------------ */
-  --color-brand: #5c6cff;
-  --color-brand-alt: #8b5dff;
-  /* The purple dot: PINGO's heart. */
-  --color-dot: #8b5dff;
+  /* ---- Brand (near-black ink — Linear-style product chrome) ------------ */
+  --color-brand: #111113;
+  --color-brand-alt: #2a2a2e;
+  /* Live / presence mark. Ink, not purple. */
+  --color-dot: #111113;
+  /* Primary gradient stops (buttons, loaders, bubbles). */
+  --gradient-from: #111113;
+  --gradient-to: #2a2a2e;
 
   /* ---- Lines ------------------------------------------------------------ */
-  --color-line: rgba(16, 17, 20, 0.07);
-  --color-line-strong: rgba(16, 17, 20, 0.12);
-  --color-divider: rgba(16, 17, 20, 0.05);
+  --color-line: rgba(17, 17, 19, 0.07);
+  --color-line-strong: rgba(17, 17, 19, 0.12);
+  --color-divider: rgba(17, 17, 19, 0.05);
 
   /* ---- Interaction ------------------------------------------------------ */
-  --color-hover: rgba(92, 108, 255, 0.06);
-  --color-pressed: rgba(92, 108, 255, 0.11);
-  --color-selected: rgba(92, 108, 255, 0.09);
-  --color-focus-ring: rgba(92, 108, 255, 0.45);
+  --color-hover: rgba(17, 17, 19, 0.05);
+  --color-pressed: rgba(17, 17, 19, 0.09);
+  --color-selected: rgba(17, 17, 19, 0.07);
+  --color-focus-ring: rgba(17, 17, 19, 0.4);
 
   /* ---- Status ----------------------------------------------------------- */
   --color-online: #34c77b;
@@ -239,12 +242,12 @@
   --radius-xl: 1.75rem;
   --radius-2xl: 2.25rem;
 
-  /* ---- Elevation (brand-tinted, never neutral black) -------------------- */
-  --shadow-sm: 0 1px 2px rgba(16, 17, 20, 0.04), 0 1px 3px rgba(92, 108, 255, 0.04);
-  --shadow-md: 0 2px 6px rgba(16, 17, 20, 0.04), 0 6px 16px rgba(92, 108, 255, 0.06);
-  --shadow-lg: 0 4px 12px rgba(16, 17, 20, 0.05), 0 16px 40px rgba(92, 108, 255, 0.1);
-  --shadow-xl: 0 8px 24px rgba(16, 17, 20, 0.06), 0 32px 72px rgba(92, 108, 255, 0.14);
-  --shadow-brand: 0 4px 14px rgba(109, 124, 255, 0.32);
+  /* ---- Elevation (ink-tinted, quiet depth) ------------------------------ */
+  --shadow-sm: 0 1px 2px rgba(17, 17, 19, 0.04), 0 1px 3px rgba(17, 17, 19, 0.03);
+  --shadow-md: 0 2px 6px rgba(17, 17, 19, 0.05), 0 6px 16px rgba(17, 17, 19, 0.06);
+  --shadow-lg: 0 4px 12px rgba(17, 17, 19, 0.06), 0 16px 40px rgba(17, 17, 19, 0.08);
+  --shadow-xl: 0 8px 24px rgba(17, 17, 19, 0.07), 0 32px 72px rgba(17, 17, 19, 0.1);
+  --shadow-brand: 0 4px 14px rgba(17, 17, 19, 0.22);
 
   /* ---- Motion ----------------------------------------------------------- */
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
@@ -330,11 +333,12 @@
      which is the one thing a banner has to earn. */
   --animate-install-in: install-in 420ms var(--ease-liquid) backwards;
 
-  /* Waiting, as a sonar ping. A ring leaves the dot, expands and fades; three
-     of them a third of a cycle apart keep one always mid-flight, so the eye
-     reads continuous outward motion without anything spinning. */
-  --animate-ping-ripple: ping-ripple 1500ms var(--ease-ambient) infinite;
-  --animate-ping-core: ping-core 1500ms var(--ease-ambient) infinite;
+  /* Legacy ping (still used if referenced). */
+  --animate-ping-ripple: ping-ripple 1200ms cubic-bezier(0.23, 1, 0.32, 1) infinite;
+  --animate-ping-core: ping-core 1200ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  /* Three-dot loader — short cycle, strong ease, feels quick. */
+  --animate-loader-dot: loader-dot 900ms cubic-bezier(0.23, 1, 0.32, 1) infinite;
+  --animate-loader-enter: loader-enter 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
 
   /* The QR card being handed to you.
 
@@ -539,28 +543,55 @@
 
 @keyframes ping-ripple {
   0% {
-    transform: scale(1);
-    opacity: 0.5;
+    transform: scale(0.92);
+    opacity: 0.55;
   }
-  /* Fades well before it stops growing, so the ring dissolves outward rather
-     than vanishing at full size. */
-  70% {
+  65% {
     opacity: 0;
   }
   100% {
-    transform: scale(2.6);
+    transform: scale(2.35);
     opacity: 0;
   }
 }
 
-/* The dot itself only breathes. It is part of the mark, so it must not travel. */
 @keyframes ping-core {
   0%,
   100% {
     transform: scale(1);
+    opacity: 1;
   }
   50% {
-    transform: scale(0.88);
+    transform: scale(0.9);
+    opacity: 0.88;
+  }
+}
+
+/*
+ * Three-dot wait: lift + brighten, settle.
+ * Never scale(0). Stagger via animation-delay on each dot.
+ */
+@keyframes loader-dot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.22;
+  }
+  40% {
+    transform: translateY(-3px) scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes loader-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -670,17 +701,15 @@
 /* -------------------------------------------------------------------------- */
 
 /**
- * The board's #6D7CFF → #A16EFF at 135°. Primary actions and outgoing bubbles.
+ * Primary actions and outgoing bubbles.
  *
- * Drawn from variables rather than literals so the accent setting can retint the
- * whole product. The defaults below are the board's values exactly - changing
- * accent overrides the two stops, nothing else.
+ * Drawn from variables so accent can retint. Default is near-black ink.
  */
 @utility bg-brand-gradient {
   background-image: linear-gradient(
     135deg,
-    var(--gradient-from, #6d7cff) 0%,
-    var(--gradient-to, #a16eff) 100%
+    var(--gradient-from, #111113) 0%,
+    var(--gradient-to, #2a2a2e) 100%
   );
 }
 
@@ -711,8 +740,8 @@
   corner-shape: squircle;
   background-image: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--gradient-from, #6d7cff) 88%, transparent) 0%,
-    color-mix(in srgb, var(--gradient-to, #a16eff) 88%, transparent) 100%
+    color-mix(in srgb, var(--gradient-from, #111113) 88%, transparent) 0%,
+    color-mix(in srgb, var(--gradient-to, #2a2a2e) 88%, transparent) 100%
   );
 
   /* Prefixed first, standard last - see the note on `glass-surface`. */
@@ -724,15 +753,15 @@
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.45),
     inset 0 -1px 0 rgb(255 255 255 / 0.14),
-    0 1px 3px -1px color-mix(in srgb, var(--gradient-from, #6d7cff) 50%, transparent);
+    0 1px 3px -1px color-mix(in srgb, var(--gradient-from, #111113) 45%, transparent);
 }
 
-/** A softened wash of the same gradient, for large calm surfaces like splash. */
+/** Soft neutral wash for large calm surfaces (auth, empty states). */
 @utility bg-brand-wash {
   background-image:
-    radial-gradient(120% 80% at 15% 10%, rgba(109, 124, 255, 0.16) 0%, transparent 60%),
-    radial-gradient(100% 90% at 85% 75%, rgba(161, 110, 255, 0.2) 0%, transparent 62%),
-    linear-gradient(160deg, #fbfbfe 0%, #f2f1fd 100%);
+    radial-gradient(120% 80% at 15% 10%, rgba(17, 17, 19, 0.05) 0%, transparent 60%),
+    radial-gradient(100% 90% at 85% 75%, rgba(42, 42, 46, 0.06) 0%, transparent 62%),
+    linear-gradient(160deg, #f8f8f9 0%, #f0f0f2 100%);
 }
 
 /**
@@ -1109,10 +1138,10 @@
 @utility chat-wallpaper {
   background-color: var(--color-page);
   background-image:
-    radial-gradient(72% 44% at 6% 2%, rgb(139 93 255 / 0.14), transparent 62%),
-    radial-gradient(60% 40% at 96% 14%, rgb(92 108 255 / 0.13), transparent 64%),
-    radial-gradient(70% 46% at 82% 98%, rgb(245 148 80 / 0.1), transparent 62%),
-    radial-gradient(52% 36% at 10% 88%, rgb(40 220 150 / 0.08), transparent 68%);
+    radial-gradient(72% 44% at 6% 2%, rgb(17 17 19 / 0.05), transparent 62%),
+    radial-gradient(60% 40% at 96% 14%, rgb(60 70 90 / 0.06), transparent 64%),
+    radial-gradient(70% 46% at 82% 98%, rgb(245 148 80 / 0.07), transparent 62%),
+    radial-gradient(52% 36% at 10% 88%, rgb(40 180 140 / 0.06), transparent 68%);
   /*
    * Fixed to the element, not the content, so the light does not slide up the
    * screen as the conversation scrolls. A backdrop that moves is a pattern.
@@ -1130,9 +1159,9 @@
 :root[data-theme='dark'] .chat-wallpaper,
 :root[data-theme='dark'] [class*='chat-wallpaper'] {
   background-image:
-    radial-gradient(72% 44% at 6% 2%, rgb(139 93 255 / 0.16), transparent 62%),
-    radial-gradient(60% 40% at 96% 14%, rgb(92 108 255 / 0.14), transparent 64%),
-    radial-gradient(60% 40% at 84% 96%, rgb(120 90 220 / 0.1), transparent 64%);
+    radial-gradient(72% 44% at 6% 2%, rgb(255 255 255 / 0.04), transparent 62%),
+    radial-gradient(60% 40% at 96% 14%, rgb(160 170 200 / 0.06), transparent 64%),
+    radial-gradient(60% 40% at 84% 96%, rgb(80 90 120 / 0.08), transparent 64%);
 }
 
 /*
@@ -1244,8 +1273,8 @@
   --color-line: rgba(16, 17, 20, 0.07);
   --color-line-strong: rgba(16, 17, 20, 0.12);
   --color-sunken: #f8f9fd;
-  --color-hover: rgba(92, 108, 255, 0.06);
-  --color-pressed: rgba(92, 108, 255, 0.11);
+  --color-hover: rgba(17, 17, 19, 0.05);
+  --color-pressed: rgba(17, 17, 19, 0.09);
   /* Glyphs on a solid panel need no halo, and one would look like grime. */
   --water-glyph-halo: none;
   --water-halo: none;
@@ -1476,9 +1505,22 @@
 :root[data-theme='dark'] .bg-brand-wash,
 :root[data-theme='dark'] [class*='bg-brand-wash'] {
   background-image:
-    radial-gradient(120% 80% at 15% 10%, rgba(109, 124, 255, 0.18) 0%, transparent 60%),
-    radial-gradient(100% 90% at 85% 75%, rgba(161, 110, 255, 0.22) 0%, transparent 62%),
-    linear-gradient(160deg, #0c0d11 0%, #14131f 100%);
+    radial-gradient(120% 80% at 15% 10%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    radial-gradient(100% 90% at 85% 75%, rgba(255, 255, 255, 0.03) 0%, transparent 62%),
+    linear-gradient(160deg, #0c0d11 0%, #121214 100%);
+}
+
+/* Default accent id "blue" = product ink (kept key for stored preferences). */
+:root[data-accent='blue'] {
+  --color-brand: #111113;
+  --color-brand-alt: #2a2a2e;
+  --color-dot: #111113;
+  --gradient-from: #111113;
+  --gradient-to: #2a2a2e;
+  --color-hover: rgba(17, 17, 19, 0.05);
+  --color-pressed: rgba(17, 17, 19, 0.09);
+  --color-selected: rgba(17, 17, 19, 0.07);
+  --color-focus-ring: rgba(17, 17, 19, 0.4);
 }
 
 /* ---- Accent -------------------------------------------------------------- */
@@ -1528,11 +1570,11 @@
  * blue as the fallback so a half-configured custom accent is never invisible.
  */
 :root[data-accent='custom'] {
-  --color-brand: var(--custom-accent, #5c6cff);
-  --color-brand-alt: var(--custom-accent-alt, var(--custom-accent, #8b5dff));
-  --color-dot: var(--custom-accent-alt, var(--custom-accent, #8b5dff));
-  --gradient-from: var(--custom-accent, #6d7cff);
-  --gradient-to: var(--custom-accent-alt, var(--custom-accent, #a16eff));
+  --color-brand: var(--custom-accent, #111113);
+  --color-brand-alt: var(--custom-accent-alt, var(--custom-accent, #2a2a2e));
+  --color-dot: var(--custom-accent-alt, var(--custom-accent, #111113));
+  --gradient-from: var(--custom-accent, #111113);
+  --gradient-to: var(--custom-accent-alt, var(--custom-accent, #2a2a2e));
 }
 
 /* ---- Motion -------------------------------------------------------------- */

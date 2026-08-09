@@ -1,8 +1,10 @@
 import { useAuth } from '@pingo/core';
-import { Button, PingoDot } from '@pingo/ui';
+import { PingoDot, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import { FunnelBackdrop } from '../../features/auth/FunnelBackdrop.js';
+import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
 import { writeLastMethod } from '../../features/auth/last-method.js';
 import { authErrorMessage } from '../../features/auth/messages.js';
 
@@ -69,35 +71,43 @@ export function GoogleConnectingScreen() {
   }, [providerError, returning, service, navigate, params]);
 
   return (
-    <div className="grid h-full place-items-center bg-brand-wash px-6">
-      <div className="flex w-full max-w-sm flex-col items-center text-center">
-        {error ? (
-          <>
-            <h1 className="text-h1 text-ink">Couldn't connect</h1>
-            <p role="alert" className="mt-3 text-caption text-danger">
-              {error}
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 className="text-h1 text-ink animate-rise">
-              Connecting
-              <br />
-              to Google
-            </h1>
-
-            <div className="mt-10">
-              <PingoDot state="loading" size={8} label="Connecting" />
-            </div>
-          </>
-        )}
-
-        <div className="mt-12">
-          <Button variant="text" size="lg" onClick={() => navigate('/welcome', { replace: true })}>
-            Cancel
-          </Button>
+    <FunnelBackdrop>
+      <div className="grid h-full place-items-center px-6">
+        <div
+          className={cn(
+            'funnel-enter flex w-full max-w-[22rem] flex-col items-center rounded-2xl',
+            'border border-black/[0.06] bg-white px-6 py-10 text-center',
+            'shadow-[0_8px_28px_rgba(0,0,0,0.05)]',
+          )}
+        >
+          {error ? (
+            <>
+              <h1 className="text-[1.75rem] font-semibold tracking-[-0.03em] text-[#111113]">
+                Couldn't connect
+              </h1>
+              <p role="alert" className="mt-3 text-[0.8125rem] text-[#B42318]">
+                {error}
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#111113]">
+                Connecting
+                <br />
+                to Google
+              </h1>
+              <div className="mt-10">
+                <PingoDot state="loading" size={8} label="Connecting" />
+              </div>
+            </>
+          )}
+          <div className="mt-10">
+            <FunnelTextLink onClick={() => navigate('/welcome', { replace: true })}>
+              Cancel
+            </FunnelTextLink>
+          </div>
         </div>
       </div>
-    </div>
+    </FunnelBackdrop>
   );
 }

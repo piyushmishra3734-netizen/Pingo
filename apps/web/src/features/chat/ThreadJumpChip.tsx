@@ -41,10 +41,10 @@ export function ThreadJumpChip({ mode, count = 0, onClick, className }: ThreadJu
           'text-caption font-medium text-brand',
           'bg-brand/[0.06]',
           // Felt more than seen - easy to miss until you need it.
-          'shadow-[0_0_10px_rgba(92,108,255,0.08)]',
+          'shadow-[0_0_10px_rgba(17,17,19,0.06)]',
           'transition-[opacity,transform,box-shadow,background-color] duration-base ease-liquid',
           'motion-safe:animate-[fade-in_var(--duration-base)_var(--ease-liquid)_both]',
-          'hover:bg-brand/[0.09] hover:shadow-[0_0_12px_rgba(92,108,255,0.12)]',
+          'hover:bg-brand/[0.09] hover:shadow-[0_0_12px_rgba(17,17,19,0.1)]',
           'active:scale-[0.98]',
         )}
       >

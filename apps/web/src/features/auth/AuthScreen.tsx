@@ -2,56 +2,20 @@ import { cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { FunnelBackdrop } from './FunnelBackdrop.js';
+
 /**
- * The chrome every step of the auth flow shares.
- *
- * It exists so the rules in
- * [docs/01 § 2.1](../../../../../docs/01-onboarding-auth.md#21-global-rules-for-the-whole-flow)
- * are structural rather than remembered: a progress bar with **no step numbers**,
- * a Back control that always works, one `h1`, one field group, one primary
- * action - and the primary action pinned to the bottom, above where a phone
- * keyboard appears.
- *
- * Screens supply content and a footer. They do not lay out the page, which is
- * what stops the seven steps from drifting apart in padding and rhythm.
+ * Auth/setup chrome — productive: solid panels, fast enter, black CTAs.
  */
 
 export interface AuthScreenProps {
-  /**
-   * 0-1. Rendered as a bar, never as "3 of 7" - § 2.1 is explicit that step
-   * numbers make a short flow feel long.
-   *
-   * Omit on screens outside the linear flow (Welcome, Log In triage), which have
-   * no progress to report.
-   */
   progress?: number;
   title: string;
-  /** The line under the title. One sentence, sentence case. */
   subtitle?: ReactNode;
   children: ReactNode;
-  /** The primary action, and anything that belongs beneath it. */
   footer?: ReactNode;
-  /**
-   * Inline message above the footer - an offline notice or a failed attempt.
-   * Never a dialog: § 19 forbids blocking the flow over a recoverable problem.
-   */
   message?: ReactNode;
-  /**
-   * The same failure, said louder: a card that comes up over the flow and
-   * leaves on its own.
-   *
-   * § 13.2 previously ruled this out on the grounds that an inline caption is
-   * enough and a shake is a scold. In practice the caption is a line of small
-   * text at the bottom of a tall screen, and somebody who has just mistyped a
-   * password is looking at the field, not at it. Every app these users already
-   * have says it again in a way that is hard to miss.
-   *
-   * It is still not a dialog. Nothing is blocked, nothing needs dismissing,
-   * focus does not move, and the caption stays where it was - so the rule that
-   * mattered in § 19 is intact even though § 13.2's conclusion is not.
-   */
   alert?: ReactNode;
-  /** Defaults to browser history. Pass a function where Back must undo flow state. */
   onBack?: () => void;
   showBack?: boolean;
 }
@@ -71,78 +35,115 @@ export function AuthScreen({
   const goBack = onBack ?? (() => navigate(-1));
 
   return (
-    <div className="relative flex h-full flex-col overflow-y-auto bg-brand-wash">
+    <FunnelBackdrop>
       {alert}
-      {/*
-        2px, brand gradient, top edge. The track is always present so the bar
-        grows within a fixed line rather than appearing from nothing.
-      */}
+
       {progress !== undefined && (
         <div
-          className="sticky top-0 z-10 h-0.5 w-full shrink-0 bg-line"
+          className="h-0.5 w-full shrink-0 bg-black/[0.06]"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(progress * 100)}
-          aria-label="Sign-up progress"
+          aria-label="Progress"
         >
           <div
-            className="h-full bg-brand-gradient transition-[width] duration-quick ease-standard"
+            className="h-full bg-[#111113] transition-[width] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{ width: `${Math.min(Math.max(progress, 0), 1) * 100}%` }}
           />
         </div>
       )}
 
-      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col px-6 pb-8 pt-3">
+      <div
+        className={cn(
+          'mx-auto flex w-full max-w-[22rem] flex-1 flex-col overflow-y-auto',
+          'px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))]',
+          progress !== undefined
+            ? 'pt-5'
+            : 'pt-[max(1.25rem,env(safe-area-inset-top))]',
+        )}
+      >
         {showBack ? (
           <button
             type="button"
             onClick={goBack}
             className={cn(
-              '-ml-2 mb-6 inline-flex h-10 w-fit items-center gap-1 rounded-md px-2',
-              'focus-ring text-caption text-text-secondary',
-              'transition-colors duration-instant ease-standard',
-              'hover:bg-hover hover:text-ink',
+              'group -ml-2 mb-6 inline-flex h-9 w-fit items-center gap-1 rounded-lg px-2',
+              'funnel-enter text-[0.8125rem] font-medium text-[#6B6B6F]',
+              'transition-[color,transform,background-color] duration-100',
+              'ease-[cubic-bezier(0.23,1,0.32,1)]',
+              'hover:bg-black/[0.04] hover:text-[#111113]',
+              'active:scale-[0.97]',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111113]',
             )}
           >
-            <ChevronLeft />
+            <span className="transition-transform duration-100 group-hover:-translate-x-0.5">
+              <ChevronLeft />
+            </span>
             Back
           </button>
         ) : (
-          <div className="mb-6 h-10" aria-hidden />
+          <div className="mb-6 h-9" aria-hidden />
         )}
 
-        <h1 className="text-h1 text-ink animate-rise">{title}</h1>
+        <header className="funnel-enter" style={{ animationDelay: '20ms' }}>
+          <h1 className="text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#111113]">
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="mt-2 text-[0.9375rem] leading-relaxed tracking-[-0.01em] text-[#6B6B6F]">
+              {subtitle}
+            </p>
+          )}
+        </header>
 
-        {subtitle && (
-          <p className="mt-3 text-body text-text-secondary animate-rise">{subtitle}</p>
-        )}
+        {/* Solid white panel — no backdrop-blur (blur was laggy) */}
+        <div
+          className={cn(
+            'funnel-enter mt-6 rounded-2xl border border-black/[0.06] bg-white p-4',
+            'shadow-[0_4px_20px_rgba(0,0,0,0.04)] sm:p-5',
+          )}
+          style={{ animationDelay: '40ms' }}
+        >
+          {children}
+        </div>
 
-        <div className="mt-8">{children}</div>
-
-        {/*
-          Pushes the footer to the bottom edge. The wireframes all show generous
-          space between the last field and the primary action, and this is what
-          produces it at any viewport height.
-        */}
         <div className="flex-1" aria-hidden />
 
-        {message && <div className="mb-4">{message}</div>}
-        {footer}
+        {message && (
+          <div className="funnel-enter mb-3 mt-4" style={{ animationDelay: '50ms' }}>
+            {message}
+          </div>
+        )}
+
+        {footer && (
+          <div
+            className={cn(
+              'funnel-enter mt-4',
+              '[&_button]:!border-0 [&_button]:!bg-[#111113] [&_button]:!bg-none',
+              '[&_button]:!text-white',
+              '[&_button]:!shadow-[0_1px_2px_rgba(0,0,0,0.08),0_6px_16px_rgba(0,0,0,0.1)]',
+              '[&_button]:hover:!bg-black',
+              '[&_button]:active:!scale-[0.97]',
+              '[&_button]:transition-[transform,background-color,box-shadow]',
+              '[&_button]:duration-100',
+              '[&_button]:ease-[cubic-bezier(0.23,1,0.32,1)]',
+              '[&_button.text-brand]:!bg-transparent [&_button.text-brand]:!text-[#111113]',
+              '[&_button.text-brand]:!shadow-none [&_button.text-brand]:hover:!bg-black/[0.04]',
+            )}
+            style={{ animationDelay: '55ms' }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
-    </div>
+    </FunnelBackdrop>
   );
 }
 
-/**
- * Drawn here rather than imported.
- *
- * `ChevronLeftIcon` is a 24×24 control glyph; this sits inline beside 12px text
- * and needs to be smaller than the icon set's smallest sensible size.
- */
 function ChevronLeft() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="m14.5 6-6 6 6 6"
         stroke="currentColor"
@@ -154,12 +155,6 @@ function ChevronLeft() {
   );
 }
 
-/**
- * The inline caption beneath a failed or blocked step.
- *
- * `role="alert"` so a screen reader announces it without moving focus, the
- * field keeps focus so the user can simply correct and retry.
- */
 export function AuthMessage({
   children,
   tone = 'danger',
@@ -171,8 +166,10 @@ export function AuthMessage({
     <p
       role="alert"
       className={cn(
-        'text-caption',
-        tone === 'danger' ? 'text-danger' : 'text-text-secondary',
+        'rounded-lg px-3 py-2.5 text-[0.8125rem] leading-snug',
+        tone === 'danger'
+          ? 'bg-[#FEF2F2] text-[#B42318]'
+          : 'bg-white text-[#6B6B6F] shadow-sm ring-1 ring-black/[0.04]',
       )}
     >
       {children}

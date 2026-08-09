@@ -86,7 +86,7 @@ export function Dock() {
       <GlassPanel
         className={cn(
           'pointer-events-auto flex items-center gap-1 p-2',
-          'shadow-[0_4px_12px_rgba(16,17,20,0.05),0_16px_40px_rgba(92,108,255,0.085)]',
+          'shadow-[0_4px_12px_rgba(16,17,20,0.06),0_16px_40px_rgba(16,17,20,0.08)]',
         )}
       >
         {items.map(({ to, label, Icon, matchPrefix }) => (
@@ -121,7 +121,7 @@ export function Dock() {
                   size={to === '/notifications' ? 27 : 26}
                   className={cn(
                     to === '/notifications' &&
-                      (isActive ? 'text-brand drop-shadow-[0_0_10px_rgba(92,108,255,0.35)]' : undefined),
+                      (isActive ? 'text-brand' : undefined),
                   )}
                 />
                 <span className="sr-only">{label}</span>
@@ -164,13 +164,13 @@ export function Dock() {
                 */}
                 {to === '/notifications' && !isActive && unreadNotifications > 0 && (
                   <span
-                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.18)] ring-2 ring-surface"
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(17,17,19,0.12)] ring-2 ring-surface"
                     aria-label={`${unreadNotifications} unread notifications`}
                   />
                 )}
                 {to === '/profile' && communities && unreadNotifications > 0 && (
                   <span
-                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(139,93,255,0.18)] ring-2 ring-surface"
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(17,17,19,0.12)] ring-2 ring-surface"
                     aria-label={`${unreadNotifications} unread notifications`}
                   />
                 )}

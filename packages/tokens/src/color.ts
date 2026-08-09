@@ -9,29 +9,28 @@
  * Platform-neutral: plain strings, safe for web CSS and React Native alike.
  */
 
-/** The literal palette from the branding board. Do not edit without a brand decision. */
+/** Product palette — ink monochrome product chrome. */
 export const palette = {
-  /** #5C6CFF - Primary Blue. Interactive, links, the cooler half of the brand. */
-  primaryBlue: '#5C6CFF',
-  /** #8B5DFF - Primary Purple. The brand's heart; the PINGO dot. */
-  primaryPurple: '#8B5DFF',
-  /** #F8F9FD - Soft White. Recessed surfaces: inputs, incoming bubbles, chips. */
-  softWhite: '#F8F9FD',
-  /** #FBFBFE - Background. The calm base the whole product sits on. */
-  background: '#FBFBFE',
-  /** #101114 - Text. Near-black, never pure black: pure black is harsh at scale. */
-  text: '#101114',
-  /** #6F7282 - Secondary. Timestamps, captions, supporting copy. */
-  secondary: '#6F7282',
+  /** Near-black. Interactive, primary. */
+  primaryBlue: '#111113',
+  /** Softer charcoal companion stop. */
+  primaryPurple: '#2A2A2E',
+  /** Soft White. Recessed surfaces: inputs, incoming bubbles, chips. */
+  softWhite: '#F4F4F5',
+  /** Background. Calm base. */
+  background: '#F7F7F8',
+  /** Text. Near-black. */
+  text: '#111113',
+  /** Secondary. Timestamps, captions, supporting copy. */
+  secondary: '#6B6B6F',
 } as const;
 
-/** The brand gradient, #6D7CFF → #A16EFF, used for primary actions and outgoing bubbles. */
+/** Primary gradient for actions and outgoing bubbles. */
 export const gradient = {
-  from: '#6D7CFF',
-  to: '#A16EFF',
-  /** 135° reads as light falling from the top-left - consistent with the board. */
+  from: '#111113',
+  to: '#2A2A2E',
   angle: '135deg',
-  css: 'linear-gradient(135deg, #6D7CFF 0%, #A16EFF 100%)',
+  css: 'linear-gradient(135deg, #111113 0%, #2A2A2E 100%)',
 } as const;
 
 /**
@@ -57,19 +56,19 @@ export const color = {
   // Brand.
   brand: palette.primaryBlue,
   brandAlt: palette.primaryPurple,
-  /** The purple dot - PINGO's single most recognisable element. */
-  dot: palette.primaryPurple,
+  /** Presence / live mark. */
+  dot: palette.primaryBlue,
 
   // Lines and separators. Deliberately near-invisible; calm interfaces whisper.
-  border: 'rgba(16, 17, 20, 0.07)',
-  borderStrong: 'rgba(16, 17, 20, 0.12)',
-  divider: 'rgba(16, 17, 20, 0.05)',
+  border: 'rgba(17, 17, 19, 0.07)',
+  borderStrong: 'rgba(17, 17, 19, 0.12)',
+  divider: 'rgba(17, 17, 19, 0.05)',
 
-  // Interaction states, expressed as brand-tinted washes rather than greys.
-  hover: 'rgba(92, 108, 255, 0.06)',
-  pressed: 'rgba(92, 108, 255, 0.11)',
-  selected: 'rgba(92, 108, 255, 0.09)',
-  focusRing: 'rgba(92, 108, 255, 0.45)',
+  // Interaction states — ink washes.
+  hover: 'rgba(17, 17, 19, 0.05)',
+  pressed: 'rgba(17, 17, 19, 0.09)',
+  selected: 'rgba(17, 17, 19, 0.07)',
+  focusRing: 'rgba(17, 17, 19, 0.4)',
 
   // Status. Muted on purpose - a calm product does not shout in red.
   online: '#34C77B',
