@@ -429,6 +429,26 @@ export class MockChatService implements ChatService {
     this.#updateConversation(conversationId, { participantIds });
   }
 
+  async setGroupWallpaper(
+    conversationId: ConversationId,
+    wallpaperId: string,
+    photoUrl?: string,
+  ): Promise<void> {
+    const conversation = this.#conversations.find((c) => c.id === conversationId);
+    if (!conversation || (conversation.kind !== 'group' && conversation.kind !== 'community')) {
+      throw new Error('Only a group can share a wallpaper.');
+    }
+    if (!conversation.participantIds.includes(this.#currentUser.id)) {
+      throw new Error('Only a group member can set the wallpaper.');
+    }
+    this.#updateConversation(conversationId, {
+      wallpaperId,
+      ...(wallpaperId === 'custom' && photoUrl
+        ? { wallpaperPhotoUrl: photoUrl }
+        : { wallpaperPhotoUrl: undefined }),
+    });
+  }
+
   async removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void> {
     const conversation = this.#requireAdmin(conversationId);
     if (userId === this.#currentUser.id) throw new Error('Use Leave group to leave.');

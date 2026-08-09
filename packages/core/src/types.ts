@@ -398,6 +398,15 @@ export interface Conversation {
    * into a scoreboard nobody asked to be on.
    */
   streak?: number;
+  /**
+   * Shared wallpaper preset for group/community chats.
+   *
+   * Direct and AI threads keep wallpaper on the device per conversation; groups
+   * share one backdrop so the room looks the same for everyone.
+   */
+  wallpaperId?: string;
+  /** Public URL of a shared custom wallpaper photo (groups only). */
+  wallpaperPhotoUrl?: string;
 }
 
 /**

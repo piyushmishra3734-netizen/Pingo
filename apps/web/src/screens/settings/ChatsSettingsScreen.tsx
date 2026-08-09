@@ -7,7 +7,7 @@ import {
 } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useNavigate } from 'react-router-dom';
-import { WALLPAPERS, chosenWallpaperId } from '../../features/chat/wallpaper.js';
+import { WALLPAPERS, chosenGlobalWallpaperId } from '../../features/chat/wallpaper.js';
 import { useT } from '../../features/i18n/useT.js';
 
 /**
@@ -18,14 +18,15 @@ import { useT } from '../../features/i18n/useT.js';
  * just message text. Changing it here rescales this page while you look at it,
  * which is the point: you are reading the result at the size you picked.
  *
- * Enter to Send is live too. The rest save a preference that nothing reads yet,
- * and the note says so.
+ * Enter to Send is live too. Wallpaper here is only the *default* for chats
+ * that have not been personalised - open a chat's menu to set one for that
+ * thread (shared for groups, personal for DMs).
  */
 export function ChatsSettingsScreen() {
   const t = useT();
   const { preferences, update } = usePreferences();
   const navigate = useNavigate();
-  const wallpaper = WALLPAPERS.find((w) => w.id === chosenWallpaperId());
+  const wallpaper = WALLPAPERS.find((w) => w.id === chosenGlobalWallpaperId());
   const c = preferences.chats;
 
   return (
@@ -55,11 +56,16 @@ export function ChatsSettingsScreen() {
           It now goes where it always looked like it went.
         */}
         <InfoRow
-          label="Chat Wallpaper"
+          label="Default wallpaper"
           value={wallpaper?.name ?? 'Default'}
           onClick={() => navigate('/settings/wallpaper')}
         />
       </Group>
+
+      <p className="px-1 pb-2 text-caption text-text-tertiary">
+        Default wallpaper is the fallback for chats that have none of their own. Open a chat
+        menu to set a wallpaper for that chat only - personal for DMs, shared for groups.
+      </p>
 
       <Group title="Media">
         <ChoiceRow
@@ -103,9 +109,9 @@ export function ChatsSettingsScreen() {
       </Group>
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">
-        Font Size, Enter to Send, Swipe Actions, Keep Chats Archived and Keep PINGO near the top
-        take effect now. Wallpaper, bubble style and auto-download are saved and start working when
-        those features are built.
+        Font Size, Enter to Send, Swipe Actions, Keep Chats Archived, Keep PINGO near the top and
+        wallpapers take effect now. Bubble style and auto-download are saved for when those features
+        ship fully.
       </p>
     </SettingsPage>
   );

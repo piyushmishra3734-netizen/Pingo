@@ -1,9 +1,19 @@
 import { useChat, type Conversation, type User } from '@pingo/core';
-import { Avatar, Button, CheckIcon, LinkIcon, cn } from '@pingo/ui';
-import { useState } from 'react';
+import {
+  Avatar,
+  Button,
+  CheckIcon,
+  LinkIcon,
+  LoadingState,
+  PlusIcon,
+  SearchField,
+  cn,
+} from '@pingo/ui';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { useMutuals } from '../profile/useMutuals.js';
 
 /**
  * Group info - who is in it, who runs it, and how to get somebody else in.
@@ -22,11 +32,13 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  * with the rest of the app - making somebody an admin hands them the power to
  * remove you, and that is not a thing to do by brushing a list.
  *
- * ## The link is not shown until it is asked for
+ * ## Two doors in, not one
  *
- * `groupInviteCode` mints one if there is not already one, so rendering the
- * link on open would create a live invite for every admin who ever glanced at
- * this sheet. It stays behind a press.
+ * Friends can be added straight from the roster (mutual follow, same rule as
+ * create-group). Everyone else needs an invite link. The link is not shown
+ * until it is asked for - `groupInviteCode` mints one if there is not already
+ * one, so rendering it on open would create a live invite for every admin who
+ * ever glanced at this sheet.
  */
 export function GroupInfoSheet({
   conversation,
@@ -37,14 +49,23 @@ export function GroupInfoSheet({
 }) {
   const { service, users, currentUser } = useChat();
   const confirm = useConfirm();
+  const mutuals = useMutuals();
 
   const [link, setLink] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [contacts, setContacts] = useState<User[] | undefined>();
+  const [query, setQuery] = useState('');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const adminIds = conversation.adminIds ?? [];
   const iAmAdmin = currentUser ? adminIds.includes(currentUser.id) : false;
+  const memberSet = useMemo(
+    () => new Set(conversation.participantIds),
+    [conversation.participantIds],
+  );
 
   /*
    * `users` does not contain you.
@@ -65,6 +86,47 @@ export function GroupInfoSheet({
       const rank = Number(adminIds.includes(b.id)) - Number(adminIds.includes(a.id));
       return rank !== 0 ? rank : a.name.localeCompare(b.name);
     });
+
+  useEffect(() => {
+    if (!adding || !iAmAdmin) return;
+    let active = true;
+    void service
+      .listContacts()
+      .then((list) => {
+        if (active) setContacts(list);
+      })
+      .catch(() => {
+        if (active) setContacts([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [adding, iAmAdmin, service]);
+
+  /*
+   * Friends who are not already in the group.
+   *
+   * Same mutual gate as create-group: the server refuses non-friends, so the
+   * list must not offer them. Already-in members are dropped so the picker is
+   * only people you can still act on.
+   */
+  const candidates = useMemo(() => {
+    if (!contacts || !mutuals) return undefined;
+    return contacts.filter(
+      (person) => mutuals.has(person.id) && !memberSet.has(person.id),
+    );
+  }, [contacts, mutuals, memberSet]);
+
+  const matches = useMemo(() => {
+    if (!candidates) return undefined;
+    const term = query.trim().toLowerCase();
+    if (!term) return candidates;
+    return candidates.filter(
+      (person) =>
+        person.name.toLowerCase().includes(term) ||
+        person.handle.toLowerCase().includes(term),
+    );
+  }, [candidates, query]);
 
   const run = async (work: Promise<unknown>) => {
     if (busy) return;
@@ -153,6 +215,32 @@ export function GroupInfoSheet({
     setLink(undefined);
   };
 
+  const togglePick = (id: string) => {
+    setPicked((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const addPicked = async () => {
+    if (picked.size === 0 || busy) return;
+    const ids = [...picked];
+    setBusy(true);
+    setError(undefined);
+    try {
+      await service.addGroupMembers(conversation.id, ids);
+      setPicked(new Set());
+      setQuery('');
+      setAdding(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That did not work.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Sheet
       title={conversation.title}
@@ -222,6 +310,124 @@ export function GroupInfoSheet({
           );
         })}
       </ul>
+
+      {iAmAdmin && (
+        <section className="mt-5 border-t border-line pt-4">
+          <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+            Add people
+          </h3>
+
+          {adding ? (
+            <div className="flex flex-col gap-2.5">
+              <p className="text-caption text-text-tertiary">
+                Only friends can be added directly. For everyone else, use an invite link.
+              </p>
+              <SearchField
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search friends"
+                aria-label="Search friends to add"
+              />
+
+              {matches === undefined ? (
+                <LoadingState label="Loading friends" />
+              ) : matches.length === 0 ? (
+                <p className="py-3 text-caption text-text-tertiary">
+                  {query.trim()
+                    ? 'Nobody by that name among your friends outside this group.'
+                    : 'No friends left to add. Share the invite link instead.'}
+                </p>
+              ) : (
+                <ul className="max-h-56 overflow-y-auto">
+                  {matches.map((person) => {
+                    const on = picked.has(person.id);
+                    return (
+                      <li key={person.id}>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={on}
+                          onClick={() => togglePick(person.id)}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-md px-1 py-2 text-left',
+                            'transition-colors duration-quick',
+                            'hover:bg-surface-hover active:bg-surface-active',
+                          )}
+                        >
+                          <Avatar
+                            name={person.name}
+                            id={person.id}
+                            src={person.avatarUrl}
+                            size="sm"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-body">{person.name}</span>
+                            <span className="block truncate text-caption text-text-tertiary">
+                              @{person.handle}
+                            </span>
+                          </span>
+                          <span
+                            className={cn(
+                              'flex size-6 shrink-0 items-center justify-center rounded-full border',
+                              'transition-colors duration-quick',
+                              on
+                                ? 'border-brand bg-brand text-on-brand'
+                                : 'border-line text-transparent',
+                            )}
+                          >
+                            <CheckIcon size={14} />
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={busy || picked.size === 0}
+                  onClick={() => void addPicked()}
+                >
+                  {picked.size === 0
+                    ? 'Add'
+                    : picked.size === 1
+                      ? 'Add 1 person'
+                      : `Add ${picked.size} people`}
+                </Button>
+                <Button
+                  variant="text"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    setAdding(false);
+                    setPicked(new Set());
+                    setQuery('');
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setAdding(true);
+                setError(undefined);
+              }}
+            >
+              <span className="flex items-center gap-1.5">
+                <PlusIcon size={15} /> Add members
+              </span>
+            </Button>
+          )}
+        </section>
+      )}
 
       {iAmAdmin && (
         <section className="mt-5 border-t border-line pt-4">

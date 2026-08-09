@@ -10,34 +10,25 @@
  * work on. A backdrop is not decoration here; it is the thing that makes every
  * other surface in the app visible as a surface.
  *
+ * ## Per chat, not whole app
+ *
+ * A direct (or AI) wallpaper is personal: yours for that person, on this
+ * device. Changing Ali's chat must not repaint every other thread. A group
+ * wallpaper is the room - one choice, visible to every member - so groups read
+ * from the conversation row the server ships, not from localStorage.
+ *
  * ## Presets are CSS, the custom one is a photograph
  *
  * A preset is a few hundred bytes of gradient, so all of them together cost
- * less than one icon. The custom one is the person's own file, and it is kept
- * exactly as they chose it.
+ * less than one icon. The custom one is the person's own file. For DMs it stays
+ * on device (IndexedDB original + localStorage preview). For groups the photo
+ * is uploaded and its public URL lives on the conversation so everyone sees it.
  *
- * ## Two copies, and why
+ * ## Two copies for local custom photos, and why
  *
- * The original goes into IndexedDB as a `Blob`, untouched - not resized, not
- * re-encoded, not even read. That is the copy you actually see. It never
- * leaves the device, so there is no storage to be careful with beyond the
- * browser's own quota, and being careful was costing the two things that
- * matter: the quality the picture was picked for, and - on an animated GIF -
- * the animation itself. A canvas can only ever hand back one frame, so
- * anything that goes through one arrives as a poster.
- *
- * Beside it, in `localStorage`, sits a small downscaled preview.
- *
- * That is not a hedge, it is the first frame. IndexedDB has to be opened
- * asynchronously, and a conversation that starts plain and gains a wallpaper a
- * moment later is worse than one that never had it. So the preview - a few
- * hundred kilobytes, synchronous, always there - paints immediately, and the
- * original replaces it through `onWallpaperChange` as soon as the store
- * answers. On a still picture the swap is invisible; on a GIF it is the moment
- * it starts moving.
- *
- * The preview is also what the brightness test is run against, since deciding
- * whether a thread needs light text only needs one frame of it.
+ * The original goes into IndexedDB as a `Blob`, untouched. Beside it, in
+ * `localStorage`, sits a small downscaled preview so the first frame is not
+ * blank while IndexedDB opens.
  */
 
 import { STORE, localGet, localSet } from '../../lib/local/db.js';
@@ -110,11 +101,23 @@ export const WALLPAPERS: Wallpaper[] = [
   { id: 'custom', name: 'Your photo' },
 ];
 
-const KEY = 'pingo:wallpaper';
-/** The synchronous preview. The original lives in `STORE.media`. */
-const PHOTO_KEY = 'pingo:wallpaper-photo';
-/** Key of the original inside `STORE.media`. */
-const ORIGINAL = 'wallpaper';
+/** Legacy whole-app key - still read as the fallback when a chat has no override. */
+const GLOBAL_KEY = 'pingo:wallpaper';
+const GLOBAL_PHOTO_KEY = 'pingo:wallpaper-photo';
+const GLOBAL_ORIGINAL = 'wallpaper';
+
+function idKey(conversationId: string): string {
+  return `pingo:wallpaper:${conversationId}`;
+}
+function photoKey(conversationId: string): string {
+  return `pingo:wallpaper-photo:${conversationId}`;
+}
+function darkKey(conversationId: string): string {
+  return `pingo:wallpaper-photo:${conversationId}:dark`;
+}
+function originalKey(conversationId: string): string {
+  return `wallpaper:${conversationId}`;
+}
 
 /**
  * The preview's long edge, in real device pixels.
@@ -139,82 +142,145 @@ const QUALITIES = [0.82, 0.7, 0.6];
  */
 const MAX_PREVIEW = 900_000;
 
-type Listener = () => void;
+type Listener = (conversationId?: string) => void;
 const listeners = new Set<Listener>();
 
-export function chosenWallpaperId(): string {
+function notify(conversationId?: string): void {
+  for (const listen of listeners) listen(conversationId);
+}
+
+/**
+ * Resolved wallpaper choice for a thread.
+ *
+ * For groups, pass the server fields so every member sees the same room.
+ * For DMs/AI, omit them and the local per-chat (or legacy global) choice wins.
+ */
+export interface WallpaperScope {
+  conversationId: string;
+  /** Group/community: server is the source of truth. */
+  shared?: boolean;
+  serverWallpaperId?: string;
+  serverWallpaperPhotoUrl?: string;
+}
+
+/** Object URLs for local custom originals, keyed by conversation id. */
+const originalUrls = new Map<string, string>();
+/** Migrated global original, used only as fallback for chats with no own photo. */
+let globalOriginalUrl: string | undefined;
+
+export function chosenWallpaperId(scope: string | WallpaperScope): string {
+  const conversationId = typeof scope === 'string' ? scope : scope.conversationId;
+  const shared = typeof scope === 'string' ? false : Boolean(scope.shared);
+  const serverId = typeof scope === 'string' ? undefined : scope.serverWallpaperId;
+
+  if (shared) {
+    return serverId && WALLPAPERS.some((w) => w.id === serverId) ? serverId : 'default';
+  }
+
   try {
-    return window.localStorage.getItem(KEY) ?? 'default';
+    return (
+      window.localStorage.getItem(idKey(conversationId)) ??
+      window.localStorage.getItem(GLOBAL_KEY) ??
+      'default'
+    );
   } catch {
     return 'default';
   }
 }
 
 /**
- * The original, once IndexedDB has answered. An object URL, or nothing yet.
- *
- * Module-level rather than passed around because every reader of this file is
- * synchronous by design - see the note at the top - and they all need to get
- * the better copy the moment it exists without any of them knowing it arrived.
+ * The best local custom photo available: original object URL if loaded, else
+ * the synchronous preview. For shared custom wallpapers the server URL is used
+ * instead - see `customWallpaperPhoto`.
  */
-let originalUrl: string | undefined;
+export function customWallpaperPhoto(scope: string | WallpaperScope): string | undefined {
+  const conversationId = typeof scope === 'string' ? scope : scope.conversationId;
+  const shared = typeof scope === 'string' ? false : Boolean(scope.shared);
+  const serverPhoto =
+    typeof scope === 'string' ? undefined : scope.serverWallpaperPhotoUrl;
 
-/** The best copy available right now: the original if it has loaded, else the preview. */
-export function customWallpaperPhoto(): string | undefined {
-  if (originalUrl) return originalUrl;
+  if (shared) {
+    return serverPhoto || undefined;
+  }
+
+  const own = originalUrls.get(conversationId);
+  if (own) return own;
   try {
-    return window.localStorage.getItem(PHOTO_KEY) ?? undefined;
+    const preview = window.localStorage.getItem(photoKey(conversationId));
+    if (preview) return preview;
+    // Legacy whole-app photo until the chat gets its own.
+    if (globalOriginalUrl) return globalOriginalUrl;
+    return window.localStorage.getItem(GLOBAL_PHOTO_KEY) ?? undefined;
   } catch {
     return undefined;
   }
 }
 
-/** Points `originalUrl` at a blob, and releases whatever it pointed at before. */
-function adoptOriginal(blob: Blob | undefined): void {
-  if (originalUrl) URL.revokeObjectURL(originalUrl);
-  originalUrl = blob ? URL.createObjectURL(blob) : undefined;
+function adoptOriginal(conversationId: string, blob: Blob | undefined): void {
+  const previous = originalUrls.get(conversationId);
+  if (previous) URL.revokeObjectURL(previous);
+  if (blob) originalUrls.set(conversationId, URL.createObjectURL(blob));
+  else originalUrls.delete(conversationId);
 }
 
-/**
- * Fetches the original in the background and tells everyone when it lands.
- *
- * Runs on import rather than being wired into a screen: the wallpaper is read
- * by plain functions with no lifecycle of their own, and a chat opened in the
- * first second should not have to wait for a component to remember to ask.
- * Nothing depends on it having finished - until it does, the preview is what
- * `customWallpaperPhoto` returns.
- */
-async function hydrateOriginal(): Promise<void> {
-  const blob = await localGet<Blob>(STORE.media, ORIGINAL);
-  // A picture may have been chosen while this was in flight, and that one is
-  // newer than what the store had when this started.
-  if (!blob || originalUrl) return;
-  adoptOriginal(blob);
-  for (const listen of listeners) listen();
+async function hydrateConversation(conversationId: string): Promise<void> {
+  const blob = await localGet<Blob>(STORE.media, originalKey(conversationId));
+  if (!blob || originalUrls.has(conversationId)) return;
+  adoptOriginal(conversationId, blob);
+  notify(conversationId);
 }
 
-if (typeof window !== 'undefined') void hydrateOriginal();
+async function hydrateGlobalLegacy(): Promise<void> {
+  const blob = await localGet<Blob>(STORE.media, GLOBAL_ORIGINAL);
+  if (!blob || globalOriginalUrl) return;
+  globalOriginalUrl = URL.createObjectURL(blob);
+  notify();
+}
+
+/** Kick off background loads for a chat the user just opened. */
+export function hydrateWallpaper(conversationId: string): void {
+  if (typeof window === 'undefined') return;
+  void hydrateConversation(conversationId);
+}
+
+if (typeof window !== 'undefined') void hydrateGlobalLegacy();
 
 /**
- * The `background-image` for whatever is currently chosen.
+ * The `background-image` for whatever is currently chosen for this scope.
  *
  * Falls back to the default when `custom` is selected and no photo has been
  * stored - a person who picked "your photo" and then cleared their browser
  * data should see a wallpaper, not a blank rectangle.
  */
-export function wallpaperCss(): string {
-  const id = chosenWallpaperId();
+export function wallpaperCss(scope: string | WallpaperScope): string {
+  const id = chosenWallpaperId(scope);
   if (id === 'custom') {
-    const photo = customWallpaperPhoto();
+    const photo = customWallpaperPhoto(scope);
     return photo ? `url(${JSON.stringify(photo)})` : (WALLPAPERS[0]?.css ?? '');
   }
   return WALLPAPERS.find((w) => w.id === id)?.css ?? WALLPAPERS[0]?.css ?? '';
 }
 
 /** True when the current choice needs light text over it. */
-export function wallpaperIsDark(): boolean {
-  const id = chosenWallpaperId();
-  if (id === 'custom') return window.localStorage.getItem(PHOTO_KEY + ':dark') === '1';
+export function wallpaperIsDark(scope: string | WallpaperScope): boolean {
+  const id = chosenWallpaperId(scope);
+  if (id === 'custom') {
+    const conversationId = typeof scope === 'string' ? scope : scope.conversationId;
+    const shared = typeof scope === 'string' ? false : Boolean(scope.shared);
+    if (shared) {
+      // Server custom photos: assume dark-friendly text until we sample remote.
+      // Light text on a light photo is worse than dark text on a dark one for
+      // readability of glass chrome, so prefer dark=true for unknown custom.
+      return true;
+    }
+    try {
+      if (window.localStorage.getItem(darkKey(conversationId)) === '1') return true;
+      if (window.localStorage.getItem(darkKey(conversationId)) === '0') return false;
+      return window.localStorage.getItem(GLOBAL_PHOTO_KEY + ':dark') === '1';
+    } catch {
+      return false;
+    }
+  }
   /*
    * Rain darkens whatever it falls on - a wet blurred pane loses a lot of its
    * brightness - so the thread takes light text under it regardless of what is
@@ -225,8 +291,8 @@ export function wallpaperIsDark(): boolean {
 }
 
 /** True when the choice needs a canvas rather than a CSS background. */
-export function wallpaperIsLive(): boolean {
-  return chosenWallpaperId() === 'rain';
+export function wallpaperIsLive(scope: string | WallpaperScope): boolean {
+  return chosenWallpaperId(scope) === 'rain';
 }
 
 /**
@@ -235,32 +301,117 @@ export function wallpaperIsLive(): boolean {
  * Your photograph if you have one, and otherwise a scene of its own - rain on
  * a window with nothing behind it is just a grey rectangle with dots.
  */
-export function rainScene(): string {
-  return customWallpaperPhoto() ?? '/pingo-splash.jpg';
+export function rainScene(scope: string | WallpaperScope): string {
+  return customWallpaperPhoto(scope) ?? '/pingo-splash.jpg';
 }
 
-export function setWallpaper(id: string): void {
+/** Local (DM/AI) wallpaper pick. Groups use `setGroupWallpaper` on the service. */
+export function setWallpaper(conversationId: string, id: string): void {
   try {
-    window.localStorage.setItem(KEY, id);
+    window.localStorage.setItem(idKey(conversationId), id);
   } catch {
     // A full or blocked store is not a reason to fail the tap; the choice just
     // does not survive the session.
   }
-  for (const listen of listeners) listen();
+  notify(conversationId);
 }
 
 /**
- * Stores a picture as the custom wallpaper, at the size and quality it came in.
+ * Legacy / settings-only global default used when a chat has never been
+ * personalised. Still written from the settings page with no `?c=` param.
+ */
+export function setGlobalWallpaper(id: string): void {
+  try {
+    window.localStorage.setItem(GLOBAL_KEY, id);
+  } catch {
+    // same as setWallpaper
+  }
+  notify();
+}
+
+export function chosenGlobalWallpaperId(): string {
+  try {
+    return window.localStorage.getItem(GLOBAL_KEY) ?? 'default';
+  } catch {
+    return 'default';
+  }
+}
+
+/** Synchronous preview (or original) for the global default custom photo. */
+export function globalCustomWallpaperPhoto(): string | undefined {
+  if (globalOriginalUrl) return globalOriginalUrl;
+  try {
+    return window.localStorage.getItem(GLOBAL_PHOTO_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Stores a custom photo as the whole-app default (settings page, no chat id).
+ * Uses the legacy keys so every unpersonalised chat falls back to the same image.
+ */
+export async function setGlobalWallpaperPhoto(file: Blob): Promise<boolean> {
+  try {
+    const stored = await localSet(STORE.media, GLOBAL_ORIGINAL, file);
+    if (stored === undefined) return false;
+
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, PREVIEW_EDGE / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+
+    const sample = ctx.getImageData(0, 0, w, h).data;
+    let sum = 0;
+    for (let i = 0; i < sample.length; i += 4) {
+      sum += 0.2126 * sample[i]! + 0.7152 * sample[i + 1]! + 0.0722 * sample[i + 2]!;
+    }
+    const luminance = sum / (sample.length / 4);
+
+    let url = '';
+    for (const quality of QUALITIES) {
+      url = canvas.toDataURL('image/jpeg', quality);
+      if (url.length <= MAX_PREVIEW) break;
+    }
+
+    try {
+      if (url && url.length <= MAX_PREVIEW) window.localStorage.setItem(GLOBAL_PHOTO_KEY, url);
+      else window.localStorage.removeItem(GLOBAL_PHOTO_KEY);
+      window.localStorage.setItem(GLOBAL_PHOTO_KEY + ':dark', luminance < 128 ? '1' : '0');
+    } catch {
+      // first frame only
+    }
+
+    if (globalOriginalUrl) URL.revokeObjectURL(globalOriginalUrl);
+    globalOriginalUrl = URL.createObjectURL(file);
+    setGlobalWallpaper('custom');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stores a picture as the custom wallpaper for one chat, at the size and
+ * quality it came in.
  *
  * The file itself is written to IndexedDB untouched. Everything below that is
  * about the preview and the brightness test, neither of which the person ever
  * looks at directly.
  *
- * @returns false when the picture could not be read or the store refused it,
- * so the caller can say so rather than leaving somebody looking at the old one
- * and wondering.
+ * @returns false when the picture could not be read or the store refused it.
  */
-export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
+export async function setWallpaperPhoto(
+  conversationId: string,
+  file: Blob,
+): Promise<boolean> {
   try {
     /*
      * The original first, and byte for byte.
@@ -269,7 +420,7 @@ export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
      * which is how a quota refusal is caught - the alternative is a silent
      * success where the wallpaper simply never comes back after a reload.
      */
-    const stored = await localSet(STORE.media, ORIGINAL, file);
+    const stored = await localSet(STORE.media, originalKey(conversationId), file);
     if (stored === undefined) return false;
 
     /*
@@ -314,20 +465,54 @@ export async function setWallpaperPhoto(file: Blob): Promise<boolean> {
      * which is the behaviour on any second visit anyway.
      */
     try {
-      if (url && url.length <= MAX_PREVIEW) window.localStorage.setItem(PHOTO_KEY, url);
-      else window.localStorage.removeItem(PHOTO_KEY);
-      window.localStorage.setItem(PHOTO_KEY + ':dark', luminance < 128 ? '1' : '0');
+      if (url && url.length <= MAX_PREVIEW) {
+        window.localStorage.setItem(photoKey(conversationId), url);
+      } else {
+        window.localStorage.removeItem(photoKey(conversationId));
+      }
+      window.localStorage.setItem(darkKey(conversationId), luminance < 128 ? '1' : '0');
     } catch {
       // A full store costs the first frame and nothing else.
     }
 
     // Straight onto the real thing - this path has the file in hand and does
-    // not need to wait for `hydrateOriginal` to come round again.
-    adoptOriginal(file);
-    setWallpaper('custom');
+    // not need to wait for hydrate to come round again.
+    adoptOriginal(conversationId, file);
+    setWallpaper(conversationId, 'custom');
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Build a JPEG Blob suitable for uploading as a shared group wallpaper.
+ * Keeps the long edge modest so group members are not downloading multi‑MB
+ * photos just for a backdrop.
+ */
+export async function prepareSharedWallpaperPhoto(file: Blob): Promise<Blob | undefined> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const edge = 1600;
+    const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close();
+      return undefined;
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85),
+    );
+    return blob ?? undefined;
+  } catch {
+    return undefined;
   }
 }
 

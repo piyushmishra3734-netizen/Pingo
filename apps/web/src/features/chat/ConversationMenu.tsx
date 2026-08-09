@@ -212,7 +212,8 @@ export function ConversationMenu({
             label="Chat wallpaper"
             onSelect={() => {
               setOpen(false);
-              navigate('/settings/wallpaper');
+              // Scoped to this thread: DMs stay personal on-device; groups share.
+              navigate(`/settings/wallpaper?c=${encodeURIComponent(conversation.id)}`);
             }}
           />
 

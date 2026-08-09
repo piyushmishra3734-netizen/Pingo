@@ -294,7 +294,15 @@ export function AvatarStack({
       {shown.map((person, index) => (
         <span
           key={person.id}
-          className="rounded-full ring-2 ring-page"
+          /*
+            `inline-grid`, not a plain span with a ring.
+
+            Avatar is `inline-flex`, so a bare ring wrapper becomes a line box
+            and sits on the text baseline with descender space under it - the
+            ring paints an oval (same bug StoryRing fixed with `grid`). Grid
+            removes the line box so the ring is a true circle around the face.
+          */
+          className="inline-grid shrink-0 rounded-full ring-2 ring-page"
           // Negative margin creates the overlap; the ring keeps each face readable.
           style={{ marginLeft: index === 0 ? 0 : -PX[size] * STACK_OVERLAP, zIndex: shown.length - index }}
         >
@@ -305,7 +313,7 @@ export function AvatarStack({
       {overflow > 0 && (
         <span
           className={cn(
-            'grid place-items-center rounded-full bg-sunken ring-2 ring-page',
+            'inline-grid shrink-0 place-items-center rounded-full bg-sunken ring-2 ring-page',
             'font-sans text-caption font-medium text-text-secondary tabular-nums',
           )}
           style={{

@@ -96,6 +96,10 @@ export type ConversationRow = {
   last_message_at: string;
   /** Groups only. A direct chat wears whoever else is in it. */
   avatar_url: string | null;
+  /** Shared wallpaper preset for group/community chats. Optional until migration. */
+  wallpaper_id?: string | null;
+  /** Public URL of a shared custom wallpaper photo (groups only). */
+  wallpaper_photo_url?: string | null;
 };
 
 /** One row of `public.conversation_members`. Per-person state lives here. */
@@ -1028,6 +1032,15 @@ export type Database = {
       };
       update_group: {
         Args: { conv: string; title: string; avatar_url: string | null };
+        Returns: undefined;
+      };
+      /** Any group member. Shared backdrop for the whole room. */
+      set_group_wallpaper: {
+        Args: {
+          conv: string;
+          wallpaper_id: string;
+          wallpaper_photo_url?: string | null;
+        };
         Returns: undefined;
       };
       /** Idempotent - returns the live code rather than minting a second. */

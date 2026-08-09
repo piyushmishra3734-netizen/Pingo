@@ -471,6 +471,21 @@ export interface ChatService {
   ): Promise<void>;
 
   /**
+   * Shared wallpaper for a group or community.
+   *
+   * Any member may set it - decoration, not a roster change. Direct chats do
+   * not use this; their wallpaper is personal and stays on the device.
+   *
+   * `wallpaperId` is a preset id (`default`, `dawn`, …, `custom`). When it is
+   * `custom`, `photoUrl` is required and must be a URL every member can load.
+   */
+  setGroupWallpaper(
+    conversationId: ConversationId,
+    wallpaperId: string,
+    photoUrl?: string,
+  ): Promise<void>;
+
+  /**
    * The group's live invite code, minting one if there is not already one.
    *
    * Idempotent on purpose: opening the invite screen twice must not invalidate

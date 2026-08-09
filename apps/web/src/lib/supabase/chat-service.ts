@@ -1287,6 +1287,13 @@ export class SupabaseChatService implements ChatService {
           // Only groups have ranks, so a direct chat carries an empty list
           // rather than an absent field the screens would have to guard.
           adminIds: roster.filter((m) => m.role === 'admin').map((m) => m.user_id),
+          // Shared room backdrop - direct chats keep wallpaper on-device only.
+          ...((row.kind === 'group' || row.kind === 'community') && row.wallpaper_id
+            ? { wallpaperId: row.wallpaper_id }
+            : {}),
+          ...((row.kind === 'group' || row.kind === 'community') && row.wallpaper_photo_url
+            ? { wallpaperPhotoUrl: row.wallpaper_photo_url }
+            : {}),
           ...(last ? { lastMessage: toMessage(last, theirReadAt) } : {}),
           // Counted in SQL over the real rows, not over whatever this client
           // happened to have fetched.
@@ -2899,6 +2906,20 @@ export class SupabaseChatService implements ChatService {
       conv: conversationId,
       title: changes.title,
       avatar_url: changes.avatarUrl ?? null,
+    });
+    if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  async setGroupWallpaper(
+    conversationId: ConversationId,
+    wallpaperId: string,
+    photoUrl?: string,
+  ): Promise<void> {
+    const { error } = await this.#client.rpc('set_group_wallpaper', {
+      conv: conversationId,
+      wallpaper_id: wallpaperId,
+      wallpaper_photo_url: photoUrl ?? null,
     });
     if (error) throw groupError(error);
     await this.#announce(conversationId);

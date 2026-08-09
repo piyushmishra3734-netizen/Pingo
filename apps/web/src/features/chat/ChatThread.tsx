@@ -46,11 +46,13 @@ import { MessageSelectionBar } from './MessageSelectionBar.js';
 import { startRain } from './rain.js';
 import { startRainSound } from './rain-sound.js';
 import {
+  hydrateWallpaper,
   onWallpaperChange,
   rainScene,
   wallpaperCss,
   wallpaperIsDark,
   wallpaperIsLive,
+  type WallpaperScope,
 } from './wallpaper.js';
 import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
@@ -194,17 +196,47 @@ export function ChatThread({
   /**
    * The wallpaper, and a repaint when it is changed elsewhere.
    *
-   * Read on every render rather than held in state, so an open conversation
-   * shows a new choice the moment the picker sets it - somebody trying
-   * wallpapers is switching back and forth, and a thread that needs a reload
-   * to catch up makes that impossible to judge.
+   * Scoped to this conversation: DMs/AI read localStorage (and IndexedDB for
+   * photos); groups/communities read the shared fields on the conversation so
+   * one member's pick repaints every open client via realtime.
    */
+  const wallpaperScope = useMemo((): WallpaperScope => {
+    const shared =
+      conversation.kind === 'group' || conversation.kind === 'community';
+    return {
+      conversationId: conversation.id,
+      shared,
+      ...(conversation.wallpaperId ? { serverWallpaperId: conversation.wallpaperId } : {}),
+      ...(conversation.wallpaperPhotoUrl
+        ? { serverWallpaperPhotoUrl: conversation.wallpaperPhotoUrl }
+        : {}),
+    };
+  }, [
+    conversation.id,
+    conversation.kind,
+    conversation.wallpaperId,
+    conversation.wallpaperPhotoUrl,
+  ]);
+
   const [wallpaperTick, setWallpaperTick] = useState(0);
-  useEffect(() => onWallpaperChange(() => setWallpaperTick((n) => n + 1)), []);
+  useEffect(() => {
+    hydrateWallpaper(conversation.id);
+    return onWallpaperChange((changedId) => {
+      if (!changedId || changedId === conversation.id) {
+        setWallpaperTick((n) => n + 1);
+      }
+    });
+  }, [conversation.id]);
+
   const wallpaper = useMemo(
-    () => ({ css: wallpaperCss(), dark: wallpaperIsDark(), live: wallpaperIsLive() }),
+    () => ({
+      css: wallpaperCss(wallpaperScope),
+      dark: wallpaperIsDark(wallpaperScope),
+      live: wallpaperIsLive(wallpaperScope),
+      scene: rainScene(wallpaperScope),
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [wallpaperTick],
+    [wallpaperTick, wallpaperScope],
   );
 
   /*
@@ -218,7 +250,7 @@ export function ChatThread({
   const rainRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (!wallpaper.live || !rainRef.current) return;
-    const handle = startRain(rainRef.current, { image: rainScene() });
+    const handle = startRain(rainRef.current, { image: wallpaper.scene });
     // The sound belongs to the same lifetime: it starts with the rain and it
     // stops when you leave the conversation, not when you leave the app.
     const sound = startRainSound();
@@ -226,7 +258,7 @@ export function ChatThread({
       handle.stop();
       sound.stop();
     };
-  }, [wallpaper.live, wallpaperTick]);
+  }, [wallpaper.live, wallpaper.scene, wallpaperTick]);
 
   /*
    * The avatar that was pressed, arriving.

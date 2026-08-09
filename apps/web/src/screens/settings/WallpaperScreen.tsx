@@ -1,17 +1,27 @@
+import { useChat } from '@pingo/core';
 import { CheckIcon, cn } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
 import { useT } from '../../features/i18n/useT.js';
 import {
   WALLPAPERS,
+  chosenGlobalWallpaperId,
   chosenWallpaperId,
   customWallpaperPhoto,
+  globalCustomWallpaperPhoto,
+  hydrateWallpaper,
   onWallpaperChange,
+  prepareSharedWallpaperPhoto,
+  setGlobalWallpaper,
+  setGlobalWallpaperPhoto,
   setWallpaper,
   setWallpaperPhoto,
+  type WallpaperScope,
 } from '../../features/chat/wallpaper.js';
 import { rainSoundEnabled, setRainSoundEnabled } from '../../features/chat/rain-sound.js';
+import { getSupabaseClient } from '../../lib/supabase/client.js';
 
 /**
  * Choosing what sits behind a conversation.
@@ -23,31 +33,181 @@ import { rainSoundEnabled, setRainSoundEnabled } from '../../features/chat/rain-
  * make somebody try each one to find out. The bubble in each swatch is the
  * point: what matters is not whether the picture is nice, it is whether a
  * message is still easy to read on it.
+ *
+ * ## Scoped to a chat when opened from one
+ *
+ * `?c=<conversationId>` means this pick applies only to that thread. Direct
+ * chats store the choice on this device; groups push it to the server so every
+ * member sees the same room. Without `?c=` the page still sets the global
+ * default used for chats that have never been personalised.
  */
 export function WallpaperScreen() {
   const t = useT();
-  const [chosen, setChosen] = useState(chosenWallpaperId);
-  const [photo, setPhoto] = useState(customWallpaperPhoto);
+  const [searchParams] = useSearchParams();
+  const conversationId = searchParams.get('c') ?? undefined;
+  const { conversations, service, currentUser } = useChat();
+
+  const conversation = useMemo(
+    () => (conversationId ? conversations.find((c) => c.id === conversationId) : undefined),
+    [conversations, conversationId],
+  );
+
+  const isGroup =
+    conversation?.kind === 'group' || conversation?.kind === 'community';
+
+  const scope: WallpaperScope | undefined = conversationId
+    ? {
+        conversationId,
+        shared: isGroup,
+        ...(conversation?.wallpaperId ? { serverWallpaperId: conversation.wallpaperId } : {}),
+        ...(conversation?.wallpaperPhotoUrl
+          ? { serverWallpaperPhotoUrl: conversation.wallpaperPhotoUrl }
+          : {}),
+      }
+    : undefined;
+
+  const [chosen, setChosen] = useState(() =>
+    scope ? chosenWallpaperId(scope) : chosenGlobalWallpaperId(),
+  );
+  const [photo, setPhoto] = useState(() =>
+    scope ? customWallpaperPhoto(scope) : globalCustomWallpaperPhoto(),
+  );
   const [sound, setSound] = useState(rainSoundEnabled);
   const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (conversationId) hydrateWallpaper(conversationId);
+  }, [conversationId]);
 
   /*
    * The original arrives after this screen has already rendered, since
    * IndexedDB is opened asynchronously. Without this the swatch would keep
    * showing the small preview - and on a GIF, a still one - until the screen
    * was left and come back to.
+   *
+   * Groups also refresh when the shared row changes under us.
    */
-  useEffect(() => onWallpaperChange(() => setPhoto(customWallpaperPhoto())), []);
+  useEffect(
+    () =>
+      onWallpaperChange(() => {
+        if (scope) {
+          setPhoto(customWallpaperPhoto(scope));
+          setChosen(chosenWallpaperId(scope));
+        } else {
+          setChosen(chosenGlobalWallpaperId());
+        }
+      }),
+    // scope fields are recreated; conversation ids are the real deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conversationId, isGroup, conversation?.wallpaperId, conversation?.wallpaperPhotoUrl],
+  );
 
-  const pick = (id: string) => {
+  useEffect(() => {
+    if (!scope) return;
+    setChosen(chosenWallpaperId(scope));
+    setPhoto(customWallpaperPhoto(scope));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, isGroup, conversation?.wallpaperId, conversation?.wallpaperPhotoUrl]);
+
+  const applyPreset = async (id: string) => {
     if (id === 'custom' && !photo) {
       fileRef.current?.click();
       return;
     }
-    setWallpaper(id);
+
+    setError(undefined);
+
+    if (!conversationId) {
+      setGlobalWallpaper(id);
+      setChosen(id);
+      return;
+    }
+
+    if (isGroup) {
+      setBusy(true);
+      try {
+        await service.setGroupWallpaper(
+          conversationId,
+          id,
+          id === 'custom' ? photo : undefined,
+        );
+        setChosen(id);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'That did not work.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    setWallpaper(conversationId, id);
     setChosen(id);
   };
+
+  const uploadSharedPhoto = async (file: File) => {
+    if (!conversationId || !currentUser) return false;
+    const prepared = await prepareSharedWallpaperPhoto(file);
+    if (!prepared) return false;
+
+    const client = getSupabaseClient();
+    // Avatars bucket only allows uploads under the caller's uid folder.
+    const path = `${currentUser.id}/wallpapers/${conversationId}/${crypto.randomUUID()}.jpg`;
+    const { error: upErr } = await client.storage.from('avatars').upload(path, prepared, {
+      contentType: 'image/jpeg',
+      upsert: false,
+    });
+    if (upErr) return false;
+
+    const { data } = client.storage.from('avatars').getPublicUrl(path);
+    const url = data.publicUrl;
+    await service.setGroupWallpaper(conversationId, 'custom', url);
+    setPhoto(url);
+    setChosen('custom');
+    return true;
+  };
+
+  const onPickFile = async (file: File) => {
+    setError(undefined);
+    setBusy(true);
+    try {
+      if (isGroup && conversationId) {
+        const ok = await uploadSharedPhoto(file);
+        if (!ok) setError('That picture could not be used. Try a smaller one.');
+        return;
+      }
+
+      if (!conversationId) {
+        const ok = await setGlobalWallpaperPhoto(file);
+        if (!ok) {
+          setError('That picture could not be used. Try a smaller one.');
+          return;
+        }
+        setPhoto(globalCustomWallpaperPhoto());
+        setChosen('custom');
+        return;
+      }
+
+      const ok = await setWallpaperPhoto(conversationId, file);
+      if (!ok) {
+        setError('That picture could not be used. Try a smaller one.');
+        return;
+      }
+      setPhoto(customWallpaperPhoto(conversationId));
+      setChosen('custom');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That picture could not be used.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const subtitle = !conversationId
+    ? 'Default for chats that have not been personalised yet. Open a chat menu to set a wallpaper for that chat only.'
+    : isGroup
+      ? 'This wallpaper is shared. Anyone in the group who changes it changes it for everyone.'
+      : 'Only for this chat, on this device. Other people keep their own backdrop.';
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-page">
@@ -62,10 +222,13 @@ export function WallpaperScreen() {
         to keep their last row above the tab bar.
       */}
       <div className="mx-auto min-h-0 w-full max-w-md flex-1 overflow-y-auto px-4 pt-1 pb-28">
-        <p className="pb-4 text-caption text-text-secondary">
-          What sits behind your conversations. It is the same on every chat, and
-          it is stored on this device only.
-        </p>
+        <p className="pb-4 text-caption text-text-secondary">{subtitle}</p>
+
+        {conversation && (
+          <p className="mb-4 truncate text-caption font-medium text-ink">
+            {conversation.title}
+          </p>
+        )}
 
         {error && (
           <p role="alert" className="mb-3 text-caption text-danger">
@@ -114,16 +277,20 @@ export function WallpaperScreen() {
               <button
                 key={wallpaper.id}
                 type="button"
-                onClick={() => pick(wallpaper.id)}
+                disabled={busy}
+                onClick={() => void applyPreset(wallpaper.id)}
                 aria-pressed={selected}
                 className={cn(
                   'focus-ring relative aspect-[3/4] overflow-hidden rounded-xl text-left',
                   'transition-transform duration-instant active:scale-[0.98]',
                   selected ? 'ring-2 ring-brand ring-offset-2 ring-offset-page' : 'ring-1 ring-line',
+                  busy && 'opacity-70',
                 )}
                 style={{
                   backgroundColor: wallpaper.dark ? '#14151d' : 'var(--color-page)',
-                  ...(image ? { backgroundImage: image, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+                  ...(image
+                    ? { backgroundImage: image, backgroundSize: 'cover', backgroundPosition: 'center' }
+                    : {}),
                 }}
               >
                 {/*
@@ -167,6 +334,7 @@ export function WallpaperScreen() {
         {photo && (
           <button
             type="button"
+            disabled={busy}
             onClick={() => fileRef.current?.click()}
             className={cn(
               'focus-ring mt-4 w-full rounded-xl border border-line py-3',
@@ -187,15 +355,7 @@ export function WallpaperScreen() {
             // Cleared first, so picking the same file twice still fires.
             event.target.value = '';
             if (!file) return;
-            setError(undefined);
-            void setWallpaperPhoto(file).then((ok) => {
-              if (!ok) {
-                setError('That picture could not be used. Try a smaller one.');
-                return;
-              }
-              setPhoto(customWallpaperPhoto());
-              setChosen('custom');
-            });
+            void onPickFile(file);
           }}
         />
       </div>
