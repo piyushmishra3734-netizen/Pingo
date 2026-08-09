@@ -973,6 +973,14 @@ export type Database = {
           photos_shared: number;
         }[];
       };
+      /**
+       * Accept an incoming friend request and write the reverse accepted follow
+       * so both people are friends in one step.
+       */
+      accept_friend_request: {
+        Args: { from_user: string };
+        Returns: undefined;
+      };
       /** Deletes every expired snap. Returns how many went. */
       purge_expired_snaps: {
         Args: Record<string, never>;

@@ -414,15 +414,17 @@ export class SupabaseProfileService implements ProfileService {
   }
 
   async acceptFollow(userId: string): Promise<FollowState> {
-    const me = await this.requireUserId();
-
-    // Their row, not mine. RLS also enforces this - the policy only lets the
-    // followee update - so a mistake here fails rather than granting access.
-    const { error } = await this.client
-      .from('follows')
-      .update({ status: 'accepted', responded_at: new Date().toISOString() })
-      .eq('follower_id', userId)
-      .eq('followee_id', me);
+    /*
+     * One tap = friends both ways.
+     *
+     * The old path only flipped their incoming row to `accepted`, so the
+     * accepter still had to "Add back" before `is_mutual` opened calls and
+     * stories. `accept_friend_request` accepts the request *and* writes the
+     * reverse accepted follow under security definer.
+     */
+    const { error } = await this.client.rpc('accept_friend_request', {
+      from_user: userId,
+    });
 
     if (error) rethrow(error);
     return this.followState(userId);

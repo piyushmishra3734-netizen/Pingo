@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 
 /**
- * The follow control, and the only place a follow state changes.
+ * The friend control, and the only place a friendship state changes.
  *
  * ## One state, one button
  *
@@ -17,26 +17,16 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
  * | --- | --- | --- |
  * | `none` | Add friend | nothing between you |
  * | `requested` | Requested | waiting on them |
- * | `incoming` | Accept | waiting on you |
- * | `following` | Requested | they have not added you back |
- * | `follower` | Add back | they are waiting on you |
+ * | `incoming` | Accept | waiting on you — Accept makes you friends |
+ * | `following` | Requested | legacy one-way (heal on next accept path) |
+ * | `follower` | Add back | legacy one-way; rare after accept-both-ways |
  * | `mutual` | Friends | calls, Pings and stories are open |
  *
  * ## Why it says "friend" rather than "follow"
  *
- * The mechanism underneath is a pair of follow rows and always has been, but
- * that is not what the product calls it: a profile counts *Friends*, and the
- * thing that produces one is both people agreeing. A button that says "Follow"
- * above a number that says "Friends" makes the reader do a translation, and
- * they will get it wrong - "following" reads one-way, which is exactly the
- * thing PINGO's gate is not.
- *
- * ## Accepting is not adding back
- *
- * `incoming` → Accept grants *them* access, and leaves you at `follower`. The
- * button then reads "Add back", because being friends needs both directions
- * and letting one tap do both would hand over your stories and calls without
- * saying so.
+ * Under the hood there are still two follow rows (both accepted once friends),
+ * but the product is not a follow graph: one person sends a request, the other
+ * accepts, and they are friends. No second "Add back" step.
  */
 export function FollowButton({
   userId,

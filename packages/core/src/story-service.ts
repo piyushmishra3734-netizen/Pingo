@@ -210,7 +210,7 @@ export const STORY_PHOTO_MS = 5000;
 
 /** Labels for the audience picker, in the order they are offered. */
 export const STORY_AUDIENCES: { value: StoryAudience; label: string; hint: string }[] = [
-  { value: 'friends', label: 'Friends', hint: 'People you follow each other' },
+  { value: 'friends', label: 'Friends', hint: 'People you are friends with' },
   { value: 'close', label: 'Close friends', hint: 'Your list. They see a green ring' },
   { value: 'public', label: 'Everyone', hint: 'Anyone on PINGO' },
   { value: 'custom', label: 'Specific people', hint: 'Only who you choose' },
