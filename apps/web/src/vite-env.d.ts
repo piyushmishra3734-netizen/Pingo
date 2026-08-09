@@ -21,6 +21,12 @@ interface ImportMetaEnv {
    * Security allows. The `service_role` key must never be used here.
    */
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  /**
+   * Canonical public site origin for shareable links (group invites, profiles).
+   * When unset, non-public hosts (localhost / Capacitor) fall back to
+   * https://pingochat.pages.dev.
+   */
+  readonly VITE_PUBLIC_APP_URL?: string;
 }
 
 interface ImportMeta {

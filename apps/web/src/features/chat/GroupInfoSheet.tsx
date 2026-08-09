@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { publicAppUrl } from '../../lib/public-origin.js';
 import { useMutuals } from '../profile/useMutuals.js';
 
 /**
@@ -189,7 +190,7 @@ export function GroupInfoSheet({
   const showLink = () =>
     void run(
       service.groupInviteCode(conversation.id).then((code) => {
-        setLink(`${window.location.origin}/join/${code}`);
+        setLink(publicAppUrl(`/join/${code}`));
       }),
     );
 

@@ -3,6 +3,7 @@ import { Avatar, CheckIcon, SearchField, cn } from '@pingo/ui';
 import { useMemo, useState } from 'react';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
+import { publicAppUrl } from '../../lib/public-origin.js';
 
 /**
  * Passing a story on to a friend or a group.
@@ -68,7 +69,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
     setSending(true);
     setError(undefined);
     try {
-      const link = `${window.location.origin}/profile/${story.authorUsername}`;
+      const link = publicAppUrl(`/profile/${story.authorUsername}`);
       await Promise.all(
         [...chosen].map((conversationId) =>
           service.sendMessage({

@@ -1,6 +1,8 @@
 import { CheckIcon, LinkIcon, ShareIcon, cn } from '@pingo/ui';
 import { useState } from 'react';
 
+import { publicAppUrl } from '../../lib/public-origin.js';
+
 /**
  * Sharing a link to a profile.
  *
@@ -17,7 +19,7 @@ import { useState } from 'react';
 
 /** The public form of a profile link. Deliberately the handle, not the id. */
 export function profileLink(username: string): string {
-  return `${window.location.origin}/profile/${username}`;
+  return publicAppUrl(`/profile/${username}`);
 }
 
 /** The same three actions, as a row of buttons. Used inside the post viewer. */

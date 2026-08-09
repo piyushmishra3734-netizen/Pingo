@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
+import { publicAppUrl } from '../../lib/public-origin.js';
 import { ShareStorySheet } from './ShareStorySheet.js';
 import { StoryActions } from './StoryActions.js';
 import { useStories } from './StoryContext.js';
@@ -242,7 +243,7 @@ export function StoryViewer({
   const owned = story.authorId === currentUserId;
   const muted = mutedAuthors.includes(story.authorId);
   const dragProgress = Math.min(1, dragY / (DISMISS_DISTANCE * 2));
-  const storyUrl = `${window.location.origin}/profile/${story.authorUsername}`;
+  const storyUrl = publicAppUrl(`/profile/${story.authorUsername}`);
 
   // ---- actions ------------------------------------------------------------
 
