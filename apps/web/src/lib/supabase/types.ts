@@ -135,7 +135,8 @@ export type MessageRow = {
   edited_at: string | null;
   kind:
     | 'text' | 'sticker' | 'snap' | 'photo' | 'voice'
-    | 'document' | 'location' | 'contact' | 'event' | 'call';
+    | 'document' | 'location' | 'contact' | 'event' | 'call'
+    | 'system';
   file_path: string | null;
   file_name: string | null;
   file_size: number | null;

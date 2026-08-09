@@ -29,8 +29,9 @@ import { VoiceNote } from './VoiceNote.js';
  * A message bubble.
  *
  * Outgoing messages carry the brand gradient; incoming ones sit on Soft White.
- * That single asymmetry is enough to tell the two apart, so neither needs an
- * avatar, a name, or an alignment marker beside it.
+ * In a 1:1 that is enough — the header already names the other person. In a
+ * group, `authorName` labels the first bubble of each incoming cluster so you
+ * can tell who is talking without opening profiles.
  *
  * Corner shaping does the grouping work: a run of messages from one author keeps
  * square-ish corners where it meets its neighbours and rounds fully at the ends,
@@ -46,6 +47,11 @@ export interface MessageBubbleProps {
   position: 'single' | 'first' | 'middle' | 'last';
   /** Shown on the cluster's final bubble only. */
   showMeta: boolean;
+  /**
+   * Group threads only: name above the first bubble of an incoming cluster.
+   * Direct chats leave this off — the header already says who you are talking to.
+   */
+  authorName?: string;
   /**
    * Spread onto the bubble. Supplied by `MessageMenu`, which owns every way of
    * opening the context menu, docs/13 § 4.5.
@@ -110,6 +116,7 @@ export function MessageBubble({
   mine,
   position,
   showMeta,
+  authorName,
   trigger,
   reactions,
   replyTo,
@@ -130,6 +137,16 @@ export function MessageBubble({
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
   const hasBody = message.body.trim().length > 0;
+  /** First bubble of a group cluster from someone else. */
+  const nameLabel =
+    !mine && authorName && (position === 'first' || position === 'single') ? (
+      <span className="mb-0.5 block truncate px-1 text-caption font-medium text-brand">
+        {authorName}
+      </span>
+    ) : null;
+
+  // System notices are not bubbles at all - they are centred captions.
+  // (handled below after delete branch)
 
   const resolveVoiceUrl = useCallback(
     async (path: string) => {
@@ -209,6 +226,7 @@ export function MessageBubble({
           {...trigger}
           className={cn(arrive, 'max-w-[72%] min-w-0', 'outline-none')}
         >
+          {nameLabel}
           {message.location && <LocationBubble location={message.location} mine={mine} />}
           {message.contact && <ContactBubble contact={message.contact} mine={mine} />}
           {message.event && <EventBubble event={message.event} mine={mine} />}
@@ -233,6 +251,7 @@ export function MessageBubble({
       // Wrapped rather than passed down: the trigger belongs to "this message",
       // not to the picture, and PhotoBubble already owns its own tap.
       <div id={`message-${message.id}`} {...trigger} className="w-full outline-none">
+        {nameLabel}
         <PhotoBubble message={message} photo={message.photo} mine={mine} />
       </div>
     );
@@ -247,6 +266,7 @@ export function MessageBubble({
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
         <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'outline-none')}>
+          {nameLabel}
           <PingBubble message={message} ping={message.ping} mine={mine} />
           <span className="mt-0.5 block text-caption text-text-tertiary">
             {formatTime(message.createdAt)}
@@ -268,6 +288,7 @@ export function MessageBubble({
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
         <div className={arrive}>
+          {nameLabel}
           <img
             src={message.sticker.url}
             // `body` is the emoji fallback, which makes a real alt text.
@@ -312,6 +333,7 @@ export function MessageBubble({
           (voiceNote || file) && 'max-w-[85%] sm:max-w-[22rem]',
         )}
       >
+        {nameLabel}
         <div
           className={cn(
             'px-4 py-2.5',

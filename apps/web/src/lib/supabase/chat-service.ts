@@ -312,6 +312,8 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
      */
     attachments: toAttachments(row),
     reactions: [],
+    // Group membership lines ("Ali added Baani") — plaintext, centred captions.
+    ...(row.kind === 'system' ? { system: true as const } : {}),
     ...(row.edited_at ? { editedAt: Date.parse(row.edited_at) } : {}),
     ...(row.reply_to_id ? { replyToId: row.reply_to_id } : {}),
     // The row survives deletion so replies quoting it keep an anchor. The

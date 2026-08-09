@@ -23,7 +23,15 @@ import {
   cn,
 } from '@pingo/ui';
 import { CloseIcon } from '@pingo/ui';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useSharedElement } from '../../hooks/useSharedElement.js';
@@ -332,6 +340,8 @@ export function ChatThread({
 
   const nameOf = (userId: string) =>
     userId === currentUser?.id ? 'You' : users.find((u) => u.id === userId)?.name;
+
+  const personOf = (userId: string) => users.find((u) => u.id === userId);
 
   const prefersReducedMotion = useCallback(() => {
     if (typeof window === 'undefined') return false;
@@ -1082,6 +1092,52 @@ export function ChatThread({
                           : ('middle' as const);
 
                   const picked = selection?.has(message.id) ?? false;
+                  const mine = message.authorId === currentUser?.id;
+                  const author = personOf(message.authorId);
+                  /*
+                   * Groups only: who said it.
+                   *
+                   * Direct chats have one other person (header). In a group of
+                   * ten, colour-alone bubbles are unreadable — name on the first
+                   * of a cluster, face on the last (WhatsApp-style).
+                   */
+                  const groupTheirs = isGroup && !mine && !message.system;
+                  const authorName = groupTheirs
+                    ? nameOf(message.authorId) ?? author?.handle ?? 'Member'
+                    : undefined;
+                  const showFace =
+                    groupTheirs && (position === 'last' || position === 'single');
+
+                  const bubbleProps = {
+                    message,
+                    mine,
+                    position,
+                    showMeta: index === cluster.length - 1,
+                    ...(authorName ? { authorName } : {}),
+                    replyTo: message.replyToId ? byId.get(message.replyToId) : undefined,
+                    replyToAuthor: message.replyToId
+                      ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
+                      : undefined,
+                  };
+
+                  const withGroupChrome = (node: ReactNode) =>
+                    groupTheirs ? (
+                      <div className="flex w-full items-end gap-2">
+                        <div className="mb-0.5 w-8 shrink-0">
+                          {showFace ? (
+                            <Avatar
+                              name={authorName ?? 'Member'}
+                              id={message.authorId}
+                              src={author?.avatarUrl}
+                              size="xs"
+                            />
+                          ) : null}
+                        </div>
+                        <div className="min-w-0 flex-1">{node}</div>
+                      </div>
+                    ) : (
+                      node
+                    );
 
                   return (
                     <div key={message.id}>
@@ -1114,7 +1170,7 @@ export function ChatThread({
                               between them - two unrelated marks rather than a
                               message and its checkbox.
                             */
-                            message.authorId === currentUser?.id && 'flex-row-reverse',
+                            mine && 'flex-row-reverse',
                             picked ? 'bg-brand-soft' : 'hover:bg-hover',
                           )}
                         >
@@ -1131,65 +1187,26 @@ export function ChatThread({
 
                           {/* Inert: the row above is what receives the tap. */}
                           <span className="pointer-events-none min-w-0 flex-1">
-                            <MessageBubble
-                              message={message}
-                              mine={message.authorId === currentUser?.id}
-                              position={position}
-                              showMeta={index === cluster.length - 1}
-                              replyTo={
-                                message.replyToId ? byId.get(message.replyToId) : undefined
-                              }
-                              replyToAuthor={
-                                message.replyToId
-                                  ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
-                                  : undefined
-                              }
-                            />
+                            {withGroupChrome(<MessageBubble {...bubbleProps} />)}
                           </span>
                         </button>
                       ) : (
                       <SwipeableMessage
-                        mine={message.authorId === currentUser?.id}
+                        mine={mine}
                         // Nothing to answer on a tombstone, so the track stays inert.
-                        enabled={!message.deleted}
+                        enabled={!message.deleted && !message.system}
                         onReply={() => setReplyTo(message)}
                       >
+                      {withGroupChrome(
                       <MessageMenu
                         message={message}
-                        mine={message.authorId === currentUser?.id}
+                        mine={mine}
                         onReply={setReplyTo}
                         onForward={() => undefined}
-                        children={
-                          <MessageBubble
-                            message={message}
-                            mine={message.authorId === currentUser?.id}
-                            position={position}
-                            showMeta={index === cluster.length - 1}
-                            replyTo={
-                              message.replyToId ? byId.get(message.replyToId) : undefined
-                            }
-                            replyToAuthor={
-                              message.replyToId
-                                ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
-                                : undefined
-                            }
-                          />
-                        }
+                        children={<MessageBubble {...bubbleProps} />}
                         render={({ hidden, ...trigger }) => (
                           <MessageBubble
-                            message={message}
-                            mine={message.authorId === currentUser?.id}
-                            position={position}
-                            // One timestamp per cluster, on its final message.
-                            showMeta={index === cluster.length - 1}
-                            replyTo={
-                              message.replyToId ? byId.get(message.replyToId) : undefined
-                            }
-                            replyToAuthor={
-                              message.replyToId
-                                ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
-                                : undefined
-                            }
+                            {...bubbleProps}
                             onJumpToReply={
                               message.replyToId && byId.has(message.replyToId)
                                 ? () => jumpTo(message.replyToId!)
@@ -1213,7 +1230,8 @@ export function ChatThread({
                             }
                           />
                         )}
-                      />
+                      />,
+                      )}
                       </SwipeableMessage>
                       )}
                     </div>
