@@ -328,6 +328,15 @@ const en = {
   'lists.addTo': 'Add to list',
   'lists.namePlaceholder': 'List name',
   'lists.newNameAria': 'New list name',
+
+  // connection banner
+  'connection.offline': 'No internet connection',
+  'connection.offlineDetail': 'Messages will send when you reconnect',
+  'connection.connecting': 'Connecting…',
+  'connection.poor': 'Poor connection',
+  'connection.poorDetail': 'This may take longer than usual',
+  'connection.restored': 'Connected',
+  'connection.reconnected': 'Back online',
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -592,6 +601,13 @@ const enGenz: Catalog = {
   'intro.skip': 'skip',
   'intro.next': 'next',
   'intro.continue': 'continue',
+  'connection.offline': 'no internet',
+  'connection.offlineDetail': "messages'll send when you're back",
+  'connection.connecting': 'connecting…',
+  'connection.poor': 'connection is rough',
+  'connection.poorDetail': 'this might take a sec',
+  'connection.restored': 'connected',
+  'connection.reconnected': 'back online',
 };
 
 const CATALOGS: Record<AppLanguage, Catalog> = {
