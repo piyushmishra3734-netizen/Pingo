@@ -72,7 +72,7 @@ export function LoginMethodScreen() {
               <AppLogo size={48} alt="" />
             </div>
             <h1
-              className="funnel-enter mt-5 text-[1.75rem] font-semibold leading-[1.12] tracking-[-0.03em] text-[#111113]"
+              className="funnel-enter mt-5 text-[1.75rem] font-semibold leading-[1.12] tracking-[-0.03em] text-ink"
               style={{ animationDelay: '25ms' }}
             >
               {t('login.welcomeBack')}

@@ -41,13 +41,18 @@ export interface AppearanceSettings {
  */
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   theme: 'auto',
+  /**
+   * Ink (near-black). Storage key stays `blue` for older installs; the CSS
+   * map for `data-accent=blue` is the ink palette. Purple/green/pink still
+   * recolour the whole product when the user picks them in Appearance.
+   */
   accent: 'blue',
   motion: 'balanced',
   glass: 50,
 };
 
 export const ACCENT_SWATCHES: Record<Exclude<AccentName, 'custom'>, string> = {
-  /** Product default — near-black ink (key kept as `blue` for stored prefs). */
+  /** Default product accent — ink. */
   blue: '#111113',
   purple: '#8b5dff',
   green: '#17a67a',

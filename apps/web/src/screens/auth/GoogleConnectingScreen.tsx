@@ -82,7 +82,7 @@ export function GoogleConnectingScreen() {
         >
           {error ? (
             <>
-              <h1 className="text-[1.75rem] font-semibold tracking-[-0.03em] text-[#111113]">
+              <h1 className="text-[1.75rem] font-semibold tracking-[-0.03em] text-ink">
                 Couldn't connect
               </h1>
               <p role="alert" className="mt-3 text-[0.8125rem] text-[#B42318]">
@@ -91,7 +91,7 @@ export function GoogleConnectingScreen() {
             </>
           ) : (
             <>
-              <h1 className="text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#111113]">
+              <h1 className="text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.03em] text-ink">
                 Connecting
                 <br />
                 to Google

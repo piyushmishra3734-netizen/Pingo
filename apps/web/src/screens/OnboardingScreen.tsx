@@ -45,7 +45,7 @@ export function OnboardingScreen() {
           <h1
             className={cn(
               'funnel-enter mt-9 text-[2rem] font-semibold leading-[1.1]',
-              'tracking-[-0.035em] text-[#111113]',
+              'tracking-[-0.035em] text-ink',
             )}
             style={{ animationDelay: '30ms' }}
           >
@@ -81,14 +81,14 @@ export function OnboardingScreen() {
             {t('welcome.legal')}{' '}
             <Link
               to="/terms"
-              className="font-medium text-[#111113] underline-offset-2 hover:underline"
+              className="font-medium text-brand underline-offset-2 hover:underline"
             >
               {t('welcome.terms')}
             </Link>{' '}
             and{' '}
             <Link
               to="/privacy"
-              className="font-medium text-[#111113] underline-offset-2 hover:underline"
+              className="font-medium text-brand underline-offset-2 hover:underline"
             >
               {t('welcome.privacy')}
             </Link>

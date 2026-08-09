@@ -36,14 +36,14 @@ export function AiPersonalityGrid({
                   'transition-[border-color,background-color,box-shadow] duration-150',
                   'active:scale-[0.98]',
                   selected
-                    ? 'border-ink/20 bg-ink text-white shadow-sm'
-                    : 'border-black/[0.07] bg-sunken/80 text-ink hover:bg-hover',
+                    ? 'border-brand/30 bg-brand text-on-brand shadow-sm'
+                    : 'border-line bg-sunken/80 text-ink hover:bg-hover',
                 )}
               >
                 <span
                   className={cn(
                     'text-[0.875rem] font-medium tracking-[-0.01em]',
-                    selected ? 'text-white' : 'text-ink',
+                    selected ? 'text-on-brand' : 'text-ink',
                   )}
                 >
                   {p.label}
@@ -51,7 +51,7 @@ export function AiPersonalityGrid({
                 <span
                   className={cn(
                     'mt-0.5 text-[0.75rem] leading-snug',
-                    selected ? 'text-white/70' : 'text-text-tertiary',
+                    selected ? 'text-on-brand/70' : 'text-text-tertiary',
                   )}
                 >
                   {p.hint}

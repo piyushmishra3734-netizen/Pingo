@@ -34,7 +34,8 @@ export function PingoLoader({ size = 7, label = 'Loading', className }: PingoLoa
           key={i}
           aria-hidden
           className={cn(
-            'block rounded-full bg-ink',
+            /* brand/dot so Appearance accent retints the wait mark */
+            'block rounded-full bg-brand',
             'motion-safe:animate-loader-dot motion-reduce:opacity-35',
           )}
           style={{

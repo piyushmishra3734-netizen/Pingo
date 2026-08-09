@@ -48,7 +48,7 @@ export function AuthScreen({
           aria-label="Progress"
         >
           <div
-            className="h-full bg-[#111113] transition-[width] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+            className="h-full bg-brand transition-[width] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{ width: `${Math.min(Math.max(progress, 0), 1) * 100}%` }}
           />
         </div>
@@ -72,9 +72,9 @@ export function AuthScreen({
               'funnel-enter text-[0.8125rem] font-medium text-[#6B6B6F]',
               'transition-[color,transform,background-color] duration-100',
               'ease-[cubic-bezier(0.23,1,0.32,1)]',
-              'hover:bg-black/[0.04] hover:text-[#111113]',
+              'hover:bg-hover hover:text-ink',
               'active:scale-[0.97]',
-              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111113]',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
             )}
           >
             <span className="transition-transform duration-100 group-hover:-translate-x-0.5">
@@ -87,7 +87,7 @@ export function AuthScreen({
         )}
 
         <header className="funnel-enter" style={{ animationDelay: '20ms' }}>
-          <h1 className="text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.03em] text-[#111113]">
+          <h1 className="text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.03em] text-ink">
             {title}
           </h1>
           {subtitle && (
@@ -117,22 +117,11 @@ export function AuthScreen({
         )}
 
         {footer && (
-          <div
-            className={cn(
-              'funnel-enter mt-4',
-              '[&_button]:!border-0 [&_button]:!bg-[#111113] [&_button]:!bg-none',
-              '[&_button]:!text-white',
-              '[&_button]:!shadow-[0_1px_2px_rgba(0,0,0,0.08),0_6px_16px_rgba(0,0,0,0.1)]',
-              '[&_button]:hover:!bg-black',
-              '[&_button]:active:!scale-[0.97]',
-              '[&_button]:transition-[transform,background-color,box-shadow]',
-              '[&_button]:duration-100',
-              '[&_button]:ease-[cubic-bezier(0.23,1,0.32,1)]',
-              '[&_button.text-brand]:!bg-transparent [&_button.text-brand]:!text-[#111113]',
-              '[&_button.text-brand]:!shadow-none [&_button.text-brand]:hover:!bg-black/[0.04]',
-            )}
-            style={{ animationDelay: '55ms' }}
-          >
+          <div className="funnel-enter mt-4" style={{ animationDelay: '55ms' }}>
+            {/*
+              Primary Buttons use bg-brand-gradient — accent from Appearance
+              retints them. Do not hardcode black here or purple users conflict.
+            */}
             {footer}
           </div>
         )}

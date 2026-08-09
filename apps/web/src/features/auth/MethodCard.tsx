@@ -2,7 +2,8 @@ import { cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 
 /**
- * Method door — crisp hover, short transitions, solid white (no backdrop-blur).
+ * Method door — neutral card; text is ink (content), focus uses brand ring.
+ * Accent never hardcodes black: focus-ring / hover follow tokens.
  */
 export function MethodCard({
   icon,
@@ -26,19 +27,19 @@ export function MethodCard({
       style={{ animationDelay: `${delayMs}ms` }}
       className={cn(
         'group funnel-enter flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3.5 text-left',
-        'border border-black/[0.07] bg-white',
-        'shadow-[0_1px_2px_rgba(0,0,0,0.03)]',
+        'border border-line bg-white',
+        'shadow-[0_1px_2px_rgba(16,17,20,0.03)]',
         'transition-[transform,border-color,box-shadow] duration-150',
         'ease-[cubic-bezier(0.23,1,0.32,1)]',
-        'hover:border-black/[0.12] hover:shadow-[0_4px_14px_rgba(0,0,0,0.06)]',
+        'hover:border-line-strong hover:shadow-sm',
         'active:scale-[0.985]',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111113]',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
       )}
     >
       <span
         className={cn(
           'grid size-10 shrink-0 place-items-center rounded-[10px]',
-          'bg-[#F0F0F2] text-[#111113]',
+          'bg-sunken text-ink',
           'transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]',
           'group-active:scale-95',
         )}
@@ -49,17 +50,17 @@ export function MethodCard({
 
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
-          <span className="block truncate text-[0.9375rem] font-medium tracking-[-0.01em] text-[#111113]">
+          <span className="block truncate text-[0.9375rem] font-medium tracking-[-0.01em] text-ink">
             {label}
           </span>
           {badge ? (
-            <span className="shrink-0 rounded-md bg-[#F0F0F2] px-1.5 py-0.5 text-[0.6875rem] font-medium text-[#6B6B6F]">
+            <span className="shrink-0 rounded-md bg-selected px-1.5 py-0.5 text-[0.6875rem] font-medium text-brand">
               {badge}
             </span>
           ) : null}
         </span>
         {description ? (
-          <span className="mt-0.5 block truncate text-[0.8125rem] text-[#8B8B90]">
+          <span className="mt-0.5 block truncate text-[0.8125rem] text-text-tertiary">
             {description}
           </span>
         ) : null}
@@ -71,9 +72,9 @@ export function MethodCard({
         viewBox="0 0 24 24"
         fill="none"
         className={cn(
-          'shrink-0 text-[#C4C4C8]',
+          'shrink-0 text-text-tertiary',
           'transition-[transform,color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]',
-          'group-hover:translate-x-0.5 group-hover:text-[#111113]',
+          'group-hover:translate-x-0.5 group-hover:text-brand',
         )}
         aria-hidden
       >

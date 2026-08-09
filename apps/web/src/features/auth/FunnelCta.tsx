@@ -2,7 +2,8 @@ import { cn } from '@pingo/ui';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * Near-black primary — snappy press, no enter sheen (sheen felt laggy).
+ * Primary funnel CTA — uses brand tokens so Appearance accent retints it.
+ * Default product accent is ink (near-black); purple/green/pink still work.
  */
 export function FunnelCta({
   children,
@@ -19,13 +20,13 @@ export function FunnelCta({
       aria-busy={loading || undefined}
       className={cn(
         'relative flex h-12 w-full items-center justify-center rounded-xl',
-        'bg-[#111113] text-[0.9375rem] font-medium tracking-[-0.01em] text-white',
-        'shadow-[0_1px_2px_rgba(0,0,0,0.08),0_6px_16px_rgba(0,0,0,0.1)]',
-        'transition-[transform,background-color,box-shadow] duration-100',
+        'bg-brand-gradient text-on-brand text-[0.9375rem] font-medium tracking-[-0.01em]',
+        'shadow-brand',
+        'transition-[transform,box-shadow,opacity] duration-100',
         'ease-[cubic-bezier(0.23,1,0.32,1)]',
-        'hover:bg-black hover:shadow-[0_2px_8px_rgba(0,0,0,0.12)]',
-        'active:scale-[0.97] active:shadow-none',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111113]',
+        'hover:shadow-lg',
+        'active:scale-[0.97] active:shadow-sm',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
         'disabled:pointer-events-none disabled:opacity-40',
         className,
       )}
@@ -50,11 +51,11 @@ export function FunnelTextLink({
     <button
       type="button"
       className={cn(
-        'rounded-lg px-3 py-2 text-[0.9375rem] font-medium text-[#111113]',
+        'rounded-lg px-3 py-2 text-[0.9375rem] font-medium text-brand',
         'underline-offset-4 transition-[opacity,transform,background-color] duration-100',
         'ease-[cubic-bezier(0.23,1,0.32,1)]',
-        'hover:bg-black/[0.04] hover:underline active:scale-[0.97]',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111113]',
+        'hover:bg-hover hover:underline active:scale-[0.97]',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
         className,
       )}
       {...rest}

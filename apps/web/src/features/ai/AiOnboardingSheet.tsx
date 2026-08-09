@@ -227,7 +227,7 @@ export function AiOnboardingSheet({
                       'focus-ring rounded-full px-3.5 py-2 text-caption font-medium',
                       'transition-colors duration-instant ease-standard',
                       language === l.id
-                        ? 'bg-ink text-white'
+                        ? 'bg-brand text-on-brand'
                         : 'bg-sunken text-text-secondary hover:bg-hover',
                     )}
                   >

@@ -376,8 +376,8 @@ export function AiProfileSheet({
                 className={cn(
                   'pointer-events-none absolute bottom-0 left-1/2 z-[1]',
                   '-translate-x-1/2 translate-y-1/4',
-                  'rounded-full bg-ink px-2.5 py-0.5',
-                  'text-[10px] font-semibold tracking-wide text-white shadow-sm',
+                  'rounded-full bg-brand px-2.5 py-0.5',
+                  'text-[10px] font-semibold tracking-wide text-on-brand shadow-sm',
                 )}
               >
                 Edit
@@ -453,7 +453,7 @@ export function AiProfileSheet({
             {owner && (
               <button
                 type="button"
-                className="mt-2 text-[0.8125rem] font-medium text-ink underline-offset-2 hover:underline"
+                className="mt-2 text-[0.8125rem] font-medium text-brand underline-offset-2 hover:underline"
                 onClick={() =>
                   void saveSharedDefaultBio((prefs.bio?.trim() || faceBio).slice(0, 160))
                 }
@@ -495,7 +495,7 @@ export function AiProfileSheet({
                   className={cn(
                     'flex-1 rounded-lg py-2 text-[0.8125rem] font-medium transition-colors',
                     length === l.id
-                      ? 'bg-white text-ink shadow-sm'
+                      ? 'bg-surface text-ink shadow-sm'
                       : 'text-text-secondary hover:text-ink',
                   )}
                 >
@@ -519,7 +519,7 @@ export function AiProfileSheet({
                   className={cn(
                     'rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors',
                     (prefs.language ?? 'en') === l.id
-                      ? 'bg-ink text-white'
+                      ? 'bg-brand text-on-brand'
                       : 'bg-sunken text-text-secondary hover:text-ink',
                   )}
                 >
@@ -547,7 +547,7 @@ export function AiProfileSheet({
               <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-black/[0.05] pt-3">
                 <button
                   type="button"
-                  className="text-[0.8125rem] font-medium text-ink underline-offset-2 hover:underline"
+                  className="text-[0.8125rem] font-medium text-brand underline-offset-2 hover:underline"
                   onClick={() => setMemoriesOpen(true)}
                 >
                   View & edit memories

@@ -129,7 +129,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
 
     root.setAttribute('data-theme', resolvedTheme);
-    root.setAttribute('data-accent', appearance.accent);
+    /*
+     * Accent drives --color-brand, --gradient-*, --color-dot, hover/focus across
+     * the whole product (buttons, bubbles, chips, loaders, rings). Default is
+     * ink via data-accent=blue; user picks override every surface that reads
+     * brand tokens — not hard-coded blacks.
+     */
+    root.setAttribute('data-accent', appearance.accent || 'blue');
     root.setAttribute('data-motion', appearance.motion);
     root.setAttribute('data-glass', String(appearance.glass));
 
