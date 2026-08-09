@@ -125,28 +125,23 @@ export function AiOnboardingSheet({
           className={cn(
             'animate-panel-in relative w-full max-w-md outline-none',
             'max-h-[min(88vh,40rem)] overflow-y-auto',
-            'glass-surface rounded-2xl border border-line/60 p-0 shadow-lg',
+            'rounded-2xl border border-black/[0.07] bg-white p-0 shadow-[0_16px_48px_rgba(17,17,19,0.12)]',
           )}
         >
           {step === 0 && (
             <div className="flex flex-col items-center px-6 pb-6 pt-10 text-center">
-              <div className="relative">
-                <div
-                  className="absolute -inset-1 rounded-full bg-brand/15 blur-[1px]"
-                  aria-hidden
-                />
+              <div className="relative rounded-full p-1 shadow-[0_8px_24px_rgba(17,17,19,0.1)] ring-1 ring-black/[0.06]">
                 <Avatar
                   name={face}
                   id="pingo-ai"
                   src={pub?.avatarUrl}
                   size="xl"
                   presence="online"
-                  className="relative ring-2 ring-surface shadow-lg"
                 />
               </div>
               <div className="mt-4 flex items-center gap-1.5">
                 <PingoDot state="online" size={6} />
-                <span className="text-caption font-medium text-brand">Always here</span>
+                <span className="text-[0.75rem] font-medium text-text-secondary">Always here</span>
               </div>
               <h2 id={titleId} className="mt-3 text-h1 text-ink">
                 Hey 👋
@@ -227,7 +222,7 @@ export function AiOnboardingSheet({
                       'focus-ring rounded-full px-3.5 py-2 text-caption font-medium',
                       'transition-colors duration-instant ease-standard',
                       language === l.id
-                        ? 'bg-selected text-brand'
+                        ? 'bg-ink text-white'
                         : 'bg-sunken text-text-secondary hover:bg-hover',
                     )}
                   >

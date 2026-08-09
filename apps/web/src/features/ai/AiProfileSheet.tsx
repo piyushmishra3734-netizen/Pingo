@@ -22,7 +22,10 @@ import {
 } from './personalities.js';
 
 /**
- * Contact-style editor for PINGO AI — not a model control panel.
+ * Contact-style editor for PINGO AI.
+ *
+ * Profile card on top (cover + face + identity), then calm settings cards.
+ * Ink product chrome — not a leftover purple control panel.
  */
 export function AiProfileSheet({
   conversationId,
@@ -48,13 +51,18 @@ export function AiProfileSheet({
   const [memoriesOpen, setMemoriesOpen] = useState(false);
   const [memoryCount, setMemoryCount] = useState(0);
 
-  useEffect(() => {
+  const refreshMemoryCount = () => {
     if (!profile) return;
     void getSupabaseClient()
       .from('ai_memories')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', profile.id)
       .then(({ count }) => setMemoryCount(count ?? 0));
+  };
+
+  useEffect(() => {
+    refreshMemoryCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, memoriesOpen]);
 
   useEffect(() => {
@@ -111,8 +119,7 @@ export function AiProfileSheet({
         setPub((p) => (p ? { ...p, avatarUrl: url } : p));
       }
 
-      const patch =
-        kind === 'avatar' ? { avatar_url: url } : { banner_url: url };
+      const patch = kind === 'avatar' ? { avatar_url: url } : { banner_url: url };
       await savePrefs(patch);
     } catch (cause) {
       setError(
@@ -129,7 +136,6 @@ export function AiProfileSheet({
 
   const savePrefs = async (patch: Partial<AiProfileRow>) => {
     if (!profile) return;
-    // Leaving custom mode must drop stale custom text so the model ignores it.
     if (patch.personality && patch.personality !== 'custom') {
       patch = { ...patch, custom_personality: null };
     }
@@ -167,7 +173,6 @@ export function AiProfileSheet({
     }
   };
 
-  /** Owner-only: default bio every new user sees until they write their own. */
   const saveSharedDefaultBio = async (bio: string) => {
     if (!owner) return;
     setBusy(true);
@@ -208,6 +213,7 @@ export function AiProfileSheet({
     });
     if (!go) return;
     await getSupabaseClient().from('ai_memories').delete().eq('user_id', profile.id);
+    setMemoryCount(0);
   };
 
   const clearChat = async () => {
@@ -235,17 +241,21 @@ export function AiProfileSheet({
     navigate('/chats');
   };
 
+  const field =
+    'w-full rounded-xl border border-black/[0.07] bg-white px-3.5 py-2.5 text-[0.9375rem] text-ink ' +
+    'placeholder:text-text-tertiary outline-none transition-[border-color,box-shadow] duration-150 ' +
+    'focus:border-black/20 focus:shadow-[0_0_0_3px_rgba(17,17,19,0.06)]';
+
   return (
     <>
-      {/*
-        Full-bleed premium card: banner edge-to-edge, face overlapping cover,
-        rest of the form scrolls with it as one surface.
-      */}
       <Sheet
-        title="About them"
+        title={`${faceName} — AI profile`}
         hideTitle
         onClose={onClose}
-        className="max-h-[min(92vh,44rem)] max-w-md overflow-x-hidden overflow-y-auto p-0 sm:max-w-md"
+        className={cn(
+          'max-h-[min(92vh,46rem)] max-w-md overflow-x-hidden overflow-y-auto p-0',
+          'sm:max-w-md sm:rounded-2xl',
+        )}
       >
         <input
           ref={avatarFileRef}
@@ -270,50 +280,87 @@ export function AiProfileSheet({
           }}
         />
 
-        {/* Full-width banner — no side padding so the right edge is complete */}
+        {/* Sticky chrome: close always reachable */}
+        <div
+          className={cn(
+            'sticky top-0 z-20 flex items-center justify-between gap-3',
+            'border-b border-black/[0.05] bg-surface/95 px-4 py-3 backdrop-blur-md',
+          )}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            className={cn(
+              'rounded-lg px-2 py-1.5 text-[0.8125rem] font-medium text-text-secondary',
+              'transition-colors hover:bg-black/[0.04] hover:text-ink',
+              'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+            )}
+          >
+            Close
+          </button>
+          <span className="text-[0.8125rem] font-medium tracking-[-0.01em] text-text-tertiary">
+            About them
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className={cn(
+              'rounded-lg px-2.5 py-1.5 text-[0.8125rem] font-semibold text-ink',
+              'transition-colors hover:bg-black/[0.04]',
+              'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+              'disabled:opacity-40',
+            )}
+          >
+            Done
+          </button>
+        </div>
+
+        {/* Cover */}
         <div className="relative w-full">
-          <div className="relative h-40 w-full overflow-hidden bg-brand/20 sm:h-44">
+          <div className="relative h-36 w-full overflow-hidden bg-[#E8E8EA] sm:h-40">
             {bannerSrc ? (
-              <img
-                src={bannerSrc}
-                alt=""
-                className="absolute inset-0 size-full object-cover"
-              />
+              <img src={bannerSrc} alt="" className="absolute inset-0 size-full object-cover" />
             ) : (
               <div
                 className="absolute inset-0"
                 style={{
                   background:
-                    'linear-gradient(135deg, color-mix(in srgb, var(--color-brand) 35%, transparent) 0%, color-mix(in srgb, var(--color-brand-alt, var(--color-brand)) 18%, transparent) 55%, transparent 100%)',
+                    'radial-gradient(90% 80% at 20% 0%, rgb(17 17 19 / 0.08), transparent 55%),' +
+                    'radial-gradient(70% 60% at 90% 40%, rgb(60 70 90 / 0.1), transparent 50%),' +
+                    'linear-gradient(160deg, #F0F0F2 0%, #E4E5E8 100%)',
                 }}
               />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-surface/90 via-surface/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/20 to-transparent" />
             <button
               type="button"
               onClick={() => bannerFileRef.current?.click()}
               disabled={busy}
               className={cn(
                 'absolute top-3 right-3 z-10 rounded-full px-3 py-1.5',
-                'glass-surface text-caption font-medium text-ink shadow-sm',
-                'outline-none focus-visible:outline focus-visible:outline-2',
-                'focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
+                'border border-black/[0.06] bg-white/90 text-[0.75rem] font-medium text-ink shadow-sm',
+                'transition-transform active:scale-[0.97]',
+                'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                'disabled:opacity-50',
               )}
             >
               {bannerSrc ? 'Change cover' : 'Add cover'}
             </button>
           </div>
 
-          {/* Face sits half on the banner — premium profile rhythm */}
-          <div className="relative -mt-12 flex flex-col items-center px-5 pb-4 text-center">
+          {/* Identity */}
+          <div className="relative -mt-11 flex flex-col items-center px-5 pb-5 text-center">
             <button
               type="button"
               onClick={() => avatarFileRef.current?.click()}
               disabled={busy}
               className={cn(
-                'relative rounded-full bg-surface p-1 shadow-lg',
-                'outline-none focus-visible:outline focus-visible:outline-2',
-                'focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
+                'relative rounded-full bg-surface p-1 shadow-[0_4px_20px_rgba(17,17,19,0.12)]',
+                'ring-1 ring-black/[0.06]',
+                'transition-transform active:scale-[0.98]',
+                'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                'disabled:opacity-50',
               )}
               aria-label="Change photo"
             >
@@ -326,73 +373,96 @@ export function AiProfileSheet({
               />
               <span
                 className={cn(
-                  'pointer-events-none absolute bottom-1 right-1 rounded-full',
-                  'bg-brand px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm',
+                  'pointer-events-none absolute inset-x-0 bottom-0 translate-y-1/3',
+                  'mx-auto w-fit rounded-full bg-ink px-2.5 py-0.5',
+                  'text-[10px] font-semibold tracking-wide text-white shadow-sm',
                 )}
               >
                 Edit
               </span>
             </button>
-            <div className="mt-3 flex items-center gap-1.5">
+
+            <div className="mt-5 flex items-center gap-1.5">
               <PingoDot state="online" size={6} />
-              <span className="text-caption font-medium text-brand">Always here</span>
+              <span className="text-[0.75rem] font-medium text-text-secondary">Always here</span>
             </div>
-            <h2 className="mt-1.5 text-h1 text-ink">{faceName}</h2>
-            <p className="mt-1 text-caption text-text-tertiary">
+            <h2 className="mt-1.5 text-[1.5rem] font-semibold tracking-[-0.03em] text-ink">
+              {faceName}
+            </h2>
+            <p className="mt-0.5 text-[0.8125rem] text-text-tertiary">
               @{pub?.username ?? 'pingo_ai'}
+            </p>
+            <p className="mt-2 max-w-[18rem] text-[0.8125rem] leading-relaxed text-text-secondary">
+              {faceBio}
             </p>
           </div>
         </div>
 
-        <div className="space-y-5 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-1">
-          <Section title="Name">
+        <div className="space-y-3 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <Card>
+            <Label>Their name</Label>
             <input
               value={prefs.display_name ?? faceName}
-              onChange={(e) => setPrefs((r) => ({ ...r, display_name: e.target.value.slice(0, 40) }))}
+              onChange={(e) =>
+                setPrefs((r) => ({ ...r, display_name: e.target.value.slice(0, 40) }))
+              }
               onBlur={() => void savePrefs({ display_name: prefs.display_name })}
-              className="focus-ring w-full rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
+              className={field}
             />
-          </Section>
+          </Card>
 
-          <Section title="Bio">
+          <Card>
+            <Label>Your name for them</Label>
+            <input
+              value={prefs.preferred_name ?? ''}
+              onChange={(e) =>
+                setPrefs((r) => ({ ...r, preferred_name: e.target.value.slice(0, 40) }))
+              }
+              onBlur={() =>
+                void savePrefs({ preferred_name: prefs.preferred_name?.trim() || null })
+              }
+              placeholder={profile?.displayName || 'What they call you'}
+              className={field}
+            />
+            <Hint>How they address you in chat</Hint>
+          </Card>
+
+          <Card>
+            <Label>Bio</Label>
             <textarea
               value={prefs.bio ?? ''}
-              onChange={(e) =>
-                setPrefs((r) => ({ ...r, bio: e.target.value.slice(0, 160) }))
-              }
+              onChange={(e) => setPrefs((r) => ({ ...r, bio: e.target.value.slice(0, 160) }))}
               onBlur={() => void savePrefs({ bio: prefs.bio ?? null })}
               rows={3}
-              className="focus-ring w-full resize-none rounded-2xl border border-line/50 bg-sunken px-3 py-2.5 text-body text-ink"
+              className={cn(field, 'resize-none')}
               placeholder={
                 pub?.bio?.trim() ||
                 'Always down to chat. Your study buddy. Whatever fits them.'
               }
             />
-            <p className="mt-1.5 text-caption text-text-tertiary">
+            <Hint>
               How they show up for you
               {prefs.bio?.trim()
                 ? ''
                 : pub?.bio?.trim()
                   ? ` · default: “${pub.bio.trim()}”`
                   : ''}
-              .
-            </p>
+            </Hint>
             {owner && (
               <button
                 type="button"
-                className="focus-ring mt-2 text-caption font-medium text-brand"
+                className="mt-2 text-[0.8125rem] font-medium text-ink underline-offset-2 hover:underline"
                 onClick={() =>
-                  void saveSharedDefaultBio(
-                    (prefs.bio?.trim() || faceBio).slice(0, 160),
-                  )
+                  void saveSharedDefaultBio((prefs.bio?.trim() || faceBio).slice(0, 160))
                 }
               >
                 Use this as default for everyone
               </button>
             )}
-          </Section>
+          </Card>
 
-          <Section title="Personality">
+          <Card>
+            <Label>Personality</Label>
             <AiPersonalityGrid
               value={personality}
               customText={prefs.custom_personality ?? ''}
@@ -402,7 +472,7 @@ export function AiProfileSheet({
             {personality === 'custom' && (
               <Button
                 variant="secondary"
-                className="mt-2 w-full"
+                className="mt-3 w-full"
                 onClick={() =>
                   void savePrefs({ custom_personality: prefs.custom_personality ?? null })
                 }
@@ -410,109 +480,112 @@ export function AiProfileSheet({
                 Save custom vibe
               </Button>
             )}
-          </Section>
+          </Card>
 
-          <Section title="Response style">
-            <div className="flex gap-1.5">
+          <Card>
+            <Label>Response style</Label>
+            <div className="flex gap-1.5 rounded-xl bg-sunken p-1">
               {RESPONSE_LENGTHS.map((l) => (
                 <button
                   key={l.id}
                   type="button"
                   onClick={() => void savePrefs({ response_length: l.id })}
                   className={cn(
-                    'flex-1 rounded-full py-2 text-caption font-medium',
-                    length === l.id ? 'bg-selected text-brand' : 'bg-sunken text-text-secondary',
+                    'flex-1 rounded-lg py-2 text-[0.8125rem] font-medium transition-colors',
+                    length === l.id
+                      ? 'bg-white text-ink shadow-sm'
+                      : 'text-text-secondary hover:text-ink',
                   )}
                 >
                   {l.label}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-caption text-text-tertiary" aria-live="polite">
+            <p className="mt-2 text-[0.75rem] leading-snug text-text-tertiary" aria-live="polite">
               {lengthPreview}
             </p>
-          </Section>
+          </Card>
 
-          <Section title="Language">
-            <div className="flex flex-wrap gap-2">
+          <Card>
+            <Label>Language</Label>
+            <div className="flex flex-wrap gap-1.5">
               {langs.slice(0, 10).map((l) => (
                 <button
                   key={l.id}
                   type="button"
                   onClick={() => void savePrefs({ language: l.id })}
                   className={cn(
-                    'rounded-full px-3 py-1.5 text-caption font-medium',
+                    'rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors',
                     (prefs.language ?? 'en') === l.id
-                      ? 'bg-selected text-brand'
-                      : 'bg-sunken text-text-secondary',
+                      ? 'bg-ink text-white'
+                      : 'bg-sunken text-text-secondary hover:text-ink',
                   )}
                 >
                   {l.label}
                 </button>
               ))}
             </div>
-          </Section>
+          </Card>
 
-          <Section title="Memory">
-            <div className="rounded-2xl border border-line/50 bg-surface px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-body text-ink">Remember things about me</p>
-                  <p className="text-caption text-text-tertiary">
-                    Only with your permission. You can edit or erase anytime.
-                  </p>
-                </div>
-                <Toggle
-                  checked={Boolean(prefs.memory_enabled ?? true)}
-                  onChange={(memory_enabled) => void savePrefs({ memory_enabled })}
-                  label="Remember things about me"
-                />
+          <Card>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[0.9375rem] font-medium text-ink">Remember things about me</p>
+                <p className="mt-0.5 text-[0.75rem] leading-snug text-text-tertiary">
+                  Only with your permission. Edit or erase anytime.
+                </p>
               </div>
-              {prefs.memory_enabled !== false && (
-                <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line/40 pt-3">
-                  <button
-                    type="button"
-                    className="focus-ring text-caption font-medium text-brand"
-                    onClick={() => setMemoriesOpen(true)}
-                  >
-                    View & edit memories
-                    {memoryCount > 0 ? ` (${memoryCount})` : ''}
-                  </button>
-                  <span className="text-caption text-text-tertiary">
-                    Sirf jab bole “yaad rakh …” / “remember …” tab save
-                  </span>
-                </div>
-              )}
+              <Toggle
+                checked={Boolean(prefs.memory_enabled ?? true)}
+                onChange={(memory_enabled) => void savePrefs({ memory_enabled })}
+                label="Remember things about me"
+              />
             </div>
-          </Section>
+            {prefs.memory_enabled !== false && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-black/[0.05] pt-3">
+                <button
+                  type="button"
+                  className="text-[0.8125rem] font-medium text-ink underline-offset-2 hover:underline"
+                  onClick={() => setMemoriesOpen(true)}
+                >
+                  View & edit memories
+                  {memoryCount > 0 ? ` (${memoryCount})` : ''}
+                </button>
+                <span className="text-[0.75rem] text-text-tertiary">
+                  Saves when you say “remember…” / “yaad rakh…”
+                </span>
+              </div>
+            )}
+          </Card>
 
-          <Section title="Privacy">
-            <div className="space-y-2 rounded-2xl border border-line/40 bg-sunken/50 px-3 py-3 text-caption leading-relaxed text-text-secondary">
+          <Card>
+            <Label>Privacy</Label>
+            <div className="space-y-1.5 text-[0.8125rem] leading-relaxed text-text-secondary">
               <p>Messages here are processed so they can reply.</p>
-              <p>Processing copies are cleaned up automatically after about 24 hours.</p>
+              <p>Processing copies clean up after about 24 hours.</p>
               <p>This chat is not end-to-end encrypted.</p>
             </div>
-          </Section>
+          </Card>
 
-          <Section title="Advanced">
-            <div className="space-y-1">
+          <Card>
+            <Label>Advanced</Label>
+            <div className="divide-y divide-black/[0.05]">
               <AdvRow label="Reset personality" onClick={() => void resetPersonality()} />
               <AdvRow label="Reset memory" onClick={() => void resetMemory()} />
               {conversationId && (
                 <>
                   <AdvRow label="Clear conversation" onClick={() => void clearChat()} />
-                  <AdvRow
-                    label="Delete AI chat"
-                    danger
-                    onClick={() => void deleteChat()}
-                  />
+                  <AdvRow label="Delete AI chat" danger onClick={() => void deleteChat()} />
                 </>
               )}
             </div>
-          </Section>
+          </Card>
 
           {error && (
-            <p className="text-center text-caption text-danger/90" role="alert">
+            <p
+              className="rounded-xl bg-[#FEF2F2] px-3 py-2.5 text-center text-[0.8125rem] text-[#B42318]"
+              role="alert"
+            >
               {error}
             </p>
           )}
@@ -528,13 +601,29 @@ export function AiProfileSheet({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ children }: { children: React.ReactNode }) {
   return (
-    <section>
-      <h3 className="mb-2 text-caption font-medium text-text-secondary">{title}</h3>
+    <section
+      className={cn(
+        'rounded-2xl border border-black/[0.06] bg-white p-4',
+        'shadow-[0_1px_2px_rgba(17,17,19,0.03)]',
+      )}
+    >
       {children}
     </section>
   );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="mb-2 text-[0.75rem] font-medium tracking-[-0.01em] text-text-secondary">
+      {children}
+    </h3>
+  );
+}
+
+function Hint({ children }: { children: React.ReactNode }) {
+  return <p className="mt-1.5 text-[0.75rem] leading-snug text-text-tertiary">{children}</p>;
 }
 
 function AdvRow({
@@ -551,8 +640,9 @@ function AdvRow({
       type="button"
       onClick={onClick}
       className={cn(
-        'focus-ring flex w-full items-center rounded-xl px-2 py-2.5 text-left text-body',
-        'hover:bg-hover',
+        'flex w-full items-center py-2.5 text-left text-[0.9375rem]',
+        'transition-colors first:pt-0 last:pb-0',
+        'hover:opacity-80 active:opacity-60',
         danger ? 'text-danger' : 'text-ink',
       )}
     >

@@ -25,22 +25,37 @@ export function AiPersonalityGrid({
         {PERSONALITIES.map((p) => {
           const selected = value === p.id;
           return (
-            <li key={p.id}>
+            <li key={p.id} className="min-w-0">
               <button
                 type="button"
                 role="radio"
                 aria-checked={selected}
                 onClick={() => onChange(p.id)}
                 className={cn(
-                  'focus-ring flex w-full flex-col rounded-2xl border px-3 py-3 text-left',
-                  'transition-[border-color,background-color,transform,opacity] duration-quick ease-standard',
+                  'flex w-full flex-col rounded-xl border px-3 py-2.5 text-left',
+                  'transition-[border-color,background-color,box-shadow] duration-150',
+                  'active:scale-[0.98]',
                   selected
-                    ? 'scale-[1.02] border-brand/35 bg-selected shadow-sm'
-                    : 'border-line/50 bg-surface hover:bg-hover',
+                    ? 'border-ink/20 bg-ink text-white shadow-sm'
+                    : 'border-black/[0.07] bg-sunken/80 text-ink hover:bg-hover',
                 )}
               >
-                <span className="text-body font-medium text-ink">{p.label}</span>
-                <span className="mt-0.5 text-caption text-text-tertiary">{p.hint}</span>
+                <span
+                  className={cn(
+                    'text-[0.875rem] font-medium tracking-[-0.01em]',
+                    selected ? 'text-white' : 'text-ink',
+                  )}
+                >
+                  {p.label}
+                </span>
+                <span
+                  className={cn(
+                    'mt-0.5 text-[0.75rem] leading-snug',
+                    selected ? 'text-white/70' : 'text-text-tertiary',
+                  )}
+                >
+                  {p.hint}
+                </span>
               </button>
             </li>
           );
@@ -54,14 +69,19 @@ export function AiPersonalityGrid({
           rows={2}
           placeholder="Describe the vibe in a sentence"
           className={cn(
-            'focus-ring w-full resize-none rounded-2xl border border-line/50 bg-sunken',
-            'px-3 py-2.5 text-body text-ink',
+            'w-full resize-none rounded-xl border border-black/[0.07] bg-white',
+            'px-3 py-2.5 text-[0.9375rem] text-ink',
+            'placeholder:text-text-tertiary outline-none',
+            'focus:border-black/20 focus:shadow-[0_0_0_3px_rgba(17,17,19,0.06)]',
           )}
         />
       )}
 
       <p
-        className="rounded-2xl border border-line/40 bg-sunken/60 px-3 py-2.5 text-caption leading-snug text-text-secondary"
+        className={cn(
+          'rounded-xl border border-black/[0.05] bg-sunken/70 px-3 py-2.5',
+          'text-[0.75rem] leading-snug text-text-secondary',
+        )}
         aria-live="polite"
       >
         <span className="font-medium text-text-tertiary">Preview · </span>
