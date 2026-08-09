@@ -31,23 +31,23 @@ export function ChatsSettingsScreen() {
 
   return (
     <SettingsPage title={t('page.chats')}>
-      <Group title="Reading" note="Font size rescales the entire app, not only messages.">
+      <Group title={t('chatsSet.groupReading')} note={t('chatsSet.fontNote')}>
         <ChoiceRow
-          label="Font Size"
+          label={t('chatsSet.fontSize')}
           value={c.fontSize}
           options={[
-            { value: 'small', label: 'Small' },
-            { value: 'medium', label: 'Medium' },
-            { value: 'large', label: 'Large' },
+            { value: 'small', label: t('choice.small') },
+            { value: 'medium', label: t('choice.medium') },
+            { value: 'large', label: t('choice.large') },
           ]}
           onChange={(fontSize) => update('chats', { fontSize })}
         />
         <ChoiceRow
-          label="Bubble Style"
+          label={t('chatsSet.bubbleStyle')}
           value={c.bubbleStyle}
           options={[
-            { value: 'rounded', label: 'Rounded' },
-            { value: 'classic', label: 'Classic' },
+            { value: 'rounded', label: t('chatsSet.bubbleRounded') },
+            { value: 'classic', label: t('chatsSet.bubbleClassic') },
           ]}
           onChange={(bubbleStyle) => update('chats', { bubbleStyle })}
         />
@@ -56,63 +56,56 @@ export function ChatsSettingsScreen() {
           It now goes where it always looked like it went.
         */}
         <InfoRow
-          label="Default wallpaper"
-          value={wallpaper?.name ?? 'Default'}
+          label={t('chatsSet.defaultWallpaper')}
+          value={wallpaper?.name ?? t('choice.default')}
           onClick={() => navigate('/settings/wallpaper')}
         />
       </Group>
 
-      <p className="px-1 pb-2 text-caption text-text-tertiary">
-        Default wallpaper is the fallback for chats that have none of their own. Open a chat
-        menu to set a wallpaper for that chat only - personal for DMs, shared for groups.
-      </p>
+      <p className="px-1 pb-2 text-caption text-text-tertiary">{t('chatsSet.wallpaperHint')}</p>
 
-      <Group title="Media">
+      <Group title={t('chatsSet.groupMedia')}>
         <ChoiceRow
-          label="Auto Download"
-          description="When to fetch photos and videos automatically."
+          label={t('chatsSet.autoDownload')}
+          description={t('chatsSet.autoDownloadHint')}
           value={c.autoDownload}
           options={[
-            { value: 'always', label: 'Always' },
-            { value: 'wifi', label: 'Wi-Fi' },
-            { value: 'never', label: 'Never' },
+            { value: 'always', label: t('choice.always') },
+            { value: 'wifi', label: t('choice.wifi') },
+            { value: 'never', label: t('choice.never') },
           ]}
           onChange={(autoDownload) => update('chats', { autoDownload })}
         />
       </Group>
 
-      <Group title="Behaviour">
+      <Group title={t('chatsSet.groupBehaviour')}>
         <ToggleRow
-          label="Enter to Send"
-          description="Off means Enter adds a newline and the send button posts."
+          label={t('chatsSet.enterToSend')}
+          description={t('chatsSet.enterToSendHint')}
           checked={c.enterToSend}
           onChange={(enterToSend) => update('chats', { enterToSend })}
         />
         <ToggleRow
-          label="Swipe Actions"
-          description="Swipe a chat right to pin it, left to archive it."
+          label={t('chatsSet.swipeActions')}
+          description={t('chatsSet.swipeActionsHint')}
           checked={c.swipeActions}
           onChange={(swipeActions) => update('chats', { swipeActions })}
         />
         <ToggleRow
-          label="Keep Chats Archived"
-          description="On, archived chats stay archived when new messages arrive. Off, they return to the list."
+          label={t('chatsSet.keepArchived')}
+          description={t('chatsSet.keepArchivedHint')}
           checked={c.keepArchived}
           onChange={(keepArchived) => update('chats', { keepArchived })}
         />
         <ToggleRow
-          label="Keep PINGO near the top"
-          description="Unread chats from people still come first. Off uses ordinary pin and recency only."
+          label={t('chatsSet.pinAi')}
+          description={t('chatsSet.pinAiHint')}
           checked={c.pinAiToTop}
           onChange={(pinAiToTop) => update('chats', { pinAiToTop })}
         />
       </Group>
 
-      <p className="px-1 pb-4 text-caption text-text-tertiary">
-        Font Size, Enter to Send, Swipe Actions, Keep Chats Archived, Keep PINGO near the top and
-        wallpapers take effect now. Bubble style and auto-download are saved for when those features
-        ship fully.
-      </p>
+      <p className="px-1 pb-4 text-caption text-text-tertiary">{t('chatsSet.footer')}</p>
     </SettingsPage>
   );
 }

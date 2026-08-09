@@ -62,49 +62,49 @@ export function CallsSettingsScreen() {
         void context.close();
       };
     } catch {
-      setMicError('No microphone, or permission was refused.');
+      setMicError(t('callSet.micError'));
     }
   };
 
   return (
     <SettingsPage title={t('page.calls')}>
-      <Group title="Audio">
+      <Group title={t('callSet.groupAudio')}>
         <ToggleRow
-          label="Noise Cancellation"
+          label={t('callSet.noise')}
           checked={c.noiseCancellation}
           onChange={(noiseCancellation) => update('calls', { noiseCancellation })}
         />
         <ToggleRow
-          label="Echo Cancellation"
+          label={t('callSet.echo')}
           checked={c.echoCancellation}
           onChange={(echoCancellation) => update('calls', { echoCancellation })}
         />
         <ToggleRow
-          label="HD Audio"
-          description="Better sound, more data."
+          label={t('callSet.hdAudio')}
+          description={t('callSet.hdAudioHint')}
           checked={c.hdAudio}
           onChange={(hdAudio) => update('calls', { hdAudio })}
         />
       </Group>
 
-      <Group title="Video">
+      <Group title={t('callSet.groupVideo')}>
         <ToggleRow
-          label="HD Video"
+          label={t('callSet.hdVideo')}
           checked={c.hdVideo}
           onChange={(hdVideo) => update('calls', { hdVideo })}
         />
         <ToggleRow
-          label="Camera Default"
-          description="Start video calls with your camera already on."
+          label={t('callSet.cameraDefault')}
+          description={t('callSet.cameraDefaultHint')}
           checked={c.cameraOnByDefault}
           onChange={(cameraOnByDefault) => update('calls', { cameraOnByDefault })}
         />
       </Group>
 
-      <Group title="Microphone" note={micError}>
+      <Group title={t('callSet.groupMic')} note={micError}>
         <InfoRow
-          label="Microphone Test"
-          value={stopRef.current ? 'Stop' : 'Start'}
+          label={t('callSet.micTest')}
+          value={stopRef.current ? t('callSet.micStop') : t('callSet.micStart')}
           onClick={() => void toggleMicTest()}
         />
         {level !== undefined && (
@@ -115,9 +115,7 @@ export function CallsSettingsScreen() {
                 style={{ width: `${Math.round(level * 100)}%` }}
               />
             </div>
-            <p className="mt-2 text-caption text-text-secondary">
-              Say something - the bar should move.
-            </p>
+            <p className="mt-2 text-caption text-text-secondary">{t('callSet.micHint')}</p>
           </div>
         )}
       </Group>
@@ -131,10 +129,7 @@ export function CallsSettingsScreen() {
         do nothing - about settings that do something - is worse than saying
         nothing at all.
       */}
-      <p className="px-1 pb-4 text-caption text-text-tertiary">
-        These apply to your next call. The microphone test uses your real microphone and does
-        not call anyone.
-      </p>
+      <p className="px-1 pb-4 text-caption text-text-tertiary">{t('callSet.footer')}</p>
     </SettingsPage>
   );
 }

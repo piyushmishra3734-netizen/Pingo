@@ -71,76 +71,74 @@ export function PrivacyScreen() {
 
   return (
     <SettingsPage title={t('page.privacy')}>
-      <Group title="Who can reach me">
+      <Group title={t('privacy.groupReach')}>
         <ChoiceRow
-          label="Who can call me"
+          label={t('privacy.whoCanCall')}
           value={rules.whoCanCall}
           options={[
-            { value: 'everyone', label: 'Everyone' },
-            { value: 'friends', label: 'Friends' },
-            { value: 'nobody', label: 'Nobody' },
+            { value: 'everyone', label: t('choice.everyone') },
+            { value: 'friends', label: t('choice.friends') },
+            { value: 'nobody', label: t('choice.nobody') },
           ]}
           onChange={(whoCanCall) => save({ whoCanCall })}
         />
         <ChoiceRow
-          label="Who can add me"
+          label={t('privacy.whoCanAdd')}
           value={rules.whoCanAdd}
           options={[
-            { value: 'everyone', label: 'Everyone' },
-            { value: 'friends-of-friends', label: 'Friends of friends' },
-            { value: 'nobody', label: 'Nobody' },
+            { value: 'everyone', label: t('choice.everyone') },
+            { value: 'friends-of-friends', label: t('choice.fof') },
+            { value: 'nobody', label: t('choice.nobody') },
           ]}
           onChange={(whoCanAdd) => save({ whoCanAdd })}
         />
         <ChoiceRow
-          label="Profile Visibility"
+          label={t('privacy.profileVisibility')}
           value={rules.profileVisibility}
           options={[
-            { value: 'everyone', label: 'Everyone' },
-            { value: 'friends', label: 'Friends' },
-            { value: 'nobody', label: 'Nobody' },
+            { value: 'everyone', label: t('choice.everyone') },
+            { value: 'friends', label: t('choice.friends') },
+            { value: 'nobody', label: t('choice.nobody') },
           ]}
-          description="People you already talk to always see your profile — hiding it from them would only blank out your own chat list."
+          description={t('privacy.profileVisibilityHint')}
           onChange={(profileVisibility) => save({ profileVisibility })}
         />
       </Group>
 
-      <Group title="What others see">
+      <Group title={t('privacy.groupSee')}>
         <ToggleRow
-          label="Online Status"
-          description="Whether people can see when you're active."
+          label={t('privacy.onlineStatus')}
+          description={t('privacy.onlineStatusHint')}
           checked={rules.onlineStatus}
           onChange={(onlineStatus) => save({ onlineStatus })}
         />
         <ToggleRow
-          label="Read Receipts"
-          description="Turning this off also hides theirs from you."
+          label={t('privacy.readReceipts')}
+          description={t('privacy.readReceiptsHint')}
           checked={p.readReceipts}
           onChange={(readReceipts) => update('privacy', { readReceipts })}
         />
         <ToggleRow
-          label="Screenshot Alerts"
-          description="Tell people when you screenshot their story."
+          label={t('privacy.screenshotAlerts')}
+          description={t('privacy.screenshotAlertsHint')}
           checked={p.screenshotAlerts}
           onChange={(screenshotAlerts) => update('privacy', { screenshotAlerts })}
         />
       </Group>
 
-      <Group
-        note="Screenshot detection is not possible on the web, no browser reports it. This stays off until PINGO has a native app that can."
-      >
+      <Group note={t('privacy.screenshotNote')}>
         {/*
           The real list. This said "None" as a literal string, so somebody who
           had blocked three people was told they had blocked nobody — and had
           nowhere to go to undo it.
         */}
         <InfoRow
-          label="Blocked Users"
+          label={t('privacy.blockedUsers')}
           value={
             blocked === undefined
               ? '…'
               : blocked.length === 0
-                ? 'None'
+                ? t('choice.none')
                 : String(blocked.length)
           }
         />
@@ -148,7 +146,7 @@ export function PrivacyScreen() {
           <InfoRow
             key={person.id}
             label={person.displayName}
-            value="Unblock"
+            value={t('privacy.unblock')}
             onClick={() => {
               setBlocked((list) => list?.filter((p) => p.id !== person.id));
               void profiles.setBlocked(person.id, false).catch(() => undefined);
@@ -157,11 +155,7 @@ export function PrivacyScreen() {
         ))}
       </Group>
 
-      <p className="px-1 pb-4 text-caption text-text-tertiary">
-        These are saved on this device. Apart from Read Receipts, none are enforced by the
-        server yet - they take effect when the rules behind them are built. PINGO does not
-        claim end-to-end encryption; see Security overview when it lands.
-      </p>
+      <p className="px-1 pb-4 text-caption text-text-tertiary">{t('privacy.footer')}</p>
     </SettingsPage>
   );
 }

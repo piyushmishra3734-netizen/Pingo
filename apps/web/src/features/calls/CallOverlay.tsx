@@ -12,6 +12,7 @@ import {
 } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { useT } from '../i18n/useT.js';
 import { useCall } from './CallProvider.js';
 
 /**
@@ -53,6 +54,7 @@ export function CallOverlay() {
     speaker,
   } = useCall();
   const { users } = useChat();
+  const t = useT();
 
   /*
    * A call that never started still has something to say. "No microphone found"
@@ -103,8 +105,10 @@ export function CallOverlay() {
       aria-modal="true"
       aria-label={
         incoming
-          ? `Incoming ${video ? 'video' : 'voice'} call from ${name}`
-          : `Call with ${name}`
+          ? video
+            ? t('call.incomingVideo', { name })
+            : t('call.incomingVoice', { name })
+          : t('call.with', { name })
       }
       className={cn(
         'fixed inset-0 z-1000 flex flex-col items-center justify-between',
@@ -174,7 +178,7 @@ export function CallOverlay() {
 
       {incoming ? (
         <div className="relative flex w-full max-w-xs items-center justify-between">
-          <CallAction label="Decline" tone="end" onClick={() => void decline()}>
+          <CallAction label={t('call.decline')} tone="end" onClick={() => void decline()}>
             {/*
               A handset rotated 135° - the universal hang-up glyph, and the same
               icon as the answer button so the pair reads as one gesture.
@@ -183,7 +187,7 @@ export function CallOverlay() {
           </CallAction>
 
           <CallAction
-            label={video ? 'Answer with video' : 'Answer'}
+            label={video ? t('call.answerVideo') : t('call.answer')}
             tone="answer"
             onClick={() => void answer()}
           >
@@ -193,7 +197,7 @@ export function CallOverlay() {
       ) : (
         <div className="relative flex items-center gap-4">
           <CallAction
-            label={call.muted ? 'Unmute microphone' : 'Mute microphone'}
+            label={call.muted ? t('call.unmuteMic') : t('call.muteMic')}
             tone="neutral"
             pressed={call.muted}
             onClick={toggleMute}
@@ -203,7 +207,7 @@ export function CallOverlay() {
 
           {video ? (
             <CallAction
-              label={call.cameraOff ? 'Turn camera on' : 'Turn camera off'}
+              label={call.cameraOff ? t('call.cameraOn') : t('call.cameraOff')}
               tone="neutral"
               pressed={call.cameraOff}
               onClick={toggleCamera}
@@ -220,7 +224,7 @@ export function CallOverlay() {
           */}
           {speaker && (
             <CallAction
-              label={speaker.on ? 'Turn speaker off' : 'Turn speaker on'}
+              label={speaker.on ? t('call.speakerOff') : t('call.speakerOn')}
               tone="neutral"
               pressed={speaker.on}
               onClick={speaker.toggle}
@@ -231,7 +235,7 @@ export function CallOverlay() {
 
           {video ? (
             <CallAction
-              label="Switch camera"
+              label={t('call.switchCamera')}
               tone="neutral"
               onClick={() => void switchCamera()}
             >
@@ -239,7 +243,7 @@ export function CallOverlay() {
             </CallAction>
           ) : null}
 
-          <CallAction label="End call" tone="end" onClick={() => void hangUp()}>
+          <CallAction label={t('call.end')} tone="end" onClick={() => void hangUp()}>
             <PhoneIcon size={26} className="rotate-[135deg]" />
           </CallAction>
         </div>
@@ -473,6 +477,7 @@ function StatusLine({
   direction: 'incoming' | 'outgoing';
   connectedAt?: number;
 }) {
+  const t = useT();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -487,15 +492,15 @@ function StatusLine({
 
   switch (state) {
     case 'dialling':
-      return <>Calling…</>;
+      return <>{t('call.calling')}</>;
     case 'ringing':
-      return <>{direction === 'incoming' ? 'Incoming call' : 'Ringing…'}</>;
+      return <>{direction === 'incoming' ? t('call.incomingShort') : t('call.ringing')}</>;
     case 'connecting':
-      return <>Connecting…</>;
+      return <>{t('call.connecting')}</>;
     case 'reconnecting':
-      return <>Reconnecting…</>;
+      return <>{t('call.reconnecting')}</>;
     default:
-      return <>Ended</>;
+      return <>{t('call.ended')}</>;
   }
 }
 

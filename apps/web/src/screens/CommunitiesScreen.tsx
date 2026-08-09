@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { useT } from '../features/i18n/useT.js';
 import { canAccessCommunities } from '../lib/community-access.js';
 
 /**
@@ -32,6 +33,7 @@ import { canAccessCommunities } from '../lib/community-access.js';
  * contacts looked broken.
  */
 export function CommunitiesScreen() {
+  const t = useT();
   const { service, conversations, users, currentUser } = useChat();
   const { profile, service: profiles } = useProfile();
   const [query, setQuery] = useState('');
@@ -190,19 +192,19 @@ export function CommunitiesScreen() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <ScreenHeader title="Communities" />
+      <ScreenHeader title={t('communities.title')} />
 
       <div className="mx-auto w-full max-w-2xl px-5 py-4">
         <SearchField
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search name, @username, or id"
-          aria-label="Search people and groups"
+          placeholder={t('communities.search')}
+          aria-label={t('communities.searchAria')}
         />
 
         {directoryError && (
           <p role="alert" className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-caption text-danger">
-            Could not load people: {directoryError}
+            {directoryError}
           </p>
         )}
 
@@ -213,14 +215,14 @@ export function CommunitiesScreen() {
         )}
 
         {loadingPeople ? (
-          <LoadingState label="Loading people" />
+          <LoadingState label={t('communities.loading')} />
         ) : nothingFound ? (
           <EmptyState
-            title={q ? 'No matches' : 'Nothing here yet'}
+            title={q ? t('chats.emptyMatches') : t('chats.emptyFilter')}
             description={
               q
-                ? `Nothing found for "${query.trim()}". Try their @username or full user id.`
-                : 'Groups and contacts will appear here.'
+                ? t('chats.emptyMatchesHint', { query: query.trim() })
+                : t('chats.emptyHomeHint')
             }
             icon={<UsersIcon size={26} />}
           />
@@ -229,7 +231,7 @@ export function CommunitiesScreen() {
             {groups.length > 0 && (
               <section className="mt-6">
                 <h2 className="mb-3 px-1 text-caption font-medium uppercase tracking-wider text-text-tertiary">
-                  Groups
+                  {t('communities.groups')}
                 </h2>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -281,7 +283,7 @@ export function CommunitiesScreen() {
             {contacts.length > 0 && (
               <section className="mt-8">
                 <h2 className="mb-2 px-1 text-caption font-medium uppercase tracking-wider text-text-tertiary">
-                  Contacts
+                  {t('communities.people')}
                 </h2>
 
                 <div className="space-y-0.5">

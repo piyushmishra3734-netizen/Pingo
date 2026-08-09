@@ -25,32 +25,31 @@ import { useAppearance } from '../../features/settings/SettingsContext.js';
  * the same tokens every component already uses. The cascade does the work.
  */
 
-const THEMES: { value: ThemeMode; label: string; hint: string }[] = [
-  { value: 'light', label: 'Light', hint: 'Always light' },
-  { value: 'dark', label: 'Dark', hint: 'Always dark' },
-  { value: 'auto', label: 'Auto', hint: 'Follows your device' },
-];
-
-const ACCENTS: { value: AccentName; label: string }[] = [
-  { value: 'blue', label: 'Ink' },
-  { value: 'purple', label: 'Purple' },
-  { value: 'green', label: 'Green' },
-  { value: 'pink', label: 'Pink' },
-  { value: 'custom', label: 'Custom' },
-];
-
-const MOTIONS: { value: MotionLevel; label: string; hint: string }[] = [
-  { value: 'smooth', label: 'Smooth', hint: 'Longer, softer' },
-  { value: 'balanced', label: 'Balanced', hint: 'The default' },
-  { value: 'minimal', label: 'Minimal', hint: 'Barely there' },
-];
-
 const GLASS_LEVELS: GlassLevel[] = [0, 25, 50, 75, 100];
 
 export function AppearanceScreen() {
   const t = useT();
   const { appearance, updateAppearance, resolvedTheme } = useAppearance();
-  // voice title via t('page.appearance')
+
+  const themes: { value: ThemeMode; label: string; hint: string }[] = [
+    { value: 'light', label: t('appear.themeLight'), hint: t('appear.themeLightHint') },
+    { value: 'dark', label: t('appear.themeDark'), hint: t('appear.themeDarkHint') },
+    { value: 'auto', label: t('appear.themeAuto'), hint: t('appear.themeAutoHint') },
+  ];
+
+  const accents: { value: AccentName; label: string }[] = [
+    { value: 'blue', label: t('appear.ink') },
+    { value: 'purple', label: t('appear.purple') },
+    { value: 'green', label: t('appear.green') },
+    { value: 'pink', label: t('appear.pink') },
+    { value: 'custom', label: t('appear.custom') },
+  ];
+
+  const motions: { value: MotionLevel; label: string; hint: string }[] = [
+    { value: 'smooth', label: t('appear.smooth'), hint: t('appear.smoothHint') },
+    { value: 'balanced', label: t('appear.balanced'), hint: t('appear.balancedHint') },
+    { value: 'minimal', label: t('appear.minimal'), hint: t('appear.minimalHint') },
+  ];
 
   return (
     <div className="flex h-full flex-col bg-page">
@@ -58,15 +57,15 @@ export function AppearanceScreen() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-4">
         <Group
-          title="Dark Mode"
+          title={t('appear.darkMode')}
           hint={
             appearance.theme === 'auto'
-              ? `Following your device - currently ${resolvedTheme}.`
+              ? t('appear.followingDevice', { theme: resolvedTheme })
               : undefined
           }
         >
           <div className="grid grid-cols-3 gap-2.5">
-            {THEMES.map((theme) => (
+            {themes.map((theme) => (
               <ChoiceCard
                 key={theme.value}
                 selected={appearance.theme === theme.value}
@@ -81,9 +80,9 @@ export function AppearanceScreen() {
           </div>
         </Group>
 
-        <Group title="Accent">
+        <Group title={t('appear.accent')}>
           <div className="flex flex-wrap gap-3">
-            {ACCENTS.map((accent) => {
+            {accents.map((accent) => {
               const selected = appearance.accent === accent.value;
               const swatch =
                 accent.value === 'custom'
@@ -139,9 +138,9 @@ export function AppearanceScreen() {
           )}
         </Group>
 
-        <Group title="Animations">
+        <Group title={t('appear.motion')}>
           <div className="grid grid-cols-3 gap-2.5">
-            {MOTIONS.map((motion) => (
+            {motions.map((motion) => (
               <ChoiceCard
                 key={motion.value}
                 selected={appearance.motion === motion.value}
@@ -156,7 +155,7 @@ export function AppearanceScreen() {
           </p>
         </Group>
 
-        <Group title="Glass Intensity">
+        <Group title={t('appear.glass')}>
           {/*
             A live glass panel over something worth blurring.
 

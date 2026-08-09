@@ -40,70 +40,64 @@ export function NotificationsScreen() {
   return (
     <SettingsPage title={t('page.notifications')}>
       {permission !== 'granted' && (
-        <Group
-          note={
-            permission === 'denied'
-              ? 'Your browser is blocking notifications for this site. Turn them back on in its site settings, nothing here can override that.'
-              : undefined
-          }
-        >
+        <Group note={permission === 'denied' ? t('notif.permDeniedNote') : undefined}>
           <InfoRow
             label={
               permission === 'unsupported'
-                ? 'Notifications are not supported here'
+                ? t('notif.permUnsupported')
                 : permission === 'denied'
-                  ? 'Notifications are blocked'
-                  : 'Notifications are off'
+                  ? t('notif.permBlocked')
+                  : t('notif.permOff')
             }
-            value={permission === 'default' ? 'Turn on' : undefined}
+            value={permission === 'default' ? t('notif.permTurnOn') : undefined}
             {...(permission === 'default' ? { onClick: () => void ask() } : {})}
           />
         </Group>
       )}
 
-      <Group title="Mute">
+      <Group title={t('notif.groupMute')}>
         <ToggleRow
-          label="Mute All"
-          description="Silences everything below."
+          label={t('notif.muteAll')}
+          description={t('notif.muteAllHint')}
           checked={n.muteAll}
           onChange={(muteAll) => update('notifications', { muteAll })}
         />
       </Group>
 
-      <Group title="What to notify me about">
+      <Group title={t('notif.groupAbout')}>
         <ToggleRow
-          label="Messages"
+          label={t('notif.messages')}
           checked={n.messages}
           disabled={n.muteAll}
           onChange={(messages) => update('notifications', { messages })}
         />
         <ToggleRow
-          label="Groups"
+          label={t('notif.groups')}
           checked={n.groups}
           disabled={n.muteAll}
           onChange={(groups) => update('notifications', { groups })}
         />
         <ToggleRow
-          label="Calls"
+          label={t('notif.calls')}
           checked={n.calls}
           disabled={n.muteAll}
           onChange={(calls) => update('notifications', { calls })}
         />
         <ToggleRow
-          label="Friend requests"
+          label={t('notif.friendRequests')}
           checked={n.friendRequests}
           disabled={n.muteAll}
           onChange={(friendRequests) => update('notifications', { friendRequests })}
         />
         <ToggleRow
-          label="Stories"
+          label={t('notif.stories')}
           checked={n.stories}
           disabled={n.muteAll}
           onChange={(stories) => update('notifications', { stories })}
         />
         <ToggleRow
-          label="PINGO AI"
-          description="Replies from your AI chat."
+          label={t('notif.ai')}
+          description={t('notif.aiHint')}
           checked={n.ai}
           disabled={n.muteAll}
           onChange={(ai) => update('notifications', { ai })}
@@ -119,17 +113,14 @@ export function NotificationsScreen() {
         their own messages, and it says plainly what it costs rather than
         hiding it behind a friendly label.
       */}
-      <Group
-        title="Lock screen"
-        note="With previews on, the text of your messages travels through Google's notification service to reach your lock screen. On the default it never does - only who sent it."
-      >
+      <Group title={t('notif.groupLock')} note={t('notif.lockNote')}>
         <ChoiceRow
-          label="Preview"
+          label={t('notif.preview')}
           value={n.preview}
           options={[
-            { value: 'sender-only', label: 'Sender only' },
-            { value: 'sender-and-text', label: 'Sender + preview' },
-            { value: 'hidden', label: 'Hide everything' },
+            { value: 'sender-only', label: t('notif.previewSender') },
+            { value: 'sender-and-text', label: t('notif.previewText') },
+            { value: 'hidden', label: t('notif.previewHidden') },
           ]}
           onChange={(preview) => update('notifications', { preview })}
         />
@@ -141,36 +132,33 @@ export function NotificationsScreen() {
         these two are PINGO wanting your attention for its own reasons, and
         that is permission a product should be given rather than assume.
       */}
-      <Group
-        title="From PINGO"
-        note="Both off unless you ask. Journey will never tell you a streak is about to break - see the philosophy: never pressure, never punish, never manipulate."
-      >
+      <Group title={t('notif.groupPingo')} note={t('notif.pingoNote')}>
         <ToggleRow
-          label="Journey"
-          description="Badges earned, and the occasional weekly reflection."
+          label={t('notif.journey')}
+          description={t('notif.journeyHint')}
           checked={n.journey}
           disabled={n.muteAll}
           onChange={(journey) => update('notifications', { journey })}
         />
         <ToggleRow
-          label="Product news"
-          description="New features. Rare, and never about what you have not read."
+          label={t('notif.marketing')}
+          description={t('notif.marketingHint')}
           checked={n.marketing}
           disabled={n.muteAll}
           onChange={(marketing) => update('notifications', { marketing })}
         />
       </Group>
 
-      <Group title="Quiet Hours">
+      <Group title={t('notif.groupQuiet')}>
         <ToggleRow
-          label="Quiet Hours"
+          label={t('notif.quietHours')}
           description={`${n.quietHoursStart} - ${n.quietHoursEnd}`}
           checked={n.quietHours}
           onChange={(quietHours) => update('notifications', { quietHours })}
         />
         {n.quietHours && (
           <div className="flex items-center gap-3 px-3 py-3">
-            <span className="min-w-0 flex-1 text-body text-ink">From</span>
+            <span className="min-w-0 flex-1 text-body text-ink">{t('notif.quietFrom')}</span>
             <input
               type="time"
               value={n.quietHoursStart}
@@ -178,15 +166,15 @@ export function NotificationsScreen() {
                 update('notifications', { quietHoursStart: event.target.value })
               }
               className="rounded-md bg-sunken px-2 py-1 text-caption text-ink"
-              aria-label="Quiet hours start"
+              aria-label={t('notif.quietStartAria')}
             />
-            <span className="text-caption text-text-secondary">to</span>
+            <span className="text-caption text-text-secondary">{t('notif.quietTo')}</span>
             <input
               type="time"
               value={n.quietHoursEnd}
               onChange={(event) => update('notifications', { quietHoursEnd: event.target.value })}
               className="rounded-md bg-sunken px-2 py-1 text-caption text-ink"
-              aria-label="Quiet hours end"
+              aria-label={t('notif.quietEndAria')}
             />
           </div>
         )}

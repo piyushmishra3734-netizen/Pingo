@@ -10,6 +10,7 @@ import { useConversationActions } from '../conversations/useConversationActions.
 import { useUnmuteConfirm } from '../conversations/useUnmuteConfirm.js';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * The `⋯` in a thread header: everything you can do to this conversation.
@@ -58,6 +59,7 @@ export function ConversationMenu({
   onAiSettings,
   onSelectMessages,
 }: ConversationMenuProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [muting, setMuting] = useState(false);
   const [listing, setListing] = useState(false);
@@ -96,7 +98,7 @@ export function ConversationMenu({
   return (
     <div className="relative" ref={wrapRef}>
       <IconButton
-        label="Conversation options"
+        label={t('menu.conversation')}
         size="sm"
         onClick={() => setOpen((was) => !was)}
       >
@@ -106,7 +108,7 @@ export function ConversationMenu({
       {open && (
         <div
           role="menu"
-          aria-label="Conversation options"
+          aria-label={t('menu.conversation')}
           className={cn(
             'animate-panel-in absolute top-full right-0 z-200 mt-1 w-60 origin-top-right',
             'max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-surface py-1 shadow-lg',
@@ -114,8 +116,8 @@ export function ConversationMenu({
         >
           {onCall && !callBlockedReason && (
             <>
-              <Item label="Voice call" onSelect={() => run(onCall('audio'))} />
-              <Item label="Video call" onSelect={() => run(onCall('video'))} />
+              <Item label={t('menu.voiceCall')} onSelect={() => run(onCall('audio'))} />
+              <Item label={t('menu.videoCall')} onSelect={() => run(onCall('video'))} />
               <Divider />
             </>
           )}
@@ -138,7 +140,7 @@ export function ConversationMenu({
           {conversation.kind === 'ai' && onAiSettings && (
             <>
               <Item
-                label="About them"
+                label={t('menu.aboutThem')}
                 onSelect={() => {
                   setOpen(false);
                   onAiSettings();
@@ -149,18 +151,20 @@ export function ConversationMenu({
           )}
 
           <Item
-            label={conversation.pinned ? 'Unpin chat' : 'Pin chat'}
+            label={conversation.pinned ? t('select.unpin') : t('select.pin')}
             onSelect={() => run(actions.pin([conversation], !conversation.pinned))}
           />
           <Item
-            label={conversation.favorite ? 'Remove from favourites' : 'Add to favourites'}
+            label={conversation.favorite ? t('select.removeFav') : t('select.addFav')}
             onSelect={() => run(actions.favorite(id, !conversation.favorite))}
           />
           <Item
             label={
               conversation.muted
-                ? (formatMuteUntil(conversation.mutedUntil) ?? 'Muted') + ' · unmute'
-                : 'Mute notifications'
+                ? (formatMuteUntil(conversation.mutedUntil) ?? t('menu.mute')) +
+                  ' · ' +
+                  t('select.unmute')
+                : t('select.mute')
             }
             onSelect={() => {
               setOpen(false);
@@ -174,18 +178,18 @@ export function ConversationMenu({
             }}
           />
           <Item
-            label="Add to list"
+            label={t('menu.addToList')}
             onSelect={() => {
               setOpen(false);
               setListing(true);
             }}
           />
           <Item
-            label={conversation.archived ? 'Unarchive' : 'Archive'}
+            label={conversation.archived ? t('select.unarchive') : t('select.archive')}
             onSelect={() => run(actions.archive(id, !conversation.archived))}
           />
           <Item
-            label={conversation.unreadCount > 0 ? 'Mark as read' : 'Mark as unread'}
+            label={conversation.unreadCount > 0 ? t('select.markRead') : t('select.markUnread')}
             onSelect={() => run(actions.markUnread(id, conversation.unreadCount === 0))}
           />
 
@@ -209,7 +213,7 @@ export function ConversationMenu({
             has forgotten will go hunting.
           */}
           <Item
-            label="Chat wallpaper"
+            label={t('menu.chatWallpaper')}
             onSelect={() => {
               setOpen(false);
               // Scoped to this thread: DMs stay personal on-device; groups share.
@@ -218,7 +222,7 @@ export function ConversationMenu({
           />
 
           {onSelectMessages && (
-            <Item label="Select messages" onSelect={() => run(onSelectMessages())} />
+            <Item label={t('menu.selectMessages')} onSelect={() => run(onSelectMessages())} />
           )}
 
           {/*
@@ -228,7 +232,7 @@ export function ConversationMenu({
             other.
           */}
           <Item
-            label="Clear messages"
+            label={t('menu.clearMessages')}
             onSelect={() => {
               setOpen(false);
               void (async () => {
@@ -236,14 +240,14 @@ export function ConversationMenu({
                   title: 'Clear this chat?',
                   description:
                     'Every message goes from your side. The other person keeps theirs, and the chat itself stays in your list.',
-                  confirmLabel: 'Clear messages',
+                  confirmLabel: t('menu.clearMessages'),
                 });
                 if (go) await actions.clear(id);
               })();
             }}
           />
           <Item
-            label="Delete chat"
+            label={t('menu.deleteChat')}
             danger
             onSelect={() => {
               setOpen(false);

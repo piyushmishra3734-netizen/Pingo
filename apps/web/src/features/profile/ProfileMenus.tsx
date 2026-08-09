@@ -10,6 +10,7 @@ import {
 } from '@pingo/ui';
 
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * The two profile menus.
@@ -43,8 +44,9 @@ export function MyProfileMenu({
   onSettings: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
-    <Sheet title="Profile" hideTitle onClose={onClose}>
+    <Sheet title={t('menu.profile')} hideTitle onClose={onClose}>
       <div className="flex flex-col gap-1">
         {/*
           The only way to post once the grid is full.
@@ -57,15 +59,15 @@ export function MyProfileMenu({
         */}
         <SheetItem
           icon={<PlusIcon size={20} />}
-          label={postsFull ? 'Replace a post' : 'New post'}
-          hint={postsFull ? 'A profile holds three' : undefined}
+          label={postsFull ? t('menu.replacePost') : t('menu.newPost')}
+          hint={postsFull ? t('menu.replacePostHint') : undefined}
           onClick={onNewPost}
         />
-        <SheetItem icon={<EditIcon size={20} />} label="Edit profile" onClick={onEdit} />
-        <SheetItem icon={<QrIcon size={20} />} label="Share profile" onClick={onShare} />
+        <SheetItem icon={<EditIcon size={20} />} label={t('menu.editProfile')} onClick={onEdit} />
+        <SheetItem icon={<QrIcon size={20} />} label={t('menu.shareProfile')} onClick={onShare} />
         <SheetItem
           icon={<SettingsIcon size={20} />}
-          label="Settings and privacy"
+          label={t('menu.settingsPrivacy')}
           onClick={onSettings}
         />
         <SheetCancel onClick={onClose} />
@@ -96,11 +98,12 @@ export function PersonMenu({
   onReport: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <Sheet title={name} hideTitle onClose={onClose}>
       <div className="flex flex-col gap-1">
-        <SheetItem icon={<QrIcon size={20} />} label="Share profile" onClick={onShare} />
-        <SheetItem icon={<LinkIcon size={20} />} label="Copy link" onClick={onCopyLink} />
+        <SheetItem icon={<QrIcon size={20} />} label={t('menu.shareProfile')} onClick={onShare} />
+        <SheetItem icon={<LinkIcon size={20} />} label={t('menu.copyLink')} onClick={onCopyLink} />
 
         {/*
           Absent, not disabled, until the conversation is known. A mute control
@@ -110,21 +113,21 @@ export function PersonMenu({
         {muted !== undefined && (
           <SheetItem
             icon={<MuteIcon size={20} />}
-            label={muted ? `Unmute ${name}` : `Mute ${name}`}
-            hint={muted ? 'Notifications are off for this chat' : undefined}
+            label={muted ? `${t('menu.unmute')} ${name}` : `${t('menu.mute')} ${name}`}
+            hint={muted ? t('select.mute') : undefined}
             onClick={onMute}
           />
         )}
 
         <SheetItem
           icon={<BlockIcon size={20} />}
-          label={blocked ? `Unblock ${name}` : `Block ${name}`}
+          label={blocked ? `${t('menu.unblock')} ${name}` : `${t('menu.block')} ${name}`}
           tone={blocked ? 'normal' : 'danger'}
           onClick={onBlock}
         />
         <SheetItem
           icon={<FlagIcon size={20} />}
-          label={`Report ${name}`}
+          label={`${t('menu.report')} ${name}`}
           tone="danger"
           onClick={onReport}
         />

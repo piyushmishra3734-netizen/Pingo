@@ -26,20 +26,20 @@ export function CameraSettingsScreen() {
 
   return (
     <SettingsPage title={t('page.camera')}>
-      <Group title="Capture">
+      <Group title={t('camSet.groupCapture')}>
         <ChoiceRow
-          label="Default Camera"
-          description="Which one opens first."
+          label={t('camSet.defaultCamera')}
+          description={t('camSet.defaultCameraHint')}
           value={c.defaultCamera}
           options={[
-            { value: 'front', label: 'Front' },
-            { value: 'back', label: 'Back' },
+            { value: 'front', label: t('choice.front') },
+            { value: 'back', label: t('choice.back') },
           ]}
           onChange={(defaultCamera) => update('camera', { defaultCamera })}
         />
         <ToggleRow
-          label="Mirror Camera"
-          description="Mirrors the preview. Photos are never saved mirrored."
+          label={t('camSet.mirror')}
+          description={t('camSet.mirrorHint')}
           checked={c.mirror}
           onChange={(mirror) => update('camera', { mirror })}
         />
@@ -54,38 +54,35 @@ export function CameraSettingsScreen() {
         absent feature is worse than no switch: it is a promise the product does
         not keep, and it comes back the day the processing exists.
       */}
-      <Group title="Processing">
+      <Group title={t('camSet.groupProcessing')}>
         <ToggleRow
-          label="Filters"
-          description="Show the filter picker in the camera."
+          label={t('camSet.filters')}
+          description={t('camSet.filtersHint')}
           checked={c.filters}
           onChange={(filters) => update('camera', { filters })}
         />
       </Group>
 
-      <Group title="Saving">
+      <Group title={t('camSet.groupSaving')}>
         <ToggleRow
-          label="Save Pings"
-          description="Keep a copy of what you post."
+          label={t('camSet.savePings')}
+          description={t('camSet.savePingsHint')}
           checked={c.saveSnaps}
           onChange={(saveSnaps) => update('camera', { saveSnaps })}
         />
         <ChoiceRow
-          label="Upload Quality"
+          label={t('camSet.uploadQuality')}
           value={c.uploadQuality}
           options={[
-            { value: 'auto', label: 'Auto' },
-            { value: 'high', label: 'High' },
-            { value: 'data-saver', label: 'Data saver' },
+            { value: 'auto', label: t('choice.auto') },
+            { value: 'high', label: t('choice.high') },
+            { value: 'data-saver', label: t('choice.dataSaver') },
           ]}
           onChange={(uploadQuality) => update('camera', { uploadQuality })}
         />
       </Group>
 
-      <p className="px-1 pb-4 text-caption text-text-tertiary">
-        Everything here takes effect now except Upload Quality, which is saved and starts
-        working when transcoding is built.
-      </p>
+      <p className="px-1 pb-4 text-caption text-text-tertiary">{t('camSet.footer')}</p>
     </SettingsPage>
   );
 }
