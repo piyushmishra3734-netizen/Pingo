@@ -160,12 +160,19 @@ export class SupabaseProfileService implements ProfileService {
   async search(term: string, limit = 12): Promise<Profile[]> {
     const needle = term.trim().replace(/^@/u, '');
     /*
-     * Two characters, not one.
+     * Two characters, not one - unless the whole thing is a user id.
      *
      * A single letter matches a large share of every account on the service
      * and answers a question nobody asked; the shortest useful search is a
-     * couple of letters of somebody's name.
+     * couple of letters of somebody's name. Pasting a full uuid is the other
+     * way people find someone (share a profile card, copy from support), so
+     * that path does not wait for a second character.
      */
+    if (UUID.test(needle)) {
+      const exact = await this.find(needle);
+      return exact ? [exact] : [];
+    }
+
     if (needle.length < 2) return [];
 
     /*
@@ -179,7 +186,8 @@ export class SupabaseProfileService implements ProfileService {
     const { data, error } = await this.client
       .from('profiles')
       .select('*')
-      // Handle or name: people search for whichever of the two they remember.
+      // Handle or name. Full user ids take the exact path above - partial
+      // strings on a uuid column would make PostgREST reject the filter.
       .or(`username.ilike.${escaped}%,display_name.ilike.%${escaped}%`)
       .limit(limit);
 
@@ -195,13 +203,15 @@ export class SupabaseProfileService implements ProfileService {
      */
     const lower = needle.toLowerCase();
     const rank = (profile: Profile) =>
-      profile.username.toLowerCase() === lower
+      profile.id.toLowerCase() === lower
         ? 0
-        : profile.username.toLowerCase().startsWith(lower)
+        : profile.username.toLowerCase() === lower
           ? 1
-          : profile.displayName.toLowerCase().startsWith(lower)
+          : profile.username.toLowerCase().startsWith(lower)
             ? 2
-            : 3;
+            : profile.displayName.toLowerCase().startsWith(lower)
+              ? 3
+              : 4;
 
     return rows.sort((a, b) => rank(a) - rank(b) || a.username.localeCompare(b.username));
   }

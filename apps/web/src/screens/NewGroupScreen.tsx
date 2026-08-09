@@ -84,13 +84,14 @@ export function NewGroupScreen() {
   }, [people, mutuals]);
 
   const matches = useMemo(() => {
-    const term = query.trim().toLowerCase();
+    const term = query.trim().toLowerCase().replace(/^@/u, '');
     if (!friends) return undefined;
     if (!term) return friends;
     return friends.filter(
       (person) =>
         person.name.toLowerCase().includes(term) ||
-        person.handle.toLowerCase().includes(term),
+        person.handle.toLowerCase().includes(term) ||
+        person.id.toLowerCase().includes(term),
     );
   }, [friends, query]);
 

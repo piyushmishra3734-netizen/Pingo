@@ -215,8 +215,8 @@ const en = {
   'legal.download': 'Download',
 
   // chats list chrome
-  'chats.search': 'Search chats',
-  'chats.searchAria': 'Search chats',
+  'chats.search': 'Search name, @user, or id',
+  'chats.searchAria': 'Search chats by name, username, or id',
   'chats.filter': 'Filter conversations',
   'chats.filterAll': 'All',
   'chats.filterUnread': 'Unread',
@@ -477,8 +477,8 @@ const enGenz: Catalog = {
   'legal.terms': 'Terms',
   'legal.privacy': 'Privacy',
   'legal.download': 'Download',
-  'chats.search': 'Search DMs',
-  'chats.searchAria': 'Search DMs',
+  'chats.search': 'Search name, @user, or id',
+  'chats.searchAria': 'Search chats by name, username, or id',
   'chats.filter': 'Filter chats',
   'chats.filterAll': 'All',
   'chats.filterUnread': 'Unread',

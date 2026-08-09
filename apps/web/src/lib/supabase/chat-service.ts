@@ -3510,18 +3510,21 @@ export class SupabaseChatService implements ChatService {
   // -- search --------------------------------------------------------------
 
   async search(query: string): Promise<SearchResult[]> {
-    const term = query.trim();
+    const term = query.trim().replace(/^@/u, '');
     if (term.length === 0) return [];
 
     const me = await this.#userId();
+    const lowered = term.toLowerCase();
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(term);
 
+    const peopleQuery = this.#client.from('profiles').select('*').neq('id', me);
     const [{ data: people }, conversations] = await Promise.all([
-      this.#client
-        .from('profiles')
-        .select('*')
-        .neq('id', me)
-        .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
-        .limit(10),
+      uuid
+        ? peopleQuery.eq('id', term).limit(1)
+        : peopleQuery
+            .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
+            .limit(10),
       this.listConversations(),
     ]);
 
@@ -3530,9 +3533,13 @@ export class SupabaseChatService implements ChatService {
       user: toUser(row),
     }));
 
-    const lowered = term.toLowerCase();
     for (const conversation of conversations) {
-      if (conversation.title.toLowerCase().includes(lowered)) {
+      const titleHit = conversation.title.toLowerCase().includes(lowered);
+      const idHit = conversation.id.toLowerCase().includes(lowered);
+      const memberHit = conversation.participantIds.some((id) =>
+        id.toLowerCase().includes(lowered),
+      );
+      if (titleHit || idHit || memberHit) {
         results.push({ kind: 'conversation', conversation });
       }
     }

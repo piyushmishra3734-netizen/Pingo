@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from 'react';
 
-import type { Conversation, ConversationFilter } from '../types.js';
+import type { Conversation, ConversationFilter, User } from '../types.js';
 
 const FILTERS: readonly ConversationFilter[] = [
   'all',
@@ -95,6 +95,40 @@ export function matchesFilter(
   }
 }
 
+/**
+ * Whether a conversation matches what was typed in the list search.
+ *
+ * Title and last-message text are the obvious hits. People also paste a
+ * handle, a user id, or a conversation id - none of those live in the title
+ * for every row (a DM is titled by display name only), so the roster of known
+ * people is checked too. Without that, searching for `@someone` in the chat
+ * list looked broken even when their thread was right there.
+ */
+export function conversationMatchesQuery(
+  conversation: Conversation,
+  query: string,
+  peopleById?: Map<string, User>,
+): boolean {
+  const raw = query.trim().toLowerCase();
+  if (!raw) return true;
+  const q = raw.replace(/^@/u, '');
+
+  if (conversation.title.toLowerCase().includes(q)) return true;
+  if (conversation.id.toLowerCase().includes(q)) return true;
+  if (conversation.lastMessage?.body?.toLowerCase().includes(q)) return true;
+
+  for (const participantId of conversation.participantIds) {
+    if (participantId.toLowerCase().includes(q)) return true;
+    const person = peopleById?.get(participantId);
+    if (!person) continue;
+    if (person.name.toLowerCase().includes(q)) return true;
+    if (person.handle.toLowerCase().includes(q)) return true;
+    if (person.id.toLowerCase().includes(q)) return true;
+  }
+
+  return false;
+}
+
 interface UseConversationFilterResult {
   filter: ConversationFilter;
   setFilter: (filter: ConversationFilter) => void;
@@ -106,8 +140,19 @@ interface UseConversationFilterResult {
 export function useConversationFilter(
   conversations: Conversation[],
   query = '',
+  /**
+   * Known people (roster / contacts). Used so search can hit @handle and user
+   * id, not only the conversation title.
+   */
+  users: readonly User[] = [],
 ): UseConversationFilterResult {
   const [filter, setFilter] = useState<ConversationFilter>('all');
+
+  const peopleById = useMemo(() => {
+    const map = new Map<string, User>();
+    for (const person of users) map.set(person.id, person);
+    return map;
+  }, [users]);
 
   const counts = useMemo(() => {
     const result = {} as Record<ConversationFilter, number>;
@@ -118,18 +163,11 @@ export function useConversationFilter(
   }, [conversations]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return conversations.filter((conversation) => {
       if (!matchesFilter(conversation, filter)) return false;
-      if (!q) return true;
-      // Search spans the title and the visible preview text, which is what a
-      // user scanning the list would expect to match.
-      return (
-        conversation.title.toLowerCase().includes(q) ||
-        (conversation.lastMessage?.body.toLowerCase().includes(q) ?? false)
-      );
+      return conversationMatchesQuery(conversation, query, peopleById);
     });
-  }, [conversations, filter, query]);
+  }, [conversations, filter, query, peopleById]);
 
   return { filter, setFilter, filtered, counts };
 }

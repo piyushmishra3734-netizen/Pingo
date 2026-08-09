@@ -80,13 +80,14 @@ export function NewChatScreen() {
   const searching = query.trim().length > 0;
 
   const matches = useMemo(() => {
-    const term = query.trim().toLowerCase();
+    const term = query.trim().toLowerCase().replace(/^@/u, '');
     if (!people) return undefined;
     if (!term) return [];
     return people.filter(
       (person) =>
         person.name.toLowerCase().includes(term) ||
-        person.handle.toLowerCase().includes(term),
+        person.handle.toLowerCase().includes(term) ||
+        person.id.toLowerCase().includes(term),
     );
   }, [people, query]);
 
@@ -194,7 +195,7 @@ export function NewChatScreen() {
           <SearchField
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by name or @username"
+            placeholder="Search name, @username, or id"
             aria-label="Search people"
             autoFocus
           />
@@ -252,6 +253,10 @@ export function NewChatScreen() {
                     <span className="block truncate text-body text-ink">{person.name}</span>
                     <span className="block truncate text-caption text-text-secondary">
                       @{person.handle}
+                      {query.trim().length >= 8 &&
+                      person.id.toLowerCase().includes(query.trim().toLowerCase())
+                        ? ` · ${person.id}`
+                        : ''}
                     </span>
                   </span>
 

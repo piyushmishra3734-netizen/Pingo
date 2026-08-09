@@ -82,7 +82,7 @@ export function ConversationList({
   className,
 }: ConversationListProps) {
   const t = useT();
-  const { conversations, ready, service } = useChat();
+  const { conversations, ready, service, users, currentUser } = useChat();
   /*
    * The same count the Journey screen runs, from the same cache. It is keyed on
    * the conversation ids rather than the array, so this does not re-read every
@@ -173,7 +173,21 @@ export function ConversationList({
     [active, activeList],
   );
 
-  const { filter, setFilter, filtered, counts } = useConversationFilter(inList, query);
+  /*
+   * Pass the roster into search so @handle / user id find the right DM.
+   * Title alone only matches display name, which is why "search does nothing"
+   * was reported when people typed a username or pasted an id.
+   */
+  const searchPeople = useMemo(() => {
+    if (!currentUser) return users;
+    return users.some((u) => u.id === currentUser.id) ? users : [...users, currentUser];
+  }, [users, currentUser]);
+
+  const { filter, setFilter, filtered, counts } = useConversationFilter(
+    inList,
+    query,
+    searchPeople,
+  );
 
   const ordered = useMemo(
     () => sortConversationsForList(filtered, { pinAiToTop }),

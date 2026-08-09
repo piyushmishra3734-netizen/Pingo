@@ -26,13 +26,14 @@ import { canAccessCommunities } from '../lib/community-access.js';
  * because they are destinations; individual contacts follow as a plain list,
  * because they are a directory you scan for a name.
  *
- * Notably absent: member counts as a badge of importance, activity graphs, "top
- * community" ranking. Nothing here is designed to make a user feel they are
- * missing out on a place they are not in.
+ * Search is name, @handle, *or* user / group id. Local contacts are narrowed
+ * immediately; when that is empty (or partial) the server is asked the same way
+ * New Chat is - otherwise typing a real id for someone outside the first 100
+ * contacts looked broken.
  */
 export function CommunitiesScreen() {
   const { service, conversations, users, currentUser } = useChat();
-  const { profile } = useProfile();
+  const { profile, service: profiles } = useProfile();
   const [query, setQuery] = useState('');
   const allowed = canAccessCommunities(profile?.username);
 
@@ -42,10 +43,12 @@ export function CommunitiesScreen() {
    * `useChat().users` is a cache built from threads that exist, so searching it
    * could only ever find someone you had already messaged - which made the
    * search field look broken for exactly the case it is for. `listContacts()`
-   * reads `profiles`, so everyone on PINGO is findable.
+   * reads `profiles`, so everyone on PINGO is findable (within its limit);
+   * server `search` fills in the rest when you type.
    */
   const [directory, setDirectory] = useState<User[]>();
   const [directoryError, setDirectoryError] = useState<string>();
+  const [found, setFound] = useState<User[]>([]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -74,7 +77,37 @@ export function CommunitiesScreen() {
   }, [service, allowed]);
 
   const people = directory ?? users;
-  const q = query.trim().toLowerCase();
+  const q = query.trim().toLowerCase().replace(/^@/u, '');
+
+  useEffect(() => {
+    const term = query.trim().replace(/^@/u, '');
+    setFound([]);
+    if (!allowed || term.length < 2) return;
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void profiles
+        .search(term)
+        .then((results) => {
+          if (!active) return;
+          setFound(
+            results.map((p) => ({
+              id: p.id,
+              name: p.displayName,
+              handle: p.username,
+              ...(p.avatarUrl ? { avatarUrl: p.avatarUrl } : {}),
+              presence: { state: 'offline' as const, lastSeenAt: 0 },
+            })),
+          );
+        })
+        .catch(() => undefined);
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [profiles, query, allowed]);
 
   const [opening, setOpening] = useState<string>();
   const [openError, setOpenError] = useState<string>();
@@ -108,25 +141,45 @@ export function CommunitiesScreen() {
     }
   };
 
+  const personMatches = (u: User) =>
+    !q ||
+    u.name.toLowerCase().includes(q) ||
+    u.handle.toLowerCase().includes(q) ||
+    u.id.toLowerCase().includes(q);
+
   const groups = useMemo(
     () =>
-      conversations.filter(
-        (c) =>
-          (c.kind === 'group' || c.kind === 'community') &&
-          (!q || c.title.toLowerCase().includes(q)),
-      ),
-    [conversations, q],
+      conversations.filter((c) => {
+        if (c.kind !== 'group' && c.kind !== 'community') return false;
+        if (!q) return true;
+        if (c.title.toLowerCase().includes(q)) return true;
+        if (c.id.toLowerCase().includes(q)) return true;
+        // Member name / handle / id - searching for a friend finds their groups.
+        return c.participantIds.some((id) => {
+          if (id.toLowerCase().includes(q)) return true;
+          const person = people.find((u) => u.id === id) ?? users.find((u) => u.id === id);
+          if (!person) return false;
+          return (
+            person.name.toLowerCase().includes(q) ||
+            person.handle.toLowerCase().includes(q) ||
+            person.id.toLowerCase().includes(q)
+          );
+        });
+      }),
+    [conversations, q, people, users],
   );
 
-  const contacts = useMemo(
-    () =>
-      people.filter(
-        (u) =>
-          u.id !== currentUser?.id &&
-          (!q || u.name.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q)),
-      ),
-    [people, currentUser, q],
-  );
+  const contacts = useMemo(() => {
+    const local = people.filter(
+      (u) => u.id !== currentUser?.id && personMatches(u),
+    );
+    const known = new Set(local.map((u) => u.id));
+    if (currentUser) known.add(currentUser.id);
+    const remote = found.filter((u) => !known.has(u.id));
+    return [...local, ...remote];
+    // personMatches closes over q
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people, currentUser, q, found]);
 
   const loadingPeople = directory === undefined && !directoryError && users.length === 0;
   const nothingFound = !loadingPeople && groups.length === 0 && contacts.length === 0;
@@ -143,7 +196,7 @@ export function CommunitiesScreen() {
         <SearchField
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search people and groups"
+          placeholder="Search name, @username, or id"
           aria-label="Search people and groups"
         />
 
@@ -165,7 +218,9 @@ export function CommunitiesScreen() {
           <EmptyState
             title={q ? 'No matches' : 'Nothing here yet'}
             description={
-              q ? `Nothing found for "${query.trim()}".` : 'Groups and contacts will appear here.'
+              q
+                ? `Nothing found for "${query.trim()}". Try their @username or full user id.`
+                : 'Groups and contacts will appear here.'
             }
             icon={<UsersIcon size={26} />}
           />
@@ -192,7 +247,11 @@ export function CommunitiesScreen() {
                         <Card interactive elevation="sm" className="h-full">
                           <div className="flex items-start justify-between gap-3">
                             <AvatarStack
-                              people={members.map((m) => ({ id: m.id, name: m.name, src: m.avatarUrl }))}
+                              people={members.map((m) => ({
+                                id: m.id,
+                                name: m.name,
+                                src: m.avatarUrl,
+                              }))}
                               size="sm"
                               max={3}
                             />
@@ -248,7 +307,10 @@ export function CommunitiesScreen() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-body text-ink">{user.name}</p>
                           <p className="mt-0.5 truncate text-caption text-text-secondary">
-                            {formatPresence(user)}
+                            @{user.handle}
+                            {q && user.id.toLowerCase().includes(q)
+                              ? ` · ${user.id.slice(0, 8)}…`
+                              : ` · ${formatPresence(user)}`}
                           </p>
                         </div>
                       </Link>

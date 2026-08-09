@@ -119,12 +119,13 @@ export function GroupInfoSheet({
 
   const matches = useMemo(() => {
     if (!candidates) return undefined;
-    const term = query.trim().toLowerCase();
+    const term = query.trim().toLowerCase().replace(/^@/u, '');
     if (!term) return candidates;
     return candidates.filter(
       (person) =>
         person.name.toLowerCase().includes(term) ||
-        person.handle.toLowerCase().includes(term),
+        person.handle.toLowerCase().includes(term) ||
+        person.id.toLowerCase().includes(term),
     );
   }, [candidates, query]);
 
