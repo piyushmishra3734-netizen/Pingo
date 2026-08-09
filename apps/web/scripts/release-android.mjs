@@ -26,8 +26,9 @@ const GH = 'C:\\Program Files\\GitHub CLI\\gh.exe';
 const REPO = 'piyushmishra3734-netizen/Pingo';
 
 const tag = process.argv[2];
-if (!tag || !/^v\d+\.\d+\.\d+$/.test(tag)) {
-  console.error('usage: node scripts/release-android.mjs v1.2.3');
+// App version scheme is major.year.week.build (e.g. v2.26.32.13), not v1.0.x.
+if (!tag || !/^v\d+\.\d+\.\d+(\.\d+)?$/.test(tag)) {
+  console.error('usage: node scripts/release-android.mjs v2.26.32.13');
   process.exit(1);
 }
 
