@@ -486,12 +486,56 @@ export async function setWallpaperPhoto(
 }
 
 /**
- * Build a JPEG Blob suitable for uploading as a shared group wallpaper.
- * Keeps the long edge modest so group members are not downloading multi‑MB
- * photos just for a backdrop.
+ * What a shared (group) custom wallpaper needs on the wire.
+ *
+ * Still photos are re-encoded to a modest JPEG so members are not downloading
+ * multi‑MB backdrops. Animated files (GIF / animated WebP / APNG) must keep
+ * their original bytes — a canvas holds one frame, so re-encoding turns a GIF
+ * into a still poster of its first moment.
  */
-export async function prepareSharedWallpaperPhoto(file: Blob): Promise<Blob | undefined> {
+export interface SharedWallpaperPhoto {
+  blob: Blob;
+  contentType: string;
+  /** Filename extension without the dot, e.g. `gif` or `jpg`. */
+  ext: string;
+}
+
+/** Hard ceiling for animated wallpapers (original bytes, no re-encode). */
+const MAX_ANIMATED_SHARED = 6 * 1024 * 1024;
+
+function extForContentType(type: string): string {
+  if (type === 'image/gif') return 'gif';
+  if (type === 'image/webp') return 'webp';
+  if (type === 'image/png') return 'png';
+  if (type === 'image/jpeg' || type === 'image/jpg') return 'jpg';
+  return 'bin';
+}
+
+/**
+ * Prepare a file for group wallpaper upload.
+ *
+ * Animated media is uploaded as-is (within size limits). Everything else is
+ * scaled to a long edge of 1600px and encoded as JPEG.
+ */
+export async function prepareSharedWallpaperPhoto(
+  file: Blob,
+): Promise<SharedWallpaperPhoto | undefined> {
   try {
+    const { isAnimatedImage } = await import('./animated-image.js');
+    if (await isAnimatedImage(file)) {
+      if (file.size > MAX_ANIMATED_SHARED) return undefined;
+      // Prefer the browser's type; GIF headers are the usual case when type is empty.
+      const contentType =
+        file.type && file.type.startsWith('image/')
+          ? file.type
+          : 'image/gif';
+      return {
+        blob: file,
+        contentType,
+        ext: extForContentType(contentType),
+      };
+    }
+
     const bitmap = await createImageBitmap(file);
     const edge = 1600;
     const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
@@ -510,7 +554,8 @@ export async function prepareSharedWallpaperPhoto(file: Blob): Promise<Blob | un
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85),
     );
-    return blob ?? undefined;
+    if (!blob) return undefined;
+    return { blob, contentType: 'image/jpeg', ext: 'jpg' };
   } catch {
     return undefined;
   }

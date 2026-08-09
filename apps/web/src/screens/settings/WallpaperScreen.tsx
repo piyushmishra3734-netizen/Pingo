@@ -153,9 +153,10 @@ export function WallpaperScreen() {
 
     const client = getSupabaseClient();
     // Avatars bucket only allows uploads under the caller's uid folder.
-    const path = `${currentUser.id}/wallpapers/${conversationId}/${crypto.randomUUID()}.jpg`;
-    const { error: upErr } = await client.storage.from('avatars').upload(path, prepared, {
-      contentType: 'image/jpeg',
+    // Extension follows the real bytes so GIFs stay GIFs (not mislabeled .jpg).
+    const path = `${currentUser.id}/wallpapers/${conversationId}/${crypto.randomUUID()}.${prepared.ext}`;
+    const { error: upErr } = await client.storage.from('avatars').upload(path, prepared.blob, {
+      contentType: prepared.contentType,
       upsert: false,
     });
     if (upErr) return false;
@@ -174,7 +175,13 @@ export function WallpaperScreen() {
     try {
       if (isGroup && conversationId) {
         const ok = await uploadSharedPhoto(file);
-        if (!ok) setError('That picture could not be used. Try a smaller one.');
+        if (!ok) {
+          setError(
+            file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
+              ? 'That GIF is too large (max 6 MB) or could not be used.'
+              : 'That picture could not be used. Try a smaller one.',
+          );
+        }
         return;
       }
 
@@ -348,7 +355,7 @@ export function WallpaperScreen() {
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,image/gif,image/webp"
           hidden
           onChange={(event) => {
             const file = event.target.files?.[0];
