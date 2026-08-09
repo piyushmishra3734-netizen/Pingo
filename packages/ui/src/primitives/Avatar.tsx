@@ -146,7 +146,12 @@ export function Avatar({
 
   return (
     <span
-      className={cn('relative inline-flex shrink-0', className)}
+      /*
+        grid, not bare inline-flex alone: presence/ring wrappers that only
+        use rounded-full without a square box still read as oval when this
+        node sits on a text baseline. Fixed size + grid keeps a true circle.
+      */
+      className={cn('relative inline-grid shrink-0 place-items-center', className)}
       style={{ width: px, height: px }}
     >
       {/*

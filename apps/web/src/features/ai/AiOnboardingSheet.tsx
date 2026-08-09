@@ -130,7 +130,12 @@ export function AiOnboardingSheet({
         >
           {step === 0 && (
             <div className="flex flex-col items-center px-6 pb-6 pt-10 text-center">
-              <div className="relative rounded-full p-1 shadow-[0_8px_24px_rgba(17,17,19,0.1)] ring-1 ring-black/[0.06]">
+              <div
+                className={cn(
+                  'relative inline-grid size-[6.5rem] shrink-0 place-items-center rounded-full p-1',
+                  'bg-surface shadow-[0_8px_24px_rgba(17,17,19,0.1)] ring-2 ring-surface',
+                )}
+              >
                 <Avatar
                   name={face}
                   id="pingo-ai"

@@ -253,8 +253,9 @@ export function AiProfileSheet({
         hideTitle
         onClose={onClose}
         className={cn(
-          'max-h-[min(92vh,46rem)] max-w-md overflow-x-hidden overflow-y-auto p-0',
-          'sm:max-w-md sm:rounded-2xl',
+          /* Kill default Sheet padding so cover is edge-to-edge. */
+          '!max-h-[min(92vh,48rem)] !max-w-md !overflow-x-hidden !overflow-y-auto !p-0 !pb-0',
+          'sm:!max-w-md sm:!rounded-2xl sm:!p-0 sm:!pb-0',
         )}
       >
         <input
@@ -280,50 +281,28 @@ export function AiProfileSheet({
           }}
         />
 
-        {/* Sticky chrome: close always reachable */}
-        <div
-          className={cn(
-            'sticky top-0 z-20 flex items-center justify-between gap-3',
-            'border-b border-black/[0.05] bg-surface/95 px-4 py-3 backdrop-blur-md',
-          )}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(
-              'rounded-lg px-2 py-1.5 text-[0.8125rem] font-medium text-text-secondary',
-              'transition-colors hover:bg-black/[0.04] hover:text-ink',
-              'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
-            )}
-          >
-            Close
-          </button>
-          <span className="text-[0.8125rem] font-medium tracking-[-0.01em] text-text-tertiary">
-            About them
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className={cn(
-              'rounded-lg px-2.5 py-1.5 text-[0.8125rem] font-semibold text-ink',
-              'transition-colors hover:bg-black/[0.04]',
-              'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
-              'disabled:opacity-40',
-            )}
-          >
-            Done
-          </button>
-        </div>
-
-        {/* Cover */}
+        {/*
+          Cover is the first thing in the sheet — full width, full banner box.
+          Controls float ON the cover so nothing steals height above it.
+        */}
         <div className="relative w-full">
-          <div className="relative h-36 w-full overflow-hidden bg-[#E8E8EA] sm:h-40">
+          <div
+            className={cn(
+              'relative w-full overflow-hidden bg-[#E8E8EA]',
+              /* Tall full-bleed cover — not a thin strip. */
+              'aspect-[2/1] min-h-[11.5rem] max-h-[14rem] sm:min-h-[12.5rem]',
+            )}
+          >
             {bannerSrc ? (
-              <img src={bannerSrc} alt="" className="absolute inset-0 size-full object-cover" />
+              <img
+                src={bannerSrc}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover object-center"
+                draggable={false}
+              />
             ) : (
               <div
-                className="absolute inset-0"
+                className="absolute inset-0 h-full w-full"
                 style={{
                   background:
                     'radial-gradient(90% 80% at 20% 0%, rgb(17 17 19 / 0.08), transparent 55%),' +
@@ -332,35 +311,57 @@ export function AiProfileSheet({
                 }}
               />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/20 to-transparent" />
-            <button
-              type="button"
-              onClick={() => bannerFileRef.current?.click()}
-              disabled={busy}
-              className={cn(
-                'absolute top-3 right-3 z-10 rounded-full px-3 py-1.5',
-                'border border-black/[0.06] bg-white/90 text-[0.75rem] font-medium text-ink shadow-sm',
-                'transition-transform active:scale-[0.97]',
-                'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
-                'disabled:opacity-50',
-              )}
-            >
-              {bannerSrc ? 'Change cover' : 'Add cover'}
-            </button>
+            {/* Soft bottom fade only — cover still reads full frame */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent" />
+
+            {/* Floating controls on cover */}
+            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+              <button
+                type="button"
+                onClick={onClose}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-[0.8125rem] font-medium text-ink',
+                  'border border-black/[0.06] bg-white/92 shadow-sm',
+                  'active:scale-[0.97]',
+                  'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                )}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => bannerFileRef.current?.click()}
+                disabled={busy}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-[0.75rem] font-medium text-ink',
+                  'border border-black/[0.06] bg-white/92 shadow-sm',
+                  'active:scale-[0.97] disabled:opacity-50',
+                  'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                )}
+              >
+                {bannerSrc ? 'Change cover' : 'Add cover'}
+              </button>
+            </div>
           </div>
 
-          {/* Identity */}
-          <div className="relative -mt-11 flex flex-col items-center px-5 pb-5 text-center">
+          {/* Identity — face ring must be square grid so ring is a circle, not oval */}
+          <div className="relative -mt-12 flex flex-col items-center px-5 pb-5 text-center">
             <button
               type="button"
               onClick={() => avatarFileRef.current?.click()}
               disabled={busy}
               className={cn(
-                'relative rounded-full bg-surface p-1 shadow-[0_4px_20px_rgba(17,17,19,0.12)]',
-                'ring-1 ring-black/[0.06]',
-                'transition-transform active:scale-[0.98]',
-                'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
-                'disabled:opacity-50',
+                /*
+                  Same oval-ring fix as StoryRing / AvatarStack:
+                  a plain button is a line box; rounded-full on a non-square
+                  line box paints an egg. Grid + fixed size = true circle.
+                */
+                'relative inline-grid shrink-0 place-items-center rounded-full',
+                'size-[6.5rem] bg-surface p-1',
+                'shadow-[0_4px_20px_rgba(17,17,19,0.12)] ring-2 ring-surface',
+                'active:scale-[0.98] disabled:opacity-50',
+                'outline-none focus-visible:outline focus-visible:outline-2',
+                'focus-visible:outline-offset-2 focus-visible:outline-ink',
               )}
               aria-label="Change photo"
             >
@@ -373,8 +374,9 @@ export function AiProfileSheet({
               />
               <span
                 className={cn(
-                  'pointer-events-none absolute inset-x-0 bottom-0 translate-y-1/3',
-                  'mx-auto w-fit rounded-full bg-ink px-2.5 py-0.5',
+                  'pointer-events-none absolute bottom-0 left-1/2 z-[1]',
+                  '-translate-x-1/2 translate-y-1/4',
+                  'rounded-full bg-ink px-2.5 py-0.5',
                   'text-[10px] font-semibold tracking-wide text-white shadow-sm',
                 )}
               >

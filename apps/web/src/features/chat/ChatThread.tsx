@@ -879,20 +879,27 @@ export function ChatThread({
               : { onClick: () => setGroupInfo(true) })}
         >
           {conversation.kind === 'direct' || isAi ? (
-            <span ref={headerAvatar} className="inline-flex">
-            <Avatar
-              name={conversation.title}
-              id={partner?.id ?? conversation.id}
-              src={partner?.avatarUrl ?? conversation.avatarUrl}
-              size="sm"
-              presence={
-                isAi
-                  ? 'online'
-                  : partner?.presence.state === 'online'
+            /*
+              inline-grid + fixed box: a bare inline wrapper becomes a line
+              box and the presence ring paints as an oval around the face.
+            */
+            <span
+              ref={headerAvatar}
+              className="inline-grid size-10 shrink-0 place-items-center"
+            >
+              <Avatar
+                name={conversation.title}
+                id={partner?.id ?? conversation.id}
+                src={partner?.avatarUrl ?? conversation.avatarUrl}
+                size="sm"
+                presence={
+                  isAi
                     ? 'online'
-                    : undefined
-              }
-            />
+                    : partner?.presence.state === 'online'
+                      ? 'online'
+                      : undefined
+                }
+              />
             </span>
           ) : (
             <AvatarStack
