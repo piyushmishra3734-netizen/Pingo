@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 import { CloseFriendsSheet } from './CloseFriendsSheet.js';
 import { useStories } from './StoryContext.js';
 import { StoryPrivacySheet } from './StoryPrivacySheet.js';
@@ -33,6 +34,7 @@ export function MyStoryManageSheet({
   onAdd: () => void;
   onArchive: () => void;
 }) {
+  const t = useT();
   const { mine, service, refresh } = useStories();
   const confirm = useConfirm();
 
@@ -46,12 +48,12 @@ export function MyStoryManageSheet({
     if (!newest) return;
     onClose();
     const go = await confirm({
-      title: count > 1 ? 'Delete your latest story?' : 'Delete your story?',
+      title: count > 1 ? t('story.deleteLatestQ') : t('story.deleteQ'),
       description:
         count > 1
-          ? `The other ${count - 1} stay up. It goes along with its views and likes.`
-          : 'It goes now rather than at the end of the day, along with its views and likes.',
-      confirmLabel: 'Delete',
+          ? t('story.deleteLatestBody', { n: count - 1 })
+          : t('story.deleteBody'),
+      confirmLabel: t('select.delete'),
     });
     if (!go) return;
     await service.remove(newest.id);
@@ -63,35 +65,35 @@ export function MyStoryManageSheet({
 
   return (
     <Sheet
-      title="Your story"
-      description={count === 1 ? '1 story, live for 24 hours' : `${count} stories, live for 24 hours`}
+      title={t('story.manageTitle')}
+      description={count === 1 ? t('story.oneLive') : t('story.nLive', { n: count })}
       onClose={onClose}
     >
       <div className="mt-3 flex flex-col gap-1">
-        <SheetItem icon={<PlusIcon size={20} />} label="Add to your story" onClick={onAdd} />
+        <SheetItem icon={<PlusIcon size={20} />} label={t('story.add')} onClick={onAdd} />
         <SheetItem
           icon={<UsersIcon size={20} />}
-          label="Close friends"
-          hint="They see a green ring"
+          label={t('story.closeFriends')}
+          hint={t('story.closeFriendsHint')}
           onClick={() => setCloseFriends(true)}
         />
         <SheetItem
           icon={<ShieldIcon size={20} />}
-          label="Story privacy"
-          hint="Hide your stories from certain people"
+          label={t('story.privacy')}
+          hint={t('story.privacyHint')}
           onClick={() => setPrivacy(true)}
         />
         <SheetItem
           icon={<ArchiveIcon size={20} />}
-          label="Story archive"
-          hint="Only you can see it"
+          label={t('story.archive')}
+          hint={t('story.archiveHint')}
           onClick={onArchive}
         />
 
         {newest && (
           <SheetItem
             icon={<TrashIcon size={20} />}
-            label={count > 1 ? 'Delete latest story' : 'Delete story'}
+            label={count > 1 ? t('story.deleteLatest') : t('story.deleteStory')}
             tone="danger"
             onClick={() => void removeNewest()}
           />

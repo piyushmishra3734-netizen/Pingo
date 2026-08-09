@@ -5,10 +5,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { useT } from '../i18n/useT.js';
 
 type Memory = { id: string; key: string; value: string };
 
 export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const { profile } = useProfile();
   const confirm = useConfirm();
   const [rows, setRows] = useState<Memory[]>([]);
@@ -100,9 +102,9 @@ export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
 
   const remove = async (id: string) => {
     const go = await confirm({
-      title: 'Delete this memory?',
-      description: 'They won’t use this fact in future chats.',
-      confirmLabel: 'Delete',
+      title: t('ai.deleteMemoryQ'),
+      description: t('ai.deleteMemoryBody'),
+      confirmLabel: t('select.delete'),
     });
     if (!go) return;
     await getSupabaseClient().from('ai_memories').delete().eq('id', id);
@@ -112,9 +114,9 @@ export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
   const forgetAll = async () => {
     if (!profile) return;
     const go = await confirm({
-      title: 'Forget everything?',
-      description: 'All saved notes about you for this chat are removed.',
-      confirmLabel: 'Forget everything',
+      title: t('ai.forgetAllQ'),
+      description: t('ai.forgetAllBody'),
+      confirmLabel: t('ai.forgetAll'),
     });
     if (!go) return;
     await getSupabaseClient().from('ai_memories').delete().eq('user_id', profile.id);
@@ -123,8 +125,8 @@ export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet
-      title="Memories"
-      description="Things they’ve kept, with your permission."
+      title={t('ai.memories')}
+      description={t('ai.memoriesHint')}
       onClose={onClose}
       elevated
     >
@@ -135,7 +137,7 @@ export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
             className="flex-1"
             onClick={() => setAdding((v) => !v)}
           >
-            {adding ? 'Cancel' : 'Add memory'}
+            {adding ? t('common.cancel') : t('ai.addMemory')}
           </Button>
           <Button variant="secondary" className="flex-1" onClick={() => void load()}>
             Refresh
@@ -147,14 +149,14 @@ export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
             <input
               value={newKey}
               onChange={(e) => setNewKey(e.target.value.slice(0, 40))}
-              placeholder="Label (optional)"
+              placeholder={t('ai.labelOptional')}
               className="focus-ring w-full rounded-xl border border-line/50 bg-surface px-2.5 py-2 text-body text-ink"
             />
             <textarea
               value={newValue}
               onChange={(e) => setNewValue(e.target.value.slice(0, 500))}
               rows={2}
-              placeholder="What should they remember?"
+              placeholder={t('ai.rememberWhat')}
               className="focus-ring w-full resize-none rounded-xl border border-line/50 bg-surface px-2.5 py-2 text-body text-ink"
             />
             <Button
@@ -163,13 +165,13 @@ export function AiMemoriesSheet({ onClose }: { onClose: () => void }) {
               disabled={busy || !newValue.trim()}
               onClick={() => void addMemory()}
             >
-              Save
+              {t('common.save')}
             </Button>
           </div>
         )}
 
         {loading && (
-          <p className="text-center text-caption text-text-tertiary">Loading…</p>
+          <p className="text-center text-caption text-text-tertiary">{t('common.loading')}</p>
         )}
 
         {!loading && rows.length === 0 && (

@@ -3,6 +3,8 @@ import { Avatar, Button, EmptyState, LinkIcon, LoadingState } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
+import { useT } from '../features/i18n/useT.js';
+
 /**
  * The other door into a group.
  *
@@ -23,6 +25,7 @@ import { useNavigate, useParams } from 'react-router-dom';
  * and not a single message: standing in the doorway is not being in the room.
  */
 export function JoinGroupScreen() {
+  const t = useT();
   const { code } = useParams<{ code: string }>();
   const { service } = useChat();
   const navigate = useNavigate();
@@ -66,7 +69,7 @@ export function JoinGroupScreen() {
       const conversationId = await service.joinGroupWithCode(code);
       navigate(`/chats/${conversationId}`, { replace: true });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'That did not work.');
+      setError(cause instanceof Error ? cause.message : t('join.fail'));
       setJoining(false);
     }
   };
@@ -74,7 +77,7 @@ export function JoinGroupScreen() {
   if (state === 'loading') {
     return (
       <div className="flex h-full items-center justify-center bg-page">
-        <LoadingState label="Checking the invite" />
+        <LoadingState label={t('join.checking')} />
       </div>
     );
   }
@@ -84,11 +87,11 @@ export function JoinGroupScreen() {
       <div className="flex h-full items-center justify-center bg-page px-6">
         <EmptyState
           icon={<LinkIcon size={28} />}
-          title="This link is no longer valid"
-          description="An admin may have revoked it. Ask them for a new one."
+          title={t('join.invalid')}
+          description={t('join.invalidHint')}
           action={
             <Button variant="secondary" onClick={() => navigate('/chats')}>
-              Back to chats
+              {t('join.backChats')}
             </Button>
           }
         />
@@ -108,7 +111,9 @@ export function JoinGroupScreen() {
       <div>
         <h1 className="text-h1 text-ink">{preview.title}</h1>
         <p className="mt-1 text-body text-text-secondary">
-          {preview.memberCount === 1 ? '1 member' : `${preview.memberCount} members`}
+          {preview.memberCount === 1
+            ? t('join.oneMember')
+            : t('join.nMembers', { n: preview.memberCount })}
         </p>
       </div>
 
@@ -126,10 +131,10 @@ export function JoinGroupScreen() {
           disabled={joining}
           onClick={() => void join()}
         >
-          {joining ? 'Joining…' : 'Join group'}
+          {joining ? t('join.joining') : t('join.join')}
         </Button>
         <Button variant="text" className="w-full" onClick={() => navigate('/chats')}>
-          Not now
+          {t('join.notNow')}
         </Button>
       </div>
     </div>

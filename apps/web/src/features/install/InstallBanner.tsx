@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppLogo } from '../../components/AppLogo.js';
+import { useT } from '../i18n/useT.js';
 import { isNative } from '../native/shell.js';
 import { useInstall } from './useInstall.js';
 
@@ -40,16 +41,8 @@ import { useInstall } from './useInstall.js';
  * explains where things stand.
  */
 
-/** What the banner promises, per platform. Specific, because vague is ignored. */
-const BLURB: Record<string, string> = {
-  android: 'The Android app is on its way to the Play Store.',
-  ios: 'The iPhone app is on its way to the App Store.',
-  windows: 'A desktop app for Windows is in development.',
-  macos: 'A desktop app for macOS is in development.',
-  other: 'Native apps for every platform are in development.',
-};
-
 export function InstallBanner() {
+  const t = useT();
   const { platform, method } = useInstall();
   const navigate = useNavigate();
 
@@ -64,6 +57,17 @@ export function InstallBanner() {
    * so the platform is asked directly rather than inferred from a media query.
    */
   if (isNative() || dismissed || method === 'installed') return null;
+
+  const blurbKey =
+    platform === 'android'
+      ? 'install.android'
+      : platform === 'ios'
+        ? 'install.ios'
+        : platform === 'windows'
+          ? 'install.windows'
+          : platform === 'macos'
+            ? 'install.macos'
+            : 'install.other';
 
   const dismiss = () => setDismissed(true);
 
@@ -81,7 +85,7 @@ export function InstallBanner() {
     >
       <div
         role="region"
-        aria-label="PINGO native apps"
+        aria-label={t('install.aria')}
         className={cn(
           'pointer-events-auto flex w-full max-w-md items-center gap-3',
           'glass-surface rounded-2xl px-3.5 py-3 shadow-lg',
@@ -91,10 +95,8 @@ export function InstallBanner() {
         <AppLogo size={40} alt="" className="shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-body font-medium text-ink">PINGO is becoming an app</p>
-          <p className="line-clamp-2 text-caption text-text-secondary">
-            {BLURB[platform] ?? BLURB.other}
-          </p>
+          <p className="truncate text-body font-medium text-ink">{t('install.title')}</p>
+          <p className="line-clamp-2 text-caption text-text-secondary">{t(blurbKey)}</p>
         </div>
 
         <button
@@ -106,13 +108,13 @@ export function InstallBanner() {
             'focus-ring',
           )}
         >
-          Learn more
+          {t('install.learnMore')}
         </button>
 
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Dismiss"
+          aria-label={t('install.dismiss')}
           className={cn(
             'shrink-0 rounded-full p-1.5 text-text-tertiary',
             'transition-colors duration-quick ease-standard hover:bg-hover hover:text-ink',

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Overlay } from '../../components/Overlay.js';
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import { SnapEditor } from '../camera/SnapEditor.js';
+import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
 import { useStories } from './StoryContext.js';
 
@@ -40,6 +41,7 @@ export function StoryComposer({
   onClose: () => void;
   onPosted: () => void;
 }) {
+  const t = useT();
   const { service, refresh } = useStories();
   const navigate = useNavigate();
 
@@ -117,11 +119,11 @@ export function StoryComposer({
   if (step === 'source') {
     return (
       <>
-        <Sheet title="Add to your story" onClose={onClose}>
+        <Sheet title={t('story.composeTitle')} onClose={onClose}>
           <div className="mt-3 flex flex-col gap-1">
             <SheetItem
               icon={<CameraIcon size={20} />}
-              label="Camera"
+              label={t('story.camera')}
               hint="Take a photo now"
               onClick={() => {
                 onClose();
@@ -130,7 +132,7 @@ export function StoryComposer({
             />
             <SheetItem
               icon={<ImageIcon size={20} />}
-              label="Gallery"
+              label={t('story.gallery')}
               hint="A photo or a video from this device"
               onClick={() => fileRef.current?.click()}
             />
@@ -179,7 +181,7 @@ export function StoryComposer({
   if (choosing) {
     return (
       <Sheet
-        title="Specific people"
+        title={t('story.specificPeople')}
         description="Only the people you tick will see this story."
         onClose={() => setChoosing(false)}
       >
@@ -204,7 +206,7 @@ export function StoryComposer({
 
   return (
     <Sheet
-      title="Post to your story"
+      title={t('story.post')}
       onClose={onClose}
       /*
         Craftsmanship only on this share sheet: warmer page wash, softer line,
@@ -231,8 +233,8 @@ export function StoryComposer({
           value={caption}
           onChange={(event) => setCaption(event.target.value.slice(0, 500))}
           rows={2}
-          placeholder="Say something. @mentions and links work."
-          aria-label="Caption"
+          placeholder={t('story.captionPh')}
+          aria-label={t('story.caption')}
           className={cn(
             // Primary field - most presence so the eye lands here first.
             'focus-ring w-full resize-none rounded-xl border border-line/70 bg-surface',
@@ -255,8 +257,8 @@ export function StoryComposer({
           <input
             value={place}
             onChange={(event) => setPlace(event.target.value.slice(0, 80))}
-            placeholder="Add a place (optional)"
-            aria-label="Place"
+            placeholder={t('story.placePh')}
+            aria-label={t('story.place')}
             className="min-w-0 flex-1 bg-transparent py-2 text-caption text-ink outline-none placeholder:text-text-tertiary"
           />
         </label>
@@ -272,8 +274,8 @@ export function StoryComposer({
           <input
             value={link}
             onChange={(event) => setLink(event.target.value)}
-            placeholder="Add a link (optional)"
-            aria-label="Link"
+            placeholder={t('story.linkPh')}
+            aria-label={t('story.link')}
             inputMode="url"
             autoCapitalize="none"
             spellCheck={false}
@@ -288,7 +290,7 @@ export function StoryComposer({
           Who can see it
         </legend>
 
-        <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="Audience">
+        <div className="flex flex-col gap-1.5" role="radiogroup" aria-label={t('story.audience')}>
           {STORY_AUDIENCES.map((option) => {
             const selected = audience === option.value;
             const closeSelected = option.value === 'close' && selected;
@@ -383,7 +385,7 @@ export function StoryComposer({
             (busy || !media) && 'opacity-50',
           )}
         >
-          {busy ? 'Posting…' : 'Share to story'}
+          {busy ? t('story.posting') : t('story.post')}
         </button>
         {/*
           Tertiary text action, same column as Share - not a second full pill

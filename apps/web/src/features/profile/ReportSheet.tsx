@@ -3,6 +3,7 @@ import { cn } from '@pingo/ui';
 import { useState } from 'react';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * Reporting someone, or one of their posts.
@@ -45,6 +46,7 @@ export function ReportSheet({
   /** Offered after a report is filed. Absent when there is nobody to block. */
   onBlock?: () => void;
 }) {
+  const t = useT();
   const { service } = useProfile();
 
   const [reason, setReason] = useState<ReportReason>();
@@ -61,7 +63,7 @@ export function ReportSheet({
       await service.report({ userId, postId, reason, details });
       setSent(true);
     } catch {
-      setError('That did not send. Try again.');
+      setError(t('report.fail'));
     } finally {
       setSending(false);
     }
@@ -69,7 +71,7 @@ export function ReportSheet({
 
   if (sent) {
     return (
-      <Sheet title="Report sent" description="It has been recorded." onClose={onClose}>
+      <Sheet title={t('report.sent')} description={t('report.recorded')} onClose={onClose}>
         <p className="mt-3 text-body text-text-secondary">
           Nothing is shared with {subjectName} - they are not told a report was made.
         </p>
@@ -84,10 +86,10 @@ export function ReportSheet({
                 'transition-colors duration-instant hover:bg-hover active:bg-pressed',
               )}
             >
-              Block {subjectName} as well
+              {t('menu.block')} {subjectName}
             </button>
           )}
-          <SheetCancel onClick={onClose} label="Done" />
+          <SheetCancel onClick={onClose} label={t('common.done')} />
         </div>
       </Sheet>
     );
@@ -95,11 +97,11 @@ export function ReportSheet({
 
   return (
     <Sheet
-      title={postId ? 'Report this post' : `Report ${subjectName}`}
-      description="Tell us what is wrong. They are not told about this."
+      title={postId ? t('report.postTitle') : `${t('menu.report')} ${subjectName}`}
+      description={t('report.tellUs')}
       onClose={onClose}
     >
-      <div className="mt-4 flex flex-col gap-1" role="radiogroup" aria-label="Reason">
+      <div className="mt-4 flex flex-col gap-1" role="radiogroup" aria-label={t('report.reason')}>
         {REASONS.map((option) => (
           <button
             key={option.value}
@@ -135,8 +137,8 @@ export function ReportSheet({
       <textarea
         value={details}
         onChange={(event) => setDetails(event.target.value)}
-        placeholder="Anything else we should know? (optional)"
-        aria-label="More detail"
+        placeholder={t('report.morePh')}
+        aria-label={t('report.moreDetail')}
         rows={3}
         maxLength={1000}
         className={cn(
@@ -163,7 +165,7 @@ export function ReportSheet({
             (!reason || sending) && 'opacity-50',
           )}
         >
-          {sending ? 'Sending…' : 'Send report'}
+          {sending ? t('report.sending') : t('report.send')}
         </button>
         <SheetCancel onClick={onClose} />
       </div>

@@ -3,6 +3,7 @@ import { Avatar, CheckIcon, SearchField, cn } from '@pingo/ui';
 import { useMemo, useState } from 'react';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 
 /**
@@ -29,6 +30,7 @@ import { publicAppUrl } from '../../lib/public-origin.js';
  */
 
 export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () => void }) {
+  const t = useT();
   const { conversations, users, service } = useChat();
 
   const [query, setQuery] = useState('');
@@ -81,7 +83,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
       setSent(true);
       window.setTimeout(onClose, 900);
     } catch {
-      setError('That did not send. Try again.');
+      setError(t('story.sendFail'));
       setSending(false);
     }
   };
@@ -89,7 +91,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
   if (restricted) {
     return (
       <Sheet
-        title="This story cannot be shared"
+        title={t('story.cannotShare')}
         description={
           story.audience === 'close'
             ? 'It went to close friends only. Passing it on is not yours to do.'
@@ -99,7 +101,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
         elevated
       >
         <div className="mt-4">
-          <SheetCancel onClick={onClose} label="Done" />
+          <SheetCancel onClick={onClose} label={t('common.done')} />
         </div>
       </Sheet>
     );
@@ -107,7 +109,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
 
   return (
     <Sheet
-      title="Share this story"
+      title={t('story.shareTitle')}
       description="Sends a link to their profile - not a copy of the picture."
       onClose={onClose}
       elevated
@@ -116,14 +118,14 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
         <SearchField
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search chats"
-          aria-label="Search chats"
+          placeholder={t('story.searchChats')}
+          aria-label={t('story.searchChats')}
         />
       </div>
 
       {targets.length === 0 ? (
         <p className="py-8 text-center text-caption text-text-tertiary">
-          {query.trim() ? 'No chats matching that.' : 'No chats to share with yet.'}
+          {query.trim() ? t('story.noChatMatch') : t('chats.emptyHomeHint')}
         </p>
       ) : (
         <ul className="mt-2 max-h-[40vh] space-y-0.5 overflow-y-auto">
@@ -157,7 +159,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body text-ink">{target.name}</span>
                     <span className="block truncate text-caption text-text-secondary">
-                      {target.kind === 'direct' ? 'Chat' : 'Group'}
+                      {target.kind === 'direct' ? t('story.chat') : t('story.group')}
                     </span>
                   </span>
                   <span
@@ -195,7 +197,11 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
             (chosen.size === 0 || sending || sent) && 'opacity-50',
           )}
         >
-          {sent ? 'Sent' : sending ? 'Sending…' : `Send${chosen.size ? ` to ${chosen.size}` : ''}`}
+          {sent
+            ? t('story.sent')
+            : sending
+              ? t('story.sending')
+              : `Send${chosen.size ? ` to ${chosen.size}` : ''}`}
         </button>
         <SheetCancel onClick={onClose} />
       </div>

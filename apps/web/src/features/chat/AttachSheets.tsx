@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
 import { useReturnFocus } from '../conversations/focus-restore.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * The three small sheets behind Location, Contact and Event.
@@ -93,6 +94,7 @@ export function LocationSheet({
   onClose: () => void;
   onSend: (location: LocationRef) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [label, setLabel] = useState('');
@@ -114,7 +116,7 @@ export function LocationSheet({
         setError(
           cause.code === cause.PERMISSION_DENIED
             ? 'PINGO needs location access to share where you are.'
-            : 'Your location could not be found.',
+            : t('attach.locFail'),
         );
       },
       // A fix good enough to point at a building, and no waiting past ten
@@ -126,8 +128,8 @@ export function LocationSheet({
 
   return (
     <Sheet
-      title="Share location"
-      description="Your current position, as a card they can open in a map."
+      title={t('attach.location')}
+      description={t('attach.locationHint')}
       onClose={onClose}
     >
       <div className="space-y-2 px-4 pb-2">
@@ -139,13 +141,13 @@ export function LocationSheet({
         <input
           value={label}
           onChange={(event) => setLabel(event.target.value)}
-          placeholder="Name this place (optional)"
-          aria-label="Place name"
+          placeholder={t('attach.placePh')}
+          aria-label={t('attach.placeName')}
           maxLength={80}
           className={FIELD}
         />
         <button type="button" onClick={share} disabled={busy} className={PRIMARY}>
-          {busy ? 'Finding you…' : 'Share current location'}
+          {busy ? t('attach.finding') : t('attach.shareCurrent')}
         </button>
       </div>
     </Sheet>
@@ -168,6 +170,7 @@ export function ContactSheet({
   onClose: () => void;
   onSend: (contact: { name: string; handle?: string; userId?: string }) => void;
 }) {
+  const t = useT();
   const { users, currentUser } = useChat();
   const [query, setQuery] = useState('');
 
@@ -178,13 +181,13 @@ export function ContactSheet({
     );
 
   return (
-    <Sheet title="Share contact" onClose={onClose}>
+    <Sheet title={t('attach.contact')} onClose={onClose}>
       <div className="shrink-0 px-4 pb-2">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search people"
-          aria-label="Search people"
+          placeholder={t('attach.searchPeople')}
+          aria-label={t('attach.searchPeople')}
           className={FIELD}
         />
       </div>
@@ -234,6 +237,7 @@ export function EventSheet({
   onClose: () => void;
   onSend: (event: EventRef) => void;
 }) {
+  const t = useT();
   const [title, setTitle] = useState('');
   const [when, setWhen] = useState('');
   const [where, setWhere] = useState('');
@@ -243,7 +247,7 @@ export function EventSheet({
 
   return (
     <Sheet
-      title="Share event"
+      title={t('attach.event')}
       description="They can add it to their calendar in one tap."
       onClose={onClose}
     >
@@ -252,8 +256,8 @@ export function EventSheet({
           autoFocus
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="What is it?"
-          aria-label="Event title"
+          placeholder={t('attach.eventWhat')}
+          aria-label={t('attach.eventTitle')}
           maxLength={120}
           className={FIELD}
         />
@@ -261,14 +265,14 @@ export function EventSheet({
           type="datetime-local"
           value={when}
           onChange={(event) => setWhen(event.target.value)}
-          aria-label="Starts at"
+          aria-label={t('attach.startsAt')}
           className={FIELD}
         />
         <input
           value={where}
           onChange={(event) => setWhere(event.target.value)}
-          placeholder="Where (optional)"
-          aria-label="Event location"
+          placeholder={t('attach.where')}
+          aria-label={t('attach.eventLoc')}
           maxLength={120}
           className={FIELD}
         />

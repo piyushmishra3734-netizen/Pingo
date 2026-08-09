@@ -16,6 +16,7 @@ import { ShareLinkButton, profileLink } from './ShareProfileSheet.js';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
+import { useT } from '../i18n/useT.js';
 
 /**
  * A post, full screen.
@@ -61,6 +62,7 @@ export function PostViewer({
   onDelete,
   onReport,
 }: PostViewerProps) {
+  const t = useT();
   const { service } = useProfile();
   const confirm = useConfirm();
 
@@ -153,7 +155,7 @@ export function PostViewer({
 
   const removeComment = async (comment: PostComment) => {
     const go = await confirm({
-      title: 'Delete this comment?',
+      title: t('post.deleteCommentQ'),
       // Named rather than described. Comments are short and there may be
       // several; quoting it is how you know you are deleting the right one.
       description: `“${comment.body.slice(0, 80)}${comment.body.length > 80 ? '…' : ''}”`,
@@ -203,7 +205,7 @@ export function PostViewer({
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
-              aria-label="Post options"
+              aria-label={t('post.options')}
               aria-expanded={menuOpen}
               className="focus-ring grid size-10 place-items-center rounded-full text-white hover:bg-white/10"
             >
@@ -231,12 +233,12 @@ export function PostViewer({
                 >
                   {isMine ? (
                     <>
-                      <MenuAction label="Edit caption" onClick={() => { setMenuOpen(false); onEditCaption(); }} />
-                      <MenuAction label="Replace photo" onClick={() => { setMenuOpen(false); onReplace(); }} />
-                      <MenuAction label="Delete post" tone="danger" onClick={() => { setMenuOpen(false); onDelete(); }} />
+                      <MenuAction label={t('post.editCaption')} onClick={() => { setMenuOpen(false); onEditCaption(); }} />
+                      <MenuAction label={t('post.replacePhoto')} onClick={() => { setMenuOpen(false); onReplace(); }} />
+                      <MenuAction label={t('post.delete')} tone="danger" onClick={() => { setMenuOpen(false); onDelete(); }} />
                     </>
                   ) : (
-                    <MenuAction label="Report post" tone="danger" onClick={() => { setMenuOpen(false); onReport(); }} />
+                    <MenuAction label={t('post.report')} tone="danger" onClick={() => { setMenuOpen(false); onReport(); }} />
                   )}
                 </div>
               </>
@@ -264,7 +266,7 @@ export function PostViewer({
             <button
               type="button"
               onClick={toggleLike}
-              aria-label={post.likedByMe ? 'Unlike' : 'Like'}
+              aria-label={post.likedByMe ? t('post.unlike') : t('post.like')}
               aria-pressed={post.likedByMe}
               className={cn(
                 'focus-ring rounded-full p-2 transition-transform duration-instant active:scale-90',
@@ -290,7 +292,7 @@ export function PostViewer({
             <button
               type="button"
               onClick={toggleSave}
-              aria-label={post.savedByMe ? 'Remove from saved' : 'Save'}
+              aria-label={post.savedByMe ? t('post.save') : t('post.save')}
               aria-pressed={post.savedByMe}
               className="focus-ring rounded-full p-2 transition-transform duration-instant active:scale-90"
             >
@@ -404,6 +406,7 @@ function CommentPanel({
   onDelete: (comment: PostComment) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const { profile } = useProfile();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -427,7 +430,7 @@ function CommentPanel({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Hide comments"
+            aria-label={t('post.hideComments')}
             className="focus-ring grid size-9 place-items-center rounded-full text-text-secondary hover:bg-hover"
           >
             <CloseIcon size={20} />
@@ -506,8 +509,8 @@ function CommentPanel({
             ref={inputRef}
             value={draft}
             onChange={(event) => onDraft(event.target.value)}
-            placeholder="Add a comment…"
-            aria-label="Add a comment"
+            placeholder={t('post.addCommentPh')}
+            aria-label={t('post.addComment')}
             maxLength={1000}
             className={cn(
               'focus-ring min-w-0 flex-1 rounded-full bg-hover px-4 py-2.5',
@@ -517,7 +520,7 @@ function CommentPanel({
           <button
             type="submit"
             disabled={!draft.trim() || sending}
-            aria-label="Post comment"
+            aria-label={t('post.postComment')}
             className={cn(
               'focus-ring grid size-11 shrink-0 place-items-center rounded-full',
               'bg-brand-gradient text-white shadow-brand',

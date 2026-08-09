@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { useT } from '../i18n/useT.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import type { AiProfileRow } from '../../lib/supabase/types.js';
 import {
@@ -36,6 +37,7 @@ export function AiProfileSheet({
   onClose: () => void;
   onChanged?: () => void;
 }) {
+  const t = useT();
   const { profile } = useProfile();
   const { service } = useChat();
   const confirm = useConfirm();
@@ -192,9 +194,9 @@ export function AiProfileSheet({
 
   const resetPersonality = async () => {
     const go = await confirm({
-      title: 'Reset personality?',
-      description: 'Back to Friendly, short replies.',
-      confirmLabel: 'Reset',
+      title: t('ai.resetPersonalityQ'),
+      description: t('ai.resetPersonalityBody'),
+      confirmLabel: t('ai.reset'),
     });
     if (!go) return;
     await savePrefs({
@@ -207,9 +209,9 @@ export function AiProfileSheet({
   const resetMemory = async () => {
     if (!profile) return;
     const go = await confirm({
-      title: 'Reset memory?',
-      description: 'All saved notes are removed. Memory stays on.',
-      confirmLabel: 'Reset memory',
+      title: t('ai.resetMemoryQ'),
+      description: t('ai.resetMemoryBody'),
+      confirmLabel: t('ai.resetMemory'),
     });
     if (!go) return;
     await getSupabaseClient().from('ai_memories').delete().eq('user_id', profile.id);
@@ -339,7 +341,7 @@ export function AiProfileSheet({
                   'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 )}
               >
-                {bannerSrc ? 'Change cover' : 'Add cover'}
+                {bannerSrc ? t('ai.changeCover') : t('ai.addCover')}
               </button>
             </div>
           </div>
@@ -363,7 +365,7 @@ export function AiProfileSheet({
                 'outline-none focus-visible:outline focus-visible:outline-2',
                 'focus-visible:outline-offset-2 focus-visible:outline-ink',
               )}
-              aria-label="Change photo"
+              aria-label={t('ai.changePhoto')}
             >
               <Avatar
                 name={faceName}
@@ -423,7 +425,7 @@ export function AiProfileSheet({
               onBlur={() =>
                 void savePrefs({ preferred_name: prefs.preferred_name?.trim() || null })
               }
-              placeholder={profile?.displayName || 'What they call you'}
+              placeholder={profile?.displayName || t('ai.callYouTitle')}
               className={field}
             />
             <Hint>How they address you in chat</Hint>
@@ -532,7 +534,7 @@ export function AiProfileSheet({
           <Card>
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[0.9375rem] font-medium text-ink">Remember things about me</p>
+                <p className="text-[0.9375rem] font-medium text-ink">{t('ai.rememberMe')}</p>
                 <p className="mt-0.5 text-[0.75rem] leading-snug text-text-tertiary">
                   Only with your permission. Edit or erase anytime.
                 </p>
@@ -540,7 +542,7 @@ export function AiProfileSheet({
               <Toggle
                 checked={Boolean(prefs.memory_enabled ?? true)}
                 onChange={(memory_enabled) => void savePrefs({ memory_enabled })}
-                label="Remember things about me"
+                label={t('ai.rememberMe')}
               />
             </div>
             {prefs.memory_enabled !== false && (
@@ -550,7 +552,7 @@ export function AiProfileSheet({
                   className="text-[0.8125rem] font-medium text-brand underline-offset-2 hover:underline"
                   onClick={() => setMemoriesOpen(true)}
                 >
-                  View & edit memories
+                  {t('ai.memories')}
                   {memoryCount > 0 ? ` (${memoryCount})` : ''}
                 </button>
                 <span className="text-[0.75rem] text-text-tertiary">
@@ -572,12 +574,12 @@ export function AiProfileSheet({
           <Card>
             <Label>Advanced</Label>
             <div className="divide-y divide-black/[0.05]">
-              <AdvRow label="Reset personality" onClick={() => void resetPersonality()} />
-              <AdvRow label="Reset memory" onClick={() => void resetMemory()} />
+              <AdvRow label={t('ai.resetPersonality')} onClick={() => void resetPersonality()} />
+              <AdvRow label={t('ai.resetMemory')} onClick={() => void resetMemory()} />
               {conversationId && (
                 <>
-                  <AdvRow label="Clear conversation" onClick={() => void clearChat()} />
-                  <AdvRow label="Delete AI chat" danger onClick={() => void deleteChat()} />
+                  <AdvRow label={t('ai.clearChat')} onClick={() => void clearChat()} />
+                  <AdvRow label={t('ai.deleteChat')} danger onClick={() => void deleteChat()} />
                 </>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
 import { useStories } from './StoryContext.js';
 
@@ -23,6 +24,7 @@ import { useStories } from './StoryContext.js';
  */
 
 export function StoryPrivacySheet({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const { service } = useStories();
 
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -60,7 +62,7 @@ export function StoryPrivacySheet({ onClose }: { onClose: () => void }) {
     try {
       await service.setHiddenFrom(userId, next);
     } catch {
-      setError('That did not save. Try again.');
+      setError(t('story.saveFail'));
       setHidden((previous) => {
         const rolledBack = new Set(previous);
         if (next) rolledBack.delete(userId);
@@ -73,18 +75,14 @@ export function StoryPrivacySheet({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Sheet
-      title="Hide your story"
-      description="Anyone ticked never sees your stories, whatever audience you choose. They are not told."
-      onClose={onClose}
-    >
+    <Sheet title={t('story.hideTitle')} description={t('story.hideDesc')} onClose={onClose}>
       {!loaded ? (
-        <p className="py-8 text-center text-caption text-text-tertiary">Loading…</p>
+        <p className="py-8 text-center text-caption text-text-tertiary">{t('common.loading')}</p>
       ) : (
         <PeoplePicker
           selected={hidden}
           onToggle={(userId, next) => void toggle(userId, next)}
-          emptyLabel="Nobody to hide from yet."
+          emptyLabel={t('story.nobodyHide')}
           busy={busy}
         />
       )}
@@ -96,7 +94,7 @@ export function StoryPrivacySheet({ onClose }: { onClose: () => void }) {
       )}
 
       <div className="mt-2">
-        <SheetCancel onClick={onClose} label="Done" />
+        <SheetCancel onClick={onClose} label={t('common.done')} />
       </div>
     </Sheet>
   );

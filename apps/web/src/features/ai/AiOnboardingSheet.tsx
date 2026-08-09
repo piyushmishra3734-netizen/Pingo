@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
 import { useReturnFocus } from '../conversations/focus-restore.js';
+import { useT } from '../i18n/useT.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { fetchAiPublicIdentity, type AiPublicIdentity } from './ai-public.js';
 import { AiAgeWheel } from './AiAgeWheel.js';
@@ -27,6 +28,7 @@ export function AiOnboardingSheet({
   onDone: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   useReturnFocus();
   const { profile } = useProfile();
   const titleId = useId();
@@ -175,14 +177,14 @@ export function AiOnboardingSheet({
           {step === 1 && (
             <StepShell
               titleId={titleId}
-              title="What should I call you?"
+              title={t('ai.whatCallYou')}
               onBack={() => setStep(0)}
             >
               <input
                 autoFocus
                 value={preferredName}
                 onChange={(e) => setPreferredName(e.target.value.slice(0, 40))}
-                placeholder="Your name"
+                placeholder={t('ai.yourName')}
                 className={cn(
                   'focus-ring w-full rounded-2xl border border-line/50 bg-sunken',
                   'px-4 py-3.5 text-h2 text-ink placeholder:text-text-tertiary',
@@ -191,7 +193,7 @@ export function AiOnboardingSheet({
               <p className="mt-3 text-caption text-text-secondary" aria-live="polite">
                 {preferredName.trim()
                   ? `I’ll call you ${preferredName.trim()}.`
-                  : 'A name makes this feel less like a form.'}
+                  : t('ai.nameHint')}
               </p>
               <Button
                 variant="primary"
@@ -205,7 +207,7 @@ export function AiOnboardingSheet({
           )}
 
           {step === 2 && (
-            <StepShell titleId={titleId} title="Age" onBack={() => setStep(1)}>
+            <StepShell titleId={titleId} title={t('ai.age')} onBack={() => setStep(1)}>
               <AiAgeWheel value={age} onChange={setAge} />
               <Button variant="primary" className="mt-4 w-full" onClick={() => setStep(3)}>
                 Next
@@ -214,8 +216,8 @@ export function AiOnboardingSheet({
           )}
 
           {step === 3 && (
-            <StepShell titleId={titleId} title="Language" onBack={() => setStep(2)}>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Language">
+            <StepShell titleId={titleId} title={t('ai.language')} onBack={() => setStep(2)}>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('ai.language')}>
                 {langs.map((l) => (
                   <button
                     key={l.id}
@@ -244,7 +246,7 @@ export function AiOnboardingSheet({
           {step === 4 && (
             <StepShell
               titleId={titleId}
-              title="How should I be?"
+              title={t('ai.howBe')}
               onBack={() => setStep(3)}
             >
               <AiPersonalityGrid
@@ -264,7 +266,7 @@ export function AiOnboardingSheet({
                 disabled={busy}
                 onClick={() => void save()}
               >
-                {busy ? 'Saving…' : 'Start chatting'}
+                {busy ? t('ai.saving') : t('ai.startChat')}
               </Button>
             </StepShell>
           )}

@@ -23,6 +23,7 @@ import { Chip, TextField, cn } from '@pingo/ui';
 import { useMemo, useState } from 'react';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { useT } from '../features/i18n/useT.js';
 import { Badge } from '../features/badges/Badge.js';
 import { BadgeDetailSheet } from '../features/badges/BadgeDetailSheet.js';
 import { buildChapters, onThisDay } from '../features/journey/chapters.js';
@@ -70,6 +71,7 @@ const CATEGORIES: Array<{ id: BadgeCategory | 'all'; label: string }> = [
 ];
 
 export function JourneyScreen() {
+  const t = useT();
   const [category, setCategory] = useState<BadgeCategory | 'all'>('all');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<BadgeProgress | undefined>();
@@ -146,7 +148,7 @@ export function JourneyScreen() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-page">
-      <ScreenHeader title="Journey" showBack />
+      <ScreenHeader title={t('journey.title')} showBack />
 
       {/*
         The dock floats over the page, so the last rarity section needs room to
@@ -190,7 +192,7 @@ export function JourneyScreen() {
           is everything.
         */}
         <SectionHeading
-          title="Badges"
+          title={t('journey.badges')}
           action={
             <span className="text-caption text-text-tertiary">
               {earned.length}/{library.length}
@@ -203,8 +205,8 @@ export function JourneyScreen() {
             shape="pill"
             type="search"
             value={query}
-            placeholder="Search badges"
-            aria-label="Search badges"
+            placeholder={t('journey.searchBadges')}
+            aria-label={t('journey.searchBadges')}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
@@ -215,7 +217,7 @@ export function JourneyScreen() {
           the collection is what the screen is for.
         */}
         <nav
-          aria-label="Filter badges by category"
+          aria-label={t('journey.filterAria')}
           className="scrollbar-none mt-3 flex gap-2 overflow-x-auto px-4 pb-1"
         >
           {CATEGORIES.map((option) => (

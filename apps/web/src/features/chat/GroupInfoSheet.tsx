@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
+import { useT } from '../i18n/useT.js';
 import { useMutuals } from '../profile/useMutuals.js';
 
 /**
@@ -48,6 +49,7 @@ export function GroupInfoSheet({
   conversation: Conversation;
   onClose: () => void;
 }) {
+  const t = useT();
   const { service, users, currentUser } = useChat();
   const confirm = useConfirm();
   const mutuals = useMutuals();
@@ -137,7 +139,7 @@ export function GroupInfoSheet({
     try {
       await work;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'That did not work.');
+      setError(cause instanceof Error ? cause.message : t('group.fail'));
     } finally {
       setBusy(false);
     }
@@ -148,7 +150,7 @@ export function GroupInfoSheet({
       title: `Make ${person.name} an admin?`,
       description:
         'They will be able to add and remove people, rename the group, and make other admins.',
-      confirmLabel: 'Make admin',
+      confirmLabel: t('group.makeAdmin'),
       tone: 'normal',
     });
     if (ok) await run(service.setGroupAdmin(conversation.id, person.id, true));
@@ -202,7 +204,7 @@ export function GroupInfoSheet({
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1800);
       })
-      .catch(() => setError('Could not copy that.'));
+      .catch(() => setError(t('group.copyFail')));
   };
 
   const revoke = async () => {
@@ -237,7 +239,7 @@ export function GroupInfoSheet({
       setQuery('');
       setAdding(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'That did not work.');
+      setError(cause instanceof Error ? cause.message : t('group.fail'));
     } finally {
       setBusy(false);
     }
@@ -279,7 +281,7 @@ export function GroupInfoSheet({
                   {isMe ? 'You' : person.name}
                 </span>
                 <span className="block truncate text-caption text-text-tertiary">
-                  {isAdmin ? 'Admin' : `@${person.handle}`}
+                  {isAdmin ? t('group.admin') : `@${person.handle}`}
                 </span>
               </span>
 
@@ -296,7 +298,7 @@ export function GroupInfoSheet({
                     disabled={busy}
                     onClick={() => void (isAdmin ? demote(person) : promote(person))}
                   >
-                    {isAdmin ? 'Dismiss' : 'Make admin'}
+                    {isAdmin ? t('group.dismissAdmin') : t('group.makeAdmin')}
                   </Button>
                   <Button
                     variant="text"
@@ -322,22 +324,22 @@ export function GroupInfoSheet({
           {adding ? (
             <div className="flex flex-col gap-2.5">
               <p className="text-caption text-text-tertiary">
-                Only friends can be added directly. For everyone else, use an invite link.
+                {t('group.onlyFriends')}
               </p>
               <SearchField
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search friends"
-                aria-label="Search friends to add"
+                placeholder={t('group.searchFriends')}
+                aria-label={t('group.searchFriendsAria')}
               />
 
               {matches === undefined ? (
-                <LoadingState label="Loading friends" />
+                <LoadingState label={t('group.loadingFriends')} />
               ) : matches.length === 0 ? (
                 <p className="py-3 text-caption text-text-tertiary">
                   {query.trim()
                     ? 'Nobody by that name among your friends outside this group.'
-                    : 'No friends left to add. Share the invite link instead.'}
+                    : t('group.noFriendsLeft')}
                 </p>
               ) : (
                 <ul className="max-h-56 overflow-y-auto">
@@ -396,8 +398,8 @@ export function GroupInfoSheet({
                   {picked.size === 0
                     ? 'Add'
                     : picked.size === 1
-                      ? 'Add 1 person'
-                      : `Add ${picked.size} people`}
+                      ? t('group.addOne')
+                      : t('group.addN', { n: picked.size })}
                 </Button>
                 <Button
                   variant="text"
@@ -452,7 +454,7 @@ export function GroupInfoSheet({
                       <CheckIcon size={14} /> Copied
                     </span>
                   ) : (
-                    'Copy link'
+                    t('group.copyLink')
                   )}
                 </Button>
                 <Button variant="text" size="sm" disabled={busy} onClick={() => void revoke()}>
@@ -463,7 +465,7 @@ export function GroupInfoSheet({
           ) : (
             <Button variant="secondary" size="sm" disabled={busy} onClick={showLink}>
               <span className="flex items-center gap-1.5">
-                <LinkIcon size={15} /> Get invite link
+                <LinkIcon size={15} /> {t('group.getInvite')}
               </span>
             </Button>
           )}

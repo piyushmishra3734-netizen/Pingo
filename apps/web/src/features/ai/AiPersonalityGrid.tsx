@@ -1,5 +1,6 @@
 import { cn } from '@pingo/ui';
 
+import { useT } from '../i18n/useT.js';
 import { PERSONALITIES, type PersonalityId } from './personalities.js';
 
 export function AiPersonalityGrid({
@@ -13,6 +14,7 @@ export function AiPersonalityGrid({
   onChange: (id: PersonalityId) => void;
   onCustomText?: (text: string) => void;
 }) {
+  const t = useT();
   const active = PERSONALITIES.find((p) => p.id === value) ?? PERSONALITIES[0]!;
   const preview =
     value === 'custom' && customText?.trim()
@@ -21,7 +23,7 @@ export function AiPersonalityGrid({
 
   return (
     <div className="space-y-3">
-      <ul className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Personality">
+      <ul className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('ai.personality')}>
         {PERSONALITIES.map((p) => {
           const selected = value === p.id;
           return (
@@ -67,7 +69,7 @@ export function AiPersonalityGrid({
           value={customText ?? ''}
           onChange={(e) => onCustomText(e.target.value.slice(0, 200))}
           rows={2}
-          placeholder="Describe the vibe in a sentence"
+          placeholder={t('ai.vibePh')}
           className={cn(
             'w-full resize-none rounded-xl border border-black/[0.07] bg-white',
             'px-3 py-2.5 text-[0.9375rem] text-ink',

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
+import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
 import { useStories } from './StoryContext.js';
 
@@ -17,6 +18,7 @@ import { useStories } from './StoryContext.js';
  */
 
 export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const { service } = useStories();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -55,7 +57,7 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
     try {
       await service.setCloseFriend(userId, next);
     } catch {
-      setError('That did not save. Try again.');
+      setError(t('story.saveFail'));
       setSelected((previous) => {
         const rolledBack = new Set(previous);
         if (next) rolledBack.delete(userId);
@@ -69,17 +71,17 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet
-      title="Close friends"
-      description="They see a green ring, and only they see stories you send to this list. Nobody is told."
+      title={t('story.closeFriendsTitle')}
+      description={t('story.closeFriendsDesc')}
       onClose={onClose}
     >
       {!loaded ? (
-        <p className="py-8 text-center text-caption text-text-tertiary">Loading…</p>
+        <p className="py-8 text-center text-caption text-text-tertiary">{t('common.loading')}</p>
       ) : (
         <PeoplePicker
           selected={selected}
           onToggle={(userId, next) => void toggle(userId, next)}
-          emptyLabel="Nobody to add yet."
+          emptyLabel={t('story.nobodyAdd')}
           busy={busy}
         />
       )}
@@ -91,7 +93,7 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
       )}
 
       <div className="mt-2">
-        <SheetCancel onClick={onClose} label="Done" />
+        <SheetCancel onClick={onClose} label={t('common.done')} />
       </div>
     </Sheet>
   );
