@@ -369,9 +369,24 @@ export function SnapEditor({
        */
       const finished = crop ? cropCanvas(out, crop) : out;
 
+      /*
+       * PNG when there is anything to keep transparent, JPEG otherwise.
+       *
+       * Everything left here as JPEG, which has no alpha channel at all - so a
+       * sticker with a cut-out background, a logo, or any PNG somebody sent
+       * arrived with its transparency filled in black. The picture was never
+       * broken on the way in; it was destroyed on the way out, in the one line
+       * that every photo in the product passes through.
+       *
+       * JPEG stays the default deliberately. A photograph re-encoded as PNG is
+       * several times the size for no visible gain, and this is the path a
+       * camera shot takes too.
+       */
+      const type = hasTransparency(finished) ? 'image/png' : 'image/jpeg';
+
       const blob = await new Promise<Blob | null>((resolve, reject) => {
         try {
-          finished.toBlob((result) => resolve(result), 'image/jpeg', 0.92);
+          finished.toBlob((result) => resolve(result), type, 0.92);
         } catch (cause) {
           reject(cause instanceof Error ? cause : new Error('Could not export the image.'));
         }
@@ -704,6 +719,45 @@ function ToolButton({
  * hairline would otherwise produce a zero-width canvas, which `toBlob` answers
  * with `null` and the caller reads as "the export failed".
  */
+/**
+ * Whether anything in the finished picture is see-through.
+ *
+ * Asked of a 64px copy rather than the real canvas. Reading the pixels of a
+ * twelve-megapixel export means allocating forty-odd megabytes to answer a
+ * yes/no question, on the phone, at the moment the user is waiting for their
+ * photo to send. Scaling down first costs one `drawImage` and reads sixteen
+ * kilobytes.
+ *
+ * Downscaling averages, so a transparent region arrives as a partially
+ * transparent pixel rather than disappearing - which is the direction that
+ * matters. A single stray see-through pixel in a huge image can average away,
+ * and that is the right trade: it was invisible anyway, and the alternative is
+ * turning every photograph into a PNG on the strength of one pixel.
+ */
+function hasTransparency(source: HTMLCanvasElement): boolean {
+  const probe = document.createElement('canvas');
+  const size = 64;
+  probe.width = size;
+  probe.height = size;
+
+  const context = probe.getContext('2d', { willReadFrequently: true });
+  if (!context) return false;
+
+  try {
+    context.drawImage(source, 0, 0, size, size);
+    const { data } = context.getImageData(0, 0, size, size);
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i]! < 250) return true;
+    }
+    return false;
+  } catch {
+    // A tainted canvas cannot be read. JPEG is the safe answer: it is what
+    // this always produced, so the failure mode is the old behaviour rather
+    // than a broken export.
+    return false;
+  }
+}
+
 function cropCanvas(source: HTMLCanvasElement, crop: Crop): HTMLCanvasElement {
   const sx = Math.round(crop.x * source.width);
   const sy = Math.round(crop.y * source.height);
