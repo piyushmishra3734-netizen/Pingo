@@ -561,6 +561,9 @@ export function SnapEditor({
               onPick={(sticker) =>
                 addItem({ kind: 'sticker', value: sticker.name, url: sticker.url, colour })
               }
+              onPickCustomUrl={(url, name) =>
+                addItem({ kind: 'sticker', value: name, url, colour })
+              }
             />
           </div>
         )}
@@ -820,44 +823,124 @@ function CropOverlay({
 }
 
 /**
- * A horizontal strip of stickers from the installed packs.
+ * A horizontal strip of stickers from the installed packs, plus custom
+ * sticker / GIF uploads for the story editor.
  *
  * Deliberately not the full `StickerPicker`: that is a tall panel with search
  * and categories, and over a picture you are decorating it would cover the
  * thing you are working on. A strip keeps the image visible, which is the only
  * way to judge where a sticker should go.
+ *
+ * Custom GIF/sticker files become object URLs placed like pack stickers.
+ * Export still flattens to one frame (canvas) — animated GIFs used as stickers
+ * freeze on export; pick a still PNG/WebP for stickers you want sharp forever.
  */
-function StickerStrip({ onPick }: { onPick: (sticker: { name: string; url: string }) => void }) {
+function StickerStrip({
+  onPick,
+  onPickCustomUrl,
+}: {
+  onPick: (sticker: { name: string; url: string }) => void;
+  onPickCustomUrl?: (url: string, name: string) => void;
+}) {
   const { packs, loading } = useStickers();
   const stickers = packs.flatMap((pack) => pack.stickers).slice(0, 40);
+  const customStickerRef = useRef<HTMLInputElement>(null);
+  const customGifRef = useRef<HTMLInputElement>(null);
 
-  if (loading) {
-    return <p className="py-2 text-center text-caption text-white/60">Loading stickers…</p>;
-  }
-  if (stickers.length === 0) {
-    return (
-      <p className="py-2 text-center text-caption text-white/60">
-        No sticker packs installed yet.
-      </p>
-    );
-  }
+  const openInput = (el: HTMLInputElement | null) => {
+    if (!el) return;
+    el.value = '';
+    window.requestAnimationFrame(() => el.click());
+  };
+
+  const onCustomFile = (file: File | undefined, label: string) => {
+    if (!file || !onPickCustomUrl) return;
+    const url = URL.createObjectURL(file);
+    onPickCustomUrl(url, label);
+  };
 
   return (
-    <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-1">
-      {stickers.map((sticker) => (
+    <div className="space-y-2">
+      <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-1">
+        {/* Custom first — the options that were wrongly on “Add to story”. */}
         <button
-          key={sticker.id}
           type="button"
-          onClick={() => onPick(sticker)}
-          aria-label={`Add sticker ${sticker.name}`}
+          onClick={() => openInput(customStickerRef.current)}
+          aria-label="Custom sticker"
           className={cn(
-            'focus-ring size-12 shrink-0 rounded-lg p-1',
-            'transition-transform duration-instant hover:bg-white/10 active:scale-110',
+            'focus-ring flex size-12 shrink-0 flex-col items-center justify-center gap-0.5',
+            'rounded-xl border border-dashed border-white/35 bg-white/8',
+            'text-[0.55rem] font-semibold tracking-wide text-white/85',
+            'transition-transform duration-instant active:scale-95',
           )}
         >
-          <img src={sticker.url} alt="" loading="lazy" className="size-full object-contain" />
+          <span className="text-[0.95rem] leading-none">✦</span>
+          Custom
         </button>
-      ))}
+        <button
+          type="button"
+          onClick={() => openInput(customGifRef.current)}
+          aria-label="Custom GIF sticker"
+          className={cn(
+            'focus-ring flex size-12 shrink-0 flex-col items-center justify-center gap-0.5',
+            'rounded-xl border border-dashed border-white/35 bg-white/8',
+            'text-[0.55rem] font-semibold tracking-wide text-white/85',
+            'transition-transform duration-instant active:scale-95',
+          )}
+        >
+          <span className="text-[0.7rem] font-bold leading-none">GIF</span>
+          Custom
+        </button>
+
+        {loading && (
+          <p className="px-2 text-caption text-white/60">Loading packs…</p>
+        )}
+        {!loading &&
+          stickers.map((sticker) => (
+            <button
+              key={sticker.id}
+              type="button"
+              onClick={() => onPick(sticker)}
+              aria-label={`Add sticker ${sticker.name}`}
+              className={cn(
+                'focus-ring size-12 shrink-0 rounded-lg p-1',
+                'transition-transform duration-instant hover:bg-white/10 active:scale-110',
+              )}
+            >
+              <img src={sticker.url} alt="" loading="lazy" className="size-full object-contain" />
+            </button>
+          ))}
+        {!loading && stickers.length === 0 && (
+          <p className="px-1 text-caption text-white/55">No pack stickers yet</p>
+        )}
+      </div>
+
+      <input
+        ref={customStickerRef}
+        type="file"
+        accept="image/png,image/webp,image/jpeg,image/*"
+        className="pointer-events-none fixed top-0 left-0 h-px w-px opacity-0"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          onCustomFile(file, file?.name || 'Custom sticker');
+        }}
+      />
+      <input
+        ref={customGifRef}
+        type="file"
+        accept="image/gif,.gif,image/webp"
+        className="pointer-events-none fixed top-0 left-0 h-px w-px opacity-0"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          onCustomFile(file, file?.name || 'Custom GIF');
+        }}
+      />
     </div>
   );
 }
