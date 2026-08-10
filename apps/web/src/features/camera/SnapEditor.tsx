@@ -1,4 +1,15 @@
-import { CheckIcon, CloseIcon, cn } from '@pingo/ui';
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  CloseIcon,
+  EditIcon,
+  GridIcon,
+  ImageIcon,
+  PlusIcon,
+  SmileIcon,
+  SwapIcon,
+  cn,
+} from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useStickers } from '../stickers/StickerContext.js';
@@ -499,29 +510,52 @@ export function SnapEditor({
         */}
         {!untouchable && (
         <>
-        <div className="scrollbar-none flex items-center justify-center gap-1 overflow-x-auto">
-          <ToolButton active={tool === 'draw'} onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}>
-            Draw
-          </ToolButton>
+        {/*
+          One floating bar, in the app's own material.
+
+          The tools were six bare word-chips in a row across the bottom of the
+          screen - no icons, no grouping, nothing holding them together - which
+          read as a debug strip rather than as part of the product. A glass bar
+          with a glyph over each label is the same six controls, given the shape
+          everything else that floats here already has.
+        */}
+        <div
+          className={cn(
+            'mx-auto w-fit max-w-full rounded-2xl px-1.5 py-1',
+            'border border-white/12 bg-white/10 backdrop-blur-xl',
+            'shadow-[0_8px_28px_-12px_rgb(0_0_0/0.65)]',
+          )}
+        >
+        <div className="scrollbar-none flex items-center justify-center gap-0.5 overflow-x-auto">
           <ToolButton
+            label="Draw"
+            icon={<EditIcon size={17} />}
+            active={tool === 'draw'}
+            onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}
+          />
+          <ToolButton
+            label="Text"
+            /* The letter is the icon. No glyph in the set says "type here" as
+               plainly as a T, and inventing one would be worse than using it. */
+            icon={<span className="text-[15px] leading-none font-semibold">T</span>}
             active={false}
             onClick={() => addItem({ kind: 'text', value: 'Tap to edit', colour })}
-          >
-            Text
-          </ToolButton>
+          />
           <ToolButton
+            label="Emoji"
+            icon={<SmileIcon size={17} />}
             active={tool === 'emoji'}
             onClick={() => setTool(tool === 'emoji' ? 'none' : 'emoji')}
-          >
-            Emoji
-          </ToolButton>
+          />
           <ToolButton
+            label="Stickers"
+            icon={<ImageIcon size={17} />}
             active={tool === 'sticker'}
             onClick={() => setTool(tool === 'sticker' ? 'none' : 'sticker')}
-          >
-            Stickers
-          </ToolButton>
+          />
           <ToolButton
+            label="Crop"
+            icon={<GridIcon size={17} />}
             active={tool === 'crop'}
             onClick={() => {
               if (tool === 'crop') {
@@ -533,24 +567,26 @@ export function SnapEditor({
               // draw one from nothing on top of their own picture.
               setCrop((current) => current ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
             }}
-          >
-            Crop
-          </ToolButton>
+          />
           {/*
             A quarter turn per press, which is the whole of rotation as anyone
             uses it - the photo is sideways or it is not. A free-angle dial
             would be a second gesture to learn for a case that barely occurs.
           */}
-          <ToolButton active={false} onClick={() => setRotation((r) => (r + 90) % 360)}>
-            Rotate
-          </ToolButton>
           <ToolButton
+            label="Rotate"
+            icon={<SwapIcon size={17} />}
+            active={false}
+            onClick={() => setRotation((r) => (r + 90) % 360)}
+          />
+          <ToolButton
+            label="Undo"
+            icon={<ArrowLeftIcon size={17} />}
             active={false}
             disabled={strokes.length === 0}
             onClick={() => setStrokes((all) => all.slice(0, -1))}
-          >
-            Undo
-          </ToolButton>
+          />
+        </div>
         </div>
 
         {tool === 'emoji' && (
@@ -598,12 +634,18 @@ export function SnapEditor({
               'animate-fade-in [animation-duration:150ms]',
             )}
           >
-            <ToolButton active={false} onClick={() => setCrop(undefined)}>
-              Reset crop
-            </ToolButton>
-            <ToolButton active={false} onClick={() => setTool('none')}>
-              Done cropping
-            </ToolButton>
+            <ToolButton
+              label="Reset"
+              icon={<ArrowLeftIcon size={17} />}
+              active={false}
+              onClick={() => setCrop(undefined)}
+            />
+            <ToolButton
+              label="Done"
+              icon={<CheckIcon size={17} />}
+              active
+              onClick={() => setTool('none')}
+            />
           </div>
         )}
         </>
@@ -642,20 +684,31 @@ export function SnapEditor({
           </p>
         )}
 
-        <div className="flex flex-col gap-2">
+        {/*
+          Side by side, and the primary is the brand's.
+
+          They were two full-width bars stacked against the bottom edge, both
+          the same width and weight, one white and one grey - which asks the
+          user to read before knowing which one finishes the job. On one line
+          the shapes do the telling: "add another" stays a quiet glass control
+          and only ever takes the room its words need, and the gradient is the
+          same one every primary action in the product wears.
+        */}
+        <div className="flex items-center gap-2">
           {onAddAnother && (
             <button
               type="button"
               onClick={() => void flatten(onAddAnother)}
               disabled={busy || exporting}
               className={cn(
-                'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
-                'border border-white/25 bg-white/10 py-2.5 text-body font-medium text-white',
-                'transition-transform duration-150 ease-standard active:scale-[0.99]',
+                'focus-ring flex shrink-0 items-center justify-center gap-2 rounded-full',
+                'border border-white/20 bg-white/10 px-4 py-3 text-caption font-medium text-white',
+                'backdrop-blur-xl transition-transform duration-150 ease-standard active:scale-[0.97]',
                 'disabled:opacity-50',
               )}
             >
-              {busy || exporting ? 'Working…' : addAnotherLabel}
+              <PlusIcon size={16} />
+              {addAnotherLabel}
             </button>
           )}
           <button
@@ -663,10 +716,10 @@ export function SnapEditor({
             onClick={() => void flatten()}
             disabled={busy || exporting}
             className={cn(
-              'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
-              'bg-white py-2.5 text-body font-medium text-backdrop',
-              'shadow-[0_2px_10px_rgba(0,0,0,0.18)]',
-              'transition-transform duration-150 ease-standard active:scale-[0.99]',
+              'focus-ring flex flex-1 items-center justify-center gap-2 rounded-full',
+              'bg-brand-gradient py-3 text-body font-semibold text-white',
+              'shadow-[0_6px_20px_-8px_rgb(224_85_155/0.75)]',
+              'transition-transform duration-150 ease-standard active:scale-[0.98]',
               'disabled:opacity-50',
             )}
           >
@@ -679,16 +732,27 @@ export function SnapEditor({
   );
 }
 
+/**
+ * One tool: a glyph with its name under it.
+ *
+ * It was a word in a pill. Seven words in a row is a sentence the eye has to
+ * read before it can act, and at this size they were also the smallest touch
+ * targets on the screen. A shape is recognised without reading, and the label
+ * stays underneath so nothing has to be guessed - which is the arrangement
+ * every camera app converges on for the same reason.
+ */
 function ToolButton({
+  label,
+  icon,
   active,
   disabled,
   onClick,
-  children,
 }: {
+  label: string;
+  icon: React.ReactNode;
   active: boolean;
   disabled?: boolean;
   onClick: () => void;
-  children: React.ReactNode;
 }) {
   return (
     <button
@@ -696,18 +760,21 @@ function ToolButton({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
+      aria-label={label}
       className={cn(
-        // ~12% shorter chips, less padding, soft edge - content, not chrome.
-        'focus-ring shrink-0 rounded-full px-3 py-1.5',
-        'text-[0.8125rem] font-medium leading-none',
-        'transition-colors duration-150 ease-standard',
-        active
-          ? 'bg-white text-backdrop'
-          : 'bg-white/[0.08] text-white/85 ring-1 ring-white/10',
-        'disabled:opacity-40',
+        'focus-ring flex shrink-0 flex-col items-center gap-1 rounded-xl px-2.5 py-1.5',
+        'transition-[background-color,color,transform] duration-150 ease-standard',
+        'active:scale-[0.96]',
+        active ? 'bg-white text-backdrop' : 'text-white/85 hover:bg-white/10',
+        'disabled:opacity-35',
       )}
     >
-      {children}
+      <span aria-hidden className="grid h-[18px] place-items-center">
+        {icon}
+      </span>
+      <span aria-hidden className="text-[0.6875rem] leading-none font-medium">
+        {label}
+      </span>
     </button>
   );
 }
