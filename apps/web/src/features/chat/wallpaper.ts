@@ -14,15 +14,16 @@
  *
  * A direct (or AI) wallpaper is personal: yours for that person, on this
  * device. Changing Ali's chat must not repaint every other thread. A group
- * wallpaper is the room - one choice, visible to every member - so groups read
- * from the conversation row the server ships, not from localStorage.
+ * wallpaper is the room - one shared choice - but the heavy file itself is
+ * downloaded onto each member's device when they open the group, then painted
+ * from IndexedDB like a DM. The server only holds a URL so members can find
+ * the original; it is not re-streamed on every open.
  *
  * ## Presets are CSS, the custom one is a photograph
  *
  * A preset is a few hundred bytes of gradient, so all of them together cost
- * less than one icon. The custom one is the person's own file. For DMs it stays
- * on device (IndexedDB original + localStorage preview). For groups the photo
- * is uploaded and its public URL lives on the conversation so everyone sees it.
+ * less than one icon. The custom one is the person's own file, original size
+ * (GIF animation included, no re-encode).
  *
  * ## Two copies for local custom photos, and why
  *
@@ -31,7 +32,7 @@
  * blank while IndexedDB opens.
  */
 
-import { STORE, localGet, localSet } from '../../lib/local/db.js';
+import { STORE, localDelete, localGet, localSet } from '../../lib/local/db.js';
 
 export interface Wallpaper {
   id: string;
@@ -118,6 +119,10 @@ function darkKey(conversationId: string): string {
 function originalKey(conversationId: string): string {
   return `wallpaper:${conversationId}`;
 }
+/** Which server URL the local original was downloaded from (groups only). */
+function sharedSourceKey(conversationId: string): string {
+  return `pingo:wallpaper-source:${conversationId}`;
+}
 
 /**
  * The preview's long edge, in real device pixels.
@@ -189,9 +194,17 @@ export function chosenWallpaperId(scope: string | WallpaperScope): string {
 }
 
 /**
- * The best local custom photo available: original object URL if loaded, else
- * the synchronous preview. For shared custom wallpapers the server URL is used
- * instead - see `customWallpaperPhoto`.
+ * The best custom photo URL for this chat — same order for DMs and groups.
+ *
+ * 1. Local original (IndexedDB → blob URL). This is how GIFs animate in DMs:
+ *    the file is never re-encoded, only object-URL'd.
+ * 2. Shared server URL (groups only), while the original is hydrating.
+ * 3. localStorage JPEG preview / global default (still fallback only).
+ *
+ * Groups used to skip (1) and jump to the server URL. That looked fine for
+ * stills and froze GIFs (or showed a flattened upload). Preferring the local
+ * original matches the DM path on the device that set it, and after hydrate
+ * every member paints the same animated blob.
  */
 export function customWallpaperPhoto(scope: string | WallpaperScope): string | undefined {
   const conversationId = typeof scope === 'string' ? scope : scope.conversationId;
@@ -199,12 +212,11 @@ export function customWallpaperPhoto(scope: string | WallpaperScope): string | u
   const serverPhoto =
     typeof scope === 'string' ? undefined : scope.serverWallpaperPhotoUrl;
 
-  if (shared) {
-    return serverPhoto || undefined;
-  }
-
   const own = originalUrls.get(conversationId);
   if (own) return own;
+
+  if (shared && serverPhoto) return serverPhoto;
+
   try {
     const preview = window.localStorage.getItem(photoKey(conversationId));
     if (preview) return preview;
@@ -230,6 +242,74 @@ async function hydrateConversation(conversationId: string): Promise<void> {
   notify(conversationId);
 }
 
+/**
+ * Fetch a shared group wallpaper into *this device's* IndexedDB.
+ *
+ * The server only keeps a URL so members can find the file. Playback is always
+ * local: open the group → background download once → paint via blob URL like a
+ * DM. Re-opens use the cached original (no re-download) until the shared URL
+ * changes.
+ */
+async function hydrateSharedServerPhoto(
+  conversationId: string,
+  serverUrl: string,
+): Promise<void> {
+  try {
+    let knownSource: string | null = null;
+    try {
+      knownSource = window.localStorage.getItem(sharedSourceKey(conversationId));
+    } catch {
+      // ignore
+    }
+
+    const existing = await localGet<Blob>(STORE.media, originalKey(conversationId));
+    // Same shared file already on this device — just (re)adopt the blob URL.
+    if (existing && knownSource === serverUrl) {
+      if (!originalUrls.has(conversationId)) {
+        adoptOriginal(conversationId, existing);
+        notify(conversationId);
+      }
+      return;
+    }
+
+    // In-memory already matches this URL (e.g. the member who just set it).
+    if (originalUrls.has(conversationId) && knownSource === serverUrl) return;
+
+    const response = await fetch(serverUrl, { mode: 'cors', credentials: 'omit' });
+    if (!response.ok) return;
+    const blob = await response.blob();
+    if (blob.size === 0) return;
+
+    const lower = serverUrl.toLowerCase();
+    const guessedType = lower.includes('.gif')
+      ? 'image/gif'
+      : lower.includes('.webp')
+        ? 'image/webp'
+        : lower.includes('.png')
+          ? 'image/png'
+          : lower.includes('.jpg') || lower.includes('.jpeg')
+            ? 'image/jpeg'
+            : blob.type || 'application/octet-stream';
+
+    const typed =
+      blob.type && blob.type.startsWith('image/')
+        ? blob
+        : new Blob([blob], { type: guessedType });
+
+    // Prefer durable local storage; if the store is full, still paint this session.
+    await localSet(STORE.media, originalKey(conversationId), typed);
+    try {
+      window.localStorage.setItem(sharedSourceKey(conversationId), serverUrl);
+    } catch {
+      // Source bookkeeping is best-effort.
+    }
+    adoptOriginal(conversationId, typed);
+    notify(conversationId);
+  } catch {
+    // Offline / CORS — keep showing the server URL from customWallpaperPhoto.
+  }
+}
+
 async function hydrateGlobalLegacy(): Promise<void> {
   const blob = await localGet<Blob>(STORE.media, GLOBAL_ORIGINAL);
   if (!blob || globalOriginalUrl) return;
@@ -237,10 +317,57 @@ async function hydrateGlobalLegacy(): Promise<void> {
   notify();
 }
 
-/** Kick off background loads for a chat the user just opened. */
-export function hydrateWallpaper(conversationId: string): void {
+/**
+ * Kick off background loads for a chat the user just opened.
+ *
+ * For groups: download the shared original onto this device (once) so the
+ * heavy GIF/photo is not re-fetched from the network every visit. Pass the
+ * conversation's `wallpaperPhotoUrl`.
+ */
+export function hydrateWallpaper(
+  conversationId: string,
+  serverPhotoUrl?: string,
+): void {
   if (typeof window === 'undefined') return;
   void hydrateConversation(conversationId);
+  if (serverPhotoUrl) {
+    // Fire-and-forget: paint server URL first, then swap to local when ready.
+    void hydrateSharedServerPhoto(conversationId, serverPhotoUrl);
+  }
+}
+
+/**
+ * Remember that *this* device already has the shared original for `serverUrl`.
+ * Used by the member who just uploaded so we do not re-download their own file.
+ */
+export function markSharedWallpaperCached(
+  conversationId: string,
+  serverUrl: string,
+): void {
+  try {
+    window.localStorage.setItem(sharedSourceKey(conversationId), serverUrl);
+  } catch {
+    // ignore
+  }
+}
+
+/** Drop the on-device original when the group wallpaper is cleared or replaced. */
+export async function clearLocalWallpaperOriginal(
+  conversationId: string,
+): Promise<void> {
+  adoptOriginal(conversationId, undefined);
+  try {
+    window.localStorage.removeItem(sharedSourceKey(conversationId));
+    window.localStorage.removeItem(photoKey(conversationId));
+    window.localStorage.removeItem(darkKey(conversationId));
+  } catch {
+    // ignore
+  }
+  try {
+    await localDelete(STORE.media, originalKey(conversationId));
+  } catch {
+    // ignore
+  }
 }
 
 if (typeof window !== 'undefined') void hydrateGlobalLegacy();
@@ -488,10 +615,14 @@ export async function setWallpaperPhoto(
 /**
  * What a shared (group) custom wallpaper needs on the wire.
  *
- * Still photos are re-encoded to a modest JPEG so members are not downloading
- * multi‑MB backdrops. Animated files (GIF / animated WebP / APNG) must keep
- * their original bytes — a canvas holds one frame, so re-encoding turns a GIF
- * into a still poster of its first moment.
+ * Always the **original** file bytes — no re-encode, no downscale. Animated
+ * media (GIF / animated WebP / APNG) must stay intact or canvas would freeze
+ * them to one frame. Stills keep full quality the same way.
+ *
+ * Distribution model: one public URL on the conversation row; each member
+ * downloads the original onto their own device the first time they open the
+ * group (see `hydrateSharedServerPhoto`). The heavy file lives on the member's
+ * phone after that, not as a live stream from the server every open.
  */
 export interface SharedWallpaperPhoto {
   blob: Blob;
@@ -500,8 +631,13 @@ export interface SharedWallpaperPhoto {
   ext: string;
 }
 
-/** Hard ceiling for animated wallpapers (original bytes, no re-encode). */
-const MAX_ANIMATED_SHARED = 6 * 1024 * 1024;
+/**
+ * Soft ceiling so a single wallpaper cannot fill a phone's storage.
+ *
+ * Not a “6 MB product limit” — originals of any reasonable size are welcome.
+ * Above this we refuse rather than brick IndexedDB for the rest of the app.
+ */
+export const MAX_SHARED_WALLPAPER_BYTES = 50 * 1024 * 1024;
 
 function extForContentType(type: string): string {
   if (type === 'image/gif') return 'gif';
@@ -538,22 +674,24 @@ async function sniffImageContentType(file: Blob): Promise<string | undefined> {
 }
 
 /**
- * Prepare a file for group wallpaper upload.
+ * Prepare a file for group wallpaper upload — always original bytes.
  *
- * Animated media is uploaded as-is (within size limits). Everything else is
- * scaled to a long edge of 1600px and encoded as JPEG.
+ * ## Never canvas-encode a GIF (or any still either, now)
  *
- * ## Never canvas-encode a GIF
+ * `createImageBitmap` + `toBlob('image/jpeg')` freezes animation to one frame
+ * and used to silently shrink photos. Detection uses header sniffing *and*
+ * MIME/extension so a GIF mislabeled as PNG still keeps its animation.
  *
- * `createImageBitmap` + `toBlob('image/jpeg')` freezes animation to one frame.
- * That was the original group-wallpaper bug. Detection uses header sniffing
- * *and* MIME/extension, because some pickers label a GIF as `image/png`.
+ * Returns `undefined` only when the file is empty or above
+ * {@link MAX_SHARED_WALLPAPER_BYTES} (device safety, not a product “6 MB” cap).
  */
 export async function prepareSharedWallpaperPhoto(
   file: Blob,
 ): Promise<SharedWallpaperPhoto | undefined> {
   try {
-    const { isAnimatedImage } = await import('./animated-image.js');
+    if (file.size <= 0) return undefined;
+    if (file.size > MAX_SHARED_WALLPAPER_BYTES) return undefined;
+
     const sniffed = await sniffImageContentType(file);
     const name =
       typeof File !== 'undefined' && file instanceof File
@@ -563,50 +701,44 @@ export async function prepareSharedWallpaperPhoto(
       sniffed === 'image/gif' ||
       file.type === 'image/gif' ||
       name.endsWith('.gif');
-    const animated = looksGif || (await isAnimatedImage(file));
+    const looksWebp =
+      sniffed === 'image/webp' ||
+      file.type === 'image/webp' ||
+      name.endsWith('.webp');
+    const looksPng =
+      sniffed === 'image/png' ||
+      file.type === 'image/png' ||
+      name.endsWith('.png');
+    const looksJpeg =
+      sniffed === 'image/jpeg' ||
+      file.type === 'image/jpeg' ||
+      file.type === 'image/jpg' ||
+      name.endsWith('.jpg') ||
+      name.endsWith('.jpeg');
 
-    if (animated) {
-      if (file.size > MAX_ANIMATED_SHARED) return undefined;
-      const contentType =
-        sniffed === 'image/gif' || looksGif
-          ? 'image/gif'
-          : sniffed === 'image/webp' || file.type === 'image/webp'
-            ? 'image/webp'
-            : sniffed === 'image/png' || file.type === 'image/png'
-              ? 'image/png'
+    const contentType = looksGif
+      ? 'image/gif'
+      : looksWebp
+        ? 'image/webp'
+        : looksPng
+          ? 'image/png'
+          : looksJpeg
+            ? 'image/jpeg'
+            : sniffed && sniffed.startsWith('image/')
+              ? sniffed
               : file.type.startsWith('image/')
                 ? file.type
-                : 'image/gif';
-      // Re-wrap so storage always gets the correct Content-Type header.
-      const blob =
-        file.type === contentType ? file : new Blob([file], { type: contentType });
-      return {
-        blob,
-        contentType,
-        ext: extForContentType(contentType),
-      };
-    }
+                : 'application/octet-stream';
 
-    const bitmap = await createImageBitmap(file);
-    const edge = 1600;
-    const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
-    const w = Math.max(1, Math.round(bitmap.width * scale));
-    const h = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      bitmap.close();
-      return undefined;
-    }
-    ctx.drawImage(bitmap, 0, 0, w, h);
-    bitmap.close();
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85),
-    );
-    if (!blob) return undefined;
-    return { blob, contentType: 'image/jpeg', ext: 'jpg' };
+    // Re-wrap so storage always gets a correct Content-Type for GIFs.
+    const blob =
+      file.type === contentType ? file : new Blob([file], { type: contentType });
+
+    return {
+      blob,
+      contentType,
+      ext: extForContentType(contentType),
+    };
   } catch {
     return undefined;
   }

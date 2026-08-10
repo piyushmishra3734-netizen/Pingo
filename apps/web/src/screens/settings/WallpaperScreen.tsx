@@ -6,12 +6,14 @@ import { useSearchParams } from 'react-router-dom';
 import { ScreenHeader } from '../../components/ScreenHeader.js';
 import { useT } from '../../features/i18n/useT.js';
 import {
+  MAX_SHARED_WALLPAPER_BYTES,
   WALLPAPERS,
   chosenGlobalWallpaperId,
   chosenWallpaperId,
   customWallpaperPhoto,
   globalCustomWallpaperPhoto,
   hydrateWallpaper,
+  markSharedWallpaperCached,
   onWallpaperChange,
   prepareSharedWallpaperPhoto,
   setGlobalWallpaper,
@@ -78,8 +80,13 @@ export function WallpaperScreen() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (conversationId) hydrateWallpaper(conversationId);
-  }, [conversationId]);
+    if (conversationId) {
+      hydrateWallpaper(
+        conversationId,
+        isGroup ? conversation?.wallpaperPhotoUrl : undefined,
+      );
+    }
+  }, [conversationId, isGroup, conversation?.wallpaperPhotoUrl]);
 
   /*
    * The original arrives after this screen has already rendered, since
@@ -146,38 +153,61 @@ export function WallpaperScreen() {
     setChosen(id);
   };
 
+  /**
+   * Group custom wallpaper.
+   *
+   * 1. Original file stays on *this* device (GIF intact, full size).
+   * 2. Same original is uploaded once so other members can find the URL.
+   * 3. Each member downloads the original onto *their* device the first time
+   *    they open the group — after that it plays from local storage, not as a
+   *    live stream from the server every open.
+   */
   const uploadSharedPhoto = async (
     file: File,
   ): Promise<{ ok: true } | { ok: false; reason: string }> => {
     if (!conversationId || !currentUser) {
       return { ok: false, reason: 'That picture could not be used.' };
     }
-    const prepared = await prepareSharedWallpaperPhoto(file);
-    if (!prepared) {
-      const gif =
-        file.type === 'image/gif' ||
-        file.name.toLowerCase().endsWith('.gif');
+
+    if (file.size > MAX_SHARED_WALLPAPER_BYTES) {
+      const mb = Math.round(MAX_SHARED_WALLPAPER_BYTES / (1024 * 1024));
       return {
         ok: false,
-        reason: gif
-          ? 'That GIF is too large (max 6 MB) or could not be used.'
-          : 'That picture could not be used. Try a smaller one.',
+        reason: `That file is too large for a wallpaper (max ${mb} MB). Try a shorter GIF or a smaller photo.`,
+      };
+    }
+
+    // 1) Identical to a normal chat: original file on this device, GIF intact.
+    const localOk = await setWallpaperPhoto(conversationId, file);
+    if (!localOk) {
+      return { ok: false, reason: 'That picture could not be saved on this device.' };
+    }
+    setPhoto(customWallpaperPhoto(conversationId));
+    setChosen('custom');
+
+    // 2) Share the same original bytes so other members can download them once.
+    const prepared = await prepareSharedWallpaperPhoto(file);
+    if (!prepared) {
+      return {
+        ok: false,
+        reason: 'Saved here, but could not prepare a copy for the group.',
       };
     }
 
     const client = getSupabaseClient();
-    // Avatars bucket only allows uploads under the caller's uid folder.
-    // Extension follows the real bytes so GIFs stay GIFs (not mislabeled .jpg).
+    // Long cache: members keep a local copy; URL is only the first hop.
     const path = `${currentUser.id}/wallpapers/${conversationId}/${crypto.randomUUID()}.${prepared.ext}`;
     const { error: upErr } = await client.storage.from('avatars').upload(path, prepared.blob, {
       contentType: prepared.contentType,
-      cacheControl: '3600',
+      cacheControl: '31536000',
       upsert: false,
     });
     if (upErr) {
       return {
         ok: false,
-        reason: upErr.message || 'Upload failed. Try a smaller GIF (under 6 MB).',
+        reason:
+          upErr.message ||
+          'Saved on this device, but upload failed — check your connection and try again.',
       };
     }
 
@@ -188,10 +218,12 @@ export function WallpaperScreen() {
     } catch (cause) {
       return {
         ok: false,
-        reason: cause instanceof Error ? cause.message : 'Could not save wallpaper.',
+        reason: cause instanceof Error ? cause.message : 'Could not save wallpaper for the group.',
       };
     }
-    setPhoto(url);
+    // Uploader already has the original; mark source so we do not re-download.
+    markSharedWallpaperCached(conversationId, url);
+    setPhoto(customWallpaperPhoto(conversationId));
     setChosen('custom');
     return { ok: true };
   };
@@ -217,6 +249,7 @@ export function WallpaperScreen() {
         return;
       }
 
+      // Direct chat: original blob only (this is the path groups now mirror).
       const ok = await setWallpaperPhoto(conversationId, file);
       if (!ok) {
         setError('That picture could not be used. Try a smaller one.');
@@ -234,7 +267,7 @@ export function WallpaperScreen() {
   const subtitle = !conversationId
     ? 'Default for chats that have not been personalised yet. Open a chat menu to set a wallpaper for that chat only.'
     : isGroup
-      ? 'This wallpaper is shared. Anyone in the group who changes it changes it for everyone.'
+      ? 'Shared with the group at full original quality (GIFs included). Each member downloads it once onto their own device when they open the chat — it is not re-streamed from the server every time.'
       : 'Only for this chat, on this device. Other people keep their own backdrop.';
 
   return (
