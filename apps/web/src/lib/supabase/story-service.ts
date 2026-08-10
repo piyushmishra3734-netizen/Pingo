@@ -32,6 +32,43 @@ import type { ProfileRow, StoryRow } from './types.js';
 
 const STORY_BUCKET = 'stories';
 
+/** Extension + Content-Type from the blob so GIF/WebP/PNG stories stay intact. */
+function mediaUploadMeta(
+  media: Blob,
+  kind: StoryKind,
+): { extension: string; contentType: string } {
+  if (kind === 'video') {
+    const contentType = media.type && media.type.startsWith('video/')
+      ? media.type
+      : 'video/mp4';
+    const extension = contentType.includes('webm')
+      ? 'webm'
+      : contentType.includes('quicktime')
+        ? 'mov'
+        : 'mp4';
+    return { extension, contentType };
+  }
+
+  const type = (media.type || '').toLowerCase();
+  if (type === 'image/gif' || type.includes('gif')) {
+    return { extension: 'gif', contentType: 'image/gif' };
+  }
+  if (type === 'image/webp' || type.includes('webp')) {
+    return { extension: 'webp', contentType: 'image/webp' };
+  }
+  if (type === 'image/png' || type.includes('png')) {
+    return { extension: 'png', contentType: 'image/png' };
+  }
+  if (type === 'image/jpeg' || type === 'image/jpg' || type.includes('jpeg')) {
+    return { extension: 'jpg', contentType: 'image/jpeg' };
+  }
+  // Unknown still → jpeg is the historical default for camera/editor output.
+  return {
+    extension: 'jpg',
+    contentType: type.startsWith('image/') ? type : 'image/jpeg',
+  };
+}
+
 /**
  * How long a signed story URL lives.
  *
@@ -216,14 +253,20 @@ export class SupabaseStoryService implements StoryService {
       throw new Error('No media to post.');
     }
 
-    const extension = draft.kind === 'video' ? 'mp4' : 'jpg';
+    /*
+     * Extension follows the real bytes, not a hard-coded `.jpg`.
+     *
+     * GIF / WebP / PNG stickers and custom GIFs used to be uploaded as `.jpg`
+     * with a JPEG content-type, which broke animation and transparent stickers.
+     */
+    const { extension, contentType } = mediaUploadMeta(draft.media, draft.kind);
     // Per-user folder, which is what the storage policy checks.
     const path = `${me}/${crypto.randomUUID()}.${extension}`;
 
     const { error: uploadError } = await this.#client.storage
       .from(STORY_BUCKET)
       .upload(path, draft.media, {
-        contentType: draft.media.type || (draft.kind === 'video' ? 'video/mp4' : 'image/jpeg'),
+        contentType,
         upsert: false,
       });
 

@@ -1,5 +1,17 @@
-import { STORY_AUDIENCES, type StoryAudience, type StoryKind } from '@pingo/core';
-import { CameraIcon, ImageIcon, LinkIcon, UsersIcon, cn } from '@pingo/ui';
+import {
+  STORY_AUDIENCES,
+  type Sticker,
+  type StoryAudience,
+  type StoryKind,
+} from '@pingo/core';
+import {
+  CameraIcon,
+  ImageIcon,
+  LinkIcon,
+  SmileIcon,
+  UsersIcon,
+  cn,
+} from '@pingo/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,32 +19,39 @@ import { Overlay } from '../../components/Overlay.js';
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import { SnapEditor } from '../camera/SnapEditor.js';
 import { useT } from '../i18n/useT.js';
+import { StickerPicker } from '../stickers/StickerPicker.js';
 import { PeoplePicker } from './PeoplePicker.js';
 import { useStories } from './StoryContext.js';
 
 /**
  * Making a story: pick something, work on it, decide who sees it, post.
  *
- * ## Three steps, and the third is not optional
+ * ## Sources
  *
- * Source, edit, audience. The audience step is where the module's whole privacy
- * story either happens or does not - a "post" button that skipped it would make
- * `friends` the only audience anyone ever used, and the four we built would be
- * a settings screen nobody visits.
+ * Camera · Gallery (multi) · Custom GIF · Stickers · Custom sticker. Gallery
+ * accepts many photos at once (Instagram-style sequence). GIFs and stickers
+ * skip the photo editor so animation / transparency are not flattened.
  *
- * It defaults to Friends, so the common case is still one extra tap and not a
- * decision.
+ * ## Multi-photo
  *
- * ## Why video skips the editor
- *
- * `SnapEditor` composites onto a canvas from a still image. Drawing on video
- * means compositing per frame and re-encoding, which is a different pipeline
- * with a different cost - not a flag on this one. A video story therefore goes
- * straight to the details step, where the caption, place and link still apply.
- * Better an honest gap than an editor whose tools silently do nothing.
+ * Each file becomes its own story slide under the same audience. Caption,
+ * place and link land on the first slide only — the rest share privacy, not
+ * the same text blob five times.
  */
 
-type Step = 'source' | 'edit' | 'details';
+type Step = 'source' | 'edit' | 'stickers' | 'details';
+
+/** One slide ready (or almost ready) to post. */
+interface QueueItem {
+  id: string;
+  kind: StoryKind;
+  media: Blob;
+  previewUrl: string;
+  /** True for GIF / sticker / multi-batch — never run through SnapEditor. */
+  skipEdit: boolean;
+}
+
+const MAX_BATCH = 20;
 
 export function StoryComposer({
   onClose,
@@ -46,9 +65,10 @@ export function StoryComposer({
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>('source');
-  const [picked, setPicked] = useState<{ file: File; kind: StoryKind }>();
-  /** The flattened result of the editor, or the original for a video. */
-  const [media, setMedia] = useState<Blob>();
+  /** Multi-slide queue for the details / post step. */
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  /** Single photo waiting on SnapEditor (not yet in the queue). */
+  const [editSrc, setEditSrc] = useState<string>();
 
   const [caption, setCaption] = useState('');
   const [place, setPlace] = useState('');
@@ -59,29 +79,128 @@ export function StoryComposer({
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [progress, setProgress] = useState<string>();
 
-  const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const gifRef = useRef<HTMLInputElement>(null);
+  const customStickerRef = useRef<HTMLInputElement>(null);
 
-  const src = useMemo(() => (picked ? URL.createObjectURL(picked.file) : undefined), [picked]);
+  // Revoke object URLs when the queue changes or the sheet closes.
   useEffect(() => {
     return () => {
-      if (src) URL.revokeObjectURL(src);
+      for (const item of queue) URL.revokeObjectURL(item.previewUrl);
+      if (editSrc) URL.revokeObjectURL(editSrc);
     };
-  }, [src]);
+    // Only on unmount — mid-session revoke is handled when replacing queue.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const take = (file: File) => {
-    const kind: StoryKind = file.type.startsWith('video/') ? 'video' : 'photo';
-    setPicked({ file, kind });
-    if (kind === 'video') {
-      setMedia(file);
-      setStep('details');
-    } else {
+  const replaceQueue = (next: QueueItem[]) => {
+    setQueue((prev) => {
+      for (const item of prev) URL.revokeObjectURL(item.previewUrl);
+      return next;
+    });
+  };
+
+  const makeItem = (
+    media: Blob,
+    kind: StoryKind,
+    opts?: { skipEdit?: boolean; previewFrom?: Blob },
+  ): QueueItem => {
+    const previewBlob = opts?.previewFrom ?? media;
+    return {
+      id: crypto.randomUUID(),
+      kind,
+      media,
+      previewUrl: URL.createObjectURL(previewBlob),
+      skipEdit: Boolean(opts?.skipEdit),
+    };
+  };
+
+  const takeFiles = (list: FileList | File[]) => {
+    const files = [...list].slice(0, MAX_BATCH);
+    if (files.length === 0) return;
+
+    // Single still photo → editor. Everything else (multi, video, gif) skips it.
+    if (files.length === 1) {
+      const file = files[0]!;
+      if (file.type.startsWith('video/')) {
+        replaceQueue([makeItem(file, 'video', { skipEdit: true })]);
+        setStep('details');
+        return;
+      }
+      if (isGifLike(file)) {
+        replaceQueue([makeItem(file, 'photo', { skipEdit: true })]);
+        setStep('details');
+        return;
+      }
+      if (editSrc) URL.revokeObjectURL(editSrc);
+      setEditSrc(URL.createObjectURL(file));
       setStep('edit');
+      return;
+    }
+
+    const items = files.map((file) => {
+      const kind: StoryKind = file.type.startsWith('video/') ? 'video' : 'photo';
+      return makeItem(file, kind, { skipEdit: true });
+    });
+    replaceQueue(items);
+    setStep('details');
+  };
+
+  const takeCustomGif = (file: File) => {
+    if (!isGifLike(file) && !file.type.startsWith('image/')) {
+      setError('Pick a GIF or animated image.');
+      return;
+    }
+    // Always original bytes — canvas would freeze a GIF.
+    replaceQueue([makeItem(file, 'photo', { skipEdit: true })]);
+    setStep('details');
+  };
+
+  const takeCustomSticker = async (file: File) => {
+    setError(undefined);
+    try {
+      // Animated custom stickers stay original — canvas would freeze them.
+      if (isGifLike(file)) {
+        replaceQueue([makeItem(file, 'photo', { skipEdit: true })]);
+        setStep('details');
+        return;
+      }
+      const framed = await frameStickerOnCanvas(file);
+      replaceQueue([makeItem(framed, 'photo', { skipEdit: true, previewFrom: framed })]);
+      setStep('details');
+    } catch {
+      // Fall back to posting the raw file if framing fails.
+      replaceQueue([makeItem(file, 'photo', { skipEdit: true })]);
+      setStep('details');
+    }
+  };
+
+  const takePackSticker = async (sticker: Sticker) => {
+    setError(undefined);
+    setBusy(true);
+    try {
+      if (sticker.format === 'lottie') {
+        setError('That sticker is animated vector — pick a static one, or upload your own GIF.');
+        setBusy(false);
+        return;
+      }
+      const res = await fetch(sticker.url, { mode: 'cors', credentials: 'omit' });
+      if (!res.ok) throw new Error('Could not load that sticker.');
+      const blob = await res.blob();
+      const framed = await frameStickerOnCanvas(blob);
+      replaceQueue([makeItem(framed, 'photo', { skipEdit: true })]);
+      setStep('details');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not use that sticker.');
+    } finally {
+      setBusy(false);
     }
   };
 
   const post = async () => {
-    if (!media || !picked || busy) return;
+    if (queue.length === 0 || busy) return;
 
     if (audience === 'custom' && chosen.size === 0) {
       setError('Choose at least one person, or pick a different audience.');
@@ -91,30 +210,49 @@ export function StoryComposer({
     setBusy(true);
     setError(undefined);
     try {
-      await service.post({
-        media,
-        kind: picked.kind,
-        audience,
-        ...(caption.trim() ? { caption: caption.trim() } : {}),
-        ...(place.trim() ? { location: place.trim() } : {}),
-        ...(link.trim() ? { linkUrl: normaliseLink(link) } : {}),
-        ...(audience === 'custom' ? { audienceUserIds: [...chosen] } : {}),
-      });
+      const total = queue.length;
+      for (let i = 0; i < total; i += 1) {
+        const item = queue[i]!;
+        if (total > 1) setProgress(`Posting ${i + 1} of ${total}…`);
+        await service.post({
+          media: item.media,
+          kind: item.kind,
+          audience,
+          // Caption / place / link only on the first slide of a multi batch.
+          ...(i === 0 && caption.trim() ? { caption: caption.trim() } : {}),
+          ...(i === 0 && place.trim() ? { location: place.trim() } : {}),
+          ...(i === 0 && link.trim() ? { linkUrl: normaliseLink(link) } : {}),
+          ...(audience === 'custom' ? { audienceUserIds: [...chosen] } : {}),
+        });
+      }
       await refresh();
       onPosted();
     } catch (cause) {
-      // Surface the real reason - a silent "try again" hides RLS, upload and
-      // empty-media failures that the user cannot otherwise diagnose.
       const message =
         cause instanceof Error && cause.message
           ? cause.message
           : 'That did not post. Try again.';
       setError(message);
       setBusy(false);
+      setProgress(undefined);
     }
   };
 
-  // ---- step 1: where the media comes from ---------------------------------
+  const removeFromQueue = (id: string) => {
+    setQueue((prev) => {
+      const next = prev.filter((item) => {
+        if (item.id === id) {
+          URL.revokeObjectURL(item.previewUrl);
+          return false;
+        }
+        return true;
+      });
+      if (next.length === 0) setStep('source');
+      return next;
+    });
+  };
+
+  // ---- step 1: source -----------------------------------------------------
 
   if (step === 'source') {
     return (
@@ -133,41 +271,110 @@ export function StoryComposer({
             <SheetItem
               icon={<ImageIcon size={20} />}
               label={t('story.gallery')}
-              hint="A photo or a video from this device"
-              onClick={() => fileRef.current?.click()}
+              hint="One photo, or many — like Instagram"
+              onClick={() => galleryRef.current?.click()}
+            />
+            <SheetItem
+              icon={<span className="text-[1.1rem] leading-none">GIF</span>}
+              label={t('story.customGif')}
+              hint="Your own GIF, full animation"
+              onClick={() => gifRef.current?.click()}
+            />
+            <SheetItem
+              icon={<SmileIcon size={20} />}
+              label={t('story.stickers')}
+              hint="From your sticker packs"
+              onClick={() => setStep('stickers')}
+            />
+            <SheetItem
+              icon={<span className="text-[1.05rem] leading-none">✦</span>}
+              label={t('story.customSticker')}
+              hint="Upload a PNG, WebP or GIF sticker"
+              onClick={() => customStickerRef.current?.click()}
             />
             <SheetCancel onClick={onClose} />
           </div>
         </Sheet>
 
         <input
-          ref={fileRef}
+          ref={galleryRef}
           type="file"
           accept="image/*,video/*"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            const files = event.target.files;
+            event.target.value = '';
+            if (files?.length) takeFiles(files);
+          }}
+        />
+        <input
+          ref={gifRef}
+          type="file"
+          accept="image/gif,image/webp,.gif,.webp"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            // Cleared so choosing the same file twice still fires a change.
             event.target.value = '';
-            if (file) take(file);
+            if (file) takeCustomGif(file);
+          }}
+        />
+        <input
+          ref={customStickerRef}
+          type="file"
+          accept="image/png,image/webp,image/gif,image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void takeCustomSticker(file);
           }}
         />
       </>
     );
   }
 
-  // ---- step 2: the editor -------------------------------------------------
+  // ---- stickers from packs ------------------------------------------------
 
-  if (step === 'edit' && src) {
+  if (step === 'stickers') {
+    return (
+      <Sheet
+        title={t('story.stickers')}
+        description="Tap a sticker to post it to your story."
+        onClose={() => setStep('source')}
+      >
+        <div className="mt-2">
+          <StickerPicker onSelect={(s) => void takePackSticker(s)} />
+        </div>
+        {error && (
+          <p role="alert" className="mt-2 text-caption text-danger">
+            {error}
+          </p>
+        )}
+        {busy && (
+          <p className="mt-2 text-caption text-text-tertiary">Preparing sticker…</p>
+        )}
+        <div className="mt-2">
+          <SheetCancel onClick={() => setStep('source')} label="Back" />
+        </div>
+      </Sheet>
+    );
+  }
+
+  // ---- single-photo editor ------------------------------------------------
+
+  if (step === 'edit' && editSrc) {
     return (
       <Overlay>
         <div className="fixed inset-0 z-500 bg-backdrop">
           <SnapEditor
-            src={src}
+            src={editSrc}
             onCancel={onClose}
             doneLabel="Next"
             onDone={(blob) => {
-              setMedia(blob);
+              replaceQueue([makeItem(blob, 'photo', { skipEdit: true })]);
+              if (editSrc) URL.revokeObjectURL(editSrc);
+              setEditSrc(undefined);
               setStep('details');
             }}
           />
@@ -176,7 +383,7 @@ export function StoryComposer({
     );
   }
 
-  // ---- step 3: what it says and who sees it -------------------------------
+  // ---- audience picker ----------------------------------------------------
 
   if (choosing) {
     return (
@@ -204,33 +411,93 @@ export function StoryComposer({
     );
   }
 
+  // ---- details / post -----------------------------------------------------
+
+  const multi = queue.length > 1;
+  const primary = queue[0];
+
   return (
     <Sheet
-      title={t('story.post')}
+      title={multi ? t('story.postMany').replace('{n}', String(queue.length)) : t('story.post')}
       onClose={onClose}
       className={cn(
         'border-line/50 bg-page',
         'shadow-[0_8px_32px_rgba(16,17,20,0.08),0_2px_8px_rgba(16,17,20,0.04)]',
       )}
     >
-      {src && (
-        <div
-          className={cn(
-            'relative mt-3 overflow-hidden rounded-2xl',
-            'bg-sunken ring-1 ring-black/5',
-            'shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]',
-          )}
-        >
-          {picked?.kind === 'video' ? (
-            <video src={src} className="max-h-56 w-full object-cover" muted playsInline />
-          ) : (
-            <img src={src} alt="" className="max-h-56 w-full object-cover" />
-          )}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/25 to-transparent"
-          />
+      {/* Filmstrip for multi; single hero preview otherwise. */}
+      {multi ? (
+        <div className="mt-3">
+          <ul className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
+            {queue.map((item, index) => (
+              <li key={item.id} className="relative shrink-0">
+                <div className="overflow-hidden rounded-xl bg-sunken ring-1 ring-black/5">
+                  {item.kind === 'video' ? (
+                    <video
+                      src={item.previewUrl}
+                      className="h-28 w-20 object-cover"
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={item.previewUrl}
+                      alt=""
+                      className="h-28 w-20 object-cover"
+                    />
+                  )}
+                </div>
+                <span className="absolute top-1 left-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.625rem] font-medium text-white tabular-nums">
+                  {index + 1}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeFromQueue(item.id)}
+                  className={cn(
+                    'absolute -top-1.5 -right-1.5 grid size-5 place-items-center',
+                    'rounded-full bg-ink text-[0.65rem] font-bold text-white',
+                    'focus-ring shadow-sm',
+                  )}
+                  aria-label="Remove"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-caption text-text-tertiary">
+            {queue.length} slides · same audience for all · caption on the first
+          </p>
         </div>
+      ) : (
+        primary && (
+          <div
+            className={cn(
+              'relative mt-3 overflow-hidden rounded-2xl',
+              'bg-sunken ring-1 ring-black/5',
+              'shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]',
+            )}
+          >
+            {primary.kind === 'video' ? (
+              <video
+                src={primary.previewUrl}
+                className="max-h-56 w-full object-cover"
+                muted
+                playsInline
+              />
+            ) : (
+              <img
+                src={primary.previewUrl}
+                alt=""
+                className="max-h-56 w-full object-cover"
+              />
+            )}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/25 to-transparent"
+            />
+          </div>
+        )
       )}
 
       <div className="mt-3 space-y-2">
@@ -371,22 +638,31 @@ export function StoryComposer({
           {error}
         </p>
       )}
+      {progress && (
+        <p className="mt-2 text-caption text-text-secondary" aria-live="polite">
+          {progress}
+        </p>
+      )}
 
       <div className="mt-5 flex flex-col gap-1">
         <button
           type="button"
           onClick={() => void post()}
-          disabled={busy || !media}
+          disabled={busy || queue.length === 0}
           className={cn(
             'focus-ring w-full rounded-full px-5 py-3.5 text-body font-semibold tracking-[-0.01em]',
             'bg-brand-gradient text-white',
             'shadow-[0_4px_16px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
             'transition-transform duration-[160ms] ease-standard',
             'active:scale-[0.97]',
-            (busy || !media) && 'opacity-50',
+            (busy || queue.length === 0) && 'opacity-50',
           )}
         >
-          {busy ? t('story.posting') : t('story.post')}
+          {busy
+            ? progress || t('story.posting')
+            : multi
+              ? t('story.postMany').replace('{n}', String(queue.length))
+              : t('story.post')}
         </button>
         <button
           type="button"
@@ -404,6 +680,58 @@ export function StoryComposer({
       </div>
     </Sheet>
   );
+}
+
+function isGifLike(file: File): boolean {
+  return (
+    file.type === 'image/gif' ||
+    file.name.toLowerCase().endsWith('.gif') ||
+    (file.type === 'image/webp' && file.name.toLowerCase().includes('anim'))
+  );
+}
+
+/**
+ * Centres a sticker / small GIF on a 9:16 story frame so pack stickers read
+ * as full slides rather than a tiny icon in the corner.
+ */
+async function frameStickerOnCanvas(source: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(source);
+  const W = 1080;
+  const H = 1920;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close();
+    throw new Error('Could not prepare sticker.');
+  }
+
+  // Soft ink field — matches product dark without fighting glass chrome.
+  ctx.fillStyle = '#111113';
+  ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.55);
+  glow.addColorStop(0, 'rgba(80, 90, 140, 0.35)');
+  glow.addColorStop(1, 'rgba(17, 17, 19, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  const maxW = W * 0.72;
+  const maxH = H * 0.5;
+  const scale = Math.min(maxW / bitmap.width, maxH / bitmap.height, 3);
+  const dw = bitmap.width * scale;
+  const dh = bitmap.height * scale;
+  ctx.drawImage(bitmap, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  bitmap.close();
+
+  // GIF sources lose animation once drawn — for static stickers PNG is fine.
+  // If the source was a GIF we already avoided this path for “custom GIF”
+  // stories; pack stickers and custom stickers are framed as PNG.
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob((b) => resolve(b), 'image/png'),
+  );
+  if (!blob) throw new Error('Could not prepare sticker.');
+  return blob;
 }
 
 /**

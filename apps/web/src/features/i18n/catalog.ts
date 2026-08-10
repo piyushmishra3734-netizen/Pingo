@@ -651,7 +651,11 @@ const en = {
   'story.posting': 'Posting…',
   'story.camera': 'Camera',
   'story.gallery': 'Gallery',
+  'story.customGif': 'Custom GIF',
+  'story.stickers': 'Stickers',
+  'story.customSticker': 'Custom sticker',
   'story.post': 'Post to your story',
+  'story.postMany': 'Post {n} to your story',
 
   // AI chrome
   'ai.changePhoto': 'Change photo',
@@ -1315,7 +1319,11 @@ const enGenz: Catalog = {
   'story.posting': 'posting…',
   'story.camera': 'cam',
   'story.gallery': 'gallery',
+  'story.customGif': 'custom gif',
+  'story.stickers': 'stickers',
+  'story.customSticker': 'custom sticker',
   'story.post': 'post to your story',
+  'story.postMany': 'post {n} to your story',
 
   'ai.changePhoto': 'change photo',
   'ai.changeCover': 'change cover',
