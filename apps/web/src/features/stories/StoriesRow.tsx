@@ -60,8 +60,10 @@ export function StoriesRow({
   const others = groups.filter((group) => group.authorId !== currentUserId);
 
   return (
-    <div className="px-1">
-      <h2 className="px-3 pb-1 text-caption font-medium text-text-secondary">Stories</h2>
+    <div className="px-1 pb-0.5">
+      <h2 className="px-3 pb-1.5 text-[0.6875rem] font-semibold tracking-[0.04em] text-text-tertiary uppercase">
+        Stories
+      </h2>
 
       {/*
         `scrollbar-none` because a horizontal scrollbar under six circles is
@@ -70,7 +72,7 @@ export function StoriesRow({
         triggering the browser's own back gesture.
       */}
       <ul
-        className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pb-0"
+        className="scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 pb-1"
         aria-label="Stories"
       >
         <li>
@@ -96,8 +98,9 @@ export function StoriesRow({
                 group.closeFriends ? ', close friends' : ''
               }`}
               className={cn(
-                'flex w-[67px] shrink-0 flex-col items-center gap-1.5 rounded-lg py-1',
-                'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
+                'flex w-[68px] shrink-0 flex-col items-center gap-1.5 rounded-xl py-1',
+                'focus-ring transition-transform duration-[160ms] ease-standard',
+                'active:scale-[0.96]',
               )}
             >
               <StoryRing seen={group.allSeen} close={group.closeFriends} hasStory>
@@ -108,7 +111,12 @@ export function StoriesRow({
                   size="lg"
                 />
               </StoryRing>
-              <span className="w-full truncate text-caption text-text-secondary">
+              <span
+                className={cn(
+                  'w-full truncate text-center text-[0.6875rem] leading-tight',
+                  group.allSeen ? 'text-text-tertiary' : 'font-medium text-text-secondary',
+                )}
+              >
                 {group.authorName.split(' ')[0]}
               </span>
             </button>
@@ -182,9 +190,10 @@ function MyCircle({
    * land on the same dock point.
    */
   const plusChip = cn(
-    'absolute right-0 bottom-0 z-10 grid size-5 place-items-center',
+    'absolute right-0 bottom-0 z-10 grid size-[1.35rem] place-items-center',
     'rounded-full bg-brand-gradient text-white',
     'ring-[2.5px] ring-page',
+    'shadow-[0_1px_4px_color-mix(in_srgb,var(--gradient-from,#111113)_35%,transparent)]',
   );
 
   return (
@@ -194,13 +203,13 @@ function MyCircle({
       it sticks to the circle the way Instagram does - not floating free, not
       upper-right.
     */
-    <span className="relative inline-flex w-[67px] shrink-0 flex-col items-center gap-1.5 py-1">
+    <span className="relative inline-flex w-[68px] shrink-0 flex-col items-center gap-1.5 py-1">
       <span
         className={cn(
           'relative block',
           holding
             ? 'motion-safe:animate-press-hold'
-            : 'transition-transform duration-quick ease-standard',
+            : 'transition-transform duration-[160ms] ease-standard',
         )}
       >
         <button
@@ -230,7 +239,7 @@ function MyCircle({
           }
           className={cn(
             'block rounded-full',
-            'focus-ring transition-transform duration-instant ease-standard active:scale-[0.94]',
+            'focus-ring transition-transform duration-[160ms] ease-standard active:scale-[0.96]',
           )}
         >
           <StoryRing
@@ -268,7 +277,9 @@ function MyCircle({
         )}
       </span>
 
-      <span className="w-full truncate text-center text-caption text-text-secondary">You</span>
+      <span className="w-full truncate text-center text-[0.6875rem] font-medium leading-tight text-text-secondary">
+        You
+      </span>
     </span>
   );
 }
@@ -294,39 +305,27 @@ function StoryRing({
     <span
       className={cn(
         /*
-          67px across: a 56px avatar, 5px of inner gap, 6px of ring.
-
-          The band is what says "there is a story here", so it is the part that
-          got thicker - 3px rather than 2.5px. Growing the avatar instead made
-          the whole rail shout; the ring is the signal, and the face is just
-          what it surrounds.
+          Ring is the signal: slightly thicker band, soft outer glow for
+          unseen, quiet grey for seen. Avatar stays the same size so the rail
+          does not shout.
         */
-        'grid shrink-0 place-items-center rounded-full p-[3px]',
+        'grid shrink-0 place-items-center rounded-full p-[2.5px]',
         !hasStory
-          ? 'bg-transparent'
+          ? 'bg-transparent ring-[1.5px] ring-line/80'
           : close
             ? seen
-              ? 'bg-online/40'
-              : 'bg-online shadow-sm'
+              ? 'bg-online/35'
+              : 'bg-online shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-online,#22c55e)_18%,transparent)]'
             : seen
-              ? 'bg-line-strong'
-              : // Unseen gets a brand-tinted glow as well as the gradient.
-                // Colour alone is easy to miss on a bright screen; the halo is
-                // what makes the circle read as lit from across the room.
-                'bg-brand-gradient shadow-brand',
+              ? 'bg-line-strong/90'
+              : 'bg-brand-gradient shadow-[0_0_0_3px_color-mix(in_srgb,var(--gradient-from,#111113)_14%,transparent),0_2px_10px_color-mix(in_srgb,var(--gradient-from,#111113)_22%,transparent)]',
       )}
     >
       {/*
-        The inner ring separates the avatar from the band.
-
-        `grid`, and it has to be. As a plain inline span this box formed a line
-        box around the avatar, and the avatar is `inline-flex` - so it sat on the
-        text baseline with descender space beneath it. That made the ring 65
-        wide and 72 tall: a visible ellipse, and the bug behind "oval ring".
-        `block` does not fix it, because a block still lays its inline child out
-        on a baseline. `grid` removes the line box altogether.
+        Inner cutout separates the face from the band. `grid` kills the
+        inline baseline box that used to oval the ring.
       */}
-      <span className="grid rounded-full bg-page p-[2.5px]">{children}</span>
+      <span className="grid rounded-full bg-page p-[2px]">{children}</span>
     </span>
   );
 }

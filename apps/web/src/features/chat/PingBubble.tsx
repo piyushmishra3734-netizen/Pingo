@@ -7,35 +7,9 @@ import { useT } from '../i18n/useT.js';
 /**
  * A Ping in the thread: closed, open, or gone.
  *
- * ## Why the image is never in the message
- *
- * A Ping can be opened once or twice, whichever the sender chose. If the URL
- * arrived with the message, the viewer would hold a copy that outlives every
- * view and the limit would be theatre. So the bubble starts closed and asks the
- * server for the image - and asking is what spends the view. The count is
- * server-side; nothing here can be edited to get another look.
- *
- * ## Why it does not look like a photo
- *
- * A Ping is a different promise to a picture in a chat, and looking like one
- * would be a lie told by the layout. It is a card that has to be *decided*
- * about, and it says how many views it costs before you spend one - a single
- * view is a different thing to accept than two, and finding that out afterwards
- * is too late.
- *
- * ## What happens on reload
- *
- * The open image is deliberately not persisted anywhere. Navigate away and the
- * Ping is closed again - with whatever views the server says are left. If they
- * are gone, opening it returns nothing and the bubble says so.
- *
- * ## Saving
- *
- * Saving goes to the device, never to a PINGO server, and it is a decision
- * rather than a side effect of looking - so it is its own button. Once the file
- * is on the device the server copy is destroyed: the receiver keeps it, the app
- * does not. That is why a saved Ping does not reappear in the thread or in any
- * gallery. There is nothing left to show.
+ * Visually a sealed card - not a photo bubble - so the limited-view promise
+ * is obvious before anyone taps. Open state reveals the image with soft
+ * radius and a frosted action row; gone state is a quiet capsule, not a hole.
  */
 export function PingBubble({
   message,
@@ -96,8 +70,7 @@ export function PingBubble({
       link.download = `pingo-ping-${message.id}.jpg`;
       link.click();
 
-      // Gone from the app the moment it is on the device. Keeping it visible
-      // would contradict the promise the feature makes.
+      // Gone from the app the moment it is on the device.
       setUrl(undefined);
       setState('gone');
     } finally {
@@ -105,27 +78,30 @@ export function PingBubble({
     }
   };
 
+  const viewsLabel = ping.views === 1 ? '1 view' : '2 views';
+
   // ---- gone ---------------------------------------------------------------
 
   if (state === 'gone') {
     return (
       <div
         className={cn(
-          'flex w-56 items-center gap-2.5 rounded-lg px-4 py-3',
-          'border border-dashed border-line-strong text-text-tertiary',
-          // Fades rather than snapping, so a Ping ending reads as an event and
-          // not as the bubble having been swapped out behind your back.
-          'animate-fade-in',
+          'flex w-[13.5rem] items-center gap-2.5 rounded-[1.125rem] px-3.5 py-3',
+          'border border-dashed border-line-strong/70 bg-surface/50',
+          'text-text-tertiary animate-fade-in',
         )}
       >
-        <CameraIcon size={18} />
-        <span className="text-caption">
-          {/*
-            The sender is told it arrived; the receiver is told it is spent.
-            Neither learns anything about the other - "opened at 4:12" would be
-            a fact about a person, and this is not a read receipt.
-          */}
-          {mine ? 'Ping delivered' : 'Ping opened'}
+        <span
+          aria-hidden
+          className="grid size-8 shrink-0 place-items-center rounded-full bg-sunken"
+        >
+          <CameraIcon size={15} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-caption font-medium text-text-secondary">
+            {mine ? 'Ping delivered' : 'Ping opened'}
+          </span>
+          <span className="block text-[0.6875rem] text-text-tertiary">Gone from chat</span>
         </span>
       </div>
     );
@@ -135,69 +111,97 @@ export function PingBubble({
 
   if (state === 'open' && url) {
     return (
-      <div className="animate-fade-in w-fit">
-        <img
-          src={url}
-          alt="Ping"
-          draggable={false}
-          className="max-h-80 w-auto max-w-[70vw] rounded-lg object-contain select-none"
-        />
-        <div className="mt-1.5 flex items-center gap-3">
+      <div className="animate-fade-in w-fit max-w-[min(70vw,18rem)]">
+        <div
+          className={cn(
+            'overflow-hidden rounded-[1.125rem]',
+            'bg-sunken shadow-[0_8px_28px_rgb(0_0_0/0.12)]',
+            'ring-1 ring-black/5',
+          )}
+        >
+          <img
+            src={url}
+            alt="Ping"
+            draggable={false}
+            onLoad={() => setPingReady(true)}
+            className={cn(
+              'max-h-80 w-full object-cover select-none',
+              'transition-[filter,opacity] duration-200 ease-standard',
+              pingReady ? 'opacity-100' : 'opacity-80 blur-[2px]',
+            )}
+          />
+        </div>
+        <div className="mt-2 flex items-center gap-2.5 px-0.5">
           <button
             type="button"
             onClick={() => void save()}
             disabled={saving}
             className={cn(
-              'focus-ring flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5',
-              'text-caption font-medium text-ink shadow-sm',
-              'transition-transform duration-instant active:scale-95',
+              'focus-ring flex items-center gap-1.5 rounded-full',
+              'glass-water px-3.5 py-1.5 text-caption font-medium text-ink',
+              'shadow-[0_1px_3px_rgb(0_0_0/0.06)]',
+              'transition-transform duration-[160ms] ease-standard',
+              'active:scale-[0.97]',
               'disabled:opacity-50',
             )}
           >
             <StorageIcon size={14} />
-            {saving ? 'Saving…' : 'Save to gallery'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
 
           <span
-            className={cn('text-caption', viewsLeft === 0 ? 'text-danger' : 'text-text-tertiary')}
+            className={cn(
+              'text-[0.6875rem] tabular-nums',
+              viewsLeft === 0 ? 'text-danger' : 'text-text-tertiary',
+            )}
             aria-live="polite"
           >
             {viewsLeft === 0
               ? 'Expired'
-              : `${viewsLeft} view${viewsLeft === 1 ? '' : 's'} remaining`}
+              : `${viewsLeft} view${viewsLeft === 1 ? '' : 's'} left`}
           </span>
         </div>
       </div>
     );
   }
 
-  // ---- closed -------------------------------------------------------------
+  // ---- closed (mine) ------------------------------------------------------
 
-  /*
-   * The sender's own Ping is not a thing to open.
-   *
-   * They took the picture; there is nothing to reveal, and letting them tap it
-   * would spend nothing while looking as though it had. So their side is a
-   * status card rather than a button.
-   */
   if (mine) {
     return (
       <div
         className={cn(
-          'flex w-56 items-center gap-2.5 rounded-lg px-4 py-3',
+          'relative flex w-[13.5rem] items-center gap-3 overflow-hidden',
+          'rounded-[1.125rem] px-3.5 py-3',
           'bg-brand-glass text-white',
+          'shadow-[0_4px_14px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
         )}
       >
-        <CameraIcon size={18} />
-        <span className="min-w-0 flex-1">
-          <span className="block text-caption font-medium">{t('thread.pingSent')}</span>
-          <span className="block text-caption text-white/70">
-            {ping.views === 1 ? '1 view' : '2 views'}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 0% 0%, rgb(255 255 255 / 0.22) 0%, transparent 55%)',
+          }}
+        />
+        <span
+          aria-hidden
+          className="relative grid size-9 shrink-0 place-items-center rounded-full bg-white/18 ring-1 ring-white/25"
+        >
+          <CameraIcon size={16} />
+        </span>
+        <span className="relative min-w-0 flex-1">
+          <span className="block text-caption font-semibold tracking-[-0.01em]">
+            {t('thread.pingSent')}
           </span>
+          <span className="mt-0.5 block text-[0.6875rem] text-white/70">{viewsLabel}</span>
         </span>
       </div>
     );
   }
+
+  // ---- closed (theirs) ----------------------------------------------------
 
   return (
     <button
@@ -208,32 +212,41 @@ export function PingBubble({
         ping.views === 1 ? 'one view' : 'two views'
       }. Opening it spends a view.`}
       className={cn(
-        'focus-ring flex w-56 items-center gap-2.5 rounded-lg px-4 py-3',
+        'focus-ring relative flex w-[13.5rem] items-center gap-3 overflow-hidden',
+        'rounded-[1.125rem] px-3.5 py-3 text-left',
         'bg-brand-glass text-white',
-        // Lifts under the finger. The one bubble in a thread that costs
-        // something to open should feel like it is waiting to be pressed.
-        'transition-transform duration-quick ease-standard',
-        'hover:scale-[1.02] active:scale-[0.97]',
-        'disabled:opacity-70',
+        'shadow-[0_4px_14px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
+        'transition-transform duration-[160ms] ease-standard',
+        'active:scale-[0.97]',
+        'disabled:opacity-80',
       )}
     >
       <span
         aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          background:
+            'radial-gradient(120% 90% at 0% 0%, rgb(255 255 255 / 0.22) 0%, transparent 55%)',
+        }}
+      />
+      <span
+        aria-hidden
         className={cn(
-          'grid size-8 shrink-0 place-items-center rounded-full bg-white/20',
+          'relative grid size-9 shrink-0 place-items-center rounded-full',
+          'bg-white/18 ring-1 ring-white/25',
           state === 'opening' && 'animate-pulse',
         )}
       >
-        <CameraIcon size={17} />
+        <CameraIcon size={16} />
       </span>
 
-      <span className="min-w-0 flex-1 text-left">
-        <span className="block text-caption font-medium">
+      <span className="relative min-w-0 flex-1">
+        <span className="block text-caption font-semibold tracking-[-0.01em]">
           {state === 'opening' ? 'Opening…' : 'New Ping'}
         </span>
         {state !== 'opening' && (
-          <span className="block text-caption text-white/75">
-            Tap to view · {ping.views === 1 ? '1 view' : '2 views'}
+          <span className="mt-0.5 block text-[0.6875rem] text-white/75">
+            Tap to open · {viewsLabel}
           </span>
         )}
       </span>
