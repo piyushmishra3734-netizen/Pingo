@@ -66,6 +66,22 @@ interface Item {
   /** Normalised centre. */
   x: number;
   y: number;
+  /**
+   * Pinched size and turn.
+   *
+   * Everything placed on a picture used to be exactly one size and exactly
+   * upright - a 3rem emoji, a sticker at 18% of the frame - so the only way to
+   * make something bigger was to not want it bigger. These carry the gesture
+   * from the preview through to the export, where the same numbers scale the
+   * font and the sticker rather than a second set being invented.
+   *
+   * Clamped where they are applied rather than here: a value on its way
+   * through a pinch is allowed to be anything, and the limit belongs to the
+   * thing being drawn.
+   */
+  scale: number;
+  /** Radians, clockwise. */
+  rotation: number;
 }
 
 /** Normalised crop rectangle, 0-1 over the displayed frame. */
@@ -144,12 +160,12 @@ export function SnapEditor({
   const [exporting, setExporting] = useState(false);
 
   const addItem = useCallback(
-    (item: Omit<Item, 'id' | 'x' | 'y'>) =>
+    (item: Omit<Item, 'id' | 'x' | 'y' | 'scale' | 'rotation'>) =>
       setItems((all) => [
         ...all,
         // Slightly above centre, where the thumb is not, so a new item is
         // never dropped underneath the finger that asked for it.
-        { ...item, id: crypto.randomUUID(), x: 0.5, y: 0.4 },
+        { ...item, id: crypto.randomUUID(), x: 0.5, y: 0.4, scale: 1, rotation: 0 },
       ]),
     [],
   );
@@ -308,11 +324,19 @@ export function SnapEditor({
                 const sticker = new Image();
                 sticker.crossOrigin = 'anonymous';
                 sticker.onload = () => {
-                  const size = height * 0.18;
+                  const size = height * 0.18 * item.scale;
                   const ratio = sticker.naturalWidth / sticker.naturalHeight || 1;
                   const w = ratio >= 1 ? size : size * ratio;
                   const h = ratio >= 1 ? size / ratio : size;
-                  context.drawImage(sticker, item.x * width - w / 2, item.y * height - h / 2, w, h);
+                  /*
+                   * Turned about its own centre, which is what the preview
+                   * does. Drawing rotated means moving the canvas rather than
+                   * the image: translate to the point, rotate, then draw
+                   * around the origin.
+                   */
+                  drawTurned(context, item, width, height, () =>
+                    context.drawImage(sticker, -w / 2, -h / 2, w, h),
+                  );
                   resolve();
                 };
                 sticker.onerror = () => resolve();
@@ -322,11 +346,11 @@ export function SnapEditor({
       );
 
       // Emoji: painted as text, but larger and without the plate a label gets.
-      const emojiSize = Math.round(height * 0.12);
       for (const item of items) {
         if (item.kind !== 'emoji') continue;
+        const emojiSize = Math.round(height * 0.12 * item.scale);
         context.font = `${emojiSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
-        context.fillText(item.value, item.x * width, item.y * height);
+        drawTurned(context, item, width, height, () => context.fillText(item.value, 0, 0));
       }
 
       context.font = `600 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
@@ -336,8 +360,14 @@ export function SnapEditor({
         const value = text.value.trim();
         if (!value) continue;
 
-        const x = text.x * width;
-        const y = text.y * height;
+        /*
+         * Sized and turned like the preview, then drawn about the origin -
+         * `drawTurned` has already moved the canvas to where this belongs.
+         */
+        const scaled = Math.round(fontSize * text.scale);
+        context.font = `600 ${scaled}px "Space Grotesk", system-ui, sans-serif`;
+        const x = 0;
+        const y = 0;
 
         /*
          * A dark plate behind the words, matching the on-screen chip.
@@ -348,25 +378,27 @@ export function SnapEditor({
          * `roundRect` is not on every engine - falling back to a plain rect keeps
          * export from throwing after the user finished editing.
          */
-        const metrics = context.measureText(value);
-        const padX = fontSize * 0.42;
-        const padY = fontSize * 0.3;
-        const plateX = x - metrics.width / 2 - padX;
-        const plateY = y - fontSize / 2 - padY;
-        const plateW = metrics.width + padX * 2;
-        const plateH = fontSize + padY * 2;
-        const radius = fontSize * 0.36;
-        context.fillStyle = 'rgba(16, 17, 20, 0.42)';
-        context.beginPath();
-        if (typeof context.roundRect === 'function') {
-          context.roundRect(plateX, plateY, plateW, plateH, radius);
-        } else {
-          context.rect(plateX, plateY, plateW, plateH);
-        }
-        context.fill();
+        drawTurned(context, text, width, height, () => {
+          const metrics = context.measureText(value);
+          const padX = scaled * 0.42;
+          const padY = scaled * 0.3;
+          const plateX = x - metrics.width / 2 - padX;
+          const plateY = y - scaled / 2 - padY;
+          const plateW = metrics.width + padX * 2;
+          const plateH = scaled + padY * 2;
+          const radius = scaled * 0.36;
+          context.fillStyle = 'rgba(16, 17, 20, 0.42)';
+          context.beginPath();
+          if (typeof context.roundRect === 'function') {
+            context.roundRect(plateX, plateY, plateW, plateH, radius);
+          } else {
+            context.rect(plateX, plateY, plateW, plateH);
+          }
+          context.fill();
 
-        context.fillStyle = text.colour;
-        context.fillText(value, x, y);
+          context.fillStyle = text.colour;
+          context.fillText(value, x, y);
+        });
       }
 
       /*
@@ -787,6 +819,32 @@ function ToolButton({
  * with `null` and the caller reads as "the export failed".
  */
 /**
+ * Draws something at an item's place, turned to its angle.
+ *
+ * The canvas is moved rather than the drawing: translate to where the item
+ * belongs, rotate, then let the caller paint around the origin. Doing it the
+ * other way - working out where each rotated corner lands - is the same maths
+ * repeated at every call site, and it is where a rotated sticker and its
+ * rotated shadow stop agreeing.
+ *
+ * `save`/`restore` are what keep the rotation from leaking into whatever is
+ * painted next.
+ */
+function drawTurned(
+  context: CanvasRenderingContext2D,
+  item: Pick<Item, 'x' | 'y' | 'rotation'>,
+  width: number,
+  height: number,
+  paint: () => void,
+): void {
+  context.save();
+  context.translate(item.x * width, item.y * height);
+  if (item.rotation) context.rotate(item.rotation);
+  paint();
+  context.restore();
+}
+
+/**
  * Whether anything in the finished picture is see-through.
  *
  * Asked of a 64px copy rather than the real canvas. Reading the pixels of a
@@ -1109,30 +1167,104 @@ function DraggableItem({
   onChange: (item: Item) => void;
   onRemove: () => void;
 }) {
-  const dragging = useRef(false);
+  /*
+   * Every finger currently on this item.
+   *
+   * One is a drag, two are a pinch - which is the whole gesture vocabulary
+   * people already have for anything placed on a photo. Keyed by pointer id
+   * because a second finger can land and leave without the first moving, and
+   * because a stale pointer left in the map is a sticker that resizes itself
+   * the next time it is touched.
+   */
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  /** What the item was when the second finger landed. */
+  const pinchStart = useRef<
+    { distance: number; angle: number; scale: number; rotation: number } | undefined
+  >(undefined);
+
+  const spread = () => {
+    const [a, b] = [...pointers.current.values()];
+    if (!a || !b) return undefined;
+    return {
+      distance: Math.hypot(b.x - a.x, b.y - a.y),
+      angle: Math.atan2(b.y - a.y, b.x - a.x),
+      cx: (a.x + b.x) / 2,
+      cy: (a.y + b.y) / 2,
+    };
+  };
 
   return (
     <div
-      style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%` }}
-      className="absolute -translate-x-1/2 -translate-y-1/2 touch-none"
+      style={{
+        left: `${item.x * 100}%`,
+        top: `${item.y * 100}%`,
+        // The translate keeps the item centred on its point; the rest is the
+        // gesture. Order matters: rotate then scale, around that same centre.
+        transform: `translate(-50%, -50%) rotate(${item.rotation}rad) scale(${item.scale})`,
+      }}
+      className="absolute touch-none"
       onPointerDown={(event) => {
         // Stops the draw tool from painting a stroke under the label.
         event.stopPropagation();
-        dragging.current = true;
         event.currentTarget.setPointerCapture(event.pointerId);
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+        const two = spread();
+        if (two) {
+          pinchStart.current = {
+            distance: two.distance,
+            angle: two.angle,
+            scale: item.scale,
+            rotation: item.rotation,
+          };
+        }
       }}
       onPointerMove={(event) => {
-        if (!dragging.current) return;
+        if (!pointers.current.has(event.pointerId)) return;
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
         const rect = frameRef.current?.getBoundingClientRect();
         if (!rect) return;
+
+        const two = spread();
+        if (two && pinchStart.current) {
+          const start = pinchStart.current;
+          /*
+           * Bounded on both sides. A pinch that runs away leaves a sticker
+           * bigger than the picture with no way back, and one that collapses
+           * leaves nothing to grab - the floor is what makes the gesture
+           * reversible.
+           */
+          const scale = Math.min(
+            6,
+            Math.max(0.2, (start.scale * two.distance) / (start.distance || 1)),
+          );
+          onChange({
+            ...item,
+            scale,
+            rotation: start.rotation + (two.angle - start.angle),
+            // The midpoint drags too, so a two-finger move is still a move.
+            x: Math.min(1, Math.max(0, (two.cx - rect.left) / rect.width)),
+            y: Math.min(1, Math.max(0, (two.cy - rect.top) / rect.height)),
+          });
+          return;
+        }
+
         onChange({
           ...item,
           x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
           y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
         });
       }}
-      onPointerUp={() => {
-        dragging.current = false;
+      onPointerUp={(event) => {
+        pointers.current.delete(event.pointerId);
+        // Lifting one of two ends the pinch; the finger left behind must not
+        // resume it from a stale baseline.
+        if (pointers.current.size < 2) pinchStart.current = undefined;
+      }}
+      onPointerCancel={(event) => {
+        pointers.current.delete(event.pointerId);
+        if (pointers.current.size < 2) pinchStart.current = undefined;
       }}
     >
       <div className="flex items-center gap-1.5">
