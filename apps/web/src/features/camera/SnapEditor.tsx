@@ -84,6 +84,12 @@ export function SnapEditor({
   busy,
   extras,
   doneLabel = 'Next',
+  /**
+   * When set, a second button saves this frame and lets the host open another
+   * photo (multi-slide stories). Absent for camera send / single-shot flows.
+   */
+  onAddAnother,
+  addAnotherLabel = 'Add another photo',
   untouchable,
 }: {
   src: string;
@@ -94,6 +100,8 @@ export function SnapEditor({
   extras?: React.ReactNode;
   /** 'Next' from the camera, 'Send' when the picture is going straight out. */
   doneLabel?: string;
+  onAddAnother?: (blob: Blob) => void;
+  addAnotherLabel?: string;
   /**
    * Bytes to hand back as they are, instead of exporting the canvas.
    *
@@ -188,7 +196,7 @@ export function SnapEditor({
 
   // ---- export -------------------------------------------------------------
 
-  const flatten = useCallback(async () => {
+  const flatten = useCallback(async (deliver: (blob: Blob) => void = onDone) => {
     if (exporting) return;
 
     /*
@@ -198,7 +206,7 @@ export function SnapEditor({
      * picture into a single frame.
      */
     if (untouchable) {
-      onDone(untouchable);
+      deliver(untouchable);
       return;
     }
 
@@ -373,7 +381,7 @@ export function SnapEditor({
         throw new Error('Could not export the image. Try again.');
       }
 
-      onDone(blob);
+      deliver(blob);
     } catch (cause) {
       setExportError(
         cause instanceof Error ? cause.message : 'Could not prepare the story. Try again.',
@@ -619,22 +627,38 @@ export function SnapEditor({
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={() => void flatten()}
-          disabled={busy || exporting}
-          className={cn(
-            'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
-            // ~6px shorter (py-3.5 → py-2.5), quieter shadow (~20% less lift).
-            'bg-white py-2.5 text-body font-medium text-backdrop',
-            'shadow-[0_2px_10px_rgba(0,0,0,0.18)]',
-            'transition-transform duration-150 ease-standard active:scale-[0.99]',
-            'disabled:opacity-50',
+        <div className="flex flex-col gap-2">
+          {onAddAnother && (
+            <button
+              type="button"
+              onClick={() => void flatten(onAddAnother)}
+              disabled={busy || exporting}
+              className={cn(
+                'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
+                'border border-white/25 bg-white/10 py-2.5 text-body font-medium text-white',
+                'transition-transform duration-150 ease-standard active:scale-[0.99]',
+                'disabled:opacity-50',
+              )}
+            >
+              {busy || exporting ? 'Working…' : addAnotherLabel}
+            </button>
           )}
-        >
-          <CheckIcon size={17} />
-          {busy || exporting ? 'Working…' : doneLabel}
-        </button>
+          <button
+            type="button"
+            onClick={() => void flatten()}
+            disabled={busy || exporting}
+            className={cn(
+              'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
+              'bg-white py-2.5 text-body font-medium text-backdrop',
+              'shadow-[0_2px_10px_rgba(0,0,0,0.18)]',
+              'transition-transform duration-150 ease-standard active:scale-[0.99]',
+              'disabled:opacity-50',
+            )}
+          >
+            <CheckIcon size={17} />
+            {busy || exporting ? 'Working…' : doneLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

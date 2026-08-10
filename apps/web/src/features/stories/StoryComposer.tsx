@@ -20,8 +20,9 @@ import { useStories } from './StoryContext.js';
  *
  * ## Multi-photo
  *
- * Each file becomes its own story slide under the same audience. Caption,
- * place and link land on the first slide only.
+ * Pick several from the gallery at once, or add more from the editor
+ * (“Add another photo”) / the details filmstrip (+). Each slide shares
+ * audience; caption lands on the first only.
  */
 
 type Step = 'source' | 'edit' | 'details';
@@ -104,41 +105,74 @@ export function StoryComposer({
     });
   };
 
+  const appendItems = (items: QueueItem[]) => {
+    setQueue((prev) => {
+      const room = Math.max(0, MAX_BATCH - prev.length);
+      const take = items.slice(0, room);
+      // Drop unused object URLs if we truncated.
+      for (const extra of items.slice(room)) URL.revokeObjectURL(extra.previewUrl);
+      return [...prev, ...take];
+    });
+  };
+
   const takeFiles = (list: FileList | File[]) => {
     const files = [...list].slice(0, MAX_BATCH);
     if (files.length === 0) return;
     setError(undefined);
 
+    // Adding onto an existing queue (from details or after "Add another").
+    const appending = queue.length > 0;
+
     if (files.length === 1) {
       const file = files[0]!;
       if (file.type.startsWith('video/')) {
-        replaceQueue([makeItem(file, 'video')]);
+        const item = makeItem(file, 'video');
+        if (appending) appendItems([item]);
+        else replaceQueue([item]);
         setStep('details');
         return;
       }
-      // GIF: open in editor as untouchable so animation is kept.
-      if (isGifLike(file)) {
-        if (editSrc) URL.revokeObjectURL(editSrc);
-        setEditSrc(URL.createObjectURL(file));
-        setEditUntouchable(file);
-        setStep('edit');
-        return;
-      }
+      // Still / GIF → editor (GIF stays untouchable so it does not freeze).
       if (editSrc) URL.revokeObjectURL(editSrc);
       setEditSrc(URL.createObjectURL(file));
-      setEditUntouchable(undefined);
+      setEditUntouchable(isGifLike(file) ? file : undefined);
       setStep('edit');
       return;
     }
 
-    // Multi: skip per-slide editor (Instagram multi-share style).
-    replaceQueue(
-      files.map((file) => {
-        const kind: StoryKind = file.type.startsWith('video/') ? 'video' : 'photo';
-        return makeItem(file, kind);
-      }),
-    );
+    // Several at once → append or replace, skip per-slide editor.
+    const items = files.map((file) => {
+      const kind: StoryKind = file.type.startsWith('video/') ? 'video' : 'photo';
+      return makeItem(file, kind);
+    });
+    if (appending) appendItems(items);
+    else replaceQueue(items);
     setStep('details');
+  };
+
+  const commitSlide = (blob: Blob, then: 'details' | 'pick-more') => {
+    const kind: StoryKind = blob.type.startsWith('video/') ? 'video' : 'photo';
+    const item = makeItem(blob, kind);
+    // Functional update so "Add another" right after the first slide still
+    // sees the slide we just committed (React state is not flushed yet).
+    setQueue((prev) => {
+      if (prev.length === 0) return [item];
+      if (prev.length >= MAX_BATCH) {
+        URL.revokeObjectURL(item.previewUrl);
+        return prev;
+      }
+      return [...prev, item];
+    });
+
+    if (editSrc) URL.revokeObjectURL(editSrc);
+    setEditSrc(undefined);
+    setEditUntouchable(undefined);
+    setStep('details');
+
+    if (then === 'pick-more') {
+      // After the details sheet is back, open gallery for the next slide.
+      window.setTimeout(() => openGallery(), 120);
+    }
   };
 
   const post = async () => {
@@ -238,7 +272,7 @@ export function StoryComposer({
             <SheetItem
               icon={<ImageIcon size={20} />}
               label={t('story.gallery')}
-              hint="One photo, or many — like Instagram"
+              hint="One photo or several at once"
               onClick={openGallery}
             />
             <SheetCancel onClick={onClose} />
@@ -259,17 +293,11 @@ export function StoryComposer({
             <SnapEditor
               src={editSrc}
               onCancel={onClose}
-              doneLabel="Next"
+              doneLabel={queue.length > 0 ? 'Done' : 'Next'}
+              addAnotherLabel="Add another photo"
+              onAddAnother={(blob) => commitSlide(blob, 'pick-more')}
               {...(editUntouchable ? { untouchable: editUntouchable } : {})}
-              onDone={(blob) => {
-                replaceQueue([
-                  makeItem(blob, blob.type.startsWith('video/') ? 'video' : 'photo'),
-                ]);
-                if (editSrc) URL.revokeObjectURL(editSrc);
-                setEditSrc(undefined);
-                setEditUntouchable(undefined);
-                setStep('details');
-              }}
+              onDone={(blob) => commitSlide(blob, 'details')}
             />
           </div>
         </Overlay>
@@ -324,7 +352,7 @@ export function StoryComposer({
           'shadow-[0_8px_32px_rgba(16,17,20,0.08),0_2px_8px_rgba(16,17,20,0.04)]',
         )}
       >
-        {multi ? (
+        {queue.length > 0 && (
           <div className="mt-3">
             <ul className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
               {queue.map((item, index) => (
@@ -358,36 +386,32 @@ export function StoryComposer({
                   </button>
                 </li>
               ))}
+
+              {queue.length < MAX_BATCH && (
+                <li className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={openGallery}
+                    className={cn(
+                      'flex h-28 w-20 flex-col items-center justify-center gap-1',
+                      'rounded-xl border border-dashed border-line-strong/70 bg-sunken/40',
+                      'text-caption font-medium text-text-secondary',
+                      'focus-ring transition-colors duration-150 hover:bg-hover/60',
+                      'active:scale-[0.98]',
+                    )}
+                  >
+                    <span className="text-lg leading-none text-brand">+</span>
+                    Add
+                  </button>
+                </li>
+              )}
             </ul>
             <p className="mt-2 text-caption text-text-tertiary">
-              {queue.length} slides · same audience for all · caption on the first
+              {queue.length === 1
+                ? 'Tap + to add another photo'
+                : `${queue.length} slides · same audience · caption on the first`}
             </p>
           </div>
-        ) : (
-          primary && (
-            <div
-              className={cn(
-                'relative mt-3 overflow-hidden rounded-2xl',
-                'bg-sunken ring-1 ring-black/5',
-                'shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]',
-              )}
-            >
-              {primary.kind === 'video' ? (
-                <video
-                  src={primary.previewUrl}
-                  className="max-h-56 w-full object-cover"
-                  muted
-                  playsInline
-                />
-              ) : (
-                <img src={primary.previewUrl} alt="" className="max-h-56 w-full object-cover" />
-              )}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/25 to-transparent"
-              />
-            </div>
-          )
         )}
 
         <div className="mt-3 space-y-2">
