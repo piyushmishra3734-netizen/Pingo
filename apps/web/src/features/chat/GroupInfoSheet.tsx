@@ -724,21 +724,31 @@ export function GroupInfoSheet({
       )}
 
       {iAmAdmin && (
-        <section className="mt-5 border-t border-line pt-4">
-          <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+        <section className="mt-5 border-t border-line/60 pt-4">
+          <h3 className="mb-2.5 text-[0.6875rem] font-semibold tracking-[0.06em] text-text-tertiary uppercase">
             Invite link
           </h3>
 
           {link ? (
-            <>
-              <p className="mb-2.5 break-all rounded-md bg-surface-sunken px-3 py-2 text-caption text-text-secondary">
+            <div
+              className={cn(
+                'rounded-2xl border border-line/50 bg-sunken/55 p-3',
+                'shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]',
+              )}
+            >
+              <p className="break-all rounded-xl bg-surface/80 px-3 py-2.5 text-caption leading-snug text-text-secondary ring-1 ring-line/40">
                 {link}
               </p>
-              <p className="mb-2.5 text-caption text-text-tertiary">
+              <p className="mt-2 px-0.5 text-caption text-text-tertiary">
                 Anyone with this link can join, friend or not.
               </p>
-              <div className="flex gap-2">
-                <Button variant="secondary" size="sm" onClick={copy}>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={copy}
+                >
                   {copied ? (
                     <span className="flex items-center gap-1.5">
                       <CheckIcon size={14} /> Copied
@@ -747,13 +757,25 @@ export function GroupInfoSheet({
                     t('group.copyLink')
                   )}
                 </Button>
-                <Button variant="text" size="sm" disabled={busy} onClick={() => void revoke()}>
+                <Button
+                  variant="text"
+                  size="sm"
+                  className="rounded-full"
+                  disabled={busy}
+                  onClick={() => void revoke()}
+                >
                   {t('group.revoke')}
                 </Button>
               </div>
-            </>
+            </div>
           ) : (
-            <Button variant="secondary" size="sm" disabled={busy} onClick={showLink}>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="rounded-full"
+              disabled={busy}
+              onClick={showLink}
+            >
               <span className="flex items-center gap-1.5">
                 <LinkIcon size={15} /> {t('group.getInvite')}
               </span>

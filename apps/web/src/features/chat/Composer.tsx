@@ -507,54 +507,97 @@ export function Composer({
 
       <div className="relative flex min-w-0 flex-1 items-end gap-1 px-1">
         {mention && mentionList.length > 0 && (
-          <ul
-            role="listbox"
-            aria-label="Mentions"
+          <div
             className={cn(
-              'absolute bottom-full left-0 right-0 z-30 mb-2 max-h-48 overflow-y-auto',
-              'rounded-xl border border-line bg-surface py-1 shadow-lg',
+              'absolute bottom-full left-0 right-0 z-30 mb-2',
               'origin-bottom animate-panel-in',
             )}
           >
-            {mentionList.map((option, index) => {
-              const active = index === mentionIndex;
-              return (
-                <li key={option.id} role="option" aria-selected={active}>
-                  <button
-                    type="button"
-                    onMouseDown={(event) => {
-                      // Prevent textarea blur before click applies the mention.
-                      event.preventDefault();
-                      applyMention(option);
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2.5 px-3 py-2 text-left',
-                      'transition-colors duration-instant',
-                      active ? 'bg-brand/10' : 'hover:bg-hover',
-                    )}
-                  >
-                    <Avatar
-                      name={option.name}
-                      id={option.id}
-                      src={option.avatarUrl}
-                      size="sm"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-body text-ink">
-                        {option.name}
-                        {option.kind === 'ai' ? (
-                          <span className="ml-1.5 text-caption text-brand">AI</span>
+            <div
+              className={cn(
+                'overflow-hidden rounded-2xl border border-line/55',
+                'glass-water shadow-[0_8px_28px_rgba(16,17,20,0.10),0_2px_6px_rgba(16,17,20,0.04)]',
+              )}
+            >
+              <div className="flex items-center justify-between border-b border-line/40 px-3 py-1.5">
+                <span className="text-[0.6875rem] font-semibold tracking-[0.06em] text-text-tertiary uppercase">
+                  Tag someone
+                </span>
+                <span className="text-[0.625rem] text-text-tertiary tabular-nums">
+                  {mentionList.length}
+                </span>
+              </div>
+              <ul
+                role="listbox"
+                aria-label="Mentions"
+                className="max-h-52 overflow-y-auto py-1 scrollbar-none"
+              >
+                {mentionList.map((option, index) => {
+                  const active = index === mentionIndex;
+                  return (
+                    <li key={option.id} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => {
+                          // Prevent textarea blur before click applies the mention.
+                          event.preventDefault();
+                          applyMention(option);
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-2.5 px-3 py-2 text-left',
+                          'transition-[background-color,transform] duration-[120ms] ease-standard',
+                          'active:scale-[0.99]',
+                          active ? 'bg-brand/12' : 'hover:bg-hover/80',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full ring-2',
+                            active ? 'ring-brand/25' : 'ring-transparent',
+                          )}
+                        >
+                          <Avatar
+                            name={option.name}
+                            id={option.id}
+                            src={option.avatarUrl}
+                            size="sm"
+                          />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-body font-medium tracking-[-0.01em] text-ink">
+                              {option.name}
+                            </span>
+                            {option.kind === 'ai' ? (
+                              <span
+                                className={cn(
+                                  'shrink-0 rounded-full px-1.5 py-0.5',
+                                  'bg-brand/12 text-[0.625rem] font-semibold tracking-wide text-brand',
+                                )}
+                              >
+                                AI
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="block truncate text-caption text-text-tertiary">
+                            @{option.handle}
+                          </span>
+                        </span>
+                        {active ? (
+                          <span
+                            aria-hidden
+                            className="text-caption font-medium text-brand"
+                          >
+                            ↵
+                          </span>
                         ) : null}
-                      </span>
-                      <span className="block truncate text-caption text-text-tertiary">
-                        @{option.handle}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
         )}
         <textarea
           ref={textareaRef}
