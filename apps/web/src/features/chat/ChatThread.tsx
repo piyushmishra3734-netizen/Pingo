@@ -1116,9 +1116,9 @@ export function ChatThread({
             )}
 
             {clustersWithDividers.map(({ cluster, divider }) => (
-              <div key={cluster[0]!.id} className="mb-2 flex flex-col gap-[3px]">
+              <div key={cluster[0]!.id} className="flex flex-col gap-0.5">
                 {divider && (
-                  <div className="py-3.5 text-center">
+                  <div className="py-3 text-center">
                     {/*
                       A pill of the same glass, not bare text.
 
@@ -1129,9 +1129,8 @@ export function ChatThread({
                     */}
                     <span
                       className={cn(
-                        'glass-water inline-block rounded-full px-3.5 py-1',
-                        'text-[0.6875rem] font-medium tracking-wide text-text-secondary',
-                        'shadow-[0_1px_2px_rgb(0_0_0/0.04)]',
+                        'glass-water inline-block rounded-full px-3 py-1',
+                        'text-caption text-text-secondary',
                       )}
                     >
                       {divider}
@@ -1182,22 +1181,14 @@ export function ChatThread({
                   const withGroupChrome = (node: ReactNode) =>
                     groupTheirs ? (
                       <div className="flex w-full items-end gap-2">
-                        <div className="mb-1 w-8 shrink-0 self-end">
+                        <div className="mb-0.5 w-8 shrink-0">
                           {showFace ? (
-                            <span
-                              className={cn(
-                                'inline-grid rounded-full',
-                                'ring-2 ring-page/80',
-                                'shadow-[0_1px_2px_rgb(0_0_0/0.06)]',
-                              )}
-                            >
-                              <Avatar
-                                name={authorName ?? 'Member'}
-                                id={message.authorId}
-                                src={author?.avatarUrl}
-                                size="xs"
-                              />
-                            </span>
+                            <Avatar
+                              name={authorName ?? 'Member'}
+                              id={message.authorId}
+                              src={author?.avatarUrl}
+                              size="xs"
+                            />
                           ) : null}
                         </div>
                         <div className="min-w-0 flex-1">{node}</div>

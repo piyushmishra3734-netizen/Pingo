@@ -94,32 +94,30 @@ export function quoteText(message: Message): string {
 }
 
 /**
- * Corner radii per cluster position.
+ * Corner radii per cluster position. The 6px inner corner is the "seam" - small
+ * enough to read as joined, large enough to stay in the rounded design language.
  *
- * Outer corners are ~18px so a run of bubbles reads as soft speech beads, not
- * rigid chips. The 4px inner seam is small enough to look joined, large enough
- * to keep the squircle language.
+ * Do not retune these lightly: `bg-brand-glass` / `glass-water` use squircle
+ * materials that were tuned against this geometry. Changing the radius rewrites
+ * how liquid glass reads in the thread.
  */
 const SHAPE = {
   mine: {
-    single: 'rounded-[1.125rem]',
-    first: 'rounded-[1.125rem] rounded-br-[4px]',
-    middle: 'rounded-[1.125rem] rounded-r-[4px]',
-    last: 'rounded-[1.125rem] rounded-tr-[4px]',
+    single: 'rounded-lg',
+    first: 'rounded-lg rounded-br-[6px]',
+    middle: 'rounded-lg rounded-r-[6px]',
+    last: 'rounded-lg rounded-tr-[6px]',
   },
   theirs: {
-    single: 'rounded-[1.125rem]',
-    first: 'rounded-[1.125rem] rounded-bl-[4px]',
-    middle: 'rounded-[1.125rem] rounded-l-[4px]',
-    last: 'rounded-[1.125rem] rounded-tl-[4px]',
+    single: 'rounded-lg',
+    first: 'rounded-lg rounded-bl-[6px]',
+    middle: 'rounded-lg rounded-l-[6px]',
+    last: 'rounded-lg rounded-tl-[6px]',
   },
 } as const;
 
 /**
- * Stable name colours for group threads.
- *
- * Brand alone made every speaker look the same; a soft, low-chroma palette
- * keeps the rail calm while still answering "who is talking" at a glance.
+ * Stable name colours for group threads only (labels above glass, not the glass).
  */
 const NAME_TINTS = [
   'text-[#5B6FE8]',
@@ -162,12 +160,12 @@ export function MessageBubble({
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
   const hasBody = message.body.trim().length > 0;
-  /** First bubble of a group cluster from someone else. */
+  /** First bubble of a group cluster from someone else. Sits above the glass. */
   const nameLabel =
     !mine && authorName && (position === 'first' || position === 'single') ? (
       <span
         className={cn(
-          'mb-1 block truncate px-1.5 text-[0.8125rem] font-semibold tracking-[-0.01em]',
+          'mb-0.5 block truncate px-1 text-caption font-medium',
           authorNameClass(message.authorId || authorName),
         )}
       >
@@ -200,10 +198,10 @@ export function MessageBubble({
         <div
           id={`message-${message.id}`}
           className={cn(
-            'max-w-[68%] px-[0.95rem] py-[0.55rem]',
+            'max-w-[68%] px-4 py-2.5',
             arrive,
             SHAPE[mine ? 'mine' : 'theirs'][position],
-            'border border-line/70 bg-surface/90',
+            'border border-line bg-surface',
           )}
         >
           <p className="text-body italic text-text-tertiary">
@@ -226,19 +224,12 @@ export function MessageBubble({
     );
   }
 
-  // System notices are not bubbles - glass capsules, same family as day markers.
+  // System notices are not bubbles at all - they are centred captions.
+  // Kept plain so they never compete with the thread's liquid glass surfaces.
   if (message.system) {
     return (
-      <div className="flex justify-center py-2.5">
-        <span
-          className={cn(
-            'glass-water max-w-[85%] rounded-full px-3.5 py-1.5',
-            'text-center text-caption leading-snug text-text-secondary',
-            'shadow-[0_1px_2px_rgb(0_0_0/0.04)]',
-          )}
-        >
-          {message.body}
-        </span>
+      <div className="py-2 text-center">
+        <span className="text-caption text-text-tertiary">{message.body}</span>
       </div>
     );
   }
@@ -375,7 +366,7 @@ export function MessageBubble({
         {nameLabel}
         <div
           className={cn(
-            'px-[0.95rem] py-[0.55rem]',
+            'px-4 py-2.5',
             SHAPE[mine ? 'mine' : 'theirs'][position],
             mine
               ? 'bg-brand-glass text-white'
@@ -390,6 +381,9 @@ export function MessageBubble({
                 everywhere is what the whole look depends on. The sent bubble
                 keeps the brand gradient: it is the mark that identifies PINGO
                 at a glance, and it is the one thing worth not being glass.
+
+                Shape + padding are locked to the glass material — do not
+                restyle these for “aesthetics” without re-tuning glass itself.
               */
               : 'glass-water text-ink',
             // A failed send desaturates and outlines, rather than turning red.
@@ -512,11 +506,11 @@ export function MessageBubble({
         {showMeta && (
           <div
             className={cn(
-              'mt-1 flex items-center gap-1 px-1.5',
+              'mt-1 flex items-center gap-1 px-1',
               mine ? 'justify-end' : 'justify-start',
             )}
           >
-            <span className="text-[0.6875rem] tabular-nums tracking-wide text-text-tertiary/90">
+            <span className="text-caption text-text-tertiary">
               {formatTime(message.createdAt)}
             </span>
 
