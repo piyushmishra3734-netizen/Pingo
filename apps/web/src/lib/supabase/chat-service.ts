@@ -481,6 +481,9 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   ping_opened: { body: 'opened your Ping' },
   ping_replayed: { body: 'replayed your Ping' },
   story: { body: 'posted a story' },
+  mention: { body: 'mentioned you' },
+  voice: { body: 'sent a voice note' },
+  call: { body: 'missed call' },
 };
 
 /** Fixed AI identity - same uuid as `public.pingo_ai_user_id()` and the Edge Function. */
@@ -490,6 +493,26 @@ const PINGO_AI_USER_ID = 'a1000000-0000-4000-8000-0000000000a1';
 export function mentionsPingoAi(text: string): boolean {
   // Accept both the autocomplete handle and the profile username form.
   return /@pingo_?ai\b/i.test(text);
+}
+
+/**
+ * Handles from a message body (`@anaya`, `@pingoai`).
+ *
+ * Used client-side for mention notifications: encrypted group bodies are not
+ * readable on the server, so the sender resolves ids while plaintext is local
+ * and ships them in `meta.mentionedUserIds`.
+ */
+export function extractMentionHandles(text: string): string[] {
+  const found = new Set<string>();
+  const re = /@([a-zA-Z0-9_]{2,32})\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text))) {
+    const handle = match[1]!.toLowerCase();
+    // Both product forms of the bot — never a person to notify.
+    if (handle === 'pingoai' || handle === 'pingo_ai') continue;
+    found.add(handle);
+  }
+  return [...found];
 }
 
 export class SupabaseChatService implements ChatService {
@@ -2578,6 +2601,39 @@ export class SupabaseChatService implements ChatService {
       ? { body: draft.body, encryption: null as string | null, envelope: null as null }
       : await sealBody(this.#client, draft.conversationId, draft.body);
 
+    /*
+     * Who was @mentioned in this body — resolved on-device, stored in meta.
+     *
+     * The server cannot read encrypted group bodies. Putting member ids in
+     * meta is how `on_message_insert` fans out `mention` notifications without
+     * ever decrypting the message.
+     */
+    const mentionedUserIds = await this.#resolveMentionedUserIds(
+      draft.body,
+      me,
+      conversationSnap?.participantIds ?? [],
+    );
+
+    /*
+     * One meta object. Location/contact/event/call *are* the meta payload;
+     * story replies and mention lists are fields on a text message's meta.
+     * Spreading two `{ meta: ... }` branches would drop the earlier one.
+     */
+    const meta: Record<string, unknown> | undefined = draft.location
+      ? { ...draft.location }
+      : draft.contact
+        ? { ...draft.contact }
+        : draft.event
+          ? { ...draft.event }
+          : draft.call
+            ? { ...draft.call }
+            : (() => {
+                const bits: Record<string, unknown> = {};
+                if (draft.storyReply) bits.storyId = draft.storyReply.storyId;
+                if (mentionedUserIds.length > 0) bits.mentionedUserIds = mentionedUserIds;
+                return Object.keys(bits).length > 0 ? bits : undefined;
+              })();
+
     const { data, error } = await this.#client
       .from('messages')
       .insert({
@@ -2597,19 +2653,11 @@ export class SupabaseChatService implements ChatService {
               file_mime: draft.document.file.type,
             }
           : {}),
-        ...(draft.location ? { kind: 'location' as const, meta: draft.location } : {}),
-        ...(draft.contact ? { kind: 'contact' as const, meta: draft.contact } : {}),
-        ...(draft.event ? { kind: 'event' as const, meta: draft.event } : {}),
-        ...(draft.call ? { kind: 'call' as const, meta: draft.call } : {}),
-        /*
-         * A story reply stays an ordinary text message - no `kind` of its own.
-         *
-         * That is the point: the product has no story comments, and giving the
-         * reply its own kind would be the first step towards inventing them.
-         * The tag in `meta` is what lets the author's insights count replies
-         * and lets the bubble say which story it is answering.
-         */
-        ...(draft.storyReply ? { meta: { storyId: draft.storyReply.storyId } } : {}),
+        ...(draft.location ? { kind: 'location' as const } : {}),
+        ...(draft.contact ? { kind: 'contact' as const } : {}),
+        ...(draft.event ? { kind: 'event' as const } : {}),
+        ...(draft.call ? { kind: 'call' as const } : {}),
+        ...(meta ? { meta } : {}),
         ...(voicePath && draft.voice
           ? {
               kind: 'voice' as const,
@@ -2701,6 +2749,60 @@ export class SupabaseChatService implements ChatService {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Map `@handles` in a body to conversation members' user ids.
+   *
+   * Only people already in the room are notified — mentioning a stranger by
+   * handle does not invent a membership or leak that they exist in the app.
+   */
+  async #resolveMentionedUserIds(
+    body: string,
+    me: string,
+    participantIds: string[],
+  ): Promise<string[]> {
+    const handles = extractMentionHandles(body);
+    if (handles.length === 0 || participantIds.length === 0) return [];
+
+    const members = participantIds.filter(
+      (id) => id !== me && id !== PINGO_AI_USER_ID,
+    );
+    if (members.length === 0) return [];
+
+    // Prefer the in-memory roster (already loaded for the thread).
+    const byHandle = new Map<string, string>();
+    for (const id of members) {
+      const person = this.#people.get(id);
+      const handle = person?.handle?.toLowerCase().replace(/^@/, '');
+      if (handle) byHandle.set(handle, id);
+    }
+
+    // Fill gaps with a single profiles query when the cache is incomplete.
+    const missing = members.filter((id) => {
+      const person = this.#people.get(id);
+      return !person?.handle;
+    });
+    if (missing.length > 0) {
+      const { data } = await this.#client
+        .from('profiles')
+        .select('id, username')
+        .in('id', missing);
+      for (const row of data ?? []) {
+        if (row.username) byHandle.set(String(row.username).toLowerCase(), row.id);
+      }
+    }
+
+    const ids: string[] = [];
+    for (const handle of handles) {
+      // Autocomplete uses `pingoai`; profile row is often `pingo_ai`.
+      const id =
+        byHandle.get(handle) ??
+        (handle === 'pingoai' ? byHandle.get('pingo_ai') : undefined) ??
+        (handle === 'pingo_ai' ? byHandle.get('pingoai') : undefined);
+      if (id && id !== me && id !== PINGO_AI_USER_ID) ids.push(id);
+    }
+    return [...new Set(ids)];
   }
 
   /**

@@ -213,7 +213,10 @@ function copyFor(request: PushRequest): { title: string; body: string } {
     case 'call':
       return { title: who, body: 'Missed call' };
     case 'mention':
-      return { title: who, body: 'Mentioned you' };
+      return {
+        title: who,
+        body: many ? `Mentioned you ${many} times` : 'Mentioned you',
+      };
     case 'like':
       return { title: who, body: 'Liked your post' };
     case 'comment':

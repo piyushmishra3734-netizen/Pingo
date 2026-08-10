@@ -91,7 +91,7 @@ function kindMeta(kind: AppNotification['kind']): {
 export function NotificationsScreen() {
   const t = useT();
   const navigate = useNavigate();
-  const { service, users } = useChat();
+  const { service, users, conversations } = useChat();
   const { clear } = useNotifications();
   const { profile, service: profiles } = useProfile();
   const [acting, setActing] = useState<string>();
@@ -228,7 +228,34 @@ export function NotificationsScreen() {
 
     if (item.kind === 'follow_request' || item.kind === 'follow_accepted') {
       navigate('/requests');
-    } else if (item.conversationId) {
+      return;
+    }
+
+    /*
+     * Mentions in a chat use the conversation id as subject. Mentions in a
+     * story caption use the story id — not a chat. Only open a thread when
+     * that id is one of the signed-in user's conversations; otherwise go to
+     * the actor's profile so a story @mention is still one tap away.
+     */
+    if (item.kind === 'mention') {
+      if (item.conversationId) {
+        const isChat = conversations.some((c) => c.id === item.conversationId);
+        if (isChat) {
+          navigate(`/chats/${item.conversationId}`);
+          return;
+        }
+      }
+      if (item.actorId) {
+        const actor = users.find((u) => u.id === item.actorId);
+        if (actor?.handle) {
+          navigate(`/profile/${actor.handle}`);
+          return;
+        }
+      }
+      return;
+    }
+
+    if (item.conversationId) {
       navigate(`/chats/${item.conversationId}`);
     }
   };
