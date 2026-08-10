@@ -169,31 +169,61 @@ export function SheetItem({
       type="button"
       onClick={onClick}
       className={cn(
-        'focus-ring flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left',
+        'focus-ring flex w-full items-center gap-3.5 rounded-xl px-3 py-2.5 text-left',
         'transition-colors duration-instant hover:bg-hover active:bg-pressed',
         tone === 'danger' ? 'text-danger' : 'text-ink',
       )}
     >
-      {icon && <span className="shrink-0 text-text-tertiary">{icon}</span>}
+      {/*
+        The glyph gets a disc of its own.
+        A 20px grey icon floating beside a line of text is the shape of a
+        settings row, and these are choices - the two options on "Add to your
+        story" carried no more weight than a label. A tinted disc gives each one
+        a body to be picked, and the tint follows the tone so a destructive row
+        never borrows the brand's colour to look inviting.
+      */}
+      {icon && (
+        <span
+          aria-hidden
+          className={cn(
+            'grid size-10 shrink-0 place-items-center rounded-full',
+            tone === 'danger' ? 'bg-danger-soft text-danger' : 'bg-brand-soft text-brand',
+          )}
+        >
+          {icon}
+        </span>
+      )}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-body">{label}</span>
-        {hint && <span className="block truncate text-caption text-text-secondary">{hint}</span>}
+        <span className="block truncate text-body font-medium">{label}</span>
+        {hint && (
+          <span className="block truncate pt-0.5 text-caption text-text-secondary">{hint}</span>
+        )}
       </span>
     </button>
   );
 }
 
+/**
+ * The way out.
+ *
+ * Separated by a hairline rather than by being another full-width row in the
+ * same stack. It was the same size and shape as the choices above it, so a
+ * sheet offering two things appeared to offer three - and the third was the
+ * one that does nothing.
+ */
 export function SheetCancel({ onClick, label = 'Cancel' }: { onClick: () => void; label?: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'focus-ring mt-1 w-full rounded-full px-5 py-3 text-body',
-        'text-text-secondary hover:bg-hover',
-      )}
-    >
-      {label}
-    </button>
+    <div className="mt-1 border-t border-line/60 pt-1">
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'focus-ring w-full rounded-xl px-5 py-2.5 text-caption font-medium',
+          'text-text-secondary transition-colors duration-instant hover:bg-hover hover:text-ink',
+        )}
+      >
+        {label}
+      </button>
+    </div>
   );
 }
