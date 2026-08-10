@@ -7,9 +7,11 @@ import {
   useProfile,
   type ChatList,
   type Conversation,
+  type Profile,
   type StoryGroup,
 } from '@pingo/core';
 import {
+  Avatar,
   BellIcon,
   Chip,
   ChipGroup,
@@ -89,7 +91,7 @@ export function ConversationList({
    * thread each time a message arrives — see `useJourneyProgress`.
    */
   const journey = useJourneyProgress();
-  const { profile } = useProfile();
+  const { profile, service: profiles } = useProfile();
   const { groups: storyGroups } = useStories();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -225,6 +227,60 @@ export function ConversationList({
   };
 
   const searching = query.trim().length > 0;
+
+  /**
+   * People who are not in this list yet.
+   *
+   * The field says "Search name, @user, or id" and only ever filtered the
+   * conversations already on screen - so looking somebody up by their handle or
+   * their id worked exactly when you had already spoken to them, and answered
+   * "Nothing found" for everyone else. That is the opposite of what a search by
+   * id is for: it is how you reach somebody you have *not* met.
+   *
+   * The conversations stay first, because a thread you already have is almost
+   * always what a search of your own chat list means. These are offered
+   * underneath, as people rather than as chats.
+   */
+  const [people, setPeople] = useState<Profile[]>([]);
+  const [openingPerson, setOpeningPerson] = useState<string>();
+
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setPeople([]);
+      return;
+    }
+
+    // One request per pause in typing, not one per keystroke.
+    let live = true;
+    const timer = window.setTimeout(() => {
+      void profiles
+        .search(term)
+        .then((found) => {
+          if (!live) return;
+          /*
+           * Anyone already answering this search as a conversation is dropped:
+           * the same person twice, once as a chat and once as a stranger, reads
+           * as two different people.
+           */
+          const shown = new Set(
+            ordered.flatMap((c) => c.participantIds ?? []).concat(profile?.id ? [profile.id] : []),
+          );
+          setPeople(found.filter((person) => !shown.has(person.id)));
+        })
+        .catch(() => {
+          if (live) setPeople([]);
+        });
+    }, 220);
+
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+    // `ordered` changes identity constantly; the term is what drives this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, profiles, profile?.id]);
+
   const allSelected = selected.length > 0 && selected.every((c) => c.favorite);
   const allMuted = selected.length > 0 && selected.every((c) => c.muted);
   const anyUnread = selected.some((c) => c.unreadCount > 0);
@@ -567,14 +623,74 @@ export function ConversationList({
             ) : undefined
           }
           empty={
-            <ChatListEmpty
-              reason={emptyReason}
-              query={query}
-              {...(activeList ? { listName: activeList.name } : {})}
-              {...(profile?.displayName ? { greeting: profile.displayName } : {})}
-            />
+            // "Nothing found" printed above a list of people who *were* found
+            // is a contradiction; when there are strangers to offer, they are
+            // the answer and the empty state has nothing to say.
+            people.length > 0 ? null : (
+              <ChatListEmpty
+                reason={emptyReason}
+                query={query}
+                {...(activeList ? { listName: activeList.name } : {})}
+                {...(profile?.displayName ? { greeting: profile.displayName } : {})}
+              />
+            )
           }
         />
+
+        {/*
+          Everyone else who matches, under the chats that do.
+
+          Rendered here rather than inside `ChatListBody`, which is about
+          conversations and would have to learn a second kind of row to hold
+          these. Tapping one opens the thread, creating it if there is not one
+          yet - the same thing `startDirectConversation` does from New chat,
+          which is why this does not need a screen of its own.
+        */}
+        {searching && people.length > 0 && (
+          <section className="px-1 pt-2 pb-1">
+            <h2 className="px-3 pb-1 text-[0.6875rem] font-semibold tracking-[0.06em] text-text-tertiary uppercase">
+              {people.length === 1 ? 'Person' : 'People'}
+            </h2>
+            <ul>
+              {people.map((person) => (
+                <li key={person.id}>
+                  <button
+                    type="button"
+                    disabled={openingPerson === person.id}
+                    onClick={() => {
+                      setOpeningPerson(person.id);
+                      void service
+                        .startDirectConversation(person.id)
+                        .then((id) => navigate(`/chats/${id}`))
+                        .finally(() => setOpeningPerson(undefined));
+                    }}
+                    className={cn(
+                      'focus-ring flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left',
+                      'transition-colors duration-instant hover:bg-hover active:bg-pressed',
+                      'disabled:opacity-60',
+                    )}
+                  >
+                    <Avatar
+                      name={person.displayName}
+                      id={person.id}
+                      {...(person.avatarUrl ? { src: person.avatarUrl } : {})}
+                      size="md"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-body text-ink">{person.displayName}</span>
+                      <span className="block truncate text-caption text-text-secondary">
+                        @{person.username}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-caption text-brand">
+                      {openingPerson === person.id ? 'Opening…' : 'Message'}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
 
       {openStory && (
