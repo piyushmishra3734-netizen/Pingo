@@ -313,3 +313,36 @@
 @utility animate-notice-halo {
   animation: notice-halo 1800ms var(--ease-ambient) infinite;
 }
+
+/*
+ * The video scrubber's handle.
+ *
+ * A range input is used for seeking because it already has keyboard support,
+ * a sane touch target and a drag that behaves everywhere - but its default
+ * thumb is the platform's, which is the one part of the native player this
+ * was replacing in the first place. Only the handle is restyled; the track is
+ * a utility class on the element itself.
+ *
+ * Both vendor selectors are needed and they cannot be combined: a rule listing
+ * `::-webkit-slider-thumb` and `::-moz-range-thumb` together is dropped whole
+ * by both engines, because each fails to parse the other's pseudo-element.
+ */
+.pingo-scrub::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+  cursor: pointer;
+}
+
+.pingo-scrub::-moz-range-thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+  cursor: pointer;
+}

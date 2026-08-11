@@ -1,9 +1,10 @@
 import { enrichVideoPreview, fileNameFrom, type VideoPreview } from '@pingo/core';
 import { LinkIcon, PlayIcon, cn } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
 import { saveVideo, saveVideoBlob } from '../native/save-video.js';
+import { clock, VideoPlayer } from './VideoPlayer.js';
 import { keepVideo, storedVideo } from './video-vault.js';
 
 /**
@@ -70,37 +71,6 @@ const PLATFORM: Record<
   // pretending to be from somewhere.
   direct: { label: 'Video', untitled: 'Video', tint: 'bg-brand' },
 };
-
-/** Seconds as `m:ss`, or `h:mm:ss` once there is an hour to show. */
-function clock(total: number): string {
-  const whole = Math.floor(total);
-  const s = String(whole % 60).padStart(2, '0');
-  const m = Math.floor(whole / 60) % 60;
-  const h = Math.floor(whole / 3600);
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
-}
-
-/**
- * Four corners pointing out. Drawn here rather than added to the icon set,
- * because it is the only place in the product that needs one.
- */
-function ExpandIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={17}
-      height={17}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
-    </svg>
-  );
-}
 
 /** Stops the bubble's own tap, which would open the reaction bar. */
 const swallow = {
@@ -204,7 +174,6 @@ export function VideoLinkCard({ preview, messageId, spaced }: VideoLinkCardProps
   const [ratio, setRatio] = useState<number>();
   /** Read off the file once it loads. No platform publishes this up front. */
   const [seconds, setSeconds] = useState<number>();
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   const frameAspect =
     ratio === undefined
@@ -238,35 +207,26 @@ export function VideoLinkCard({ preview, messageId, spaced }: VideoLinkCardProps
       >
         {file && !broken ? (
           /*
-            Ours to play, so we play it.
+            Ours to play, and now ours to look at.
 
-            `preload="none"` is the same bargain the other platforms get from
-            click-to-play: until somebody presses play, the host that serves
-            this file learns nothing about who is reading the thread. The
-            browser's own controls come with a scrubber, fullscreen and
-            picture-in-picture already matching what the phone does elsewhere -
-            the same reasoning `FileBubble` uses for an attached video.
+            `VideoPlayer` replaces the browser's `controls`, which were correct
+            while this was a link preview and wrong the moment it became a
+            video message: Chrome's grey strip announces itself as the browser
+            every time, and a video somebody sent should sit in the thread the
+            way a photo does.
           */
-          <video
-            ref={videoRef}
+          <VideoPlayer
             src={file}
-            controls
             // Resolved on tap means the person is already waiting for this one,
-            // so it loads now rather than after a second press.
+            // so it starts rather than needing a second press.
             autoPlay={resolved !== undefined}
-            preload="none"
-            playsInline
-            onLoadedMetadata={(event) => {
-              const media = event.currentTarget;
-              if (!media.videoWidth || !media.videoHeight) return;
+            onShape={(shape, length) => {
               // 9:16 at the tall end, 16:9 at the wide - past either the card
               // stops being a card and starts being the screen.
-              const shape = media.videoWidth / media.videoHeight;
               setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9));
-              if (Number.isFinite(media.duration)) setSeconds(media.duration);
+              if (Number.isFinite(length)) setSeconds(length);
             }}
             onError={() => setBroken(true)}
-            className="absolute inset-0 size-full object-contain"
           />
         ) : playing && preview.embedUrl ? (
           <iframe
@@ -311,50 +271,18 @@ export function VideoLinkCard({ preview, messageId, spaced }: VideoLinkCardProps
           />
         )}
 
-        {file && !broken && (
-          /*
-            A fullscreen control of our own, over the player.
+        {/*
+          Duration on the cover only.
 
-            The browser's own controls already carry one, and on a phone it is
-            a 20px target in a strip that hides itself. This is the same call
-            the player makes, at a size somebody can actually hit, and it asks
-            the *container* rather than the video element so the card's own
-            background fills the screen instead of leaving bars around a
-            portrait clip.
-
-            `webkitEnterFullscreen` is the iOS path: Safari on iPhone refuses
-            `requestFullscreen` on anything and only ever fullscreens a video
-            element directly. Both are attempted, neither is required.
-          */
-          <button
-            type="button"
-            aria-label="Fullscreen"
-            onClick={() => {
-              const media = videoRef.current;
-              const box = media?.parentElement;
-              type Legacy = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
-              if (box?.requestFullscreen) void box.requestFullscreen().catch(() => undefined);
-              else (media as Legacy | null)?.webkitEnterFullscreen?.();
-            }}
-            className={cn(
-              'absolute top-2 right-2 grid size-9 place-items-center rounded-full',
-              'bg-black/45 text-white backdrop-blur-sm',
-              'focus-ring transition-transform duration-instant ease-standard active:scale-95',
-            )}
-          >
-            <ExpandIcon />
-          </button>
-        )}
-
-        {/* Duration, once the file has told us. Bottom right, as on a reel. */}
-        {file && !broken && seconds !== undefined && (
+          Once the player is up it shows the real clock, counting; a static
+          badge beside a running one is two answers to the same question.
+        */}
+        {!file && seconds !== undefined && (
           <span className="pointer-events-none absolute right-2 bottom-2 rounded-md bg-black/55 px-1.5 py-0.5 text-caption font-medium text-white tabular-nums">
             {clock(seconds)}
           </span>
         )}
-
       </div>
-
 
       <div className="flex items-center gap-2.5 px-3 py-2.5">
         <span
