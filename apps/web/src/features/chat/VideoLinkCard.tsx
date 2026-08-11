@@ -2,6 +2,7 @@ import { enrichVideoPreview, fileNameFrom, type VideoPreview } from '@pingo/core
 import { LinkIcon, PlayIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
+import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
 import { saveVideo } from '../native/save-video.js';
 
 /**
@@ -89,6 +90,19 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
    */
   const [broken, setBroken] = useState(false);
 
+  /*
+   * The media behind a platform link, once a resolver has found it.
+   *
+   * Separate from `preview.fileUrl`, which the `direct` provider fills from the
+   * URL alone. Both end up in the same place - `file` below - so everything
+   * downstream stops caring where a playable video came from, which is what
+   * lets a YouTube link and an `.mp4` link render as the same thing.
+   */
+  const [resolved, setResolved] = useState<string>();
+  const [resolving, setResolving] = useState(false);
+
+  const file = preview.fileUrl ?? resolved;
+
   const platform = PLATFORM[preview.platform];
   const thumbnail = thumbFailed ? undefined : details.thumbnailUrl;
 
@@ -152,7 +166,7 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
         className={cn('relative w-full bg-black', frameAspect)}
         {...(ratio === undefined ? {} : { style: { aspectRatio: String(ratio) } })}
       >
-        {preview.fileUrl && !broken ? (
+        {file && !broken ? (
           /*
             Ours to play, so we play it.
 
@@ -164,8 +178,11 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
             the same reasoning `FileBubble` uses for an attached video.
           */
           <video
-            src={preview.fileUrl}
+            src={file}
             controls
+            // Resolved on tap means the person is already waiting for this one,
+            // so it loads now rather than after a second press.
+            autoPlay={resolved !== undefined}
             preload="none"
             playsInline
             onLoadedMetadata={(event) => {
@@ -195,7 +212,30 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
             thumbnail={thumbnail}
             label={platform.label}
             onThumbnailError={() => setThumbFailed(true)}
-            onPlay={() => setPlaying(true)}
+            busy={resolving}
+            onPlay={() => {
+              /*
+               * Ask for the real video first, fall back to the frame.
+               *
+               * With no resolver configured this is one synchronous check and
+               * the embed opens exactly as before - which is the behaviour
+               * every install has until somebody points it at an endpoint.
+               */
+              if (!canResolveMedia()) {
+                setPlaying(true);
+                return;
+              }
+
+              setResolving(true);
+              void resolveMedia(preview.canonicalUrl)
+                .then((found) => {
+                  // Nothing found is not a failure worth showing: the embed is
+                  // a working video, and it is what would have played anyway.
+                  if (found) setResolved(found);
+                  else setPlaying(true);
+                })
+                .finally(() => setResolving(false));
+            }}
           />
         )}
       </div>
@@ -224,8 +264,8 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
           cannot keep its promise. A file, conversely, does not need Open -
           "open the video" is what the player already is.
         */}
-        {preview.fileUrl && !broken ? (
-          <SaveButton url={preview.fileUrl} />
+        {file && !broken ? (
+          <SaveButton url={file} />
         ) : (
           <a
             href={details.canonicalUrl}
@@ -298,12 +338,15 @@ function Cover({
   label,
   onThumbnailError,
   onPlay,
+  busy,
 }: {
   preview: VideoPreview;
   thumbnail: string | undefined;
   label: string;
   onThumbnailError: () => void;
   onPlay: () => void;
+  /** Fetching the real video. The glyph says so rather than looking ignored. */
+  busy?: boolean;
 }) {
   const inner = (
     <>
@@ -339,7 +382,16 @@ function Cover({
           'transition-transform duration-instant ease-standard group-active:scale-95',
         )}
       >
-        <PlayIcon size={24} />
+        {/*
+          Fetching a video takes long enough that a still play button reads as
+          a tap that missed. The same disc keeps its place and spins, so the
+          card does not move while somebody waits.
+        */}
+        {busy ? (
+          <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+        ) : (
+          <PlayIcon size={24} />
+        )}
       </span>
     </>
   );
@@ -362,7 +414,10 @@ function Cover({
     <button
       type="button"
       onClick={onPlay}
-      aria-label={`Play ${label} video`}
+      // A second tap while the first is still resolving would start another
+      // extraction of the same video, which the resolver charges for twice.
+      disabled={busy}
+      aria-label={busy ? 'Getting video' : `Play ${label} video`}
       className="group focus-ring absolute inset-0 block w-full"
     >
       {inner}
