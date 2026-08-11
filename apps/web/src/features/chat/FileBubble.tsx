@@ -1,8 +1,10 @@
-import { formatFileSize, type FileAttachment } from '@pingo/core';
+import { formatFileSize, useChat, type FileAttachment } from '@pingo/core';
 import { FileIcon, cn } from '@pingo/ui';
 import { useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
+import { useOfflineVideo } from './useOfflineVideo.js';
+import { VideoPlayer } from './VideoPlayer.js';
 import { ImageViewer } from '../profile/ImageViewer.js';
 
 /**
@@ -30,6 +32,13 @@ export interface FileBubbleProps {
   mine: boolean;
   /** Extra bottom margin when a caption follows. */
   spaced?: boolean;
+  /**
+   * The message this file arrived on.
+   *
+   * Needed only by video, and only to tell the server the copy is safely here -
+   * the receipt is keyed on the message, not on the attachment.
+   */
+  messageId?: string;
 }
 
 /** Stops the bubble's own tap, which opens the reaction bar. */
@@ -38,7 +47,7 @@ const swallow = {
   onPointerDown: (event: React.PointerEvent) => event.stopPropagation(),
 };
 
-export function FileBubble({ file, mine, spaced }: FileBubbleProps) {
+export function FileBubble({ file, mine, spaced, messageId }: FileBubbleProps) {
   const [viewing, setViewing] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -46,30 +55,7 @@ export function FileBubble({ file, mine, spaced }: FileBubbleProps) {
   const name = file.fileName || 'File';
 
   if (mime.startsWith('video/') && file.url) {
-    return (
-      <div className={cn('w-full', spaced && 'mb-2')} {...swallow}>
-        {/*
-          `controls` and nothing else.
-
-          A custom player would need its own scrubber, its own fullscreen and
-          its own answer for picture-in-picture on every platform. The built-in
-          one already has all three, already matches what the phone does
-          everywhere else, and its fullscreen button is the "video open ho"
-          that was missing.
-
-          `preload="metadata"` so the first frame and the duration are there
-          without pulling the whole file down for a video nobody plays.
-        */}
-        <video
-          src={file.url}
-          controls
-          preload="metadata"
-          playsInline
-          aria-label={name}
-          className="max-h-[22rem] w-full rounded-lg bg-black object-contain"
-        />
-      </div>
-    );
+    return <VideoBubble file={file} name={name} spaced={spaced} messageId={messageId} />;
   }
 
   if (mime.startsWith('image/') && file.url) {
@@ -166,5 +152,69 @@ export function FileBubble({ file, mine, spaced }: FileBubbleProps) {
         )}
       </span>
     </a>
+  );
+}
+
+/**
+ * A received video, played from this device once it has been copied here.
+ *
+ * Split out from `FileBubble` because it needs state and `FileBubble` is a
+ * branch table - the hook cannot live behind an `if` that returns early for
+ * every other kind of file.
+ *
+ * The badge is not decoration. PINGO deletes its own copy as soon as everyone
+ * has one, so "Saved on this device" is the difference between a video that
+ * will still play on a plane and one that will not, and that is worth a line
+ * of text the moment it becomes true.
+ */
+function VideoBubble({
+  file,
+  name,
+  spaced,
+  messageId,
+}: {
+  file: FileAttachment;
+  name: string;
+  spaced?: boolean;
+  messageId?: string;
+}) {
+  const { service } = useChat();
+  /** The file's own shape, once it has told us. `4/5` until then. */
+  const [ratio, setRatio] = useState<number>();
+  const { src, offline } = useOfflineVideo(file.id, file.url, () => {
+    if (messageId) void service.confirmMediaReceived?.(messageId).catch(() => undefined);
+  });
+
+  return (
+    <div className={cn('w-full', spaced && 'mb-2')} {...swallow}>
+      {/*
+        PINGO's player, the same one a shared video link gets.
+
+        This used to be the browser's `controls`, which was defensible while
+        nothing better existed - it already had a scrubber and a fullscreen
+        button. But a video somebody sent and a video somebody linked are the
+        same thing to whoever is reading, and Chrome's grey strip on one of
+        them and PINGO's controls on the other made them look like two
+        different features.
+
+        The box holds the shape while the player fills it absolutely; `4/5`
+        is the guess until the file reports its own, which is the portrait
+        clip most videos in a chat turn out to be.
+      */}
+      <div
+        className="relative w-full overflow-hidden rounded-lg bg-black"
+        style={{ aspectRatio: String(ratio ?? 4 / 5) }}
+      >
+        {src && (
+          <VideoPlayer
+            src={src}
+            onShape={(shape) => setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9))}
+          />
+        )}
+      </div>
+      {offline && (
+        <p className="pt-1 text-caption text-text-tertiary">Saved on this device</p>
+      )}
+    </div>
   );
 }

@@ -449,7 +449,15 @@ export function MessageBubble({
             />
           )}
 
-          {file && <FileBubble file={file} mine={mine} spaced={hasBody} />}
+          {/*
+            `messageId` is what lets a received video tell the server its copy
+            is safely here, which is what releases PINGO's buffer copy. Without
+            it the receipt never fires and every video ever sent stays on the
+            server - the exact accumulation `media_receipts` exists to stop.
+          */}
+          {file && (
+            <FileBubble file={file} mine={mine} spaced={hasBody} messageId={message.id} />
+          )}
 
           {/*
             Above the text, which is where every messenger puts a link preview -

@@ -306,6 +306,18 @@ export interface ChatService {
    * as "there was never anything to see".
    */
   openPhoto(messageId: MessageId): Promise<{ url: string; viewsLeft?: number } | undefined>;
+
+  /**
+   * "The whole video is stored on my device." Releases the server's copy.
+   *
+   * PINGO holds an uploaded video only until every recipient has a complete
+   * copy of their own, so this is what lets it let go. It is a stronger claim
+   * than delivered-or-read and must be sent only once the bytes are persisted
+   * locally - a video that has merely been streamed has not been received.
+   *
+   * Optional: the in-memory mock has no storage to free.
+   */
+  confirmMediaReceived?(messageId: MessageId): Promise<void>;
   markConversationRead(conversationId: ConversationId): Promise<void>;
 
   /**

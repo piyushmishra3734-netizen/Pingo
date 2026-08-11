@@ -1486,14 +1486,37 @@ export function ChatThread({
       <input
         ref={galleryRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         multiple
         hidden
         onChange={(event) => {
           const chosen = [...(event.target.files ?? [])];
           // Cleared first, so picking the same photo twice still fires.
           event.target.value = '';
-          if (chosen.length > 0) setPending(chosen);
+          if (chosen.length === 0) return;
+
+          /*
+           * Videos go around the photo composer, not through it.
+           *
+           * `PhotoComposer` exists to crop, caption and re-encode a still - it
+           * draws what it is given onto a canvas. Hand it a video and the best
+           * case is that one frame survives as a JPEG; there is no case where
+           * the video does. Sending the `File` untouched is also the only way
+           * to keep the original quality, since nothing on this path re-encodes
+           * it - the bytes that leave the phone are the bytes the camera wrote.
+           */
+          const videos = chosen.filter((file) => file.type.startsWith('video/'));
+          const images = chosen.filter((file) => !file.type.startsWith('video/'));
+
+          for (const file of videos) {
+            void service.sendMessage({
+              conversationId: conversation.id,
+              body: '',
+              document: { file },
+            });
+          }
+
+          if (images.length > 0) setPending(images);
         }}
       />
 

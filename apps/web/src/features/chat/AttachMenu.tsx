@@ -59,7 +59,9 @@ export function AttachMenu({
    * Gallery and Camera are most of the traffic and sit closest to the thumb.
    */
   const items = [
-    { label: 'Gallery', icon: <ImageIcon size={19} />, onSelect: onGallery },
+    // "Gallery" and not "Photos": it takes video now, and a label that says
+    // photos is a label people believe.
+    { label: 'Photos & videos', icon: <ImageIcon size={19} />, onSelect: onGallery },
     { label: 'Camera', icon: <CameraIcon size={19} />, onSelect: onCamera },
     { label: 'Document', icon: <FileIcon size={19} />, onSelect: onDocument },
     { label: 'Location', icon: <span className="text-[1.05rem]">📍</span>, onSelect: onLocation },

@@ -2456,6 +2456,30 @@ export class SupabaseChatService implements ChatService {
     return path;
   }
 
+  /**
+   * "The whole file is on my device now." Releases PINGO's buffer copy.
+   *
+   * Deliberately not called from playback. See `20260911000000_media_receipts`
+   * for why watching a video is not evidence of having received one.
+   *
+   * Failure is swallowed: the consequence of a lost receipt is that the server
+   * keeps a copy slightly longer than it needed to, which is the safe direction
+   * to fail in. Retrying hard would risk the unsafe one.
+   */
+  async confirmMediaReceived(messageId: MessageId): Promise<void> {
+    /*
+     * Cast because the generated database types are built from the deployed
+     * schema, and this function ships in `20260911000000_media_receipts`. The
+     * cast comes off the moment those types are regenerated against a database
+     * that has the migration.
+     */
+    const rpc = this.#client.rpc as unknown as (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ error: unknown }>;
+    await rpc.call(this.#client, 'confirm_media_received', { target: messageId });
+  }
+
   async openPhoto(
     messageId: MessageId,
   ): Promise<{ url: string; viewsLeft?: number } | undefined> {
