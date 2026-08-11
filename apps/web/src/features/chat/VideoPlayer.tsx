@@ -90,6 +90,23 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
     else media.pause();
   };
 
+  /**
+   * Tapping the picture while the controls are hidden brings them back.
+   *
+   * It must not also pause. The controls fade after a couple of seconds and go
+   * `pointer-events-none`, so a tap aimed at the fullscreen button lands on the
+   * video instead - and the video's own handler stopped playback, meaning
+   * reaching for fullscreen paused the film. Every player treats the first tap
+   * as "show me the controls" for exactly this reason; only the second one acts.
+   */
+  const tapPicture = () => {
+    if (playing && !awake) {
+      setWakeAt(Date.now());
+      return;
+    }
+    toggle();
+  };
+
   const toggleFull = () => {
     type Legacy = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
     if (document.fullscreenElement) {
@@ -118,7 +135,7 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
         autoPlay={autoPlay}
         preload="none"
         playsInline
-        onClick={toggle}
+        onClick={tapPicture}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
