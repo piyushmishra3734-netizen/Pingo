@@ -29,6 +29,17 @@
 
 const ENDPOINT = import.meta.env.VITE_MEDIA_RESOLVER_URL as string | undefined;
 
+/**
+ * An optional key for the resolver, and an honest note about what it is worth.
+ *
+ * This is a web build, so anything here is in the bundle and readable by anyone
+ * holding the app. It is not a secret and must not be treated as one - what it
+ * does is stop a stranger who finds the endpoint from using it casually, which
+ * on a small private instance is most of the traffic worth stopping. Real
+ * protection is the network in front of it.
+ */
+const KEY = import.meta.env.VITE_MEDIA_RESOLVER_KEY as string | undefined;
+
 /** Whether a resolver is configured at all. Cheap enough to call in render. */
 export function canResolveMedia(): boolean {
   return typeof ENDPOINT === 'string' && ENDPOINT.startsWith('https://');
@@ -70,7 +81,11 @@ async function ask(pageUrl: string): Promise<string | undefined> {
   try {
     const response = await fetch(ENDPOINT!, {
       method: 'POST',
-      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        ...(KEY ? { authorization: `Api-Key ${KEY}` } : {}),
+      },
       body: JSON.stringify({ url: pageUrl }),
       signal: controller.signal,
     });
