@@ -46,14 +46,24 @@ async function toBase64(blob: Blob): Promise<string> {
 }
 
 /**
+ * What actually happened, so the button can say so.
+ *
+ * `opened` is the common case and not a failure: most video hosts do not send
+ * CORS headers, so the bytes cannot be read by this page at all and the
+ * platform has to be the one to fetch them. Reporting it as `saved` would put
+ * "Saved" under a video that is sitting in a new tab, which is precisely the
+ * save-that-did-not-save this module exists to avoid.
+ */
+export type SaveResult = 'saved' | 'opened';
+
+/**
  * Saves the video, whichever way this platform and this file allow.
  *
- * Never throws. Every failure ends at the same place - the system is given the
- * URL and does what it does with a video link - because there is nothing useful
- * to tell somebody about a CORS header, and "it opened instead of saving" is a
- * far better outcome than an error they cannot act on.
+ * Never throws. Everything it cannot write itself is handed to the platform,
+ * because there is nothing useful to tell somebody about a CORS header - but
+ * the caller is told which of the two happened.
  */
-export async function saveVideo(url: string, filename: string): Promise<void> {
+export async function saveVideo(url: string, filename: string): Promise<SaveResult> {
   try {
     const response = await fetch(url);
     if (!response.ok) return handOff(url);
@@ -76,8 +86,7 @@ export async function saveVideo(url: string, filename: string): Promise<void> {
       );
       // An older build has no bridge method. Rather than fail, let Android's
       // own downloader have it - the app updates, the saving keeps working.
-      if (!saved) handOff(url);
-      return;
+      return saved ? 'saved' : handOff(url);
     }
 
     const object = URL.createObjectURL(blob);
@@ -88,10 +97,11 @@ export async function saveVideo(url: string, filename: string): Promise<void> {
     // Next frame: revoking at once cancels the download in some browsers
     // before it has started reading.
     requestAnimationFrame(() => URL.revokeObjectURL(object));
+    return 'saved';
   } catch {
     // Cross-origin without CORS, offline, or a host that refused. All the
     // same answer.
-    handOff(url);
+    return handOff(url);
   }
 }
 
@@ -103,6 +113,7 @@ export async function saveVideo(url: string, filename: string): Promise<void> {
  * tab, where saving is one menu away. Neither is as good as one tap, and both
  * beat a button that appears to do nothing.
  */
-function handOff(url: string): void {
+function handOff(url: string): SaveResult {
   window.open(url, '_blank', 'noopener,noreferrer');
+  return 'opened';
 }

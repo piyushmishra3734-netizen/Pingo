@@ -35,17 +35,29 @@ export interface VideoLinkCardProps {
   spaced?: boolean;
 }
 
-const PLATFORM: Record<VideoPreview['platform'], { label: string; tint: string }> = {
-  youtube: { label: 'YouTube', tint: 'bg-[#ff0033]' },
+/*
+ * `label` names the platform, `untitled` is what the footer says when nothing
+ * published a title.
+ *
+ * Two fields rather than `${label} video`, which read as "Video video" on a
+ * plain file - the one platform whose name is already the word. Composing a
+ * sentence out of a noun works right up until the noun is the sentence.
+ */
+const PLATFORM: Record<
+  VideoPreview['platform'],
+  { label: string; untitled: string; tint: string }
+> = {
+  youtube: { label: 'YouTube', untitled: 'YouTube video', tint: 'bg-[#ff0033]' },
   // Instagram's mark is a gradient, and a flat pink reads as the wrong app.
   instagram: {
     label: 'Instagram',
+    untitled: 'Instagram video',
     tint: 'bg-[linear-gradient(45deg,#f9ce34,#ee2a7b_45%,#6228d7)]',
   },
-  snapchat: { label: 'Snapchat', tint: 'bg-[#fffc00]' },
+  snapchat: { label: 'Snapchat', untitled: 'Snapchat video', tint: 'bg-[#fffc00]' },
   // No platform behind it, so it borrows PINGO's own colour rather than
   // pretending to be from somewhere.
-  direct: { label: 'Video', tint: 'bg-brand' },
+  direct: { label: 'Video', untitled: 'Video', tint: 'bg-brand' },
 };
 
 /** Stops the bubble's own tap, which would open the reaction bar. */
@@ -170,7 +182,7 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
         ) : playing && preview.embedUrl ? (
           <iframe
             src={preview.embedUrl}
-            title={details.title ?? `${platform.label} video`}
+            title={details.title ?? platform.untitled}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
             // The embed does not need to know which conversation this was in.
@@ -196,7 +208,7 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-caption font-medium text-ink">
-            {details.title ?? `${platform.label} video`}
+            {details.title ?? platform.untitled}
           </span>
           {details.author && (
             <span className="block truncate pt-0.5 text-caption text-text-secondary">
@@ -240,23 +252,34 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
  * There is no failed state because `saveVideo` does not fail - anything it
  * cannot write itself, it hands to the platform, which shows its own download.
  */
+const SAVE_LABEL = {
+  idle: 'Save',
+  saving: 'Saving…',
+  saved: 'Saved',
+  // Not "Saved". Most video hosts send no CORS headers, so the bytes never
+  // reach this page and the platform fetches them instead - the video ends up
+  // in a tab, not in storage. Saying "Saved" over that is the exact lie the
+  // save path was written to avoid.
+  opened: 'Opened',
+} as const;
+
 function SaveButton({ url }: { url: string }) {
-  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [state, setState] = useState<keyof typeof SAVE_LABEL>('idle');
 
   return (
     <button
       type="button"
-      disabled={state !== 'idle'}
+      disabled={state === 'saving'}
       onClick={() => {
         setState('saving');
-        void saveVideo(url, fileNameFrom(url)).then(() => setState('saved'));
+        void saveVideo(url, fileNameFrom(url)).then(setState);
       }}
       className={cn(
         'focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium',
-        state === 'saved' ? 'text-text-secondary' : 'text-brand',
+        state === 'saved' || state === 'opened' ? 'text-text-secondary' : 'text-brand',
       )}
     >
-      {state === 'idle' ? 'Save' : state === 'saving' ? 'Saving…' : 'Saved'}
+      {SAVE_LABEL[state]}
     </button>
   );
 }
