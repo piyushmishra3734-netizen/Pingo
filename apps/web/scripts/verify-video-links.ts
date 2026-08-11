@@ -12,7 +12,11 @@
 
 import assert from 'node:assert/strict';
 
-import { detectVideoLink, findLinks } from '../../../packages/core/src/video/index.js';
+import {
+  detectVideoLink,
+  fileNameFrom,
+  findLinks,
+} from '../../../packages/core/src/video/index.js';
 
 let checks = 0;
 function check(what: string, run: () => void): void {
@@ -128,6 +132,51 @@ check('recognises Spotlight but offers no embed', () => {
 
 check('ignores an add-friend link', () => {
   assert.equal(detectVideoLink('https://www.snapchat.com/add/someone'), undefined);
+});
+
+console.log('\nDirect video files');
+
+for (const extension of ['mp4', 'webm', 'ogv', 'm4v', 'mov']) {
+  check(`plays a .${extension}`, () => {
+    const preview = detectVideoLink(`https://cdn.example.com/clip.${extension}`);
+    assert.equal(preview?.platform, 'direct');
+    assert.equal(preview?.fileUrl, `https://cdn.example.com/clip.${extension}`);
+    // Nothing to frame: this one is ours to play.
+    assert.equal(preview?.embedUrl, undefined);
+  });
+}
+
+check('survives a signed CDN query string', () => {
+  const signed = 'https://cdn.example.com/a/clip.mp4?X-Amz-Signature=abc&e=123';
+  const preview = detectVideoLink(signed);
+  assert.equal(preview?.platform, 'direct');
+  assert.equal(preview?.fileUrl, signed);
+});
+
+check('ignores containers no browser plays', () => {
+  assert.equal(detectVideoLink('https://cdn.example.com/clip.mkv'), undefined);
+  assert.equal(detectVideoLink('https://cdn.example.com/clip.avi'), undefined);
+});
+
+check('leaves .ogg alone, because it is almost always audio', () => {
+  assert.equal(detectVideoLink('https://cdn.example.com/sound.ogg'), undefined);
+});
+
+check('does not treat a page as a file', () => {
+  assert.equal(detectVideoLink('https://example.com/watch/mp4-guide'), undefined);
+});
+
+check('never claims a URL a real platform owns', () => {
+  // youtube wins even though `direct` would take anything.
+  assert.equal(detectVideoLink('https://youtu.be/abc12345678')?.platform, 'youtube');
+  // An Instagram profile stops at Instagram rather than falling through.
+  assert.equal(detectVideoLink('https://www.instagram.com/rickastley/'), undefined);
+});
+
+check('names the saved file from the path, not the query', () => {
+  assert.equal(fileNameFrom('https://cdn.example.com/a/holiday.mp4?sig=xyz'), 'holiday.mp4');
+  assert.equal(fileNameFrom('https://cdn.example.com/'), 'video.mp4');
+  assert.equal(fileNameFrom('not a url'), 'video.mp4');
 });
 
 console.log('\nUnsupported');

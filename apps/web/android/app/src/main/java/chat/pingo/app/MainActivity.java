@@ -256,6 +256,72 @@ public class MainActivity extends BridgeActivity {
      * @param mime   used to pick the album entry's type
      * @return true when a file was written, so the page can say so honestly
      */
+    /**
+     * The same thing for a video, on the shelf a video belongs on.
+     *
+     * Not a parameter on `saveToGallery`, because the two differ in more than a
+     * flag: a different MediaStore collection, a different default type, and a
+     * different album directory. Sending a video through the image path does
+     * not fail - it writes the bytes into `MediaStore.Images`, where the
+     * gallery indexes it as a picture and shows a thumbnail that will not open.
+     * A save that appears to work and produces something unplayable is worse
+     * than one that refuses, which is why this exists rather than a branch.
+     *
+     * @param base64 the video bytes, as the page already has them
+     * @param mime   used to pick the extension and the entry's type
+     * @return true when a file was written, so the page can stop rather than
+     *         also handing the URL to the system and downloading it twice
+     */
+    @android.webkit.JavascriptInterface
+    public boolean saveVideoToGallery(String base64, String mime) {
+        try {
+            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+
+            String extension = "mp4";
+            if (mime != null) {
+                int slash = mime.indexOf('/');
+                if (slash != -1) {
+                    String subtype = mime.substring(slash + 1).split(";")[0].trim().toLowerCase();
+                    // `quicktime` is the mime for `.mov`, and the subtype is not
+                    // the extension for it - the one case where they differ.
+                    if (subtype.equals("quicktime")) {
+                        extension = "mov";
+                    } else if (subtype.matches("[a-z0-9]+")) {
+                        extension = subtype;
+                    }
+                }
+            }
+            String name = "PINGO-" + System.currentTimeMillis() + "." + extension;
+
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Video.Media.DISPLAY_NAME, name);
+            values.put(MediaStore.Video.Media.MIME_TYPE, mime == null ? "video/mp4" : mime);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(
+                        MediaStore.Video.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_MOVIES + "/PINGO");
+            }
+
+            Uri target = getContentResolver()
+                    .insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values);
+            if (target == null) {
+                return false;
+            }
+
+            try (OutputStream out = getContentResolver().openOutputStream(target)) {
+                if (out == null) {
+                    return false;
+                }
+                out.write(bytes);
+            }
+
+            return true;
+        } catch (Exception failed) {
+            return false;
+        }
+    }
+
     @android.webkit.JavascriptInterface
     public boolean saveToGallery(String base64, String mime) {
         try {

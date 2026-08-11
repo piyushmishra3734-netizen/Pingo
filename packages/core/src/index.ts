@@ -201,6 +201,7 @@ export {
 export {
   detectVideoLink,
   enrichVideoPreview,
+  fileNameFrom,
   findLinks,
   type VideoPreview,
   type VideoProvider,

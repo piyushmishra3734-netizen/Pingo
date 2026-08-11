@@ -1,4 +1,5 @@
 import { findLinks } from './detect.js';
+import { direct } from './providers/direct.js';
 import { instagram } from './providers/instagram.js';
 import { snapchat } from './providers/snapchat.js';
 import { youtube } from './providers/youtube.js';
@@ -6,6 +7,7 @@ import type { VideoPreview, VideoProvider } from './types.js';
 
 export type { VideoPreview, VideoProvider, VideoPlatform } from './types.js';
 export { findLinks } from './detect.js';
+export { fileNameFrom } from './providers/direct.js';
 
 /**
  * Every platform PINGO recognises, in the order they are tried.
@@ -16,7 +18,7 @@ export { findLinks } from './detect.js';
  * differ only in which optional fields are filled. That is the whole point of
  * normalising at this boundary rather than letting each platform reach the UI.
  */
-const PROVIDERS: VideoProvider[] = [youtube, instagram, snapchat];
+const PROVIDERS: VideoProvider[] = [youtube, instagram, snapchat, direct];
 
 /**
  * The first video link in a message, if there is one.

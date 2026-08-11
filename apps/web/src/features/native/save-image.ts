@@ -17,6 +17,13 @@ declare global {
     AndroidShare?: {
       flushShare?: () => void;
       saveToGallery?: (base64: string, mime: string) => boolean;
+      /*
+       * Videos go to `MediaStore.Video`, which is a different collection and a
+       * different album - see `save-video.ts`. Declared here with the rest of
+       * the bridge because a second `declare global` for the same interface is
+       * a type conflict, not an extension.
+       */
+      saveVideoToGallery?: (base64: string, mime: string) => boolean;
     };
   }
 }

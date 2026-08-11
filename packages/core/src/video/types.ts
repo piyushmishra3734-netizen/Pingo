@@ -21,7 +21,7 @@
  * nothing. Present means playable, absent means offer the original.
  */
 
-export type VideoPlatform = 'youtube' | 'instagram' | 'snapchat';
+export type VideoPlatform = 'youtube' | 'instagram' | 'snapchat' | 'direct';
 
 export interface VideoPreview {
   platform: VideoPlatform;
@@ -39,6 +39,22 @@ export interface VideoPreview {
    * constant in our own code.
    */
   embedUrl?: string;
+  /**
+   * The media itself, when the link *is* a video file rather than a page.
+   *
+   * Played in our own `<video>`, which is why it is a separate field from
+   * `embedUrl` rather than a platform the card checks for. The distinction the
+   * UI branches on is "a frame somebody else draws" against "a file we can
+   * play", and that stays true for any platform added later.
+   *
+   * Unlike `embedUrl`, this **is** the sender's own URL - there is no id to
+   * validate and no host of ours to put it on. That is acceptable here and
+   * would not be for a frame: a `<video src>` cannot run script, cannot read
+   * this page, and fails closed by simply not playing. It is still only ever
+   * requested after somebody presses play, so a link nobody opens is never
+   * fetched.
+   */
+  fileUrl?: string;
   thumbnailUrl?: string;
   title?: string;
   author?: string;

@@ -1,6 +1,8 @@
-import { enrichVideoPreview, type VideoPreview } from '@pingo/core';
+import { enrichVideoPreview, fileNameFrom, type VideoPreview } from '@pingo/core';
 import { LinkIcon, PlayIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
+
+import { saveVideo } from '../native/save-video.js';
 
 /**
  * A video link, drawn as the video it points at.
@@ -41,6 +43,9 @@ const PLATFORM: Record<VideoPreview['platform'], { label: string; tint: string }
     tint: 'bg-[linear-gradient(45deg,#f9ce34,#ee2a7b_45%,#6228d7)]',
   },
   snapchat: { label: 'Snapchat', tint: 'bg-[#fffc00]' },
+  // No platform behind it, so it borrows PINGO's own colour rather than
+  // pretending to be from somewhere.
+  direct: { label: 'Video', tint: 'bg-brand' },
 };
 
 /** Stops the bubble's own tap, which would open the reaction bar. */
@@ -61,6 +66,16 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
    * which looks like the feature is broken rather than like the video is gone.
    */
   const [thumbFailed, setThumbFailed] = useState(false);
+  /*
+   * The file would not play.
+   *
+   * The extension was a guess - see the `direct` provider - so this is the
+   * cheap direction being wrong: a `.mp4` that is a redirect page, a codec the
+   * browser will not take, a host that is gone. Falling back to the ordinary
+   * card means the message still offers the link, which is exactly what it
+   * would have done had the guess never been made.
+   */
+  const [broken, setBroken] = useState(false);
 
   const platform = PLATFORM[preview.platform];
   const thumbnail = thumbFailed ? undefined : details.thumbnailUrl;
@@ -77,7 +92,30 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
     };
   }, [preview]);
 
-  const frameAspect = preview.platform === 'instagram' ? 'aspect-[4/5]' : 'aspect-video';
+  /*
+   * A portrait video should not sit in a landscape box.
+   *
+   * 16:9 is the right guess before anything is known, and the wrong shape for
+   * the thing people most want to send - a phone-shot clip or a reel, which
+   * ends up as a stamp between two black bars.
+   *
+   * The correction lands when playback starts rather than on first paint,
+   * because `preload="none"` is the whole privacy position here: the file's
+   * dimensions are inside the file, and fetching them for a link nobody has
+   * opened would tell an arbitrary host that this person is reading this
+   * thread. A moment of the wrong box is worth more than that request.
+   *
+   * Clamped rather than trusted: a very tall video would otherwise take over
+   * the whole thread, and one pixel high would collapse the card.
+   */
+  const [ratio, setRatio] = useState<number>();
+
+  const frameAspect =
+    ratio === undefined
+      ? preview.platform === 'instagram'
+        ? 'aspect-[4/5]'
+        : 'aspect-video'
+      : undefined;
 
   return (
     <div
@@ -98,8 +136,38 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
       )}
       {...swallow}
     >
-      <div className={cn('relative w-full bg-black', frameAspect)}>
-        {playing && preview.embedUrl ? (
+      <div
+        className={cn('relative w-full bg-black', frameAspect)}
+        {...(ratio === undefined ? {} : { style: { aspectRatio: String(ratio) } })}
+      >
+        {preview.fileUrl && !broken ? (
+          /*
+            Ours to play, so we play it.
+
+            `preload="none"` is the same bargain the other platforms get from
+            click-to-play: until somebody presses play, the host that serves
+            this file learns nothing about who is reading the thread. The
+            browser's own controls come with a scrubber, fullscreen and
+            picture-in-picture already matching what the phone does elsewhere -
+            the same reasoning `FileBubble` uses for an attached video.
+          */
+          <video
+            src={preview.fileUrl}
+            controls
+            preload="none"
+            playsInline
+            onLoadedMetadata={(event) => {
+              const media = event.currentTarget;
+              if (!media.videoWidth || !media.videoHeight) return;
+              // 9:16 at the tall end, 16:9 at the wide - past either the card
+              // stops being a card and starts being the screen.
+              const shape = media.videoWidth / media.videoHeight;
+              setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9));
+            }}
+            onError={() => setBroken(true)}
+            className="absolute inset-0 size-full object-contain"
+          />
+        ) : playing && preview.embedUrl ? (
           <iframe
             src={preview.embedUrl}
             title={details.title ?? `${platform.label} video`}
@@ -120,6 +188,7 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
         )}
       </div>
 
+
       <div className="flex items-center gap-2.5 px-3 py-2.5">
         <span
           aria-hidden
@@ -135,16 +204,60 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
             </span>
           )}
         </span>
-        <a
-          href={details.canonicalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium text-brand"
-        >
-          Open
-        </a>
+        {/*
+          Save on a real file, Open on everything else.
+
+          Not both. An embed is somebody else's page in a frame, so there is
+          nothing to write to storage and a Save on one would be a button that
+          cannot keep its promise. A file, conversely, does not need Open -
+          "open the video" is what the player already is.
+        */}
+        {preview.fileUrl && !broken ? (
+          <SaveButton url={preview.fileUrl} />
+        ) : (
+          <a
+            href={details.canonicalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium text-brand"
+          >
+            Open
+          </a>
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Save, and the honest state in between.
+ *
+ * A video is large enough that the gap between pressing and finishing is real,
+ * so the button says which of the three it is in. It settles on "Saved" rather
+ * than returning to "Save": having pressed it, the question a person has is
+ * whether it worked, and a button that resets answers a question nobody asked.
+ *
+ * There is no failed state because `saveVideo` does not fail - anything it
+ * cannot write itself, it hands to the platform, which shows its own download.
+ */
+function SaveButton({ url }: { url: string }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  return (
+    <button
+      type="button"
+      disabled={state !== 'idle'}
+      onClick={() => {
+        setState('saving');
+        void saveVideo(url, fileNameFrom(url)).then(() => setState('saved'));
+      }}
+      className={cn(
+        'focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium',
+        state === 'saved' ? 'text-text-secondary' : 'text-brand',
+      )}
+    >
+      {state === 'idle' ? 'Save' : state === 'saving' ? 'Saving…' : 'Saved'}
+    </button>
   );
 }
 
