@@ -1,9 +1,10 @@
 import { enrichVideoPreview, fileNameFrom, type VideoPreview } from '@pingo/core';
 import { LinkIcon, PlayIcon, cn } from '@pingo/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
-import { saveVideo } from '../native/save-video.js';
+import { saveVideo, saveVideoBlob } from '../native/save-video.js';
+import { keepVideo, storedVideo } from './video-vault.js';
 
 /**
  * A video link, drawn as the video it points at.
@@ -32,6 +33,15 @@ import { saveVideo } from '../native/save-video.js';
 
 export interface VideoLinkCardProps {
   preview: VideoPreview;
+  /**
+   * The message this link arrived in.
+   *
+   * The key a kept copy is filed under, so Save persists into the same vault a
+   * sent video file uses rather than inventing a second one - and so a video
+   * kept once is found again on the next open, with the network off, without
+   * asking any resolver anything.
+   */
+  messageId: string;
   /** Extra bottom margin when the message's own text follows. */
   spaced?: boolean;
 }
@@ -61,13 +71,44 @@ const PLATFORM: Record<
   direct: { label: 'Video', untitled: 'Video', tint: 'bg-brand' },
 };
 
+/** Seconds as `m:ss`, or `h:mm:ss` once there is an hour to show. */
+function clock(total: number): string {
+  const whole = Math.floor(total);
+  const s = String(whole % 60).padStart(2, '0');
+  const m = Math.floor(whole / 60) % 60;
+  const h = Math.floor(whole / 3600);
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+/**
+ * Four corners pointing out. Drawn here rather than added to the icon set,
+ * because it is the only place in the product that needs one.
+ */
+function ExpandIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={17}
+      height={17}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
 /** Stops the bubble's own tap, which would open the reaction bar. */
 const swallow = {
   onClick: (event: React.MouseEvent) => event.stopPropagation(),
   onPointerDown: (event: React.PointerEvent) => event.stopPropagation(),
 };
 
-export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
+export function VideoLinkCard({ preview, messageId, spaced }: VideoLinkCardProps) {
   const [playing, setPlaying] = useState(false);
   const [details, setDetails] = useState(preview);
   /*
@@ -101,7 +142,33 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
   const [resolved, setResolved] = useState<string>();
   const [resolving, setResolving] = useState(false);
 
-  const file = preview.fileUrl ?? resolved;
+  /*
+   * The copy this device already keeps, if Save was pressed before.
+   *
+   * Looked for on mount and preferred over everything else: a kept video needs
+   * no resolver, no platform, and no network. It is also the only path that
+   * still works on a plane, which is the whole point of having kept it.
+   */
+  const [kept, setKept] = useState<string>();
+
+  useEffect(() => {
+    let live = true;
+    let object: string | undefined;
+
+    void storedVideo(messageId).then((blob) => {
+      if (!live || !blob) return;
+      object = URL.createObjectURL(blob);
+      setKept(object);
+    });
+
+    return () => {
+      live = false;
+      // Revoked on unmount, or a long thread leaks a blob per video scrolled.
+      if (object) URL.revokeObjectURL(object);
+    };
+  }, [messageId]);
+
+  const file = kept ?? preview.fileUrl ?? resolved;
 
   const platform = PLATFORM[preview.platform];
   const thumbnail = thumbFailed ? undefined : details.thumbnailUrl;
@@ -135,6 +202,9 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
    * the whole thread, and one pixel high would collapse the card.
    */
   const [ratio, setRatio] = useState<number>();
+  /** Read off the file once it loads. No platform publishes this up front. */
+  const [seconds, setSeconds] = useState<number>();
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const frameAspect =
     ratio === undefined
@@ -178,6 +248,7 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
             the same reasoning `FileBubble` uses for an attached video.
           */
           <video
+            ref={videoRef}
             src={file}
             controls
             // Resolved on tap means the person is already waiting for this one,
@@ -192,6 +263,7 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
               // stops being a card and starts being the screen.
               const shape = media.videoWidth / media.videoHeight;
               setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9));
+              if (Number.isFinite(media.duration)) setSeconds(media.duration);
             }}
             onError={() => setBroken(true)}
             className="absolute inset-0 size-full object-contain"
@@ -238,6 +310,49 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
             }}
           />
         )}
+
+        {file && !broken && (
+          /*
+            A fullscreen control of our own, over the player.
+
+            The browser's own controls already carry one, and on a phone it is
+            a 20px target in a strip that hides itself. This is the same call
+            the player makes, at a size somebody can actually hit, and it asks
+            the *container* rather than the video element so the card's own
+            background fills the screen instead of leaving bars around a
+            portrait clip.
+
+            `webkitEnterFullscreen` is the iOS path: Safari on iPhone refuses
+            `requestFullscreen` on anything and only ever fullscreens a video
+            element directly. Both are attempted, neither is required.
+          */
+          <button
+            type="button"
+            aria-label="Fullscreen"
+            onClick={() => {
+              const media = videoRef.current;
+              const box = media?.parentElement;
+              type Legacy = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+              if (box?.requestFullscreen) void box.requestFullscreen().catch(() => undefined);
+              else (media as Legacy | null)?.webkitEnterFullscreen?.();
+            }}
+            className={cn(
+              'absolute top-2 right-2 grid size-9 place-items-center rounded-full',
+              'bg-black/45 text-white backdrop-blur-sm',
+              'focus-ring transition-transform duration-instant ease-standard active:scale-95',
+            )}
+          >
+            <ExpandIcon />
+          </button>
+        )}
+
+        {/* Duration, once the file has told us. Bottom right, as on a reel. */}
+        {file && !broken && seconds !== undefined && (
+          <span className="pointer-events-none absolute right-2 bottom-2 rounded-md bg-black/55 px-1.5 py-0.5 text-caption font-medium text-white tabular-nums">
+            {clock(seconds)}
+          </span>
+        )}
+
       </div>
 
 
@@ -264,8 +379,19 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
           cannot keep its promise. A file, conversely, does not need Open -
           "open the video" is what the player already is.
         */}
-        {file && !broken ? (
-          <SaveButton url={file} />
+        {/* Nothing to save once it is already kept - it is on the device. */}
+        {file && !broken && !kept ? (
+          <SaveButton
+            messageId={messageId}
+            url={file}
+            // Play from the kept copy straight away, so the video does not
+            // reload from the network the moment it stopped needing to.
+            onKept={(blob) => setKept(URL.createObjectURL(blob))}
+          />
+        ) : kept ? (
+          <span className="shrink-0 px-2 py-0.5 text-caption font-medium text-text-secondary">
+            Saved
+          </span>
         ) : (
           <a
             href={details.canonicalUrl}
@@ -289,34 +415,80 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
  * than returning to "Save": having pressed it, the question a person has is
  * whether it worked, and a button that resets answers a question nobody asked.
  *
- * There is no failed state because `saveVideo` does not fail - anything it
- * cannot write itself, it hands to the platform, which shows its own download.
+ * Three ways it can end, and the label says which. The vault writing the file
+ * is "Saved"; a host with no CORS headers means the bytes never reach this page
+ * at all, so the URL goes to the platform and that is "Opened"; and if even
+ * that does nothing, "Couldn't save" - because a card that claims a copy it
+ * does not have is a video missing the next time the network is.
  */
 const SAVE_LABEL = {
   idle: 'Save',
   saving: 'Saving…',
   saved: 'Saved',
-  // Not "Saved". Most video hosts send no CORS headers, so the bytes never
-  // reach this page and the platform fetches them instead - the video ends up
-  // in a tab, not in storage. Saying "Saved" over that is the exact lie the
-  // save path was written to avoid.
+  // The page could not read the bytes - usually a host that sends no CORS
+  // headers - so the platform was handed the URL instead. The video is in a
+  // tab, not on the device, and saying "Saved" over that is the lie this
+  // module was written against.
   opened: 'Opened',
+  // Not even that worked. Nothing was written and nothing was opened.
+  failed: "Couldn't save",
 } as const;
 
-function SaveButton({ url }: { url: string }) {
+/**
+ * Save, meaning the video is on this device afterwards.
+ *
+ * Two shelves, one download. `keepVideo` writes it into the vault a sent video
+ * file already uses, which is what makes it play with the network off and what
+ * survives a reload; the same blob is then offered to the gallery so it is a
+ * video the phone knows about too, and not only something inside PINGO.
+ *
+ * The gallery half is allowed to fail quietly. It needs the native bridge, so
+ * on the web and on an older build it simply does not happen - but the copy
+ * that matters, the one that plays offline, is already written by then.
+ */
+function SaveButton({
+  messageId,
+  url,
+  onKept,
+}: {
+  messageId: string;
+  url: string;
+  onKept: (blob: Blob) => void;
+}) {
   const [state, setState] = useState<keyof typeof SAVE_LABEL>('idle');
 
   return (
     <button
       type="button"
-      disabled={state === 'saving'}
+      disabled={state === 'saving' || state === 'saved'}
       onClick={() => {
         setState('saving');
-        void saveVideo(url, fileNameFrom(url)).then(setState);
+        void keepVideo(messageId, url).then(async (blob) => {
+          if (blob) {
+            setState('saved');
+            onKept(blob);
+            // The gallery half may quietly not happen - it needs the native
+            // bridge - but the copy that plays offline is already written.
+            void saveVideoBlob(blob, fileNameFrom(url));
+            return;
+          }
+
+          /*
+           * The vault could not read it, which for a raw link on a host with
+           * no CORS headers is the normal answer rather than an error. There
+           * is nothing to persist, but the platform can still fetch it, so the
+           * URL is handed over and the label says which of the two happened.
+           */
+          setState(await saveVideo(url, fileNameFrom(url)) === 'saved' ? 'saved' : 'opened');
+        });
       }}
       className={cn(
         'focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium',
-        state === 'saved' || state === 'opened' ? 'text-text-secondary' : 'text-brand',
+        state === 'failed'
+          ? 'text-danger'
+          : state === 'saved' || state === 'opened'
+            ? 'text-text-secondary'
+            : 'text-brand',
       )}
     >
       {SAVE_LABEL[state]}

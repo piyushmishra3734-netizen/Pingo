@@ -457,7 +457,9 @@ export function MessageBubble({
             itself is untouched below, so the original URL is always still there
             to copy even when the card renders.
           */}
-          {videoLink && <VideoLinkCard preview={videoLink} spaced={hasBody} />}
+          {videoLink && (
+            <VideoLinkCard preview={videoLink} messageId={message.id} spaced={hasBody} />
+          )}
 
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.

@@ -63,6 +63,43 @@ export type SaveResult = 'saved' | 'opened';
  * because there is nothing useful to tell somebody about a CORS header - but
  * the caller is told which of the two happened.
  */
+/**
+ * Puts a video already in memory onto the phone's own shelf.
+ *
+ * Split out from `saveVideo` because the vault has usually just downloaded the
+ * thing - see `video-vault.ts` - and fetching it a second time to save it would
+ * pull a whole video down twice for one press of one button.
+ *
+ * @returns false when it was attempted and did not work, so a caller can fall
+ * back rather than claim a save it did not make.
+ */
+export async function saveVideoBlob(blob: Blob, filename: string): Promise<boolean> {
+  if (blob.size > INLINE_LIMIT) return false;
+
+  try {
+    if (isNative()) {
+      return (
+        window.AndroidShare?.saveVideoToGallery?.(
+          await toBase64(blob),
+          blob.type || 'video/mp4',
+        ) ?? false
+      );
+    }
+
+    const object = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = object;
+    link.download = filename;
+    link.click();
+    // Next frame: revoking at once cancels the download in some browsers
+    // before it has started reading.
+    requestAnimationFrame(() => URL.revokeObjectURL(object));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveVideo(url: string, filename: string): Promise<SaveResult> {
   try {
     const response = await fetch(url);
