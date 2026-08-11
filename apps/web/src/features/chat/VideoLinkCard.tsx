@@ -82,7 +82,18 @@ export function VideoLinkCard({ preview, spaced }: VideoLinkCardProps) {
   return (
     <div
       className={cn(
-        'w-full overflow-hidden rounded-lg border border-line bg-sunken',
+        /*
+         * `bg-surface`, not `bg-sunken`.
+         *
+         * Sunken is translucent once a wallpaper is behind the thread, so the
+         * bubble's own colour came straight through the footer - on a sent
+         * message that meant a pink strip with a pink "Open" on it, which was
+         * legible only if you already knew it was there. Surface is the app's
+         * opaque panel, and it is the one the wallpaper-dark rule re-inks, so
+         * the card reads the same on either side of the thread and in either
+         * theme.
+         */
+        'w-full overflow-hidden rounded-lg border border-line bg-surface',
         spaced && 'mb-2',
       )}
       {...swallow}
