@@ -78,7 +78,16 @@ export function VideoPlayer({
       return;
     }
     setAwake(true);
-    const timer = setTimeout(() => setAwake(false), 2200);
+    /*
+     * Long enough to reach the mute button on a phone.
+     *
+     * Two seconds is fine on a desktop, where the pointer is already near the
+     * bar and moving it wakes the controls again. On a phone the bar is a
+     * thumb's journey away and moving toward it does not count as touching it,
+     * so the controls were gone before anybody arrived - which is why sound
+     * looked unavailable on mobile rather than merely hidden.
+     */
+    const timer = setTimeout(() => setAwake(false), 4500);
     return () => clearTimeout(timer);
   }, [playing, wakeAt]);
 
@@ -183,6 +192,8 @@ export function VideoPlayer({
         preload="none"
         playsInline
         onClick={tapPicture}
+        // A long press is somebody looking, not somebody downloading.
+        onContextMenu={(event) => event.preventDefault()}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onTimeUpdate={(event) => {
@@ -211,7 +222,7 @@ export function VideoPlayer({
         }}
         onEnded={() => setPlaying(false)}
         onError={onError}
-        className={cn('size-full', full ? 'object-contain' : 'object-contain')}
+        className={cn('media-hold size-full object-contain')}
       />
 
       {/*
@@ -290,7 +301,7 @@ export function VideoPlayer({
             setWakeAt(Date.now());
           }}
           aria-label={muted ? 'Unmute' : 'Mute'}
-          className="focus-ring grid size-8 shrink-0 place-items-center rounded-full text-white active:scale-95"
+          className="focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white active:scale-95"
         >
           <SpeakerIcon muted={muted} />
         </button>
@@ -299,7 +310,7 @@ export function VideoPlayer({
           type="button"
           onClick={toggleFull}
           aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}
-          className="focus-ring grid size-8 shrink-0 place-items-center rounded-full text-white active:scale-95"
+          className="focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white active:scale-95"
         >
           <FullscreenIcon exit={full} />
         </button>
