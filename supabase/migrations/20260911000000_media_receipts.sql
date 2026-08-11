@@ -95,7 +95,9 @@ create or replace view public.media_fully_delivered as
     m.created_at
   from public.messages m
   where m.file_path is not null
-    and m.mime_type like 'video/%'
+    -- The column is `file_mime`; `mime_type` was never on this table, which
+    -- is why this migration had never applied.
+    and m.file_mime like 'video/%'
     and not exists (
       select 1
       from public.conversation_members cm
