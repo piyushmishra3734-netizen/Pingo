@@ -1,4 +1,9 @@
-import { STORY_AUDIENCES, type StoryAudience, type StoryKind } from '@pingo/core';
+import {
+  STORY_AUDIENCES,
+  type StoryAudience,
+  type StoryKind,
+  type VideoEdit,
+} from '@pingo/core';
 import { CameraIcon, ImageIcon, LinkIcon, UsersIcon, cn } from '@pingo/ui';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +13,7 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import { SnapEditor } from '../camera/SnapEditor.js';
 import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
+import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
 import { useStories } from './StoryContext.js';
 
 /**
@@ -32,6 +38,8 @@ interface QueueItem {
   kind: StoryKind;
   media: Blob;
   previewUrl: string;
+  /** Trim marks for a video item, chosen in the sheet. Absent means whole. */
+  videoEdit?: VideoEdit;
 }
 
 const MAX_BATCH = 20;
@@ -64,6 +72,8 @@ export function StoryComposer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [progress, setProgress] = useState<string>();
+  /** Which queued clip has the trim sheet open, by id. */
+  const [trimming, setTrimming] = useState<string>();
 
   /*
    * Always mounted (not only on source step). A `display:none` input that
@@ -193,6 +203,7 @@ export function StoryComposer({
         await service.post({
           media: item.media,
           kind: item.kind,
+          ...(item.videoEdit ? { videoEdit: item.videoEdit } : {}),
           audience,
           ...(i === 0 && caption.trim() ? { caption: caption.trim() } : {}),
           ...(i === 0 && place.trim() ? { location: place.trim() } : {}),
@@ -372,6 +383,28 @@ export function StoryComposer({
                   <span className="absolute top-1 left-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.625rem] font-medium text-white tabular-nums">
                     {index + 1}
                   </span>
+                  {/*
+                    Trim, on the thumbnail rather than in a toolbar.
+
+                    A queue can hold twenty clips and each has its own marks, so
+                    the control has to say which one it edits - and the only
+                    thing that can say that is the clip itself. It reads "Trim"
+                    until there are marks, then "Trimmed", because after the
+                    sheet closes the one thing worth knowing is whether it took.
+                  */}
+                  {item.kind === 'video' && (
+                    <button
+                      type="button"
+                      onClick={() => setTrimming(item.id)}
+                      className={cn(
+                        'absolute right-1 bottom-1 rounded-full px-1.5 py-0.5',
+                        'text-[0.625rem] font-medium text-white',
+                        item.videoEdit ? 'bg-brand' : 'bg-black/55',
+                      )}
+                    >
+                      {item.videoEdit ? 'Trimmed' : 'Trim'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => removeFromQueue(item.id)}
@@ -406,6 +439,37 @@ export function StoryComposer({
                 </li>
               )}
             </ul>
+n            {/*
+              The trimmer, over the details step where the queue lives.
+
+              Rendered from the id rather than the item so it cannot hold a
+              stale clip if the queue changes underneath it - the lookup fails
+              and the sheet simply is not there, which beats editing something
+              that was removed.
+            */}
+            {trimming
+              ? (() => {
+                  const item = queue.find((entry) => entry.id === trimming);
+                  if (!item) return null;
+                  return (
+                    <VideoTrimSheet
+                      src={item.previewUrl}
+                      onDone={(edit) => {
+                        // Cancel leaves the clip as it was; anything else
+                        // records the marks against that one item only.
+                        if (edit) {
+                          setQueue((prev) =>
+                            prev.map((entry) =>
+                              entry.id === item.id ? { ...entry, videoEdit: edit } : entry,
+                            ),
+                          );
+                        }
+                        setTrimming(undefined);
+                      }}
+                    />
+                  );
+                })()
+              : null}
             <p className="mt-2 text-caption text-text-tertiary">
               {queue.length === 1
                 ? 'Tap + to add another photo'

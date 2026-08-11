@@ -1,3 +1,4 @@
+import type { VideoEdit } from './chat-service.js';
 /**
  * The StoryService boundary.
  *
@@ -51,6 +52,13 @@ export interface Story {
   location?: string;
   /** An http(s) link the viewer can open. */
   linkUrl?: string;
+  /**
+   * Playback marks for a video story. Never applied to the stored file.
+   *
+   * Absent means play the whole thing, which is what every story written
+   * before trimming existed meant and still means.
+   */
+  videoEdit?: VideoEdit;
   audience: StoryAudience;
   createdAt: number;
   expiresAt: number;
@@ -97,6 +105,8 @@ export interface StoryDraft {
   audienceUserIds?: string[];
   location?: string;
   linkUrl?: string;
+  /** Where the video starts, ends, and whether it speaks. Video only. */
+  videoEdit?: VideoEdit;
 }
 
 /** One person who watched a story. Owner-only - see `listViewers`. */

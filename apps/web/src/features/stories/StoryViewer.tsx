@@ -664,7 +664,26 @@ function StoryVideo({
          * flag lives in the viewer, not here.
          */
         muted={!sound}
-        onLoadedMetadata={(event) => onDuration(event.currentTarget.duration * 1000)}
+        /*
+         * The sender's marks, applied here and nowhere else.
+         *
+         * A story trimmed to start at 0:12 begins there on a file that still
+         * holds everything before it - see the migration for why the file is
+         * never cut. The progress bar is told the trimmed length, not the
+         * file's, or the ring would run on after the picture stopped.
+         */
+        onLoadedMetadata={(event) => {
+          const media = event.currentTarget;
+          const from = story.videoEdit?.trimStart ?? 0;
+          const to = story.videoEdit?.trimEnd ?? media.duration;
+          if (from > 0) media.currentTime = from;
+          onDuration(Math.max(0, to - from) * 1000);
+        }}
+        onTimeUpdate={(event) => {
+          const media = event.currentTarget;
+          const to = story.videoEdit?.trimEnd;
+          if (to !== undefined && media.currentTime >= to) media.pause();
+        }}
         className="absolute inset-0 size-full object-contain"
       />
 

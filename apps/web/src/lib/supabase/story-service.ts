@@ -134,6 +134,9 @@ export class SupabaseStoryService implements StoryService {
       ...(row.caption ? { caption: row.caption } : {}),
       ...(row.location ? { location: row.location } : {}),
       ...(row.link_url ? { linkUrl: row.link_url } : {}),
+      ...((row as unknown as { video_edit?: Story['videoEdit'] }).video_edit
+        ? { videoEdit: (row as unknown as { video_edit: Story['videoEdit'] }).video_edit }
+        : {}),
       audience: row.audience as Story['audience'],
       createdAt: Date.parse(row.created_at),
       expiresAt: Date.parse(row.expires_at),
@@ -293,6 +296,16 @@ export class SupabaseStoryService implements StoryService {
         caption: draft.caption?.trim() || null,
         location: draft.location?.trim() || null,
         link_url: draft.linkUrl?.trim() || null,
+        // Only a video can carry marks; the column has a check that agrees.
+        /*
+         * Cast because the generated database types are built from the
+         * deployed schema and this column ships in 20260912000000. It comes
+         * off the moment those types are regenerated against a database that
+         * has the migration.
+         */
+        ...((draft.kind === 'video' && draft.videoEdit
+          ? { video_edit: draft.videoEdit }
+          : {}) as Record<string, never>),
       })
       .select('*')
       .single();
