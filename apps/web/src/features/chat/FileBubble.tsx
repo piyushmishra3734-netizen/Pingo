@@ -1,4 +1,4 @@
-import { formatFileSize, useChat, type FileAttachment } from '@pingo/core';
+import { formatFileSize, useChat, type FileAttachment, type VideoEdit } from '@pingo/core';
 import { FileIcon, cn } from '@pingo/ui';
 import { useState } from 'react';
 
@@ -41,6 +41,8 @@ export interface FileBubbleProps {
    * the receipt is keyed on the message, not on the attachment.
    */
   messageId?: string;
+  /** Playback marks the sender chose. Applied by the player, never to the file. */
+  edit?: VideoEdit;
 }
 
 /** Stops the bubble's own tap, which opens the reaction bar. */
@@ -49,7 +51,7 @@ const swallow = {
   onPointerDown: (event: React.PointerEvent) => event.stopPropagation(),
 };
 
-export function FileBubble({ file, mine, spaced, messageId }: FileBubbleProps) {
+export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubbleProps) {
   const [viewing, setViewing] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -57,7 +59,9 @@ export function FileBubble({ file, mine, spaced, messageId }: FileBubbleProps) {
   const name = file.fileName || 'File';
 
   if (mime.startsWith('video/') && file.url) {
-    return <VideoBubble file={file} name={name} spaced={spaced} messageId={messageId} />;
+    return (
+      <VideoBubble file={file} name={name} spaced={spaced} messageId={messageId} edit={edit} />
+    );
   }
 
   if (mime.startsWith('image/') && file.url) {
@@ -174,11 +178,14 @@ function VideoBubble({
   name,
   spaced,
   messageId,
+  edit,
 }: {
   file: FileAttachment;
   name: string;
   spaced?: boolean;
   messageId?: string;
+  /** Playback marks the sender chose. Applied by the player, never to the file. */
+  edit?: VideoEdit;
 }) {
   const { service } = useChat();
   /** The file's own shape, once it has told us. `4/5` until then. */
@@ -232,6 +239,7 @@ function VideoBubble({
         {src && (
           <VideoPlayer
             src={src}
+            edit={edit}
             onShape={(shape) => setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9))}
           />
         )}

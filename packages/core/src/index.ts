@@ -17,6 +17,7 @@ export type {
   ConnectionState,
   MessageReceipt,
   OutgoingMessage,
+  VideoEdit,
   ReadReceipt,
   Unsubscribe,
 } from './chat-service.js';

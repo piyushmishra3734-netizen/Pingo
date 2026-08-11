@@ -383,6 +383,11 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
     ...((row.meta as { storyId?: string } | null)?.storyId
       ? { storyReply: { storyId: (row.meta as { storyId: string }).storyId } }
       : {}),
+    // Same shape of thing as a story reply: a note on an ordinary message
+    // rather than a kind of its own, so it is keyed on presence, not on `kind`.
+    ...((row.meta as { videoEdit?: Message['videoEdit'] } | null)?.videoEdit
+      ? { videoEdit: (row.meta as { videoEdit: Message['videoEdit'] }).videoEdit }
+      : {}),
   };
 }
 
@@ -2654,6 +2659,9 @@ export class SupabaseChatService implements ChatService {
             : (() => {
                 const bits: Record<string, unknown> = {};
                 if (draft.storyReply) bits.storyId = draft.storyReply.storyId;
+                // Playback marks, not content: the file is untouched and this
+                // is what every reader applies to it.
+                if (draft.videoEdit) bits.videoEdit = draft.videoEdit;
                 if (mentionedUserIds.length > 0) bits.mentionedUserIds = mentionedUserIds;
                 return Object.keys(bits).length > 0 ? bits : undefined;
               })();

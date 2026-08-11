@@ -1,3 +1,4 @@
+import type { VideoEdit } from '@pingo/core';
 import { PauseIcon, PlayIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
@@ -21,26 +22,6 @@ import { useEffect, useRef, useState } from 'react';
  * time, play and fullscreen are what people actually reach for, and those are
  * here.
  */
-
-/**
- * An edit that is never burnt into the file.
- *
- * Trimming a video in a browser means re-encoding it, and re-encoding costs
- * exactly the quality this app went out of its way to preserve - the bytes that
- * leave the phone are the bytes the camera wrote. So the file travels whole and
- * the edit travels beside it, and the player is what applies it.
- *
- * The trade is honest and worth naming: a copy saved to the gallery is the
- * original, not the trimmed version. Everyone watching in PINGO sees the edit;
- * anybody who exports the file gets everything.
- */
-export interface VideoEdit {
-  /** Seconds from the start of the file. */
-  trimStart?: number;
-  /** Seconds from the start of the file. */
-  trimEnd?: number;
-  muted?: boolean;
-}
 
 export interface VideoPlayerProps {
   src: string;

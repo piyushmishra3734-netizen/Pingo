@@ -1,4 +1,4 @@
-import type { ChatActivity } from './chat-service.js';
+import type { ChatActivity, VideoEdit } from './chat-service.js';
 /**
  * PINGO domain model.
  *
@@ -221,6 +221,13 @@ export interface Message {
    * remark about a picture nobody in the conversation can see any more.
    */
   storyReply?: { storyId: string };
+  /**
+   * Playback marks for this message's video. See `OutgoingMessage.videoEdit`.
+   *
+   * Read straight off `meta`, like a story reply - it is not a kind of message,
+   * it is a note attached to one that happens to carry a video.
+   */
+  videoEdit?: VideoEdit;
 }
 
 /*

@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
 
-import { clock, type VideoEdit } from './VideoPlayer.js';
+import type { VideoEdit } from '@pingo/core';
+
+import { clock } from './VideoPlayer.js';
 
 /**
  * Choosing where a video starts, where it ends, and whether it speaks.

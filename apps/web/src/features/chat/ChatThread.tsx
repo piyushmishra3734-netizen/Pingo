@@ -8,6 +8,7 @@ import {
   type CallKind,
   type Conversation,
   type Message,
+  type VideoEdit,
 } from '@pingo/core';
 import {
   Avatar,
@@ -69,6 +70,7 @@ import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
+import { VideoTrimSheet } from './VideoTrimSheet.js';
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -166,6 +168,8 @@ export function ChatThread({
   const galleryRef = useRef<HTMLInputElement>(null);
   /** Pictures chosen but not yet sent - the composer owns them until then. */
   const [pending, setPending] = useState<File[]>();
+  /** One chosen video, held while the sender decides where it starts and ends. */
+  const [trimming, setTrimming] = useState<File>();
   const documentRef = useRef<HTMLInputElement>(null);
   /** Which of the three small attach sheets is open, if any. */
   const [sheet, setSheet] = useState<'location' | 'contact' | 'event'>();
@@ -1508,7 +1512,15 @@ export function ChatThread({
           const videos = chosen.filter((file) => file.type.startsWith('video/'));
           const images = chosen.filter((file) => !file.type.startsWith('video/'));
 
-          for (const file of videos) {
+          /*
+           * One video opens the trimmer; several go straight out.
+           *
+           * Trimming is a decision about one clip, and a queue of sheets is a
+           * queue of decisions nobody asked to make - picking five videos is
+           * "send these five", not "let me edit each of them".
+           */
+          if (videos.length === 1 && videos[0]) setTrimming(videos[0]);
+          else          for (const file of videos) {
             void service.sendMessage({
               conversationId: conversation.id,
               body: '',
@@ -1563,6 +1575,22 @@ export function ChatThread({
           onSend={(event) => {
             setSheet(undefined);
             void service.sendMessage({ conversationId: conversation.id, body: '', event });
+          }}
+        />
+      )}
+
+      {trimming && (
+        <TrimGate
+          file={trimming}
+          onClose={() => setTrimming(undefined)}
+          onSend={(videoEdit) => {
+            void service.sendMessage({
+              conversationId: conversation.id,
+              body: '',
+              document: { file: trimming },
+              ...(videoEdit ? { videoEdit } : {}),
+            });
+            setTrimming(undefined);
           }}
         />
       )}
@@ -1647,5 +1675,45 @@ function Identity({
     <button type="button" onClick={onClick} className={cn(className, 'text-left')}>
       {children}
     </button>
+  );
+}
+
+/**
+ * Holds the object URL a trim sheet reads from, for exactly as long as it is open.
+ *
+ * The sheet takes a `src` and does not own it, because a component that creates
+ * a blob URL in a render is a component that leaks one on every re-render. This
+ * makes it once, hands it over, and revokes it on the way out - which is also
+ * why the sheet is behind a wrapper rather than rendered inline.
+ */
+function TrimGate({
+  file,
+  onClose,
+  onSend,
+}: {
+  file: File;
+  onClose: () => void;
+  onSend: (edit: VideoEdit | undefined) => void;
+}) {
+  const [src, setSrc] = useState<string>();
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  if (!src) return null;
+
+  return (
+    <VideoTrimSheet
+      src={src}
+      onDone={(edit) => {
+        // Cancelling closes without sending; anything else is a send, including
+        // an edit with no marks in it - that is somebody saying "as it is".
+        if (edit === undefined) onClose();
+        else onSend(edit);
+      }}
+    />
   );
 }

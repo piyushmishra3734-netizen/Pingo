@@ -456,7 +456,13 @@ export function MessageBubble({
             server - the exact accumulation `media_receipts` exists to stop.
           */}
           {file && (
-            <FileBubble file={file} mine={mine} spaced={hasBody} messageId={message.id} />
+            <FileBubble
+              file={file}
+              mine={mine}
+              spaced={hasBody}
+              messageId={message.id}
+              edit={message.videoEdit}
+            />
           )}
 
           {/*

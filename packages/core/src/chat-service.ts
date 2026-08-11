@@ -35,6 +35,21 @@ import type {
 } from './types.js';
 
 /** A draft outgoing message, before the service assigns it an id and timestamp. */
+/**
+ * An edit applied when a video is played, not when it is sent.
+ *
+ * Lives with the service contract because both ends need it: the sender writes
+ * it, the reader applies it, and neither should be reaching into the other's
+ * player component for the shape.
+ */
+export interface VideoEdit {
+  /** Seconds from the start of the file. */
+  trimStart?: number;
+  /** Seconds from the start of the file. */
+  trimEnd?: number;
+  muted?: boolean;
+}
+
 export interface OutgoingMessage {
   conversationId: ConversationId;
   /** For a sticker this is its emoji or name - the text fallback. */
@@ -90,6 +105,17 @@ export interface OutgoingMessage {
 
   /** Makes this a document message. The service uploads and names it. */
   document?: { file: File };
+  /**
+   * Playback marks for a video, never burnt into the file.
+   *
+   * Trimming a video in a browser means re-encoding it, which costs exactly the
+   * quality this path goes out of its way to keep - the bytes that leave the
+   * phone are the bytes the camera wrote. So the file travels whole and the
+   * edit rides beside it in `meta`, and every player applies it.
+   *
+   * Absent for a video nobody trimmed, which is most of them.
+   */
+  videoEdit?: VideoEdit;
 
   /**
    * The three structured kinds.
