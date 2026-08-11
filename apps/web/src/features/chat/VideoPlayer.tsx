@@ -22,8 +22,30 @@ import { useEffect, useRef, useState } from 'react';
  * here.
  */
 
+/**
+ * An edit that is never burnt into the file.
+ *
+ * Trimming a video in a browser means re-encoding it, and re-encoding costs
+ * exactly the quality this app went out of its way to preserve - the bytes that
+ * leave the phone are the bytes the camera wrote. So the file travels whole and
+ * the edit travels beside it, and the player is what applies it.
+ *
+ * The trade is honest and worth naming: a copy saved to the gallery is the
+ * original, not the trimmed version. Everyone watching in PINGO sees the edit;
+ * anybody who exports the file gets everything.
+ */
+export interface VideoEdit {
+  /** Seconds from the start of the file. */
+  trimStart?: number;
+  /** Seconds from the start of the file. */
+  trimEnd?: number;
+  muted?: boolean;
+}
+
 export interface VideoPlayerProps {
   src: string;
+  /** Applied at playback, never written into the file. */
+  edit?: VideoEdit;
   /** Starts playing as soon as it can - set when the person already pressed play. */
   autoPlay?: boolean;
   /** Told the intrinsic shape once known, so the card can stop guessing. */
@@ -42,7 +64,15 @@ export function clock(total: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
 
-export function VideoPlayer({ src, autoPlay, onShape, onError, className }: VideoPlayerProps) {
+export function VideoPlayer({
+  src,
+  edit,
+  autoPlay,
+  onShape,
+  onError,
+  className,
+}: VideoPlayerProps) {
+  const from = edit?.trimStart ?? 0;
   const video = useRef<HTMLVideoElement>(null);
   const shell = useRef<HTMLDivElement>(null);
 
@@ -50,7 +80,7 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [full, setFull] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(edit?.muted ?? false);
   /**
    * Controls fade out while a video plays and come back on any touch.
    *
@@ -145,7 +175,17 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
       .catch(() => (media as Legacy | null)?.webkitEnterFullscreen?.());
   };
 
-  const seekable = duration > 0;
+  /*
+   * Every time shown is relative to the trim, not to the file.
+   *
+   * A clip trimmed to start at 0:12 should read 0:00 when it begins and count
+   * to its own length - showing the file's clock would tell the viewer about
+   * footage the sender chose not to send.
+   */
+  const to = edit?.trimEnd ?? duration;
+  const span = Math.max(0, to - from);
+  const seekable = span > 0;
+  const elapsed = Math.max(0, Math.min(current - from, span));
 
   return (
     <div
@@ -164,10 +204,26 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
         onClick={tapPicture}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
+        onTimeUpdate={(event) => {
+          const media = event.currentTarget;
+          setCurrent(media.currentTime);
+          /*
+           * The trim's far edge is enforced here rather than by seeking.
+           *
+           * Pausing at the mark is what makes the clip end where the sender
+           * said it ends, on a file that still contains everything after it -
+           * which is the whole point of keeping the edit out of the bytes.
+           */
+          if (edit?.trimEnd !== undefined && media.currentTime >= edit.trimEnd) {
+            media.pause();
+            media.currentTime = edit.trimEnd;
+          }
+        }}
         onLoadedMetadata={(event) => {
           const media = event.currentTarget;
           if (Number.isFinite(media.duration)) setDuration(media.duration);
+          // Start where the sender started it, not where the file does.
+          if (from > 0) media.currentTime = from;
           if (media.videoWidth && media.videoHeight) {
             onShape?.(media.videoWidth / media.videoHeight, media.duration);
           }
@@ -206,7 +262,7 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
           playing && !awake ? 'pointer-events-none opacity-0' : 'opacity-100',
         )}
       >
-        <span className="shrink-0 text-caption text-white/90 tabular-nums">{clock(current)}</span>
+        <span className="shrink-0 text-caption text-white/90 tabular-nums">{clock(elapsed)}</span>
 
         {/*
           A range input, not a custom-drawn bar.
@@ -218,22 +274,22 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
         <input
           type="range"
           min={0}
-          max={seekable ? duration : 0}
+          max={seekable ? span : 0}
           step="any"
-          value={current}
+          value={elapsed}
           disabled={!seekable}
           aria-label="Seek"
           onChange={(event) => {
             const media = video.current;
             if (!media) return;
-            media.currentTime = Number(event.target.value);
+            media.currentTime = from + Number(event.target.value);
             setCurrent(media.currentTime);
             setWakeAt(Date.now());
           }}
           className="pingo-scrub h-1 min-w-0 flex-1 appearance-none rounded-full bg-white/30 accent-white"
         />
 
-        <span className="shrink-0 text-caption text-white/90 tabular-nums">{clock(duration)}</span>
+        <span className="shrink-0 text-caption text-white/90 tabular-nums">{clock(span)}</span>
 
         {/*
           Sound, which left with the browser's controls and was not replaced.

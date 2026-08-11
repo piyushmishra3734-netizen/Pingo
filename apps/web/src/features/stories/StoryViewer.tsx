@@ -684,17 +684,32 @@ function StoryVideo({
       {!sound && (
         <button
           type="button"
-          onClick={onSound}
+          /*
+           * The story pager listens on the surface underneath, so without
+           * this the tap turned the sound on and skipped to the next story in
+           * the same movement - which reads as the button doing the wrong
+           * thing entirely. Pointer down is where the pager starts, so that is
+           * where it has to be stopped; the click is stopped too so nothing
+           * downstream sees a second chance.
+           */
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSound();
+          }}
           aria-label="Turn on sound"
           className={cn(
             'absolute top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2',
-            'flex items-center gap-2 rounded-full px-4 py-2.5',
-            'bg-black/45 text-body font-medium text-white backdrop-blur-glass',
+            // Just the speaker. The words were a label on a control whose
+            // meaning is already the icon, and at pill size it read as a
+            // notice sitting on top of the story rather than part of it.
+            'grid size-14 place-items-center rounded-full',
+            'bg-black/45 text-white backdrop-blur-glass',
             'animate-fade-in transition-transform duration-instant ease-standard active:scale-95',
           )}
         >
           <MutedSpeaker />
-          Tap for sound
         </button>
       )}
     </>
@@ -706,8 +721,8 @@ function MutedSpeaker() {
   return (
     <svg
       viewBox="0 0 24 24"
-      width={18}
-      height={18}
+      width={24}
+      height={24}
       fill="none"
       stroke="currentColor"
       strokeWidth={2}
