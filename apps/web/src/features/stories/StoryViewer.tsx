@@ -78,6 +78,18 @@ export function StoryViewer({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  /*
+   * Sound is off until somebody asks for it, and then stays on.
+   *
+   * It has to start off - every browser refuses to autoplay audio, so an
+   * unmuted story would simply not begin, and a story that needs a tap before
+   * it plays is a story most people never see.
+   *
+   * But asking once should be enough. Held here rather than inside the video
+   * so it survives moving between stories: having turned sound on for one, you
+   * meant it for the rest of the sitting, not for that single clip.
+   */
+  const [soundOn, setSoundOn] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [dragY, setDragY] = useState(0);
@@ -381,7 +393,13 @@ export function StoryViewer({
           style={{ touchAction: 'none' }}
         >
           {story.kind === 'video' ? (
-            <StoryVideo story={story} paused={player.paused} onDuration={player.reportDuration} />
+            <StoryVideo
+              story={story}
+              paused={player.paused}
+              onDuration={player.reportDuration}
+              sound={soundOn}
+              onSound={() => setSoundOn(true)}
+            />
           ) : (
             <StoryImage
               story={story}
@@ -611,10 +629,14 @@ function StoryVideo({
   story,
   paused,
   onDuration,
+  sound,
+  onSound,
 }: {
   story: Story;
   paused: boolean;
   onDuration: (ms: number) => void;
+  sound: boolean;
+  onSound: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
 
@@ -626,21 +648,76 @@ function StoryVideo({
   }, [paused]);
 
   return (
-    <video
-      ref={ref}
-      key={story.id}
-      src={story.mediaUrl}
-      autoPlay
-      playsInline
-      /*
-       * Muted, and deliberately. Autoplay with sound is refused by every
-       * browser, so an unmuted story would simply not start - and a story that
-       * needs a tap before it plays is a story most people never see.
-       */
-      muted
-      onLoadedMetadata={(event) => onDuration(event.currentTarget.duration * 1000)}
-      className="absolute inset-0 size-full object-contain"
-    />
+    <>
+      <video
+        ref={ref}
+        key={story.id}
+        src={story.mediaUrl}
+        autoPlay
+        playsInline
+        /*
+         * Starts muted, and has to. Autoplay with sound is refused by every
+         * browser, so an unmuted story would simply not begin - and a story
+         * that needs a tap before it plays is a story most people never see.
+         *
+         * The tap below is what buys the sound, and once bought it stays: the
+         * flag lives in the viewer, not here.
+         */
+        muted={!sound}
+        onLoadedMetadata={(event) => onDuration(event.currentTarget.duration * 1000)}
+        className="absolute inset-0 size-full object-contain"
+      />
+
+      {/*
+        The offer, once, in the middle.
+
+        A story is watched with a thumb already resting on the screen, so this
+        cannot be a small control in a corner - it has to be the thing under
+        the thumb. It sits above the tap targets that page between stories,
+        which is the whole reason it is worth a large soft pill rather than an
+        icon: at this size nobody advances the story by accident while
+        reaching for it.
+
+        It leaves for good on the first tap. An affordance that keeps coming
+        back is a notice, and this is an offer.
+      */}
+      {!sound && (
+        <button
+          type="button"
+          onClick={onSound}
+          aria-label="Turn on sound"
+          className={cn(
+            'absolute top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2',
+            'flex items-center gap-2 rounded-full px-4 py-2.5',
+            'bg-black/45 text-body font-medium text-white backdrop-blur-glass',
+            'animate-fade-in transition-transform duration-instant ease-standard active:scale-95',
+          )}
+        >
+          <MutedSpeaker />
+          Tap for sound
+        </button>
+      )}
+    </>
+  );
+}
+
+/** A speaker with a slash. Only ever shown while a story is silent. */
+function MutedSpeaker() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={18}
+      height={18}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+      <path d="m17 9 4 6M21 9l-4 6" />
+    </svg>
   );
 }
 
