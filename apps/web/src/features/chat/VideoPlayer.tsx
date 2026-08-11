@@ -50,6 +50,7 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [full, setFull] = useState(false);
+  const [muted, setMuted] = useState(false);
   /**
    * Controls fade out while a video plays and come back on any touch.
    *
@@ -234,6 +235,29 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
 
         <span className="shrink-0 text-caption text-white/90 tabular-nums">{clock(duration)}</span>
 
+        {/*
+          Sound, which left with the browser's controls and was not replaced.
+
+          Its own button rather than a slider: a phone has hardware volume and
+          what a chat actually needs is "not out loud right now". The state is
+          read from the element on every render, so it stays right even when
+          something else changes it.
+        */}
+        <button
+          type="button"
+          onClick={() => {
+            const media = video.current;
+            if (!media) return;
+            media.muted = !media.muted;
+            setMuted(media.muted);
+            setWakeAt(Date.now());
+          }}
+          aria-label={muted ? 'Unmute' : 'Mute'}
+          className="focus-ring grid size-8 shrink-0 place-items-center rounded-full text-white active:scale-95"
+        >
+          <SpeakerIcon muted={muted} />
+        </button>
+
         <button
           type="button"
           onClick={toggleFull}
@@ -265,6 +289,30 @@ function FullscreenIcon({ exit }: { exit: boolean }) {
         <path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3" />
       ) : (
         <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+      )}
+    </svg>
+  );
+}
+
+/** A speaker, with a slash through it when there is nothing to hear. */
+function SpeakerIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={17}
+      height={17}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+      {muted ? (
+        <path d="m17 9 4 6M21 9l-4 6" />
+      ) : (
+        <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 6a9 9 0 0 1 0 12" />
       )}
     </svg>
   );

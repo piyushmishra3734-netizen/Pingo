@@ -204,23 +204,30 @@ function VideoBubble({
         clip most videos in a chat turn out to be.
       */}
       {/*
-        The width floor is load-bearing, and it is inline for a reason.
+        A stated width, because nothing else here has one.
 
         The player fills this box absolutely and so contributes no intrinsic
-        width, and a message bubble is sized to its contents - `w-full` alone
-        resolved against nothing and the video came out about a hundred pixels
-        wide. At that size the controls bar covered the play button, so the
-        video also could not be started: one bug wearing two faces.
+        width, and a message bubble is sized to its contents - so `w-full`
+        resolves against nothing at all. Two attempts to fix that with a
+        *floor* both failed, and the second failed instructively: the floor
+        became the size. 240px wide and 135px tall is not a video, it is a
+        stamp, and at that height a tap aimed at the play button lands on the
+        controls instead - which is why it appeared not to play inline while
+        playing perfectly in fullscreen.
 
-        `min-w-[14rem]` was the first attempt and silently did nothing - the
-        utility never reached the built stylesheet, so the class was inert.
-        This sits next to `aspectRatio`, which was always inline for the same
-        reason: a value the layout depends on should not be able to vanish
-        between the source and the build.
+        So the box states a width outright. `22rem` is roughly the image
+        bubble's presence on a desktop thread, and `72vw` keeps it a bubble
+        rather than the whole column on a phone.
+
+        Inline rather than a utility: `min-w-[14rem]` was tried first and never
+        reached the built stylesheet, so the class sat on the element doing
+        nothing. A value the layout depends on should not be able to vanish
+        between the source and the build - which is why `aspectRatio` was
+        always inline too.
       */}
       <div
         className="relative w-full overflow-hidden rounded-lg bg-black"
-        style={{ aspectRatio: String(ratio ?? 4 / 5), minWidth: '15rem' }}
+        style={{ aspectRatio: String(ratio ?? 4 / 5), width: 'min(22rem, 72vw)' }}
       >
         {src && (
           <VideoPlayer
