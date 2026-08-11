@@ -223,6 +223,24 @@ export interface Message {
   storyReply?: { storyId: string };
 }
 
+/*
+ * There is deliberately no `videoPreview` field on a message.
+ *
+ * A video card is a pure function of `body`, so storing one would be storing a
+ * derivation - and in this app that derivation would have to be stored in the
+ * clear. `body` is sealed before it reaches the row; `meta` is not, which is
+ * why it holds only things the server already knows or must act on (mention
+ * ids, a story id). Writing "this person shared this reel" into `meta` would
+ * hand the server a readable log of every link anybody sends, next to a message
+ * body it deliberately cannot read.
+ *
+ * Deriving it at render costs one regex against text that is already decrypted
+ * and already in memory. It also means every link sent before this feature
+ * existed gets a card, which a stored field could never do.
+ *
+ * See `video/index.ts` - `detectVideoLink` is synchronous for this reason.
+ */
+
 export interface CallLogRef {
   callKind: CallKind;
   outcome: CallOutcome;

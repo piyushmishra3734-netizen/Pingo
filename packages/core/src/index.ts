@@ -197,5 +197,15 @@ export {
   matchesFilter,
 } from './react/use-conversation-filter.js';
 
+// Video links: detection, normalisation, and the per-platform adapters.
+export {
+  detectVideoLink,
+  enrichVideoPreview,
+  findLinks,
+  type VideoPreview,
+  type VideoProvider,
+  type VideoPlatform,
+} from './video/index.js';
+
 // Seed data, exported for the styleguide and for tests.
 export * as seed from './seed.js';

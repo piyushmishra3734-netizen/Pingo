@@ -1,4 +1,5 @@
 import {
+  detectVideoLink,
   formatEventTime,
   formatTime,
   useChat,
@@ -11,7 +12,7 @@ import {
   cn,
   variantFromSeed,
 } from '@pingo/ui';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useT } from '../i18n/useT.js';
 import {
@@ -24,6 +25,7 @@ import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { PingBubble } from './PingBubble.js';
+import { VideoLinkCard } from './VideoLinkCard.js';
 import { VoiceNote } from './VoiceNote.js';
 
 /**
@@ -160,6 +162,17 @@ export function MessageBubble({
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
   const hasBody = message.body.trim().length > 0;
+  /*
+   * Derived, not stored - see the note at the end of the `Message` type.
+   *
+   * A tombstone is skipped because its body is already gone; there is nothing
+   * to recognise and a card under "This message was deleted" would be a link
+   * the sender took back.
+   */
+  const videoLink = useMemo(
+    () => (message.deleted ? undefined : detectVideoLink(message.body)),
+    [message.body, message.deleted],
+  );
   /** First bubble of a group cluster from someone else. Sits above the glass. */
   const nameLabel =
     !mine && authorName && (position === 'first' || position === 'single') ? (
@@ -437,6 +450,14 @@ export function MessageBubble({
           )}
 
           {file && <FileBubble file={file} mine={mine} spaced={hasBody} />}
+
+          {/*
+            Above the text, which is where every messenger puts a link preview -
+            you see what was shared, then whatever was said about it. The text
+            itself is untouched below, so the original URL is always still there
+            to copy even when the card renders.
+          */}
+          {videoLink && <VideoLinkCard preview={videoLink} spaced={hasBody} />}
 
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
