@@ -201,8 +201,17 @@ function VideoBubble({
         is the guess until the file reports its own, which is the portrait
         clip most videos in a chat turn out to be.
       */}
+      {/*
+        `min-w` is load-bearing, not padding.
+
+        The player fills this box absolutely and so contributes no intrinsic
+        width, and a message bubble is sized to its contents - so `w-full`
+        alone resolved against nothing and the video came out as a thumbnail
+        about a hundred pixels wide. The floor gives the bubble something to
+        be, and `w-full` still lets it grow to the bubble's own maximum.
+      */}
       <div
-        className="relative w-full overflow-hidden rounded-lg bg-black"
+        className="relative w-full min-w-[14rem] overflow-hidden rounded-lg bg-black"
         style={{ aspectRatio: String(ratio ?? 4 / 5) }}
       >
         {src && (
