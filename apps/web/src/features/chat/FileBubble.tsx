@@ -80,7 +80,7 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
             src={file.url}
             alt={name}
             onContextMenu={(event) => event.preventDefault()}
-            className="media-hold max-h-[22rem] w-full rounded-lg object-cover"
+            className="max-h-[22rem] w-full rounded-lg object-cover"
           />
         </button>
 

@@ -155,6 +155,33 @@ export function App() {
    * § 8). Both only hand back counters the service already keeps: nothing is
    * read from storage, nothing is sent, and nothing changes.
    */
+  /*
+   * The platform's long-press menu, refused on media only.
+   *
+   * Holding a photo or a video on a phone opens the browser's own sheet - Open
+   * image, Copy, Download, Search, Share - which is what somebody gets for
+   * resting a thumb on a picture to look at it.
+   *
+   * Cancelling `contextmenu` is the half that works on Android; the CSS half
+   * (`-webkit-touch-callout`) is the one iOS listens to, and neither covers the
+   * other. One listener at the root rather than a handler on every `<img>`,
+   * because the per-component version reached two of them and missed the photo
+   * bubble, the viewer, the story and the link card.
+   *
+   * Scoped to media so a long press on text still offers copy, and so the
+   * desktop right-click menu - reload, back, inspect - is untouched everywhere
+   * except on a picture.
+   */
+  useEffect(() => {
+    const refuse = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'IMG' || tag === 'VIDEO') event.preventDefault();
+    };
+    document.addEventListener('contextmenu', refuse);
+    return () => document.removeEventListener('contextmenu', refuse);
+  }, []);
+
   useEffect(() => {
     const chat = services.chat;
     if (!chat) return undefined;

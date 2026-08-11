@@ -222,7 +222,7 @@ export function VideoPlayer({
         }}
         onEnded={() => setPlaying(false)}
         onError={onError}
-        className={cn('media-hold size-full object-contain')}
+        className="size-full object-contain"
       />
 
       {/*

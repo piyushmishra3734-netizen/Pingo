@@ -347,25 +347,42 @@
   cursor: pointer;
 }
 
+PLACEHOLDER
 /*
- * Media that can be held without the browser offering to save it.
+ * Holding a picture should show you the picture, not the browser's menu.
  *
- * A long press on a video or an image opens the platform's own menu - Save
- * video, Copy image, Download. On a phone that is what happens when somebody
- * simply rests a thumb on the picture to look at it, and PINGO's own controls
- * disappear behind an operating-system sheet nobody asked for.
+ * A long press on an image or a video opens the platform's own sheet - Open
+ * image, Copy, Download, Search, Share. On a phone that is exactly what
+ * happens when somebody rests a thumb on a photo to look at it, and PINGO
+ * disappears behind an operating-system panel nobody asked for.
  *
- * `-webkit-touch-callout` is the only thing that suppresses it on iOS, and it
- * is non-standard, which is why this is a class rather than a base rule: it is
- * applied where holding means "look closer" and nowhere else, so a long press
- * on ordinary text still behaves the way the platform intends.
+ * Applied to every image and video in the app rather than opted into per
+ * component. The opt-in version reached two of them and missed the photo
+ * bubble, the viewer, the story and the link card - and a rule that has to be
+ * remembered at each new `<img>` is a rule that will be forgotten at the next
+ * one.
  *
- * Saving is not being taken away - it has a button, which is a promise the app
- * can actually keep. The platform's menu on a blob URL or an expiring signed
- * URL frequently cannot.
+ * This half handles iOS: `-webkit-touch-callout` is the only thing Safari
+ * listens to and it does nothing on Android, where the menu is suppressed by
+ * cancelling the `contextmenu` event instead - see `App.tsx`. Both are needed;
+ * neither is enough.
+ *
+ * Saving is not being taken away. It has buttons, which are promises the app
+ * can keep; the platform's menu on a blob URL or an expiring signed URL often
+ * cannot, and a save that silently fails is worse than one that is not offered.
  */
-.media-hold {
+img,
+video {
   -webkit-touch-callout: none;
+}
+
+/*
+ * Text selection is dropped on media only, so a long press cannot start a
+ * selection drag over a photo. Text everywhere else stays selectable, because
+ * copying a message is something people legitimately do.
+ */
+img,
+video {
   -webkit-user-select: none;
   user-select: none;
 }
