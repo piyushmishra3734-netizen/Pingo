@@ -3,7 +3,9 @@ import { FileIcon, cn } from '@pingo/ui';
 import { useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
+import { saveVideoBlob } from '../native/save-video.js';
 import { useOfflineVideo } from './useOfflineVideo.js';
+import { storedVideo } from './video-vault.js';
 import { VideoPlayer } from './VideoPlayer.js';
 import { ImageViewer } from '../profile/ImageViewer.js';
 
@@ -202,17 +204,23 @@ function VideoBubble({
         clip most videos in a chat turn out to be.
       */}
       {/*
-        `min-w` is load-bearing, not padding.
+        The width floor is load-bearing, and it is inline for a reason.
 
         The player fills this box absolutely and so contributes no intrinsic
-        width, and a message bubble is sized to its contents - so `w-full`
-        alone resolved against nothing and the video came out as a thumbnail
-        about a hundred pixels wide. The floor gives the bubble something to
-        be, and `w-full` still lets it grow to the bubble's own maximum.
+        width, and a message bubble is sized to its contents - `w-full` alone
+        resolved against nothing and the video came out about a hundred pixels
+        wide. At that size the controls bar covered the play button, so the
+        video also could not be started: one bug wearing two faces.
+
+        `min-w-[14rem]` was the first attempt and silently did nothing - the
+        utility never reached the built stylesheet, so the class was inert.
+        This sits next to `aspectRatio`, which was always inline for the same
+        reason: a value the layout depends on should not be able to vanish
+        between the source and the build.
       */}
       <div
-        className="relative w-full min-w-[14rem] overflow-hidden rounded-lg bg-black"
-        style={{ aspectRatio: String(ratio ?? 4 / 5) }}
+        className="relative w-full overflow-hidden rounded-lg bg-black"
+        style={{ aspectRatio: String(ratio ?? 4 / 5), minWidth: '15rem' }}
       >
         {src && (
           <VideoPlayer
@@ -221,9 +229,71 @@ function VideoBubble({
           />
         )}
       </div>
-      {offline && (
-        <p className="pt-1 text-caption text-text-tertiary">Saved on this device</p>
-      )}
+      {/*
+        Two different meanings of "saved", and both belong here.
+
+        The badge is about PINGO: the vault has a copy, so this plays with the
+        network off and the server may drop its own. The button is about the
+        phone: put it in the gallery, where it sits beside everything else the
+        camera took. Having the first is why the second costs no download.
+      */}
+      <div className="flex items-center gap-2 pt-1">
+        {offline && (
+          <p className="min-w-0 flex-1 truncate text-caption text-text-tertiary">
+            Saved on this device
+          </p>
+        )}
+        <GallerySave messageId={messageId} name={name} ready={offline} />
+      </div>
     </div>
+  );
+}
+
+/**
+ * Puts a received video in the phone's gallery.
+ *
+ * The bytes are already here - the vault fetched them when the message
+ * arrived - so this is a copy from one local place to another and needs no
+ * network at all. That is why it only appears once `ready`: before the vault
+ * has finished there is nothing to copy, and a button that would have to
+ * download first is a different, slower promise than this one makes.
+ */
+function GallerySave({
+  messageId,
+  name,
+  ready,
+}: {
+  messageId?: string;
+  name: string;
+  ready: boolean;
+}) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+
+  if (!messageId || !ready) return null;
+
+  const label =
+    state === 'idle' ? 'Save' : state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : "Couldn't save";
+
+  return (
+    <button
+      type="button"
+      disabled={state !== 'idle'}
+      onClick={() => {
+        setState('saving');
+        void storedVideo(messageId).then(async (blob) => {
+          // Gone from the vault between the badge appearing and this press -
+          // evicted under storage pressure. Nothing to copy, and saying so
+          // beats a button that silently does nothing.
+          if (!blob) return setState('failed');
+          setState((await saveVideoBlob(blob, name)) ? 'saved' : 'failed');
+        });
+      }}
+      className={cn(
+        'focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium',
+        state === 'failed' ? 'text-danger' : state === 'saved' ? 'text-text-tertiary' : 'text-brand',
+      )}
+    >
+      {label}
+    </button>
   );
 }
