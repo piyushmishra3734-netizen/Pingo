@@ -78,7 +78,13 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
    * still say "full" afterwards - leaving the exit icon on an inline video.
    */
   useEffect(() => {
-    const sync = () => setFull(document.fullscreenElement === shell.current);
+    // "Ours" is the shell or anything inside it, because the fallback above
+    // may have fullscreened the video element rather than the container - and
+    // an exit icon that only appears for one of the two is worse than none.
+    const sync = () => {
+      const active = document.fullscreenElement;
+      setFull(!!active && !!shell.current && (active === shell.current || shell.current.contains(active)));
+    };
     document.addEventListener('fullscreenchange', sync);
     return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
@@ -107,16 +113,35 @@ export function VideoPlayer({ src, autoPlay, onShape, onError, className }: Vide
     toggle();
   };
 
+  /**
+   * Fullscreen, asked for three ways because one of them is not enough.
+   *
+   * The container is asked first: it holds the controls, so fullscreen keeps
+   * PINGO's own player rather than handing the screen to the browser's.
+   *
+   * It is also the one that can fail. Chrome rejects `requestFullscreen` with
+   * "Permissions check failed" for reasons that are not visible from the call
+   * site - this was measured failing on the card's own wrapper while the video
+   * element beside it succeeded. So the video is the fallback, and the whole
+   * chain runs inside the click rather than after an `await`, because the
+   * user activation that permits fullscreen does not survive one.
+   */
   const toggleFull = () => {
     type Legacy = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined);
       return;
     }
-    const box = shell.current;
-    if (box?.requestFullscreen) void box.requestFullscreen().catch(() => undefined);
-    // iPhone Safari refuses fullscreen on anything but a video element.
-    else (video.current as Legacy | null)?.webkitEnterFullscreen?.();
+
+    const media = video.current;
+    const onto = (element: Element | null) =>
+      element?.requestFullscreen ? element.requestFullscreen() : Promise.reject();
+
+    void onto(shell.current)
+      .catch(() => onto(media))
+      // iPhone Safari refuses fullscreen on anything but a video element, and
+      // not through the standard call at all.
+      .catch(() => (media as Legacy | null)?.webkitEnterFullscreen?.());
   };
 
   const seekable = duration > 0;
