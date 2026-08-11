@@ -1,4 +1,10 @@
-import { useAuth, type Call, type CallKind, type CallService } from '@pingo/core';
+import {
+  useAuth,
+  type Call,
+  type CallKind,
+  type CallQuality,
+  type CallService,
+} from '@pingo/core';
 import {
   createContext,
   useCallback,
@@ -61,6 +67,14 @@ interface CallContextValue {
    * is why this replaced the singular field rather than sitting beside it.
    */
   remoteStreams: Map<string, MediaStream>;
+  /**
+   * The line is bad enough to say so.
+   *
+   * Measured from `getStats`, not guessed from the connection state - a peer
+   * connection stays `connected` right through the loss that makes a call
+   * unusable, which is why nothing was ever able to report this before.
+   */
+  weakConnection: boolean;
   /** Non-fatal problem worth showing, e.g. a refused microphone. */
   error: string | undefined;
   dismissError: () => void;
@@ -396,6 +410,38 @@ export function CallProvider({
 
   const dismissError = useCallback(() => setError(undefined), []);
 
+  /**
+   * Poll the connection while a call is up, so "it sounds bad" is a number.
+   *
+   * Two seconds is the interval a person's patience is already tuned to - it is
+   * the same one the connection banner uses - and `getStats` at that rate costs
+   * nothing next to encoding the call. Sampling only while connected keeps the
+   * reader's baseline meaningful: a call that has not connected has no packets
+   * to have lost.
+   */
+  const connected = call?.state === 'connected';
+  const [quality, setQuality] = useState<CallQuality | undefined>();
+
+  useEffect(() => {
+    if (!connected || !service.quality) {
+      setQuality(undefined);
+      return;
+    }
+
+    let live = true;
+    const sample = () => {
+      void service.quality?.().then((next) => {
+        if (live) setQuality(next);
+      });
+    };
+
+    const timer = window.setInterval(sample, 2000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [connected, service]);
+
   const value = useMemo<CallContextValue>(
     () => ({
       call,
@@ -413,6 +459,7 @@ export function CallProvider({
       dismissError,
       speaker,
       failureNotice: failure ? FAILURE_TEXT[failure] : undefined,
+      weakConnection: quality?.weak === true,
     }),
     [
       call,
@@ -433,6 +480,7 @@ export function CallProvider({
       dismissError,
       speaker,
       failure,
+      quality,
     ],
   );
 

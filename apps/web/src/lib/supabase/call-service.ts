@@ -3,6 +3,7 @@ import type {
   CallEndReason,
   CallEvent,
   CallKind,
+  CallQuality,
   CallParticipant,
   CallService,
   CallServiceOptions,
@@ -11,6 +12,7 @@ import type {
 
 import { boostAudioSender, speechAudioConstraints } from '../audio/capture.js';
 import { resolveIceServers } from '../webrtc/ice-servers.js';
+import { qualityReader } from '../webrtc/quality.js';
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 
@@ -166,6 +168,34 @@ export class SupabaseCallService implements CallService {
     this.#call = { ...this.#call, ...changes };
     this.#emit({ type: 'call:updated', call: this.#call });
   }
+
+  /**
+   * How the call is going, measured rather than assumed.
+   *
+   * One reader per leg, kept across samples because loss has to be differenced
+   * against the previous one - see `quality.ts`. The worst leg is the answer: in
+   * a mesh, one bad connection is a bad call, and averaging it against three
+   * good ones is how a real problem gets reported as fine.
+   */
+  async quality(): Promise<CallQuality | undefined> {
+    const samples = await Promise.all(
+      [...this.#peers].map(([userId, link]) => {
+        let read = this.#quality.get(userId);
+        if (!read) {
+          read = qualityReader(link.connection);
+          this.#quality.set(userId, read);
+        }
+        return read();
+      }),
+    );
+
+    const live = samples.filter((sample): sample is CallQuality => sample !== undefined);
+    if (live.length === 0) return undefined;
+
+    return live.reduce((worst, sample) => (sample.loss > worst.loss ? sample : worst));
+  }
+
+  #quality = new Map<string, () => Promise<CallQuality | undefined>>();
 
   // -- signalling ----------------------------------------------------------
 
@@ -636,10 +666,14 @@ export class SupabaseCallService implements CallService {
      */
     for (const track of stream.getTracks()) {
       const sender = link.connection.addTrack(track, stream);
-      if (track.kind === 'video') link.videoSender = sender;
+      if (track.kind === 'video') {
+        link.videoSender = sender;
+        capVideoSender(sender);
+      }
       if (track.kind === 'audio') {
-        // Lift Opus bitrate and prefer the speech codec - voice-only used to
-        // sit on browser defaults while video calls negotiated a richer path.
+        // Prefer the speech codec and set an explicit Opus rate - voice-only
+        // used to sit on browser defaults while video calls negotiated a
+        // richer path. See `capture.ts` for why the number is small.
         boostAudioSender(link.connection, sender, this.#hdAudio);
       }
     }
@@ -1247,6 +1281,7 @@ export class SupabaseCallService implements CallService {
       this.#emit({ type: 'call:remote-stream-ended', userId });
     }
     this.#peers.clear();
+    this.#quality.clear();
 
     this.#facing = 'user';
     this.#hdAudio = true;
@@ -1259,5 +1294,34 @@ export class SupabaseCallService implements CallService {
       this.#call = undefined;
       this.#emit({ type: 'call:ended', call: ended });
     }
+  }
+}
+
+/**
+ * A ceiling on outgoing video, so it cannot take the whole link.
+ *
+ * Left uncapped, WebRTC's bandwidth estimator ramps video up until something
+ * gives - and on a phone what gives is the link both streams are sharing. Audio
+ * is marked higher priority and still loses, because the loss is happening in
+ * the network rather than in the scheduler: by the time the estimator has
+ * noticed and backed off, a second of speech is already gone. That is the
+ * "video call mein aawaz aur kharab" case, and it is not an audio bug.
+ *
+ * 1.2 Mb/s is a comfortable 720p call and well above what 480p needs, so this
+ * is a ceiling rather than a target - the estimator still moves freely below
+ * it, which is where the actual adaptation happens.
+ */
+const MAX_VIDEO_BITRATE = 1_200_000;
+
+function capVideoSender(sender: RTCRtpSender): void {
+  try {
+    const params = sender.getParameters();
+    if (!params.encodings?.length) params.encodings = [{}];
+    for (const encoding of params.encodings) {
+      encoding.maxBitrate = MAX_VIDEO_BITRATE;
+    }
+    void sender.setParameters(params).catch(() => undefined);
+  } catch {
+    // Leave browser defaults - an uncapped call beats no call.
   }
 }

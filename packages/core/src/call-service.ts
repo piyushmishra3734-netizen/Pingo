@@ -122,6 +122,28 @@ export type CallEvent =
    */
   | { type: 'call:local-stream'; stream: MediaStream };
 
+/**
+ * How a live call is actually behaving on the wire.
+ *
+ * The shape lives with the service contract rather than with the WebRTC code
+ * that fills it in, because the UI is the thing that consumes it and the UI
+ * must not reach into a transport.
+ */
+export interface CallQuality {
+  /** Fraction of packets lost since the previous sample, worst direction. */
+  loss: number;
+  /** Inbound jitter, in seconds. */
+  jitter: number;
+  /** Round trip, in seconds. */
+  rtt: number;
+  /** Negotiated audio codec, e.g. `audio/opus`. Empty until it is known. */
+  codec: string;
+  /** Outgoing audio bitrate, in bits per second. */
+  audioBitrate: number;
+  /** Degraded enough for a person to notice. */
+  weak: boolean;
+}
+
 export interface CallServiceOptions {
   /**
    * RNNoise on top of the browser's own suppression.
@@ -213,6 +235,16 @@ export interface CallService {
   switchCamera(callId: string): Promise<'user' | 'environment'>;
 
   subscribe(listener: (event: CallEvent) => void): () => void;
+
+  /**
+   * A live reading of the connection, or nothing if it cannot be taken.
+   *
+   * Optional so a service that has no wire to measure - the in-memory mock -
+   * simply does not offer it, rather than having to invent numbers. Callers get
+   * `undefined` from the first sample of a real call too: loss is a difference
+   * between two readings, so the first one only establishes the baseline.
+   */
+  quality?(): Promise<CallQuality | undefined>;
 
   readonly current: Call | undefined;
 }

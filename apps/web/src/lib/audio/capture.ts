@@ -8,11 +8,32 @@
  * on the low path. One constraint set + explicit Opus bitrate keeps them even.
  */
 
-/** Preferred voice encode rate. Opus speech is excellent at 64–128 kb/s. */
-export const VOICE_AUDIO_BITRATE = 128_000;
+/*
+ * What a mono speech channel is actually worth.
+ *
+ * These were 128k and 64k, chosen on the theory that more bitrate is more
+ * quality. For Opus voice that stopped being true a long way below either
+ * number: mono speech is near-transparent by 32 kb/s, and the curve above it is
+ * flat. 128 kb/s is a *stereo music* setting. It bought nothing audible and
+ * cost four times the uplink.
+ *
+ * On a phone that is the whole problem. `maxBitrate` is not a ceiling Opus
+ * approaches when there is room - libwebrtc hands it straight to the encoder as
+ * the target - so every call was pushing 128 kb/s up a link that may have a few
+ * hundred to give in total. The result is congestion, and congestion on a live
+ * media path is heard as packet loss: gaps, warble, and the "broken up" voice
+ * that shows up on mobile data and never on wifi.
+ *
+ * So the fix for bad-sounding calls is a *lower* number, which is exactly
+ * backwards from how it looks. For reference, WhatsApp runs voice around
+ * 16-24 kb/s and Signal around 32.
+ */
+
+/** Preferred voice encode rate. Near-transparent for mono Opus speech. */
+export const VOICE_AUDIO_BITRATE = 32_000;
 
 /** Floor when HD audio is off - still clear speech, not a phone landline. */
-export const VOICE_AUDIO_BITRATE_STANDARD = 64_000;
+export const VOICE_AUDIO_BITRATE_STANDARD = 24_000;
 
 export interface CaptureAudioOptions {
   /** Browser AEC. Default on. */

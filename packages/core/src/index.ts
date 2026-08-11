@@ -89,6 +89,7 @@ export type {
   CallState,
   CallEvent,
   CallEndReason,
+  CallQuality,
 } from './call-service.js';
 
 // Appearance settings and the searchable registry

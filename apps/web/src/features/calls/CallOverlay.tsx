@@ -52,6 +52,7 @@ export function CallOverlay() {
     dismissError,
     failureNotice,
     speaker,
+    weakConnection,
   } = useCall();
   const { users } = useChat();
   const t = useT();
@@ -153,6 +154,7 @@ export function CallOverlay() {
               connectedAt={call.connectedAt}
             />
           </p>
+          {weakConnection ? <WeakLine /> : null}
           {error ? <p className="mt-2 text-caption text-brand">{error}</p> : null}
         </div>
       </div>
@@ -168,6 +170,7 @@ export function CallOverlay() {
               connectedAt={call.connectedAt}
             />
           </p>
+          {weakConnection ? <WeakLine onVideo /> : null}
         </div>
       ) : null}
 
@@ -468,6 +471,38 @@ function CallError({ message, onDismiss }: { message: string; onDismiss?: () => 
  * screen that needs to re-render every second - so the interval lives here and
  * not in the provider, where it would re-render the whole app.
  */
+/**
+ * "Weak connection", said once, quietly.
+ *
+ * A call that is breaking up is the one moment a person starts to doubt the app
+ * rather than the network - they repeat themselves, hear nothing back, and hang
+ * up believing PINGO dropped it. One line naming what is actually happening
+ * turns that into an ordinary bad signal, which is the same thing every other
+ * phone call in their life has taught them to wait out.
+ *
+ * Deliberately not an error: nothing has failed, nothing needs dismissing, and
+ * a call still in progress must not be dressed up as a call that has broken.
+ * It appears and disappears with the measurement, so it stops saying so the
+ * moment the line recovers.
+ */
+function WeakLine({ onVideo = false }: { onVideo?: boolean }) {
+  return (
+    <p
+      role="status"
+      className={cn(
+        'mt-1 flex items-center justify-center gap-1.5 text-caption',
+        onVideo ? 'text-white/90 drop-shadow-lg' : 'text-warning',
+      )}
+    >
+      <span
+        aria-hidden
+        className="size-1.5 shrink-0 animate-pulse rounded-full bg-current"
+      />
+      Weak connection
+    </p>
+  );
+}
+
 function StatusLine({
   state,
   direction,
