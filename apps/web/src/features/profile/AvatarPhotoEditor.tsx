@@ -174,14 +174,26 @@ export function AvatarPhotoEditor({
         void requestClose();
         return;
       }
+      /*
+       * Clamped inline rather than through `applyZoom`.
+       *
+       * `applyZoom` calls `setZoom` itself, so passing it as the updater put a
+       * state write inside a state updater. React may invoke an updater more
+       * than once - it does so on every render in StrictMode - and each
+       * invocation fired a second `setZoom`, so a keypress could move the zoom
+       * twice or land somewhere neither value asked for. Updaters have to be
+       * pure; the flash is a side effect and belongs out here with the event.
+       */
       if (event.key === '+' || event.key === '=') {
         event.preventDefault();
-        setZoom((z) => applyZoom(z + 0.15));
+        setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + 0.15)));
+        flashZoom();
         return;
       }
       if (event.key === '-' || event.key === '_') {
         event.preventDefault();
-        setZoom((z) => applyZoom(z - 0.15));
+        setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z - 0.15)));
+        flashZoom();
         return;
       }
       if (event.key === '0') {
