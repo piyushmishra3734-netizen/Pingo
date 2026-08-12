@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
 import { useVoiceRecorder } from '../chat/useVoiceRecorder.js';
-import { MAX_TRACK_SECONDS, clock, cutToWav, decodeSound } from './story-audio.js';
+import {
+  MAX_STORY_SECONDS,
+  MAX_TRACK_SECONDS,
+  clock,
+  cutToWav,
+  decodeSound,
+} from './story-audio.js';
 
 /**
  * Putting sound on a story: what to play, from where, and how loud.
@@ -189,6 +195,7 @@ export function StoryAudioSheet({
 
   const total = [...kept.map((k) => k.at + k.duration), ...pieces.map((p) => p.at + (p.to - p.from))];
   const storyLength = total.length > 0 ? Math.max(...total) : 0;
+  const tooLong = storyLength > MAX_STORY_SECONDS;
 
   return (
     <Sheet
@@ -267,7 +274,19 @@ export function StoryAudioSheet({
 
       <p className="mt-2 px-0.5 text-caption text-text-tertiary">
         A video gives up only its sound - the picture stays where it is.
+        {storyLength > 0 && ` This story runs ${clock(Math.min(storyLength, MAX_STORY_SECONDS))}.`}
       </p>
+
+      {/*
+        Said before Done rather than silently trimmed at playback: a story that
+        stops before its last piece has been heard looks like the sound broke,
+        and the fix - move something, or shorten it - is only available here.
+      */}
+      {tooLong && (
+        <p className="mt-2 text-caption text-warning">
+          A story stops at {clock(MAX_STORY_SECONDS)}. Anything after that will not be heard.
+        </p>
+      )}
 
       {(error || recorder.error) && (
         <p role="alert" className="mt-2 text-caption text-danger">
@@ -298,7 +317,7 @@ export function StoryAudioSheet({
               <Slider
                 label="Starts at"
                 value={track.at}
-                max={Math.max(storyLength, track.at + 5)}
+                max={MAX_STORY_SECONDS}
                 display={clock(track.at)}
                 onChange={(next) =>
                   setKept((all) => all.map((t, i) => (i === index ? { ...t, at: next } : t)))
@@ -386,7 +405,7 @@ export function StoryAudioSheet({
                 <Slider
                   label="Starts at"
                   value={piece.at}
-                  max={Math.max(storyLength, piece.at + 5)}
+                  max={MAX_STORY_SECONDS}
                   display={clock(piece.at)}
                   onChange={(next) =>
                     setPieces((all) =>

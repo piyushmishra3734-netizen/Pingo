@@ -349,10 +349,10 @@ export function StoryComposer({
     );
   }
 
-  // ---- the clip editor ----------------------------------------------------
+  // ---- re-opening a slide in the editor ------------------------------------
 
   /*
-   * Looked up from the id rather than held as an object, so a clip removed
+   * Looked up from the id rather than held as an object, so a slide removed
    * from the queue underneath cannot stay open in an editor that would then
    * write its marks onto nothing.
    */
@@ -365,7 +365,7 @@ export function StoryComposer({
         <Overlay>
           <div className="fixed inset-0 z-500 bg-backdrop">
             <SnapEditor
-              video
+              {...(clip.kind === 'video' ? { video: true as const } : {})}
               src={clip.previewUrl}
               {...(clip.videoEdit ? { initialEdit: clip.videoEdit } : {})}
               doneLabel="Done"
@@ -375,7 +375,32 @@ export function StoryComposer({
                 setAudio([]);
                 setEditingClip(undefined);
               }}
-              onDone={() => undefined}
+              /*
+                A picture re-opened comes back as new pixels: it is flattened
+                again, with whatever was drawn on it this time, and takes the
+                place of the one in the queue. That is what lets a photo picked
+                as one of several ever reach the editor at all - before this,
+                choosing five at once meant five slides nothing could be added
+                to, sound included.
+              */
+              onDone={(blob) => {
+                setQueue((prev) =>
+                  prev.map((item) => {
+                    if (item.id !== clip.id) return item;
+                    URL.revokeObjectURL(item.previewUrl);
+                    const { audio: _previous, ...rest } = item;
+                    return {
+                      ...rest,
+                      media: blob,
+                      previewUrl: URL.createObjectURL(blob),
+                      ...(audio.length > 0 ? { audio } : {}),
+                    };
+                  }),
+                );
+                setAudio([]);
+                setEditingClip(undefined);
+                setStep('details');
+              }}
               audio={audio}
               onAudioChange={setAudio}
               onDoneVideo={(edit) => {
@@ -485,23 +510,21 @@ export function StoryComposer({
                     then "Edited", because after the editor closes the one thing
                     worth knowing is whether it took.
                   */}
-                  {item.kind === 'video' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // The editor resumes what this slide already carries.
-                        setAudio(item.audio ?? []);
-                        setEditingClip(item.id);
-                      }}
-                      className={cn(
-                        'absolute right-1 bottom-1 rounded-full px-1.5 py-0.5',
-                        'text-[0.625rem] font-medium text-white',
-                        item.videoEdit ? 'bg-brand' : 'bg-black/55',
-                      )}
-                    >
-                      {item.videoEdit ? 'Edited' : 'Edit'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // The editor resumes what this slide already carries.
+                      setAudio(item.audio ?? []);
+                      setEditingClip(item.id);
+                    }}
+                    className={cn(
+                      'absolute right-1 bottom-1 rounded-full px-1.5 py-0.5',
+                      'text-[0.625rem] font-medium text-white',
+                      item.videoEdit || item.audio?.length ? 'bg-brand' : 'bg-black/55',
+                    )}
+                  >
+                    {item.videoEdit || item.audio?.length ? 'Edited' : 'Edit'}
+                  </button>
                   <button
                     type="button"
                     onClick={() => removeFromQueue(item.id)}

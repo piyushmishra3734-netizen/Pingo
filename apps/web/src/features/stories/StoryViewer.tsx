@@ -19,6 +19,7 @@ import { MyStoryMenu, OtherStoryMenu } from './StoryMenus.js';
 import { StoryOverlay } from './StoryOverlay.js';
 import { StoryProgress } from './StoryProgress.js';
 import { StorySound, soundLength } from './StorySound.js';
+import { MAX_STORY_SECONDS } from './story-audio.js';
 import { StoryViewersSheet } from './StoryViewersSheet.js';
 import { useStoryPlayer } from './useStoryPlayer.js';
 
@@ -96,7 +97,11 @@ export function StoryViewer({
   const photoSound = story && story.kind === 'photo' ? soundLength(story.audio) : 0;
   const { reportDuration } = player;
   useEffect(() => {
-    if (photoSound > 0) reportDuration(Math.max(STORY_PHOTO_MS, photoSound * 1000));
+    if (photoSound <= 0) return;
+    // Capped: a story is something you watch, not something you sit through,
+    // and the composer says so before anybody posts one this long.
+    const seconds = Math.min(photoSound, MAX_STORY_SECONDS);
+    reportDuration(Math.max(STORY_PHOTO_MS, seconds * 1000));
   }, [photoSound, reportDuration, story?.id]);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -722,6 +727,8 @@ function StoryVideo({
    */
   const [ready, setReady] = useState(false);
   const [sharp, setSharp] = useState(false);
+  /** The clip's own playing length, once it is known. */
+  const [clipMs, setClipMs] = useState(0);
   const release = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
@@ -779,6 +786,14 @@ function StoryVideo({
    * than one quietly winning.
    */
   const arriving = ready ? 'scale(1)' : 'scale(1.06)';
+  /**
+   * The picture runs out before the sound does, so it goes round again.
+   *
+   * Only then: a clip with a short piece of sound on it ends when it ends, the
+   * way it always has. The clip's own length is not known until it can play,
+   * which is where this is answered from.
+   */
+  const loops = soundLength(story.audio) * 1000 > clipMs + 150;
   const media = (
       <video
         ref={ref}
@@ -830,11 +845,22 @@ function StoryVideo({
          * clock and the picture start together. The blur lifts on the same
          * event for the same reason.
          */
+        /*
+         * The story lasts as long as the longer of the two.
+         *
+         * A three-second clip with a fifteen-second song on it used to end at
+         * three seconds and take the song with it - the sound was cut off mid
+         * bar and looked broken rather than deliberate. When the sound outlasts
+         * the picture the clip loops underneath it, which is what everyone else
+         * does and what makes a short clip worth putting music on at all.
+         */
         onCanPlay={(event) => {
           const media = event.currentTarget;
           const from = story.videoEdit?.trimStart ?? 0;
           const to = story.videoEdit?.trimEnd ?? media.duration;
-          onDuration(Math.max(0, to - from) * 1000);
+          const clip = Math.max(0, to - from) * 1000;
+          setClipMs(clip);
+          onDuration(Math.max(clip, soundLength(story.audio) * 1000));
           done();
         }}
         // A file that will not play must not hold the ring forever.
@@ -842,7 +868,17 @@ function StoryVideo({
         onTimeUpdate={(event) => {
           const media = event.currentTarget;
           const to = story.videoEdit?.trimEnd;
-          if (to !== undefined && media.currentTime >= to) media.pause();
+          if (to === undefined || media.currentTime < to) return;
+          // Back to the opening frame while the sound is still running;
+          // otherwise the clip is over and the story is over with it.
+          if (loops) media.currentTime = story.videoEdit?.trimStart ?? 0;
+          else media.pause();
+        }}
+        onEnded={(event) => {
+          if (!loops) return;
+          const media = event.currentTarget;
+          media.currentTime = story.videoEdit?.trimStart ?? 0;
+          void media.play().catch(() => undefined);
         }}
         className={cn(
           'select-none transition-[filter,transform] duration-slow ease-standard',

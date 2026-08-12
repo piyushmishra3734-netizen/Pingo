@@ -31,6 +31,17 @@ export const STORY_AUDIO_RATE = 44_100;
 /** Longer than this is not a story sound, it is a track somebody uploaded. */
 export const MAX_TRACK_SECONDS = 30;
 
+/**
+ * The longest a story will stay up for its sound.
+ *
+ * A ceiling rather than a preference: the pieces decide how long a story runs,
+ * and without a limit one slider dragged to the end of a long song leaves a
+ * still photograph on the screen for four minutes with no way to skip past the
+ * part nobody is watching. A minute is already twice as long as anybody holds
+ * still for a story.
+ */
+export const MAX_STORY_SECONDS = 60;
+
 /** What a picked file becomes: the sound itself, and something to call it. */
 export interface DecodedSound {
   name: string;
