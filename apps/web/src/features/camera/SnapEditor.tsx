@@ -653,7 +653,22 @@ export function SnapEditor({
     stageRef,
     video && ratio ? pictureRatio(ratio, rotation, framing) : undefined,
   );
+  /** Both known: the clip's shape, and the room it has. Until then, letterbox. */
+  const fitted = Boolean(video && ratio && box && box.width > 0 && box.height > 0);
   const geometry = videoGeometry(box ?? { width: 0, height: 0 }, rotation, framing);
+
+  /*
+   * Repaint whenever the surface under the pen changes size or comes back.
+   *
+   * The strokes live on a canvas sized to the frame, and on a clip the frame
+   * changes shape - a quarter turn, a crop chosen, the crop tool opening and
+   * taking the canvas away with it. `paint` only re-runs when the strokes
+   * themselves change, so without this the lines return to an empty canvas and
+   * look deleted until the next one is drawn.
+   */
+  useEffect(() => {
+    paint();
+  }, [paint, tool, box?.width, box?.height]);
 
   /*
    * Placed once, used by both frames. Text, emoji and stickers are dragged and
@@ -700,7 +715,9 @@ export function SnapEditor({
           style={{
             // What `cqh` on the placed items is a fraction of.
             containerType: 'size',
-            ...(box ? { width: box.width, height: box.height } : { width: '100%', height: '100%' }),
+            ...(fitted && box
+              ? { width: box.width, height: box.height }
+              : { width: '100%', height: '100%' }),
           }}
           onPointerDown={(event) => {
             if (tool !== 'draw') return;
@@ -729,8 +746,16 @@ export function SnapEditor({
             below is the whole clip, shifted so the chosen rectangle lands over
             this frame, and the clip inside it is spun about its own centre.
             The viewer reproduces exactly this from the marks.
+
+            Until the clip has said how tall it is, none of that can be worked
+            out - and the clip only says so once it has loaded. Sizing it from
+            a box that does not exist yet gave it no size at all, and a browser
+            will not load a video it has been told is zero pixels wide: the
+            editor sat on a black frame forever, waiting for a number that was
+            waiting for it. So it starts as an ordinary letterboxed video and
+            takes its measured place the moment it has one.
           */}
-          <div style={geometry.picture}>
+          <div style={fitted ? geometry.picture : undefined} className={fitted ? undefined : 'absolute inset-0'}>
             <video
               ref={videoRef}
               src={src}
@@ -757,19 +782,23 @@ export function SnapEditor({
                 const to = trim?.trimEnd;
                 if (to !== undefined && media.currentTime >= to) media.currentTime = from;
               }}
-              style={geometry.video}
+              style={fitted ? geometry.video : undefined}
+              className={fitted ? undefined : 'absolute inset-0 size-full object-contain'}
             />
           </div>
-
-          <canvas ref={canvasRef} className="absolute inset-0 size-full" />
 
           {/*
             While the crop box is open the frame shows the whole picture, so
             anything placed on the cropped one would be sitting in the wrong
-            place. It comes back - moved into the new frame - the moment the
-            tool closes.
+            place - the lines as much as the stickers. Both come back, moved
+            into the new frame, the moment the tool closes.
           */}
-          {tool !== 'crop' && placedItems}
+          {tool !== 'crop' && (
+            <>
+              <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+              {placedItems}
+            </>
+          )}
 
           {tool === 'crop' && (
             <CropOverlay

@@ -40,11 +40,23 @@ export function StorySound({
 }) {
   const elements = useRef<HTMLAudioElement[]>([]);
   const elapsed = useRef(0);
+  /*
+   * The pieces, reachable without being a dependency.
+   *
+   * `story.audio` is a fresh array every time the rail is rebuilt - a like
+   * landing, a story being marked seen, a refresh - and rebuilding the players
+   * on each of those would restart the music from the top while somebody is
+   * halfway through watching. What actually identifies the sound is the set of
+   * URLs, which is what the effects below watch instead.
+   */
+  const current = useRef(tracks);
+  current.current = tracks;
+  const sources = tracks.map((track) => track.url).join('\n');
 
   // Build one element per piece, and let go of them when the story changes.
   useEffect(() => {
     elapsed.current = 0;
-    const made = tracks.map((track) => {
+    const made = current.current.map((track) => {
       const audio = new Audio(track.url);
       audio.preload = 'auto';
       audio.volume = Math.min(1, Math.max(0, track.volume));
@@ -61,7 +73,7 @@ export function StorySound({
       }
       elements.current = [];
     };
-  }, [storyId, tracks]);
+  }, [storyId, sources]);
 
   useEffect(() => {
     if (paused) {
@@ -81,7 +93,7 @@ export function StorySound({
       last = now;
 
       const seconds = elapsed.current / 1000;
-      tracks.forEach((track, index) => {
+      current.current.forEach((track, index) => {
         const audio = elements.current[index];
         if (!audio) return;
 
@@ -102,7 +114,7 @@ export function StorySound({
     }, TICK_MS);
 
     return () => window.clearInterval(timer);
-  }, [paused, tracks, storyId]);
+  }, [paused, sources, storyId]);
 
   return null;
 }

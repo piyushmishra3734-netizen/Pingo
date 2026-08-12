@@ -1,5 +1,5 @@
 import type { StoryAudioDraft } from '@pingo/core';
-import { CloseIcon, ImageIcon, cn } from '@pingo/ui';
+import { CloseIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
@@ -75,6 +75,7 @@ export function StoryAudioSheet({
   const [error, setError] = useState<string>();
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const recorder = useVoiceRecorder();
 
   /** The one piece being auditioned, so two never play over each other. */
@@ -196,10 +197,31 @@ export function StoryAudioSheet({
       elevated
       onClose={onClose}
     >
+      {/*
+        Two inputs rather than one that accepts both.
+
+        The same decoder handles a song and a video, so one file picker would
+        do the job - and nobody would ever find it. "Take the sound out of this
+        video" is a thing people come here already meaning to do, and a picker
+        that opens straight into their videos is what says it can be done.
+      */}
       <input
         ref={fileRef}
         type="file"
-        accept="audio/*,video/*"
+        accept="audio/*"
+        className="pointer-events-none fixed top-0 left-0 h-px w-px opacity-0"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) void addSource(file);
+        }}
+      />
+      <input
+        ref={videoRef}
+        type="file"
+        accept="video/*"
         className="pointer-events-none fixed top-0 left-0 h-px w-px opacity-0"
         tabIndex={-1}
         aria-hidden
@@ -210,44 +232,41 @@ export function StoryAudioSheet({
         }}
       />
 
-      <div className="mt-3 flex gap-2">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <SourceButton
+          icon={<NoteGlyph />}
+          label="Music"
+          hint="An audio file"
           disabled={Boolean(busy) || recorder.recording}
-          className={cn(
-            'focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl',
-            'bg-sunken py-3 text-caption font-medium text-ink',
-            'transition-transform duration-instant active:scale-[0.98] disabled:opacity-50',
-          )}
-        >
-          <ImageIcon size={16} />
-          From a file
-        </button>
-        <button
-          type="button"
-          onClick={() => void record()}
+          onClick={() => fileRef.current?.click()}
+        />
+        <SourceButton
+          icon={<FilmGlyph />}
+          label="From video"
+          hint="Sound only"
+          disabled={Boolean(busy) || recorder.recording}
+          onClick={() => videoRef.current?.click()}
+        />
+        <SourceButton
+          icon={
+            <span
+              aria-hidden
+              className={cn(
+                'size-2.5 rounded-full',
+                recorder.recording ? 'animate-pulse bg-white' : 'bg-danger',
+              )}
+            />
+          }
+          label={recorder.recording ? 'Stop' : 'Voice'}
+          hint={recorder.recording ? clock(recorder.elapsed) : 'Record'}
+          tone={recorder.recording ? 'recording' : 'normal'}
           disabled={Boolean(busy)}
-          className={cn(
-            'focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl py-3',
-            'text-caption font-medium',
-            'transition-transform duration-instant active:scale-[0.98] disabled:opacity-50',
-            recorder.recording ? 'bg-danger text-white' : 'bg-sunken text-ink',
-          )}
-        >
-          <span
-            aria-hidden
-            className={cn(
-              'size-2 rounded-full',
-              recorder.recording ? 'animate-pulse bg-white' : 'bg-danger',
-            )}
-          />
-          {recorder.recording ? `Stop · ${clock(recorder.elapsed)}` : 'Record voice'}
-        </button>
+          onClick={() => void record()}
+        />
       </div>
 
       <p className="mt-2 px-0.5 text-caption text-text-tertiary">
-        A video works too - only its sound is taken, not the picture.
+        A video gives up only its sound - the picture stays where it is.
       </p>
 
       {(error || recorder.error) && (
@@ -450,6 +469,88 @@ export function StoryAudioSheet({
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/** One way to get sound in: a glyph, what it is, and what it costs to try. */
+function SourceButton({
+  icon,
+  label,
+  hint,
+  tone = 'normal',
+  disabled,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  hint: string;
+  tone?: 'normal' | 'recording';
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'focus-ring flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3',
+        'transition-transform duration-instant active:scale-[0.97] disabled:opacity-50',
+        tone === 'recording' ? 'bg-danger text-white' : 'bg-sunken text-ink',
+      )}
+    >
+      <span className="grid h-5 place-items-center">{icon}</span>
+      <span className="text-caption font-medium">{label}</span>
+      <span
+        className={cn(
+          'text-[0.6875rem]',
+          tone === 'recording' ? 'text-white/80 tabular-nums' : 'text-text-tertiary',
+        )}
+      >
+        {hint}
+      </span>
+    </button>
+  );
+}
+
+/** A note, for the music that is already a file. */
+function NoteGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={17}
+      height={17}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 18V5l11-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="17" cy="16" r="3" />
+    </svg>
+  );
+}
+
+/** A strip of film, for the clip somebody wants the song out of. */
+function FilmGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={17}
+      height={17}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d="M3 9h4M3 15h4M17 9h4M17 15h4M8.5 4v16" />
+    </svg>
   );
 }
 
