@@ -174,7 +174,7 @@ function CategoryTab({
       className={cn(
         'shrink-0 rounded-full px-3 py-1.5 text-caption',
         'focus-ring transition-colors duration-instant ease-standard',
-        selected ? 'bg-brand text-white' : 'bg-sunken text-text-secondary hover:bg-hover',
+        selected ? 'bg-brand text-on-brand' : 'bg-sunken text-text-secondary hover:bg-hover',
       )}
     >
       {label}

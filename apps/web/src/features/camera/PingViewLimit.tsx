@@ -60,7 +60,7 @@ export function PingViewLimit({
                 'transition-[background-color,transform] duration-instant ease-standard',
                 'active:scale-[0.97]',
                 on
-                  ? 'bg-brand-gradient text-white shadow-brand'
+                  ? 'bg-brand-gradient text-on-brand shadow-brand'
                   : 'bg-white/10 text-white/80 hover:bg-white/20',
               )}
             >

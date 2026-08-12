@@ -191,7 +191,7 @@ function MyCircle({
    */
   const plusChip = cn(
     'absolute right-0 bottom-0 z-10 grid size-[1.35rem] place-items-center',
-    'rounded-full bg-brand-gradient text-white',
+    'rounded-full bg-brand-gradient text-on-brand',
     'ring-[2.5px] ring-page',
     'shadow-[0_1px_4px_color-mix(in_srgb,var(--gradient-from,#111113)_35%,transparent)]',
   );

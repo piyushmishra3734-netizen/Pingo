@@ -147,7 +147,7 @@ export function MissionCard({ mission }: { mission: Mission }) {
             // `mt-0.5` sits it on the first line's baseline rather than centred
             // against a title that may be two lines tall.
             'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
-            complete ? 'border-brand bg-brand text-white' : 'border-line',
+            complete ? 'border-brand bg-brand text-on-brand' : 'border-line',
           )}
         >
           {complete ? (

@@ -126,7 +126,7 @@ export function ChoiceRow<T extends string>({
               'flex-1 rounded-md px-2 py-2 text-caption',
               'focus-ring transition-colors duration-instant ease-standard',
               value === option.value
-                ? 'bg-brand text-white'
+                ? 'bg-brand text-on-brand'
                 : 'bg-sunken text-text-secondary hover:bg-hover hover:text-ink',
             )}
           >

@@ -178,7 +178,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           <p
             className={cn(
               'mt-1 rounded-lg px-3 py-2 text-body break-words whitespace-pre-wrap',
-              mine ? 'bg-brand-glass text-white' : 'glass-water text-ink',
+              mine ? 'bg-brand-glass text-on-brand' : 'glass-water text-ink',
             )}
           >
             <MessageText body={caption} mine={mine} />

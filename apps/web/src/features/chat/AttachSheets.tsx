@@ -75,7 +75,7 @@ const FIELD = cn(
 
 const PRIMARY = cn(
   'focus-ring w-full rounded-full bg-brand-gradient px-5 py-2.5',
-  'text-body font-medium text-white shadow-brand',
+  'text-body font-medium text-on-brand shadow-brand',
   'transition-transform duration-instant active:scale-[0.98]',
   'disabled:opacity-50 disabled:active:scale-100',
 );

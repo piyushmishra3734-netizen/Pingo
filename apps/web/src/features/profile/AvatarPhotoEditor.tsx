@@ -595,7 +595,7 @@ export function AvatarPhotoEditor({
                 <div
                   className={cn(
                     'absolute inset-0 grid place-items-center rounded-full',
-                    'bg-brand-gradient text-white shadow-brand',
+                    'bg-brand-gradient text-on-brand shadow-brand',
                     'animate-react-in',
                   )}
                 >

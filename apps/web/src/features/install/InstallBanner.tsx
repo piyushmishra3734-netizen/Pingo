@@ -104,7 +104,7 @@ export function InstallBanner() {
           onClick={act}
           className={cn(
             'glass-press shrink-0 rounded-full px-4 py-2',
-            'bg-brand-gradient text-caption font-medium text-white',
+            'bg-brand-gradient text-caption font-medium text-on-brand',
             'focus-ring',
           )}
         >

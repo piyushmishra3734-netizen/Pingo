@@ -167,7 +167,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
                     className={cn(
                       'grid size-6 shrink-0 place-items-center rounded-full border-2',
                       'transition-colors duration-instant',
-                      on ? 'border-brand bg-brand text-white' : 'border-line',
+                      on ? 'border-brand bg-brand text-on-brand' : 'border-line',
                     )}
                   >
                     {on && <CheckIcon size={14} />}
@@ -192,7 +192,7 @@ export function ShareStorySheet({ story, onClose }: { story: Story; onClose: () 
           disabled={chosen.size === 0 || sending || sent}
           className={cn(
             'focus-ring w-full rounded-full px-5 py-3 text-body font-medium',
-            'bg-brand-gradient text-white shadow-brand',
+            'bg-brand-gradient text-on-brand shadow-brand',
             'transition-transform duration-instant active:scale-[0.98]',
             (chosen.size === 0 || sending || sent) && 'opacity-50',
           )}

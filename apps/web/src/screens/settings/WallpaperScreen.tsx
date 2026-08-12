@@ -392,7 +392,7 @@ export function WallpaperScreen() {
                 {selected && (
                   <span
                     aria-hidden
-                    className="absolute top-2 right-2 z-[1] grid size-6 place-items-center rounded-full bg-brand text-white"
+                    className="absolute top-2 right-2 z-[1] grid size-6 place-items-center rounded-full bg-brand text-on-brand"
                   >
                     <CheckIcon size={14} />
                   </span>

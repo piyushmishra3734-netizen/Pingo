@@ -209,7 +209,7 @@ export function AppearanceScreen() {
                   'flex-1 rounded-md py-2 text-caption',
                   'focus-ring transition-colors duration-instant ease-standard',
                   appearance.glass === level
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand text-on-brand'
                     : 'bg-sunken text-text-secondary hover:bg-hover',
                 )}
               >

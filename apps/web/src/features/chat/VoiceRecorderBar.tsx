@@ -90,7 +90,7 @@ export function VoiceRecorderBar({ recorder, onSend }: VoiceRecorderBarProps) {
         onClick={onSend}
         className={cn(
           'focus-ring touch-target grid size-9 shrink-0 place-items-center rounded-full',
-          'bg-brand-gradient text-white shadow-brand',
+          'bg-brand-gradient text-on-brand shadow-brand',
           'transition-transform duration-instant active:scale-[0.96]',
         )}
       >

@@ -1187,7 +1187,7 @@ export function SnapEditor({
             disabled={busy || exporting}
             className={cn(
               'focus-ring flex flex-1 items-center justify-center gap-2 rounded-full',
-              'bg-brand-gradient py-3 text-body font-semibold text-white',
+              'bg-brand-gradient py-3 text-body font-semibold text-on-brand',
               'shadow-[0_6px_20px_-8px_rgb(224_85_155/0.75)]',
               'transition-transform duration-150 ease-standard active:scale-[0.98]',
               'disabled:opacity-50',

@@ -48,7 +48,7 @@ const BASE = cn(
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: cn(
-    'bg-brand-gradient text-white shadow-brand',
+    'bg-brand-gradient text-on-brand shadow-brand',
     // Lifting the shadow on hover is enough; the gradient itself never shifts.
     'hover:shadow-lg',
     'active:shadow-sm',
@@ -153,7 +153,7 @@ const ICON_SIZE: Record<ButtonSize, string> = {
 const ICON_VARIANT = {
   ghost: 'text-text-secondary hover:bg-hover hover:text-ink',
   filled: 'bg-sunken text-ink hover:bg-hover',
-  gradient: 'bg-brand-gradient text-white shadow-brand hover:shadow-lg',
+  gradient: 'bg-brand-gradient text-on-brand shadow-brand hover:shadow-lg',
 } as const;
 
 export function IconButton({

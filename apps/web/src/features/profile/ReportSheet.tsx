@@ -160,7 +160,7 @@ export function ReportSheet({
           disabled={!reason || sending}
           className={cn(
             'focus-ring w-full rounded-full px-5 py-3 text-body font-medium',
-            'bg-brand-gradient text-white shadow-brand',
+            'bg-brand-gradient text-on-brand shadow-brand',
             'transition-transform duration-instant active:scale-[0.98]',
             (!reason || sending) && 'opacity-50',
           )}

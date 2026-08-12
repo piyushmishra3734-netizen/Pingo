@@ -349,7 +349,7 @@ export function DownloadScreen() {
                 rel="noopener noreferrer"
                 className={cn(
                   'glass-press inline-flex items-center justify-center rounded-full',
-                  'bg-brand-gradient px-6 py-3 text-body font-medium text-white',
+                  'bg-brand-gradient px-6 py-3 text-body font-medium text-on-brand',
                   'focus-ring',
                 )}
               >

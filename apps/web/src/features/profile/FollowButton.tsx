@@ -132,7 +132,7 @@ export function FollowButton({
         'focus-ring rounded-full px-5 py-2 text-caption font-medium',
         'transition-transform duration-instant ease-standard active:scale-[0.96]',
         primary
-          ? 'bg-brand-gradient text-white shadow-brand'
+          ? 'bg-brand-gradient text-on-brand shadow-brand'
           : 'bg-surface text-ink shadow-sm',
         busy && 'opacity-60',
         className,

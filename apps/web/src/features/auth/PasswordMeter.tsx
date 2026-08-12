@@ -56,7 +56,7 @@ export function PasswordMeter({ assessment }: { assessment: PasswordAssessment }
                 'grid size-4 shrink-0 place-items-center rounded-full',
                 'transition-colors duration-quick ease-standard',
                 requirement.met
-                  ? 'bg-brand text-white'
+                  ? 'bg-brand text-on-brand'
                   : // Hollow, not red. See the note above.
                     'border border-line-strong',
               )}

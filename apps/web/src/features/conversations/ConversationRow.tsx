@@ -314,7 +314,7 @@ export function ConversationRow({
       className={cn(
         'grid size-5 shrink-0 place-items-center rounded-full border',
         'transition-colors duration-instant',
-        selected ? 'border-brand bg-brand text-white' : 'border-line-strong',
+        selected ? 'border-brand bg-brand text-on-brand' : 'border-line-strong',
       )}
     >
       {selected && <CheckIcon size={13} />}

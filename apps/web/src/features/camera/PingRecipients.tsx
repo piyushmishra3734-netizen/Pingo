@@ -168,7 +168,7 @@ export function PingRecipients({
                     className={cn(
                       'grid size-6 shrink-0 place-items-center rounded-full border-2',
                       'transition-[background-color,border-color,transform] duration-instant',
-                      on ? 'scale-110 border-brand bg-brand text-white' : 'border-line',
+                      on ? 'scale-110 border-brand bg-brand text-on-brand' : 'border-line',
                     )}
                   >
                     {on && <CheckIcon size={14} />}
@@ -217,7 +217,7 @@ export function PingSendButton({
       disabled={count === 0 || busy}
       className={cn(
         'focus-ring flex w-full items-center justify-center gap-2 rounded-full',
-        'bg-brand-gradient py-4 text-body font-medium text-white shadow-brand',
+        'bg-brand-gradient py-4 text-body font-medium text-on-brand shadow-brand',
         'transition-transform duration-instant ease-standard active:scale-[0.98]',
         (count === 0 || busy) && 'opacity-45',
       )}

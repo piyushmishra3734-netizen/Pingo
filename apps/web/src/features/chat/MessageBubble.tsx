@@ -382,7 +382,7 @@ export function MessageBubble({
             'px-4 py-2.5',
             SHAPE[mine ? 'mine' : 'theirs'][position],
             mine
-              ? 'bg-brand-glass text-white'
+              ? 'bg-brand-glass text-on-brand'
               /*
                 Incoming bubbles are glass, the same glass as the header and
                 the composer.

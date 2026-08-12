@@ -231,7 +231,7 @@ export function ToastFeelLab() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="rounded-full bg-brand-gradient px-3 py-1.5 text-caption font-medium text-white"
+              className="rounded-full bg-brand-gradient px-3 py-1.5 text-caption font-medium text-on-brand"
               onClick={() => setRunning((r) => !r)}
             >
               {running ? 'Pause' : 'Resume'}

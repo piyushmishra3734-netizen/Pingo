@@ -264,7 +264,7 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
                           'grid size-5 shrink-0 place-items-center rounded-md border',
                           'transition-colors duration-instant',
                           state === 'all'
-                            ? 'border-brand bg-brand text-white'
+                            ? 'border-brand bg-brand text-on-brand'
                             : state === 'some'
                               ? 'border-brand bg-brand/20 text-brand'
                               : 'border-line-strong',
@@ -344,7 +344,7 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
                   disabled={!name.trim() || busy}
                   className={cn(
                     'focus-ring shrink-0 rounded-full bg-brand-gradient px-4 py-2',
-                    'text-caption font-medium text-white disabled:opacity-50',
+                    'text-caption font-medium text-on-brand disabled:opacity-50',
                   )}
                 >
                   Create

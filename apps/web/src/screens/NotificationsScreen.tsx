@@ -321,7 +321,7 @@ export function NotificationsScreen() {
                     'focus-ring shrink-0 rounded-full px-3 py-1.5 text-caption font-medium',
                     'transition-colors duration-instant',
                     filter === key
-                      ? 'bg-brand text-white'
+                      ? 'bg-brand text-on-brand'
                       : 'bg-surface text-text-secondary hover:text-ink',
                   )}
                 >

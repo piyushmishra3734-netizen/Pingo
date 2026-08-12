@@ -121,8 +121,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 'focus-ring w-full rounded-full px-5 py-3 text-body font-medium',
                 'transition-transform duration-instant active:scale-[0.98]',
                 pending.options.tone === 'normal'
-                  ? 'bg-brand-gradient text-white shadow-brand'
-                  : 'bg-danger text-white shadow-sm',
+                  ? 'bg-brand-gradient text-on-brand shadow-brand'
+                  : 'bg-danger text-on-brand shadow-sm',
               )}
             >
               {pending.options.confirmLabel}

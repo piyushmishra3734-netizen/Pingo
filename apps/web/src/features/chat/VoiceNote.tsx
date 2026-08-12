@@ -419,7 +419,7 @@ export function VoiceNote({
           'disabled:opacity-50',
           outgoing
             ? 'bg-white/20 text-white hover:bg-white/30'
-            : 'bg-brand-gradient text-white shadow-brand hover:shadow-lg',
+            : 'bg-brand-gradient text-on-brand shadow-brand hover:shadow-lg',
         )}
       >
         {playing ? (

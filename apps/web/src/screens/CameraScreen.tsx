@@ -448,7 +448,7 @@ export function CameraScreen() {
           {sentCount > 0 && (
             <div className="animate-fade-in absolute inset-0 grid place-items-center bg-backdrop/70 backdrop-blur-glass">
               <div className="flex flex-col items-center gap-3">
-                <span className="grid size-16 place-items-center rounded-full bg-brand-gradient text-white shadow-brand">
+                <span className="grid size-16 place-items-center rounded-full bg-brand-gradient text-on-brand shadow-brand">
                   <CheckIcon size={30} />
                 </span>
                 <p className="text-body font-medium text-white" role="status">

@@ -523,7 +523,7 @@ function CommentPanel({
             aria-label={t('post.postComment')}
             className={cn(
               'focus-ring grid size-11 shrink-0 place-items-center rounded-full',
-              'bg-brand-gradient text-white shadow-brand',
+              'bg-brand-gradient text-on-brand shadow-brand',
               'transition-transform duration-instant active:scale-95',
               (!draft.trim() || sending) && 'opacity-40',
             )}

@@ -1516,6 +1516,35 @@
   --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.55);
 }
 
+/**
+ * Ink, inverted for a dark page.
+ *
+ * The product's own accent is near-black, which is the point of it on a white
+ * app and is invisible on a black one: a primary button came out at #111113 on
+ * a #0c0d11 page, and `text-brand` links - "Log in" under the sign-up card -
+ * simply were not there. No single value fixes both, either: a brand light
+ * enough to read as text cannot carry white text as a button.
+ *
+ * So on dark the ink flips, the way every dark interface of this shape does
+ * it: the button becomes the light thing and its label goes dark. `on-brand`
+ * is what every fill states for its own text, which is why the swap is a token
+ * and not a repaint of each button.
+ *
+ * Both selectors, because "blue" is the stored id of the ink accent and its
+ * block comes later in this file - without the second one, choosing Ink
+ * explicitly would put the invisible values back.
+ */
+:root[data-theme='dark'],
+:root[data-theme='dark'][data-accent='blue'] {
+  --color-brand: #f4f5f9;
+  --color-brand-alt: #d5d8e2;
+  --color-dot: #f4f5f9;
+  --gradient-from: #f4f5f9;
+  --gradient-to: #d5d8e2;
+  --color-on-brand: #111113;
+  --color-focus-ring: rgba(244, 245, 249, 0.45);
+}
+
 /* The calm wash behind splash and onboarding, rebuilt for a dark ground. */
 :root[data-theme='dark'] .bg-brand-wash,
 :root[data-theme='dark'] [class*='bg-brand-wash'] {

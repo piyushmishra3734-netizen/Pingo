@@ -136,7 +136,7 @@ export function Dock() {
                     aria-hidden
                     className={cn(
                       'grid size-11 -translate-y-px place-items-center rounded-[15px]',
-                      'bg-brand-gradient text-white',
+                      'bg-brand-gradient text-on-brand',
                       // Lit along the top, shaded along the bottom: the key has
                       // a surface rather than being a flat swatch of colour.
                       'shadow-[inset_0_1px_0_rgb(255_255_255/0.22),inset_0_-1px_0_rgb(0_0_0/0.12),0_6px_16px_-8px_color-mix(in_srgb,var(--gradient-from,#111113)_70%,transparent),0_2px_6px_-2px_color-mix(in_srgb,var(--gradient-from,#111113)_35%,transparent)]',

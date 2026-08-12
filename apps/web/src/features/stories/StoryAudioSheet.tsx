@@ -521,7 +521,7 @@ export function StoryAudioSheet({
           onClick={finish}
           disabled={Boolean(busy) || recorder.recording}
           className={cn(
-            'focus-ring flex-1 rounded-xl py-2.5 text-body font-medium text-white',
+            'focus-ring flex-1 rounded-xl py-2.5 text-body font-medium text-on-brand',
             'bg-brand-gradient disabled:opacity-50',
           )}
         >

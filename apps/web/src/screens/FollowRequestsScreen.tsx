@@ -136,7 +136,7 @@ export function FollowRequestsScreen() {
                     disabled={Boolean(busy)}
                     className={cn(
                       'focus-ring rounded-full bg-brand-gradient px-4 py-1.5',
-                      'text-caption font-medium text-white shadow-brand',
+                      'text-caption font-medium text-on-brand shadow-brand',
                       'transition-transform duration-instant active:scale-[0.96]',
                       'disabled:opacity-60',
                     )}

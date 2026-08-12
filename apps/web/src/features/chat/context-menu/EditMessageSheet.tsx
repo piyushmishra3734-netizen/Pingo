@@ -121,7 +121,7 @@ export function EditMessageSheet({ body, onCancel, onSave }: EditMessageSheetPro
               disabled={!changed}
               className={cn(
                 'focus-ring rounded-full bg-brand-gradient px-5 py-2',
-                'text-body font-medium text-white shadow-brand',
+                'text-body font-medium text-on-brand shadow-brand',
                 'transition-transform duration-instant active:scale-[0.97]',
                 // Nothing to save is the resting state of this dialog, so the
                 // button says so rather than failing when pressed.

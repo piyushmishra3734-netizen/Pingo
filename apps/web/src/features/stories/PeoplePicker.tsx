@@ -105,7 +105,7 @@ export function PeoplePicker({
                     className={cn(
                       'grid size-6 shrink-0 place-items-center rounded-full border-2',
                       'transition-colors duration-instant',
-                      on ? 'border-brand bg-brand text-white' : 'border-line',
+                      on ? 'border-brand bg-brand text-on-brand' : 'border-line',
                     )}
                   >
                     {on && <CheckIcon size={14} />}

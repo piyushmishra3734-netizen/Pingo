@@ -1251,7 +1251,7 @@ export function ChatThread({
                             className={cn(
                               'grid size-5 shrink-0 place-items-center rounded-full border-2',
                               'transition-[background-color,border-color] duration-instant',
-                              picked ? 'border-brand bg-brand text-white' : 'border-line',
+                              picked ? 'border-brand bg-brand text-on-brand' : 'border-line',
                             )}
                           >
                             {picked && <CheckIcon size={12} />}

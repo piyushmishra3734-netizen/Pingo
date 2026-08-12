@@ -158,7 +158,7 @@ export function UsernameScreen() {
           checking ? (
             <PingoDot state="loading" size={5} label={t('setup.usernameChecking')} />
           ) : available === true ? (
-            <span className="grid size-5 place-items-center rounded-full bg-brand text-white">
+            <span className="grid size-5 place-items-center rounded-full bg-brand text-on-brand">
               <CheckIcon size={12} strokeWidth={3} />
             </span>
           ) : available === false ? (

@@ -501,7 +501,7 @@ export function StoryComposer({
                   {/* A slide with sound says so, or the sound is invisible. */}
                   {item.audio?.length ? (
                     <span
-                      className="absolute top-1 right-1 rounded-full bg-brand px-1.5 py-0.5 text-[0.625rem] font-medium text-white"
+                      className="absolute top-1 right-1 rounded-full bg-brand px-1.5 py-0.5 text-[0.625rem] font-medium text-on-brand"
                       aria-label={`${item.audio.length} sounds`}
                     >
                       ♪
@@ -526,7 +526,7 @@ export function StoryComposer({
                     }}
                     className={cn(
                       'absolute right-1 bottom-1 rounded-full px-1.5 py-0.5',
-                      'text-[0.625rem] font-medium text-white',
+                      'text-[0.625rem] font-medium text-on-brand',
                       item.videoEdit || item.audio?.length ? 'bg-brand' : 'bg-black/55',
                     )}
                   >
@@ -725,7 +725,7 @@ export function StoryComposer({
             disabled={busy || queue.length === 0}
             className={cn(
               'focus-ring w-full rounded-full px-5 py-3.5 text-body font-semibold tracking-[-0.01em]',
-              'bg-brand-gradient text-white',
+              'bg-brand-gradient text-on-brand',
               'shadow-[0_4px_16px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
               'transition-transform duration-[160ms] ease-standard',
               'active:scale-[0.97]',

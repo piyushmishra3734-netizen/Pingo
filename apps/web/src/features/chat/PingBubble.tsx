@@ -173,7 +173,7 @@ export function PingBubble({
         className={cn(
           'relative flex w-[13.5rem] items-center gap-3 overflow-hidden',
           'rounded-[1.125rem] px-3.5 py-3',
-          'bg-brand-glass text-white',
+          'bg-brand-glass text-on-brand',
           'shadow-[0_4px_14px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
         )}
       >
@@ -214,7 +214,7 @@ export function PingBubble({
       className={cn(
         'focus-ring relative flex w-[13.5rem] items-center gap-3 overflow-hidden',
         'rounded-[1.125rem] px-3.5 py-3 text-left',
-        'bg-brand-glass text-white',
+        'bg-brand-glass text-on-brand',
         'shadow-[0_4px_14px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
         'transition-transform duration-[160ms] ease-standard',
         'active:scale-[0.97]',

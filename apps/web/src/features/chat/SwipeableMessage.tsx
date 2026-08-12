@@ -73,7 +73,7 @@ export function SwipeableMessage({
               'transition-colors duration-instant',
               // Filling in at the commit point is the only signal a thumb gets
               // on a device with no haptics, so it has to be unmistakable.
-              armed ? 'bg-brand text-white' : 'bg-hover text-text-secondary',
+              armed ? 'bg-brand text-on-brand' : 'bg-hover text-text-secondary',
             )}
           >
             <ChatIcon size={16} />

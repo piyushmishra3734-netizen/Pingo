@@ -166,7 +166,7 @@ export function StoryActions({
             aria-label="Send reply"
             className={cn(
               'focus-ring grid size-11 shrink-0 place-items-center rounded-full',
-              'bg-brand-gradient text-white shadow-brand',
+              'bg-brand-gradient text-on-brand shadow-brand',
               'transition-transform duration-instant active:scale-95',
               sending && 'opacity-50',
             )}
