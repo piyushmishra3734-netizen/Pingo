@@ -59,6 +59,8 @@ export interface Story {
    * before trimming existed meant and still means.
    */
   videoEdit?: VideoEdit;
+  /** Sound the author laid on top. Absent means the story is as it was shot. */
+  audio?: StoryAudioTrack[];
   audience: StoryAudience;
   createdAt: number;
   expiresAt: number;
@@ -95,6 +97,38 @@ export interface StoryGroup {
   closeFriends: boolean;
 }
 
+/**
+ * One piece of sound laid on a story.
+ *
+ * Pieces rather than a soundtrack, because that is how sound is used here: a
+ * song under the opening, a voice over the middle, silence where the clip
+ * should speak for itself. Each one is uploaded already cut to length - the
+ * file *is* the piece - so playback has nothing to interpret beyond when to
+ * start it and how loud.
+ *
+ * The opposite decision to `VideoEdit`, and for a reason: cutting audio is
+ * arithmetic on a few hundred kilobytes, while cutting video is a re-encode
+ * that costs the picture.
+ */
+export interface StoryAudioTrack {
+  /** Signed, short-lived, and read-only. Do not cache it. */
+  url: string;
+  /** Seconds from the start of the story. */
+  at: number;
+  /** Seconds. What makes a photo story stay up long enough to hear it. */
+  duration: number;
+  /** 0-1. */
+  volume: number;
+}
+
+/** A piece of sound on its way up, before it has a path or a URL. */
+export interface StoryAudioDraft {
+  blob: Blob;
+  at: number;
+  duration: number;
+  volume: number;
+}
+
 /** A story about to be posted. */
 export interface StoryDraft {
   media: Blob;
@@ -107,6 +141,8 @@ export interface StoryDraft {
   linkUrl?: string;
   /** Where the video starts, ends, and whether it speaks. Video only. */
   videoEdit?: VideoEdit;
+  /** Music, a voice, a sound lifted from another clip. Either kind of story. */
+  audio?: StoryAudioDraft[];
 }
 
 /** One person who watched a story. Owner-only - see `listViewers`. */

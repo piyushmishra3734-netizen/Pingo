@@ -19,6 +19,7 @@
 
 import type {
   Story,
+  StoryAudioTrack,
   StoryDraft,
   StoryGroup,
   StoryInsights,
@@ -31,6 +32,41 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import type { ProfileRow, StoryRow } from './types.js';
 
 const STORY_BUCKET = 'stories';
+
+/** What one piece of sound looks like in the row, before it is signed. */
+interface StoredAudioTrack {
+  path: string;
+  at: number;
+  duration: number;
+  volume: number;
+}
+
+/**
+ * The `audio` column, read defensively.
+ *
+ * It is `jsonb`, which means the database will hand back whatever was written -
+ * including nothing, including something written by an older client. A story
+ * that fails to describe its sound should play silently, not fail to open, so
+ * anything that is not a list of pieces with a path is simply not sound.
+ */
+function storedAudio(row: StoryRow): StoredAudioTrack[] {
+  const raw = (row as unknown as { audio?: unknown }).audio;
+  if (!Array.isArray(raw)) return [];
+
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const track = entry as Partial<StoredAudioTrack>;
+    if (typeof track.path !== 'string' || track.path.length === 0) return [];
+    return [
+      {
+        path: track.path,
+        at: Number.isFinite(track.at) ? Number(track.at) : 0,
+        duration: Number.isFinite(track.duration) ? Number(track.duration) : 0,
+        volume: Number.isFinite(track.volume) ? Number(track.volume) : 1,
+      },
+    ];
+  });
+}
 
 /** Extension + Content-Type from the blob so GIF/WebP/PNG stories stay intact. */
 function mediaUploadMeta(
@@ -100,7 +136,13 @@ export class SupabaseStoryService implements StoryService {
    * still works; they are passed through untouched rather than being signed.
    */
   async #signMedia(rows: StoryRow[]): Promise<Map<string, string>> {
-    const paths = rows.map((row) => row.media_path).filter((path): path is string => !!path);
+    const paths = [
+      ...rows.map((row) => row.media_path),
+      // Sound lives in the same private bucket and needs the same signature.
+      // In one request with the pictures, because a rail of ten stories with a
+      // track each would otherwise be eleven round trips instead of one.
+      ...rows.flatMap((row) => storedAudio(row).map((track) => track.path)),
+    ].filter((path): path is string => !!path);
     if (paths.length === 0) return new Map();
 
     const { data } = await this.#client.storage
@@ -137,6 +179,30 @@ export class SupabaseStoryService implements StoryService {
       ...((row as unknown as { video_edit?: Story['videoEdit'] }).video_edit
         ? { videoEdit: (row as unknown as { video_edit: Story['videoEdit'] }).video_edit }
         : {}),
+      /*
+       * Sound, with each piece's path swapped for a signature.
+       *
+       * A piece whose signature did not come back is dropped rather than
+       * handed over with a path in the URL field: a story that plays three of
+       * its four sounds is odd, and one that tries to play a storage path is
+       * an error in the console on top of that.
+       */
+      ...(() => {
+        const tracks = storedAudio(row)
+          .map((track) => {
+            const url = urls.get(track.path);
+            return url
+              ? {
+                  url,
+                  at: track.at,
+                  duration: track.duration,
+                  volume: track.volume,
+                }
+              : undefined;
+          })
+          .filter((track): track is StoryAudioTrack => track !== undefined);
+        return tracks.length > 0 ? { audio: tracks } : {};
+      })(),
       audience: row.audience as Story['audience'],
       createdAt: Date.parse(row.created_at),
       expiresAt: Date.parse(row.expires_at),
@@ -277,6 +343,36 @@ export class SupabaseStoryService implements StoryService {
       throw new Error(uploadError.message || 'Could not upload the story media.');
     }
 
+    /*
+     * The sound, before the row.
+     *
+     * Uploaded first so a story never exists with a piece of music that is
+     * still on its way: if any piece fails, everything already up is removed
+     * and nothing was posted. A row pointing at half its audio would play a
+     * silence nobody chose, and there is no way for the author to notice.
+     */
+    const audioPaths: string[] = [];
+    try {
+      for (const track of draft.audio ?? []) {
+        const audioPath = `${me}/${crypto.randomUUID()}.wav`;
+        const { error: audioError } = await this.#client.storage
+          .from(STORY_BUCKET)
+          .upload(audioPath, track.blob, { contentType: 'audio/wav', upsert: false });
+        if (audioError) throw new Error(audioError.message || 'Could not upload the sound.');
+        audioPaths.push(audioPath);
+      }
+    } catch (cause) {
+      await this.#client.storage.from(STORY_BUCKET).remove([path, ...audioPaths]);
+      throw cause instanceof Error ? cause : new Error('Could not upload the sound.');
+    }
+
+    const audioRow = (draft.audio ?? []).map((track, index) => ({
+      path: audioPaths[index]!,
+      at: track.at,
+      duration: track.duration,
+      volume: track.volume,
+    }));
+
     const { data, error } = await this.#client
       .from('stories')
       .insert({
@@ -306,14 +402,16 @@ export class SupabaseStoryService implements StoryService {
         ...((draft.kind === 'video' && draft.videoEdit
           ? { video_edit: draft.videoEdit }
           : {}) as Record<string, never>),
+        // Either kind of story can carry sound - see 20260913000000.
+        ...((audioRow.length > 0 ? { audio: audioRow } : {}) as Record<string, never>),
       })
       .select('*')
       .single();
 
     if (error) {
       // The row did not land (or RETURNING was blocked), so nothing should keep
-      // pointing at the upload.
-      await this.#client.storage.from(STORY_BUCKET).remove([path]);
+      // pointing at the upload - the sound included.
+      await this.#client.storage.from(STORY_BUCKET).remove([path, ...audioPaths]);
       throw new Error(error.message || 'Could not save the story.');
     }
 
@@ -372,7 +470,7 @@ export class SupabaseStoryService implements StoryService {
     // Read the path first: after the delete there is nothing left to ask.
     const { data: existing } = await this.#client
       .from('stories')
-      .select('media_path')
+      .select('*')
       .eq('id', storyId)
       .maybeSingle();
 
@@ -380,9 +478,14 @@ export class SupabaseStoryService implements StoryService {
     if (error) throw error;
 
     // After the row, not before - a delete that fails must not leave a story
-    // pointing at media that has already gone.
-    if (existing?.media_path) {
-      await this.#client.storage.from(STORY_BUCKET).remove([existing.media_path]);
+    // pointing at media that has already gone. Sound goes with the picture; a
+    // deleted story leaving its music in the bucket is a bill nobody sees.
+    const leftovers = [
+      ...(existing?.media_path ? [existing.media_path] : []),
+      ...(existing ? storedAudio(existing).map((track) => track.path) : []),
+    ];
+    if (leftovers.length > 0) {
+      await this.#client.storage.from(STORY_BUCKET).remove(leftovers);
     }
   }
 

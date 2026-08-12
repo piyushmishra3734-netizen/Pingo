@@ -1,6 +1,7 @@
 import {
   STORY_AUDIENCES,
   type StoryAudience,
+  type StoryAudioDraft,
   type StoryKind,
   type VideoEdit,
 } from '@pingo/core';
@@ -43,6 +44,8 @@ interface QueueItem {
   previewUrl: string;
   /** Trim marks for a video item, chosen in the sheet. Absent means whole. */
   videoEdit?: VideoEdit;
+  /** Sound laid on this slide. Each slide is its own story, so each has its own. */
+  audio?: StoryAudioDraft[];
 }
 
 const MAX_BATCH = 20;
@@ -77,6 +80,15 @@ export function StoryComposer({
   const [progress, setProgress] = useState<string>();
   /** Which queued clip is open in the video editor, by id. */
   const [editingClip, setEditingClip] = useState<string>();
+  /**
+   * Sound for whatever the editor is working on right now.
+   *
+   * One editor session at a time, so one list: it is seeded from the slide
+   * being opened and written back to it on Done. Keeping it here rather than
+   * inside the editor is what lets a photo carry sound at all - the editor
+   * hands back flattened pixels, and sound cannot travel inside pixels.
+   */
+  const [audio, setAudio] = useState<StoryAudioDraft[]>([]);
 
   /*
    * Always mounted (not only on source step). A `display:none` input that
@@ -175,7 +187,12 @@ export function StoryComposer({
 
   const commitSlide = (blob: Blob, then: 'details' | 'pick-more') => {
     const kind: StoryKind = blob.type.startsWith('video/') ? 'video' : 'photo';
-    const item = makeItem(blob, kind);
+    // The sound arranged in the editor belongs to the slide that was open.
+    const item: QueueItem = {
+      ...makeItem(blob, kind),
+      ...(audio.length > 0 ? { audio } : {}),
+    };
+    setAudio([]);
     // Functional update so "Add another" right after the first slide still
     // sees the slide we just committed (React state is not flushed yet).
     setQueue((prev) => {
@@ -217,6 +234,7 @@ export function StoryComposer({
           media: item.media,
           kind: item.kind,
           ...(item.videoEdit ? { videoEdit: item.videoEdit } : {}),
+          ...(item.audio?.length ? { audio: item.audio } : {}),
           audience,
           ...(i === 0 && caption.trim() ? { caption: caption.trim() } : {}),
           ...(i === 0 && place.trim() ? { location: place.trim() } : {}),
@@ -321,6 +339,8 @@ export function StoryComposer({
               addAnotherLabel="Add another photo"
               onAddAnother={(blob) => commitSlide(blob, 'pick-more')}
               {...(editUntouchable ? { untouchable: editUntouchable } : {})}
+              audio={audio}
+              onAudioChange={setAudio}
               onDone={(blob) => commitSlide(blob, 'details')}
             />
           </div>
@@ -351,14 +371,24 @@ export function StoryComposer({
               doneLabel="Done"
               // Backing out keeps the clip as it was; the × on its thumbnail
               // is how a clip leaves, and it is one tap away.
-              onCancel={() => setEditingClip(undefined)}
+              onCancel={() => {
+                setAudio([]);
+                setEditingClip(undefined);
+              }}
               onDone={() => undefined}
+              audio={audio}
+              onAudioChange={setAudio}
               onDoneVideo={(edit) => {
                 setQueue((prev) =>
-                  prev.map((item) =>
-                    item.id === clip.id ? { ...item, videoEdit: edit } : item,
-                  ),
+                  prev.map((item) => {
+                    if (item.id !== clip.id) return item;
+                    // Rebuilt without the old sound rather than merged over it,
+                    // so removing every piece in the sheet actually removes it.
+                    const { audio: _previous, ...rest } = item;
+                    return { ...rest, videoEdit: edit, ...(audio.length > 0 ? { audio } : {}) };
+                  }),
                 );
+                setAudio([]);
                 setEditingClip(undefined);
                 setStep('details');
               }}
@@ -436,6 +466,15 @@ export function StoryComposer({
                   <span className="absolute top-1 left-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.625rem] font-medium text-white tabular-nums">
                     {index + 1}
                   </span>
+                  {/* A slide with sound says so, or the sound is invisible. */}
+                  {item.audio?.length ? (
+                    <span
+                      className="absolute top-1 right-1 rounded-full bg-brand px-1.5 py-0.5 text-[0.625rem] font-medium text-white"
+                      aria-label={`${item.audio.length} sounds`}
+                    >
+                      ♪
+                    </span>
+                  ) : null}
                   {/*
                     Edit, on the thumbnail rather than in a toolbar.
 
@@ -449,7 +488,11 @@ export function StoryComposer({
                   {item.kind === 'video' && (
                     <button
                       type="button"
-                      onClick={() => setEditingClip(item.id)}
+                      onClick={() => {
+                        // The editor resumes what this slide already carries.
+                        setAudio(item.audio ?? []);
+                        setEditingClip(item.id);
+                      }}
                       className={cn(
                         'absolute right-1 bottom-1 rounded-full px-1.5 py-0.5',
                         'text-[0.625rem] font-medium text-white',

@@ -1,4 +1,4 @@
-import type { Story, StoryGroup } from '@pingo/core';
+import { STORY_PHOTO_MS, type Story, type StoryGroup } from '@pingo/core';
 import { Avatar, CloseIcon, MoreIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ import { useStories } from './StoryContext.js';
 import { MyStoryMenu, OtherStoryMenu } from './StoryMenus.js';
 import { StoryOverlay } from './StoryOverlay.js';
 import { StoryProgress } from './StoryProgress.js';
+import { StorySound, soundLength } from './StorySound.js';
 import { StoryViewersSheet } from './StoryViewersSheet.js';
 import { useStoryPlayer } from './useStoryPlayer.js';
 
@@ -82,6 +83,21 @@ export function StoryViewer({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+
+  /*
+   * A picture with music on it stays up long enough to hear it.
+   *
+   * A photo story runs on a fixed five seconds, which is the right length for a
+   * photo and the wrong one for a photo with a twelve-second piece of music -
+   * the story would leave in the middle of the first line. Videos are untouched:
+   * they already report their own length, and a clip is the thing being
+   * watched.
+   */
+  const photoSound = story && story.kind === 'photo' ? soundLength(story.audio) : 0;
+  const { reportDuration } = player;
+  useEffect(() => {
+    if (photoSound > 0) reportDuration(Math.max(STORY_PHOTO_MS, photoSound * 1000));
+  }, [photoSound, reportDuration, story?.id]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   /*
@@ -447,6 +463,14 @@ export function StoryViewer({
           )}
 
           <StoryOverlay story={story} />
+
+          {/*
+            The sound the author laid on it, on the story's own clock. Renders
+            nothing - see `StorySound` for why it has no control of its own.
+          */}
+          {story.audio && story.audio.length > 0 && (
+            <StorySound storyId={story.id} tracks={story.audio} paused={player.paused} />
+          )}
 
           {player.paused && (
             <span

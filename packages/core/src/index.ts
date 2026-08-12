@@ -73,6 +73,8 @@ export type {
   Story,
   StoryGroup,
   StoryDraft,
+  StoryAudioTrack,
+  StoryAudioDraft,
   StoryKind,
   StoryAudience,
   StoryViewer,

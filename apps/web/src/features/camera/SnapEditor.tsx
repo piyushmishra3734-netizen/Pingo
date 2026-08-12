@@ -12,10 +12,11 @@ import {
 } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { VideoEdit, VideoOverlayItem } from '@pingo/core';
+import type { StoryAudioDraft, VideoEdit, VideoOverlayItem } from '@pingo/core';
 
 import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
 import { useStickers } from '../stickers/StickerContext.js';
+import { StoryAudioSheet } from '../stories/StoryAudioSheet.js';
 import {
   OVERLAY_SIZE,
   PEN_WIDTH,
@@ -128,6 +129,8 @@ export function SnapEditor({
   video = false,
   onDoneVideo,
   initialEdit,
+  audio,
+  onAudioChange,
 }: {
   src: string;
   onCancel: () => void;
@@ -172,6 +175,17 @@ export function SnapEditor({
   onDoneVideo?: (edit: VideoEdit) => void;
   /** Marks and items this clip already carries, so re-opening it resumes. */
   initialEdit?: VideoEdit;
+  /**
+   * Sound on the story, owned by whoever is posting it.
+   *
+   * Held by the caller rather than here because it survives this editor: a
+   * photo is flattened and handed back as bytes, and the sound that goes with
+   * it has to arrive at the post alongside those bytes rather than inside
+   * them. The tool only appears when there is somewhere for it to go, which is
+   * what keeps it off the camera's send-a-Ping path.
+   */
+  audio?: StoryAudioDraft[];
+  onAudioChange?: (audio: StoryAudioDraft[]) => void;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -192,6 +206,7 @@ export function SnapEditor({
   /** Video mode: where the clip starts, ends, and whether it speaks. */
   const [trim, setTrim] = useState<VideoEdit | undefined>(initialEdit);
   const [trimOpen, setTrimOpen] = useState(false);
+  const [audioOpen, setAudioOpen] = useState(false);
   /**
    * Video mode: sound in the preview.
    *
@@ -949,6 +964,22 @@ export function SnapEditor({
             active={false}
             onClick={() => (video ? turn() : setRotation((r) => (r + 90) % 360))}
           />
+          {/*
+            Sound, on a photo as much as on a clip.
+
+            A picture with music on it is a story people post on purpose, and
+            this is the one editor both kinds pass through - so the tool lives
+            here rather than being a row on the details sheet that only videos
+            would find.
+          */}
+          {onAudioChange && (
+            <ToolButton
+              label={audio && audio.length > 0 ? `Sound · ${audio.length}` : 'Sound'}
+              icon={<NoteGlyph />}
+              active={Boolean(audio && audio.length > 0)}
+              onClick={() => setAudioOpen(true)}
+            />
+          )}
           <ToolButton
             label="Undo"
             icon={<ArrowLeftIcon size={17} />}
@@ -1107,6 +1138,17 @@ export function SnapEditor({
         of handles under it. The sheet already exists for chat and already knows
         not to touch the file, so a video story gets the same one.
       */}
+      {audioOpen && onAudioChange && (
+        <StoryAudioSheet
+          audio={audio ?? []}
+          onClose={() => setAudioOpen(false)}
+          onDone={(next) => {
+            onAudioChange(next);
+            setAudioOpen(false);
+          }}
+        />
+      )}
+
       {trimOpen && (
         <VideoTrimSheet
           src={src}
@@ -1137,6 +1179,27 @@ export function SnapEditor({
  * stays underneath so nothing has to be guessed - which is the arrangement
  * every camera app converges on for the same reason.
  */
+/** A note. There is no glyph in the set for sound, and this is what sound is. */
+function NoteGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={17}
+      height={17}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 18V5l11-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="17" cy="16" r="3" />
+    </svg>
+  );
+}
+
 /** Two arrows on a diagonal: the corner you pull to resize. */
 function ResizeGlyph() {
   return (
