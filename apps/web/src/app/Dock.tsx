@@ -104,26 +104,63 @@ export function Dock() {
                   button drawn on top of one.
                 */
                 'focus-ring glass-press',
-                isActive
-                  ? 'text-brand'
-                  : 'text-text-secondary hover:bg-hover hover:text-ink',
+                to === '/camera'
+                  ? // No hover plate behind the key - it has its own surface.
+                    'text-white'
+                  : isActive
+                    ? 'text-brand'
+                    : 'text-text-secondary hover:bg-hover hover:text-ink',
               )
             }
           >
             {({ isActive }) => (
               <>
                 {/*
-                  Notifications gets a hair more weight optically: the bell's
-                  silhouette is lighter than chat/camera, so without this it
-                  reads as the cheap slot on the bar.
+                  The camera is the one control here that makes something.
+
+                  As a grey glyph between four other grey glyphs it read as the
+                  fifth thing you could look at, and the bar as a row of
+                  placeholders - the demo-app look. So it wears the product's
+                  own gradient on a raised key: a filled squircle, lifted a
+                  couple of pixels off the glass, with a lit top edge and a
+                  shadow tinted with the gradient rather than plain black. That
+                  is the whole difference between chrome that was drawn and
+                  chrome that was placed.
+
+                  It carries no active dot: a filled brand key is already the
+                  loudest thing on the bar, and a mark underneath it would be
+                  saying the same thing twice.
                 */}
-                <Icon
-                  size={to === '/notifications' ? 27 : 26}
-                  className={cn(
-                    to === '/notifications' &&
-                      (isActive ? 'text-brand' : undefined),
-                  )}
-                />
+                {to === '/camera' ? (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'grid size-11 -translate-y-px place-items-center rounded-[15px]',
+                      'bg-brand-gradient text-white',
+                      // Lit along the top, shaded along the bottom: the key has
+                      // a surface rather than being a flat swatch of colour.
+                      'shadow-[inset_0_1px_0_rgb(255_255_255/0.22),inset_0_-1px_0_rgb(0_0_0/0.12),0_6px_16px_-8px_color-mix(in_srgb,var(--gradient-from,#111113)_70%,transparent),0_2px_6px_-2px_color-mix(in_srgb,var(--gradient-from,#111113)_35%,transparent)]',
+                      'ring-1 ring-inset ring-white/12',
+                      'transition-[transform,box-shadow] duration-base ease-spring',
+                      isActive && 'scale-[1.04] -translate-y-0.5',
+                    )}
+                  >
+                    <Icon size={23} />
+                  </span>
+                ) : (
+                  /*
+                    Notifications gets a hair more weight optically: the bell's
+                    silhouette is lighter than chat/camera, so without this it
+                    reads as the cheap slot on the bar.
+                  */
+                  <Icon
+                    size={to === '/notifications' ? 27 : 26}
+                    className={cn(
+                      to === '/notifications' &&
+                        (isActive ? 'text-brand' : undefined),
+                    )}
+                  />
+                )}
                 <span className="sr-only">{label}</span>
 
                 {/*
@@ -143,6 +180,7 @@ export function Dock() {
                 <span
                   className={cn(
                     'absolute bottom-1.5 h-1 rounded-full bg-dot',
+                    to === '/camera' && 'hidden',
                     /*
                       Spring, so the indicator arrives with weight. It widens
                       past its resting size and settles, the way a bead of
