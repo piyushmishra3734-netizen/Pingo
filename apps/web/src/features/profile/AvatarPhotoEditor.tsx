@@ -70,6 +70,36 @@ export function AvatarPhotoEditor({
   const [cropPx, setCropPx] = useState(280);
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
+
+  /*
+   * The live values, for the pointer handlers only.
+   *
+   * A pinch calls `setZoom` and `setOffset` on every move, and `pointerup` can
+   * arrive in the same frame - before React has re-rendered and handed the
+   * handlers a fresh closure. `endPointer` re-seeds the gesture from `offset`
+   * and `zoom`, so on a two-finger pinch it was re-seeding from values a frame
+   * or more out of date, and the finger still down then dragged from a
+   * position the image was no longer in. The picture jumped, which on a phone
+   * reads as the framing being thrown away at the end of every zoom.
+   *
+   * Written where the value is computed rather than in render or an effect -
+   * both of those run after the event, which is too late for the very lift
+   * this exists to survive.
+   */
+  const zoomRef = useRef(MIN_ZOOM);
+  const offsetRef = useRef<Point>({ x: 0, y: 0 });
+
+  /** Sets the zoom and the value a gesture in flight will read. */
+  const putZoom = useCallback((next: number) => {
+    zoomRef.current = next;
+    setZoom(next);
+  }, []);
+
+  /** Sets the offset and the value a gesture in flight will read. */
+  const putOffset = useCallback((next: Point) => {
+    offsetRef.current = next;
+    setOffset(next);
+  }, []);
   const [rotation, setRotation] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [phase, setPhase] = useState<Phase>('edit');
@@ -129,8 +159,8 @@ export function AvatarPhotoEditor({
   }, []);
 
   useEffect(() => {
-    setZoom(MIN_ZOOM);
-    setOffset({ x: 0, y: 0 });
+    putZoom(MIN_ZOOM);
+    putOffset({ x: 0, y: 0 });
     setRotation(0);
     setReady(false);
     setPhase('edit');
@@ -152,16 +182,6 @@ export function AvatarPhotoEditor({
     onCancel();
   }, [busy, confirm, onCancel]);
 
-  const applyZoom = useCallback(
-    (next: number) => {
-      const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
-      setZoom(clamped);
-      flashZoom();
-      return clamped;
-    },
-    [flashZoom],
-  );
-
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (busy) return;
@@ -175,31 +195,30 @@ export function AvatarPhotoEditor({
         return;
       }
       /*
-       * Clamped inline rather than through `applyZoom`.
+       * Read from the ref and clamped inline.
        *
-       * `applyZoom` calls `setZoom` itself, so passing it as the updater put a
-       * state write inside a state updater. React may invoke an updater more
-       * than once - it does so on every render in StrictMode - and each
-       * invocation fired a second `setZoom`, so a keypress could move the zoom
-       * twice or land somewhere neither value asked for. Updaters have to be
-       * pure; the flash is a side effect and belongs out here with the event.
+       * This used to be `setZoom((z) => applyZoom(z + 0.15))`, which put a
+       * state write inside a state updater - React may run an updater more
+       * than once, and each run fired a second `setZoom`. The helper is gone
+       * now; every zoom write goes through `putZoom` so a gesture in flight
+       * sees it.
        */
       if (event.key === '+' || event.key === '=') {
         event.preventDefault();
-        setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + 0.15)));
+        putZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current + 0.15)));
         flashZoom();
         return;
       }
       if (event.key === '-' || event.key === '_') {
         event.preventDefault();
-        setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z - 0.15)));
+        putZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current - 0.15)));
         flashZoom();
         return;
       }
       if (event.key === '0') {
         event.preventDefault();
-        setZoom(MIN_ZOOM);
-        setOffset({ x: 0, y: 0 });
+        putZoom(MIN_ZOOM);
+        putOffset({ x: 0, y: 0 });
         setRotation(0);
         flashZoom();
         return;
@@ -207,12 +226,12 @@ export function AvatarPhotoEditor({
       if (event.key === 'r' || event.key === 'R') {
         event.preventDefault();
         setRotation((r) => (r + 90) % 360);
-        setOffset({ x: 0, y: 0 });
+        putOffset({ x: 0, y: 0 });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [applyZoom, busy, flashZoom, requestClose, toolsOpen]);
+  }, [busy, flashZoom, putOffset, putZoom, requestClose, toolsOpen]);
 
   const axesSwapped = rotation % 180 !== 0;
   const coverScale =
@@ -242,7 +261,9 @@ export function AvatarPhotoEditor({
   );
 
   useEffect(() => {
-    setOffset((o) => clampOffset(o, zoom, rotation));
+    // Through `putOffset`, so a re-clamp after a resize or rotate is also
+    // visible to a gesture that starts before the next render.
+    putOffset(clampOffset(offsetRef.current, zoom, rotation));
   }, [zoom, cropPx, rotation, clampOffset]);
 
   const spread = (): number => {
@@ -268,8 +289,8 @@ export function AvatarPhotoEditor({
     if (pointers.current.size === 1) {
       const now = performance.now();
       if (now - lastTap.current < 280) {
-        setZoom(MIN_ZOOM);
-        setOffset({ x: 0, y: 0 });
+        putZoom(MIN_ZOOM);
+        putOffset({ x: 0, y: 0 });
         flashZoom();
         lastTap.current = 0;
       } else {
@@ -300,9 +321,9 @@ export function AvatarPhotoEditor({
             (gesture.current.zoom * distance) / gesture.current.distance,
           ),
         );
-        setZoom(nextZoom);
+        putZoom(nextZoom);
         flashZoom();
-        setOffset(clampOffset(gesture.current.offset, nextZoom, rotation));
+        putOffset(clampOffset(gesture.current.offset, nextZoom, rotation));
       }
       return;
     }
@@ -311,7 +332,7 @@ export function AvatarPhotoEditor({
       x: event.clientX - gesture.current.point.x,
       y: event.clientY - gesture.current.point.y,
     };
-    setOffset(
+    putOffset(
       clampOffset(
         {
           x: gesture.current.offset.x + moved.x,
@@ -330,11 +351,12 @@ export function AvatarPhotoEditor({
       gesture.current = undefined;
       return;
     }
+    // From the refs, not the closure: see `putZoom`.
     gesture.current = {
       point: centre(),
-      offset,
+      offset: offsetRef.current,
       distance: spread(),
-      zoom,
+      zoom: zoomRef.current,
     };
   };
 
@@ -342,11 +364,11 @@ export function AvatarPhotoEditor({
     if (busy) return;
     event.preventDefault();
     const delta = event.deltaY > 0 ? -0.12 : 0.12;
-    setZoom((z) => {
-      const next = applyZoom(z + delta);
-      setOffset((o) => clampOffset(o, next, rotation));
-      return next;
-    });
+    // Straight from the ref, so a fast wheel does not compound stale values.
+    const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current + delta));
+    putZoom(next);
+    flashZoom();
+    putOffset(clampOffset(offsetRef.current, next, rotation));
   };
 
   /**
@@ -658,15 +680,15 @@ export function AvatarPhotoEditor({
               label="Rotate"
               onClick={() => {
                 setRotation((r) => (r + 90) % 360);
-                setOffset({ x: 0, y: 0 });
+                putOffset({ x: 0, y: 0 });
                 setToolsOpen(false);
               }}
             />
             <SheetItem
               label="Reset"
               onClick={() => {
-                setZoom(MIN_ZOOM);
-                setOffset({ x: 0, y: 0 });
+                putZoom(MIN_ZOOM);
+                putOffset({ x: 0, y: 0 });
                 setRotation(0);
                 flashZoom();
                 setToolsOpen(false);
