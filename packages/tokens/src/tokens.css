@@ -127,6 +127,20 @@
   /* ---- Brand (near-black ink — Linear-style product chrome) ------------ */
   --color-brand: #111113;
   --color-brand-alt: #2a2a2e;
+  /*
+   * The brand at plate strength, behind an icon or a quiet pill.
+   *
+   * `bg-brand-soft` was already written in five places - the sheet's icon
+   * plate, the muted-stories circle, the backup badge, a picked chat, the
+   * trim sheet's sound toggle - and there was no token behind it, so every
+   * one of them rendered with no background at all. That is what "looks
+   * unfinished" was: a plate that was never painted.
+   *
+   * Mixed from `--color-brand` rather than written as a literal, because the
+   * accent setting rewrites the brand on the same `:root` and a literal would
+   * leave a pink account with ink-tinted plates.
+   */
+  --color-brand-soft: color-mix(in srgb, var(--color-brand) 10%, transparent);
   /* Live / presence mark. Ink, not purple. */
   --color-dot: #111113;
   /* Primary gradient stops (buttons, loaders, bubbles). */
