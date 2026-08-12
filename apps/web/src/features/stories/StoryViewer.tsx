@@ -397,6 +397,7 @@ export function StoryViewer({
               story={story}
               paused={player.paused}
               onDuration={player.reportDuration}
+              hold={player.hold}
               sound={soundOn}
               onSound={() => setSoundOn(true)}
             />
@@ -629,16 +630,61 @@ function StoryVideo({
   story,
   paused,
   onDuration,
+  hold,
   sound,
   onSound,
 }: {
   story: Story;
   paused: boolean;
   onDuration: (ms: number) => void;
+  /** Keeps the progress ring still until there is something to watch. */
+  hold: () => () => void;
   sound: boolean;
   onSound: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
+
+  /*
+   * A video arrives the same way a photo does: blurred, then sharp.
+   *
+   * Before this the element was simply mounted, so a story on a slow
+   * connection showed the browser's own idea of an unloaded video - a black
+   * box with native furniture on it - and only became a story once the file
+   * had arrived. That reads as PINGO handing the screen to the browser at the
+   * exact moment somebody is waiting.
+   *
+   * `canplay` rather than `loadeddata`: it means playback can actually start,
+   * which is the moment the blur has earned the right to lift.
+   */
+  const [ready, setReady] = useState(false);
+  const [sharp, setSharp] = useState(false);
+  const release = useRef<(() => void) | undefined>(undefined);
+
+  useEffect(() => {
+    if (!ready) {
+      setSharp(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSharp(true), 460);
+    return () => window.clearTimeout(timer);
+  }, [ready, story.id]);
+
+  useEffect(() => {
+    // A new story is a new wait, and the cleanup releases the previous hold so
+    // the count cannot drift upward across stories.
+    setReady(false);
+    release.current ??= hold();
+    return () => {
+      release.current?.();
+      release.current = undefined;
+    };
+  }, [story.id, hold]);
+
+  const done = useCallback(() => {
+    setReady(true);
+    release.current?.();
+    release.current = undefined;
+  }, []);
 
   useEffect(() => {
     const element = ref.current;
@@ -675,16 +721,45 @@ function StoryVideo({
         onLoadedMetadata={(event) => {
           const media = event.currentTarget;
           const from = story.videoEdit?.trimStart ?? 0;
-          const to = story.videoEdit?.trimEnd ?? media.duration;
           if (from > 0) media.currentTime = from;
-          onDuration(Math.max(0, to - from) * 1000);
         }}
+        /*
+         * The ring starts here, not at `loadedmetadata`.
+         *
+         * Metadata arrives long before the video can play - it is the header,
+         * not the footage - so a ring started there ran while the file was
+         * still buffering and reached the end several seconds early. That is
+         * the "last bit of the video gets cut" on a first watch, and it went
+         * away on a second one only because the file was already cached.
+         *
+         * `canplay` is the browser saying playback can actually begin, so the
+         * clock and the picture start together. The blur lifts on the same
+         * event for the same reason.
+         */
+        onCanPlay={(event) => {
+          const media = event.currentTarget;
+          const from = story.videoEdit?.trimStart ?? 0;
+          const to = story.videoEdit?.trimEnd ?? media.duration;
+          onDuration(Math.max(0, to - from) * 1000);
+          done();
+        }}
+        // A file that will not play must not hold the ring forever.
+        onError={done}
         onTimeUpdate={(event) => {
           const media = event.currentTarget;
           const to = story.videoEdit?.trimEnd;
           if (to !== undefined && media.currentTime >= to) media.pause();
         }}
-        className="absolute inset-0 size-full object-contain"
+        className={cn(
+          'absolute inset-0 size-full object-contain select-none',
+          'transition-[filter,transform] duration-slow ease-standard',
+        )}
+        style={{
+          // The same arrival a photo gets - see `StoryImage`. The slight
+          // overscale keeps the blur from showing soft edges at the frame.
+          filter: sharp ? 'none' : ready ? 'blur(0px)' : 'blur(26px)',
+          transform: ready ? 'scale(1)' : 'scale(1.06)',
+        }}
       />
 
       {/*
