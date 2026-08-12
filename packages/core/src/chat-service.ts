@@ -48,6 +48,43 @@ export interface VideoEdit {
   /** Seconds from the start of the file. */
   trimEnd?: number;
   muted?: boolean;
+  /**
+   * Things placed on top of the picture, drawn by the player.
+   *
+   * A photo carries its stickers in its pixels - the editor flattens them in.
+   * A video cannot: flattening a video means re-encoding it, which is slow on a
+   * phone, fails on half of them, and costs exactly the quality this app
+   * refuses to spend. So the decorations travel as data beside the file, the
+   * same way the trim marks already do, and the player puts them back.
+   *
+   * Absent means a bare clip, which is what every video posted before this
+   * meant and still means.
+   */
+  overlay?: VideoOverlayItem[];
+}
+
+/**
+ * One thing sitting on a video: a word, an emoji, or a sticker.
+ *
+ * Deliberately the same fields the photo editor already keeps for the same
+ * three things - normalised centre, pinch scale, rotation - so an item placed
+ * on a video is placed by the identical gesture code, and the only difference
+ * between the two paths is whether the result is painted into pixels or
+ * written down.
+ */
+export interface VideoOverlayItem {
+  kind: 'text' | 'emoji' | 'sticker';
+  /** The words, the emoji, or the sticker's name for its alt text. */
+  value: string;
+  /** Stickers only. */
+  url?: string;
+  colour: string;
+  /** Normalised centre over the video's own frame, 0-1. */
+  x: number;
+  y: number;
+  scale: number;
+  /** Radians, clockwise. */
+  rotation: number;
 }
 
 export interface OutgoingMessage {

@@ -18,6 +18,7 @@ export type {
   MessageReceipt,
   OutgoingMessage,
   VideoEdit,
+  VideoOverlayItem,
   ReadReceipt,
   Unsubscribe,
 } from './chat-service.js';

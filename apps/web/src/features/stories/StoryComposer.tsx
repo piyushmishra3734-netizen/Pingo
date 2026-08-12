@@ -13,7 +13,6 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import { SnapEditor } from '../camera/SnapEditor.js';
 import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
-import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
 import { useStories } from './StoryContext.js';
 
 /**
@@ -22,7 +21,11 @@ import { useStories } from './StoryContext.js';
  * ## Sources
  *
  * Camera · Gallery (multi). Stickers and custom GIFs live **inside** the
- * photo editor (SnapEditor), not on this sheet — same place as draw / emoji.
+ * editor (SnapEditor), not on this sheet — same place as draw / emoji.
+ *
+ * A clip goes through the same editor as a still: stickers, emoji and text are
+ * placed the same way, plus the trimmer, and the whole lot comes back as marks
+ * rather than as new bytes (see `VideoEdit`). Re-openable from its thumbnail.
  *
  * ## Multi-photo
  *
@@ -72,8 +75,8 @@ export function StoryComposer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [progress, setProgress] = useState<string>();
-  /** Which queued clip has the trim sheet open, by id. */
-  const [trimming, setTrimming] = useState<string>();
+  /** Which queued clip is open in the video editor, by id. */
+  const [editingClip, setEditingClip] = useState<string>();
 
   /*
    * Always mounted (not only on source step). A `display:none` input that
@@ -140,6 +143,16 @@ export function StoryComposer({
         if (appending) appendItems([item]);
         else replaceQueue([item]);
         setStep('details');
+        /*
+         * A clip goes to the editor too.
+         *
+         * It used to drop straight into the details sheet with a small "Trim"
+         * tag on its thumbnail, while a photo opened a full editor with
+         * stickers, emoji and text - so the same story was decorated or not
+         * decorated depending on which button the camera was on. The editor is
+         * the same one; only what it hands back differs.
+         */
+        setEditingClip(item.id);
         return;
       }
       // Still / GIF → editor (GIF stays untouchable so it does not freeze).
@@ -316,6 +329,46 @@ export function StoryComposer({
     );
   }
 
+  // ---- the clip editor ----------------------------------------------------
+
+  /*
+   * Looked up from the id rather than held as an object, so a clip removed
+   * from the queue underneath cannot stay open in an editor that would then
+   * write its marks onto nothing.
+   */
+  const clip = editingClip ? queue.find((item) => item.id === editingClip) : undefined;
+
+  if (clip) {
+    return (
+      <>
+        {galleryInput}
+        <Overlay>
+          <div className="fixed inset-0 z-500 bg-backdrop">
+            <SnapEditor
+              video
+              src={clip.previewUrl}
+              {...(clip.videoEdit ? { initialEdit: clip.videoEdit } : {})}
+              doneLabel="Done"
+              // Backing out keeps the clip as it was; the × on its thumbnail
+              // is how a clip leaves, and it is one tap away.
+              onCancel={() => setEditingClip(undefined)}
+              onDone={() => undefined}
+              onDoneVideo={(edit) => {
+                setQueue((prev) =>
+                  prev.map((item) =>
+                    item.id === clip.id ? { ...item, videoEdit: edit } : item,
+                  ),
+                );
+                setEditingClip(undefined);
+                setStep('details');
+              }}
+            />
+          </div>
+        </Overlay>
+      </>
+    );
+  }
+
   // ---- audience picker ----------------------------------------------------
 
   if (choosing) {
@@ -384,25 +437,26 @@ export function StoryComposer({
                     {index + 1}
                   </span>
                   {/*
-                    Trim, on the thumbnail rather than in a toolbar.
+                    Edit, on the thumbnail rather than in a toolbar.
 
-                    A queue can hold twenty clips and each has its own marks, so
-                    the control has to say which one it edits - and the only
-                    thing that can say that is the clip itself. It reads "Trim"
-                    until there are marks, then "Trimmed", because after the
-                    sheet closes the one thing worth knowing is whether it took.
+                    A queue can hold twenty clips and each carries its own marks
+                    and its own stickers, so the control has to say which one it
+                    opens - and the only thing that can say that is the clip
+                    itself. It reads "Edit" until the clip has been worked on,
+                    then "Edited", because after the editor closes the one thing
+                    worth knowing is whether it took.
                   */}
                   {item.kind === 'video' && (
                     <button
                       type="button"
-                      onClick={() => setTrimming(item.id)}
+                      onClick={() => setEditingClip(item.id)}
                       className={cn(
                         'absolute right-1 bottom-1 rounded-full px-1.5 py-0.5',
                         'text-[0.625rem] font-medium text-white',
                         item.videoEdit ? 'bg-brand' : 'bg-black/55',
                       )}
                     >
-                      {item.videoEdit ? 'Trimmed' : 'Trim'}
+                      {item.videoEdit ? 'Edited' : 'Edit'}
                     </button>
                   )}
                   <button
@@ -439,37 +493,6 @@ export function StoryComposer({
                 </li>
               )}
             </ul>
-n            {/*
-              The trimmer, over the details step where the queue lives.
-
-              Rendered from the id rather than the item so it cannot hold a
-              stale clip if the queue changes underneath it - the lookup fails
-              and the sheet simply is not there, which beats editing something
-              that was removed.
-            */}
-            {trimming
-              ? (() => {
-                  const item = queue.find((entry) => entry.id === trimming);
-                  if (!item) return null;
-                  return (
-                    <VideoTrimSheet
-                      src={item.previewUrl}
-                      onDone={(edit) => {
-                        // Cancel leaves the clip as it was; anything else
-                        // records the marks against that one item only.
-                        if (edit) {
-                          setQueue((prev) =>
-                            prev.map((entry) =>
-                              entry.id === item.id ? { ...entry, videoEdit: edit } : entry,
-                            ),
-                          );
-                        }
-                        setTrimming(undefined);
-                      }}
-                    />
-                  );
-                })()
-              : null}
             <p className="mt-2 text-caption text-text-tertiary">
               {queue.length === 1
                 ? 'Tap + to add another photo'

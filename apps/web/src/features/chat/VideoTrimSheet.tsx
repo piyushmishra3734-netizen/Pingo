@@ -35,15 +35,25 @@ export interface VideoTrimSheetProps {
   src: string;
   /** What the sender settled on. Absent means they cancelled. */
   onDone: (edit: VideoEdit | undefined) => void;
+  /**
+   * Marks the clip already carries, so re-opening resumes rather than resets.
+   *
+   * A story can be trimmed, put down, and picked up again from its thumbnail;
+   * without this the second visit showed the whole file and the handles said
+   * the trim had been forgotten - which, on pressing Done, it would have been.
+   */
+  initial?: VideoEdit;
+  /** 'Send' in a chat, 'Done' when the clip is going back to an editor. */
+  doneLabel?: string;
 }
 
-export function VideoTrimSheet({ src, onDone }: VideoTrimSheetProps) {
+export function VideoTrimSheet({ src, onDone, initial, doneLabel = 'Send' }: VideoTrimSheetProps) {
   const video = useRef<HTMLVideoElement>(null);
 
   const [duration, setDuration] = useState(0);
-  const [start, setStart] = useState(0);
-  const [end, setEnd] = useState(0);
-  const [muted, setMuted] = useState(false);
+  const [start, setStart] = useState(initial?.trimStart ?? 0);
+  const [end, setEnd] = useState(initial?.trimEnd ?? 0);
+  const [muted, setMuted] = useState(initial?.muted ?? false);
 
   /**
    * Which handle is being dragged, so the preview follows the right one.
@@ -65,7 +75,7 @@ export function VideoTrimSheet({ src, onDone }: VideoTrimSheetProps) {
   const tooShort = ready && span < 0.5;
 
   return (
-    <Sheet title="Trim video" onClose={() => onDone(undefined)}>
+    <Sheet title="Trim video" elevated onClose={() => onDone(undefined)}>
       <div className="relative mt-3 w-full overflow-hidden rounded-lg bg-black">
         <video
           ref={video}
@@ -77,7 +87,8 @@ export function VideoTrimSheet({ src, onDone }: VideoTrimSheetProps) {
             const media = event.currentTarget;
             if (!Number.isFinite(media.duration)) return;
             setDuration(media.duration);
-            setEnd(media.duration);
+            // An end mark the clip already had wins over the file's own end.
+            setEnd((current) => (current > 0 ? Math.min(current, media.duration) : media.duration));
           }}
           className="max-h-[45vh] w-full object-contain"
         />
@@ -161,7 +172,7 @@ export function VideoTrimSheet({ src, onDone }: VideoTrimSheetProps) {
             'bg-brand-gradient disabled:opacity-50',
           )}
         >
-          Send
+          {doneLabel}
         </button>
       </div>
     </Sheet>

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
+import { VideoOverlayLayer, useContainBox } from '../camera/VideoOverlay.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { ShareStorySheet } from './ShareStorySheet.js';
 import { StoryActions } from './StoryActions.js';
@@ -674,6 +675,9 @@ function StoryVideo({
   onSound: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
+  /** The area the clip is fitted into, and the clip's own proportions. */
+  const stage = useRef<HTMLDivElement>(null);
+  const [ratio, setRatio] = useState<number>();
 
   /*
    * A video arrives the same way a photo does: blurred, then sharp.
@@ -724,6 +728,9 @@ function StoryVideo({
     else void element.play().catch(() => undefined);
   }, [paused]);
 
+  const overlay = story.videoEdit?.overlay ?? [];
+  const box = useContainBox(stage, overlay.length > 0 ? ratio : undefined);
+
   return (
     <>
       <video
@@ -740,7 +747,13 @@ function StoryVideo({
          * The tap below is what buys the sound, and once bought it stays: the
          * flag lives in the viewer, not here.
          */
-        muted={!sound}
+        /*
+         * A clip the sender silenced stays silent, whatever the viewer has
+         * turned on. "Sound off" in the trimmer was a decision about the story,
+         * not a default for the person watching it - and until now the viewer
+         * simply ignored it.
+         */
+        muted={!sound || story.videoEdit?.muted === true}
         /*
          * The sender's marks, applied here and nowhere else.
          *
@@ -751,6 +764,9 @@ function StoryVideo({
          */
         onLoadedMetadata={(event) => {
           const media = event.currentTarget;
+          if (media.videoWidth > 0 && media.videoHeight > 0) {
+            setRatio(media.videoWidth / media.videoHeight);
+          }
           const from = story.videoEdit?.trimStart ?? 0;
           if (from > 0) media.currentTime = from;
         }}
@@ -794,6 +810,23 @@ function StoryVideo({
       />
 
       {/*
+        What the sender put on the clip, put back.
+
+        Measured against the picture rather than the screen: a portrait clip on
+        a wide phone has black either side, and a sticker placed beside somebody
+        belongs beside them, not out in the black. The stage below is the whole
+        area; the box inside it is the video, and the overlay is a child of that
+        so it moves and scales with the picture and nothing else.
+      */}
+      <div ref={stage} className="pointer-events-none absolute inset-0 grid place-items-center">
+        {box && overlay.length > 0 && (
+          <div className="relative" style={{ width: box.width, height: box.height }}>
+            <VideoOverlayLayer items={overlay} />
+          </div>
+        )}
+      </div>
+
+      {/*
         The offer, once, in the middle.
 
         A story is watched with a thumb already resting on the screen, so this
@@ -806,7 +839,7 @@ function StoryVideo({
         It leaves for good on the first tap. An affordance that keeps coming
         back is a notice, and this is an offer.
       */}
-      {!sound && (
+      {!sound && story.videoEdit?.muted !== true && (
         <button
           type="button"
           /*

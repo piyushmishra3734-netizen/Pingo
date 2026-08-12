@@ -12,7 +12,11 @@ import {
 } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { VideoEdit, VideoOverlayItem } from '@pingo/core';
+
+import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
 import { useStickers } from '../stickers/StickerContext.js';
+import { OVERLAY_SIZE, useContainBox } from './VideoOverlay.js';
 
 /**
  * The edit stage: draw on the snap, put text on it, then hand back a flat image.
@@ -118,6 +122,9 @@ export function SnapEditor({
   onAddAnother,
   addAnotherLabel = 'Add another photo',
   untouchable,
+  video = false,
+  onDoneVideo,
+  initialEdit,
 }: {
   src: string;
   onCancel: () => void;
@@ -142,15 +149,44 @@ export function SnapEditor({
    * offering a pen that silently flattens what it touches.
    */
   untouchable?: Blob;
+  /**
+   * The picture moves, and stays untouched anyway.
+   *
+   * A clip gets the same editor as a still - the same emoji row, the same
+   * sticker packs, the same drag-and-pinch - because to the person holding the
+   * phone there is no difference between decorating a photo and decorating a
+   * video, and there was no reason for the product to insist on one.
+   *
+   * What differs is only where the decoration ends up. Nothing here is burnt
+   * into the frames: pressing Done hands back a `VideoEdit` - the trim marks
+   * and the placed items - and the player puts them back over the original
+   * file. Which is also why the pen and the crop box are not offered: both
+   * describe a single frame, and there is no honest way to apply them to
+   * twenty seconds of them without re-encoding the clip.
+   */
+  video?: boolean;
+  /** Video mode's Done. The bytes never change, so only the marks come back. */
+  onDoneVideo?: (edit: VideoEdit) => void;
+  /** Marks and items this clip already carries, so re-opening it resumes. */
+  initialEdit?: VideoEdit;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  /** Video mode: the area the clip is fitted into, and the clip's own shape. */
+  const stageRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [ratio, setRatio] = useState<number>();
 
   const [tool, setTool] = useState<Tool>('none');
   const [colour, setColour] = useState(COLOURS[0]!);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<Item[]>(() =>
+    (initialEdit?.overlay ?? []).map((item) => ({ ...item, id: crypto.randomUUID() })),
+  );
+  /** Video mode: where the clip starts, ends, and whether it speaks. */
+  const [trim, setTrim] = useState<VideoEdit | undefined>(initialEdit);
+  const [trimOpen, setTrimOpen] = useState(false);
   const drawing = useRef<Stroke | undefined>(undefined);
   /** Quarter turns, clockwise. Applied at export, previewed with a transform. */
   const [rotation, setRotation] = useState(0);
@@ -234,6 +270,32 @@ export function SnapEditor({
      */
     if (untouchable) {
       deliver(untouchable);
+      return;
+    }
+
+    /*
+     * A clip leaves as marks, not as pixels. Same reason, one step further:
+     * there is no frame to paint on, so what the user arranged is written
+     * down and applied at playback.
+     */
+    if (video) {
+      onDoneVideo?.({
+        ...(trim?.trimStart !== undefined ? { trimStart: trim.trimStart } : {}),
+        ...(trim?.trimEnd !== undefined ? { trimEnd: trim.trimEnd } : {}),
+        ...(trim?.muted ? { muted: true } : {}),
+        ...(items.length > 0
+          ? {
+              overlay: items.map(
+                ({ id: _id, ...rest }): VideoOverlayItem => ({
+                  ...rest,
+                  // Empty labels are a tap that changed nothing; they would
+                  // arrive as an invisible plate over somebody's face.
+                  value: rest.kind === 'text' ? rest.value.trim() : rest.value,
+                }),
+              ).filter((item) => item.kind !== 'text' || item.value.length > 0),
+            }
+          : {}),
+      });
       return;
     }
 
@@ -447,9 +509,29 @@ export function SnapEditor({
     } finally {
       setExporting(false);
     }
-  }, [strokes, items, rotation, crop, onDone, exporting, untouchable]);
+  }, [strokes, items, rotation, crop, onDone, exporting, untouchable, video, onDoneVideo, trim]);
 
   // ---- render -------------------------------------------------------------
+
+  /** The clip's letterboxed rectangle. Photos use the whole frame as before. */
+  const box = useContainBox(stageRef, video ? ratio : undefined);
+
+  /*
+   * Placed once, used by both frames. Text, emoji and stickers are dragged and
+   * pinched identically whether the picture underneath moves or not - the only
+   * difference is that a video sizes them against its own height, so what is
+   * arranged here is what a viewer sees on a screen of any size.
+   */
+  const placedItems = items.map((item) => (
+    <DraggableItem
+      key={item.id}
+      item={item}
+      frameRef={frameRef}
+      relative={video}
+      onChange={(next) => setItems((all) => all.map((t) => (t.id === next.id ? next : t)))}
+      onRemove={() => setItems((all) => all.filter((t) => t.id !== item.id))}
+    />
+  ));
 
   return (
     <div className="flex h-full flex-col bg-backdrop">
@@ -458,8 +540,64 @@ export function SnapEditor({
         edge. Function of the frame is unchanged.
       */}
       <div
+        ref={stageRef}
+        className={cn(
+          'relative m-2 min-h-0 flex-1 overflow-hidden rounded-xl',
+          video && 'grid place-items-center',
+        )}
+      >
+      {video ? (
+        /*
+          The stage is the screen; the frame is the picture.
+
+          A clip is letterboxed inside the stage, and an emoji dropped at the
+          middle belongs in the middle of the *clip* - so everything placed
+          lives in a box measured to the video itself, and the black bars
+          around it are simply not part of the editor.
+        */
+        <div
+          ref={frameRef}
+          className="relative touch-none overflow-hidden rounded-xl bg-black"
+          style={{
+            // What `cqh` on the placed items is a fraction of.
+            containerType: 'size',
+            ...(box ? { width: box.width, height: box.height } : { width: '100%', height: '100%' }),
+          }}
+        >
+          <video
+            ref={videoRef}
+            src={src}
+            autoPlay
+            loop
+            muted
+            playsInline
+            onLoadedMetadata={(event) => {
+              const media = event.currentTarget;
+              if (media.videoWidth > 0 && media.videoHeight > 0) {
+                setRatio(media.videoWidth / media.videoHeight);
+              }
+              const from = trim?.trimStart ?? 0;
+              if (from > 0) media.currentTime = from;
+            }}
+            /*
+              The preview loops the *trimmed* clip, not the file. Choosing an
+              end mark and then watching the editor play past it is the sort of
+              thing that makes somebody re-open the trimmer to check.
+            */
+            onTimeUpdate={(event) => {
+              const media = event.currentTarget;
+              const from = trim?.trimStart ?? 0;
+              const to = trim?.trimEnd;
+              if (to !== undefined && media.currentTime >= to) media.currentTime = from;
+            }}
+            className="size-full object-contain"
+          />
+          {placedItems}
+        </div>
+      ) : (
+      <div
         ref={frameRef}
-        className="relative min-h-0 flex-1 touch-none overflow-hidden m-2 rounded-xl"
+        className="absolute inset-0 touch-none"
         onPointerDown={(event) => {
           if (tool !== 'draw') return;
           const point = toNormalised(event);
@@ -492,15 +630,7 @@ export function SnapEditor({
 
         <canvas ref={canvasRef} className="absolute inset-0 size-full" />
 
-        {items.map((item) => (
-          <DraggableItem
-            key={item.id}
-            item={item}
-            frameRef={frameRef}
-            onChange={(next) => setItems((all) => all.map((t) => (t.id === next.id ? next : t)))}
-            onRemove={() => setItems((all) => all.filter((t) => t.id !== item.id))}
-          />
-        ))}
+        {placedItems}
 
         {tool === 'crop' && (
           <CropOverlay
@@ -509,6 +639,8 @@ export function SnapEditor({
             onChange={setCrop}
           />
         )}
+      </div>
+      )}
 
         <button
           type="button"
@@ -516,7 +648,7 @@ export function SnapEditor({
           onClick={onCancel}
           className={cn(
             // ~10% smaller circle, ~15% softer fill - same placement.
-            'focus-ring absolute top-3 left-3 grid size-9 place-items-center',
+            'focus-ring absolute top-3 left-3 z-10 grid size-9 place-items-center',
             'rounded-full bg-black/34 text-white backdrop-blur-sm',
             'transition-colors duration-150 ease-standard',
           )}
@@ -559,12 +691,26 @@ export function SnapEditor({
           )}
         >
         <div className="scrollbar-none flex items-center justify-center gap-0.5 overflow-x-auto">
-          <ToolButton
-            label="Draw"
-            icon={<EditIcon size={17} />}
-            active={tool === 'draw'}
-            onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}
-          />
+          {/*
+            The pen writes on one frame, so a clip gets the trimmer in its
+            place - which is the tool a video wants at exactly the moment the
+            pen is not available.
+          */}
+          {video ? (
+            <ToolButton
+              label={trim?.trimStart || trim?.trimEnd || trim?.muted ? 'Trimmed' : 'Trim'}
+              icon={<ScissorsGlyph />}
+              active={Boolean(trim?.trimStart || trim?.trimEnd || trim?.muted)}
+              onClick={() => setTrimOpen(true)}
+            />
+          ) : (
+            <ToolButton
+              label="Draw"
+              icon={<EditIcon size={17} />}
+              active={tool === 'draw'}
+              onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}
+            />
+          )}
           <ToolButton
             label="Text"
             /* The letter is the icon. No glyph in the set says "type here" as
@@ -585,39 +731,49 @@ export function SnapEditor({
             active={tool === 'sticker'}
             onClick={() => setTool(tool === 'sticker' ? 'none' : 'sticker')}
           />
-          <ToolButton
-            label="Crop"
-            icon={<GridIcon size={17} />}
-            active={tool === 'crop'}
-            onClick={() => {
-              if (tool === 'crop') {
-                setTool('none');
-                return;
-              }
-              setTool('crop');
-              // Opening the tool proposes a crop rather than making the user
-              // draw one from nothing on top of their own picture.
-              setCrop((current) => current ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
-            }}
-          />
           {/*
-            A quarter turn per press, which is the whole of rotation as anyone
-            uses it - the photo is sideways or it is not. A free-angle dial
-            would be a second gesture to learn for a case that barely occurs.
+            Crop, rotate and undo describe a still. Cropping or turning a clip
+            means re-encoding it, and undo belongs to the pen that is not here -
+            so on a video the bar simply ends, rather than offering three
+            controls that would have to apologise when pressed.
           */}
-          <ToolButton
-            label="Rotate"
-            icon={<SwapIcon size={17} />}
-            active={false}
-            onClick={() => setRotation((r) => (r + 90) % 360)}
-          />
-          <ToolButton
-            label="Undo"
-            icon={<ArrowLeftIcon size={17} />}
-            active={false}
-            disabled={strokes.length === 0}
-            onClick={() => setStrokes((all) => all.slice(0, -1))}
-          />
+          {!video && (
+            <>
+              <ToolButton
+                label="Crop"
+                icon={<GridIcon size={17} />}
+                active={tool === 'crop'}
+                onClick={() => {
+                  if (tool === 'crop') {
+                    setTool('none');
+                    return;
+                  }
+                  setTool('crop');
+                  // Opening the tool proposes a crop rather than making the user
+                  // draw one from nothing on top of their own picture.
+                  setCrop((current) => current ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+                }}
+              />
+              {/*
+                A quarter turn per press, which is the whole of rotation as anyone
+                uses it - the photo is sideways or it is not. A free-angle dial
+                would be a second gesture to learn for a case that barely occurs.
+              */}
+              <ToolButton
+                label="Rotate"
+                icon={<SwapIcon size={17} />}
+                active={false}
+                onClick={() => setRotation((r) => (r + 90) % 360)}
+              />
+              <ToolButton
+                label="Undo"
+                icon={<ArrowLeftIcon size={17} />}
+                active={false}
+                disabled={strokes.length === 0}
+                onClick={() => setStrokes((all) => all.slice(0, -1))}
+              />
+            </>
+          )}
         </div>
         </div>
 
@@ -760,6 +916,32 @@ export function SnapEditor({
           </button>
         </div>
       </div>
+
+      {/*
+        The trimmer, over the editor rather than beside it.
+
+        Choosing where a clip starts is a different job from arranging things on
+        it, and it is the one job that wants the whole clip visible with a pair
+        of handles under it. The sheet already exists for chat and already knows
+        not to touch the file, so a video story gets the same one.
+      */}
+      {trimOpen && (
+        <VideoTrimSheet
+          src={src}
+          {...(trim ? { initial: trim } : {})}
+          doneLabel="Done"
+          onDone={(edit) => {
+            if (edit) {
+              setTrim(edit);
+              // The preview jumps to the new opening frame, so the change is
+              // something you see rather than something you are told.
+              const media = videoRef.current;
+              if (media) media.currentTime = edit.trimStart ?? 0;
+            }
+            setTrimOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -773,6 +955,27 @@ export function SnapEditor({
  * stays underneath so nothing has to be guessed - which is the arrangement
  * every camera app converges on for the same reason.
  */
+/** Scissors. The icon set has no cutting glyph, and trim has no other shape. */
+function ScissorsGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={17}
+      height={17}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="6" cy="6" r="2.6" />
+      <circle cx="6" cy="18" r="2.6" />
+      <path d="M20 4 8.6 15.4M20 20 8.6 8.6" />
+    </svg>
+  );
+}
+
 function ToolButton({
   label,
   icon,
@@ -1159,11 +1362,22 @@ function StickerStrip({
 function DraggableItem({
   item,
   frameRef,
+  relative = false,
   onChange,
   onRemove,
 }: {
   item: Item;
   frameRef: React.RefObject<HTMLDivElement | null>;
+  /**
+   * Size against the frame rather than in pixels.
+   *
+   * A photo is flattened at its own resolution, so the preview only has to look
+   * right on this screen. A video keeps its items as data and hands them to a
+   * player on some other screen, so they have to be described as a fraction of
+   * the picture - and the preview has to be that same fraction, or the editor
+   * is showing something nobody else will see.
+   */
+  relative?: boolean;
   onChange: (item: Item) => void;
   onRemove: () => void;
 }) {
@@ -1274,16 +1488,28 @@ function DraggableItem({
             tabIndex={0}
             contentEditable
             suppressContentEditableWarning
-            style={{ color: item.colour }}
+            style={{
+              color: item.colour,
+              ...(relative ? { fontSize: OVERLAY_SIZE.text } : {}),
+            }}
             onBlur={(event) => onChange({ ...item, value: event.currentTarget.textContent ?? '' })}
-            className="focus-ring max-w-[70vw] rounded-lg bg-black/40 px-3 py-1.5 text-h2 outline-none"
+            className={cn(
+              'focus-ring max-w-[70vw] outline-none',
+              relative
+                ? 'rounded-[0.36em] bg-black/40 px-[0.42em] py-[0.3em] leading-tight font-semibold'
+                : 'rounded-lg bg-black/40 px-3 py-1.5 text-h2',
+            )}
           >
             {item.value}
           </span>
         )}
 
         {item.kind === 'emoji' && (
-          <span className="text-[3rem] leading-none select-none" aria-label={item.value}>
+          <span
+            style={relative ? { fontSize: OVERLAY_SIZE.emoji } : undefined}
+            className={cn('leading-none select-none', !relative && 'text-[3rem]')}
+            aria-label={item.value}
+          >
             {item.value}
           </span>
         )}
@@ -1293,7 +1519,11 @@ function DraggableItem({
             src={item.url}
             alt={item.value}
             draggable={false}
-            className="size-24 object-contain select-none"
+            style={relative ? { height: OVERLAY_SIZE.sticker } : undefined}
+            className={cn(
+              'object-contain select-none',
+              relative ? 'w-auto max-w-none' : 'size-24',
+            )}
           />
         )}
 
