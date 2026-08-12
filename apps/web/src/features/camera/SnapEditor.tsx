@@ -16,7 +16,13 @@ import type { VideoEdit, VideoOverlayItem } from '@pingo/core';
 
 import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
 import { useStickers } from '../stickers/StickerContext.js';
-import { OVERLAY_SIZE, useContainBox } from './VideoOverlay.js';
+import {
+  OVERLAY_SIZE,
+  PEN_WIDTH,
+  pictureRatio,
+  useContainBox,
+  videoGeometry,
+} from './VideoOverlay.js';
 
 /**
  * The edit stage: draw on the snap, put text on it, then hand back a flat image.
@@ -41,9 +47,6 @@ import { OVERLAY_SIZE, useContainBox } from './VideoOverlay.js';
  */
 
 const COLOURS = ['#ffffff', '#101114', '#ff3b5c', '#ffc93c', '#3ddc84', '#5c6cff'];
-
-/** Stroke width as a fraction of the frame's smaller side, so it scales. */
-const PEN_WIDTH = 0.008;
 
 interface Stroke {
   colour: string;
@@ -180,18 +183,32 @@ export function SnapEditor({
 
   const [tool, setTool] = useState<Tool>('none');
   const [colour, setColour] = useState(COLOURS[0]!);
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [strokes, setStrokes] = useState<Stroke[]>(() =>
+    (initialEdit?.strokes ?? []).map((stroke) => ({ ...stroke })),
+  );
   const [items, setItems] = useState<Item[]>(() =>
     (initialEdit?.overlay ?? []).map((item) => ({ ...item, id: crypto.randomUUID() })),
   );
   /** Video mode: where the clip starts, ends, and whether it speaks. */
   const [trim, setTrim] = useState<VideoEdit | undefined>(initialEdit);
   const [trimOpen, setTrimOpen] = useState(false);
+  /**
+   * Video mode: sound in the preview.
+   *
+   * On, because an editor that plays a clip silently is an editor that lies
+   * about what is being posted. It drops to off only if the browser refuses to
+   * start an audible clip by itself, which is a policy about autoplay rather
+   * than a decision anybody made - and then the speaker button below buys it
+   * back with the tap that policy is waiting for.
+   */
+  const [sound, setSound] = useState(true);
+  /** Silent because the sender said so, or because autoplay would not start. */
+  const silent = !sound || trim?.muted === true;
   const drawing = useRef<Stroke | undefined>(undefined);
   /** Quarter turns, clockwise. Applied at export, previewed with a transform. */
-  const [rotation, setRotation] = useState(0);
+  const [rotation, setRotation] = useState(initialEdit?.rotate ?? 0);
   /** Absent means the whole frame. Applied at export, previewed as a mask. */
-  const [crop, setCrop] = useState<Crop | undefined>();
+  const [crop, setCrop] = useState<Crop | undefined>(initialEdit?.crop);
   const [exportError, setExportError] = useState<string>();
   const [exporting, setExporting] = useState(false);
 
@@ -205,6 +222,97 @@ export function SnapEditor({
       ]),
     [],
   );
+
+  /*
+   * ---- video: keeping what is placed where it was put ---------------------
+   *
+   * On a photo, everything placed is painted into the picture at export and
+   * cropping or turning the canvas afterwards carries it along for free. A clip
+   * is never painted, so its decorations are stored against the *final* frame -
+   * the turned, cropped one - and re-framing that picture has to move them by
+   * hand, or a sticker sitting on somebody's shoulder ends up in the sky the
+   * moment the crop box is nudged.
+   *
+   * Both of these are the same two lines of arithmetic in different clothes:
+   * express the old position in the new frame's units.
+   */
+
+  /** What the crop was when the crop tool opened, so the exit can reframe. */
+  const cropOnOpen = useRef<Crop | undefined>(undefined);
+  const lastTool = useRef<Tool>('none');
+
+  const reframe = useCallback((from: Crop, to: Crop) => {
+    if (from.x === to.x && from.y === to.y && from.w === to.w && from.h === to.h) return;
+
+    const move = (point: { x: number; y: number }) => ({
+      x: (from.x + point.x * from.w - to.x) / to.w,
+      y: (from.y + point.y * from.h - to.y) / to.h,
+    });
+
+    setItems((all) =>
+      all.map((item) => ({
+        ...item,
+        ...move(item),
+        // Sizes are fractions of the picture's height, so a shorter frame
+        // makes the same sticker a larger fraction of it.
+        scale: (item.scale * from.h) / to.h,
+      })),
+    );
+    setStrokes((all) => all.map((stroke) => ({ ...stroke, points: stroke.points.map(move) })));
+  }, []);
+
+  const WHOLE: Crop = { x: 0, y: 0, w: 1, h: 1 };
+
+  useEffect(() => {
+    if (!video) return;
+    const previous = lastTool.current;
+    lastTool.current = tool;
+    if (previous === 'crop' && tool !== 'crop') {
+      reframe(cropOnOpen.current ?? WHOLE, crop ?? WHOLE);
+    }
+    // `crop` is read on the exit edge only; watching it would reframe mid-drag.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, video, reframe]);
+
+  /** A quarter turn clockwise, with everything on the picture turning too. */
+  const turn = useCallback(() => {
+    const spun = (point: { x: number; y: number }) => ({ x: 1 - point.y, y: point.x });
+    const before = pictureRatio(ratio ?? 1, rotation, crop);
+
+    setItems((all) =>
+      all.map((item) => ({
+        ...item,
+        ...spun(item),
+        rotation: item.rotation + Math.PI / 2,
+        scale: item.scale / before,
+      })),
+    );
+    setStrokes((all) => all.map((stroke) => ({ ...stroke, points: stroke.points.map(spun) })));
+    // The crop rectangle describes the turned picture, so it turns as well.
+    setCrop((current) =>
+      current
+        ? { x: 1 - (current.y + current.h), y: current.x, w: current.h, h: current.w }
+        : undefined,
+    );
+    setRotation((r) => (r + 90) % 360);
+  }, [ratio, rotation, crop]);
+
+  /*
+   * Start it playing, with sound if the browser will allow it.
+   *
+   * `autoplay` on an audible clip is refused nearly everywhere, and the refusal
+   * is silent - the editor simply showed a still frame that never moved, or
+   * played without sound and looked like the clip had none. So playback is
+   * asked for explicitly: if the answer is no, the preview drops to silent and
+   * tries again, which always succeeds, and the speaker button offers the sound
+   * back on a tap.
+   */
+  useEffect(() => {
+    if (!video) return;
+    const media = videoRef.current;
+    if (!media) return;
+    void media.play().catch(() => setSound(false));
+  }, [video, silent, src]);
 
   // ---- drawing ------------------------------------------------------------
 
@@ -283,6 +391,11 @@ export function SnapEditor({
         ...(trim?.trimStart !== undefined ? { trimStart: trim.trimStart } : {}),
         ...(trim?.trimEnd !== undefined ? { trimEnd: trim.trimEnd } : {}),
         ...(trim?.muted ? { muted: true } : {}),
+        ...(rotation ? { rotate: rotation as 90 | 180 | 270 } : {}),
+        ...(crop ? { crop } : {}),
+        ...(strokes.length > 0
+          ? { strokes: strokes.map((stroke) => ({ colour: stroke.colour, points: stroke.points })) }
+          : {}),
         ...(items.length > 0
           ? {
               overlay: items.map(
@@ -513,8 +626,19 @@ export function SnapEditor({
 
   // ---- render -------------------------------------------------------------
 
-  /** The clip's letterboxed rectangle. Photos use the whole frame as before. */
-  const box = useContainBox(stageRef, video ? ratio : undefined);
+  /*
+   * The clip's letterboxed rectangle, after turning and cropping.
+   *
+   * While the crop box is open the frame goes back to the whole picture -
+   * choosing a rectangle out of the rectangle you last chose is not a thing
+   * anybody means to do, and it is how a crop tool becomes impossible to undo.
+   */
+  const framing = tool === 'crop' ? undefined : crop;
+  const box = useContainBox(
+    stageRef,
+    video && ratio ? pictureRatio(ratio, rotation, framing) : undefined,
+  );
+  const geometry = videoGeometry(box ?? { width: 0, height: 0 }, rotation, framing);
 
   /*
    * Placed once, used by both frames. Text, emoji and stickers are dragged and
@@ -563,36 +687,103 @@ export function SnapEditor({
             containerType: 'size',
             ...(box ? { width: box.width, height: box.height } : { width: '100%', height: '100%' }),
           }}
+          onPointerDown={(event) => {
+            if (tool !== 'draw') return;
+            const point = toNormalised(event);
+            if (!point) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            drawing.current = { colour, points: [point] };
+            paint();
+          }}
+          onPointerMove={(event) => {
+            if (!drawing.current) return;
+            const point = toNormalised(event);
+            if (!point) return;
+            drawing.current.points.push(point);
+            paint();
+          }}
+          onPointerUp={() => {
+            if (!drawing.current) return;
+            const stroke = drawing.current;
+            drawing.current = undefined;
+            setStrokes((all) => [...all, stroke]);
+          }}
         >
-          <video
-            ref={videoRef}
-            src={src}
-            autoPlay
-            loop
-            muted
-            playsInline
-            onLoadedMetadata={(event) => {
-              const media = event.currentTarget;
-              if (media.videoWidth > 0 && media.videoHeight > 0) {
-                setRatio(media.videoWidth / media.videoHeight);
-              }
-              const from = trim?.trimStart ?? 0;
-              if (from > 0) media.currentTime = from;
-            }}
-            /*
-              The preview loops the *trimmed* clip, not the file. Choosing an
-              end mark and then watching the editor play past it is the sort of
-              thing that makes somebody re-open the trimmer to check.
-            */
-            onTimeUpdate={(event) => {
-              const media = event.currentTarget;
-              const from = trim?.trimStart ?? 0;
-              const to = trim?.trimEnd;
-              if (to !== undefined && media.currentTime >= to) media.currentTime = from;
-            }}
-            className="size-full object-contain"
-          />
-          {placedItems}
+          {/*
+            Turned and cropped by transform, never by re-encoding: the picture
+            below is the whole clip, shifted so the chosen rectangle lands over
+            this frame, and the clip inside it is spun about its own centre.
+            The viewer reproduces exactly this from the marks.
+          */}
+          <div style={geometry.picture}>
+            <video
+              ref={videoRef}
+              src={src}
+              autoPlay
+              loop
+              muted={silent}
+              playsInline
+              onLoadedMetadata={(event) => {
+                const media = event.currentTarget;
+                if (media.videoWidth > 0 && media.videoHeight > 0) {
+                  setRatio(media.videoWidth / media.videoHeight);
+                }
+                const from = trim?.trimStart ?? 0;
+                if (from > 0) media.currentTime = from;
+              }}
+              /*
+                The preview loops the *trimmed* clip, not the file. Choosing an
+                end mark and then watching the editor play past it is the sort of
+                thing that makes somebody re-open the trimmer to check.
+              */
+              onTimeUpdate={(event) => {
+                const media = event.currentTarget;
+                const from = trim?.trimStart ?? 0;
+                const to = trim?.trimEnd;
+                if (to !== undefined && media.currentTime >= to) media.currentTime = from;
+              }}
+              style={geometry.video}
+            />
+          </div>
+
+          <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+
+          {/*
+            While the crop box is open the frame shows the whole picture, so
+            anything placed on the cropped one would be sitting in the wrong
+            place. It comes back - moved into the new frame - the moment the
+            tool closes.
+          */}
+          {tool !== 'crop' && placedItems}
+
+          {tool === 'crop' && (
+            <CropOverlay
+              crop={crop ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }}
+              frameRef={frameRef}
+              onChange={setCrop}
+            />
+          )}
+
+          {/*
+            The tap the browser is waiting for.
+
+            Only ever shown when an audible clip was refused a start of its own -
+            not as a preference, which is what the trimmer's Sound off is for.
+          */}
+          {!sound && trim?.muted !== true && (
+            <button
+              type="button"
+              onClick={() => setSound(true)}
+              aria-label="Turn on sound"
+              className={cn(
+                'focus-ring absolute top-2 right-2 grid size-9 place-items-center',
+                'rounded-full bg-black/45 text-white backdrop-blur-sm',
+                'transition-transform duration-150 ease-standard active:scale-95',
+              )}
+            >
+              <SpeakerOffGlyph />
+            </button>
+          )}
         </div>
       ) : (
       <div
@@ -691,26 +882,21 @@ export function SnapEditor({
           )}
         >
         <div className="scrollbar-none flex items-center justify-center gap-0.5 overflow-x-auto">
-          {/*
-            The pen writes on one frame, so a clip gets the trimmer in its
-            place - which is the tool a video wants at exactly the moment the
-            pen is not available.
-          */}
-          {video ? (
+          {/* The one tool only a clip has, first, where the pen sits on a still. */}
+          {video && (
             <ToolButton
               label={trim?.trimStart || trim?.trimEnd || trim?.muted ? 'Trimmed' : 'Trim'}
               icon={<ScissorsGlyph />}
               active={Boolean(trim?.trimStart || trim?.trimEnd || trim?.muted)}
               onClick={() => setTrimOpen(true)}
             />
-          ) : (
-            <ToolButton
-              label="Draw"
-              icon={<EditIcon size={17} />}
-              active={tool === 'draw'}
-              onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}
-            />
           )}
+          <ToolButton
+            label="Draw"
+            icon={<EditIcon size={17} />}
+            active={tool === 'draw'}
+            onClick={() => setTool(tool === 'draw' ? 'none' : 'draw')}
+          />
           <ToolButton
             label="Text"
             /* The letter is the icon. No glyph in the set says "type here" as
@@ -731,49 +917,45 @@ export function SnapEditor({
             active={tool === 'sticker'}
             onClick={() => setTool(tool === 'sticker' ? 'none' : 'sticker')}
           />
+          <ToolButton
+            label="Crop"
+            icon={<GridIcon size={17} />}
+            active={tool === 'crop'}
+            onClick={() => {
+              if (tool === 'crop') {
+                setTool('none');
+                return;
+              }
+              // Where everything currently sits, so leaving the tool can move
+              // it into whatever rectangle was chosen.
+              cropOnOpen.current = crop;
+              setTool('crop');
+              // Opening the tool proposes a crop rather than making the user
+              // draw one from nothing on top of their own picture.
+              setCrop((current) => current ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
+            }}
+          />
           {/*
-            Crop, rotate and undo describe a still. Cropping or turning a clip
-            means re-encoding it, and undo belongs to the pen that is not here -
-            so on a video the bar simply ends, rather than offering three
-            controls that would have to apologise when pressed.
+            A quarter turn per press, which is the whole of rotation as anyone
+            uses it - the picture is sideways or it is not. A free-angle dial
+            would be a second gesture to learn for a case that barely occurs.
+
+            On a clip the turn is carried by everything on it: what was placed
+            beside a face stays beside that face, turned with it.
           */}
-          {!video && (
-            <>
-              <ToolButton
-                label="Crop"
-                icon={<GridIcon size={17} />}
-                active={tool === 'crop'}
-                onClick={() => {
-                  if (tool === 'crop') {
-                    setTool('none');
-                    return;
-                  }
-                  setTool('crop');
-                  // Opening the tool proposes a crop rather than making the user
-                  // draw one from nothing on top of their own picture.
-                  setCrop((current) => current ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 });
-                }}
-              />
-              {/*
-                A quarter turn per press, which is the whole of rotation as anyone
-                uses it - the photo is sideways or it is not. A free-angle dial
-                would be a second gesture to learn for a case that barely occurs.
-              */}
-              <ToolButton
-                label="Rotate"
-                icon={<SwapIcon size={17} />}
-                active={false}
-                onClick={() => setRotation((r) => (r + 90) % 360)}
-              />
-              <ToolButton
-                label="Undo"
-                icon={<ArrowLeftIcon size={17} />}
-                active={false}
-                disabled={strokes.length === 0}
-                onClick={() => setStrokes((all) => all.slice(0, -1))}
-              />
-            </>
-          )}
+          <ToolButton
+            label="Rotate"
+            icon={<SwapIcon size={17} />}
+            active={false}
+            onClick={() => (video ? turn() : setRotation((r) => (r + 90) % 360))}
+          />
+          <ToolButton
+            label="Undo"
+            icon={<ArrowLeftIcon size={17} />}
+            active={false}
+            disabled={strokes.length === 0}
+            onClick={() => setStrokes((all) => all.slice(0, -1))}
+          />
         </div>
         </div>
 
@@ -955,6 +1137,45 @@ export function SnapEditor({
  * stays underneath so nothing has to be guessed - which is the arrangement
  * every camera app converges on for the same reason.
  */
+/** Two arrows on a diagonal: the corner you pull to resize. */
+function ResizeGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={12}
+      height={12}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M4 20 20 4M14 4h6v6M10 20H4v-6" />
+    </svg>
+  );
+}
+
+/** A speaker with a slash, for the one tap that buys sound back. */
+function SpeakerOffGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={18}
+      height={18}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+      <path d="m17 9 4 6M21 9l-4 6" />
+    </svg>
+  );
+}
+
 /** Scissors. The icon set has no cutting glyph, and trim has no other shape. */
 function ScissorsGlyph() {
   return (
@@ -1395,6 +1616,17 @@ function DraggableItem({
   const pinchStart = useRef<
     { distance: number; angle: number; scale: number; rotation: number } | undefined
   >(undefined);
+  /** The same baseline, for the corner handle: one finger instead of two. */
+  const sizing = useRef<
+    | {
+        distance: number;
+        angle: number;
+        scale: number;
+        rotation: number;
+        centre: { x: number; y: number };
+      }
+    | undefined
+  >(undefined);
 
   const spread = () => {
     const [a, b] = [...pointers.current.values()];
@@ -1527,14 +1759,95 @@ function DraggableItem({
           />
         )}
 
+        {/*
+          The controls do not grow with the thing they control.
+
+          They live inside the item's own transform, so a sticker pinched to
+          four times its size took its little × with it - a black disc a third
+          of the picture wide, sitting on the story. Undoing the item's scale
+          here keeps both at the size a thumb expects, whatever the item does.
+        */}
         <button
           type="button"
           aria-label={`Remove ${item.kind === 'text' ? 'text' : item.value}`}
           onClick={onRemove}
+          style={{ transform: `scale(${1 / item.scale})` }}
           className="focus-ring grid size-6 shrink-0 place-items-center rounded-full bg-black/50 text-white"
         >
           <CloseIcon size={13} />
         </button>
+
+        {/*
+          A corner to pull, because a pinch is not always available.
+
+          Two fingers scale anything here, but on a label the first finger lands
+          on editable text and the browser takes it for a caret - so typing was
+          reachable and resizing was not, which is exactly backwards for the one
+          item people most want bigger. Dragging this handle sets the size from
+          the distance to the item's centre, and the turn from the angle, so one
+          finger or a mouse does what two fingers do.
+        */}
+        <span
+          role="slider"
+          tabIndex={0}
+          aria-label="Resize"
+          aria-valuenow={Math.round(item.scale * 100)}
+          aria-valuemin={20}
+          aria-valuemax={600}
+          onKeyDown={(event) => {
+            const step = event.key === 'ArrowUp' ? 0.1 : event.key === 'ArrowDown' ? -0.1 : 0;
+            if (!step) return;
+            event.preventDefault();
+            onChange({ ...item, scale: Math.min(6, Math.max(0.2, item.scale + step)) });
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            const rect = frameRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const centre = {
+              x: rect.left + item.x * rect.width,
+              y: rect.top + item.y * rect.height,
+            };
+            sizing.current = {
+              distance: Math.hypot(event.clientX - centre.x, event.clientY - centre.y) || 1,
+              angle: Math.atan2(event.clientY - centre.y, event.clientX - centre.x),
+              scale: item.scale,
+              rotation: item.rotation,
+              centre,
+            };
+          }}
+          onPointerMove={(event) => {
+            const start = sizing.current;
+            if (!start) return;
+            const distance = Math.hypot(
+              event.clientX - start.centre.x,
+              event.clientY - start.centre.y,
+            );
+            const angle = Math.atan2(
+              event.clientY - start.centre.y,
+              event.clientX - start.centre.x,
+            );
+            onChange({
+              ...item,
+              scale: Math.min(6, Math.max(0.2, (start.scale * distance) / start.distance)),
+              rotation: start.rotation + (angle - start.angle),
+            });
+          }}
+          onPointerUp={() => {
+            sizing.current = undefined;
+          }}
+          onPointerCancel={() => {
+            sizing.current = undefined;
+          }}
+          style={{ transform: `scale(${1 / item.scale})` }}
+          className={cn(
+            'focus-ring grid size-6 shrink-0 cursor-nwse-resize touch-none place-items-center',
+            'rounded-full bg-black/50 text-white',
+          )}
+        >
+          <ResizeGlyph />
+        </span>
       </div>
     </div>
   );

@@ -61,6 +61,30 @@ export interface VideoEdit {
    * meant and still means.
    */
   overlay?: VideoOverlayItem[];
+  /** Pen strokes, in the same normalised space as `overlay`. */
+  strokes?: VideoOverlayStroke[];
+  /**
+   * Quarter turns clockwise, applied to the picture at playback.
+   *
+   * A sideways clip is turned by turning what is shown, not by rewriting the
+   * file. Everything placed on it is stored against the turned picture, so the
+   * player has one job: turn it, then draw.
+   */
+  rotate?: 90 | 180 | 270;
+  /**
+   * The part of the (turned) picture worth showing, as fractions of it.
+   *
+   * The player scales and shifts the clip so this rectangle fills the frame -
+   * the rest is simply outside the box, the same way a crop on a photo is
+   * outside the file it was exported to.
+   */
+  crop?: { x: number; y: number; w: number; h: number };
+}
+
+/** One drawn line. Points are normalised to the picture, 0-1. */
+export interface VideoOverlayStroke {
+  colour: string;
+  points: { x: number; y: number }[];
 }
 
 /**

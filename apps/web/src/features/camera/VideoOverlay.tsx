@@ -1,6 +1,6 @@
-import type { VideoOverlayItem } from '@pingo/core';
+import type { VideoEdit, VideoOverlayItem, VideoOverlayStroke } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useState, type CSSProperties, type RefObject } from 'react';
 
 /**
  * What somebody put on a video, put back at playback.
@@ -34,6 +34,68 @@ export const OVERLAY_SIZE = {
   emoji: '12cqh',
   sticker: '18cqh',
 } as const;
+
+/** Stroke width as a fraction of the picture's smaller side, so it scales. */
+export const PEN_WIDTH = 0.008;
+
+/**
+ * How a turned and cropped clip is fitted into a box, in three flat numbers.
+ *
+ * Turning and cropping a video means turning and cropping *what is shown*: the
+ * file is never rewritten, so the player has to reproduce both from the marks.
+ * Both the editor and the viewer need exactly the same arithmetic - if they
+ * disagree by a percent, everything placed on the picture is off by a percent -
+ * so it is written once, here, and neither one owns it.
+ *
+ * `picture` is the whole turned clip, positioned so the crop rectangle lands
+ * over the frame; `video` is the element inside it, turned about its centre and
+ * given swapped sides on a quarter turn because that is what a turn does to a
+ * rectangle.
+ */
+export function videoGeometry(
+  box: { width: number; height: number },
+  rotate: number = 0,
+  crop?: VideoEdit['crop'],
+): { picture: CSSProperties; video: CSSProperties } {
+  const c = crop ?? { x: 0, y: 0, w: 1, h: 1 };
+  const pictureWidth = box.width / c.w;
+  const pictureHeight = box.height / c.h;
+  const turned = rotate % 180 !== 0;
+
+  return {
+    picture: {
+      position: 'absolute',
+      left: -c.x * pictureWidth,
+      top: -c.y * pictureHeight,
+      width: pictureWidth,
+      height: pictureHeight,
+    },
+    video: {
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      width: turned ? pictureHeight : pictureWidth,
+      height: turned ? pictureWidth : pictureHeight,
+      transform: `translate(-50%, -50%) rotate(${rotate}deg)`,
+      objectFit: 'contain',
+    },
+  };
+}
+
+/**
+ * The shape of the picture after it has been turned and cropped.
+ *
+ * What the contain-box is measured against: a portrait clip turned sideways is
+ * a landscape picture, and a clip cropped square is a square one.
+ */
+export function pictureRatio(
+  ratio: number,
+  rotate: number = 0,
+  crop?: VideoEdit['crop'],
+): number {
+  const turned = (rotate % 180 !== 0 ? 1 / ratio : ratio);
+  return crop ? (turned * crop.w) / crop.h : turned;
+}
 
 /**
  * The rectangle a video actually occupies inside a box, measured.
@@ -83,12 +145,19 @@ export function useContainBox(
 
 export function VideoOverlayLayer({
   items,
+  strokes = [],
+  width,
+  height,
   className,
 }: {
   items: VideoOverlayItem[];
+  strokes?: VideoOverlayStroke[];
+  /** The picture's size in pixels - what the drawn lines are measured in. */
+  width: number;
+  height: number;
   className?: string;
 }) {
-  if (items.length === 0) return null;
+  if (items.length === 0 && strokes.length === 0) return null;
 
   return (
     <div
@@ -97,6 +166,37 @@ export function VideoOverlayLayer({
       className={cn('pointer-events-none absolute inset-0', className)}
       style={{ containerType: 'size' }}
     >
+      {/*
+        The pen, in vectors.
+
+        Drawn into an SVG sized in the picture's own pixels rather than a square
+        stretched to fit, because a stretched viewBox turns a round pen into an
+        oval one and every line drawn on a portrait clip would come out thinner
+        across than along.
+      */}
+      {strokes.length > 0 && (
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          width={width}
+          height={height}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="absolute inset-0"
+        >
+          {strokes.map((stroke, index) => (
+            <polyline
+              key={index}
+              stroke={stroke.colour}
+              strokeWidth={PEN_WIDTH * Math.min(width, height)}
+              points={stroke.points
+                .map((point) => `${point.x * width},${point.y * height}`)
+                .join(' ')}
+            />
+          ))}
+        </svg>
+      )}
+
       {items.map((item, index) => (
         <div
           key={index}

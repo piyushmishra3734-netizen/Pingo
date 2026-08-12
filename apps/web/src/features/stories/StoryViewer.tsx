@@ -5,7 +5,12 @@ import { useNavigate } from 'react-router-dom';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
-import { VideoOverlayLayer, useContainBox } from '../camera/VideoOverlay.js';
+import {
+  VideoOverlayLayer,
+  pictureRatio,
+  useContainBox,
+  videoGeometry,
+} from '../camera/VideoOverlay.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { ShareStorySheet } from './ShareStorySheet.js';
 import { StoryActions } from './StoryActions.js';
@@ -728,11 +733,29 @@ function StoryVideo({
     else void element.play().catch(() => undefined);
   }, [paused]);
 
-  const overlay = story.videoEdit?.overlay ?? [];
-  const box = useContainBox(stage, overlay.length > 0 ? ratio : undefined);
+  const edit = story.videoEdit;
+  const overlay = edit?.overlay ?? [];
+  const strokes = edit?.strokes ?? [];
+  /*
+   * A clip that was turned, cropped or decorated is played inside a box shaped
+   * like the *edited* picture; a plain one is left exactly as it was, straight
+   * against the frame, so nothing about the common case goes through this.
+   */
+  const framed = Boolean(edit?.rotate || edit?.crop || overlay.length > 0 || strokes.length > 0);
+  const box = useContainBox(
+    stage,
+    framed && ratio ? pictureRatio(ratio, edit?.rotate ?? 0, edit?.crop) : undefined,
+  );
+  const geometry = box ? videoGeometry(box, edit?.rotate ?? 0, edit?.crop) : undefined;
 
-  return (
-    <>
+  /*
+   * The arrival - a blur that lifts and a hair of overscale - has to ride on
+   * top of whatever framing the sender chose, not instead of it. A turned clip
+   * carries a rotation in the same property, so the two are composed rather
+   * than one quietly winning.
+   */
+  const arriving = ready ? 'scale(1)' : 'scale(1.06)';
+  const media = (
       <video
         ref={ref}
         key={story.id}
@@ -798,31 +821,52 @@ function StoryVideo({
           if (to !== undefined && media.currentTime >= to) media.pause();
         }}
         className={cn(
-          'absolute inset-0 size-full object-contain select-none',
-          'transition-[filter,transform] duration-slow ease-standard',
+          'select-none transition-[filter,transform] duration-slow ease-standard',
+          !geometry && 'absolute inset-0 size-full object-contain',
         )}
         style={{
+          ...(geometry ? geometry.video : {}),
           // The same arrival a photo gets - see `StoryImage`. The slight
           // overscale keeps the blur from showing soft edges at the frame.
           filter: sharp ? 'none' : ready ? 'blur(0px)' : 'blur(26px)',
-          transform: ready ? 'scale(1)' : 'scale(1.06)',
+          transform: geometry
+            ? `${String(geometry.video.transform)} ${arriving}`
+            : arriving,
         }}
       />
+  );
 
+  return (
+    <>
       {/*
-        What the sender put on the clip, put back.
+        The clip, in the shape the sender left it.
 
-        Measured against the picture rather than the screen: a portrait clip on
-        a wide phone has black either side, and a sticker placed beside somebody
-        belongs beside them, not out in the black. The stage below is the whole
-        area; the box inside it is the video, and the overlay is a child of that
-        so it moves and scales with the picture and nothing else.
+        Everything is measured against the picture rather than the screen: a
+        portrait clip on a wide phone has black either side, and a sticker
+        placed beside somebody belongs beside them, not out in the black. The
+        stage is the whole area; the box inside it is the edited picture - after
+        the turn and the crop - and the clip and everything on it are children
+        of that box, so they move and scale together and nothing else does.
+
+        A clip nobody edited skips all of it and sits straight against the
+        frame, exactly as before.
       */}
       <div ref={stage} className="pointer-events-none absolute inset-0 grid place-items-center">
-        {box && overlay.length > 0 && (
-          <div className="relative" style={{ width: box.width, height: box.height }}>
-            <VideoOverlayLayer items={overlay} />
+        {geometry && box ? (
+          <div
+            className="relative overflow-hidden"
+            style={{ width: box.width, height: box.height }}
+          >
+            <div style={geometry.picture}>{media}</div>
+            <VideoOverlayLayer
+              items={overlay}
+              strokes={strokes}
+              width={box.width}
+              height={box.height}
+            />
           </div>
+        ) : (
+          media
         )}
       </div>
 
