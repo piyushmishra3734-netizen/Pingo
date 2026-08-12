@@ -16,7 +16,10 @@ import type { StoryAudioDraft, VideoEdit, VideoOverlayItem } from '@pingo/core';
 
 import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
 import { useStickers } from '../stickers/StickerContext.js';
+import { SoundPreviewBar } from '../stories/SoundPreviewBar.js';
 import { StoryAudioSheet } from '../stories/StoryAudioSheet.js';
+import { soundLength } from '../stories/StorySound.js';
+import { clock } from '../stories/story-audio.js';
 import {
   OVERLAY_SIZE,
   PEN_WIDTH,
@@ -1017,7 +1020,20 @@ export function SnapEditor({
           */}
           {onAudioChange && (
             <ToolButton
-              label={audio && audio.length > 0 ? `Sound · ${audio.length}` : 'Sound'}
+              /*
+                The length rather than the count: how long a photo story will
+                stay up is the thing sound changes about it, and "2" is not
+                that. It is also the number that answers "did the trim take".
+              */
+              label={
+                audio && audio.length > 0
+                  ? `Sound · ${clock(
+                      soundLength(
+                        audio.map((piece) => ({ ...piece, url: '' })),
+                      ),
+                    )}`
+                  : 'Sound'
+              }
               icon={<NoteGlyph />}
               active={Boolean(audio && audio.length > 0)}
               onClick={() => setAudioOpen(true)}
@@ -1094,6 +1110,16 @@ export function SnapEditor({
         )}
         </>
         )}
+
+        {/*
+          The sound, playable where the rest of the editing happens.
+
+          The sheet auditions one piece; this plays the arrangement, which is
+          the only way to hear a photograph's sound at all - a picture does not
+          play, so without this the sound was something you set up and then had
+          to post to find out about.
+        */}
+        {onAudioChange && audio && audio.length > 0 && <SoundPreviewBar audio={audio} />}
 
         {/* Caption, view limit - supplied by whoever is using the editor. */}
         {extras}

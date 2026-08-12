@@ -7,10 +7,13 @@ import { useVoiceRecorder } from '../chat/useVoiceRecorder.js';
 import {
   MAX_STORY_SECONDS,
   MAX_TRACK_SECONDS,
+  MIN_PIECE_SECONDS,
   clock,
   cutToWav,
   decodeSound,
   peaksOf,
+  trimIn,
+  trimOut,
 } from './story-audio.js';
 
 /**
@@ -88,9 +91,15 @@ export function StoryAudioSheet({
   const recorder = useVoiceRecorder();
 
   /** The one piece being auditioned, so two never play over each other. */
-  const preview = useRef<{ context: AudioContext; node: AudioBufferSourceNode } | undefined>(
-    undefined,
-  );
+  const preview = useRef<
+    | {
+        context: AudioContext;
+        node: AudioBufferSourceNode;
+        gain: GainNode;
+        pieceId: string;
+      }
+    | undefined
+  >(undefined);
 
   /**
    * The moving line, written straight to the DOM.
@@ -195,7 +204,7 @@ export function StoryAudioSheet({
     const span = Math.max(0.05, piece.to - piece.from);
     node.start(0, piece.from, span);
     node.onended = () => stopPreview();
-    preview.current = { context, node };
+    preview.current = { context, node, gain, pieceId: piece.id };
 
     // Where in the piece it has got to, on the strip and in words.
     const line = document.querySelector<HTMLElement>(`[data-playhead="${piece.id}"]`);
@@ -221,7 +230,15 @@ export function StoryAudioSheet({
       const made = pieces.flatMap((piece): StoryAudioDraft[] => {
         const source = sourceOf(piece);
         const length = piece.to - piece.from;
-        if (!source || length < 0.2) return [];
+        /*
+         * The margin is not slack, it is subtraction.
+         *
+         * A piece trimmed exactly to the minimum has ends like 19.8 and 20,
+         * whose difference in binary comes out a hair *under* two tenths - so
+         * the shortest piece anybody could deliberately make was the one piece
+         * that vanished silently on Done.
+         */
+        if (!source || length < MIN_PIECE_SECONDS - 0.001) return [];
         return [
           {
             blob: cutToWav(source.buffer, piece.from, piece.to),
@@ -383,7 +400,6 @@ export function StoryAudioSheet({
           {pieces.map((piece) => {
             const source = sourceOf(piece);
             if (!source) return null;
-            const length = piece.to - piece.from;
 
             return (
               <li key={piece.id} className="rounded-2xl bg-surface p-3 shadow-sm">
@@ -413,6 +429,11 @@ export function StoryAudioSheet({
                   to={piece.to}
                 />
 
+                {/*
+                  The ends may not cross and the piece may not outrun what a
+                  story will hold; both rules live in `trimIn` / `trimOut`,
+                  where they can be run rather than dragged.
+                */}
                 <Slider
                   label="In"
                   value={piece.from}
@@ -422,13 +443,7 @@ export function StoryAudioSheet({
                     setPieces((all) =>
                       all.map((p) =>
                         p.id === piece.id
-                          ? {
-                              ...p,
-                              from: Math.min(next, p.to - 0.2),
-                              // The ends may not cross, and a piece may not run
-                              // longer than a story is worth watching.
-                              to: Math.min(p.to, Math.min(next, p.to - 0.2) + MAX_TRACK_SECONDS),
-                            }
+                          ? { ...p, ...trimIn(p, next, source.buffer.duration) }
                           : p,
                       ),
                     )
@@ -443,13 +458,7 @@ export function StoryAudioSheet({
                     setPieces((all) =>
                       all.map((p) =>
                         p.id === piece.id
-                          ? {
-                              ...p,
-                              to: Math.max(
-                                p.from + 0.2,
-                                Math.min(next, p.from + MAX_TRACK_SECONDS),
-                              ),
-                            }
+                          ? { ...p, ...trimOut(p, next, source.buffer.duration) }
                           : p,
                       ),
                     )
@@ -466,50 +475,29 @@ export function StoryAudioSheet({
                     )
                   }
                 />
+                {/*
+                  Volume is heard while it is being dragged.
+
+                  It used to be read once, when Play was pressed, so moving the
+                  slider during playback did nothing and moving it before
+                  playback meant pressing Play again to find out - which is the
+                  same as it not working. The gain node is held open and written
+                  to directly, so the sound changes under the finger.
+                */}
                 <Slider
                   label="Volume"
                   value={piece.volume}
                   max={1}
                   display={`${Math.round(piece.volume * 100)}%`}
-                  onChange={(next) =>
+                  onChange={(next) => {
+                    if (preview.current?.pieceId === piece.id) {
+                      preview.current.gain.gain.value = next;
+                    }
                     setPieces((all) =>
                       all.map((p) => (p.id === piece.id ? { ...p, volume: next } : p)),
-                    )
-                  }
-                />
-
-                {/*
-                  Split, which is how a second sound gets into the middle of the
-                  first one: cut here, and the half after the cut becomes its own
-                  piece that can be removed and replaced.
-                */}
-                <button
-                  type="button"
-                  disabled={length < 0.6}
-                  onClick={() => {
-                    const middle = piece.from + length / 2;
-                    setPieces((all) => {
-                      const index = all.findIndex((p) => p.id === piece.id);
-                      if (index < 0) return all;
-                      const first = { ...piece, to: middle };
-                      const second: Piece = {
-                        ...piece,
-                        id: crypto.randomUUID(),
-                        from: middle,
-                        at: Math.round((piece.at + length / 2) * 10) / 10,
-                      };
-                      return [...all.slice(0, index), first, second, ...all.slice(index + 1)];
-                    });
+                    );
                   }}
-                  className={cn(
-                    'focus-ring mt-2 w-full rounded-xl bg-sunken py-2',
-                    'text-caption font-medium text-text-secondary',
-                    'transition-transform duration-instant active:scale-[0.99]',
-                    'disabled:opacity-40',
-                  )}
-                >
-                  Split in two
-                </button>
+                />
               </li>
             );
           })}
@@ -723,8 +711,14 @@ function Slider({
   onChange: (next: number) => void;
 }) {
   return (
-    <label className="mt-2 flex items-center gap-3">
+    <label className="flex items-center gap-3 py-1">
       <span className="w-16 shrink-0 text-caption text-text-secondary">{label}</span>
+      {/*
+        A finger is nine millimetres and the track was one. The bar still looks
+        like a thin line - the padded box around it is what the thumb actually
+        lands on, which is the difference between a control that works on a
+        phone and one that reports back as broken.
+      */}
       <input
         type="range"
         min={0}
@@ -732,7 +726,13 @@ function Slider({
         step="any"
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="pingo-scrub h-1 min-w-0 flex-1 appearance-none rounded-full bg-line accent-brand"
+        className={cn(
+          'pingo-scrub min-w-0 flex-1 touch-none appearance-none bg-transparent',
+          'h-9 py-4 accent-brand',
+          '[&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full',
+          '[&::-webkit-slider-runnable-track]:bg-line',
+          '[&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-line',
+        )}
       />
       <span className="w-12 shrink-0 text-right text-caption text-text-secondary tabular-nums">
         {display}

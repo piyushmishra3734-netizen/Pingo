@@ -13,7 +13,14 @@
  *
  * Run with `pnpm verify:story-audio`.
  */
-import { STORY_AUDIO_RATE, cutToWav } from '../src/features/stories/story-audio.js';
+import {
+  MAX_TRACK_SECONDS,
+  MIN_PIECE_SECONDS,
+  STORY_AUDIO_RATE,
+  cutToWav,
+  trimIn,
+  trimOut,
+} from '../src/features/stories/story-audio.js';
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
@@ -103,6 +110,56 @@ console.log('\n— a cut shorter than the fade is still a file —');
   const { samples } = await decode(blob);
   check(blob.size > 44, `there is more than a header (${blob.size} bytes)`);
   check(samples.length > 0, `and samples in it (${samples.length})`);
+}
+
+console.log('\n— the two handles cannot be dragged into nonsense —');
+
+{
+  const SONG = 40;
+  const whole = { from: 0, to: 12 };
+
+  const inPastOut = trimIn({ from: 0, to: 5 }, 9, SONG);
+  check(
+    inPastOut.from <= inPastOut.to - MIN_PIECE_SECONDS,
+    `the start cannot pass the end (${inPastOut.from.toFixed(2)} → ${inPastOut.to.toFixed(2)})`,
+  );
+
+  const outPastIn = trimOut({ from: 6, to: 12 }, 2, SONG);
+  check(
+    outPastIn.to >= outPastIn.from + MIN_PIECE_SECONDS,
+    `nor the end past the start (${outPastIn.from.toFixed(2)} → ${outPastIn.to.toFixed(2)})`,
+  );
+
+  const negative = trimIn(whole, -5, SONG);
+  check(negative.from === 0, `the start stops at the beginning (${negative.from})`);
+
+  const beyond = trimOut(whole, 999, SONG);
+  check(beyond.to === SONG, `the end stops at the end of the file (${beyond.to})`);
+
+  // A piece may not outrun what a story will hold; the *other* handle follows.
+  const long = trimOut({ from: 0, to: 1 }, SONG, SONG);
+  check(
+    long.to - long.from <= MAX_TRACK_SECONDS + 0.001,
+    `dragging the end far out pulls the start along (${long.from.toFixed(1)} → ${long.to.toFixed(1)})`,
+  );
+
+  const dragged = trimIn({ from: 0, to: 12 }, 4, SONG);
+  check(
+    dragged.from === 4 && dragged.to === 12,
+    `an ordinary drag moves only the handle that was dragged (${dragged.from} → ${dragged.to})`,
+  );
+
+  // What the editor actually does: In, then Out, then In again.
+  let piece = { from: 0, to: 30 };
+  piece = { ...piece, ...trimIn(piece, 10, SONG) };
+  piece = { ...piece, ...trimOut(piece, 20, SONG) };
+  piece = { ...piece, ...trimIn(piece, 19.9, SONG) };
+  check(
+    // The margin is subtraction, not slack: 20 - 19.8 is a hair under 0.2 in
+    // binary, and the piece that lands exactly on the minimum is a real one.
+    piece.from >= 0 && piece.to <= SONG && piece.to - piece.from >= MIN_PIECE_SECONDS - 0.001,
+    `a run of drags leaves a piece that is still a piece (${piece.from.toFixed(2)} → ${piece.to.toFixed(2)})`,
+  );
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);

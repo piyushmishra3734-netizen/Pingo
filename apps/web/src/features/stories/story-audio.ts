@@ -119,6 +119,50 @@ export function cutToWav(buffer: AudioBuffer, from: number, to: number): Blob {
   return encodePcmToWavBlob(samples, buffer.sampleRate, STORY_AUDIO_RATE);
 }
 
+/** Shorter than this is a tap, not a piece of sound. */
+export const MIN_PIECE_SECONDS = 0.2;
+
+/**
+ * Moving the start of a piece, and moving its end.
+ *
+ * Two handles over one stretch is where trimming goes wrong: dragged past each
+ * other they cross, dragged apart they run past the length a story will hold,
+ * and each fix applied in the handler tends to break the other. Both are here,
+ * as arithmetic with no React around it, so they can be checked by running them
+ * rather than by dragging something and looking - see `verify:story-audio`.
+ *
+ * The end that was not dragged follows only when it has to: pushing the start
+ * past the ceiling pulls the end along, and never the other way round.
+ */
+/**
+ * Rounded to the millisecond.
+ *
+ * A range input hands back numbers like 19.799999999999997, and a piece that
+ * carries that dust ends up a hair under the minimum length a moment later,
+ * through nothing anybody did. Nobody is trimming a song to the microsecond.
+ */
+const tidy = (seconds: number) => Math.round(seconds * 1000) / 1000;
+
+export function trimIn(
+  piece: { from: number; to: number },
+  next: number,
+  duration: number,
+): { from: number; to: number } {
+  const from = tidy(Math.min(Math.max(0, next), Math.max(0, piece.to - MIN_PIECE_SECONDS)));
+  return { from, to: tidy(Math.min(piece.to, Math.min(duration, from + MAX_TRACK_SECONDS))) };
+}
+
+export function trimOut(
+  piece: { from: number; to: number },
+  next: number,
+  duration: number,
+): { from: number; to: number } {
+  const to = tidy(
+    Math.max(Math.min(next, duration), Math.min(piece.from + MIN_PIECE_SECONDS, duration)),
+  );
+  return { from: tidy(Math.max(piece.from, to - MAX_TRACK_SECONDS)), to };
+}
+
 /**
  * The shape of a sound, in a few hundred numbers.
  *
