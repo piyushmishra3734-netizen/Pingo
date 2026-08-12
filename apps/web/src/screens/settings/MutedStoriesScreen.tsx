@@ -83,18 +83,39 @@ export function MutedStoriesScreen() {
         </div>
       ) : (
         <Group
+          title={people.length === 1 ? '1 person' : `${people.length} people`}
           note="Their stories stay hidden from your list until you unmute them. They are never told."
         >
           {people.map((person) => (
             <div key={person.id} className="flex items-center gap-3 px-3 py-2.5">
-              <Avatar
-                name={person.displayName}
-                id={person.id}
-                {...(person.avatarUrl ? { src: person.avatarUrl } : {})}
-                size="md"
-              />
+              {/*
+                The avatar says what the row is about before the words do: a
+                muted person is shown quietened - dimmed, with the same glyph
+                that muted them sitting on the picture - so the list reads as a
+                set of people you stepped away from rather than a set of names
+                with a button beside each.
+              */}
+              <span className="relative shrink-0">
+                <span className="block opacity-60 saturate-50">
+                  <Avatar
+                    name={person.displayName}
+                    id={person.id}
+                    {...(person.avatarUrl ? { src: person.avatarUrl } : {})}
+                    size="md"
+                  />
+                </span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    'absolute -right-0.5 -bottom-0.5 grid size-[18px] place-items-center',
+                    'rounded-full bg-surface text-text-secondary ring-1 ring-line shadow-sm',
+                  )}
+                >
+                  <MuteIcon size={11} />
+                </span>
+              </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-body text-ink">
+                <span className="block truncate text-body font-medium text-ink">
                   {person.displayName}
                 </span>
                 <span className="block truncate text-caption text-text-secondary">
@@ -136,9 +157,15 @@ export function MutedStoriesScreen() {
                   })();
                 }}
                 className={cn(
-                  'focus-ring shrink-0 rounded-full px-3 py-1.5',
-                  'text-caption font-medium text-brand',
-                  'transition-colors duration-instant hover:bg-hover',
+                  /*
+                    A filled pill, not a word in brand colour. This is the one
+                    thing the screen exists to do, and bare tinted text beside
+                    a name reads as a link somebody forgot to style.
+                  */
+                  'focus-ring shrink-0 rounded-full px-3.5 py-1.5',
+                  'bg-brand-soft text-caption font-semibold text-brand',
+                  'transition-[background-color,transform] duration-instant',
+                  'hover:bg-selected active:scale-[0.97]',
                   'disabled:opacity-60',
                 )}
               >
