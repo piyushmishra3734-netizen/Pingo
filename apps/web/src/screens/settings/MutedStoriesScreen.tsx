@@ -1,9 +1,9 @@
 import { useProfile, type Profile } from '@pingo/core';
-import { Avatar, LoadingState, cn } from '@pingo/ui';
+import { Avatar, LoadingState, MuteIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
-import { SettingsPage } from '../../features/settings/controls.js';
+import { Group, SettingsPage } from '../../features/settings/controls.js';
 import { useStories } from '../../features/stories/StoryContext.js';
 
 /**
@@ -63,18 +63,30 @@ export function MutedStoriesScreen() {
         <LoadingState label="Loading" />
       ) : people.length === 0 ? (
         /*
-         * Said plainly, because an empty list here is good news rather than a
-         * missing feature - and somebody arriving from Settings has no other
-         * way to learn what this page is for.
+         * Centred and given room, because an empty list is the good outcome
+         * here rather than a missing feature. A bare line of grey text against
+         * the top of the page reads as something failing to load.
          */
-        <p className="px-4 py-8 text-center text-body text-text-secondary">
-          You have not muted anyone&apos;s stories. Muting someone hides their
-          stories from your list without unfollowing them, and they are never told.
-        </p>
+        <div className="px-8 pt-14 text-center">
+          <span
+            aria-hidden
+            className="mx-auto grid size-14 place-items-center rounded-full bg-brand-soft text-brand"
+          >
+            <MuteIcon size={24} />
+          </span>
+          <p className="mt-4 text-body font-medium text-ink">Nobody is muted</p>
+          <p className="mt-1.5 text-caption text-text-secondary">
+            Muting someone hides their stories from your list without
+            unfollowing them. They are never told, and they will appear here so
+            you can undo it.
+          </p>
+        </div>
       ) : (
-        <ul className="px-2">
+        <Group
+          note="Their stories stay hidden from your list until you unmute them. They are never told."
+        >
           {people.map((person) => (
-            <li key={person.id} className="flex items-center gap-3 px-2 py-2.5">
+            <div key={person.id} className="flex items-center gap-3 px-3 py-2.5">
               <Avatar
                 name={person.displayName}
                 id={person.id}
@@ -132,9 +144,9 @@ export function MutedStoriesScreen() {
               >
                 {working === person.id ? 'Unmuting…' : 'Unmute'}
               </button>
-            </li>
+            </div>
           ))}
-        </ul>
+        </Group>
       )}
     </SettingsPage>
   );
