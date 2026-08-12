@@ -49,6 +49,7 @@ import { ChangePasswordScreen } from './screens/settings/ChangePasswordScreen.js
 import { AdvancedScreen } from './screens/settings/AdvancedScreen.js';
 import { AppearanceScreen } from './screens/settings/AppearanceScreen.js';
 import { CallsSettingsScreen } from './screens/settings/CallsSettingsScreen.js';
+import { MutedStoriesScreen } from './screens/settings/MutedStoriesScreen.js';
 import { CameraSettingsScreen } from './screens/settings/CameraSettingsScreen.js';
 import { ChatsSettingsScreen } from './screens/settings/ChatsSettingsScreen.js';
 import { WallpaperScreen } from './screens/settings/WallpaperScreen.js';
@@ -409,6 +410,7 @@ export function App() {
                   <Route path="/settings/wallpaper" element={<WallpaperScreen />} />
                   <Route path="/settings/camera-snaps" element={<CameraSettingsScreen />} />
                   <Route path="/settings/calls" element={<CallsSettingsScreen />} />
+                  <Route path="/settings/muted-stories" element={<MutedStoriesScreen />} />
                   <Route path="/settings/storage" element={<StorageScreen />} />
                   <Route path="/settings/secure-backup" element={<SecureBackupScreen />} />
                   <Route path="/settings/language" element={<LanguageScreen />} />

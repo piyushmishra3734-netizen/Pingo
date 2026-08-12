@@ -9,6 +9,7 @@ import {
   InfoIcon,
   LockIcon,
   PaletteIcon,
+  MuteIcon,
   PhoneIcon,
   SearchField,
   ShieldIcon,
@@ -165,6 +166,18 @@ export function SettingsScreen() {
                 icon={<PhoneIcon size={19} />}
                 label={t('settings.calls')}
                 to="/settings/calls"
+              />
+              {/*
+                Muting somebody's stories takes their circle off the rail, and
+                the control that would unmute them goes with it - so Settings is
+                the only place the decision can be taken back. Beside the other
+                per-feature pages rather than under Privacy: it is about what
+                you see, not about what anyone can see of you.
+              */}
+              <SettingsRow
+                icon={<MuteIcon size={19} />}
+                label="Muted stories"
+                to="/settings/muted-stories"
               />
               <SettingsRow
                 icon={<StorageIcon size={19} />}
