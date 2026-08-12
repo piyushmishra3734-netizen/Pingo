@@ -2,6 +2,7 @@ import { useProfile, type Profile } from '@pingo/core';
 import { Avatar, LoadingState, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { SettingsPage } from '../../features/settings/controls.js';
 import { useStories } from '../../features/stories/StoryContext.js';
 
@@ -30,6 +31,7 @@ import { useStories } from '../../features/stories/StoryContext.js';
 export function MutedStoriesScreen() {
   const { mutedAuthors, setAuthorMuted } = useStories();
   const { service: profiles } = useProfile();
+  const confirm = useConfirm();
 
   const [people, setPeople] = useState<Profile[]>();
   /** Who is mid-unmute, so their row can say so rather than sitting still. */
@@ -89,18 +91,37 @@ export function MutedStoriesScreen() {
               </span>
 
               {/*
-                Unmute takes effect where it is pressed - the list is driven by
-                `mutedAuthors`, so the row leaves the moment the store updates
-                and there is nothing to tick or confirm.
+                Once confirmed it takes effect where it is pressed - the list is
+                driven by `mutedAuthors`, so the row leaves the moment the store
+                updates. Nothing to tick, and no Save at the bottom.
               */}
               <button
                 type="button"
                 disabled={working === person.id}
                 onClick={() => {
-                  setWorking(person.id);
-                  void setAuthorMuted(person.id, false).finally(() =>
-                    setWorking(undefined),
-                  );
+                  void (async () => {
+                    /*
+                     * Asked here too, so mute and unmute behave alike.
+                     *
+                     * On its own an unmute would not need a question - nothing
+                     * is lost and it can be re-muted in a tap. But muting does
+                     * ask, and a pair of opposite actions where only one
+                     * confirms teaches that the quiet one is the safe one,
+                     * which is exactly backwards.
+                     */
+                    const ok = await confirm({
+                      title: `Unmute ${person.displayName}?`,
+                      description: 'Their stories will appear in your list again.',
+                      confirmLabel: 'Unmute',
+                      tone: 'normal',
+                    });
+                    if (!ok) return;
+
+                    setWorking(person.id);
+                    await setAuthorMuted(person.id, false).finally(() =>
+                      setWorking(undefined),
+                    );
+                  })();
                 }}
                 className={cn(
                   'focus-ring shrink-0 rounded-full px-3 py-1.5',

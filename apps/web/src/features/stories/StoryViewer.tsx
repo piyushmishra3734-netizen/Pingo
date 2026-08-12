@@ -306,6 +306,37 @@ export function StoryViewer({
 
   const toggleMute = async () => {
     setMenuOpen(false);
+
+    /*
+     * Asked first, because the consequence is not visible from the button.
+     *
+     * Muting closes the story and takes that person's circle off the rail, so
+     * the tap that does it is also the last time you see them there - and until
+     * Settings grew a list there was no way back at all. A menu item that
+     * quietly removes somebody is worth one question.
+     *
+     * `normal` rather than `danger`: nothing is destroyed and they are never
+     * told, so red would overstate it. The description says where the undo
+     * lives, which is the one fact somebody needs and cannot guess.
+     */
+    const ok = await confirm(
+      muted
+        ? {
+            title: `Unmute ${group.authorName}?`,
+            description: 'Their stories will appear in your list again.',
+            confirmLabel: 'Unmute',
+            tone: 'normal',
+          }
+        : {
+            title: `Mute ${group.authorName}?`,
+            description:
+              'Their stories stop appearing in your list. They are not told, and you can undo this in Settings → Muted stories.',
+            confirmLabel: 'Mute',
+            tone: 'normal',
+          },
+    );
+    if (!ok) return;
+
     await setAuthorMuted(story.authorId, !muted);
     // A muted author's circle leaves the rail, so there is nothing to go back to.
     if (!muted) onClose();
