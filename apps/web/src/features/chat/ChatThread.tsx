@@ -66,6 +66,7 @@ import {
   type WallpaperScope,
 } from './wallpaper.js';
 import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
+import { useBackStep } from '../navigation/useBackStep.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
@@ -206,6 +207,15 @@ export function ChatThread({
   // Leaving the thread, or the conversation changing underneath it, ends the
   // selection - ids from one conversation mean nothing in another.
   useEffect(() => setSelection(undefined), [conversation.id]);
+
+  /*
+   * Selecting messages is a mode the thread is in, and replying is a state the
+   * composer is in. Back leaves the innermost of them rather than the
+   * conversation - the same thing their own × does, and what Back does in
+   * every other app that has a selection mode.
+   */
+  useBackStep(selection !== undefined, () => setSelection(undefined));
+  useBackStep(replyTo !== undefined, () => setReplyTo(undefined));
 
   /**
    * The wallpaper, and a repaint when it is changed elsewhere.

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
 import { receiveSharedText } from '../native/shared-content.js';
+import { useBackStep } from '../navigation/useBackStep.js';
 import { AttachMenu } from './AttachMenu.js';
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
@@ -137,6 +138,12 @@ export function Composer({
    * of ten.
    */
   const [pickerOpen, setPickerOpen] = useState(false);
+  /*
+   * The picker is a panel over the thread, so Back closes it rather than
+   * leaving the conversation with the emoji drawer still hanging open in
+   * everybody's memory of the app.
+   */
+  useBackStep(pickerOpen, () => setPickerOpen(false));
   /** Bumped per send, purely to restart the send button's animation. */
   const [sent, setSent] = useState(0);
   const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');

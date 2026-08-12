@@ -10,6 +10,7 @@ import { useCamera } from '../features/camera/useCamera.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
 import { saveImage } from '../features/native/save-image.js';
+import { useBackStep } from '../features/navigation/useBackStep.js';
 import { useT } from '../features/i18n/useT.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
 import { useStories } from '../features/stories/StoryContext.js';
@@ -287,6 +288,19 @@ export function CameraScreen() {
       setBusy(false);
     }
   };
+
+  /*
+   * Back walks the stages backwards, one at a time.
+   *
+   * The camera is four screens wearing one route - the gate, the live view, the
+   * shot with its filters, the editor, the send sheet - so Back used to leave
+   * the camera entirely from wherever you happened to be, throwing away the
+   * picture. Each stage past the live view now steps back to the one before it,
+   * which is the same thing its own back arrow does.
+   */
+  useBackStep(stage === 'filter', () => setStage('live'));
+  useBackStep(stage === 'edit', () => setStage('filter'));
+  useBackStep(stage === 'send', () => setStage('edit'));
 
   // ---- stages -------------------------------------------------------------
 

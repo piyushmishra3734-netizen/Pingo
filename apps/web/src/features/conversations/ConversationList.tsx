@@ -35,6 +35,7 @@ import { StoriesRow } from '../stories/StoriesRow.js';
 import { JourneyStrip } from '../journey/JourneyStrip.js';
 import { useJourneyProgress } from '../journey/useJourneyProgress.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
+import { useBackStep } from '../navigation/useBackStep.js';
 import { StoryComposer } from '../stories/StoryComposer.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
 import { useStories } from '../stories/StoryContext.js';
@@ -116,6 +117,13 @@ export function ConversationList({
   /** Selection mode is "the set is non-empty", so there is no second flag. */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectionMode = selectedIds.size > 0;
+
+  /*
+   * Selecting chats is a mode this screen is in, and Back leaves the mode
+   * rather than the screen - which on the chat list is the difference between
+   * "never mind" and closing the app.
+   */
+  useBackStep(selectionMode, () => setSelectedIds(new Set()));
 
   const [pendingDelete, setPendingDelete] = useState<Conversation[]>();
   /** Ids, not conversations: the sheet needs their live state. */
