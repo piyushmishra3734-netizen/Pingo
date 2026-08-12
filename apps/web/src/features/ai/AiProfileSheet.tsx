@@ -244,7 +244,7 @@ export function AiProfileSheet({
   };
 
   const field =
-    'w-full rounded-xl border border-black/[0.07] bg-white px-3.5 py-2.5 text-[0.9375rem] text-ink ' +
+    'w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[0.9375rem] text-ink ' +
     'placeholder:text-text-tertiary outline-none transition-[border-color,box-shadow] duration-150 ' +
     'focus:border-black/20 focus:shadow-[0_0_0_3px_rgba(17,17,19,0.06)]';
 
@@ -323,7 +323,7 @@ export function AiProfileSheet({
                 onClick={onClose}
                 className={cn(
                   'rounded-full px-3 py-1.5 text-[0.8125rem] font-medium text-ink',
-                  'border border-black/[0.06] bg-white/92 shadow-sm',
+                  'border border-line bg-surface/92 shadow-sm',
                   'active:scale-[0.97]',
                   'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 )}
@@ -336,7 +336,7 @@ export function AiProfileSheet({
                 disabled={busy}
                 className={cn(
                   'rounded-full px-3 py-1.5 text-[0.75rem] font-medium text-ink',
-                  'border border-black/[0.06] bg-white/92 shadow-sm',
+                  'border border-line bg-surface/92 shadow-sm',
                   'active:scale-[0.97] disabled:opacity-50',
                   'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
                 )}
@@ -546,7 +546,7 @@ export function AiProfileSheet({
               />
             </div>
             {prefs.memory_enabled !== false && (
-              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-black/[0.05] pt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line pt-3">
                 <button
                   type="button"
                   className="text-[0.8125rem] font-medium text-brand underline-offset-2 hover:underline"
@@ -573,7 +573,7 @@ export function AiProfileSheet({
 
           <Card>
             <Label>Advanced</Label>
-            <div className="divide-y divide-black/[0.05]">
+            <div className="divide-y divide-line">
               <AdvRow label={t('ai.resetPersonality')} onClick={() => void resetPersonality()} />
               <AdvRow label={t('ai.resetMemory')} onClick={() => void resetMemory()} />
               {conversationId && (
@@ -587,7 +587,7 @@ export function AiProfileSheet({
 
           {error && (
             <p
-              className="rounded-xl bg-[#FEF2F2] px-3 py-2.5 text-center text-[0.8125rem] text-[#B42318]"
+              className="rounded-xl bg-danger-soft px-3 py-2.5 text-center text-[0.8125rem] text-danger"
               role="alert"
             >
               {error}
@@ -609,7 +609,7 @@ function Card({ children }: { children: React.ReactNode }) {
   return (
     <section
       className={cn(
-        'rounded-2xl border border-black/[0.06] bg-white p-4',
+        'rounded-2xl border border-line bg-surface p-4',
         'shadow-[0_1px_2px_rgba(17,17,19,0.03)]',
       )}
     >

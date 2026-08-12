@@ -71,7 +71,7 @@ export function SignUpMethodScreen() {
               {t('signup.welcome')}
             </h1>
             <p
-              className="funnel-enter mt-2 max-w-[17rem] text-[0.9375rem] leading-relaxed tracking-[-0.01em] text-[#6B6B6F]"
+              className="funnel-enter mt-2 max-w-[17rem] text-[0.9375rem] leading-relaxed tracking-[-0.01em] text-text-secondary"
               style={{ animationDelay: '40ms' }}
             >
               {tagline.map((line, index) => (
@@ -85,8 +85,8 @@ export function SignUpMethodScreen() {
 
           <div
             className={cn(
-              'funnel-enter flex flex-col gap-2 rounded-2xl border border-black/[0.06]',
-              'bg-white p-2 shadow-[0_8px_28px_rgba(0,0,0,0.04)]',
+              'funnel-enter flex flex-col gap-2 rounded-2xl border border-line',
+              'bg-surface p-2 shadow-[0_8px_28px_rgba(0,0,0,0.04)]',
             )}
             style={{ animationDelay: '55ms' }}
           >
@@ -104,7 +104,7 @@ export function SignUpMethodScreen() {
 
           {showsGoogle && (
             <p
-              className="funnel-enter -mt-2 text-center text-[0.75rem] text-[#8B8B90]"
+              className="funnel-enter -mt-2 text-center text-[0.75rem] text-text-tertiary"
               style={{ animationDelay: `${70 + available.length * 30}ms` }}
             >
               {t('signup.googleNote')}
@@ -115,7 +115,7 @@ export function SignUpMethodScreen() {
             className="funnel-enter flex flex-col items-center gap-0.5"
             style={{ animationDelay: `${80 + available.length * 30}ms` }}
           >
-            <p className="text-[0.8125rem] text-[#8B8B90]">{t('signup.already')}</p>
+            <p className="text-[0.8125rem] text-text-tertiary">{t('signup.already')}</p>
             <FunnelTextLink onClick={() => navigate('/login')}>{t('signup.logIn')}</FunnelTextLink>
           </div>
         </div>

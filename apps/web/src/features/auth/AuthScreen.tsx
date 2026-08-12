@@ -40,7 +40,7 @@ export function AuthScreen({
 
       {progress !== undefined && (
         <div
-          className="h-0.5 w-full shrink-0 bg-black/[0.06]"
+          className="h-0.5 w-full shrink-0 bg-line"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -69,7 +69,7 @@ export function AuthScreen({
             onClick={goBack}
             className={cn(
               'group -ml-2 mb-6 inline-flex h-9 w-fit items-center gap-1 rounded-lg px-2',
-              'funnel-enter text-[0.8125rem] font-medium text-[#6B6B6F]',
+              'funnel-enter text-[0.8125rem] font-medium text-text-secondary',
               'transition-[color,transform,background-color] duration-100',
               'ease-[cubic-bezier(0.23,1,0.32,1)]',
               'hover:bg-hover hover:text-ink',
@@ -91,7 +91,7 @@ export function AuthScreen({
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-2 text-[0.9375rem] leading-relaxed tracking-[-0.01em] text-[#6B6B6F]">
+            <p className="mt-2 text-[0.9375rem] leading-relaxed tracking-[-0.01em] text-text-secondary">
               {subtitle}
             </p>
           )}
@@ -100,7 +100,7 @@ export function AuthScreen({
         {/* Solid white panel — no backdrop-blur (blur was laggy) */}
         <div
           className={cn(
-            'funnel-enter mt-6 rounded-2xl border border-black/[0.06] bg-white p-4',
+            'funnel-enter mt-6 rounded-2xl border border-line bg-surface p-4',
             'shadow-[0_4px_20px_rgba(0,0,0,0.04)] sm:p-5',
           )}
           style={{ animationDelay: '40ms' }}
@@ -157,8 +157,8 @@ export function AuthMessage({
       className={cn(
         'rounded-lg px-3 py-2.5 text-[0.8125rem] leading-snug',
         tone === 'danger'
-          ? 'bg-[#FEF2F2] text-[#B42318]'
-          : 'bg-white text-[#6B6B6F] shadow-sm ring-1 ring-black/[0.04]',
+          ? 'bg-danger-soft text-danger'
+          : 'bg-surface text-text-secondary shadow-sm ring-1 ring-line',
       )}
     >
       {children}

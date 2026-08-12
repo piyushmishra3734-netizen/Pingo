@@ -81,8 +81,8 @@ export function LoginMethodScreen() {
 
           <div
             className={cn(
-              'funnel-enter flex flex-col gap-2 rounded-2xl border border-black/[0.06]',
-              'bg-white p-2 shadow-[0_8px_28px_rgba(0,0,0,0.04)]',
+              'funnel-enter flex flex-col gap-2 rounded-2xl border border-line',
+              'bg-surface p-2 shadow-[0_8px_28px_rgba(0,0,0,0.04)]',
             )}
             style={{ animationDelay: '45ms' }}
           >
@@ -102,7 +102,7 @@ export function LoginMethodScreen() {
             className="funnel-enter flex flex-col items-center gap-0.5"
             style={{ animationDelay: `${70 + ordered.length * 28}ms` }}
           >
-            <p className="text-[0.8125rem] text-[#8B8B90]">{t('login.newTo')}</p>
+            <p className="text-[0.8125rem] text-text-tertiary">{t('login.newTo')}</p>
             <FunnelTextLink onClick={() => navigate('/signup')}>
               {t('login.getStarted')}
             </FunnelTextLink>

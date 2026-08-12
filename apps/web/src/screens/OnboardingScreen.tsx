@@ -55,7 +55,7 @@ export function OnboardingScreen() {
           <p
             className={cn(
               'funnel-enter mt-3 max-w-[16.5rem] text-[0.9375rem] leading-relaxed',
-              'tracking-[-0.01em] text-[#6B6B6F]',
+              'tracking-[-0.01em] text-text-secondary',
             )}
             style={{ animationDelay: '50ms' }}
           >
@@ -70,14 +70,14 @@ export function OnboardingScreen() {
 
         <div
           className={cn(
-            'funnel-enter rounded-2xl border border-black/[0.06] bg-white p-4',
+            'funnel-enter rounded-2xl border border-line bg-surface p-4',
             'shadow-[0_8px_28px_rgba(0,0,0,0.05)]',
           )}
           style={{ animationDelay: '70ms' }}
         >
           <FunnelCta onClick={() => navigate('/signup')}>{t('welcome.getStarted')}</FunnelCta>
 
-          <p className="mt-3.5 text-center text-[0.75rem] leading-relaxed text-[#8B8B90]">
+          <p className="mt-3.5 text-center text-[0.75rem] leading-relaxed text-text-tertiary">
             {t('welcome.legal')}{' '}
             <Link
               to="/terms"

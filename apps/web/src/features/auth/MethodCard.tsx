@@ -27,7 +27,7 @@ export function MethodCard({
       style={{ animationDelay: `${delayMs}ms` }}
       className={cn(
         'group funnel-enter flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3.5 text-left',
-        'border border-line bg-white',
+        'border border-line bg-surface',
         'shadow-[0_1px_2px_rgba(16,17,20,0.03)]',
         'transition-[transform,border-color,box-shadow] duration-150',
         'ease-[cubic-bezier(0.23,1,0.32,1)]',

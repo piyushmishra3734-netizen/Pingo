@@ -71,7 +71,7 @@ export function AiPersonalityGrid({
           rows={2}
           placeholder={t('ai.vibePh')}
           className={cn(
-            'w-full resize-none rounded-xl border border-black/[0.07] bg-white',
+            'w-full resize-none rounded-xl border border-line bg-surface',
             'px-3 py-2.5 text-[0.9375rem] text-ink',
             'placeholder:text-text-tertiary outline-none',
             'focus:border-black/20 focus:shadow-[0_0_0_3px_rgba(17,17,19,0.06)]',
@@ -81,7 +81,7 @@ export function AiPersonalityGrid({
 
       <p
         className={cn(
-          'rounded-xl border border-black/[0.05] bg-sunken/70 px-3 py-2.5',
+          'rounded-xl border border-line bg-sunken/70 px-3 py-2.5',
           'text-[0.75rem] leading-snug text-text-secondary',
         )}
         aria-live="polite"

@@ -127,7 +127,7 @@ export function AiOnboardingSheet({
           className={cn(
             'animate-panel-in relative w-full max-w-md outline-none',
             'max-h-[min(88vh,40rem)] overflow-y-auto',
-            'rounded-2xl border border-black/[0.07] bg-white p-0 shadow-[0_16px_48px_rgba(17,17,19,0.12)]',
+            'rounded-2xl border border-line bg-surface p-0 shadow-[0_16px_48px_rgba(17,17,19,0.12)]',
           )}
         >
           {step === 0 && (

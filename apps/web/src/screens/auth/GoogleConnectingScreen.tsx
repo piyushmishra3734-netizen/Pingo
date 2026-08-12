@@ -76,7 +76,7 @@ export function GoogleConnectingScreen() {
         <div
           className={cn(
             'funnel-enter flex w-full max-w-[22rem] flex-col items-center rounded-2xl',
-            'border border-black/[0.06] bg-white px-6 py-10 text-center',
+            'border border-line bg-surface px-6 py-10 text-center',
             'shadow-[0_8px_28px_rgba(0,0,0,0.05)]',
           )}
         >
@@ -85,7 +85,7 @@ export function GoogleConnectingScreen() {
               <h1 className="text-[1.75rem] font-semibold tracking-[-0.03em] text-ink">
                 Couldn't connect
               </h1>
-              <p role="alert" className="mt-3 text-[0.8125rem] text-[#B42318]">
+              <p role="alert" className="mt-3 text-[0.8125rem] text-danger">
                 {error}
               </p>
             </>
