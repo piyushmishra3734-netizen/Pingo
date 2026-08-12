@@ -37,6 +37,7 @@ import { ProfileJourney } from '../features/journey/ProfileJourney.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { CaptionText } from '../features/profile/CaptionText.js';
+import { FriendsSheet, GroupsSheet } from '../features/profile/ConnectionsSheet.js';
 import { FollowButton } from '../features/profile/FollowButton.js';
 import { MediaEmpty, MediaGrid, MediaSkeleton } from '../features/profile/MediaGrid.js';
 import { PostComposer } from '../features/profile/PostComposer.js';
@@ -255,6 +256,8 @@ export function ProfileScreen() {
   // ---- surfaces -----------------------------------------------------------
 
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Which of your own lists is open, if either. Your profile only. */
+  const [listing, setListing] = useState<'friends' | 'groups'>();
   const [sharing, setSharing] = useState(false);
   const [reporting, setReporting] = useState<{ postId?: string } | undefined>();
   const [viewing, setViewing] = useState<Post>();
@@ -519,10 +522,26 @@ export function ProfileScreen() {
           </div>
 
           {/* Stats sit in the hero stack, not a separate band. */}
+          {/*
+            Two of the three open a list, and only on your own profile.
+
+            Who somebody is friends with and which groups they are in is a map
+            of their private life; a follower count on a public network is not
+            the same thing, and this product does not have followers. So the
+            numbers stay numbers on anybody else's page.
+          */}
           <dl className="mt-4 grid w-full max-w-xs grid-cols-3">
             <Stat label="Posts" value={stats?.posts} />
-            <Stat label="Friends" value={stats?.friends} />
-            <Stat label="Groups" value={stats?.groups} />
+            <Stat
+              label="Friends"
+              value={stats?.friends}
+              {...(isSelf ? { onOpen: () => setListing('friends') } : {})}
+            />
+            <Stat
+              label="Groups"
+              value={stats?.groups}
+              {...(isSelf ? { onOpen: () => setListing('groups') } : {})}
+            />
           </dl>
 
           {/* ---- actions ------------------------------------------------ */}
@@ -741,6 +760,14 @@ export function ProfileScreen() {
 
       {/* ---- overlays ---------------------------------------------------- */}
 
+      {/*
+        The lists behind the two figures. Guarded on `isSelf` here as well as
+        where they are opened, so a future change to the stats row cannot leak
+        somebody's friends by forgetting one of the two.
+      */}
+      {listing === 'friends' && isSelf && <FriendsSheet onClose={() => setListing(undefined)} />}
+      {listing === 'groups' && isSelf && <GroupsSheet onClose={() => setListing(undefined)} />}
+
       {menuOpen && isSelf && (
         <MyProfileMenu
           postsFull={(posts?.length ?? 0) >= 3}
@@ -896,9 +923,18 @@ export function ProfileScreen() {
  * while the pair still reads as one definition - "Posts, 3" - to a screen
  * reader, which walks the list in document order within each group.
  */
-function Stat({ label, value }: { label: string; value: number | undefined }) {
-  return (
-    <div className="flex flex-col items-center text-center">
+function Stat({
+  label,
+  value,
+  onOpen,
+}: {
+  label: string;
+  value: number | undefined;
+  /** Present when this figure leads somewhere - see the stats block. */
+  onOpen?: () => void;
+}) {
+  const inside = (
+    <>
       <dt className="sr-only">{label}</dt>
       <dd className="text-h2 font-semibold tabular-nums leading-none text-ink">
         {value === undefined ? (
@@ -911,7 +947,34 @@ function Stat({ label, value }: { label: string; value: number | undefined }) {
       <p aria-hidden className="mt-1 text-caption leading-none text-text-tertiary">
         {label}
       </p>
-    </div>
+    </>
+  );
+
+  if (!onOpen) {
+    return <div className="flex flex-col items-center text-center">{inside}</div>;
+  }
+
+  /*
+   * A button that looks like the figure next to it.
+   *
+   * Making it look tappable - a chevron, a pill, a colour - would say that
+   * this number is a different kind of thing from Posts, which it is not. The
+   * press state is the whole affordance, which is what a stat row in every
+   * app of this shape does.
+   */
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${label}, see the list`}
+      className={cn(
+        'focus-ring flex flex-col items-center rounded-xl py-1 text-center',
+        'transition-[background-color,transform] duration-instant',
+        'hover:bg-hover active:scale-[0.97]',
+      )}
+    >
+      {inside}
+    </button>
   );
 }
 
