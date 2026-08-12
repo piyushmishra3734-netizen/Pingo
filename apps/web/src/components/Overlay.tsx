@@ -1,5 +1,7 @@
 import { createPortal } from "react-dom";
 
+import { useBackStep } from "../features/navigation/useBackStep.js";
+
 /**
  * Renders its children at the end of `<body>`, outside every layout ancestor.
  *
@@ -24,7 +26,23 @@ import { createPortal } from "react-dom";
  * correct no matter what any screen above it does later.
  */
 
-export function Overlay({ children }: { children: React.ReactNode }) {
+export function Overlay({
+  children,
+  onDismiss,
+}: {
+  children: React.ReactNode;
+  /**
+   * What the phone's Back button should do while this is open.
+   *
+   * Given here rather than left to each caller because every overlay in the
+   * product had the same fault: Back popped the page underneath and closed
+   * three things at once. An overlay that passes this closes itself instead,
+   * which is what Back means everywhere else on a phone. See `useBackStep`.
+   */
+  onDismiss?: () => void;
+}) {
+  useBackStep(Boolean(onDismiss), () => onDismiss?.());
+
   /*
    * No wrapper element. The children already carry their own `fixed inset-0`
    * and z-index, and an extra div here would be one more box for a future

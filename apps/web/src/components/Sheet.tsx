@@ -104,7 +104,8 @@ export function Sheet({
   }, [onClose, elevated]);
 
   return (
-    <Overlay>
+    // Back closes the sheet, the same as the scrim and Escape already do.
+    <Overlay onDismiss={onClose}>
       <div
         className={cn(
           'fixed inset-0 flex items-end justify-center sm:items-center',

@@ -466,7 +466,7 @@ export function AvatarPhotoEditor({
         : 'Pinch to zoom · Drag to move';
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onCancel}>
       <div
         role="dialog"
         aria-modal="true"

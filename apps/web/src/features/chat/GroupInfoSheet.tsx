@@ -16,6 +16,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { useT } from '../i18n/useT.js';
+import { useBackStep } from '../navigation/useBackStep.js';
 import { useMutuals } from '../profile/useMutuals.js';
 
 /**
@@ -335,6 +336,15 @@ export function GroupInfoSheet({
 
   const faceSrc = clearAvatar ? undefined : avatarUrl;
   const bannerSrc = clearCover ? undefined : coverUrl;
+
+  /*
+   * Editing the group and adding people are screens inside this one, so Back
+   * has to unwind them one at a time rather than throwing the whole sheet away
+   * - which is what "went into the description and came back out to the chat
+   * list" was. The sheet's own step is registered by `Sheet`.
+   */
+  useBackStep(editing, () => setEditing(false));
+  useBackStep(adding, () => setAdding(false));
 
   return (
     <Sheet title={conversation.title} description={memberLabel} onClose={onClose} elevated>

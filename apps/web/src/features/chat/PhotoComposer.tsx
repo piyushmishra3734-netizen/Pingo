@@ -110,14 +110,14 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
   // A blank backdrop for the instant the headers are being read. See `animated`.
   if (!animated) {
     return (
-      <Overlay>
+      <Overlay onDismiss={onCancel}>
         <div className="fixed inset-0 z-500 bg-backdrop" />
       </Overlay>
     );
   }
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onCancel}>
       <div className="fixed inset-0 z-500 bg-backdrop">
         <SnapEditor
           // Remounted per picture, so strokes and text never bleed across.

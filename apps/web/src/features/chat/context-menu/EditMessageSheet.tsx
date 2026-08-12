@@ -56,7 +56,7 @@ export function EditMessageSheet({ body, onCancel, onSave }: EditMessageSheetPro
   };
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onCancel}>
       <div
         className="fixed inset-0 z-500 flex items-center justify-center p-4"
         onPointerDown={onCancel}

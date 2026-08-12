@@ -388,7 +388,7 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   const dragProgress = Math.min(1, dragY / (DISMISS_DISTANCE * 2));
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onClose}>
       <div
         role="dialog"
         aria-modal="true"

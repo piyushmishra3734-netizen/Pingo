@@ -40,7 +40,7 @@ export function MuteSheet({ count, onCancel, onChoose }: MuteSheetProps) {
   }, [onCancel]);
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onCancel}>
       <div
         className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
         onPointerDown={onCancel}

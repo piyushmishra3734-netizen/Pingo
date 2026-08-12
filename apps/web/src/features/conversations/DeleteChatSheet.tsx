@@ -57,7 +57,7 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
   const subject = count === 1 ? 'this chat' : `these ${count} chats`;
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onCancel}>
       <div
         className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
         onPointerDown={onCancel}

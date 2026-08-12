@@ -177,7 +177,7 @@ export function PostViewer({
   const posted = new Date(post.createdAt);
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onClose}>
       <div
         role="dialog"
         aria-modal="true"

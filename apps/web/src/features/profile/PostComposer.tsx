@@ -54,7 +54,7 @@ export function PostComposer({
   };
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onCancel}>
       <div className="fixed inset-0 z-500 bg-backdrop">
         <SnapEditor
           src={src}

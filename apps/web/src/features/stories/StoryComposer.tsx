@@ -330,7 +330,8 @@ export function StoryComposer({
     return (
       <>
         {galleryInput}
-        <Overlay>
+        {/* Back leaves the editor the same way its × does. */}
+        <Overlay onDismiss={onClose}>
           <div className="fixed inset-0 z-500 bg-backdrop">
             <SnapEditor
               src={editSrc}
@@ -362,7 +363,13 @@ export function StoryComposer({
     return (
       <>
         {galleryInput}
-        <Overlay>
+        {/* Back returns to the slides, not out of the composer. */}
+        <Overlay
+          onDismiss={() => {
+            setAudio([]);
+            setEditingClip(undefined);
+          }}
+        >
           <div className="fixed inset-0 z-500 bg-backdrop">
             <SnapEditor
               {...(clip.kind === 'video' ? { video: true as const } : {})}

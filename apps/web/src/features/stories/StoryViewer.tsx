@@ -370,7 +370,7 @@ export function StoryViewer({
   };
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onClose}>
       <div
         ref={rootRef}
         role="dialog"

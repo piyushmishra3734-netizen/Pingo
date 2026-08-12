@@ -120,7 +120,7 @@ export function MessageContextMenu({
   const layout = place(anchor, touch, size, reactionsSize.width);
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onDismiss}>
       <div
         ref={scrimRef}
         role="dialog"

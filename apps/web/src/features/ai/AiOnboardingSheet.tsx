@@ -110,7 +110,7 @@ export function AiOnboardingSheet({
   };
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onClose}>
       <div
         className="fixed inset-0 z-[1100] flex items-center justify-center px-4"
         onPointerDown={onClose}

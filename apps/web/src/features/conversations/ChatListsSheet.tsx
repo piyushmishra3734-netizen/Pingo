@@ -176,7 +176,7 @@ export function ChatListsSheet({ selectedIds, onClose, onChanged }: ChatListsShe
   };
 
   return (
-    <Overlay>
+    <Overlay onDismiss={onClose}>
       <div
         className="fixed inset-0 z-500 flex items-end justify-center sm:items-center"
         onPointerDown={onClose}
