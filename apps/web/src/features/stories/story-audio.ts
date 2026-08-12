@@ -119,6 +119,40 @@ export function cutToWav(buffer: AudioBuffer, from: number, to: number): Blob {
   return encodePcmToWavBlob(samples, buffer.sampleRate, STORY_AUDIO_RATE);
 }
 
+/**
+ * The shape of a sound, in a few hundred numbers.
+ *
+ * Sliders can say a piece runs from 0:04 to 0:11 and cannot say what is there -
+ * whether 0:04 is the middle of a word, whether the drop is inside the piece or
+ * just after it. A waveform answers that at a glance, which is why every editor
+ * that people call professional has one and why it is the difference between
+ * choosing a piece and guessing at one.
+ *
+ * Peaks rather than samples: the loudest moment in each bucket, which is what
+ * the eye reads as the shape. A 30-second piece is 1.3 million samples and 200
+ * of these.
+ */
+export function peaksOf(buffer: AudioBuffer, buckets = 200): number[] {
+  const data = buffer.getChannelData(0);
+  const size = Math.max(1, Math.floor(data.length / buckets));
+  const peaks: number[] = [];
+
+  for (let bucket = 0; bucket < buckets; bucket += 1) {
+    const start = bucket * size;
+    let peak = 0;
+    for (let i = start; i < start + size && i < data.length; i += 1) {
+      const value = Math.abs(data[i]!);
+      if (value > peak) peak = value;
+    }
+    peaks.push(peak);
+  }
+
+  // Scaled to the loudest moment, so a quiet recording is still a shape rather
+  // than a flat line. Silence stays flat, which is also information.
+  const loudest = Math.max(...peaks);
+  return loudest > 0.01 ? peaks.map((peak) => peak / loudest) : peaks;
+}
+
 /** Seconds as 0:07, which is the only length a story sound ever needs. */
 export function clock(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));

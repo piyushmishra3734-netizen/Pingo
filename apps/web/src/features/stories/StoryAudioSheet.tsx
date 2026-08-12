@@ -10,6 +10,7 @@ import {
   clock,
   cutToWav,
   decodeSound,
+  peaksOf,
 } from './story-audio.js';
 
 /**
@@ -40,6 +41,8 @@ interface Source {
   id: string;
   name: string;
   buffer: AudioBuffer;
+  /** Its shape, measured once - see `peaksOf`. */
+  peaks: number[];
 }
 
 /** One piece of that source, placed on the story. */
@@ -89,8 +92,33 @@ export function StoryAudioSheet({
     undefined,
   );
 
+  /**
+   * The moving line, written straight to the DOM.
+   *
+   * Sixty renders a second of a list of sliders to move one line two pixels is
+   * the wrong trade, and it is the trade that makes an editor feel heavy. The
+   * frame loop writes the line's position and the readout's text directly -
+   * the same thing the story progress bar does, for the same reason.
+   */
+  const frame = useRef(0);
+
   const stopPreview = () => {
+    cancelAnimationFrame(frame.current);
     const playing = preview.current;
+    document.querySelectorAll('[data-playhead]').forEach((line) => {
+      (line as HTMLElement).style.opacity = '0';
+    });
+    /*
+     * The readout goes back to saying what is chosen.
+     *
+     * It is written by the frame loop rather than by React, so React will not
+     * put it back on its own - and a strip that stopped playing while still
+     * reading "0:04 / 0:07" says playback is stuck rather than finished.
+     */
+    document.querySelectorAll<HTMLElement>('[data-elapsed]').forEach((readout) => {
+      const chosen = readout.dataset.chosen;
+      if (chosen) readout.textContent = chosen;
+    });
     if (!playing) return;
     preview.current = undefined;
     try {
@@ -119,7 +147,7 @@ export function StoryAudioSheet({
     setBusy('Reading the sound…');
     try {
       const { name, buffer } = await decodeSound(file);
-      const source: Source = { id: crypto.randomUUID(), name, buffer };
+      const source: Source = { id: crypto.randomUUID(), name, buffer, peaks: peaksOf(buffer) };
       setSources((all) => [...all, source]);
       setPieces((all) => [
         ...all,
@@ -164,9 +192,26 @@ export function StoryAudioSheet({
     const gain = context.createGain();
     gain.gain.value = piece.volume;
     node.connect(gain).connect(context.destination);
-    node.start(0, piece.from, Math.max(0.05, piece.to - piece.from));
+    const span = Math.max(0.05, piece.to - piece.from);
+    node.start(0, piece.from, span);
     node.onended = () => stopPreview();
     preview.current = { context, node };
+
+    // Where in the piece it has got to, on the strip and in words.
+    const line = document.querySelector<HTMLElement>(`[data-playhead="${piece.id}"]`);
+    const readout = document.querySelector<HTMLElement>(`[data-elapsed="${piece.id}"]`);
+    const startedAt = context.currentTime;
+    const tick = () => {
+      if (preview.current?.node !== node) return;
+      const into = Math.min(span, context.currentTime - startedAt);
+      if (line) {
+        line.style.opacity = '1';
+        line.style.left = `${((piece.from + into) / source.buffer.duration) * 100}%`;
+      }
+      if (readout) readout.textContent = `${clock(into)} / ${clock(span)}`;
+      frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
   };
 
   const finish = () => {
@@ -360,6 +405,14 @@ export function StoryAudioSheet({
                   />
                 </div>
 
+                <WaveStrip
+                  id={piece.id}
+                  peaks={source.peaks}
+                  duration={source.buffer.duration}
+                  from={piece.from}
+                  to={piece.to}
+                />
+
                 <Slider
                   label="In"
                   value={piece.from}
@@ -488,6 +541,88 @@ export function StoryAudioSheet({
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * The sound, drawn: its shape, the part that was chosen, and where playback is.
+ *
+ * Everything outside the chosen part stays visible but dim rather than being
+ * cut away, because the decision being made is *which* part - and you cannot
+ * make it while looking only at what you have already picked.
+ */
+function WaveStrip({
+  id,
+  peaks,
+  duration,
+  from,
+  to,
+}: {
+  id: string;
+  peaks: number[];
+  duration: number;
+  from: number;
+  to: number;
+}) {
+  const left = duration > 0 ? (from / duration) * 100 : 0;
+  const width = duration > 0 ? ((to - from) / duration) * 100 : 100;
+
+  return (
+    <div className="mt-2">
+      <div className="relative h-14 overflow-hidden rounded-xl bg-sunken">
+        {/* The chosen stretch, lit from behind. */}
+        <span
+          aria-hidden
+          className="absolute inset-y-0 bg-brand-soft"
+          style={{ left: `${left}%`, width: `${width}%` }}
+        />
+
+        <svg
+          viewBox="0 0 200 40"
+          preserveAspectRatio="none"
+          className="absolute inset-0 size-full"
+          aria-hidden
+        >
+          {peaks.map((peak, index) => {
+            const seconds = (index / peaks.length) * duration;
+            const inside = seconds >= from && seconds <= to;
+            // A floor, so silence still reads as a strip of sound rather than
+            // a gap where the waveform failed to draw.
+            const height = Math.max(1.5, peak * 36);
+            return (
+              <rect
+                key={index}
+                x={index + 0.15}
+                y={20 - height / 2}
+                width={0.7}
+                height={height}
+                className={inside ? 'fill-brand' : 'fill-text-tertiary'}
+              />
+            );
+          })}
+        </svg>
+
+        {/* Where playback has got to. Hidden until something is playing. */}
+        <span
+          data-playhead={id}
+          aria-hidden
+          className="absolute inset-y-0 w-0.5 bg-ink opacity-0 transition-opacity duration-instant"
+          style={{ left: '0%' }}
+        />
+      </div>
+
+      <div className="mt-1 flex items-center justify-between px-0.5">
+        <span className="text-[0.6875rem] text-text-tertiary tabular-nums">{clock(0)}</span>
+        <span
+          data-elapsed={id}
+          data-chosen={`${clock(to - from)} chosen`}
+          className="text-[0.6875rem] font-medium text-text-secondary tabular-nums"
+        >
+          {clock(to - from)} chosen
+        </span>
+        <span className="text-[0.6875rem] text-text-tertiary tabular-nums">{clock(duration)}</span>
+      </div>
+    </div>
   );
 }
 

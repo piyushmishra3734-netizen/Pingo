@@ -327,7 +327,10 @@ export function SnapEditor({
     const media = videoRef.current;
     if (!media) return;
     void media.play().catch(() => setSound(false));
-  }, [video, silent, src]);
+    // Also after a sheet closes: opening the sound editor starts an audio
+    // graph of its own, and on several browsers that takes the audio focus
+    // and stops the clip - which looked like adding music had broken it.
+  }, [video, silent, src, trimOpen, audioOpen]);
 
   // ---- drawing ------------------------------------------------------------
 
@@ -781,6 +784,17 @@ export function SnapEditor({
                 const from = trim?.trimStart ?? 0;
                 const to = trim?.trimEnd;
                 if (to !== undefined && media.currentTime >= to) media.currentTime = from;
+              }}
+              /*
+                The preview is never deliberately paused - there is no pause
+                control here - so a pause is always something else's doing:
+                another audio graph taking focus, the tab going away, a sheet
+                opening. Starting it again is what makes the editor feel like a
+                thing that is running rather than a thing that stopped.
+              */
+              onPause={(event) => {
+                if (document.hidden) return;
+                void event.currentTarget.play().catch(() => undefined);
               }}
               style={fitted ? geometry.video : undefined}
               className={fitted ? undefined : 'absolute inset-0 size-full object-contain'}
