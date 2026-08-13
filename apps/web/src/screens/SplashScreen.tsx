@@ -37,7 +37,16 @@ const HARD_MAX_MS = 7000;
 /** How long to wait for operator URLs before accepting cache/built-in as final. */
 const LOAD_BUDGET_MS = 1800;
 
-const SPLASH_GROUND = '#EDECFB';
+/**
+ * The colour under the artwork, sampled from the artwork.
+ *
+ * It was lavender, left over from the previous identity, and it is painted for
+ * the frame or two before the image has pixels - so every launch began with a
+ * flash of the old brand colour behind the new picture. Cream is what the
+ * current art starts with, which is what makes the image appear to fade up out
+ * of the screen rather than replace something.
+ */
+const SPLASH_GROUND = '#FAF8F6';
 
 function builtInSplash(): SplashUrls {
   return {

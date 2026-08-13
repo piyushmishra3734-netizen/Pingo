@@ -91,7 +91,12 @@ const config: CapacitorConfig = {
        * every launch. The app calls `hide()` when it has something to show.
        */
       launchAutoHide: false,
-      backgroundColor: '#FBFBFE',
+      /*
+       * Sampled from the splash artwork, not chosen: this is the solid frame
+       * Android shows before the image is ready, and a colour that is not the
+       * image's own reads as a flash of something else on every cold launch.
+       */
+      backgroundColor: '#FAF8F6',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },

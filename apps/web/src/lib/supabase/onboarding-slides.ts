@@ -166,7 +166,17 @@ export interface AppSplashRow {
 
 /** Built-in splash files shipped with the app (used until operator uploads). */
 export function localSplashUrl(variant: SlideVariant): string {
-  return variant === 'mobile' ? '/pingo-splash-mobile.png' : '/pingo-splash.jpg';
+  /*
+   * The shipped copy of the *current* art, not an ancestor of it.
+   *
+   * This is what a device paints before the operator's upload has arrived -
+   * first launch, cleared storage, or a network slower than the load budget -
+   * and it was still the lavender artwork from before the rebrand. So the app
+   * flashed the old identity at exactly the people seeing it for the first
+   * time. Both files are now the same pictures Controlling serves; they are
+   * re-exported from `apps/web/assets/splash-mobile.png` whenever that changes.
+   */
+  return variant === 'mobile' ? '/pingo-splash-mobile.png' : '/pingo-splash.png';
 }
 
 /** Last known *operator* splash URLs — never store built-in paths here. */

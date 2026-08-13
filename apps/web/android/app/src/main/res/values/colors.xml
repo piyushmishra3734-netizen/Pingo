@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        Sampled from the official splash artwork's own corner, not chosen by
-        eye. Android may paint this before the image is ready, and a white
-        frame in front of a lavender gradient reads as a flicker on every
-        single launch.
+        Sampled from the official splash artwork itself, not chosen by eye.
+        Android may paint this before the image is ready, and a frame of some
+        other colour in front of the artwork reads as a flicker on every single
+        launch. It was the lavender of the previous identity, which is half of
+        why the old splash kept appearing for a moment.
     -->
-    <color name="splashBackground">#efebfa</color>
+    <color name="splashBackground">#faf8f6</color>
 </resources>
