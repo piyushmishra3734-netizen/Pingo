@@ -38,6 +38,7 @@
     "verify:video-links": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-video-links.ts",
     "verify:voice-wav": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-voice-wav.ts",
     "verify:story-audio": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-story-audio.ts",
+    "verify:media-lifecycle": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-media-lifecycle.ts",
     "verify:message-sounds": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-message-sounds.ts",
     "verify:badges": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-badges.ts",
     "verify:chapters": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-chapters.ts",

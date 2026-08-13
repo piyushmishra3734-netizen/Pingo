@@ -49,6 +49,8 @@ import { Composer, type MentionOption } from './Composer.js';
 import { EncryptionNotice } from './EncryptionNotice.js';
 import { GroupInfoSheet } from './GroupInfoSheet.js';
 import { ConversationMenu } from './ConversationMenu.js';
+import { mediaTooLarge, type MediaKind } from '@pingo/core';
+
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { MessageSelectionBar } from './MessageSelectionBar.js';
@@ -153,6 +155,25 @@ export function ChatThread({
 }: ChatThreadProps) {
   const { currentUser, users, service } = useChat();
   const confirm = useConfirm();
+
+  /**
+   * Refuses a file that is too large, out loud.
+   *
+   * Said before the upload starts rather than after it fails, and it names the
+   * limit and the file's own size - "too large" with neither is a dead end. The
+   * service checks again before uploading, because not every path into it comes
+   * through this screen; this is the one that can explain itself.
+   */
+  const refuseIfTooLarge = async (file: File, kind: MediaKind): Promise<boolean> => {
+    const complaint = mediaTooLarge(file.size, kind);
+    if (!complaint) return false;
+    await confirm({
+      title: 'That file is too large',
+      description: complaint,
+      confirmLabel: 'OK',
+    });
+    return true;
+  };
   const {
     messages,
     receipts,
@@ -1522,6 +1543,16 @@ export function ChatThread({
           const videos = chosen.filter((file) => file.type.startsWith('video/'));
           const images = chosen.filter((file) => !file.type.startsWith('video/'));
 
+          // Checked here, once, for every branch below.
+          const oversized = [
+            ...videos.filter((file) => mediaTooLarge(file.size, 'file')),
+            ...images.filter((file) => mediaTooLarge(file.size, 'photo')),
+          ];
+          if (oversized[0]) {
+            void refuseIfTooLarge(oversized[0], oversized[0].type.startsWith('video/') ? 'file' : 'photo');
+            return;
+          }
+
           /*
            * One video opens the trimmer; several go straight out.
            *
@@ -1551,11 +1582,14 @@ export function ChatThread({
           const file = event.target.files?.[0];
           event.target.value = '';
           if (!file) return;
-          void service.sendMessage({
-            conversationId: conversation.id,
-            body: '',
-            document: { file },
-          });
+          void (async () => {
+            if (await refuseIfTooLarge(file, 'file')) return;
+            await service.sendMessage({
+              conversationId: conversation.id,
+              body: '',
+              document: { file },
+            });
+          })();
         }}
       />
 

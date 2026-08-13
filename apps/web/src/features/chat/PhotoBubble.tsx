@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
 import { ImageViewer } from '../profile/ImageViewer.js';
+import { useOfflineMedia } from './useOfflineVideo.js';
 import { MessageText } from './MessageText.js';
 
 /**
@@ -65,6 +66,20 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
   const caption = message.body.trim();
   const limited = photo.viewLimit !== undefined;
 
+  /*
+   * The local copy first, the server's second.
+   *
+   * An ordinary photograph follows the same lifecycle as a video now: the whole
+   * file is written to this device, the receipt releases PINGO's copy, and from
+   * then on this is the only copy that exists. A view-limited one is excluded -
+   * its bytes are meant to be spent, not kept, and writing it to disk would be
+   * the opposite of what the limit promises.
+   */
+  const offline = useOfflineMedia(message.id, limited ? undefined : url, () => {
+    void service.confirmMediaReceived?.(message.id).catch(() => undefined);
+  });
+  const shown = limited ? url : offline.src;
+
   const open = async () => {
     if (opening || url) return;
     setOpening(true);
@@ -107,7 +122,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
             )}
           >
             <img
-              src={url}
+              src={shown}
               alt={caption || 'Photo'}
               className={cn(
                 'max-h-[22rem] w-full rounded-lg object-cover',
@@ -186,9 +201,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
         )}
       </div>
 
-      {viewing && url && (
+      {viewing && shown && (
         <ImageViewer
-          src={url}
+          src={shown}
           alt={caption || 'Photo'}
           onClose={() => {
             setViewing(false);
@@ -216,7 +231,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    void fetch(url)
+                    // The local copy when there is one: saving must keep working
+                    // after PINGO has let go of the server copy.
+                    void fetch(shown ?? url)
                       .then((response) => response.blob())
                       .then(async (blob) => {
                         // Named after what it is. A GIF saved as `.gif` still

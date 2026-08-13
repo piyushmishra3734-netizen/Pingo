@@ -2,6 +2,8 @@ import { formatDuration, type AudioAttachment } from '@pingo/core';
 import { PauseIcon, PlayIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { putMedia, storedMedia } from './video-vault.js';
+
 /**
  * Voice note player — receiver must hear audio, always.
  *
@@ -19,6 +21,17 @@ export interface VoiceNoteProps {
   className?: string;
   /** Mint a fresh signed URL for `attachment.storagePath`. */
   resolveUrl?: (storagePath: string) => Promise<string | undefined>;
+  /**
+   * Which message this is, so the file can be kept on this device.
+   *
+   * A voice note follows the same lifecycle as everything else now: the whole
+   * file is written locally, the receipt releases PINGO's copy, and playback
+   * afterwards is from here. Absent on surfaces that are not a thread bubble,
+   * where there is nothing to release.
+   */
+  messageId?: string;
+  /** Told once the file is on this device. See `useOfflineMedia`. */
+  onStored?: () => void;
 }
 
 const TICK_MS = 40;
@@ -44,6 +57,8 @@ export function VoiceNote({
   tone = 'incoming',
   className,
   resolveUrl,
+  messageId,
+  onStored,
 }: VoiceNoteProps) {
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -137,13 +152,32 @@ export function VoiceNote({
     return objectUrl;
   }, []);
 
-  /** Resolve a playable src: attachment url → re-sign → blob. */
+  /** Resolve a playable src: local copy → attachment url → re-sign → blob. */
   const ensurePlayableSrc = useCallback(async (): Promise<string> => {
     if (playSrc && !loadError) return playSrc;
 
     setLoading(true);
     setLoadError(false);
     try {
+      /*
+       * This device's own copy, before anything is asked of the network.
+       *
+       * A voice note that has been received is stored here, which is what
+       * releases PINGO's copy - so after that this is not merely the faster
+       * source, it is the only one.
+       */
+      if (messageId) {
+        const local = await storedMedia(messageId);
+        if (local) {
+          blobRef.current = local;
+          revokeObjectUrl();
+          const url = URL.createObjectURL(local);
+          objectUrlRef.current = url;
+          setPlaySrc(url);
+          return url;
+        }
+      }
+
       let remote = initialUrl;
 
       // Prefer a fresh signature when we can — expired URLs are a common silent fail.
@@ -159,6 +193,15 @@ export function VoiceNote({
       try {
         const src = await materialize(remote);
         setPlaySrc(src);
+        /*
+         * Kept, and only then confirmed. The bytes are already here - see
+         * `putMedia` - so this costs a write and no second download.
+         */
+        if (messageId && blobRef.current) {
+          void putMedia(messageId, blobRef.current).then((stored) => {
+            if (stored) onStored?.();
+          });
+        }
         return src;
       } catch {
         // Direct stream as last resort (some environments block fetch CORS).

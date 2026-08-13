@@ -447,6 +447,10 @@ export function MessageBubble({
               tone={mine ? 'outgoing' : 'incoming'}
               className={cn(hasBody && 'mb-2')}
               resolveUrl={resolveVoiceUrl}
+              messageId={message.id}
+              onStored={() => {
+                void service.confirmMediaReceived?.(message.id).catch(() => undefined);
+              }}
             />
           )}
 

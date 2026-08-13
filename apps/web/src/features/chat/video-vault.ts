@@ -31,7 +31,14 @@
 
 import { localDelete, localGet, localSet, requestPersistentStorage, STORE } from '../../lib/local/db.js';
 
-/** One namespace inside the shared media store, alongside the wallpaper. */
+/**
+ * One namespace inside the shared media store, alongside the wallpaper.
+ *
+ * Still "video:" although photographs, documents and voice notes live here too:
+ * a message carries at most one object, so the message id is the whole key, and
+ * renaming the prefix would orphan every video already on a device for no gain.
+ * The prefix is a namespace, not a type.
+ */
 const key = (messageId: string) => `video:${messageId}`;
 
 /**
@@ -95,7 +102,40 @@ export async function keepVideo(messageId: string, url: string): Promise<Blob | 
   return work;
 }
 
+/**
+ * Keeps bytes this device already holds, without fetching them again.
+ *
+ * A voice note is materialised in full before it can play - the player needs a
+ * typed blob, not a stream - so by the time it is audible the whole file is in
+ * memory. Downloading it a second time to persist it would be paying twice for
+ * the same bytes. Returns whether the write succeeded, because that is what
+ * the receipt is allowed to be based on.
+ */
+export async function putMedia(messageId: string, blob: Blob): Promise<boolean> {
+  if (blob.size === 0) return false;
+  try {
+    void requestPersistentStorage();
+    await localSet(STORE.media, key(messageId), blob);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Drops the local copy - used when the message itself is deleted. */
 export function forgetVideo(messageId: string): Promise<unknown> {
   return localDelete(STORE.media, key(messageId)).catch(() => undefined);
 }
+
+/*
+ * The same three functions, named for what they now hold.
+ *
+ * Photographs, documents and voice notes go through this module too - the
+ * server's copy of any of them is a delivery buffer, and the receipt that
+ * releases it means the same thing for all four. Aliases rather than a second
+ * module, so there is one store, one in-flight map and one definition of "this
+ * device has it".
+ */
+export const storedMedia = storedVideo;
+export const keepMedia = keepVideo;
+export const forgetMedia = forgetVideo;

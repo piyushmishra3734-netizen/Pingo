@@ -73,6 +73,8 @@ import {
 import { STORE, localDelete, localGet, localSet } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
+import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
+import { mediaTooLarge, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { startHeartbeat } from '../../features/presence/heartbeat.js';
@@ -801,6 +803,15 @@ export class SupabaseChatService implements ChatService {
      * asks. Idempotent, so calling it on every session resolve is safe.
      */
     startHeartbeat();
+
+    /*
+     * And the collector, which is the other half of storage being a buffer.
+     *
+     * The database parks objects that have been delivered or have expired; only
+     * their uploader can remove them, so the sweep runs here, quietly, a while
+     * after launch. See `media-reaper.ts`.
+     */
+    startMediaReaper(this.#client);
 
     // Plaintext left on disk by a build that predates sealing. Runs once, and
     // costs one refetch for any conversation it clears.
@@ -2264,6 +2275,62 @@ export class SupabaseChatService implements ChatService {
    * the two-view limit would mean nothing. The path is useless on its own - a
    * URL is minted per view by `openPing`, and minting it is what spends one.
    */
+  /**
+   * Every upload is announced, checked against its limit, and then made.
+   *
+   * The claim exists because of the gap this architecture cannot remove: the
+   * object is written before the message row that names it, so an insert that
+   * fails leaves bytes nothing points at. A row in `media_uploads` written
+   * first turns that invisible orphan into a list its owner can collect - see
+   * `abandoned_uploads()` and `media-reaper.ts`.
+   *
+   * The size check is here rather than only in the composer because not every
+   * path goes through the composer: a share target, a paste, a forward and the
+   * camera all arrive at these four methods.
+   */
+  async #claimAndUpload(
+    bucket: string,
+    path: string,
+    body: Blob,
+    contentType: string,
+    kind: MediaKind,
+  ): Promise<string> {
+    const complaint = mediaTooLarge(body.size, kind);
+    if (complaint) throw new Error(complaint);
+
+    const me = await this.#userId();
+    /*
+     * Best effort, deliberately. A claim that fails to write must not stop
+     * somebody sending a photograph; it only means that particular orphan
+     * would have to wait for a future sweep rather than this account's own.
+     */
+    await Promise.resolve(uploadClaims(this.#client).insert({ path, bucket, user_id: me })).then(
+      undefined,
+      () => undefined,
+    );
+
+    const { error } = await this.#client.storage
+      .from(bucket)
+      .upload(path, body, { contentType });
+
+    if (error) {
+      // The claim outlives a failed upload harmlessly: there is no object, so
+      // the sweeper deletes nothing and simply clears the row.
+      throw new Error(error.message || 'Could not upload that file.');
+    }
+    return path;
+  }
+
+  /** The message that owns these objects exists now; they are not orphans. */
+  async #releaseUploadClaims(paths: (string | undefined)[]): Promise<void> {
+    const real = paths.filter((path): path is string => Boolean(path));
+    if (real.length === 0) return;
+    await Promise.resolve(uploadClaims(this.#client).delete().in('path', real)).then(
+      undefined,
+      () => undefined,
+    );
+  }
+
   async #uploadSnap(image: Blob): Promise<string> {
     if (!image || image.size === 0) {
       throw new Error('No image to send.');
@@ -2271,12 +2338,7 @@ export class SupabaseChatService implements ChatService {
     const me = await this.#userId();
     const path = `${me}/${crypto.randomUUID()}.jpg`;
 
-    const { error } = await this.#client.storage
-      .from(SNAP_BUCKET)
-      .upload(path, image, { contentType: image.type || 'image/jpeg' });
-
-    if (error) throw new Error(error.message || 'Could not upload the Ping.');
-    return path;
+    return this.#claimAndUpload(SNAP_BUCKET, path, image, image.type || 'image/jpeg', 'snap');
   }
 
   async #uploadPhoto(image: Blob): Promise<string> {
@@ -2294,12 +2356,7 @@ export class SupabaseChatService implements ChatService {
      */
     const path = `${me}/${crypto.randomUUID()}.${imageExtension(image.type)}`;
 
-    const { error } = await this.#client.storage
-      .from(PHOTO_BUCKET)
-      .upload(path, image, { contentType: image.type || 'image/jpeg' });
-
-    if (error) throw new Error(error.message || 'Could not upload the photo.');
-    return path;
+    return this.#claimAndUpload(PHOTO_BUCKET, path, image, image.type || 'image/jpeg', 'photo');
   }
 
   /**
@@ -2548,12 +2605,7 @@ export class SupabaseChatService implements ChatService {
         ? new Blob([audio], { type: 'audio/wav' })
         : audio;
 
-    const { error } = await this.#client.storage
-      .from(VOICE_BUCKET)
-      .upload(path, body, { contentType, upsert: false, cacheControl: '3600' });
-
-    if (error) throw error;
-    return path;
+    return this.#claimAndUpload(VOICE_BUCKET, path, body, contentType, 'voice');
   }
 
   async #uploadDocument(file: File): Promise<string> {
@@ -2565,12 +2617,13 @@ export class SupabaseChatService implements ChatService {
      */
     const path = me + '/' + crypto.randomUUID();
 
-    const { error } = await this.#client.storage
-      .from(DOCUMENT_BUCKET)
-      .upload(path, file, { contentType: file.type || 'application/octet-stream' });
-
-    if (error) throw error;
-    return path;
+    return this.#claimAndUpload(
+      DOCUMENT_BUCKET,
+      path,
+      file,
+      file.type || 'application/octet-stream',
+      'file',
+    );
   }
 
   /**
@@ -2863,6 +2916,14 @@ export class SupabaseChatService implements ChatService {
      * slow, reconnecting, or switched off. The hook de-duplicates by id, so the
      * echo that follows is harmless.
      */
+    /*
+     * The objects now belong to a message, so they are not orphans.
+     *
+     * Released after the insert and not before: the claim's whole purpose is
+     * to survive an insert that never happened.
+     */
+    void this.#releaseUploadClaims([snapPath, photoPath, voicePath, filePath]);
+
     this.#emit({ type: 'message:new', message });
 
     /*

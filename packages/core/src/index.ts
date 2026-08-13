@@ -213,5 +213,8 @@ export {
   type VideoPlatform,
 } from './video/index.js';
 
+// What PINGO will carry, and what it says when it will not.
+export { MEDIA_LIMITS, formatLimit, mediaTooLarge, type MediaKind } from './media-limits.js';
+
 // Seed data, exported for the styleguide and for tests.
 export * as seed from './seed.js';

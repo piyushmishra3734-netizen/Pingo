@@ -77,3 +77,15 @@ export function useOfflineVideo(
 
   return { src: local ?? remoteUrl, offline: local !== undefined };
 }
+
+/**
+ * The same hook, for every other kind of media.
+ *
+ * A photograph, a document and a voice note follow the identical lifecycle -
+ * download the whole thing, write it locally, confirm, and let the server drop
+ * its copy - so they share the implementation rather than each growing their
+ * own. The order it returns is the order the architecture promises: the local
+ * copy first, the managed server copy while there is not one, and nothing
+ * invented in between.
+ */
+export const useOfflineMedia = useOfflineVideo;
