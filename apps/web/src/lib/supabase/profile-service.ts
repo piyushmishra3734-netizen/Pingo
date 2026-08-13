@@ -798,7 +798,7 @@ export class SupabaseProfileService implements ProfileService {
        * conversation to offer at all.
        */
       const hidden =
-        (row as { hide_counts?: boolean }).hide_counts === true && row.author_id !== me;
+        (row as { hide_like_count?: boolean }).hide_like_count === true && row.author_id !== me;
 
       return toPost(row, urls.get(row.image_path) ?? '', {
         likeCount: hidden ? 0 : total,
@@ -910,17 +910,24 @@ export class SupabaseProfileService implements ProfileService {
     return post!;
   }
 
-  async setPostCountsHidden(postId: string, hidden: boolean): Promise<Post> {
+  async setPostCountsHidden(
+    postId: string,
+    hidden: { likes?: boolean; comments?: boolean },
+  ): Promise<Post> {
+    const patch: Record<string, boolean> = {};
+    if (hidden.likes !== undefined) patch.hide_like_count = hidden.likes;
+    if (hidden.comments !== undefined) patch.hide_comment_count = hidden.comments;
+
     const { data, error } = await this.client
       .from('posts')
       /*
        * Cast for the same reason the story's `video_edit` is cast: the
-       * generated database types are built from the deployed schema and this
-       * column ships in 20260914000000. It comes off when those types are
+       * generated database types are built from the deployed schema and these
+       * columns ship in 20260915000000. It comes off when those types are
        * regenerated. The row policy is what actually decides who may do this -
        * only the author can update their own post.
        */
-      .update({ hide_counts: hidden } as unknown as Record<string, never>)
+      .update(patch as unknown as Record<string, never>)
       .eq('id', postId)
       .select('*')
       .single();
@@ -1176,8 +1183,9 @@ function toPost(
      * post "edited" the moment it was published.
      */
     editedAt: updated - created > 1000 ? updated : undefined,
-    // Absent on rows written before the column existed, which is "not hidden".
-    hideCounts: (row as { hide_counts?: boolean }).hide_counts === true,
+    // Absent on rows written before the columns existed, which is "not hidden".
+    hideLikeCount: (row as { hide_like_count?: boolean }).hide_like_count === true,
+    hideCommentCount: (row as { hide_comment_count?: boolean }).hide_comment_count === true,
     ...counts,
   };
 }

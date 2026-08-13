@@ -132,13 +132,23 @@ export function PostViewer({
    * numbers go with it, and a failure puts them back rather than leaving the
    * post looking like it did something it did not.
    */
-  const toggleCounts = async () => {
-    const hidden = !post.hideCounts;
-    onChange({ ...post, hideCounts: hidden });
+  const toggleLikeCount = async () => {
+    const hidden = !post.hideLikeCount;
+    onChange({ ...post, hideLikeCount: hidden });
     try {
-      await service.setPostCountsHidden(post.id, hidden);
+      await service.setPostCountsHidden(post.id, { likes: hidden });
     } catch {
-      onChange({ ...post, hideCounts: !hidden });
+      onChange({ ...post, hideLikeCount: !hidden });
+    }
+  };
+
+  const toggleCommentCount = async () => {
+    const hidden = !post.hideCommentCount;
+    onChange({ ...post, hideCommentCount: hidden });
+    try {
+      await service.setPostCountsHidden(post.id, { comments: hidden });
+    } catch {
+      onChange({ ...post, hideCommentCount: !hidden });
     }
   };
 
@@ -257,10 +267,19 @@ export function PostViewer({
                         account.
                       */}
                       <MenuAction
-                        label={post.hideCounts ? t('post.showCounts') : t('post.hideCounts')}
+                        label={post.hideLikeCount ? t('post.showLikes') : t('post.hideLikes')}
                         onClick={() => {
                           setMenuOpen(false);
-                          void toggleCounts();
+                          void toggleLikeCount();
+                        }}
+                      />
+                      <MenuAction
+                        label={
+                          post.hideCommentCount ? t('post.showCommentCount') : t('post.hideCommentCount')
+                        }
+                        onClick={() => {
+                          setMenuOpen(false);
+                          void toggleCommentCount();
                         }}
                       />
                       <MenuAction label={t('post.delete')} tone="danger" onClick={() => { setMenuOpen(false); onDelete(); }} />
@@ -336,10 +355,10 @@ export function PostViewer({
             nobody trusts, and the number was never the thing being hidden from
             the person who posted it.
           */}
-          {post.likeCount > 0 && (!post.hideCounts || isMine) && (
+          {post.likeCount > 0 && (!post.hideLikeCount || isMine) && (
             <p className="text-body font-medium text-white">
               {post.likeCount} {post.likeCount === 1 ? 'like' : 'likes'}
-              {post.hideCounts && (
+              {post.hideLikeCount && (
                 <span className="ml-2 text-caption font-normal text-white/50">
                   Only you can see this
                 </span>
@@ -365,7 +384,7 @@ export function PostViewer({
                 same door, and hiding the door as well would be hiding the
                 conversation, which is not what was asked for.
               */}
-              {post.hideCounts && !isMine
+              {post.hideCommentCount && !isMine
                 ? 'View comments'
                 : `View ${post.commentCount === 1 ? '1 comment' : `all ${post.commentCount} comments`}`}
             </button>

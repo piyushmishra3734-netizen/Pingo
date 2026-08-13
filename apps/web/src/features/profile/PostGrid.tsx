@@ -63,7 +63,7 @@ export function PostGrid({
             number beside it would be a shape asking to be counted. On your own
             it stays, because you are allowed to know.
           */}
-          {post.likeCount > 0 && (!post.hideCounts || isSelf) && (
+          {post.likeCount > 0 && (!post.hideLikeCount || isSelf) && (
             <span
               className={cn(
                 'absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-full',
