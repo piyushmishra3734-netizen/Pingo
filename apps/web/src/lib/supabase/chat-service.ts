@@ -73,7 +73,7 @@ import {
 import { STORE, localDelete, localGet, localSet } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
-import { readReceiptsOn } from '../../features/settings/privacy-flags.js';
+import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
@@ -1063,6 +1063,53 @@ export class SupabaseChatService implements ChatService {
               if (conversation) this.#emit({ type: 'conversation:updated', conversation });
             });
           });
+        },
+      )
+      /*
+       * The privacy rules, live.
+       *
+       * These are per account and the app caches them locally so the heartbeat
+       * and the presence channel can read them without a query. A cache is only
+       * as good as its news: switching activity status off on a phone left this
+       * laptop broadcasting until something happened to re-read the row, which
+       * is the "sometimes it does not update" - so the row itself is watched,
+       * and `cachePrivacyRules` announces the change to whoever is listening.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'privacy_settings' },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as
+            | { user_id?: string; online_status?: boolean }
+            | null;
+          if (!row?.user_id) return;
+
+          void this.#userId().then((me) => {
+            if (row.user_id === me) {
+              cachePrivacyRules({ onlineStatus: row.online_status !== false });
+            }
+          });
+
+
+          /*
+           * Somebody else's rule changed: forget what was drawn for them.
+           *
+           * Turning it off has to take their dot away from everybody watching,
+           * not only from their own screen - and turning it back on has to
+           * bring it back without waiting for a reload.
+           */
+          if (row.online_status === false) this.#hiddenActivityIds.add(row.user_id);
+          else this.#hiddenActivityIds.delete(row.user_id);
+
+          const cached = this.#people.get(row.user_id);
+          if (cached) {
+            const presence =
+              row.online_status === false
+                ? ({ state: 'offline', lastSeenAt: cached.presence.lastSeenAt } as const)
+                : cached.presence;
+            this.#people.set(row.user_id, { ...cached, presence });
+            this.#emit({ type: 'presence:changed', userId: row.user_id, presence });
+          }
         },
       )
       .on(
