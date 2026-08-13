@@ -1509,6 +1509,7 @@ export function ChatThread({
             // lands: same preview, caption and send. The file is passed through
             // untouched, which is what keeps an animated GIF animated.
             onPasteFiles={(files) => setPending(files)}
+            draftKey={conversation.id}
             ariaLabel={`Message ${conversation.title}`}
           />
         </div>

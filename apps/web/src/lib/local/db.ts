@@ -112,6 +112,78 @@ export function messageRowRange(conversationId: string): IDBKeyRange {
   return IDBKeyRange.bound(`${conversationId}|`, `${conversationId}|￿`);
 }
 
+/**
+ * The key bounds covering everything stored *before* one message.
+ *
+ * Paging asks for "fifty older than this id", and the id alone is not a key -
+ * the key carries the timestamp too. So the anchor is found among the keys the
+ * conversation already has, and the range runs from the start of the
+ * conversation up to it, exclusive.
+ *
+ * Separated from IndexedDB on purpose. Everything interesting here is string
+ * ordering, and string ordering can be checked in a test runner; `IDBKeyRange`
+ * cannot. The caller turns the result into a range.
+ *
+ * `undefined` means this device cannot answer and the caller must ask the
+ * server. Two things cause it, and both matter:
+ *
+ * - The anchor was never stored, so what comes before it is unknown. A range
+ *   from the newest end would hand back the wrong page and let the caller
+ *   believe it had paged.
+ * - The anchor is at or below `floor`, the oldest key of the run this device
+ *   knows to be gapless. Rows exist below a floor - an older session's page, a
+ *   partial backfill - but nothing proves they *join*, and serving across a gap
+ *   would drop real messages out of the middle of a conversation without any
+ *   symptom to notice.
+ */
+export function rowKeyBoundsBefore(
+  conversationId: string,
+  keys: string[],
+  beforeId: string,
+  floor?: string,
+): { lower: string; upper: string } | undefined {
+  const prefix = `${conversationId}|`;
+  const anchor = keys.find((key) => key.startsWith(prefix) && key.endsWith(`|${beforeId}`));
+  if (anchor === undefined) return undefined;
+
+  const lower = floor ?? prefix;
+  return anchor <= lower ? undefined : { lower, upper: anchor };
+}
+
+/**
+ * The stretch of a conversation this device holds without a gap in it.
+ *
+ * Keys, not ids, because the whole question is one of ordering. The run always
+ * reaches the newest end of what has been fetched; `from` is how far back it
+ * goes, and is the only point below which local paging is trustworthy.
+ */
+export interface RowRun {
+  from: string;
+  to: string;
+}
+
+/**
+ * Merges a freshly stored stretch into the known-gapless run.
+ *
+ * Two stretches join only if they touch or overlap. Otherwise there is
+ * something between them that this device has never seen - a month away from
+ * the app, a socket that was down - and the newer stretch replaces the run
+ * rather than being welded onto it across the hole.
+ *
+ * Replacing rather than keeping the longer one is deliberate. The run has to
+ * stay anchored to the newest end to mean anything, and the older stretch's
+ * rows are not deleted: they stay on disk for the backup builder, and the next
+ * page fetched will re-extend the run down through them.
+ */
+export function extendRun(run: RowRun | undefined, next: RowRun): RowRun {
+  if (!run) return next;
+  if (next.from > run.to || next.to < run.from) return next;
+  return {
+    from: run.from < next.from ? run.from : next.from,
+    to: run.to > next.to ? run.to : next.to,
+  };
+}
+
 export type StoreName = (typeof STORE)[keyof typeof STORE];
 
 let open: Promise<IDBDatabase | undefined> | undefined;
@@ -279,6 +351,17 @@ export async function localCount(store: StoreName, range: IDBKeyRange): Promise<
       resolve(0);
     }
   });
+}
+
+/**
+ * The keys in a range, without reading a value.
+ *
+ * Keys are deliberately plaintext, so this answers "what does this device
+ * hold" without decrypting anything - the same reason `localCount` exists.
+ */
+export async function localKeys(store: StoreName, range?: IDBKeyRange): Promise<string[]> {
+  const keys = await withStore<IDBValidKey[]>(store, 'readonly', (s) => s.getAllKeys(range));
+  return (keys ?? []).map(String);
 }
 
 /** Writes many records in one transaction. Separate puts would be one each. */

@@ -6,6 +6,7 @@ import { receiveKeyboardImages } from '../native/keyboard-image.js';
 import { receiveSharedText } from '../native/shared-content.js';
 import { useBackStep } from '../navigation/useBackStep.js';
 import { AttachMenu } from './AttachMenu.js';
+import { readDraft, saveDraft } from './drafts.js';
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
 import { VoiceRecorderBar } from './VoiceRecorderBar.js';
@@ -76,6 +77,13 @@ export interface ComposerProps {
    */
   onPasteFiles?: (files: File[]) => void;
   /**
+   * Where an unsent message is kept, usually the conversation id.
+   *
+   * Absent means this surface does not keep drafts, and the field starts empty
+   * every time - which is right for a one-off composer and wrong for a thread.
+   */
+  draftKey?: string;
+  /**
    * People (and PINGO AI) available for `@` autocomplete.
    *
    * When empty / omitted, typing `@` does nothing special. Groups pass members
@@ -120,6 +128,7 @@ export function Composer({
   onTyping,
   onRecording,
   onPasteFiles,
+  draftKey,
   mentions,
   placeholder = 'Type a message...',
   ariaLabel = 'Message',
@@ -149,6 +158,61 @@ export function Composer({
   const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
+
+  /*
+   * The unsent message, restored on the way in and kept on the way out.
+   *
+   * Nothing is written until the draft for *this* key has been read back, which
+   * is what `loadedFor` is for: the field starts empty, and saving that empty
+   * string before the read landed would delete the very draft being restored.
+   */
+  const loadedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    loadedFor.current = undefined;
+    if (!draftKey) return;
+
+    let live = true;
+    void readDraft(draftKey).then((text) => {
+      if (!live) return;
+      loadedFor.current = draftKey;
+      // Anything typed while the read was in flight wins. The disk is a moment
+      // old and the finger is not.
+      if (text) setValue((current) => (current.length === 0 ? text : current));
+    });
+
+    return () => {
+      live = false;
+    };
+  }, [draftKey]);
+
+  /*
+   * Debounced, because this is a keystroke handler writing to a database.
+   *
+   * 400ms is below the pause between words, so a draft is on disk before the
+   * thought is finished, and a burst of typing costs one write rather than
+   * thirty.
+   */
+  useEffect(() => {
+    if (!draftKey || loadedFor.current !== draftKey) return;
+    const timer = window.setTimeout(() => void saveDraft(draftKey, value), 400);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, value]);
+
+  /*
+   * And once more on the way out, un-debounced.
+   *
+   * Leaving a conversation is exactly when the last few characters are still
+   * inside the timer above, and the cleanup that cancels it runs first. Without
+   * this, the faster you leave the more you lose.
+   */
+  const latest = useRef(value);
+  latest.current = value;
+  useEffect(() => {
+    if (!draftKey) return;
+    return () => {
+      if (loadedFor.current === draftKey) void saveDraft(draftKey, latest.current);
+    };
+  }, [draftKey]);
 
   /** `@…` autocomplete while typing. */
   const [mention, setMention] = useState<{ start: number; query: string }>();

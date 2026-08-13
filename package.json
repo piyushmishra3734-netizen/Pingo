@@ -17,7 +17,7 @@
     "verify:recovery": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery.ts",
     "bench": "node apps/web/scripts/benchmark.mjs",
     "functions:deploy": "supabase functions deploy turn-credentials ai-chat --project-ref lppzoqgvshhmxqsvggug",
-    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery",
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery && pnpm verify:local-first",
     "verify:recovery-wrap": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery-wrap.ts",
     "verify:secure-backup": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-secure-backup.ts",
     "verify:archive": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-archive.ts",
@@ -49,7 +49,8 @@
     "verify:voice-capture": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-voice-capture.ts",
     "verify:streak": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-streak.ts",
     "verify:passkey-lock": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-passkey-lock.ts",
-    "verify:drive-owner": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-owner.ts"
+    "verify:drive-owner": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-owner.ts",
+    "verify:local-first": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-local-first.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

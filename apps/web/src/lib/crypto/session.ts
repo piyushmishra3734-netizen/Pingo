@@ -3,11 +3,13 @@ import {
   localDelete,
   localEntries,
   localGet,
+  localKeys,
   localPutMany,
   localRange,
   localSet,
   messageRowKey,
   messageRowRange,
+  rowKeyBoundsBefore,
 } from '../local/db.js';
 import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
@@ -444,12 +446,15 @@ export async function openRows(rows: MessageRow[]): Promise<boolean> {
   return results.every(Boolean);
 }
 
-// -- row-per-message, dual-written -----------------------------------------
+// -- row-per-message --------------------------------------------------------
 //
-// Milestone 2. These write beside the page blob rather than instead of it, and
-// nothing reads from them for display yet. The blob stays authoritative until
-// the two are shown to agree on real data, because a storage migration that
-// cannot be checked is a storage migration that silently loses messages.
+// Written beside the page blob rather than instead of it. The blob is still
+// what the newest page is served from; the rows are what everything *older*
+// than it is served from, which is the part the blob was never able to hold.
+//
+// Milestone 2 wrote these without reading them, so the two representations
+// could be compared on real data before anything depended on the new one - see
+// `verifyRowStore`, which still runs. Milestone 4 is that dependency: reads.
 
 /** What the row store holds per message. Sealed, like every other record. */
 export interface StoredRow {
@@ -492,23 +497,61 @@ export async function writeMessageRows(
   }
 }
 
-/** Reads back the newest rows for a conversation, oldest-first. */
-export async function readMessageRows<T>(
-  conversationId: string,
-  limit = 50,
-): Promise<T[]> {
-  const sealed = await localRange<unknown>(
-    STORE.messageRows,
-    messageRowRange(conversationId),
-    limit,
-  );
-
+/** Opens a run of sealed rows, dropping any that will not open. */
+async function openStoredRows<T>(sealed: unknown[]): Promise<T[]> {
   const rows: T[] = [];
   for (const record of sealed) {
     const opened = await openRecord<StoredRow>(record);
     if (opened) rows.push(opened.message as T);
   }
   return rows;
+}
+
+/** Reads back the newest rows for a conversation, oldest-first. */
+export async function readMessageRows<T>(
+  conversationId: string,
+  limit = 50,
+): Promise<T[]> {
+  return openStoredRows<T>(
+    await localRange<unknown>(STORE.messageRows, messageRowRange(conversationId), limit),
+  );
+}
+
+/**
+ * The page immediately older than one message, oldest-first.
+ *
+ * This is the read that makes the row store worth writing. Until now it was
+ * written on every fetch and read only by the backup builder, so scrolling back
+ * through a conversation asked the server for history the device was already
+ * holding - and asked in vain on a train.
+ *
+ * `undefined` rather than an empty array when the anchor is not stored: the two
+ * mean different things. Empty is "nothing older is here", which a caller may
+ * treat as the end of history; `undefined` is "this device cannot answer", and
+ * the caller must ask the server instead.
+ */
+export async function readMessageRowsBefore<T>(
+  conversationId: string,
+  beforeId: string,
+  limit = 50,
+  /** The oldest key this device knows to be part of a gapless run. */
+  floor?: string,
+): Promise<T[] | undefined> {
+  const bounds = rowKeyBoundsBefore(
+    conversationId,
+    await localKeys(STORE.messageRows, messageRowRange(conversationId)),
+    beforeId,
+    floor,
+  );
+  if (!bounds) return undefined;
+
+  return openStoredRows<T>(
+    await localRange<unknown>(
+      STORE.messageRows,
+      IDBKeyRange.bound(bounds.lower, bounds.upper, false, true),
+      limit,
+    ),
+  );
 }
 
 /** What an integrity check found. Reported, not acted on. */

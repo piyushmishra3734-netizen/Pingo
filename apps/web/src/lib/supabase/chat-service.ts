@@ -64,13 +64,22 @@ import {
   UNREADABLE,
   publishDeviceKey,
   purgeUnsealedCache,
+  readMessageRowsBefore,
   verifyRowStore,
   writeMessageRows,
   type RowStoreIntegrity,
   sealBody,
   sealRecord,
 } from '../crypto/session.js';
-import { STORE, localDelete, localGet, localSet } from '../local/db.js';
+import {
+  STORE,
+  extendRun,
+  localDelete,
+  localGet,
+  localSet,
+  messageRowKey,
+  type RowRun,
+} from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
@@ -282,6 +291,22 @@ function mergeMessages(cached: Message[], changed: Message[]): Message[] {
   const byId = new Map(cached.map((m) => [m.id, m]));
   for (const message of changed) byId.set(message.id, message);
   return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * The stretch of storage keys a page occupies.
+ *
+ * A page from the server is gapless within itself, which is the only reason
+ * any of this can be tracked cheaply: the run bookkeeping never has to inspect
+ * a page, only its two ends.
+ */
+function runOf(conversationId: ConversationId, page: Message[]): RowRun {
+  const oldest = page[0]!;
+  const newest = page[page.length - 1]!;
+  return {
+    from: messageRowKey(conversationId, oldest.createdAt, oldest.id),
+    to: messageRowKey(conversationId, newest.createdAt, newest.id),
+  };
 }
 
 /** The high-water mark to store, never moving backwards. */
@@ -876,6 +901,17 @@ export class SupabaseChatService implements ChatService {
             .then(([message]) => {
               if (message) {
                 void this.#appendToCachedPage(message);
+                /*
+                 * And as a row, so history stays complete without a fetch to
+                 * rebuild it.
+                 *
+                 * Deliberately without extending the contiguous run - see
+                 * `#extendRowRun`. A socket message is adjacent to the newest
+                 * end only if the socket never dropped, and a dropped socket is
+                 * exactly how a hole gets into the store. Writing the row is
+                 * free; claiming it joins the run is not.
+                 */
+                void writeMessageRows(row.conversation_id, [message]);
                 this.#emit({ type: 'message:new', message });
               }
             });
@@ -906,6 +942,17 @@ export class SupabaseChatService implements ChatService {
             .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
             .then(([signed]) => {
               if (!signed) return;
+              /*
+               * Over the stored row as well as onto the screen.
+               *
+               * The key is conversation, time and id - none of which an edit
+               * changes - so this overwrites in place. Without it, an edit or a
+               * "delete for everyone" would be corrected in the thread and then
+               * undone the next time that message was paged back to from disk,
+               * which is the one way local history could show text the sender
+               * had retracted.
+               */
+              void writeMessageRows(row.conversation_id, [signed]);
               this.#emit({
                 type: 'message:updated',
                 message: { ...signed, reactions: this.#reactions.get(row.id) ?? [] },
@@ -1797,15 +1844,7 @@ export class SupabaseChatService implements ChatService {
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId },
   ): Promise<Message[]> {
-    /*
-     * Only the newest page is cached, and only that page is served offline.
-     *
-     * A `before` cursor is a request for history that is not held locally  - 
-     * answering it from a cache of the newest fifty would hand back the wrong
-     * messages and let the caller believe it had paged. So paging simply fails
-     * offline, which the thread already renders as "no more history".
-     */
-    if (options?.before) return this.#listMessagesFromNetwork(conversationId, options);
+    if (options?.before) return this.#listOlder(conversationId, options);
 
     /*
      * Milestone 3: ask what changed, not for the page again.
@@ -1870,6 +1909,7 @@ export class SupabaseChatService implements ChatService {
             localSet(STORE.messages, conversationId, sealed),
           );
           void writeMessageRows(conversationId, merged);
+          void this.#extendRowRun(conversationId, runOf(conversationId, merged));
           void this.#setSyncCursor(conversationId, newestUpdatedAt(changed, cursor));
 
           return this.#signPhotos(changed, merged);
@@ -1894,21 +1934,27 @@ export class SupabaseChatService implements ChatService {
         void sealRecord(live).then((sealed) => localSet(STORE.messages, conversationId, sealed));
 
         /*
-         * Milestone 2: the same page, written again as individual rows.
+         * The same page, written again as individual rows.
          *
-         * Beside the blob rather than instead of it. Nothing reads these for
-         * display yet - they exist so the two representations can be compared
-         * on real data before anything depends on the new one. A storage
-         * migration nobody can check is one that loses messages quietly.
+         * Beside the blob rather than instead of it: the blob is this page, the
+         * rows are the history it is the newest end of. The integrity check
+         * stays - it is what proved the two agree on real data before anything
+         * was allowed to read the rows, and it costs nothing to keep proving.
          *
-         * Not awaited, and failures inside are swallowed: a shadow copy under
-         * evaluation must not be able to affect what the user sees.
+         * Not awaited, and failures inside are swallowed: a copy that cannot be
+         * written must not be able to affect what the user sees.
          */
         void writeMessageRows(conversationId, live).then((written) =>
           verifyRowStore(conversationId, live).then((integrity) => {
             this.#rowStoreIntegrity.set(conversationId, { ...integrity, written });
           }),
         );
+
+        // How far back the device can now be trusted to page from disk. This
+        // stretch may or may not join what was already stored; `extendRun`
+        // decides, and drops the run rather than welding it across a gap.
+        // An empty conversation has no stretch and leaves the run alone.
+        if (live.length > 0) void this.#extendRowRun(conversationId, runOf(conversationId, live));
 
         /*
          * Seed the cursor from what was just stored, so the next open can take
@@ -2020,6 +2066,89 @@ export class SupabaseChatService implements ChatService {
   }
 
   /**
+   * Scrolling back, from this device first.
+   *
+   * The row store already holds every message this device has ever fetched or
+   * backfilled - it was written on every load and read by nothing but the
+   * backup builder. So the history was on the disk the whole time, and paging
+   * asked the server for it anyway, once per screenful, and could not answer at
+   * all without a connection.
+   *
+   * ## A short local page is not an answer
+   *
+   * The thread stops paging when a page comes back shorter than it asked for,
+   * because that is what the end of history looks like. Serving four stored
+   * messages to a request for fifty would therefore end the scrollback
+   * permanently, with two years of conversation still on the server. So the
+   * local copy is served only when it fills the page, and a partial one falls
+   * through to the network exactly as before.
+   *
+   * The one exception is when the network has nothing to add: no rows came
+   * back, and the device is holding some. That is the offline case, and there a
+   * short page is the best answer there is.
+   *
+   * ponytail: a message deleted for everyone *while paged past* keeps its
+   * stored text until something re-reads that row. Live edits and deletions are
+   * written through below, so this needs a device that was offline for the
+   * deletion and never reopens the thread near it.
+   */
+  async #listOlder(
+    conversationId: ConversationId,
+    options: { limit?: number; before?: MessageId },
+  ): Promise<Message[]> {
+    const limit = options.limit ?? 50;
+    const run = await this.#rowRun(conversationId);
+    const stored = options.before
+      ? await readMessageRowsBefore<Message>(conversationId, options.before, limit, run?.from)
+      : undefined;
+
+    // Deleted-for-me is a client-side join, and a stored row knows nothing
+    // about it. Filtering here is what stops a message you removed from
+    // reappearing the moment you scroll past it.
+    const local = stored?.filter((message) => !this.#hidden.has(message.id));
+
+    if (local && local.length >= limit) {
+      this.#deltaStats.hits += 1;
+      // Signed, because the URLs in a stored page expired an hour after it was
+      // stored even though the messages did not.
+      return this.#signPhotos([], local);
+    }
+
+    this.#deltaStats.misses += 1;
+
+    try {
+      const page = await this.#listMessagesFromNetwork(conversationId, options);
+
+      /*
+       * History that was paged in used to be thrown away when the thread
+       * closed: only the newest page was ever written. Persisting it here is
+       * what makes the second scroll back through a conversation free.
+       *
+       * The run's top is the anchor rather than the page's own newest message,
+       * because the server returned exactly the rows below that anchor - they
+       * join it by construction, and dating the stretch from its own newest
+       * message would make it look separated from the run by one message and
+       * throw the whole run away on every page.
+       */
+      if (page.length > 0 && this.#pageFullyDecrypted) {
+        void writeMessageRows(conversationId, page);
+        const stretch = runOf(conversationId, page);
+        const joinsAnchor = run !== undefined && run.from.endsWith(`|${options.before}`);
+        await this.#extendRowRun(
+          conversationId,
+          joinsAnchor ? { ...stretch, to: run.from } : stretch,
+        );
+      }
+
+      if (page.length === 0 && local && local.length > 0) return this.#signPhotos([], local);
+      return page;
+    } catch (cause) {
+      if (local && local.length > 0) return this.#signPhotos([], local);
+      throw cause;
+    }
+  }
+
+  /**
    * Everything that changed in this conversation since we last looked.
    *
    * One cursor, not two, because `updated_at` already covers both cases: an
@@ -2057,6 +2186,26 @@ export class SupabaseChatService implements ChatService {
 
   async #setSyncCursor(conversationId: ConversationId, at: string): Promise<void> {
     await localSet(STORE.meta, `sync:${conversationId}`, await sealRecord(at));
+  }
+
+  /**
+   * The stretch of this conversation the device holds without a gap.
+   *
+   * Beside the sync cursor rather than in a store of its own: both are the same
+   * kind of fact - how far the local copy can be trusted - and keeping them
+   * together means one thing to clear on sign-out instead of two.
+   *
+   * Absent on every device that has not fetched a page since this shipped, and
+   * absent is handled: paging falls back to the network exactly as it did
+   * before, and the first fetch establishes the run.
+   */
+  async #rowRun(conversationId: ConversationId): Promise<RowRun | undefined> {
+    return openRecord<RowRun>(await localGet<unknown>(STORE.meta, `rows:${conversationId}`));
+  }
+
+  async #extendRowRun(conversationId: ConversationId, next: RowRun): Promise<void> {
+    const merged = extendRun(await this.#rowRun(conversationId), next);
+    await localSet(STORE.meta, `rows:${conversationId}`, await sealRecord(merged));
   }
 
   async #listMessagesFromNetwork(
@@ -3819,22 +3968,39 @@ export class SupabaseChatService implements ChatService {
     return [];
   }
 
-  /** No notifications table - push is delivered, not stored, for now. */
   /**
    * The feed, with actor names resolved.
    *
    * Titles are built here rather than stored, so a renamed user is not stuck
    * with their old name in every notification they ever caused. The row keeps
    * ids; the words are assembled at read time.
+   *
+   * ## Kept on the device, because it was the last screen that wasn't
+   *
+   * This was the one remaining feed that went blank without a connection: the
+   * query failed, `[]` came back, and the screen said there was nothing rather
+   * than that it could not ask. What is stored is the assembled list, names and
+   * all - the words are cheap to rebuild but the ids they were built from are
+   * not, and a cached feed that has to make three more queries to be readable
+   * is not a cached feed.
+   *
+   * Keyed by account. There is one database per device and two accounts on one
+   * phone is ordinary here, so an unkeyed feed would show the other person
+   * theirs.
    */
   async listNotifications(): Promise<AppNotification[]> {
+    const me = await this.#userId();
+    const key = `notifications:${me}`;
+
     const { data, error } = await this.#client
       .from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(50);
 
-    if (error) return [];
+    if (error) {
+      return (await openRecord<AppNotification[]>(await localGet<unknown>(STORE.meta, key))) ?? [];
+    }
 
     const rows = data ?? [];
     const actorIds = [...new Set(rows.map((r) => r.actor_id).filter(Boolean))] as string[];
@@ -3849,7 +4015,7 @@ export class SupabaseChatService implements ChatService {
       for (const person of people ?? []) names.set(person.id, person.display_name);
     }
 
-    return rows.map((row) => {
+    const feed = rows.map((row) => {
       const who = (row.actor_id && names.get(row.actor_id)) || 'Someone';
       /*
        * The column still says `snap`; the product says Ping.
@@ -3872,6 +4038,11 @@ export class SupabaseChatService implements ChatService {
         ...(row.actor_id ? { actorId: row.actor_id } : {}),
       } satisfies AppNotification;
     });
+
+    // Sealed like every other record on disk. Not awaited: the screen has its
+    // answer and the copy is for next time.
+    void sealRecord(feed).then((sealed) => localSet(STORE.meta, key, sealed));
+    return feed;
   }
 
   async markNotificationRead(id: string): Promise<void> {
@@ -3883,9 +4054,23 @@ export class SupabaseChatService implements ChatService {
 
   async unreadNotifications(): Promise<number> {
     const { data, error } = await this.#client.rpc('unread_notifications');
-    // Zero on failure: a badge that shows a number it cannot justify is worse
-    // than no badge, and this runs on every app load.
-    return error ? 0 : (data ?? 0);
+    if (!error) return data ?? 0;
+
+    /*
+     * Offline, the badge is counted from the stored feed instead of dropped.
+     *
+     * Zero used to be returned on any failure, on the grounds that a badge
+     * showing a number it cannot justify is worse than no badge. It can justify
+     * this one: it is the same list the screen will open to, counted the same
+     * way. What it cannot do is see anything that arrived since, so this is a
+     * floor rather than a guess, and the next successful call replaces it.
+     */
+    const me = await this.#userId().catch(() => undefined);
+    if (!me) return 0;
+    const cached = await openRecord<AppNotification[]>(
+      await localGet<unknown>(STORE.meta, `notifications:${me}`),
+    );
+    return cached?.filter((item) => !item.read).length ?? 0;
   }
 
   async markAllNotificationsRead(): Promise<void> {
