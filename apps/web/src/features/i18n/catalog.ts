@@ -365,10 +365,10 @@ const en = {
   'privacy.profileVisibilityHint':
     'People you already talk to always see your profile — hiding it from them would only blank out your own chat list.',
   'privacy.groupSee': 'What others see',
-  'privacy.onlineStatus': 'Online status',
-  'privacy.onlineStatusHint': "Whether people can see when you're active.",
+  'privacy.onlineStatus': 'Show activity status',
+  'privacy.onlineStatusHint': 'Off, and nobody is told when you are here - not while you are online, and not afterwards.',
   'privacy.readReceipts': 'Read receipts',
-  'privacy.readReceiptsHint': 'Turning this off also hides theirs from you.',
+  'privacy.readReceiptsHint': 'Off, and nobody is told you read their message until you reply. Turning this off also hides theirs from you.',
   'privacy.screenshotAlerts': 'Screenshot alerts',
   'privacy.screenshotAlertsHint': 'Tell people when you screenshot their story.',
   'privacy.screenshotNote':
@@ -1049,10 +1049,10 @@ const enGenz: Catalog = {
   'privacy.profileVisibilityHint':
     'people you already talk to always see your profile — hiding it from them would just blank your own chat list.',
   'privacy.groupSee': 'what others see',
-  'privacy.onlineStatus': 'online status',
-  'privacy.onlineStatusHint': 'whether people can see when you’re active.',
+  'privacy.onlineStatus': 'show activity status',
+  'privacy.onlineStatusHint': 'off, and nobody is told when you’re here - not while you’re online, not after.',
   'privacy.readReceipts': 'read receipts',
-  'privacy.readReceiptsHint': 'turning this off also hides theirs from you.',
+  'privacy.readReceiptsHint': 'off, and nobody knows you read it until you reply. turning this off hides theirs from you too.',
   'privacy.screenshotAlerts': 'screenshot alerts',
   'privacy.screenshotAlertsHint': 'tell people when you screenshot their story.',
   'privacy.screenshotNote':

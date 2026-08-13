@@ -1,5 +1,6 @@
 import { deviceIdentity } from '../../lib/crypto/keys.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { activityStatusOn } from '../settings/privacy-flags.js';
 
 /**
  * Keeps "last seen" true while somebody is actually here.
@@ -33,6 +34,20 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let running = false;
 
 async function beat(): Promise<void> {
+  /*
+   * Activity status off means the clock stops here.
+   *
+   * This write is the *only* thing that says somebody is present, so not doing
+   * it is the whole of hiding it - there is nothing left for another client to
+   * be asked not to display. The last value written stays where it is and ages
+   * into "offline" on its own, which is what somebody turning this off is
+   * asking for: not a lie about where they were, just no news from now on.
+   *
+   * Checked per beat rather than at start, so the switch takes effect within a
+   * minute instead of at the next launch.
+   */
+  if (!activityStatusOn()) return;
+
   try {
     const identity = await deviceIdentity();
     await getSupabaseClient()

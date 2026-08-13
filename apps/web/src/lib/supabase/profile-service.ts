@@ -36,6 +36,7 @@ import {
   type SharedHistory,
 } from '@pingo/core';
 
+import { cachePrivacyRules } from '../../features/settings/privacy-flags.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import type { Database, PostCommentRow, PostRow, ProfileRow } from './types.js';
 
@@ -634,13 +635,24 @@ export class SupabaseProfileService implements ProfileService {
       .maybeSingle();
 
     // No row means open, which is what the database assumes too.
-    if (!data) return OPEN_PRIVACY;
-    return {
+    if (!data) {
+      cachePrivacyRules(OPEN_PRIVACY);
+      return OPEN_PRIVACY;
+    }
+
+    const rules = {
       whoCanCall: data.who_can_call as PrivacySettings['whoCanCall'],
       whoCanAdd: data.who_can_add as PrivacySettings['whoCanAdd'],
       profileVisibility: data.profile_visibility as PrivacySettings['profileVisibility'],
       onlineStatus: data.online_status,
     };
+    /*
+     * Kept where the heartbeat can reach it: that runs every minute, outside
+     * React, and must not ask the network each time whether it is allowed to
+     * say this user is here.
+     */
+    cachePrivacyRules(rules);
+    return rules;
   }
 
   async updatePrivacySettings(changes: Partial<PrivacySettings>): Promise<void> {
@@ -659,6 +671,10 @@ export class SupabaseProfileService implements ProfileService {
       { onConflict: 'user_id' },
     );
     if (error) rethrow(error);
+
+    // The heartbeat reads this copy. Without it, turning the switch off would
+    // not take effect until something else happened to re-read the rules.
+    cachePrivacyRules(next);
   }
 
   async stats(userId: string): Promise<ProfileStats> {

@@ -24,6 +24,7 @@ import {
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
+import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { PingBubble } from './PingBubble.js';
 import { VideoLinkCard } from './VideoLinkCard.js';
 import { VoiceNote } from './VoiceNote.js';
@@ -568,6 +569,21 @@ export function MessageBubble({
  */
 function DeliveryIndicator({ status }: { status: Message['status'] }) {
   const t = useT();
+
+  /*
+   * Receipts are a trade, and the settings screen has always said so: turning
+   * yours off hides theirs from you. It was a sentence with nothing behind it -
+   * the blue double tick still arrived - so it is honoured here, at the one
+   * place that draws it. `read` falls back to `delivered`, which is true
+   * regardless and is what somebody who has opted out of this exchange should
+   * be told.
+   */
+  if (status === 'read' && !readReceiptsOn()) {
+    return (
+      <CheckDoubleIcon size={14} className="text-text-tertiary" title={t('thread.delivered')} />
+    );
+  }
+
   if (status === 'sending') {
     return <PingoDot state="loading" size={3} label={t('thread.sending')} className="ml-0.5" />;
   }

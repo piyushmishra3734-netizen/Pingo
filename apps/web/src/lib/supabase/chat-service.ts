@@ -72,6 +72,8 @@ import {
 } from '../crypto/session.js';
 import { STORE, localDelete, localGet, localSet } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
+import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
+import { readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
@@ -1337,9 +1339,17 @@ export class SupabaseChatService implements ChatService {
             ? { wallpaperPhotoUrl: row.wallpaper_photo_url }
             : {}),
           ...(last ? { lastMessage: toMessage(last, theirReadAt) } : {}),
-          // Counted in SQL over the real rows, not over whatever this client
-          // happened to have fetched.
-          unreadCount: preview?.unread_count ?? 0,
+          /*
+           * Counted in SQL over the real rows, not over whatever this client
+           * happened to have fetched - unless this device has read the thread
+           * without telling anybody. The server cannot know about that cursor,
+           * by design, so it is applied here: read after the last message means
+           * nothing is unread, whatever the row says.
+           */
+          unreadCount:
+            heldRead(row.id) >= (last ? parseTimestamp(last.created_at) : 0)
+              ? 0
+              : (preview?.unread_count ?? 0),
           pinned: mine?.pinned ?? false,
           // Both computed in SQL, so an expired mute needs nothing to clear it.
           muted: preview?.muted ?? false,
@@ -2753,6 +2763,25 @@ export class SupabaseChatService implements ChatService {
      */
     this.#emit({ type: 'message:new', message });
 
+    /*
+     * Replying is the receipt.
+     *
+     * With read receipts off, everything read in this thread has been sitting
+     * on this device unpublished. Answering says "I read it" more plainly than
+     * any tick, so this is the moment the held cursor goes to the server -
+     * which is exactly the rule the setting promises: not before I say
+     * something, and never a surprise afterwards.
+     */
+    if (hasHeldRead(draft.conversationId)) {
+      try {
+        await this.#client.rpc('mark_conversation_read', { conv: draft.conversationId });
+        releaseRead(draft.conversationId);
+      } catch {
+        // The reply is sent either way; the cursor stays held and goes with
+        // the next one rather than failing a send nobody asked to retry.
+      }
+    }
+
     const conversation = await this.getConversation(draft.conversationId);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
 
@@ -2985,6 +3014,20 @@ export class SupabaseChatService implements ChatService {
 
   async markConversationRead(conversationId: ConversationId): Promise<void> {
     /*
+     * With receipts off, reading is this device's business and nobody else's.
+     *
+     * The cursor is held locally instead - which clears the badge here without
+     * telling the sender anything - and published the moment a reply is sent,
+     * because a reply says it louder than a tick does. See `read-cursor.ts`.
+     */
+    if (!readReceiptsOn()) {
+      holdRead(conversationId);
+      const held = await this.getConversation(conversationId);
+      if (held) this.#emit({ type: 'conversation:updated', conversation: held });
+      return;
+    }
+
+    /*
      * Through the function rather than straight at the column.
      *
      * The cursor and its history have to move together - a client that updated
@@ -2994,6 +3037,7 @@ export class SupabaseChatService implements ChatService {
      * caller did not earn.
      */
     await this.#client.rpc('mark_conversation_read', { conv: conversationId });
+    releaseRead(conversationId);
 
     const conversation = await this.getConversation(conversationId);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
