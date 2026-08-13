@@ -127,6 +127,21 @@ export function PostViewer({
     });
   };
 
+  /*
+   * Optimistic, like the save above it: the menu closes on the tap and the
+   * numbers go with it, and a failure puts them back rather than leaving the
+   * post looking like it did something it did not.
+   */
+  const toggleCounts = async () => {
+    const hidden = !post.hideCounts;
+    onChange({ ...post, hideCounts: hidden });
+    try {
+      await service.setPostCountsHidden(post.id, hidden);
+    } catch {
+      onChange({ ...post, hideCounts: !hidden });
+    }
+  };
+
   const submitComment = async () => {
     const body = draft.trim();
     if (!body || sending) return;
@@ -235,6 +250,19 @@ export function PostViewer({
                     <>
                       <MenuAction label={t('post.editCaption')} onClick={() => { setMenuOpen(false); onEditCaption(); }} />
                       <MenuAction label={t('post.replacePhoto')} onClick={() => { setMenuOpen(false); onReplace(); }} />
+                      {/*
+                        Where Instagram keeps it, and where somebody looks for
+                        it: on the post itself rather than in settings, because
+                        it is a decision about this picture and not about the
+                        account.
+                      */}
+                      <MenuAction
+                        label={post.hideCounts ? t('post.showCounts') : t('post.hideCounts')}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          void toggleCounts();
+                        }}
+                      />
                       <MenuAction label={t('post.delete')} tone="danger" onClick={() => { setMenuOpen(false); onDelete(); }} />
                     </>
                   ) : (
@@ -300,9 +328,22 @@ export function PostViewer({
             </button>
           </div>
 
-          {post.likeCount > 0 && (
+          {/*
+            The totals, unless the author took them off.
+
+            Hidden from everybody but the author, who still sees theirs with a
+            line saying so - a switch whose effect you cannot see is a switch
+            nobody trusts, and the number was never the thing being hidden from
+            the person who posted it.
+          */}
+          {post.likeCount > 0 && (!post.hideCounts || isMine) && (
             <p className="text-body font-medium text-white">
               {post.likeCount} {post.likeCount === 1 ? 'like' : 'likes'}
+              {post.hideCounts && (
+                <span className="ml-2 text-caption font-normal text-white/50">
+                  Only you can see this
+                </span>
+              )}
             </p>
           )}
 
@@ -319,7 +360,14 @@ export function PostViewer({
               onClick={openComments}
               className="focus-ring rounded-sm text-caption text-white/60 hover:text-white/90"
             >
-              View {post.commentCount === 1 ? '1 comment' : `all ${post.commentCount} comments`}
+              {/*
+                The way in stays; only the number goes. "View comments" is the
+                same door, and hiding the door as well would be hiding the
+                conversation, which is not what was asked for.
+              */}
+              {post.hideCounts && !isMine
+                ? 'View comments'
+                : `View ${post.commentCount === 1 ? '1 comment' : `all ${post.commentCount} comments`}`}
             </button>
           )}
 

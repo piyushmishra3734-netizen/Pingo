@@ -80,6 +80,18 @@ export interface Post {
   /** Saving is private: nobody else can see that this was saved. */
   savedByMe: boolean;
   commentCount: number;
+  /**
+   * The author took the numbers off this post.
+   *
+   * Both numbers, from one decision: whatever makes somebody want the like
+   * count off a picture wants the comment count off it too, and two switches
+   * would be two things to explain for one feeling. Liking and commenting
+   * still work and the comments are still readable - only the totals go.
+   *
+   * The author keeps seeing their own, which is the point: this hides a score
+   * from a room, not from the person who wanted to know.
+   */
+  hideCounts: boolean;
 }
 
 /** A new post, or the replacement for an existing one. */
@@ -342,6 +354,15 @@ export interface ProfileService {
 
   /** Edits the words, not the picture. */
   updatePostCaption(postId: string, caption: string): Promise<Post>;
+
+  /**
+   * Takes the like and comment totals off this post, or puts them back.
+   *
+   * The author's own call and only theirs. Nothing else changes: people can
+   * still like it, still comment, still read the comments - the numbers are
+   * simply not published, and the author still sees them.
+   */
+  setPostCountsHidden(postId: string, hidden: boolean): Promise<Post>;
 
   deletePost(postId: string): Promise<void>;
 

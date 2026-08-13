@@ -57,7 +57,13 @@ export function PostGrid({
             className="size-full object-cover"
           />
 
-          {post.likeCount > 0 && (
+          {/*
+            The badge follows the post's own decision. On somebody else's
+            profile a hidden count leaves no badge at all - a heart with no
+            number beside it would be a shape asking to be counted. On your own
+            it stays, because you are allowed to know.
+          */}
+          {post.likeCount > 0 && (!post.hideCounts || isSelf) && (
             <span
               className={cn(
                 'absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-full',

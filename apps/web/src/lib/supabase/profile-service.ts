@@ -783,8 +783,25 @@ export class SupabaseProfileService implements ProfileService {
         const rawSeed = (row as { likes_display_seed?: unknown }).likes_display_seed;
         total = Math.max(0, Number(rawSeed) || 0);
       }
+      /*
+       * A hidden post hands its like total to nobody but its author.
+       *
+       * The screens hide it too, but a number that reaches the client is a
+       * number one careless render puts back on screen; zeroing it here means
+       * the rest of the app cannot show what it does not have. The author's own
+       * copy is untouched - hiding a score from a room is not hiding it from
+       * the person who asked.
+       *
+       * The comment total is left alone and hidden in the UI instead. Anybody
+       * can open the comments and count them, so withholding the number buys
+       * nothing - and the screens need it to know whether there is a
+       * conversation to offer at all.
+       */
+      const hidden =
+        (row as { hide_counts?: boolean }).hide_counts === true && row.author_id !== me;
+
       return toPost(row, urls.get(row.image_path) ?? '', {
-        likeCount: total,
+        likeCount: hidden ? 0 : total,
         likedByMe: likedByMe.has(row.id),
         savedByMe: savedByMe.has(row.id),
         commentCount: commentCount.get(row.id) ?? 0,
@@ -883,6 +900,27 @@ export class SupabaseProfileService implements ProfileService {
     const { data, error } = await this.client
       .from('posts')
       .update({ caption: caption.trim() || null })
+      .eq('id', postId)
+      .select('*')
+      .single();
+
+    if (error) rethrow(error);
+
+    const [post] = await this.decoratePosts([data]);
+    return post!;
+  }
+
+  async setPostCountsHidden(postId: string, hidden: boolean): Promise<Post> {
+    const { data, error } = await this.client
+      .from('posts')
+      /*
+       * Cast for the same reason the story's `video_edit` is cast: the
+       * generated database types are built from the deployed schema and this
+       * column ships in 20260914000000. It comes off when those types are
+       * regenerated. The row policy is what actually decides who may do this -
+       * only the author can update their own post.
+       */
+      .update({ hide_counts: hidden } as unknown as Record<string, never>)
       .eq('id', postId)
       .select('*')
       .single();
@@ -1138,6 +1176,8 @@ function toPost(
      * post "edited" the moment it was published.
      */
     editedAt: updated - created > 1000 ? updated : undefined,
+    // Absent on rows written before the column existed, which is "not hidden".
+    hideCounts: (row as { hide_counts?: boolean }).hide_counts === true,
     ...counts,
   };
 }
