@@ -24,8 +24,8 @@ android {
          * Play refuses a code it has already seen, and that is the one number a
          * release can be blocked on.
          */
-        versionCode 2603315
-        versionName "2.26.33.15"
+        versionCode 2603316
+        versionName "2.26.33.16"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
