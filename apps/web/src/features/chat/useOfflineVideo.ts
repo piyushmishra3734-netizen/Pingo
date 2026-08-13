@@ -33,8 +33,6 @@ export function useOfflineVideo(
   const [local, setLocal] = useState<string>();
 
   useEffect(() => {
-    if (!remoteUrl) return;
-
     let live = true;
     let url: string | undefined;
 
@@ -46,11 +44,24 @@ export function useOfflineVideo(
     };
 
     void (async () => {
+      /*
+       * The device is asked first, and asked even when there is no server URL.
+       *
+       * This used to return early without one, which reads as an optimisation
+       * and is the opposite: no URL is exactly the offline case. A signed URL
+       * lasts an hour, signing a fresh one needs the network, and a cold launch
+       * in airplane mode therefore has a cached thread full of media with
+       * nothing to point at - while the bytes sit in the vault, already
+       * downloaded, unreachable because the check for them was behind the check
+       * for a URL.
+       */
       const already = await storedVideo(messageId);
       if (already) {
         publish(already);
         return;
       }
+
+      if (!remoteUrl) return;
 
       const fetched = await keepVideo(messageId, remoteUrl);
       if (!fetched) return;

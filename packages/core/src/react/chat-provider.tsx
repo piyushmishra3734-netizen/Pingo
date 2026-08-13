@@ -100,19 +100,30 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
      */
     let settled = false;
 
-    void service.cachedStartup().then((snapshot) => {
-      if (!active || settled || !snapshot) return;
-      setCurrentUser(snapshot.currentUser);
-      setUsers(snapshot.users);
-      setConversations(snapshot.conversations);
-      // Ready, because there is a usable screen. Whether it is the final one
-      // is not something a spinner can usefully communicate.
-      setReady(true);
-    });
+    void service
+      .cachedStartup()
+      .then((snapshot) => {
+        if (!active || settled || !snapshot) return;
+        setCurrentUser(snapshot.currentUser);
+        setUsers(snapshot.users);
+        setConversations(snapshot.conversations);
+        // Ready, because there is a usable screen. Whether it is the final one
+        // is not something a spinner can usefully communicate.
+        setReady(true);
+      })
+      // The cache is an optimisation and an optimisation may not take the app
+      // down with it. This is the offline path, where the load below is *also*
+      // failing, so an unhandled rejection here is the launch.
+      .catch(() => undefined);
 
     void load()
       .then(() => {
         settled = true;
+      })
+      .catch(() => {
+        // Offline, or the server is down. Whatever the cache painted stands,
+        // and every screen surfaces its own failure - there is nothing useful
+        // to do here except not become an unhandled rejection.
       })
       .finally(() => {
         if (active) setReady(true);

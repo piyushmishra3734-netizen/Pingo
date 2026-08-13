@@ -707,6 +707,14 @@ export class SupabaseChatService implements ChatService {
      * bug to notice.
      */
     const { data } = this.#client.auth.onAuthStateChange((_event, session) => {
+      /*
+       * The remembered id follows the session, or it becomes the way this
+       * device serves one account's cache to the next person to sign in. Two
+       * accounts on one phone is ordinary here, not exotic - `cachedStartup`
+       * exists in the shape it does because of it.
+       */
+      this.#me = session?.user.id;
+
       if (session) {
         /*
          * The socket needs the user's token, and needs it again on every
@@ -772,6 +780,22 @@ export class SupabaseChatService implements ChatService {
       if (document.visibilityState === 'visible') resume();
     });
 
+    /*
+     * And the third way back: the network returning while the app is open.
+     *
+     * The other two triggers are both "the app came forward", which covers
+     * closing and reopening but not the case somebody actually tests - sitting
+     * on the chat list and turning airplane mode off. Nothing was listening for
+     * that. The socket stayed closed, and because draining the outbox is keyed
+     * on the socket reconnecting, a message queued offline stayed queued while
+     * the person watched a working connection do nothing with it.
+     *
+     * `online` is not proof of reachability - it fires for a captive portal
+     * too - but `resume` is idempotent and a subscribe that fails leaves the
+     * state exactly where it was.
+     */
+    window.addEventListener('online', resume);
+
     void import('@capacitor/app')
       .then(({ App }) => {
         void App.addListener('appStateChange', ({ isActive }) => {
@@ -805,10 +829,65 @@ export class SupabaseChatService implements ChatService {
     for (const listener of this.#listeners) listener(event);
   }
 
+  /**
+   * Who is signed in - answerable on a plane, and answerable without asking.
+   *
+   * ## What this used to be
+   *
+   * `auth.getUser()`, and nothing else. That call is documented as validating
+   * the token *with the server*, which means it is a network round trip, and
+   * this method is on the path of thirty-five others - including
+   * `cachedStartup`, whose entire purpose is to paint the app from disk without
+   * waiting for the network. It was measured against 2311.8ms of network calls
+   * and then made to wait for one of its own.
+   *
+   * With the connection off it does not merely wait, it fails: `getUser`
+   * returns a null user for a fetch error exactly as it does for a signed-out
+   * session, and this threw `Not signed in.` on both. That single line is what
+   * a cold launch in airplane mode actually hit, and it took three things down
+   * with it - the conversation list never painted, because the throw landed in
+   * an unhandled rejection; the notification feed could not reach its own
+   * cache; and a message typed offline was queued to the outbox and *then*
+   * reported as a failed send, which is the worst of both answers.
+   *
+   * ## Why the stored session is the right source
+   *
+   * The distinction `getUser` buys is whether the server agrees the token is
+   * still valid. In a browser that is not a security boundary: every query this
+   * id is used for is authorised again by RLS, against the token, on the
+   * server. Someone editing their own session in devtools can mislead their own
+   * interface and nothing else. So the id is read from the session that is
+   * already on disk - and remembered, because it does not change while the app
+   * is running, and thirty-five calls should not be thirty-five reads.
+   *
+   * The last resort is the id this device recorded for itself. A token expires
+   * after an hour and refreshing one needs the network, so a cold launch the
+   * next morning with no signal has a stored session that `getSession` will
+   * decline to return. That is precisely the moment somebody opens the app on a
+   * flight, and "who am I" is not a question that should need a server.
+   */
+  #me: string | undefined;
+
+  async #resolveUserId(): Promise<string | undefined> {
+    try {
+      const { data } = await this.#client.auth.getSession();
+      if (data.session?.user.id) return data.session.user.id;
+    } catch {
+      // A refresh it could not make. The disk still knows.
+    }
+    return openRecord<string>(await localGet<unknown>(STORE.meta, 'user-id'));
+  }
+
   async #userId(): Promise<string> {
-    const { data } = await this.#client.auth.getUser();
-    const id = data.user?.id;
+    const id = this.#me ?? (await this.#resolveUserId());
     if (!id) throw new Error('Not signed in.');
+
+    if (this.#me !== id) {
+      this.#me = id;
+      // Sealed, like every other record. Cleared with the rest on sign-out,
+      // which is what stops it answering for the previous account.
+      void sealRecord(id).then((sealed) => localSet(STORE.meta, 'user-id', sealed));
+    }
 
     /*
      * Publishing rides along with the first thing that needs an identity,

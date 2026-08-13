@@ -175,6 +175,25 @@ function toSession(session: SupabaseSession | null): AuthSession | null {
 }
 
 /**
+ * The session as it sits on disk, without asking anybody whether it is current.
+ *
+ * The key is ours - `client.ts` sets `storageKey` explicitly - and the value is
+ * the session object as auth-js wrote it, so this is a read of our own record
+ * rather than a guess at a library's internals. Everything is defended anyway:
+ * a value that is absent, unparseable or the wrong shape means no session, and
+ * the caller carries on to the ordinary answer.
+ */
+function persistedSession(): AuthSession | null {
+  try {
+    const raw = localStorage.getItem('pingo.auth.session');
+    if (!raw) return null;
+    return toSession(JSON.parse(raw) as SupabaseSession);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Translate a Supabase error into the product's closed set.
  *
  * Supabase's `code` is the reliable signal and `status` is the fallback - the
@@ -514,10 +533,48 @@ export class SupabaseAuthService implements AuthService {
       : new SupabaseGoogleAuth(client);
   }
 
+  /**
+   * The session, and the answer that made a cold launch offline possible.
+   *
+   * ## Why the stored copy is consulted at all
+   *
+   * An access token lasts an hour and refreshing one is a network call. So a
+   * device that has been closed since last night launches with a session that
+   * is on disk, intact, and *expired* - and `getSession` tries to refresh it,
+   * cannot reach the server, and returns null. Null is what this returned, and
+   * null is read one level up as `anonymous`, which sends the person to the Log
+   * In screen. Everything behind the guard - the cached conversation list, the
+   * media on the device, the draft, the outbox - was unreachable, on an app
+   * whose entire claim is that it works without a connection.
+   *
+   * ## Why "still in storage" is the right test, and not `navigator.onLine`
+   *
+   * Auth-js removes the stored session when the server *rejects* it - a revoked
+   * or reused refresh token - and deliberately keeps it when the refresh failed
+   * for a retryable fetch error. So the presence of the blob already carries
+   * exactly the distinction that matters, decided by the library that owns it,
+   * and re-deriving it from a connectivity flag would be guessing at something
+   * already known.
+   *
+   * ## What this does not do
+   *
+   * It does not extend anybody's access. The token it reports is the expired
+   * one; every request made with it is refused by the server exactly as before,
+   * and each screen falls back to what the device holds. The only thing that
+   * changes is which side of the login guard the user waits on. When the
+   * network returns, auth-js refreshes and `onSessionChange` replaces this with
+   * the real thing - or signs the user out, if the refresh token is genuinely
+   * dead.
+   */
   async getSession(): Promise<AuthSession | null> {
     const { data, error } = await this.client.auth.getSession();
+    if (data.session) return toSession(data.session);
+
+    const stored = persistedSession();
+    if (stored) return stored;
+
     if (error) rethrow(error);
-    return toSession(data.session);
+    return null;
   }
 
   /**
