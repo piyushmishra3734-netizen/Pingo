@@ -74,3 +74,9 @@ verify_jwt = false
 # see the header of `functions/push-send/index.ts`.
 [functions.push-send]
 verify_jwt = false
+
+# Called by `media_sweeper_tick()` from pg_cron, which has no user session. The
+# check is a shared secret compared in constant time - see the header of
+# `functions/purge-media/index.ts`.
+[functions.purge-media]
+verify_jwt = false

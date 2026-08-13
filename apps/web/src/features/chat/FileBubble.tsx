@@ -1,11 +1,11 @@
 import { formatFileSize, useChat, type FileAttachment, type VideoEdit } from '@pingo/core';
 import { FileIcon, cn } from '@pingo/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
 import { saveVideoBlob } from '../native/save-video.js';
 import { useOfflineVideo } from './useOfflineVideo.js';
-import { storedVideo } from './video-vault.js';
+import { keepMedia, storedVideo } from './video-vault.js';
 import { VideoPlayer } from './VideoPlayer.js';
 import { ImageViewer } from '../profile/ImageViewer.js';
 
@@ -52,8 +52,44 @@ const swallow = {
 };
 
 export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubbleProps) {
+  const { service } = useChat();
   const [viewing, setViewing] = useState(false);
   const [saved, setSaved] = useState(false);
+  /** The local copy's object URL, once this device has the file. */
+  const [localHref, setLocalHref] = useState<string>();
+
+  /*
+   * A document lives on the device as well, and by the same rule as everything
+   * else: the whole file, written before anything is confirmed.
+   *
+   * Videos have their own hook because they also need a player; images use the
+   * picture path. This is the plain-file case, which used to be the one kind of
+   * media the server had to keep for ever - the link pointed at PINGO's copy
+   * and nothing ever released it.
+   */
+  useEffect(() => {
+    if (!messageId || !file.url) return;
+    if (file.mimeType.startsWith('video/') || file.mimeType.startsWith('image/')) return;
+
+    let live = true;
+    let made: string | undefined;
+
+    void (async () => {
+      const blob = await keepMedia(messageId, file.url);
+      if (!blob || !live) return;
+      made = URL.createObjectURL(blob);
+      setLocalHref(made);
+      void service.confirmMediaReceived?.(messageId).catch(() => undefined);
+    })();
+
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+    // `service` is stable for the life of the app; listing it would re-run this
+    // on every provider render and re-download the file.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageId, file.url, file.mimeType]);
 
   const mime = file.mimeType;
   const name = file.fileName || 'File';
@@ -128,7 +164,9 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
      * uuid and saving `9f3c-…` helps nobody.
      */
     <a
-      href={file.url}
+      // The device's own copy when there is one - which after the server has
+      // let go is the only one there is.
+      href={localHref ?? file.url}
       download={name}
       target="_blank"
       rel="noopener noreferrer"
