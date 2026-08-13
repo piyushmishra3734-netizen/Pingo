@@ -1,5 +1,6 @@
 import type { PresenceState, UserId } from '@pingo/core';
 
+import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import type { PingoSupabaseClient } from './client.js';
 
 /**
@@ -115,11 +116,41 @@ export class PresenceHub {
     void channel.subscribe((status) => {
       if (status !== 'SUBSCRIBED') return;
       // Tracked only once subscribed; tracking earlier is dropped silently.
-      void channel.track({ at: Date.now() });
+      this.#publishPresence();
     });
 
     this.#presence = channel;
     this.#startSweeper();
+
+    /*
+     * The switch can be thrown while this is running.
+     *
+     * `cachePrivacyRules` announces it, so turning activity status off stops
+     * the broadcast within the same tap rather than at the next launch - and
+     * turning it back on starts it again without reconnecting the channel.
+     */
+    window.addEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
+  }
+
+  #onPrivacyChanged = (): void => {
+    this.#publishPresence();
+  };
+
+  /**
+   * Says "here" on the channel, or stops saying it.
+   *
+   * This broadcast is what the green dot actually reads - the `last_seen_at`
+   * heartbeat only answers "when were they last around" once somebody has gone.
+   * So activity status has to be enforced here as well, and mainly here: an
+   * account that has switched it off must not be tracked at all, rather than
+   * tracked and hidden by everybody else's client.
+   */
+  #publishPresence(): void {
+    const channel = this.#presence;
+    if (!channel) return;
+
+    if (activityStatusOn()) void channel.track({ at: Date.now() });
+    else void channel.untrack();
   }
 
   #lastOnline = new Set<UserId>();

@@ -14,16 +14,24 @@ import { useT } from '../../features/i18n/useT.js';
 /**
  * Privacy.
  *
- * ## The honest note at the bottom is the most important thing on this page
+ * ## Which of these actually do something
  *
- * Every control here saves a real preference, and **none of it is enforced
- * yet** - there is no server code that refuses a call or hides a profile. A
- * privacy screen that implies protection it does not provide is worse than no
- * screen at all, so the page says so once, plainly, at the end.
+ * Two of them do, and both are enforced where the fact is published rather
+ * than where it is displayed, which is the only place a privacy switch can be
+ * honoured without trusting everybody else's copy of the app:
  *
- * Read Receipts is the exception and is marked as such: the chat service
- * already derives read state from `last_read_at`, so turning it off is a
- * setting with something on the other side of it.
+ *   · **Show activity status** stops the presence channel from saying "here"
+ *     and stops the heartbeat writing `last_seen_at`. Between them those are
+ *     the only two things that report somebody as present, so with both quiet
+ *     there is nothing for another client to be asked not to draw.
+ *   · **Read receipts** holds the read cursor on the device and publishes it
+ *     when a reply is sent - see `read-cursor.ts` - and hides other people's
+ *     read state in return, which the hint has always promised.
+ *
+ * The rest still save a preference that nothing reads: no server code refuses
+ * a call or hides a profile yet. A privacy screen that implies protection it
+ * does not provide is worse than no screen at all, so the page says so once,
+ * plainly, at the end.
  */
 export function PrivacyScreen() {
   const t = useT();

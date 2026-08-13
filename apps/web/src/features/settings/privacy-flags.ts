@@ -44,12 +44,25 @@ export function activityStatusOn(): boolean {
   return readFlag(RULES_CACHE_KEY, (parsed) => parsed.onlineStatus);
 }
 
-/** Keeps the local answer in step with the account's, on read and on save. */
+/**
+ * Keeps the local answer in step with the account's, on read and on save.
+ *
+ * Announces the change as well, because the thing that matters most - the
+ * presence channel saying "here" every time it connects - is already running
+ * by the time anybody opens Settings. Without the event it would keep
+ * broadcasting until the next launch, which is the shape of switch nobody
+ * believes: it does something, tomorrow.
+ */
 export function cachePrivacyRules(rules: { onlineStatus: boolean }): void {
   try {
     localStorage.setItem(RULES_CACHE_KEY, JSON.stringify({ onlineStatus: rules.onlineStatus }));
   } catch {
     // Private mode, a full quota. The default stands and nothing else breaks.
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('pingo:privacy-changed'));
+  } catch {
+    // No window (a worker, a test). Nothing is listening there either.
   }
 }
 
