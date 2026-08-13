@@ -9,6 +9,7 @@ import {
   messageRowKey,
   messageRowRange,
 } from '../local/db.js';
+import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
@@ -124,12 +125,26 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
 
     const identity = await deviceIdentity();
     await localSet(STORE.keys, OWNER, userId);
+
+    /*
+     * The key is published either way; the timestamp is not.
+     *
+     * This upsert runs once per launch, and `last_seen_at` is the column
+     * presence falls back to - so with activity status off it was announcing
+     * "here, just now" every time the app opened, and holding it there for the
+     * two minutes the presence window lasts. The switch was working and this
+     * was undoing it, which is the worst of both: quiet enough to look fixed,
+     * loud enough to still be visible from another account.
+     *
+     * Omitted rather than backdated: on conflict only the columns sent are
+     * written, so an existing row keeps whatever it last said honestly.
+     */
     await client.from('device_keys').upsert(
       {
         device_id: identity.deviceId,
         user_id: userId,
         public_key: identity.publicKey,
-        last_seen_at: new Date().toISOString(),
+        ...(activityStatusOn() ? { last_seen_at: new Date().toISOString() } : {}),
       },
       { onConflict: 'device_id' },
     );
