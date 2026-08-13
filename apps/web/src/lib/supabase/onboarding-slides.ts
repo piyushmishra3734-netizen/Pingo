@@ -5,6 +5,9 @@
  * uploads keep original bytes (no re-encode) via Settings → Controlling.
  */
 
+import { Capacitor } from '@capacitor/core';
+
+import { STORE, localGet, localSet } from '../local/db.js';
 import { getSupabaseClient } from './client.js';
 
 export const ONBOARDING_BUCKET = 'onboarding';
@@ -231,18 +234,119 @@ export function clearSplashCache(): void {
   }
 }
 
-export function preloadImage(src: string): Promise<void> {
+/**
+ * Loads an image, and says whether it actually loaded.
+ *
+ * It used to resolve either way, on the grounds that blank beats hanging. That
+ * is right for waiting and wrong for deciding: the caller swaps the splash to
+ * whatever this resolves for, so a URL that failed - which is every operator
+ * URL with the network off - replaced artwork that was already on screen with a
+ * broken image. Reporting the difference costs one boolean.
+ */
+export function preloadImage(src: string): Promise<boolean> {
   return new Promise((resolve) => {
     if (!src) {
-      resolve();
+      resolve(false);
       return;
     }
     const img = new Image();
     img.decoding = 'async';
-    img.onload = () => resolve();
-    img.onerror = () => resolve(); // still resolve — blank better than hang
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
     img.src = src;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Which splash this device shows, and how it shows it with the network off
+// ---------------------------------------------------------------------------
+
+/**
+ * The variant this device is meant to show.
+ *
+ * Two assets are configured in Controlling, one for mobile and one for
+ * PC/desktop, and this decides which of them a given device gets. It is a
+ * question about the device, so it is answered from the device.
+ *
+ * It used to be answered from `(orientation: portrait)` inside a `<picture>`,
+ * which is a different question with a different answer: a desktop browser in a
+ * tall window served the mobile artwork, and a phone held sideways served the
+ * desktop one. Both are the wrong asset for the machine, and neither is
+ * something the operator who uploaded them asked for.
+ *
+ * Native is decisive - a Capacitor build is the Android app. On the web the
+ * test is `hover: none` *and* `pointer: coarse`, which is true of phones and
+ * tablets and false of a laptop with a touchscreen, because such a laptop still
+ * reports a hoverable pointer.
+ */
+export function splashVariant(): SlideVariant {
+  try {
+    if (Capacitor.isNativePlatform()) return 'mobile';
+    return window.matchMedia('(hover: none) and (pointer: coarse)').matches
+      ? 'mobile'
+      : 'desktop';
+  } catch {
+    // No matchMedia is not a phone.
+    return 'desktop';
+  }
+}
+
+/**
+ * The operator's artwork, kept on the device as bytes.
+ *
+ * ## Why the URL cache was not enough
+ *
+ * What was stored was the *address* of the configured splash, and the address
+ * is on Supabase - which the service worker is explicitly told never to cache,
+ * because everything else at that hostname is live data. So with no connection
+ * there was nothing behind the URL, the image failed, and the one screen that
+ * has to paint before any network work is the screen that had nothing to paint.
+ *
+ * The bundled files are the other half and are now precached, but they are the
+ * fallback art, not the operator's. Rendering those to somebody who has
+ * configured their own is showing them the wrong picture.
+ *
+ * ## Stored beside the wallpaper
+ *
+ * Same store, same reasoning: whole files, unmodified, in the only web storage
+ * the platform agrees to keep. The bytes are the ones Controlling serves - they
+ * are downloaded, not re-encoded, so what is painted offline is the asset as
+ * uploaded and nothing derived from it.
+ *
+ * The source URL is kept beside the blob and carries `?v=<updated_at>`, so a
+ * re-upload in Controlling changes the URL, the comparison fails, and the new
+ * bytes replace the old. An unchanged splash is never downloaded twice.
+ */
+interface StoredSplash {
+  url: string;
+  blob: Blob;
+}
+
+const splashRecordKey = (variant: SlideVariant) => `splash:${variant}`;
+
+export async function storedSplash(variant: SlideVariant): Promise<Blob | undefined> {
+  const held = await localGet<StoredSplash>(STORE.media, splashRecordKey(variant));
+  return held?.blob instanceof Blob ? held.blob : undefined;
+}
+
+export async function keepSplash(variant: SlideVariant, url: string): Promise<void> {
+  try {
+    const held = await localGet<StoredSplash>(STORE.media, splashRecordKey(variant));
+    if (held?.url === url) return;
+
+    const response = await fetch(url);
+    if (!response.ok) return;
+
+    const blob = await response.blob();
+    // A sign-in page returned as HTML is not artwork. Storing whatever came
+    // back would put a broken splash on the device until the next upload.
+    if (!blob.type.startsWith('image/')) return;
+
+    await localSet(STORE.media, splashRecordKey(variant), { url, blob });
+  } catch {
+    // Offline, or storage refused. The splash still has the URL cache and the
+    // bundled file, and this is retried on the next launch.
+  }
 }
 
 /**

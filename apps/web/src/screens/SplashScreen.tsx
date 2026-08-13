@@ -1,13 +1,16 @@
 import { useAuth } from '@pingo/core';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
 import {
+  keepSplash,
   loadSplashUrls,
   localSplashUrl,
   preloadImage,
   readSplashCache,
+  splashVariant,
+  storedSplash,
   type SplashUrls,
 } from '../lib/supabase/onboarding-slides.js';
 
@@ -34,9 +37,6 @@ const AFTER_PAINT_MS = 600;
 /** Never stay longer than this (load + hold worst case). */
 const HARD_MAX_MS = 7000;
 
-/** How long to wait for operator URLs before accepting cache/built-in as final. */
-const LOAD_BUDGET_MS = 1800;
-
 /**
  * The colour under the artwork, sampled from the artwork.
  *
@@ -61,31 +61,32 @@ function initialSplash(): SplashUrls {
   return readSplashCache() ?? builtInSplash();
 }
 
-async function resolveSplashArt(): Promise<SplashUrls> {
-  const load = (async (): Promise<SplashUrls> => {
-    const next = await loadSplashUrls();
-    await Promise.all([preloadImage(next.desktop), preloadImage(next.mobile)]);
-    return next;
-  })();
+/**
+ * The live artwork for this device, or nothing.
+ *
+ * Nothing is a real answer and the caller keeps what is already on screen. This
+ * used to fall back through the URL cache to the bundled file and hand that
+ * back as the result - which read as thorough and was a downgrade: the screen
+ * had *already* started from those, so the fallbacks could only ever replace
+ * the art with itself, or, with the network off, replace working art with a URL
+ * that does not load.
+ *
+ * There is no longer a load budget either. The old one existed to decide how
+ * long to wait before settling for the cache, and nothing waits any more - the
+ * first frame is painted from the device, this runs behind it, and how long it
+ * takes only decides whether it arrives before the splash is over.
+ *
+ * Only this device's variant is fetched. Downloading the desktop artwork onto a
+ * phone to satisfy a `<picture>` element was work no phone ever used.
+ */
+async function liveSplashArt(variant: 'desktop' | 'mobile'): Promise<string | undefined> {
+  const url = (await loadSplashUrls())[variant];
+  if (!(await preloadImage(url))) return undefined;
 
-  const raced = await Promise.race([
-    load.then((u) => ({ kind: 'ok' as const, u })),
-    new Promise<{ kind: 'timeout' }>((resolve) => {
-      setTimeout(() => resolve({ kind: 'timeout' }), LOAD_BUDGET_MS);
-    }),
-  ]);
-
-  if (raced.kind === 'ok') return raced.u;
-
-  const cache = readSplashCache();
-  if (cache) {
-    await Promise.all([preloadImage(cache.desktop), preloadImage(cache.mobile)]);
-    return cache;
-  }
-
-  const fallback = builtInSplash();
-  await Promise.all([preloadImage(fallback.desktop), preloadImage(fallback.mobile)]);
-  return fallback;
+  // Now that it is known to load, keep the bytes for the launches that have no
+  // network. Not awaited: this is for next time, not this time.
+  void keepSplash(variant, url);
+  return url;
 }
 
 export function SplashScreen() {
@@ -94,8 +95,14 @@ export function SplashScreen() {
   const statusRef = useRef(status);
   statusRef.current = status;
 
+  /*
+   * Which of the two configured assets this machine shows. Read once: a window
+   * being resized mid-splash is not a device changing into another one.
+   */
+  const variant = useMemo(() => splashVariant(), []);
+
   // Always have pixels on the first frame — blank ground was reading as "skip".
-  const [urls, setUrls] = useState<SplashUrls>(() => initialSplash());
+  const [src, setSrc] = useState<string>(() => initialSplash()[variant]);
 
   const mountedAtRef = useRef(0);
   const paintedAtRef = useRef<number | null>(null);
@@ -175,15 +182,27 @@ export function SplashScreen() {
 
     armLeave();
 
+    /*
+     * The device's own copy of the configured artwork, ahead of any network.
+     *
+     * One IndexedDB read, so it lands within a frame or two of mount - before
+     * the URL in the first frame has had time to fail, on a launch with no
+     * connection. This is what makes the operator's splash the thing that
+     * appears offline instead of the bundled fallback or a blank ground.
+     */
+    let objectUrl: string | undefined;
+    void storedSplash(variant).then((blob) => {
+      if (cancelled || leftRef.current || !blob) return;
+      objectUrl = URL.createObjectURL(blob);
+      setSrc(objectUrl);
+    });
+
     void (async () => {
       try {
-        const next = await resolveSplashArt();
-        if (cancelled || leftRef.current) return;
+        const next = await liveSplashArt(variant);
+        if (!next || cancelled || leftRef.current) return;
         // Only swap when different — avoids re-flicker when cache already correct.
-        setUrls((prev) => {
-          if (prev.desktop === next.desktop && prev.mobile === next.mobile) return prev;
-          return next;
-        });
+        setSrc((prev) => (prev === next ? prev : next));
       } catch {
         // Keep whatever is on screen.
       }
@@ -192,21 +211,31 @@ export function SplashScreen() {
     return () => {
       cancelled = true;
       window.clearTimeout(hardTimer);
+      // An object URL pins the whole blob in memory until it is let go.
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
       // Do NOT set leftRef here — that poisoned remounts / concurrent loads.
     };
-  }, [armLeave, leave, markPainted]);
+  }, [armLeave, leave, markPainted, variant]);
 
   return (
     <div
       className="grid h-full w-full place-items-center overflow-hidden"
       style={{ backgroundColor: SPLASH_GROUND }}
     >
-      <picture className="h-full w-full">
-        <source media="(orientation: portrait)" srcSet={urls.mobile} />
+      {/*
+        One image, chosen by device rather than by the viewport.
+
+        The `<picture>` this replaces let the browser re-decide from
+        `(orientation: portrait)` on every resize and rotate, which is how a
+        desktop window in portrait ended up showing the mobile asset. The
+        variant is settled in JavaScript now, once, and the element renders what
+        it is given.
+      */}
+      <div className="h-full w-full">
         <img
           ref={imgRef}
-          key={`${urls.desktop}|${urls.mobile}`}
-          src={urls.desktop}
+          key={src}
+          src={src}
           alt="PINGO. Connect. Privately."
           width={1600}
           height={900}
@@ -217,7 +246,7 @@ export function SplashScreen() {
           onError={markPainted}
           className="h-full w-full select-none object-cover"
         />
-      </picture>
+      </div>
     </div>
   );
 }
