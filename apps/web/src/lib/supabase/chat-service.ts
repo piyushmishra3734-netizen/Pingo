@@ -633,6 +633,17 @@ export class SupabaseChatService implements ChatService {
 
     this.#presenceHub = new PresenceHub(client, {
       onPresence: (userId, state) => {
+        /*
+         * A person who has hidden their activity is never lit by this stream.
+         *
+         * Their own app does not track any more, so this only fires for a
+         * client that has not been updated - and the reader is the one place
+         * that can refuse an old build's broadcast. Silence, not "offline":
+         * writing offline here would fight the roster's own answer for
+         * everybody else who genuinely is away.
+         */
+        if (this.#hiddenActivityIds.has(userId)) return;
+
         const presence = { state, lastSeenAt: Date.now() };
 
         /*
@@ -1132,14 +1143,24 @@ export class SupabaseChatService implements ChatService {
     const newest = new Map<UserId, number>();
     if (ids.length === 0) return newest;
 
-    const { data, error } = await this.#client
-      .from('device_keys')
-      .select('user_id,last_seen_at')
-      .in('user_id', ids);
+    const [keys, hidden] = await Promise.all([
+      this.#client.from('device_keys').select('user_id,last_seen_at').in('user_id', ids),
+      this.#hiddenActivity(ids),
+    ]);
 
-    if (error || !data) return newest;
+    if (keys.error || !keys.data) return newest;
 
-    for (const row of data) {
+    for (const row of keys.data) {
+      /*
+       * Somebody who has hidden their activity has no last-seen at all here.
+       *
+       * The switch is enforced three times in the publisher's app and once in
+       * the database, and it is enforced again on this side because none of
+       * those reach a client that has not been updated. A reader that refuses
+       * to draw it closes the last hole: even if some old build is still
+       * writing, nobody with a current app is shown the result.
+       */
+      if (hidden.has(row.user_id)) continue;
       const at = Date.parse(row.last_seen_at);
       if (!Number.isFinite(at)) continue;
       const seen = newest.get(row.user_id);
@@ -1147,6 +1168,40 @@ export class SupabaseChatService implements ChatService {
     }
     return newest;
   }
+
+  /**
+   * Everyone in this list who has switched activity status off.
+   *
+   * `privacy_settings` is world-readable by policy, which is what makes this
+   * possible: a rule about what may be shown has to be knowable by whoever is
+   * doing the showing. Absent rows mean the default, which is on.
+   */
+  async #hiddenActivity(ids: UserId[]): Promise<Set<UserId>> {
+    const hidden = new Set<UserId>();
+    if (ids.length === 0) return hidden;
+
+    const { data, error } = await this.#client
+      .from('privacy_settings')
+      .select('user_id,online_status')
+      .in('user_id', ids);
+
+    if (error || !data) return hidden;
+
+    for (const row of data) {
+      if (row.online_status === false) hidden.add(row.user_id);
+    }
+    this.#hiddenActivityIds = hidden;
+    return hidden;
+  }
+
+  /**
+   * The last answer, for the presence stream to consult.
+   *
+   * The channel fires per person and cannot wait on a query each time; the
+   * roster load that already asked is close enough, and a stale entry only
+   * costs one refresh.
+   */
+  #hiddenActivityIds = new Set<UserId>();
 
   /** Builds the view-model conversations for a set of rows the user belongs to. */
   async #hydrate(rows: ConversationRow[], me: UserId): Promise<Conversation[]> {
