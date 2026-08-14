@@ -179,6 +179,16 @@ export function SettingsScreen() {
                 label="Muted stories"
                 to="/settings/muted-stories"
               />
+              {/*
+                With the other per-feature pages rather than under Privacy: a
+                device list is something you go and look at, like storage, and
+                Privacy is a page of switches.
+              */}
+              <SettingsRow
+                icon={<LockIcon size={19} />}
+                label={t('page.devices')}
+                to="/settings/devices"
+              />
               <SettingsRow
                 icon={<StorageIcon size={19} />}
                 label={t('settings.storage')}

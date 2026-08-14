@@ -59,6 +59,7 @@ import { NotificationsScreen } from './screens/settings/NotificationsScreen.js';
 import { PrivacyScreen } from './screens/settings/PrivacyScreen.js';
 import { PushDebugScreen } from './screens/settings/PushDebugScreen.js';
 import { SecureBackupScreen } from './screens/settings/SecureBackupScreen.js';
+import { DevicesScreen } from './screens/settings/DevicesScreen.js';
 import { StorageScreen } from './screens/settings/StorageScreen.js';
 import { IntroSlidesScreen } from './screens/IntroSlidesScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
@@ -411,6 +412,7 @@ export function App() {
                   <Route path="/settings/camera-snaps" element={<CameraSettingsScreen />} />
                   <Route path="/settings/calls" element={<CallsSettingsScreen />} />
                   <Route path="/settings/muted-stories" element={<MutedStoriesScreen />} />
+                  <Route path="/settings/devices" element={<DevicesScreen />} />
                   <Route path="/settings/storage" element={<StorageScreen />} />
                   <Route path="/settings/secure-backup" element={<SecureBackupScreen />} />
                   <Route path="/settings/language" element={<LanguageScreen />} />

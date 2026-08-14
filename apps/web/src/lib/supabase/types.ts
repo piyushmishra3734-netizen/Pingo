@@ -197,6 +197,15 @@ export type DeviceKeyRow = {
   public_key: string;
   created_at: string;
   last_seen_at: string;
+  /** What the device calls itself. Null on rows published before labels existed. */
+  label?: string | null;
+};
+
+/** A device thrown off this account. Its id can never publish a key again. */
+export type RevokedDeviceRow = {
+  device_id: string;
+  user_id: string;
+  revoked_at: string;
 };
 
 /** Per-user prefs for the AI person in Chats. */
@@ -337,7 +346,32 @@ export type Database = {
           id: string;
           user_id: string;
           actor_id: string | null;
-          kind: 'follow_request' | 'follow_accepted' | 'message' | 'snap' | 'story';
+          /**
+           * Every kind the check constraint allows, not only the first five.
+           *
+           * This union was written when there were five and never widened, so
+           * `voice`, `call`, `mention` and the rest arrived as rows the type
+           * said could not exist - which the mapping code got away with only
+           * because it looks its copy up in a `Record<string, …>`.
+           */
+          kind:
+            | 'follow_request'
+            | 'follow_accepted'
+            | 'message'
+            | 'voice'
+            | 'snap'
+            | 'ping_opened'
+            | 'ping_replayed'
+            | 'story'
+            | 'story_reply'
+            | 'call'
+            | 'mention'
+            | 'like'
+            | 'comment'
+            | 'ai'
+            | 'journey'
+            | 'marketing'
+            | 'new_device';
           subject_id: string | null;
           created_at: string;
           read_at: string | null;
@@ -466,8 +500,16 @@ export type Database = {
           user_id: string;
           public_key: string;
           last_seen_at?: string;
+          label?: string | null;
         };
-        Update: { last_seen_at?: string };
+        Update: { last_seen_at?: string; label?: string | null };
+        Relationships: [];
+      };
+      /** Read-only to the client; rows are written by `revoke_device`. */
+      revoked_devices: {
+        Row: RevokedDeviceRow;
+        Insert: never;
+        Update: never;
         Relationships: [];
       };
       /**
@@ -1061,6 +1103,11 @@ export type Database = {
           clear_avatar?: boolean;
           clear_cover?: boolean;
         };
+        Returns: undefined;
+      };
+      /** Own devices only. Deletes the key row and remembers the id for ever. */
+      revoke_device: {
+        Args: { device: string };
         Returns: undefined;
       };
       /** Any member. Null seconds turns the timer off; both post a system notice. */

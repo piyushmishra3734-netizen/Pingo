@@ -584,6 +584,15 @@ export interface AppNotification {
     | 'follow_accepted'
     | 'story'
     | 'mention'
+    | 'voice'
+    | 'story_reply'
+    | 'like'
+    | 'comment'
+    | 'ai'
+    | 'journey'
+    | 'marketing'
+    // A device published a key against this account. Security, not social.
+    | 'new_device'
     | 'system';
   title: string;
   body: string;

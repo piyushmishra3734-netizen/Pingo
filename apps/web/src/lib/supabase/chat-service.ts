@@ -521,6 +521,9 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   mention: { body: 'mentioned you' },
   voice: { body: 'sent a voice note' },
   call: { body: 'missed call' },
+  // No actor, so this one is the whole sentence rather than a predicate hung
+  // off somebody's name - see how the feed composes the others.
+  new_device: { body: 'A new device signed in to your account' },
 };
 
 /** Fixed AI identity - same uuid as `public.pingo_ai_user_id()` and the Edge Function. */
@@ -4131,14 +4134,24 @@ export class SupabaseChatService implements ChatService {
       const kind = row.kind === 'snap' ? ('ping' as const) : row.kind;
       const copy = NOTIFICATION_COPY[kind] ?? { title: who, body: 'Something happened.' };
 
+      /*
+       * The one kind with nobody behind it.
+       *
+       * Every other row is somebody doing something to you, so the title is
+       * their name and the body finishes the sentence. A device signing in has
+       * no actor - and `subject_id` is a device id, not a conversation, so
+       * passing it on would give the row a tap that opens nothing.
+       */
+      const fromPingo = kind === 'new_device';
+
       return {
         id: row.id,
         kind,
-        title: who,
+        title: fromPingo ? 'PINGO' : who,
         body: copy.body,
         createdAt: Date.parse(row.created_at),
         read: row.read_at !== null,
-        ...(row.subject_id ? { conversationId: row.subject_id } : {}),
+        ...(row.subject_id && !fromPingo ? { conversationId: row.subject_id } : {}),
         ...(row.actor_id ? { actorId: row.actor_id } : {}),
       } satisfies AppNotification;
     });

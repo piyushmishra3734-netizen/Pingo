@@ -12,6 +12,7 @@ import {
   rowKeyBoundsBefore,
 } from '../local/db.js';
 import { activityStatusOn } from '../../features/settings/privacy-flags.js';
+import { deviceLabel } from '../../features/settings/device-label.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
@@ -96,6 +97,40 @@ async function switchAccount(previous: string, next: string): Promise<void> {
 }
 
 /**
+ * What a device throws away when it learns it has been removed.
+ *
+ * Not `localClear()`, which would take the *parked* keys of every other account
+ * that has ever signed in on this browser with it - and those messages would be
+ * unreadable for ever, on a device nobody asked to punish. See the note above
+ * `switchAccount`, which is the same mistake in the other direction.
+ *
+ * So: this account's content, and this account's live keys. The keys go because
+ * the rows on disk are sealed with them - clearing the stores without the key
+ * would be tidying rather than destroying, and a copy of somebody's messages is
+ * exactly what the owner removed this device to be rid of.
+ */
+async function wipeRevokedDevice(userId: string): Promise<void> {
+  for (const store of [
+    STORE.conversations,
+    STORE.messages,
+    STORE.messageRows,
+    STORE.outbox,
+    STORE.drafts,
+    STORE.meta,
+  ]) {
+    for (const [key] of await localEntries<unknown>(store)) await localDelete(store, key);
+  }
+
+  for (const slot of LIVE_KEYS) {
+    await localDelete(STORE.keys, slot);
+    // The parked copy of *this* account's keys goes too, or signing back in
+    // here would restore the identity that was just thrown off.
+    await localDelete(STORE.keys, `${slot}@${userId}`);
+  }
+  await localDelete(STORE.keys, OWNER);
+}
+
+/**
  * Announce this device's public key.
  *
  * Idempotent by primary key, so a reload updates `last_seen_at` rather than
@@ -126,6 +161,33 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
     }
 
     const identity = await deviceIdentity();
+
+    /*
+     * Has this device been thrown off the account?
+     *
+     * Asked before publishing, because publishing is what a revoked device
+     * would otherwise do to undo its own revocation - the upsert runs every
+     * launch, and the policy would refuse it, silently, leaving somebody
+     * believing they had removed a device that was still reading its own local
+     * copy of everything.
+     *
+     * So the device signs itself out and wipes what it holds. Ordinary sign-out
+     * deliberately leaves the local database alone - "your chats stay on this
+     * device" - and this is the case where that promise is the wrong one: the
+     * owner removed this device precisely so it would stop having them.
+     */
+    const { data: revoked } = await client
+      .from('revoked_devices')
+      .select('device_id')
+      .eq('device_id', identity.deviceId)
+      .maybeSingle();
+
+    if (revoked) {
+      await wipeRevokedDevice(userId).catch(() => undefined);
+      await client.auth.signOut().catch(() => undefined);
+      return;
+    }
+
     await localSet(STORE.keys, OWNER, userId);
 
     /*
@@ -146,6 +208,9 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
         device_id: identity.deviceId,
         user_id: userId,
         public_key: identity.publicKey,
+        // So the owner's device list has a row they recognise rather than a
+        // uuid. Sent every launch, because a browser can be upgraded.
+        label: deviceLabel(),
         ...(activityStatusOn() ? { last_seen_at: new Date().toISOString() } : {}),
       },
       { onConflict: 'device_id' },

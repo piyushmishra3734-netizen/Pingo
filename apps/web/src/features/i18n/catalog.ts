@@ -565,6 +565,24 @@ const en = {
     'This changes what is sent from now on. Messages already here are not affected, and nothing that has gone comes back.',
   'disappearing.failed': 'That could not be changed. Try again.',
   'disappearing.on': 'Disappearing: {label}',
+
+  'page.devices': 'Devices',
+  'devices.signedIn': 'Signed in',
+  'devices.note':
+    'Each of these can read what you send from now on. Removing one takes it out of every future message and signs it out the next time it opens.',
+  'devices.loading': 'Reading your devices',
+  'devices.none': 'No devices are signed in.',
+  'devices.unnamed': 'Unnamed device',
+  'devices.thisOne': 'This device',
+  'devices.lastSeen': 'Last used {when}',
+  'devices.remove': 'Remove',
+  'devices.removing': 'Removing…',
+  'devices.removeBlurb':
+    'It stops receiving anything you send from now on, and signs itself out and clears its copy the next time it is opened. It cannot be reached while it is switched off.',
+  'devices.removeThisTitle': 'Remove this device?',
+  'devices.removeThisBlurb':
+    'This is the device you are using. You will be signed out here and the chats stored on it will be deleted. Signing in again gives it a new identity.',
+  'devices.removeFailed': 'That device could not be removed. Try again.',
   'menu.deleteChat': 'Delete chat',
   'menu.profile': 'Profile',
   'menu.newPost': 'New post',

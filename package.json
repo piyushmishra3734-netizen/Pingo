@@ -53,7 +53,8 @@
     "verify:local-first": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-local-first.ts",
     "verify:thread-search": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-thread-search.ts",
     "verify:shared-media": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-shared-media.ts",
-    "verify:unfurl": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-unfurl.ts"
+    "verify:unfurl": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-unfurl.ts",
+    "verify:device-label": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-device-label.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
