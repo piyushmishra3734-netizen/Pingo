@@ -641,6 +641,23 @@ export class SupabaseChatService implements ChatService {
    */
   #deltaStats = { hits: 0, misses: 0, rowsFetched: 0 };
 
+  /**
+   * The newest message of each conversation, as the list last drew it.
+   *
+   * Decrypted once and held, because a preview only changes when a new message
+   * arrives or that one is edited - and both arrive by realtime, which is what
+   * evicts from here. Without it every hydrate refetched the same twenty rows.
+   */
+  #previewRows = new Map<string, MessageRow>();
+
+  /** Drops a preview whose message changed, so the next hydrate refetches it. */
+  #forgetPreview(messageId: string): void {
+    this.#previewRows.delete(messageId);
+  }
+
+  /** The whole-list read in flight or just finished. See `listConversations`. */
+  #conversationListRead: { at: number; work: Promise<Conversation[]> } | undefined;
+
   /** Conversation reads in flight or just finished. See `getConversation`. */
   #conversationReads = new Map<
     ConversationId,
@@ -988,6 +1005,13 @@ export class SupabaseChatService implements ChatService {
         (payload) => {
           const row = payload.new as MessageRow;
           /*
+           * A new message is the conversation's new preview, so the one this
+           * session is holding for that thread is no longer the newest.
+           * Evicting by id is enough: the next hydrate asks for whatever the
+           * preview row now names, and only that one is missing.
+           */
+          this.#forgetPreview(row.id);
+          /*
            * Signed before it is announced.
            *
            * A photo arriving over the socket has a storage path and no URL, and
@@ -1038,6 +1062,9 @@ export class SupabaseChatService implements ChatService {
         { event: 'UPDATE', schema: 'public', table: 'messages' },
         (payload) => {
           const row = payload.new as MessageRow;
+          // An edit or a deletion changes what the list should say under this
+          // conversation's name, so the held copy has to go.
+          this.#forgetPreview(row.id);
           // Signed for the same reason as the insert above.
           void openRow(row)
             .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
@@ -1473,18 +1500,33 @@ export class SupabaseChatService implements ChatService {
     const lastById = new Map<string, MessageRow>();
     if (lastMessageIds.length > 0) {
       /*
-       * Through the trim, like every other read.
+       * Through the trim, like every other read - and only for the ones this
+       * session has not already seen.
        *
-       * This was the last `select('*')` on messages, and once the thread came
-       * down it was the largest thing left: twenty rows at 54 kB to decrypt one
-       * line of text per conversation, nineteen twentieths of it wrapped keys
-       * for other people's devices.
+       * This was the last `select('*')` on messages. Trimming it took a page of
+       * twenty previews from 54 kB to 20.5 kB, and then measurement showed the
+       * far larger problem: it ran **seventeen times** in a six-navigation
+       * session, because every hydrate re-fetched the same twenty rows. 348 kB
+       * to learn nothing new.
+       *
+       * A preview is the newest message of a conversation. It changes when a
+       * new one arrives or that one is edited, and both of those already come
+       * through realtime - which is what `#forgetPreview` hangs off. So holding
+       * them by id for the life of the session is not a guess about staleness;
+       * it is the same event that would have changed the answer.
        */
-      const lastRows = await this.#fetchMessagesById(lastMessageIds);
-      // The list's previews are ciphertext too. Without this the home screen
-      // would show base64 under every name.
-      await openRows(lastRows);
-      for (const row of lastRows) lastById.set(row.id, row);
+      const wanted = lastMessageIds.filter((id) => !this.#previewRows.has(id));
+      if (wanted.length > 0) {
+        const fetched = await this.#fetchMessagesById(wanted);
+        // The list's previews are ciphertext too. Without this the home screen
+        // would show base64 under every name.
+        await openRows(fetched);
+        for (const row of fetched) this.#previewRows.set(row.id, row);
+      }
+      for (const id of lastMessageIds) {
+        const row = this.#previewRows.get(id);
+        if (row) lastById.set(id, row);
+      }
     }
 
     await this.#loadPeople((members ?? []).map((m) => m.user_id));
@@ -1713,6 +1755,32 @@ export class SupabaseChatService implements ChatService {
      */
     const key = await this.#userId();
 
+    /*
+     * A burst of these is one query.
+     *
+     * The same rule as `getConversation`, and for a bigger reason: this one is
+     * nine queries across the whole list, and navigating between the list and a
+     * thread ran it thirteen times in a six-navigation session. Callers within
+     * the window share the answer; anything after it is a fresh read, so the
+     * list is never stale by more than a blink.
+     */
+    const inFlight = this.#conversationListRead;
+    if (inFlight && Date.now() - inFlight.at < CONVERSATION_COALESCE_MS) return inFlight.work;
+
+    const work = this.#listConversationsOnce(key);
+    this.#conversationListRead = { at: Date.now(), work };
+    void work
+      .catch(() => undefined)
+      .finally(() => {
+        window.setTimeout(() => {
+          if (this.#conversationListRead?.work === work) this.#conversationListRead = undefined;
+        }, CONVERSATION_COALESCE_MS);
+      });
+    return work;
+  }
+
+  /** The read itself, so the coalescing above stays readable. */
+  async #listConversationsOnce(key: string): Promise<Conversation[]> {
     try {
       const live = await this.#listConversationsFromNetwork();
       // Sealed too. The list carries message previews, which is to say it

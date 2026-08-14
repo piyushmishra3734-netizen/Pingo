@@ -31,10 +31,34 @@ function publicObjectUrl(path: string, updatedAt?: string): string {
   return Number.isFinite(t) ? `${base}?v=${t}` : base;
 }
 
-/** Local fallback when nothing is uploaded yet (optional static files). */
+/**
+ * The bundled copy of a slide, served by Cloudflare rather than Supabase.
+ *
+ * These used to be an empty directory, so the rows below always won and every
+ * new account downloaded **17.8 MB of PNGs from Supabase** to look at five
+ * pictures once. The same five, re-encoded as WebP at the size they are
+ * actually drawn, are 1.18 MB and ship with the app - which is to say they cost
+ * nothing, because Pages egress is not metered and the browser caches them.
+ *
+ * Not precached by the service worker (`globPatterns` covers js/css/html/woff2
+ * only), so they are fetched the first time somebody sees the intro rather than
+ * by every install of the app.
+ */
 export function localFallbackUrl(slide: number, variant: SlideVariant): string {
-  return `/onboarding/${variant}/${slide}.png`;
+  return `/onboarding/${variant}/${slide}.webp`;
 }
+
+/**
+ * When the bundled slides were last regenerated.
+ *
+ * An operator upload only wins if it is newer than this. That is what keeps
+ * Settings → Controlling working - upload a new slide and it appears, exactly
+ * as before - while the ones nobody has changed come from the bundle instead of
+ * costing 17.8 MB of metered egress per account.
+ *
+ * Bump this whenever the files in `public/onboarding/` are replaced.
+ */
+const BUNDLED_AT = Date.parse('2026-08-14T00:00:00Z');
 
 /**
  * Resolves the five pairs of URLs for the carousel.
@@ -62,6 +86,18 @@ export async function loadIntroSlideUrls(): Promise<{
     for (const row of data as OnboardingSlideRow[]) {
       const i = row.slide_index - 1;
       if (i < 0 || i >= SLIDE_COUNT) continue;
+
+      /*
+       * The bundle wins unless an operator has since replaced this slide.
+       *
+       * The rows still describe every slide, because that is what the
+       * Controlling screen writes and reads. What changed is that a row which
+       * merely repeats what already ships is no longer worth 1.8 MB of egress
+       * per person to fetch.
+       */
+      const uploadedAt = Date.parse(row.updated_at);
+      if (Number.isFinite(uploadedAt) && uploadedAt <= BUNDLED_AT) continue;
+
       const url = publicObjectUrl(row.storage_path, row.updated_at);
       if (row.variant === 'desktop') desktop[i] = url;
       else mobile[i] = url;
