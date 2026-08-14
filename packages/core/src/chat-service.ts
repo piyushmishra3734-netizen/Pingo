@@ -603,6 +603,19 @@ export interface ChatService {
   ): Promise<void>;
 
   /**
+   * How long a new message in this conversation lives. `undefined` is off.
+   *
+   * Any member of any kind of conversation may set it: a timer is a decision
+   * about what is kept, and the person who needs one is rarely the one holding
+   * the admin badge. Everybody is told, by a system notice naming who changed
+   * it and to what.
+   *
+   * Never retroactive. It governs what is said next, so it cannot be used to
+   * clear a history somebody else is part of.
+   */
+  setDisappearing(conversationId: ConversationId, seconds: number | undefined): Promise<void>;
+
+  /**
    * The group's live invite code, minting one if there is not already one.
    *
    * Idempotent on purpose: opening the invite screen twice must not invalidate

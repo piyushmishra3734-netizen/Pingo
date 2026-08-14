@@ -75,6 +75,7 @@ import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
 import { SharedMediaSheet } from './SharedMediaSheet.js';
+import { DisappearingSheet } from './DisappearingSheet.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
 
 /**
@@ -224,6 +225,9 @@ export function ChatThread({
   /** Whether the media/docs/links sheet is open over the thread. */
   const [sharedMedia, setSharedMedia] = useState(false);
 
+  /** Whether the disappearing-messages timer is being changed. */
+  const [disappearing, setDisappearing] = useState(false);
+
   const toggleSelected = (id: string) =>
     setSelection((current) => {
       if (!current) return current;
@@ -239,6 +243,7 @@ export function ChatThread({
     setSelection(undefined);
     setSearching(false);
     setSharedMedia(false);
+    setDisappearing(false);
   }, [conversation.id]);
 
   /*
@@ -1133,6 +1138,7 @@ export function ChatThread({
             onSelectMessages={() => setSelection(new Set())}
             onSearchMessages={() => setSearching(true)}
             onSharedMedia={() => setSharedMedia(true)}
+            onDisappearing={() => setDisappearing(true)}
           />
         </div>
         </>
@@ -1702,6 +1708,13 @@ export function ChatThread({
           conversationId={conversation.id}
           onClose={() => setSharedMedia(false)}
           onJump={jumpTo}
+        />
+      )}
+
+      {disappearing && (
+        <DisappearingSheet
+          conversation={conversation}
+          onClose={() => setDisappearing(false)}
         />
       )}
 

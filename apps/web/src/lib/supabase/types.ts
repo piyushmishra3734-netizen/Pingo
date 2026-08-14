@@ -104,6 +104,8 @@ export type ConversationRow = {
   wallpaper_id?: string | null;
   /** Public URL of a shared custom wallpaper photo (groups only). */
   wallpaper_photo_url?: string | null;
+  /** Seconds a new message lives here. Null is off. See the disappearing migration. */
+  disappear_seconds?: number | null;
 };
 
 /** One row of `public.conversation_members`. Per-person state lives here. */
@@ -159,6 +161,8 @@ export type MessageRow = {
   /** Storage path of a snap's image. Nulled out when the snap is destroyed. */
   snap_path: string | null;
   snap_expires_at: string | null;
+  /** When this message empties itself. Null when the conversation has no timer. */
+  expires_at?: string | null;
   /** Set when the media is gone for good; the row itself stays in the thread. */
   snap_consumed_at: string | null;
   /** Soft delete. The row stays so replies that quote it keep their anchor. */
@@ -1057,6 +1061,11 @@ export type Database = {
           clear_avatar?: boolean;
           clear_cover?: boolean;
         };
+        Returns: undefined;
+      };
+      /** Any member. Null seconds turns the timer off; both post a system notice. */
+      set_disappearing: {
+        Args: { conv: string; seconds: number | null };
         Returns: undefined;
       };
       /** Any group member. Shared backdrop for the whole room. */

@@ -291,16 +291,48 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
     [receipts],
   );
 
+  /*
+   * Messages that have run out, gone before the server gets to them.
+   *
+   * The sweep runs every five minutes; a thread somebody is looking at must not
+   * wait for it, or a message with a one-hour timer sits there for a sixth hour
+   * because nobody reloaded. `now` only moves when something is actually due,
+   * so a conversation with no timer never re-renders for this at all.
+   */
+  const [now, setNow] = useState(() => Date.now());
+
+  const dueAt = useMemo(() => {
+    let soonest = Infinity;
+    for (const message of messages) {
+      if (message.expiresAt !== undefined && message.expiresAt > now && message.expiresAt < soonest) {
+        soonest = message.expiresAt;
+      }
+    }
+    return soonest;
+  }, [messages, now]);
+
+  useEffect(() => {
+    if (!Number.isFinite(dueAt)) return;
+    // A little past the instant itself, so the comparison below is never a tie.
+    const id = setTimeout(() => setNow(Date.now()), Math.max(250, dueAt - Date.now() + 250));
+    return () => clearTimeout(id);
+  }, [dueAt]);
+
+  const live = useMemo(
+    () => messages.filter((message) => message.expiresAt === undefined || message.expiresAt > now),
+    [messages, now],
+  );
+
   const read = useMemo(() => {
-    if (furthestRead === 0) return messages;
+    if (furthestRead === 0) return live;
     let touched = false;
-    const next = messages.map((message) => {
+    const next = live.map((message) => {
       if (message.status !== 'sent' || message.createdAt > furthestRead) return message;
       touched = true;
       return { ...message, status: 'read' as const };
     });
-    return touched ? next : messages;
-  }, [messages, furthestRead]);
+    return touched ? next : live;
+  }, [live, furthestRead]);
 
   const groups = useMemo(() => groupMessages(read), [read]);
 

@@ -77,9 +77,34 @@ const messages: Message[] = [
     createdAt: 600,
     ping: { expiresAt: 9e12, gone: false, views: 1 },
   },
+  {
+    ...base,
+    id: 'm7',
+    body: 'https://example.test/secret',
+    createdAt: 700,
+    // Sent under a timer that has since run out. The sheet reads the disk
+    // directly, so nothing upstream has filtered this one for it.
+    expiresAt: 900,
+    photo: { url: 'https://example.test/expired.jpg' },
+  },
 ];
 
-const found = collectSharedMedia(messages);
+const NOW = 1000;
+const found = collectSharedMedia(messages, NOW);
+
+// The expired message contributes neither its photo nor its link.
+assert.equal(
+  found.media.some((item) => item.messageId === 'm7'),
+  false,
+  'a message past its timer must not reach the gallery',
+);
+assert.equal(
+  found.links.some((link) => link.messageId === 'm7'),
+  false,
+);
+
+// Still there while the timer is running.
+assert.equal(collectSharedMedia(messages, 800).media.some((i) => i.messageId === 'm7'), true);
 
 // The limited photo, the Ping and the deleted picture are all absent; the
 // unlimited photo and the video are both present.

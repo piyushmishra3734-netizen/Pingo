@@ -57,14 +57,30 @@ export interface SharedMedia {
   links: LinkItem[];
 }
 
-/** Buckets a run of messages, newest first in every pile. */
-export function collectSharedMedia(messages: readonly Message[]): SharedMedia {
+/**
+ * Buckets a run of messages, newest first in every pile.
+ *
+ * `now` is an argument so the expiry rule can be asserted without waiting.
+ */
+export function collectSharedMedia(
+  messages: readonly Message[],
+  now = Date.now(),
+): SharedMedia {
   const media: MediaItem[] = [];
   const docs: DocItem[] = [];
   const links: LinkItem[] = [];
 
   for (const message of messages) {
     if (message.deleted || message.ping) continue;
+    /*
+     * A message whose timer has run out, read straight off the disk.
+     *
+     * The thread filters these in `useMessages`; this sheet does not go through
+     * it - it reads the sealed rows itself - so without this line a
+     * disappearing photo would keep appearing in the gallery until the device
+     * happened to refetch the conversation.
+     */
+    if (message.expiresAt !== undefined && message.expiresAt <= now) continue;
     const createdAt = message.createdAt;
 
     // An unlimited photo is a picture that was sent to be kept. A limited one

@@ -145,6 +145,15 @@ export interface Message {
   replyToId?: MessageId;
   editedAt?: number;
   /**
+   * When this message runs out, if the conversation has a timer.
+   *
+   * Stamped by the server at insert from the conversation's own setting, so a
+   * client cannot decline to set one or quietly extend it. A message past this
+   * instant is not shown at all - not as a tombstone, which is what somebody
+   * taking a message back looks like, and a different fact.
+   */
+  expiresAt?: number;
+  /**
    * Removed for everyone.
    *
    * The row survives so the thread keeps its shape and replies quoting it keep
@@ -438,6 +447,13 @@ export interface Conversation {
   wallpaperId?: string;
   /** Public URL of a shared custom wallpaper photo (groups only). */
   wallpaperPhotoUrl?: string;
+  /**
+   * How long a new message here lives, in seconds. Absent means for ever.
+   *
+   * One setting for the whole conversation rather than one per member: a timer
+   * only one side honoured would be a promise the other side had not made.
+   */
+  disappearSeconds?: number;
 }
 
 /**

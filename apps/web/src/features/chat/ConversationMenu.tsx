@@ -54,6 +54,21 @@ export interface ConversationMenuProps {
   onSearchMessages?: () => void;
   /** Opens everything this conversation has carried, in three tabs. */
   onSharedMedia?: () => void;
+  /** Opens the timer that decides how long new messages here live. */
+  onDisappearing?: () => void;
+}
+
+/**
+ * A timer, said the way the menu has room for.
+ *
+ * Only the four durations the sheet offers can get here, so this is a lookup
+ * with a fallback rather than a duration formatter.
+ */
+function disappearingLabel(seconds: number): string {
+  if (seconds === 86_400) return '24h';
+  if (seconds === 604_800) return '7d';
+  if (seconds === 7_776_000) return '90d';
+  return `${Math.round(seconds / 86_400)}d`;
 }
 
 export function ConversationMenu({
@@ -64,6 +79,7 @@ export function ConversationMenu({
   onSelectMessages,
   onSearchMessages,
   onSharedMedia,
+  onDisappearing,
 }: ConversationMenuProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -232,6 +248,23 @@ export function ConversationMenu({
           )}
           {onSharedMedia && (
             <Item label={t('shared.title')} onSelect={() => run(onSharedMedia())} />
+          )}
+          {onDisappearing && (
+            /*
+              The label carries the current setting rather than a separate
+              status row. A timer that is on is a fact about this conversation
+              somebody should be able to see without opening anything.
+            */
+            <Item
+              label={
+                conversation.disappearSeconds
+                  ? t('disappearing.on', {
+                      label: disappearingLabel(conversation.disappearSeconds),
+                    })
+                  : t('disappearing.title')
+              }
+              onSelect={() => run(onDisappearing())}
+            />
           )}
           {onSelectMessages && (
             <Item label={t('menu.selectMessages')} onSelect={() => run(onSelectMessages())} />

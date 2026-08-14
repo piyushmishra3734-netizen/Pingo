@@ -554,6 +554,17 @@ const en = {
   'shared.noMedia': 'No photos or videos here yet.',
   'shared.noDocs': 'No files have been sent here.',
   'shared.noLinks': 'No links have been sent here.',
+
+  'disappearing.title': 'Disappearing messages',
+  'disappearing.blurb': 'New messages here go away on their own.',
+  'disappearing.off': 'Off',
+  'disappearing.day': '24 hours',
+  'disappearing.week': '7 days',
+  'disappearing.ninetyDays': '90 days',
+  'disappearing.notRetroactive':
+    'This changes what is sent from now on. Messages already here are not affected, and nothing that has gone comes back.',
+  'disappearing.failed': 'That could not be changed. Try again.',
+  'disappearing.on': 'Disappearing: {label}',
   'menu.deleteChat': 'Delete chat',
   'menu.profile': 'Profile',
   'menu.newPost': 'New post',
@@ -1242,6 +1253,11 @@ const enGenz: Catalog = {
   'shared.noMedia': 'no pics or clips in here yet.',
   'shared.noDocs': 'no files in here.',
   'shared.noLinks': 'no links in here.',
+
+  'disappearing.title': 'vanishing messages',
+  'disappearing.blurb': 'new messages here delete themselves.',
+  'disappearing.notRetroactive':
+    'only affects what you send from now. old stuff stays, gone stuff stays gone.',
   'menu.deleteChat': 'delete chat',
   'menu.profile': 'profile',
   'menu.newPost': 'new post',

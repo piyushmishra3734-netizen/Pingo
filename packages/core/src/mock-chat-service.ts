@@ -454,6 +454,22 @@ export class MockChatService implements ChatService {
     });
   }
 
+  /**
+   * The timer, without the server that stamps it.
+   *
+   * The mock stores the setting and stops there: stamping `expiresAt` on the
+   * way out is the real service's trigger doing it, and a fixture that expired
+   * its own seed data would empty the demo thread while somebody looked at it.
+   */
+  async setDisappearing(
+    conversationId: ConversationId,
+    seconds: number | undefined,
+  ): Promise<void> {
+    this.#updateConversation(conversationId, {
+      ...(seconds === undefined ? { disappearSeconds: undefined } : { disappearSeconds: seconds }),
+    });
+  }
+
   async removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void> {
     const conversation = this.#requireAdmin(conversationId);
     if (userId === this.#currentUser.id) throw new Error('Use Leave group to leave.');

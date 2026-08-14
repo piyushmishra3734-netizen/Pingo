@@ -344,6 +344,9 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
     // Group membership lines ("Ali added Baani") — plaintext, centred captions.
     ...(row.kind === 'system' ? { system: true as const } : {}),
     ...(row.edited_at ? { editedAt: Date.parse(row.edited_at) } : {}),
+    // The conversation's timer, stamped onto this message when it was sent. The
+    // client hides it the moment this passes rather than waiting for the sweep.
+    ...(row.expires_at ? { expiresAt: Date.parse(row.expires_at) } : {}),
     ...(row.reply_to_id ? { replyToId: row.reply_to_id } : {}),
     // The row survives deletion so replies quoting it keep an anchor. The
     // server already emptied the body; this is what draws the tombstone, and
@@ -1577,6 +1580,9 @@ export class SupabaseChatService implements ChatService {
           ...((row.kind === 'group' || row.kind === 'community') && row.wallpaper_photo_url
             ? { wallpaperPhotoUrl: row.wallpaper_photo_url }
             : {}),
+          // Every kind of conversation, unlike the wallpaper: a timer is about
+          // what is kept, and a direct chat is where that matters most.
+          ...(row.disappear_seconds ? { disappearSeconds: row.disappear_seconds } : {}),
           ...(last ? { lastMessage: toMessage(last, theirReadAt) } : {}),
           /*
            * Counted in SQL over the real rows, not over whatever this client
@@ -3535,6 +3541,25 @@ export class SupabaseChatService implements ChatService {
       wallpaper_photo_url: photoUrl ?? null,
     });
     if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  /**
+   * Turns the conversation's timer on, changes it, or turns it off.
+   *
+   * `undefined` is off. The server validates membership and the range, posts the
+   * system notice, and refuses to stamp anything retroactively - so this is a
+   * decision about what gets said next, not a way to clear a thread.
+   */
+  async setDisappearing(
+    conversationId: ConversationId,
+    seconds: number | undefined,
+  ): Promise<void> {
+    const { error } = await this.#client.rpc('set_disappearing', {
+      conv: conversationId,
+      seconds: seconds ?? null,
+    });
+    if (error) throw error;
     await this.#announce(conversationId);
   }
 
