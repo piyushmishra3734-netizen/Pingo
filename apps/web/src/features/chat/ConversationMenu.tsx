@@ -52,6 +52,8 @@ export interface ConversationMenuProps {
   onSelectMessages?: () => void;
   /** Turns the header into a search over this thread. */
   onSearchMessages?: () => void;
+  /** Opens everything this conversation has carried, in three tabs. */
+  onSharedMedia?: () => void;
 }
 
 export function ConversationMenu({
@@ -61,6 +63,7 @@ export function ConversationMenu({
   onAiSettings,
   onSelectMessages,
   onSearchMessages,
+  onSharedMedia,
 }: ConversationMenuProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -226,6 +229,9 @@ export function ConversationMenu({
 
           {onSearchMessages && (
             <Item label={t('menu.searchMessages')} onSelect={() => run(onSearchMessages())} />
+          )}
+          {onSharedMedia && (
+            <Item label={t('shared.title')} onSelect={() => run(onSharedMedia())} />
           )}
           {onSelectMessages && (
             <Item label={t('menu.selectMessages')} onSelect={() => run(onSelectMessages())} />

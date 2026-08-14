@@ -74,6 +74,7 @@ import { PhotoComposer } from './PhotoComposer.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
+import { SharedMediaSheet } from './SharedMediaSheet.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
 
 /**
@@ -220,6 +221,9 @@ export function ChatThread({
   /** Whether the header is currently a search over this thread. */
   const [searching, setSearching] = useState(false);
 
+  /** Whether the media/docs/links sheet is open over the thread. */
+  const [sharedMedia, setSharedMedia] = useState(false);
+
   const toggleSelected = (id: string) =>
     setSelection((current) => {
       if (!current) return current;
@@ -234,6 +238,7 @@ export function ChatThread({
   useEffect(() => {
     setSelection(undefined);
     setSearching(false);
+    setSharedMedia(false);
   }, [conversation.id]);
 
   /*
@@ -1127,6 +1132,7 @@ export function ChatThread({
             {...(isAi ? { onAiSettings: () => setAiProfileOpen(true) } : {})}
             onSelectMessages={() => setSelection(new Set())}
             onSearchMessages={() => setSearching(true)}
+            onSharedMedia={() => setSharedMedia(true)}
           />
         </div>
         </>
@@ -1689,6 +1695,14 @@ export function ChatThread({
 
       {groupInfo && (
         <GroupInfoSheet conversation={conversation} onClose={() => setGroupInfo(false)} />
+      )}
+
+      {sharedMedia && (
+        <SharedMediaSheet
+          conversationId={conversation.id}
+          onClose={() => setSharedMedia(false)}
+          onJump={jumpTo}
+        />
       )}
 
       {isAi && aiOnboarding && (
