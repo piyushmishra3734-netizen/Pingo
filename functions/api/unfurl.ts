@@ -78,6 +78,34 @@ export function isPrivateHost(host: string): boolean {
   return false;
 }
 
+/**
+ * HTML entities, back into the characters they stand for.
+ *
+ * The parser hands back attribute values exactly as written, so GitHub's own
+ * description arrives as "the world&#39;s most widely adopted" and a card would
+ * print it that way. Only the five named entities that are required to be
+ * escaped, plus numeric escapes, which is what actually appears in a `content`
+ * attribute - this is a title, not a document.
+ *
+ * Exported for the same reason as the host guard: it is the other thing here
+ * that can be quietly wrong.
+ */
+export function decodeEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, digits: string) => String.fromCodePoint(Number(digits)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    // Last, so "&amp;#39;" does not become an apostrophe - it is a literal
+    // "&#39;" that somebody escaped on purpose.
+    .replace(/&amp;/g, '&');
+}
+
 function json(body: unknown, maxAge: number): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -168,7 +196,10 @@ export const onRequestGet = async (context: { request: Request }): Promise<Respo
     await rewriter.transform(page).text();
 
     const tidy = (value: string | undefined): string | undefined => {
-      const clean = value?.trim().replace(/\s+/g, ' ').slice(0, 300);
+      const clean = decodeEntities(value ?? '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .slice(0, 300);
       return clean ? clean : undefined;
     };
 

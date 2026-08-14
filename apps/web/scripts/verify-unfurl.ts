@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { isPrivateHost } from '../../../functions/api/unfurl.js';
+import { decodeEntities, isPrivateHost } from '../../../functions/api/unfurl.js';
 
 // Loopback, by name and by number, in both address families.
 assert.equal(isPrivateHost('localhost'), true);
@@ -52,6 +52,17 @@ assert.equal(isPrivateHost('db.internal'), true);
 assert.equal(isPrivateHost('example.com'), false);
 assert.equal(isPrivateHost('news.ycombinator.com'), false);
 assert.equal(isPrivateHost('93.184.216.34'), false);
+
+// Entities, which is what GitHub's own description actually arrives as.
+assert.equal(decodeEntities('the world&#39;s tools'), "the world's tools");
+assert.equal(decodeEntities('Tom &amp; Jerry'), 'Tom & Jerry');
+assert.equal(decodeEntities('&quot;quoted&quot;'), '"quoted"');
+assert.equal(decodeEntities('caf&#xe9;'), 'café');
+assert.equal(decodeEntities('a&nbsp;b'), 'a b');
+// An escaped ampersand stays escaped text rather than becoming a second entity.
+assert.equal(decodeEntities('&amp;#39;'), '&#39;');
+// Nothing to decode is left exactly alone.
+assert.equal(decodeEntities('plain title'), 'plain title');
 
 // Paths off the repo root rather than off `import.meta.url`: the runner bundles
 // this script into a temp directory, so its own location says nothing.
