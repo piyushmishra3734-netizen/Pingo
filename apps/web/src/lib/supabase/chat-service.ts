@@ -1472,14 +1472,19 @@ export class SupabaseChatService implements ChatService {
 
     const lastById = new Map<string, MessageRow>();
     if (lastMessageIds.length > 0) {
-      const { data: lastRows } = await this.#client
-        .from('messages')
-        .select('*')
-        .in('id', lastMessageIds);
+      /*
+       * Through the trim, like every other read.
+       *
+       * This was the last `select('*')` on messages, and once the thread came
+       * down it was the largest thing left: twenty rows at 54 kB to decrypt one
+       * line of text per conversation, nineteen twentieths of it wrapped keys
+       * for other people's devices.
+       */
+      const lastRows = await this.#fetchMessagesById(lastMessageIds);
       // The list's previews are ciphertext too. Without this the home screen
       // would show base64 under every name.
-      await openRows(lastRows ?? []);
-      for (const row of lastRows ?? []) lastById.set(row.id, row);
+      await openRows(lastRows);
+      for (const row of lastRows) lastById.set(row.id, row);
     }
 
     await this.#loadPeople((members ?? []).map((m) => m.user_id));
@@ -2381,6 +2386,31 @@ export class SupabaseChatService implements ChatService {
    * has not landed. Falling back to the old query means the worst case is the
    * bill we already had, rather than a thread that will not open.
    */
+  /**
+   * Named messages, trimmed the same way a page is.
+   *
+   * The conversation list's previews, which are the only read that asks for
+   * rows across conversations. Falls back for the same reasons as a page.
+   */
+  async #fetchMessagesById(ids: string[]): Promise<MessageRow[]> {
+    try {
+      const identity = await deviceIdentity();
+      const { data, error } = await this.#client.rpc('messages_page', {
+        // The function ignores it when `ids` is set; null says so plainly
+        // rather than passing a message id where a conversation is named.
+        conv: null,
+        device: identity.deviceId,
+        ids,
+      });
+      if (!error && data) return data as unknown as MessageRow[];
+    } catch {
+      // Fall through.
+    }
+
+    const { data } = await this.#client.from('messages').select('*').in('id', ids);
+    return data ?? [];
+  }
+
   async #fetchMessagePage(
     conversationId: ConversationId,
     options: { limit: number; before?: string; since?: string },

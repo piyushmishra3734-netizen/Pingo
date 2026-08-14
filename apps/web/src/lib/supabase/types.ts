@@ -1114,11 +1114,14 @@ export type Database = {
        */
       messages_page: {
         Args: {
-          conv: string;
+          /** Null when asking by `ids`, which span conversations. */
+          conv: string | null;
           device: string;
           page_limit?: number;
           before_at?: string | null;
           since?: string | null;
+          /** The conversation list's previews. Ignores every other argument. */
+          ids?: string[];
         };
         Returns: MessageRow[];
       };
