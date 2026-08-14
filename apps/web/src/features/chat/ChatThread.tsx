@@ -71,6 +71,7 @@ import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
 import { useBackStep } from '../navigation/useBackStep.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
+import { probeKind, retypedAsAudio, type PickedKind } from './picked-media.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
@@ -1557,7 +1558,15 @@ export function ChatThread({
       <input
         ref={galleryRef}
         type="file"
-        accept="image/*,video/*"
+        /*
+          Audio is here because it is in the gallery.
+
+          A song, a recording, a voice memo saved from somewhere else: on a
+          phone those live alongside the photos, and leaving them out of the
+          filter did not stop people picking them - some pickers ignore the
+          accept list entirely - it only meant they arrived unannounced.
+        */
+        accept="image/*,video/*,audio/*"
         multiple
         hidden
         onChange={(event) => {
@@ -1566,46 +1575,80 @@ export function ChatThread({
           event.target.value = '';
           if (chosen.length === 0) return;
 
-          /*
-           * Videos go around the photo composer, not through it.
-           *
-           * `PhotoComposer` exists to crop, caption and re-encode a still - it
-           * draws what it is given onto a canvas. Hand it a video and the best
-           * case is that one frame survives as a JPEG; there is no case where
-           * the video does. Sending the `File` untouched is also the only way
-           * to keep the original quality, since nothing on this path re-encodes
-           * it - the bytes that leave the phone are the bytes the camera wrote.
-           */
-          const videos = chosen.filter((file) => file.type.startsWith('video/'));
-          const images = chosen.filter((file) => !file.type.startsWith('video/'));
+          void (async () => {
+            /*
+             * Asked, not assumed.
+             *
+             * This used to be `type.startsWith('video/')` and *everything else*
+             * is a picture, which was wrong in both directions: a song went to
+             * the photo composer to be drawn onto a canvas, and an audio-only
+             * `.m4a` - which Android hands back as `video/mp4`, because that is
+             * genuinely the container - opened the video trimmer and was sent
+             * as a video with no picture in it. `probeKind` decodes it and
+             * looks.
+             */
+            const kinds = await Promise.all(chosen.map((file) => probeKind(file)));
+            const of = (want: PickedKind) => chosen.filter((_, index) => kinds[index] === want);
 
-          // Checked here, once, for every branch below.
-          const oversized = [
-            ...videos.filter((file) => mediaTooLarge(file.size, 'file')),
-            ...images.filter((file) => mediaTooLarge(file.size, 'photo')),
-          ];
-          if (oversized[0]) {
-            void refuseIfTooLarge(oversized[0], oversized[0].type.startsWith('video/') ? 'file' : 'photo');
-            return;
-          }
+            const images = of('image');
+            const videos = of('video');
+            /*
+             * Audio and anything unrecognised travel the document path: whole
+             * bytes, original filename. What each one *looks* like in the
+             * thread is `FileBubble`'s decision, not this picker's - which is
+             * why the audio-in-a-video-container case is retyped here. The mime
+             * travels with the upload and is what the receiver branches on, so
+             * routing it correctly and storing it as `video/mp4` would draw a
+             * black rectangle on the other side.
+             */
+            const files = [...of('audio').map(retypedAsAudio), ...of('file')];
 
-          /*
-           * One video opens the trimmer; several go straight out.
-           *
-           * Trimming is a decision about one clip, and a queue of sheets is a
-           * queue of decisions nobody asked to make - picking five videos is
-           * "send these five", not "let me edit each of them".
-           */
-          if (videos.length === 1 && videos[0]) setTrimming(videos[0]);
-          else          for (const file of videos) {
-            void service.sendMessage({
-              conversationId: conversation.id,
-              body: '',
-              document: { file },
-            });
-          }
+            // Checked here, once, for every branch below.
+            const oversized = [
+              ...videos.filter((file) => mediaTooLarge(file.size, 'file')),
+              ...files.filter((file) => mediaTooLarge(file.size, 'file')),
+              ...images.filter((file) => mediaTooLarge(file.size, 'photo')),
+            ];
+            if (oversized[0]) {
+              void refuseIfTooLarge(
+                oversized[0],
+                images.includes(oversized[0]) ? 'photo' : 'file',
+              );
+              return;
+            }
 
-          if (images.length > 0) setPending(images);
+            /*
+             * One video opens the trimmer; several go straight out.
+             *
+             * Trimming is a decision about one clip, and a queue of sheets is a
+             * queue of decisions nobody asked to make - picking five videos is
+             * "send these five", not "let me edit each of them".
+             *
+             * Sending the `File` untouched is also the only way to keep the
+             * original quality, since nothing on this path re-encodes it - the
+             * bytes that leave the phone are the bytes the camera wrote.
+             */
+            if (videos.length === 1 && videos[0]) setTrimming(videos[0]);
+            else {
+              for (const file of videos) {
+                void service.sendMessage({
+                  conversationId: conversation.id,
+                  body: '',
+                  document: { file },
+                });
+              }
+            }
+
+            for (const file of files) {
+              void service.sendMessage({
+                conversationId: conversation.id,
+                body: '',
+                document: { file },
+              });
+            }
+
+            if (images.length > 0) setPending(images);
+          })();
         }}
       />
 
@@ -1620,10 +1663,20 @@ export function ChatThread({
           if (!file) return;
           void (async () => {
             if (await refuseIfTooLarge(file, 'file')) return;
+            /*
+             * Probed here too, for the one thing that survives this path.
+             *
+             * A document keeps its type all the way to the recipient's bubble,
+             * so an audio-only `.m4a` picked here - which the system reports as
+             * `video/mp4` - would open a video player over a file with no
+             * picture in it. Everything else is sent exactly as chosen.
+             */
+            const sending =
+              (await probeKind(file)) === 'audio' ? retypedAsAudio(file) : file;
             await service.sendMessage({
               conversationId: conversation.id,
               body: '',
-              document: { file },
+              document: { file: sending },
             });
           })();
         }}

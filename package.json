@@ -54,7 +54,8 @@
     "verify:thread-search": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-thread-search.ts",
     "verify:shared-media": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-shared-media.ts",
     "verify:unfurl": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-unfurl.ts",
-    "verify:device-label": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-device-label.ts"
+    "verify:device-label": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-device-label.ts",
+    "verify:picked-media": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-picked-media.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

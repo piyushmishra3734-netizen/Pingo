@@ -1,12 +1,19 @@
-import { formatFileSize, useChat, type FileAttachment, type VideoEdit } from '@pingo/core';
+import {
+  formatFileSize,
+  useChat,
+  type AudioAttachment,
+  type FileAttachment,
+  type VideoEdit,
+} from '@pingo/core';
 import { FileIcon, cn } from '@pingo/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
 import { saveVideoBlob } from '../native/save-video.js';
 import { useOfflineVideo } from './useOfflineVideo.js';
 import { keepMedia, storedVideo } from './video-vault.js';
 import { VideoPlayer } from './VideoPlayer.js';
+import { VoiceNote } from './VoiceNote.js';
 import { ImageViewer } from '../profile/ImageViewer.js';
 
 /**
@@ -15,11 +22,12 @@ import { ImageViewer } from '../profile/ImageViewer.js';
  * ## Why a filename was not enough
  *
  * Everything that is not a photo or a voice note arrives here as `kind: 'file'`
- * - a PDF, a spreadsheet, and also a video and an image somebody sent through
- * the document picker instead of the camera. All of them rendered as the same
- * grey card with a name on it, so a video you were sent was a download, and a
- * picture you were sent was a filename. The card is right for a document and
- * wrong for the two kinds that can simply be shown.
+ * - a PDF, a spreadsheet, and also a video, an image and a song somebody sent
+ * through the document picker instead of the camera. All of them rendered as
+ * the same grey card with a name on it, so a video you were sent was a
+ * download, a picture you were sent was a filename, and a piece of music was a
+ * thing you had to save before you could hear it. The card is right for a
+ * document and wrong for the three kinds that can simply be played or shown.
  *
  * ## The mime type decides, not the extension
  *
@@ -69,7 +77,16 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
    */
   useEffect(() => {
     if (!messageId || !file.url) return;
-    if (file.mimeType.startsWith('video/') || file.mimeType.startsWith('image/')) return;
+    if (
+      file.mimeType.startsWith('video/') ||
+      file.mimeType.startsWith('image/') ||
+      // Audio has a player of its own below, and that player writes the vault
+      // and reports the receipt itself. Doing it here as well would download
+      // the same song twice.
+      file.mimeType.startsWith('audio/')
+    ) {
+      return;
+    }
 
     let live = true;
     let made: string | undefined;
@@ -98,6 +115,10 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
     return (
       <VideoBubble file={file} name={name} spaced={spaced} messageId={messageId} edit={edit} />
     );
+  }
+
+  if (mime.startsWith('audio/') && file.url) {
+    return <AudioBubble file={file} name={name} mine={mine} spaced={spaced} messageId={messageId} />;
   }
 
   if (mime.startsWith('image/') && file.url) {
@@ -197,6 +218,86 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
         )}
       </span>
     </a>
+  );
+}
+
+/**
+ * A song, a recording, a voice memo somebody had saved - anything audio.
+ *
+ * ## Why it borrows the voice note
+ *
+ * `VoiceNote` is already the answer to "play this audio, from the device's copy
+ * when there is one, re-signing the URL when there is not, at whatever speed the
+ * listener chose". Every one of those is exactly as true for a file from the
+ * gallery, and none of it is about a note being *recorded*. Building a second
+ * player would be building all of that again in order to have two of them
+ * disagree later.
+ *
+ * ## What it does not borrow
+ *
+ * The name. A voice note has none and needs none; a file picked from a library
+ * is the one thing somebody chose *by* its name, so it sits above the player
+ * rather than being thrown away in the name of looking identical.
+ *
+ * The waveform is `VoiceNote`'s fallback pattern, because a picked file has no
+ * precomputed peaks - decoding an entire album track in a thread to draw forty
+ * bars is not a trade worth making.
+ */
+function AudioBubble({
+  file,
+  name,
+  mine,
+  spaced,
+  messageId,
+}: {
+  file: FileAttachment;
+  name: string;
+  mine: boolean;
+  spaced?: boolean;
+  messageId?: string;
+}) {
+  const { service } = useChat();
+
+  /*
+   * Stable across renders, or the player's effects would re-run and a track
+   * being listened to would restart every time the thread repainted.
+   */
+  const attachment = useMemo(
+    (): AudioAttachment => ({
+      id: file.id,
+      kind: 'audio',
+      // Zero rather than a guess: the element reports the real length as soon
+      // as it has the metadata, and a wrong number would draw a wrong scrubber
+      // for the second before that.
+      duration: 0,
+      waveform: [],
+      url: file.url,
+      ...(file.size !== undefined ? { size: file.size } : {}),
+      ...(file.storagePath ? { storagePath: file.storagePath } : {}),
+    }),
+    [file.id, file.url, file.size, file.storagePath],
+  );
+
+  return (
+    <div className={cn('w-full', spaced && 'mb-2')} {...swallow}>
+      <span
+        className={cn(
+          'mb-1 block truncate text-caption',
+          mine ? 'text-white/80' : 'text-text-secondary',
+        )}
+        title={name}
+      >
+        {name}
+      </span>
+      <VoiceNote
+        attachment={attachment}
+        tone={mine ? 'outgoing' : 'incoming'}
+        {...(messageId ? { messageId } : {})}
+        onStored={() => {
+          if (messageId) void service.confirmMediaReceived?.(messageId).catch(() => undefined);
+        }}
+      />
+    </div>
   );
 }
 
