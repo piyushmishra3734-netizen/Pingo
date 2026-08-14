@@ -2,6 +2,7 @@ import {
   detectVideoLink,
   formatEventTime,
   formatTime,
+  linkify,
   useChat,
   type Message,
 } from '@pingo/core';
@@ -26,6 +27,7 @@ import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { PingBubble } from './PingBubble.js';
+import { LinkPreviewCard } from './LinkPreviewCard.js';
 import { VideoLinkCard } from './VideoLinkCard.js';
 import { VoiceNote } from './VoiceNote.js';
 
@@ -174,6 +176,22 @@ export function MessageBubble({
     () => (message.deleted ? undefined : detectVideoLink(message.body)),
     [message.body, message.deleted],
   );
+  /*
+   * The first ordinary link, when there is no video card already.
+   *
+   * First rather than all of them: a message with six links is a list, and six
+   * cards under it is a wall. The one at the front is the one the message is
+   * about.
+   */
+  const firstLink = useMemo(() => {
+    if (message.deleted || videoLink) return undefined;
+    for (const segment of linkify(message.body)) {
+      // `mailto:` is a link the same way a phone number is - there is no page
+      // behind it to describe.
+      if (segment.kind === 'link' && segment.href.startsWith('http')) return segment.href;
+    }
+    return undefined;
+  }, [message.body, message.deleted, videoLink]);
   /** First bubble of a group cluster from someone else. Sits above the glass. */
   const nameLabel =
     !mine && authorName && (position === 'first' || position === 'single') ? (
@@ -479,6 +497,8 @@ export function MessageBubble({
           {videoLink && (
             <VideoLinkCard preview={videoLink} messageId={message.id} spaced={hasBody} />
           )}
+
+          {firstLink && <LinkPreviewCard href={firstLink} mine={mine} spaced={hasBody} />}
 
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
