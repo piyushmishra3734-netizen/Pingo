@@ -15,6 +15,7 @@ import {
 } from './ai-public.js';
 import { AiMemoriesSheet } from './AiMemoriesSheet.js';
 import { AiPersonalityGrid } from './AiPersonalityGrid.js';
+import { IMMUTABLE_CACHE_SECONDS, shrinkToAvatar } from '../profile/avatar-image.js';
 import {
   orderedLanguages,
   pushRecentLanguage,
@@ -106,9 +107,15 @@ export function AiProfileSheet({
     try {
       const client = getSupabaseClient();
       const path = `${profile.id}/ai-${kind}-${Date.now()}`;
+      // Shrunk and cached like every other face - see `avatar-image.ts`.
+      const small = await shrinkToAvatar(file);
       const { error: upError } = await client.storage
         .from('avatars')
-        .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+        .upload(path, small, {
+          upsert: true,
+          contentType: small.type || 'image/jpeg',
+          cacheControl: IMMUTABLE_CACHE_SECONDS,
+        });
       if (upError) throw upError;
       const { data } = client.storage.from('avatars').getPublicUrl(path);
       const url = data.publicUrl;

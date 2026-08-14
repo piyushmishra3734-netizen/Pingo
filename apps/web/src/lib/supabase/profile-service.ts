@@ -36,6 +36,7 @@ import {
   type SharedHistory,
 } from '@pingo/core';
 
+import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { cachePrivacyRules } from '../../features/settings/privacy-flags.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import type { Database, PostCommentRow, PostRow, ProfileRow } from './types.js';
@@ -330,6 +331,22 @@ export class SupabaseProfileService implements ProfileService {
     const userId = await this.requireUserId();
 
     /*
+     * What this replaces, read before it is replaced.
+     *
+     * Every avatar upload writes a new path, so the previous object stopped
+     * being referenced by anything and stayed in the bucket for ever. An audit
+     * found twenty of them: 12 MB of faces nobody could reach. Nothing else
+     * points at a profile photo - not a message, not the archive builder - so
+     * the row this reads is the only reference there is, and losing it is the
+     * definition of orphaned.
+     */
+    const previous = await this.client
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', userId)
+      .maybeSingle();
+
+    /*
      * The user's id is the folder, which is what the storage policy checks  - 
      * `(storage.foldername(name))[1] = auth.uid()`. The timestamp defeats CDN
      * caching, so a replaced photo appears immediately instead of showing the
@@ -337,14 +354,54 @@ export class SupabaseProfileService implements ProfileService {
      */
     const path = `${userId}/avatar-${Date.now()}`;
 
-    const { error } = await this.client.storage
-      .from(AVATAR_BUCKET)
-      .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+    const { error } = await this.client.storage.from(AVATAR_BUCKET).upload(path, file, {
+      upsert: true,
+      contentType: file.type || 'image/jpeg',
+      /*
+       * The path already carries a timestamp, so a new photo is a new URL and
+       * these bytes can never change. The default hour meant every unchanged
+       * face was re-downloaded hourly, on every device, on every screen that
+       * draws one - which measured at 9.5 MB per session.
+       */
+      cacheControl: IMMUTABLE_CACHE_SECONDS,
+    });
 
     if (error) rethrow(error);
 
+    /*
+     * Only after the new one is safely up, and never fatal.
+     *
+     * The order matters: deleting first would leave somebody with no picture at
+     * all if the upload then failed. And a delete that fails is a stale object,
+     * which is what the situation already was - so it must not fail the upload
+     * the user is actually waiting on.
+     */
+    void this.#deleteOwnStorageObject(previous.data?.avatar_url ?? undefined, userId);
+
     const { data } = this.client.storage.from(AVATAR_BUCKET).getPublicUrl(path);
     return data.publicUrl;
+  }
+
+  /**
+   * Removes a superseded object from the avatars bucket, if it is ours to remove.
+   *
+   * The ownership check is not politeness - the storage policy only permits a
+   * delete under `<my id>/`, so anything else would be a request that is refused
+   * and logged. Checking here means the common case makes no request at all.
+   */
+  async #deleteOwnStorageObject(url: string | undefined, userId: string): Promise<void> {
+    if (!url) return;
+    const marker = `/${AVATAR_BUCKET}/`;
+    const at = url.indexOf(marker);
+    if (at === -1) return;
+
+    const path = decodeURIComponent(url.slice(at + marker.length).split('?')[0] ?? '');
+    if (!path.startsWith(`${userId}/`)) return;
+
+    await this.client.storage
+      .from(AVATAR_BUCKET)
+      .remove([path])
+      .catch(() => undefined);
   }
 
   // -- follows -------------------------------------------------------------

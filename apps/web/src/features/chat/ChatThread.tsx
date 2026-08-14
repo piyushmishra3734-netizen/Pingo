@@ -37,6 +37,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { useSharedElement } from '../../hooks/useSharedElement.js';
 import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
+import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
@@ -103,8 +104,6 @@ export interface ChatThreadProps {
 /** How close to the bottom counts as "following the conversation", in px. */
 const FOLLOW_THRESHOLD = 120;
 
-/** How close to the top starts fetching the page before, in px. */
-const OLDER_THRESHOLD = 200;
 
 /**
  * After jumping to the first unread, keep the divider visible this long so the
@@ -603,7 +602,7 @@ export function ChatThread({
     const el = scrollRef.current;
     if (!el) return;
 
-    const onScroll = () => {
+    const onScroll = (fromScroll: boolean) => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       const following = distanceFromBottom < FOLLOW_THRESHOLD;
       followingRef.current = following;
@@ -627,13 +626,36 @@ export function ChatThread({
        *
        * `loadOlder` is a no-op while one is in flight or once history has run
        * out, so this can fire on every scroll frame without being guarded here.
+       *
+       * ## Only from a real scroll, and only from a real top
+       *
+       * This used to run from the synthetic first call below as well, and at
+       * that moment the container is empty: `scrollTop` is 0, 0 is less than
+       * the threshold, and every conversation open therefore fetched a second
+       * page of fifty messages nobody had scrolled to. Measured at 251 kB per
+       * open, on a device that already held the whole thread.
+       *
+       * The height test is the other half. A thread shorter than its own
+       * viewport sits at `scrollTop` 0 for ever, so without it any scroll
+       * event at all would keep asking for history that is not there.
        */
-      if (el.scrollTop < OLDER_THRESHOLD) void loadOlder();
+      if (
+        shouldLoadOlder({
+          fromScroll,
+          scrollTop: el.scrollTop,
+          scrollHeight: el.scrollHeight,
+          clientHeight: el.clientHeight,
+        })
+      ) {
+        void loadOlder();
+      }
     };
 
-    onScroll();
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
+    // The first call is for the follow state only - see above.
+    onScroll(false);
+    const listener = () => onScroll(true);
+    el.addEventListener('scroll', listener, { passive: true });
+    return () => el.removeEventListener('scroll', listener);
   }, [loadOlder]);
 
   /*

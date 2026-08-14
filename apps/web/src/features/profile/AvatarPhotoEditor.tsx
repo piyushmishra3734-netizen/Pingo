@@ -14,6 +14,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
+import { AVATAR_PIXELS, avatarExtension, encodeAvatar } from './avatar-image.js';
 
 /**
  * Instagram-style circular crop for a profile photo.
@@ -28,13 +29,15 @@ import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
-const OUTPUT_SIZE = 1024;
 /**
- * PNG, not JPEG: the circle is the canonical photo. JPEG cannot store
- * transparent corners, so a square encode would keep pixels that the circular
- * editor never showed - and ImageViewer would reveal them full-screen.
+ * The circle is the canonical photo, so the encode has to keep alpha - JPEG
+ * cannot, and a square encode would keep pixels the circular editor never
+ * showed for ImageViewer to reveal full-screen. WebP keeps them and PNG is the
+ * fallback; the size and the choice both live in `avatar-image.ts`, with the
+ * measurement that set them.
  */
-const OUTPUT_TYPE = 'image/png' as const;
+const OUTPUT_SIZE = AVATAR_PIXELS;
+
 const SUCCESS_MS = 180;
 /** Zoom badge stays visible while zooming, then fades. */
 const ZOOM_HINT_MS = 1000;
@@ -409,14 +412,16 @@ export function AvatarPhotoEditor({
     ctx.drawImage(img, -natural.x / 2, -natural.y / 2, natural.x, natural.y);
     ctx.restore();
 
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('Could not encode the photo.'))),
-        OUTPUT_TYPE,
-      );
-    });
+    /*
+     * WebP where the browser can, PNG where it cannot, and the extension is
+     * read back off what was actually produced rather than assumed - see
+     * `encodeAvatar`. The alpha the circular crop depends on survives both.
+     */
+    const blob = await encodeAvatar(canvas);
 
-    return new File([blob], `avatar-${Date.now()}.png`, { type: OUTPUT_TYPE });
+    return new File([blob], `avatar-${Date.now()}.${avatarExtension(blob)}`, {
+      type: blob.type,
+    });
   };
 
   const save = async () => {

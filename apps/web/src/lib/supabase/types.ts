@@ -1105,6 +1105,23 @@ export type Database = {
         };
         Returns: undefined;
       };
+      /**
+       * A page of a conversation, each envelope trimmed to the caller's own key.
+       *
+       * Returns whole message rows as jsonb - the same shape `select('*')`
+       * produced, minus the fourteen-odd wrapped keys addressed to other
+       * people's devices. See the envelope-trim migration.
+       */
+      messages_page: {
+        Args: {
+          conv: string;
+          device: string;
+          page_limit?: number;
+          before_at?: string | null;
+          since?: string | null;
+        };
+        Returns: MessageRow[];
+      };
       /** Own devices only. Deletes the key row and remembers the id for ever. */
       revoke_device: {
         Args: { device: string };

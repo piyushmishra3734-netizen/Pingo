@@ -71,6 +71,8 @@ import {
   sealBody,
   sealRecord,
 } from '../crypto/session.js';
+import { deviceIdentity } from '../crypto/keys.js';
+import { shouldTrustCache } from '../egress-rules.js';
 import {
   STORE,
   extendRun,
@@ -262,6 +264,14 @@ function groupError(error: { code?: string; message?: string }): Error {
 
 /** How many changed rows one delta will accept before giving up on itself. */
 const DELTA_LIMIT = 200;
+
+/**
+ * How long one conversation read answers for the next.
+ *
+ * A blink. Long enough to fold the burst of realtime events a single send
+ * produces, short enough that nobody could observe a row being stale.
+ */
+const CONVERSATION_COALESCE_MS = 300;
 
 /**
  * How many messages the cached page keeps as live ones are appended.
@@ -630,6 +640,12 @@ export class SupabaseChatService implements ChatService {
    * whole milestone is aiming for.
    */
   #deltaStats = { hits: 0, misses: 0, rowsFetched: 0 };
+
+  /** Conversation reads in flight or just finished. See `getConversation`. */
+  #conversationReads = new Map<
+    ConversationId,
+    { at: number; work: Promise<Conversation | undefined> }
+  >();
 
   /** Delta sync effectiveness, for inspection. */
   deltaReport(): { hits: number; misses: number; rowsFetched: number } {
@@ -1920,12 +1936,58 @@ export class SupabaseChatService implements ChatService {
     await this.#refresh(conversationIds);
   }
 
+  /**
+   * One conversation, rebuilt from the server.
+   *
+   * ## Why a burst of these has to become one
+   *
+   * `#hydrate` is nine queries - the row, the roster, the profiles behind it,
+   * the previews, the streaks, the lists, the AI profile, the privacy flags -
+   * and almost every caller here is a realtime event. Opening one thread of
+   * fifty messages produced thirty reads of `conversation_members`, nineteen of
+   * `conversations`, nineteen `conversation_previews`, seventeen `profiles`:
+   * 289 requests for 53 distinct URLs, because each arriving row announced
+   * itself separately and each announcement re-read the whole list.
+   *
+   * So calls made while one is already running share its answer, and a call
+   * made within a blink of one finishing gets that answer rather than starting
+   * again. The window is deliberately short - long enough to fold a burst of
+   * events from one send, far too short for anybody to see a stale row.
+   */
   async getConversation(id: ConversationId): Promise<Conversation | undefined> {
-    const me = await this.#userId();
-    const { data } = await this.#client.from('conversations').select('*').eq('id', id).maybeSingle();
-    if (!data) return undefined;
-    const [conversation] = await this.#hydrate([data], me);
-    return conversation;
+    const pending = this.#conversationReads.get(id);
+    if (pending && Date.now() - pending.at < CONVERSATION_COALESCE_MS) return pending.work;
+
+    const work = (async () => {
+      const me = await this.#userId();
+      const { data } = await this.#client
+        .from('conversations')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (!data) return undefined;
+      const [conversation] = await this.#hydrate([data], me);
+      return conversation;
+    })();
+
+    this.#conversationReads.set(id, { at: Date.now(), work });
+
+    /*
+     * The entry is dropped once the window is up rather than kept and checked,
+     * so a conversation nobody is looking at stops occupying memory - and a
+     * failed read is never the answer a later caller gets.
+     */
+    void work
+      .catch(() => undefined)
+      .finally(() => {
+        window.setTimeout(() => {
+          if (this.#conversationReads.get(id)?.work === work) {
+            this.#conversationReads.delete(id);
+          }
+        }, CONVERSATION_COALESCE_MS);
+      });
+
+    return work;
   }
 
   async listMessages(
@@ -1964,10 +2026,29 @@ export class SupabaseChatService implements ChatService {
      *
      * Declining here costs one fetch and is the difference between a temporary
      * failure and a permanent one.
+     *
+     * ## Once, though. Not for ever.
+     *
+     * The reasoning above holds for a placeholder a refetch could clear. It
+     * does not hold for the case that actually produces most of them: a message
+     * sent before this device existed carries no wrapped key for it, so the
+     * bytes to open it do not exist anywhere and no number of refetches will
+     * invent them. That page is poisoned permanently, and this gate therefore
+     * disabled the delta path permanently with it - measured at two full pages
+     * and 610 kB on every open of a conversation the device already held in
+     * full, for ever.
+     *
+     * So the retry is bounded. One full fetch to clear a placeholder that can
+     * be cleared, and after that the cached page is accepted for what it is:
+     * the best answer that exists on this device.
      */
-    const poisoned = cached?.some((message) => message.body === UNREADABLE) ?? false;
+    const hasPlaceholder = cached?.some((message) => message.body === UNREADABLE) ?? false;
+    const trusted = shouldTrustCache({
+      hasPlaceholder,
+      alreadyRetried: await this.#placeholderRetried(conversationId),
+    });
 
-    if (cursor && cached && !poisoned) {
+    if (cursor && cached && trusted) {
       const changed = await this.#deltaMessages(conversationId, cursor);
 
       if (changed) {
@@ -2017,8 +2098,26 @@ export class SupabaseChatService implements ChatService {
        * placeholder would be served ahead of the network next time and a
        * temporary decryption failure would look permanent. Skipping the write
        * costs one refetch and keeps the message recoverable.
+       *
+       * ## And exactly one refetch
+       *
+       * "Costs one refetch" was the intention and not what happened. A message
+       * sent before this device existed has no wrapped key for it anywhere, so
+       * its placeholder is permanent - and this gate then refused to cache the
+       * page containing it for ever. A conversation with one such message never
+       * had a local copy at all: no cache, no cursor, and therefore two full
+       * network pages on every single open.
+       *
+       * So the second attempt accepts the page. The placeholder is stored with
+       * it, which is honest - it is what this device can actually read - and
+       * the thread stops paying 610 kB to rediscover that every time.
        */
-      if (this.#pageFullyDecrypted) {
+      const retried = await this.#placeholderRetried(conversationId);
+      if (!this.#pageFullyDecrypted && !retried) {
+        await this.#notePlaceholderRetry(conversationId);
+      }
+
+      if (this.#pageFullyDecrypted || retried) {
         void sealRecord(live).then((sealed) => localSet(STORE.messages, conversationId, sealed));
 
         /*
@@ -2253,18 +2352,89 @@ export class SupabaseChatService implements ChatService {
     conversationId: ConversationId,
     since: string,
   ): Promise<MessageRow[] | undefined> {
-    const { data, error } = await this.#client
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .gt('updated_at', since)
-      .order('updated_at', { ascending: true })
-      .limit(DELTA_LIMIT);
+    const data = await this.#fetchMessagePage(conversationId, {
+      limit: DELTA_LIMIT,
+      since,
+    });
 
-    if (error || !data) return undefined;
+    if (!data) return undefined;
     // A full page means there is more; a gap is worse than a slow path.
     if (data.length >= DELTA_LIMIT) return undefined;
     return data;
+  }
+
+  /**
+   * A page of message rows, carrying only this device's own wrapped key.
+   *
+   * ## Why it goes through an RPC
+   *
+   * `select('*')` shipped the whole `envelope`, which is 95% of a message row
+   * and holds one wrapped content key per device that could ever open it -
+   * 15.46 of them on average. This device reads exactly one. `messages_page`
+   * returns the same rows RLS would return with the other fifteen removed,
+   * measured at 3383 bytes down to 1025.
+   *
+   * ## The fallback is not decoration
+   *
+   * A device that has not published its key yet - first launch, mid-enrolment -
+   * is refused by the function, and so is any deployment where the migration
+   * has not landed. Falling back to the old query means the worst case is the
+   * bill we already had, rather than a thread that will not open.
+   */
+  async #fetchMessagePage(
+    conversationId: ConversationId,
+    options: { limit: number; before?: string; since?: string },
+  ): Promise<MessageRow[] | undefined> {
+    try {
+      const identity = await deviceIdentity();
+      const { data, error } = await this.#client.rpc('messages_page', {
+        conv: conversationId,
+        device: identity.deviceId,
+        page_limit: options.limit,
+        before_at: options.before ?? null,
+        since: options.since ?? null,
+      });
+      if (!error && data) return data as unknown as MessageRow[];
+    } catch {
+      // Fall through - the shape below is always correct, only larger.
+    }
+
+    let query = this.#client
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .limit(options.limit);
+
+    if (options.since) {
+      query = query.gt('updated_at', options.since).order('updated_at', { ascending: true });
+    } else {
+      query = query.order('created_at', { ascending: false });
+      if (options.before) query = query.lt('created_at', options.before);
+    }
+
+    const { data, error } = await query;
+    if (error) return undefined;
+    return data ?? [];
+  }
+
+  /**
+   * Whether the one refetch a placeholder is owed has already been spent.
+   *
+   * On disk beside the sync cursor rather than in memory, because the whole
+   * point is to survive the reload - a flag that reset on every launch would
+   * buy exactly one delta hit per session and then go back to full pages.
+   */
+  async #placeholderRetried(conversationId: ConversationId): Promise<boolean> {
+    return (
+      (await openRecord<boolean>(
+        await localGet<unknown>(STORE.meta, `retried:${conversationId}`),
+      )) === true
+    );
+  }
+
+  /** Records that the refetch happened, so the next open may trust the cache. */
+  async #notePlaceholderRetry(conversationId: ConversationId): Promise<void> {
+    await localSet(STORE.meta, `retried:${conversationId}`, await sealRecord(true));
   }
 
   /** The newest `updated_at` this device has stored for a conversation. */
@@ -2363,17 +2533,11 @@ export class SupabaseChatService implements ChatService {
      * true, which is what the whole pagination contract rests on.
      */
     for (let attempt = 0; collected.length < limit && attempt < MAX_PAGE_READS; attempt++) {
-      let query = this.#client
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (cursor) query = query.lt('created_at', cursor);
-
-      const { data } = await query;
-      const batch = data ?? [];
+      const batch =
+        (await this.#fetchMessagePage(conversationId, {
+          limit,
+          ...(cursor ? { before: cursor } : {}),
+        })) ?? [];
       // A short read from the database itself is the real end of the thread.
       if (batch.length === 0) break;
 

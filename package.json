@@ -55,6 +55,7 @@
     "verify:shared-media": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-shared-media.ts",
     "verify:unfurl": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-unfurl.ts",
     "verify:device-label": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-device-label.ts",
+    "verify:egress": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-egress.ts",
     "verify:picked-media": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-picked-media.ts"
   },
   "devDependencies": {

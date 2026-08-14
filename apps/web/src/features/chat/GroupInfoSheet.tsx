@@ -17,6 +17,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { useT } from '../i18n/useT.js';
 import { useBackStep } from '../navigation/useBackStep.js';
+import { IMMUTABLE_CACHE_SECONDS, shrinkToAvatar } from '../profile/avatar-image.js';
 import { useMutuals } from '../profile/useMutuals.js';
 
 /**
@@ -146,19 +147,27 @@ export function GroupInfoSheet({
 
   const uploadImage = async (file: File, kind: 'avatar' | 'cover') => {
     if (!currentUser) return undefined;
+    /*
+     * A group's face is drawn at the same size as anybody else's, so it is
+     * shrunk by the same rule - see `avatar-image.ts`. The cover is wider on
+     * screen and deliberately left alone.
+     */
+    const prepared = kind === 'avatar' ? await shrinkToAvatar(file) : file;
     const ext =
-      file.type === 'image/png'
+      prepared.type === 'image/png'
         ? 'png'
-        : file.type === 'image/webp'
+        : prepared.type === 'image/webp'
           ? 'webp'
-          : file.type === 'image/gif'
+          : prepared.type === 'image/gif'
             ? 'gif'
             : 'jpg';
     const path = `${currentUser.id}/groups/${conversation.id}/${kind}-${crypto.randomUUID()}.${ext}`;
     const client = getSupabaseClient();
-    const { error: upErr } = await client.storage.from('avatars').upload(path, file, {
-      contentType: file.type || 'image/jpeg',
+    const { error: upErr } = await client.storage.from('avatars').upload(path, prepared, {
+      contentType: prepared.type || 'image/jpeg',
       upsert: false,
+      // The path carries a uuid, so these bytes can never change.
+      cacheControl: IMMUTABLE_CACHE_SECONDS,
     });
     if (upErr) throw new Error(upErr.message || 'Upload failed');
     return client.storage.from('avatars').getPublicUrl(path).data.publicUrl;
