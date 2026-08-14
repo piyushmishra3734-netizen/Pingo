@@ -31,7 +31,17 @@ export function BackupScreen() {
   const client = useMemo(() => getSupabaseClient(), []);
   const targets = useMemo(() => [new ServerBackupTarget(client)], [client]);
 
-  const done = () => navigate('/setup/people', { replace: true });
+  /*
+   * Straight into the app. Backup is the last thing setup asks.
+   *
+   * There used to be one more screen after this, which listed nine accounts
+   * already on PINGO - real names and real handles - to somebody who had
+   * finished signing up thirty seconds earlier. Nobody on that list had agreed
+   * to be shown to strangers, and being new is not a reason to be handed a
+   * directory of other people. It is gone; the way to find somebody is to
+   * search for them.
+   */
+  const done = () => navigate('/chats', { replace: true });
 
   /*
    * The passkey prompt shows a name, and at this point in setup the profile

@@ -256,14 +256,16 @@ export interface ProfileService {
   /** Stores the image and returns its URL. Does not attach it to the profile. */
   uploadAvatar(file: Blob): Promise<string>;
 
-  /**
-   * Other people on PINGO, newest first.
+  /*
+   * `listRecentPeople` was here: everybody else on PINGO, newest first. It fed
+   * one screen at the end of setup that showed a new account nine real names
+   * and handles.
    *
-   * Not contact matching - the web has no address-book API, so this cannot be
-   * "friends from your contacts". It is the honest version: people who are
-   * already here.
+   * It is gone rather than left unused, because the shape of it is the problem
+   * - a method that returns strangers by recency is a directory, and none of
+   * those people agreed to be in one. Finding somebody is `search`, which
+   * answers a name that was already known.
    */
-  listRecentPeople(limit?: number): Promise<Profile[]>;
 
   // -- follows -------------------------------------------------------------
 

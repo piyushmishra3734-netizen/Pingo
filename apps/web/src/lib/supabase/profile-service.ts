@@ -347,20 +347,6 @@ export class SupabaseProfileService implements ProfileService {
     return data.publicUrl;
   }
 
-  async listRecentPeople(limit = 12): Promise<Profile[]> {
-    const userId = await this.requireUserId();
-
-    const { data, error } = await this.client
-      .from('profiles')
-      .select('*')
-      .neq('id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (error) rethrow(error);
-    return (data ?? []).map(toProfile);
-  }
-
   // -- follows -------------------------------------------------------------
 
   /**
