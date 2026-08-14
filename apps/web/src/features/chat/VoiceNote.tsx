@@ -36,6 +36,25 @@ export interface VoiceNoteProps {
 
 const TICK_MS = 40;
 
+const RATES = [1, 1.5, 2] as const;
+const RATE_KEY = 'pingo.voice.rate';
+
+/**
+ * The speed the last note was played at.
+ *
+ * Somebody who speeds up one long voice note wants the next one sped up too,
+ * so the choice belongs to the person, not to the bubble. Kept in
+ * `localStorage` rather than settings because nobody goes looking for it there.
+ */
+function storedRate(): number {
+  const saved = Number(localStorage.getItem(RATE_KEY));
+  return RATES.includes(saved as (typeof RATES)[number]) ? saved : 1;
+}
+
+function nextRate(current: number): number {
+  return RATES[(RATES.indexOf(current as (typeof RATES)[number]) + 1) % RATES.length] ?? 1;
+}
+
 /**
  * Every mounted player, so starting one can stop the rest.
  *
@@ -64,6 +83,8 @@ export function VoiceNote({
   const [elapsed, setElapsed] = useState(0);
   const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Lazy initialiser: read the stored choice once, not on every playback tick.
+  const [rate, setRate] = useState(storedRate);
   const outgoing = tone === 'outgoing';
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -267,7 +288,7 @@ export function VoiceNote({
     const id = setInterval(() => {
       const wa = webAudioRef.current;
       if (!wa) return;
-      const t = wa.offset + (wa.context.currentTime - wa.startedAt);
+      const t = wa.offset + (wa.context.currentTime - wa.startedAt) * rate;
       if (t >= duration && duration > 0) {
         setElapsed(0);
         setPlaying(false);
@@ -277,7 +298,24 @@ export function VoiceNote({
       }
     }, TICK_MS);
     return () => clearInterval(id);
-  }, [playing, duration, stopWebAudio]);
+  }, [playing, duration, rate, stopWebAudio]);
+
+  /**
+   * Speed, on whichever engine is playing.
+   *
+   * Web Audio counts progress off the context clock, so a rate change has to
+   * re-anchor the sum or every tick after it is measured at the old speed.
+   */
+  useEffect(() => {
+    localStorage.setItem(RATE_KEY, String(rate));
+    if (audioRef.current) audioRef.current.playbackRate = rate;
+    const wa = webAudioRef.current;
+    if (wa) {
+      wa.offset = elapsedRef.current;
+      wa.startedAt = wa.context.currentTime;
+      wa.source.playbackRate.value = rate;
+    }
+  }, [rate]);
 
   const stopOthers = () => {
     for (const stop of mountedPlayers) {
@@ -296,6 +334,7 @@ export function VoiceNote({
       const buffer = await context.decodeAudioData(copy.slice(0));
       const source = context.createBufferSource();
       source.buffer = buffer;
+      source.playbackRate.value = rate;
       source.connect(context.destination);
       const offset = Math.max(0, Math.min(from, buffer.duration - 0.01));
       source.start(0, offset);
@@ -353,6 +392,7 @@ export function VoiceNote({
         }
         audio.volume = 1;
         audio.muted = false;
+        audio.playbackRate = rate;
         try {
           await audio.play();
           setPlaying(true);
@@ -433,6 +473,7 @@ export function VoiceNote({
           if (Number.isFinite(real) && real > 0) setDuration(real);
           event.currentTarget.volume = 1;
           event.currentTarget.muted = false;
+          event.currentTarget.playbackRate = rate;
         }}
         onError={() => {
           // Do not hard-fail — toggle will try Web Audio / re-sign.
@@ -532,6 +573,20 @@ export function VoiceNote({
             ? '…'
             : formatDuration(playing || elapsed > 0 ? elapsed : duration)}
       </span>
+      {(playing || rate !== 1) && !loadError && (
+        <button
+          type="button"
+          onClick={() => setRate(nextRate(rate))}
+          aria-label={`Playback speed ${rate}×, tap to change`}
+          className={cn(
+            'focus-ring shrink-0 rounded-full px-1.5 py-0.5 text-caption tabular-nums',
+            'transition-colors duration-instant ease-standard',
+            outgoing ? 'bg-white/20 text-white' : 'bg-surface-2 text-text-secondary',
+          )}
+        >
+          {rate}×
+        </button>
+      )}
       {/* Silence dead-code warning for hasAudio in future a11y. */}
       <span className="sr-only">{hasAudio ? 'has audio' : 'no audio'}</span>
     </div>

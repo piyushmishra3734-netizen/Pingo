@@ -50,6 +50,8 @@ export interface ConversationMenuProps {
    * with the reaction bar.
    */
   onSelectMessages?: () => void;
+  /** Turns the header into a search over this thread. */
+  onSearchMessages?: () => void;
 }
 
 export function ConversationMenu({
@@ -58,6 +60,7 @@ export function ConversationMenu({
   callBlockedReason,
   onAiSettings,
   onSelectMessages,
+  onSearchMessages,
 }: ConversationMenuProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -221,6 +224,9 @@ export function ConversationMenu({
             }}
           />
 
+          {onSearchMessages && (
+            <Item label={t('menu.searchMessages')} onSelect={() => run(onSearchMessages())} />
+          )}
           {onSelectMessages && (
             <Item label={t('menu.selectMessages')} onSelect={() => run(onSelectMessages())} />
           )}

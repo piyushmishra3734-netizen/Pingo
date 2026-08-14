@@ -73,6 +73,7 @@ import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
+import { ThreadSearchBar } from './ThreadSearchBar.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
 
 /**
@@ -216,6 +217,9 @@ export function ChatThread({
    */
   const [selection, setSelection] = useState<Set<string> | undefined>();
 
+  /** Whether the header is currently a search over this thread. */
+  const [searching, setSearching] = useState(false);
+
   const toggleSelected = (id: string) =>
     setSelection((current) => {
       if (!current) return current;
@@ -227,7 +231,10 @@ export function ChatThread({
 
   // Leaving the thread, or the conversation changing underneath it, ends the
   // selection - ids from one conversation mean nothing in another.
-  useEffect(() => setSelection(undefined), [conversation.id]);
+  useEffect(() => {
+    setSelection(undefined);
+    setSearching(false);
+  }, [conversation.id]);
 
   /*
    * Selecting messages is a mode the thread is in, and replying is a state the
@@ -236,6 +243,7 @@ export function ChatThread({
    * every other app that has a selection mode.
    */
   useBackStep(selection !== undefined, () => setSelection(undefined));
+  useBackStep(searching, () => setSearching(false));
   useBackStep(replyTo !== undefined, () => setReplyTo(undefined));
 
   /**
@@ -960,6 +968,20 @@ export function ChatThread({
             })();
           }}
         />
+      ) : searching ? (
+        /*
+          Search takes the header the same way selection does. Both are things
+          you are doing to this conversation, and only one of them can be
+          happening at a time.
+        */
+        <ThreadSearchBar
+          messages={messages}
+          onJump={jumpTo}
+          onClose={() => setSearching(false)}
+          hasOlder={hasOlder}
+          loadingOlder={loadingOlder}
+          onLoadOlder={() => void loadOlder()}
+        />
       ) : (
         <>
         {showBack && (
@@ -1104,6 +1126,7 @@ export function ChatThread({
             {...(callBlockedReason && !isAi ? { callBlockedReason } : {})}
             {...(isAi ? { onAiSettings: () => setAiProfileOpen(true) } : {})}
             onSelectMessages={() => setSelection(new Set())}
+            onSearchMessages={() => setSearching(true)}
           />
         </div>
         </>

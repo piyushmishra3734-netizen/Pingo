@@ -50,7 +50,8 @@
     "verify:streak": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-streak.ts",
     "verify:passkey-lock": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-passkey-lock.ts",
     "verify:drive-owner": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-drive-owner.ts",
-    "verify:local-first": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-local-first.ts"
+    "verify:local-first": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-local-first.ts",
+    "verify:thread-search": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-thread-search.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
