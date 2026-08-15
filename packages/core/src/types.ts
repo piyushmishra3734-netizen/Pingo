@@ -262,8 +262,22 @@ export interface CallLogRef {
   outcome: CallOutcome;
   /** Seconds. Zero unless it was answered. */
   durationSeconds: number;
-  /** Who was rung. The message's author is whoever rang them. */
-  calleeId: UserId;
+  /**
+   * Who was rung. The message's author is whoever rang them.
+   *
+   * Absent on a group call, which has no single callee - the conversation is
+   * the room and everyone in it was rung. A record without one is how the
+   * history and the bubble tell the two apart.
+   */
+  calleeId?: UserId;
+  /**
+   * The call this entry describes, while it is still happening.
+   *
+   * Present only on a group call, and only until it ends. It is what a member
+   * who was away - or who declined and changed their mind - taps to join, and
+   * clearing it is what turns the invitation back into history.
+   */
+  callId?: string;
 }
 
 export interface LocationRef {
@@ -523,7 +537,16 @@ export type CallOutcome =
   | 'missed'
   | 'declined'
   | 'cancelled'
-  | 'unreachable';
+  | 'unreachable'
+  /**
+   * A group call that is happening right now.
+   *
+   * The only outcome that is not an outcome, and the only one that changes: a
+   * room is logged when it opens so the thread can offer a way in, and the same
+   * entry is edited into real history when it empties. A direct call never has
+   * it - there is nobody to join who is not already ringing.
+   */
+  | 'ongoing';
 
 export interface CallRecord {
   id: string;

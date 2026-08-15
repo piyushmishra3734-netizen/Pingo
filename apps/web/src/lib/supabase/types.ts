@@ -492,6 +492,14 @@ export type Database = {
            * so it may replace the envelope too. */
           encryption?: string | null;
           envelope?: MessageRow['envelope'];
+          /**
+           * A live group-call entry becoming history.
+           *
+           * `meta` is plaintext structured data the sending client wrote, so
+           * rewriting it is not an edit to anybody's message text - see
+           * `endCallLog`.
+           */
+          meta?: Record<string, unknown> | null;
         };
         Relationships: [];
       };

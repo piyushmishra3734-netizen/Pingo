@@ -27,7 +27,7 @@ import { useT } from '../features/i18n/useT.js';
  */
 export function CallsScreen() {
   const t = useT();
-  const { service, users } = useChat();
+  const { service, users, conversations } = useChat();
   const { startCall } = useCall();
   const [calls, setCalls] = useState<CallRecord[] | undefined>();
 
@@ -60,7 +60,19 @@ export function CallsScreen() {
               const other = call.withUserId
                 ? users.find((u) => u.id === call.withUserId)
                 : undefined;
-              const title = other?.name ?? 'Design Team';
+              /*
+               * A record with nobody on the other end is a group call - see
+               * `CallLogRef.calleeId`, which a room has no value for.
+               *
+               * This used to read `other?.name ?? 'Design Team'`, a fixture
+               * name left in from the mock. Every group call in the history was
+               * therefore attributed to a team that does not exist, and there
+               * was no way to tell which room it had actually been.
+               */
+              const room = call.withUserId
+                ? undefined
+                : conversations.find((c) => c.id === call.conversationId);
+              const title = other?.name ?? room?.title ?? 'Group call';
               const missed = call.outcome === 'missed';
 
               return (
@@ -71,9 +83,15 @@ export function CallsScreen() {
                     'transition-colors duration-instant ease-standard hover:bg-hover',
                   )}
                 >
+                  {/*
+                    `src` was missing, so every row in the call history drew
+                    initials - the one screen in the app where a face was never
+                    shown, on a list entirely made of people.
+                  */}
                   <Avatar
                     name={title}
                     id={other?.id ?? call.conversationId ?? call.id}
+                    src={other?.avatarUrl ?? room?.avatarUrl}
                     size="md"
                     presence={other?.presence.state === 'online' ? 'online' : undefined}
                   />
@@ -120,7 +138,12 @@ export function CallsScreen() {
                               ? 'Cancelled'
                               : call.outcome === 'unreachable'
                                 ? 'Not connected'
-                                : formatDuration(call.duration)}
+                                : // A room still open has no duration yet, and
+                                  // `formatDuration(0)` would read as a call
+                                  // that was answered and lasted no time.
+                                  call.outcome === 'ongoing'
+                                  ? 'Happening now'
+                                  : formatDuration(call.duration)}
                       </span>
                       <span className="text-text-tertiary">·</span>
                       <span className="text-text-tertiary">

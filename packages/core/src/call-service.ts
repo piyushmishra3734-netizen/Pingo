@@ -218,6 +218,21 @@ export interface CallService {
     options?: CallServiceOptions,
   ): Promise<Call>;
   answer(callId: string, options?: CallServiceOptions): Promise<void>;
+
+  /**
+   * Walks into a group call already in progress.
+   *
+   * For somebody with no ring to answer - they declined, they were away, or
+   * they joined the group after it started - who tapped the call in the thread.
+   */
+  joinGroupCall?(
+    callId: string,
+    conversationId: string,
+    title: string,
+    memberIds: string[],
+    kind?: CallKind,
+    options?: CallServiceOptions,
+  ): Promise<void>;
   decline(callId: string): Promise<void>;
   hangUp(callId: string): Promise<void>;
 

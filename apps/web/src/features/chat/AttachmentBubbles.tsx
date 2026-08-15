@@ -8,6 +8,7 @@ import {
 } from '@pingo/core';
 import { Avatar, ChevronRightIcon, PhoneIcon, VideoIcon, cn } from '@pingo/ui';
 import { Link } from 'react-router-dom';
+import { isLiveCall } from '../calls/call-log-rules.js';
 
 /**
  * Cards for the three attachment kinds that carry no file.
@@ -215,11 +216,60 @@ export function CallBubble({
   call,
   mine,
   outgoing,
+  onJoin,
 }: {
   call: CallLogRef;
   mine: boolean;
   outgoing: boolean;
+  /** Offered only while a group call is live. See `CallLogRef.callId`. */
+  onJoin?: () => void;
 }) {
+  /*
+   * A room that is still open is an invitation, not a record.
+   *
+   * It is the same row either way - written when the call starts and edited
+   * when it ends - so this is the one branch that decides whether somebody
+   * reading the thread is being told what happened or being offered a way in.
+   */
+  const live = isLiveCall(call);
+
+  if (live) {
+    return (
+      <button
+        type="button"
+        onClick={onJoin}
+        disabled={!onJoin}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left',
+          'focus-ring transition-transform duration-instant active:scale-[0.99]',
+          'bg-brand-gradient text-on-brand shadow-brand disabled:opacity-70',
+        )}
+      >
+        <span
+          aria-hidden
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-white/20"
+        >
+          {call.callKind === 'video' ? <VideoIcon size={17} /> : <PhoneIcon size={17} />}
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-body font-medium">
+            {call.callKind === 'video' ? 'Video call' : 'Voice call'}
+          </span>
+          {/*
+            The pulse is the only thing on this bubble that says "now". A
+            timestamp would be read as when it started and answer the wrong
+            question; what matters is that it has not finished.
+          */}
+          <span className="flex items-center gap-1.5 text-caption text-white/85">
+            <span className="inline-block size-1.5 animate-pulse rounded-full bg-white" />
+            Tap to join
+          </span>
+        </span>
+      </button>
+    );
+  }
+
   const missed = call.outcome !== 'answered';
 
   const label =

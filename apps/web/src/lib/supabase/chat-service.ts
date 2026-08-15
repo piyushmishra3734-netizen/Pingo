@@ -73,6 +73,7 @@ import {
 } from '../crypto/session.js';
 import { deviceIdentity } from '../crypto/keys.js';
 import { shouldTrustCache } from '../egress-rules.js';
+import { callRecordFrom } from '../../features/calls/call-log-rules.js';
 import {
   STORE,
   extendRun,
@@ -4365,45 +4366,73 @@ export class SupabaseChatService implements ChatService {
       const meta = row.meta as unknown as Message['call'];
       if (!meta) return [];
 
-      // The author rang; everyone else was rung.
-      const outgoing = row.sender_id === me;
-      return [
-        {
-          id: row.id,
-          kind: meta.callKind,
-          direction: outgoing ? ('outgoing' as const) : ('incoming' as const),
-          outcome: meta.outcome,
-          withUserId: outgoing ? meta.calleeId : row.sender_id,
-          conversationId: row.conversation_id,
-          startedAt: Date.parse(row.created_at),
-          duration: meta.durationSeconds,
-        },
-      ];
+      // A room has no single other party, and that is how it is recognised -
+      // see `callRecordFrom`, which the history screen and this share.
+      return [callRecordFrom(row, meta, me)];
     });
   }
 
   async logCall(entry: {
     conversationId: string;
-    calleeId: string;
+    calleeId?: string;
     callKind: 'voice' | 'video';
     outcome: CallOutcome;
     durationSeconds: number;
-  }): Promise<void> {
+    callId?: string;
+  }): Promise<Message> {
     /*
      * Sent as an ordinary message, so it lands in the thread, reaches the other
      * end over realtime, and updates the conversation list - all the machinery
      * a call log needs already exists for messages.
      */
-    await this.sendMessage({
+    return this.sendMessage({
       conversationId: entry.conversationId,
       body: '',
       call: {
         callKind: entry.callKind,
         outcome: entry.outcome,
         durationSeconds: entry.durationSeconds,
-        calleeId: entry.calleeId,
+        ...(entry.calleeId ? { calleeId: entry.calleeId } : {}),
+        ...(entry.callId ? { callId: entry.callId } : {}),
       },
     });
+  }
+
+  /**
+   * Turns a live group-call entry into history.
+   *
+   * The same row, edited. A second message would put two calls in the thread
+   * for one, and the first would go on offering to join a room that emptied an
+   * hour ago - which is worse than no entry at all, because it is an invitation
+   * that leads nowhere.
+   *
+   * `meta` is rewritten whole rather than merged: it is this client's own
+   * shape, written by `logCall` moments earlier, so there is nothing of anybody
+   * else's in it to preserve. Dropping `callId` is what ends the offer.
+   */
+  async endCallLog(
+    messageId: string,
+    entry: { outcome: CallOutcome; durationSeconds: number },
+  ): Promise<void> {
+    const { data } = await this.#client
+      .from('messages')
+      .select('meta')
+      .eq('id', messageId)
+      .maybeSingle();
+
+    const before = (data?.meta ?? {}) as Record<string, unknown>;
+
+    await this.#client
+      .from('messages')
+      .update({
+        meta: {
+          callKind: before['callKind'] ?? 'voice',
+          outcome: entry.outcome,
+          durationSeconds: entry.durationSeconds,
+          ...(before['calleeId'] ? { calleeId: before['calleeId'] } : {}),
+        },
+      })
+      .eq('id', messageId);
   }
 
   /** No gallery table. */

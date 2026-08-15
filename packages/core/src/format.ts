@@ -161,9 +161,13 @@ export function messagePreview(
   if (!text && message.call) {
     const kind = message.call.callKind === 'video' ? 'Video' : 'Voice';
     text =
-      message.call.outcome === 'answered'
-        ? `${kind} call`
-        : `Missed ${kind.toLowerCase()} call`;
+      // A room that is still open is the one call worth interrupting the list
+      // for. "Missed" would be the exact opposite of what is true.
+      message.call.outcome === 'ongoing'
+        ? `${kind} call · now`
+        : message.call.outcome === 'answered'
+          ? `${kind} call`
+          : `Missed ${kind.toLowerCase()} call`;
   }
   if (!text) {
     const attachment = message.attachments[0];

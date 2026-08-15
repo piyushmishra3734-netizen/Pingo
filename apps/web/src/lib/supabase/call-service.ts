@@ -1042,6 +1042,56 @@ export class SupabaseCallService implements CallService {
    * has answered - we cannot know the latter, and that is precisely the thing
    * being discovered.
    */
+  /**
+   * Walks into a group call already in progress.
+   *
+   * ## Why this is not `answer`
+   *
+   * `answer` finishes a ring this device is already holding. Somebody tapping a
+   * call in the thread has no ring: they declined it, or they were away, or
+   * they joined the group after it started. There is nothing to answer, so the
+   * call is constructed here and then announced exactly as an answered ring
+   * would be - `#answerGroup` is shared, so a joiner and an answerer reach the
+   * room by the same path and cannot drift apart.
+   *
+   * ## The roster is the whole group
+   *
+   * A joiner cannot know who is actually in the room - that is what `here`
+   * replies are for. So `join` goes to every member, and the ones who are not
+   * in the call drop it on the floor: the handler ignores a `join` whose
+   * `callId` it does not recognise. Broadcasting to a few extra people is a
+   * signalling message each; asking a server who is in the room would be a
+   * table, a policy and a source of truth to keep honest.
+   */
+  async joinGroupCall(
+    callId: string,
+    conversationId: string,
+    title: string,
+    memberIds: string[],
+    kind: CallKind = 'voice',
+    options?: CallServiceOptions,
+  ): Promise<void> {
+    await this.connect();
+    if (this.#call) return;
+
+    const others = memberIds.filter((id) => id !== this.#userId);
+
+    this.#call = {
+      id: callId,
+      peer: { userId: conversationId, name: title },
+      conversationId,
+      direction: 'incoming',
+      kind,
+      state: 'connecting',
+      muted: false,
+      cameraOff: kind === 'voice' || Boolean(options?.cameraOff),
+      participants: others.map((userId) => ({ userId, state: 'ringing' as const })),
+    };
+    this.#emit({ type: 'call:updated', call: this.#call });
+
+    await this.#answerGroup(callId, options);
+  }
+
   async #answerGroup(callId: string, options?: CallServiceOptions): Promise<void> {
     if (!this.#call?.participants) return;
 

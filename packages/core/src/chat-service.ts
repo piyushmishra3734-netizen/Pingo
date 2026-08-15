@@ -152,7 +152,10 @@ export interface OutgoingMessage {
     callKind: 'voice' | 'video';
     outcome: CallOutcome;
     durationSeconds: number;
-    calleeId: string;
+    /** Absent on a group call - see `CallLogRef.calleeId`. */
+    calleeId?: string;
+    /** Set while a group call is live, so the thread can offer to join it. */
+    callId?: string;
   };
 
   /**
@@ -655,11 +658,26 @@ export interface ChatService {
    */
   logCall(entry: {
     conversationId: ConversationId;
-    calleeId: UserId;
+    /** Absent on a group call, which has no single callee. */
+    calleeId?: UserId;
     callKind: 'voice' | 'video';
     outcome: CallOutcome;
     durationSeconds: number;
-  }): Promise<void>;
+    /** Set while a group call is live, so the thread can offer to join it. */
+    callId?: string;
+  }): Promise<Message>;
+
+  /**
+   * Turns a live group-call entry into history.
+   *
+   * The same message, edited rather than replaced: a second row would put two
+   * calls in the thread for one, and the first would go on offering to join a
+   * room that emptied an hour ago.
+   */
+  endCallLog(
+    messageId: MessageId,
+    entry: { outcome: CallOutcome; durationSeconds: number },
+  ): Promise<void>;
   listGallery(userId: UserId): Promise<GalleryItem[]>;
   listMoments(): Promise<Moment[]>;
 

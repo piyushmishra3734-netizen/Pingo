@@ -63,6 +63,13 @@ export interface MessageBubbleProps {
    * opening the context menu, docs/13 § 4.5.
    */
   trigger?: Record<string, unknown>;
+  /**
+   * Joins the group call this bubble describes, while it is still running.
+   *
+   * Passed in rather than reached for here: the bubble is presentational, and
+   * the thread is what knows which conversation and which members.
+   */
+  onJoinCall?: () => void;
   /** Reactions, rendered beneath. Passed in so the bubble stays presentational. */
   reactions?: React.ReactNode;
   /**
@@ -146,6 +153,7 @@ export function MessageBubble({
   showMeta,
   authorName,
   trigger,
+  onJoinCall,
   reactions,
   replyTo,
   replyToAuthor,
@@ -292,7 +300,14 @@ export function MessageBubble({
           {message.location && <LocationBubble location={message.location} mine={mine} />}
           {message.contact && <ContactBubble contact={message.contact} mine={mine} />}
           {message.event && <EventBubble event={message.event} mine={mine} />}
-          {message.call && <CallBubble call={message.call} mine={mine} outgoing={mine} />}
+          {message.call && (
+            <CallBubble
+              call={message.call}
+              mine={mine}
+              outgoing={mine}
+              {...(onJoinCall ? { onJoin: onJoinCall } : {})}
+            />
+          )}
           {showMeta && (
             <span className="mt-1 block text-caption text-text-tertiary">
               {formatTime(message.createdAt)}

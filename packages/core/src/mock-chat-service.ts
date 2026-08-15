@@ -886,22 +886,55 @@ export class MockChatService implements ChatService {
 
   async logCall(entry: {
     conversationId: ConversationId;
-    calleeId: UserId;
+    calleeId?: UserId;
     callKind: 'voice' | 'video';
     outcome: CallOutcome;
     durationSeconds: number;
-  }): Promise<void> {
+    callId?: string;
+  }): Promise<Message> {
     this.#loggedCalls.unshift({
       id: `call-${this.#loggedCalls.length + 1}`,
       kind: entry.callKind,
       // The mock only ever places calls, never receives them.
       direction: 'outgoing',
       outcome: entry.outcome,
-      withUserId: entry.calleeId,
+      // Absent on a group call, which is what the history reads to tell a room
+      // from a person.
+      ...(entry.calleeId ? { withUserId: entry.calleeId } : {}),
       conversationId: entry.conversationId,
       startedAt: Date.now(),
       duration: entry.durationSeconds,
     });
+
+    return this.sendMessage({
+      conversationId: entry.conversationId,
+      body: '',
+      call: {
+        callKind: entry.callKind,
+        outcome: entry.outcome,
+        durationSeconds: entry.durationSeconds,
+        ...(entry.calleeId ? { calleeId: entry.calleeId } : {}),
+        ...(entry.callId ? { callId: entry.callId } : {}),
+      },
+    });
+  }
+
+  /** The fixture keeps no live calls, so ending one is only the record. */
+  async endCallLog(
+    messageId: MessageId,
+    entry: { outcome: CallOutcome; durationSeconds: number },
+  ): Promise<void> {
+    const message = Object.values(this.#messages)
+      .flat()
+      .find((m) => m.id === messageId);
+    if (message?.call) {
+      message.call = {
+        ...message.call,
+        outcome: entry.outcome,
+        durationSeconds: entry.durationSeconds,
+      };
+      delete message.call.callId;
+    }
   }
 
   async listGallery(userId: UserId): Promise<GalleryItem[]> {

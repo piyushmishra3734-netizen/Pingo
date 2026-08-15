@@ -188,7 +188,7 @@ export function ChatThread({
     send,
     sendSticker,
   } = useMessages(conversation.id);
-  const { startCall, startGroupCall } = useCall();
+  const { startCall, startGroupCall, joinGroupCall, call: activeCall } = useCall();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
   /** Pictures chosen but not yet sent - the composer owns them until then. */
@@ -1269,6 +1269,27 @@ export function ChatThread({
                     replyToAuthor: message.replyToId
                       ? nameOf(byId.get(message.replyToId)?.authorId ?? '')
                       : undefined,
+                    /*
+                     * Tapping a call that is still running walks into it.
+                     *
+                     * Offered only while the entry carries a `callId`, which is
+                     * what `endCallLog` clears when the room empties - so a
+                     * finished call is a record and cannot be tapped into a
+                     * room that is not there. Absent while already on a call,
+                     * because joining the one you are in is not a thing.
+                     */
+                    ...(message.call?.callId && !activeCall
+                      ? {
+                          onJoinCall: () =>
+                            void joinGroupCall(
+                              message.call!.callId!,
+                              conversation.id,
+                              conversation.title,
+                              conversation.participantIds,
+                              message.call!.callKind,
+                            ),
+                        }
+                      : {}),
                   };
 
                   const withGroupChrome = (node: ReactNode) =>

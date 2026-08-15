@@ -42,7 +42,43 @@ export function useCallLog(call: Call | undefined): void {
   /** The last live snapshot, so the ending can be described after it. */
   const last = useRef<Call | undefined>(undefined);
 
+  /**
+   * The group entry written when the room opened, waiting to be finalised.
+   *
+   * A group call is logged at both ends of its life rather than only at the
+   * end, and the reason is the thread: a room nobody has been told about is a
+   * room nobody joins. The entry goes in when the call starts, carrying the
+   * call id so anyone in the group can tap it and arrive; when the room empties
+   * the same row is edited into ordinary history.
+   *
+   * A direct call keeps the old behaviour. There is nothing to join - the one
+   * person who could is already ringing - so an entry before the end would only
+   * be a duplicate.
+   */
+  const liveEntry = useRef<string | undefined>(undefined);
+
   useEffect(() => {
+    const isGroup = Boolean(call?.participants && call.conversationId);
+
+    if (call && isGroup && call.direction === 'outgoing' && !liveEntry.current) {
+      liveEntry.current = 'pending';
+      void service
+        .logCall({
+          conversationId: call.conversationId!,
+          callKind: call.kind,
+          outcome: 'ongoing',
+          durationSeconds: 0,
+          callId: call.id,
+        })
+        .then((message) => {
+          liveEntry.current = message.id;
+        })
+        .catch(() => {
+          // No entry is better than a wrong one; the end still writes history.
+          liveEntry.current = undefined;
+        });
+    }
+
     if (call) {
       last.current = call;
       return;
@@ -52,6 +88,33 @@ export function useCallLog(call: Call | undefined): void {
     last.current = undefined;
     if (!ended || !currentUser) return;
     if (ended.direction !== 'outgoing') return;
+
+    const connectedSeconds = (from: Call) =>
+      from.connectedAt !== undefined
+        ? Math.max(1, Math.round((Date.now() - from.connectedAt) / 1000))
+        : 0;
+
+    /*
+     * A group call finishes the entry it opened.
+     *
+     * Edited rather than appended: the row is already in the thread and already
+     * on everyone's screen, and a second one would show the same call twice -
+     * the first still inviting people into a room that has emptied.
+     */
+    if (ended.participants && ended.conversationId) {
+      const messageId = liveEntry.current;
+      liveEntry.current = undefined;
+      if (!messageId || messageId === 'pending') return;
+
+      const answered = ended.connectedAt !== undefined;
+      void service
+        .endCallLog(messageId, {
+          outcome: answered ? 'answered' : (OUTCOME[ended.endReason ?? ''] ?? 'unreachable'),
+          durationSeconds: connectedSeconds(ended),
+        })
+        .catch(() => undefined);
+      return;
+    }
 
     /*
      * The thread this call belongs to.

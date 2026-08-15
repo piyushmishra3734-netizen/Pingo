@@ -45,6 +45,19 @@ interface CallContextValue {
     participantIds: string[],
     kind?: CallKind,
   ) => Promise<void>;
+  /**
+   * Walks into a group call already running.
+   *
+   * For somebody with no ring to answer - they declined, they were away, or
+   * they joined the group after it started - who tapped the call in the thread.
+   */
+  joinGroupCall: (
+    callId: string,
+    conversationId: string,
+    title: string,
+    memberIds: string[],
+    kind?: CallKind,
+  ) => Promise<void>;
   answer: () => Promise<void>;
   decline: () => Promise<void>;
   hangUp: () => Promise<void>;
@@ -239,6 +252,37 @@ export function CallProvider({
           cameraOff: kind === 'video' && !cameraOnByDefault,
         });
         setCall({ ...started, peer: { ...started.peer, name: title } });
+      } catch (cause) {
+        setError(mediaMessage(cause));
+      }
+    },
+    [service, noiseSuppression, echoCancellation, hdAudio, hdVideo, cameraOnByDefault],
+  );
+
+  /**
+   * Joins a group call that is already running.
+   *
+   * Kept beside `startGroupCall` because from the caller's side they are the
+   * same decision - be in this room - and only the service knows that one of
+   * them has to discover who is already there.
+   */
+  const joinGroupCall = useCallback(
+    async (
+      callId: string,
+      conversationId: string,
+      title: string,
+      memberIds: string[],
+      kind: CallKind = 'voice',
+    ) => {
+      setError(undefined);
+      try {
+        await service.joinGroupCall?.(callId, conversationId, title, memberIds, kind, {
+          noiseSuppression,
+          echoCancellation,
+          hdAudio,
+          hdVideo,
+          cameraOff: kind === 'video' && !cameraOnByDefault,
+        });
       } catch (cause) {
         setError(mediaMessage(cause));
       }
@@ -455,6 +499,7 @@ export function CallProvider({
       localStream,
       remoteStreams,
       startGroupCall,
+      joinGroupCall,
       error,
       dismissError,
       speaker,
