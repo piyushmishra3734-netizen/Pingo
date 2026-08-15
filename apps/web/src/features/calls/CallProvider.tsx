@@ -37,7 +37,12 @@ import { useSpeaker } from './useSpeaker.js';
 
 interface CallContextValue {
   call: Call | undefined;
-  startCall: (peerUserId: string, peerName: string, kind?: CallKind) => Promise<void>;
+  startCall: (
+    peerUserId: string,
+    peerName: string,
+    kind?: CallKind,
+    conversationId?: string,
+  ) => Promise<void>;
   /** Rings every member of a group at once. Friendship is not required. */
   startGroupCall: (
     conversationId: string,
@@ -204,7 +209,12 @@ export function CallProvider({
   }, [service, signedIn]);
 
   const startCall = useCallback(
-    async (peerUserId: string, peerName: string, kind: CallKind = 'voice') => {
+    async (
+      peerUserId: string,
+      peerName: string,
+      kind: CallKind = 'voice',
+      conversationId?: string,
+    ) => {
       setError(undefined);
       try {
         const started = await service.call(peerUserId, {
@@ -216,6 +226,14 @@ export function CallProvider({
           // Only meaningful on a video call, and only as a starting position  - 
           // the user can turn the camera on the moment they are connected.
           cameraOff: kind === 'video' && !cameraOnByDefault,
+          /*
+           * What authorises the room token, when the screen knows it.
+           *
+           * Absent from a call placed off a profile page, where there may be no
+           * conversation yet - such a call falls back to peer-to-peer rather
+           * than being refused. See `CallServiceOptions.conversationId`.
+           */
+          ...(conversationId ? { conversationId } : {}),
         });
         setCall({ ...started, peer: { ...started.peer, name: peerName } });
       } catch (cause) {

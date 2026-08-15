@@ -549,7 +549,8 @@ export function ChatThread({
       return;
     }
 
-    if (partner) void startCall(partner.id, partner.name, kind);
+    // The conversation authorises the room token - see `startCall`.
+    if (partner) void startCall(partner.id, partner.name, kind, conversation.id);
   };
 
   useEffect(() => {

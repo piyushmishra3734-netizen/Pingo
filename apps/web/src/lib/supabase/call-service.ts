@@ -12,6 +12,7 @@ import type {
 
 import { boostAudioSender, speechAudioConstraints } from '../audio/capture.js';
 import { resolveIceServers } from '../webrtc/ice-servers.js';
+import { CallRoom } from '../livekit/room.js';
 import { qualityReader } from '../webrtc/quality.js';
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
@@ -75,6 +76,15 @@ type SignalPayload =
       conversationId: string;
       /** Everyone rung, so a joiner learns the room without asking a server. */
       participants: string[];
+      /**
+       * A one-to-one call that happens to use a room.
+       *
+       * With LiveKit carrying the media there is no offer to ring with, so a
+       * direct call is announced by the same `invite` a group uses. Without
+       * this marker the receiving end would build it as a group - naming the
+       * conversation instead of the caller, and drawing a roster of two.
+       */
+      direct?: boolean;
     }
   /** "I have answered." Sent to everyone in the room. */
   | { kind: 'join'; callId: string; from: string }
@@ -145,6 +155,16 @@ export class SupabaseCallService implements CallService {
   #iceServers: RTCIceServer[] = [];
 
   #facing: 'user' | 'environment' = 'user';
+
+  /**
+   * The LiveKit room carrying this call's media, when one could be joined.
+   *
+   * Undefined means the mesh is carrying it instead - see `#joinRoom`. Both
+   * paths exist on purpose during the migration: LiveKit is the transport now,
+   * and the peer connections stay as the answer to 'what if the room cannot be
+   * reached', which is not a question worth finding out about mid-call.
+   */
+  #room: CallRoom | undefined;
 
   constructor(client: PingoSupabaseClient = getSupabaseClient()) {
     this.#client = client;
@@ -379,9 +399,17 @@ export class SupabaseCallService implements CallService {
 
         this.#call = {
           id: signal.callId,
-          // On a group call `peer` names the group, not a person. The UI fills
-          // in the title, the same way it fills in a caller's name.
-          peer: { userId: signal.conversationId, name: 'Group call' },
+          /*
+           * A group invite names the group; a direct one names the caller.
+           *
+           * On a group call `peer` is the room and the UI fills in its title,
+           * the same way it fills in a caller's name. A direct call carried by
+           * a room is still a call from a person, and saying "Group call" over
+           * one would be the transport leaking into what the screen says.
+           */
+          peer: signal.direct
+            ? { userId: signal.from, name: 'Incoming call' }
+            : { userId: signal.conversationId, name: 'Group call' },
           conversationId: signal.conversationId,
           direction: 'incoming',
           kind: signal.media ?? 'voice',
@@ -830,6 +858,59 @@ export class SupabaseCallService implements CallService {
 
   // -- public actions ------------------------------------------------------
 
+  /**
+   * Puts this call's media on LiveKit, or says it could not.
+   *
+   * Returns `true` when the room is carrying the call, in which case no peer
+   * connection is built and the mesh signals are never sent. Returns `false`
+   * for every failure - no token, no route, misconfiguration - and the caller
+   * falls through to the mesh exactly as before.
+   *
+   * That fallback is the whole reason both paths exist right now. Calling works
+   * today; a transport swap that cannot be tested with two real devices in two
+   * real places must not be able to take it away.
+   *
+   * `conversationId` is required because the token is authorised against
+   * conversation membership, which is what stops a signed-in stranger minting a
+   * pass into somebody else's room.
+   */
+  async #joinRoom(callId: string, conversationId: string | undefined): Promise<boolean> {
+    if (!conversationId || !this.#localStream) return false;
+
+    const room = new CallRoom({
+      onRemoteStream: (userId, stream) => {
+        this.#setParticipantState(userId, 'connected');
+        this.#emit({ type: 'call:remote-stream', userId, stream });
+        // A room that is carrying media is a call that has connected.
+        if (this.#call && this.#call.state !== 'connected') {
+          this.#clearRingTimeout();
+          this.#update({ state: 'connected', connectedAt: this.#call.connectedAt ?? Date.now() });
+        }
+      },
+      onRemoteGone: (userId) => {
+        this.#setParticipantState(userId, 'left');
+        this.#emit({ type: 'call:remote-stream-ended', userId });
+      },
+      onParticipantJoined: (userId) => this.#setParticipantState(userId, 'connecting'),
+      onReconnecting: () => this.#update({ state: 'reconnecting' }),
+      onReconnected: () => this.#update({ state: 'connected' }),
+      onDisconnected: () => {
+        // Only ends the call if the room was the thing carrying it.
+        if (this.#room) this.#teardown('failed');
+      },
+    });
+
+    try {
+      await room.join(callId, conversationId, this.#localStream);
+      this.#room = room;
+      return true;
+    } catch (cause) {
+      console.warn('[call] LiveKit unavailable, falling back to peer-to-peer', cause);
+      await room.leave().catch(() => undefined);
+      return false;
+    }
+  }
+
   async call(peerUserId: string, options?: CallServiceOptions): Promise<Call> {
     await this.connect();
 
@@ -869,22 +950,43 @@ export class SupabaseCallService implements CallService {
 
       this.#localStream = stream;
       this.#iceServers = iceServers;
-      const link = this.#link(peerUserId, callId);
 
       // Honours `cameraOff` before the first frame is ever sent, so starting
       // camera-off never leaks a moment of video.
       if (this.#call.cameraOff) this.#applyCameraOff(true);
 
-      const offer = await link.connection.createOffer();
-      await link.connection.setLocalDescription(offer);
+      /*
+       * The room first, the mesh only if there is no room.
+       *
+       * A direct call still rings over the same broadcast channel either way -
+       * LiveKit has no idea anybody's phone should light up. What changes is
+       * what the ring points at: a room to join, or an offer to answer.
+       */
+      const onRoom = await this.#joinRoom(callId, options?.conversationId);
 
-      await this.#send(peerUserId, {
-        kind: 'offer',
-        callId,
-        from: this.#userId!,
-        sdp: offer.sdp ?? '',
-        media: kind,
-      });
+      if (onRoom) {
+        await this.#send(peerUserId, {
+          kind: 'invite',
+          callId,
+          from: this.#userId!,
+          media: kind,
+          conversationId: options!.conversationId!,
+          participants: [this.#userId!, peerUserId],
+          direct: true,
+        });
+      } else {
+        const link = this.#link(peerUserId, callId);
+        const offer = await link.connection.createOffer();
+        await link.connection.setLocalDescription(offer);
+
+        await this.#send(peerUserId, {
+          kind: 'offer',
+          callId,
+          from: this.#userId!,
+          sdp: offer.sdp ?? '',
+          media: kind,
+        });
+      }
     } catch (cause) {
       this.#teardown('failed');
       throw cause;
@@ -1122,10 +1224,26 @@ export class SupabaseCallService implements CallService {
       }
 
       /*
+       * The room, if there is one to join.
+       *
+       * Joining it is the whole of answering when LiveKit carries the call: the
+       * discovery below exists to find peers to negotiate with, and an SFU has
+       * none to find. Everyone who joins the same room finds everyone else in
+       * it, which is the part a mesh had to be told.
+       */
+      if (await this.#joinRoom(callId, this.#call.conversationId)) {
+        this.#update({
+          state: 'connected',
+          connectedAt: this.#call.connectedAt ?? Date.now(),
+        });
+        return;
+      }
+
+      /*
        * Announced only once media is open.
        *
        * A `here` can come back within milliseconds and an offer straight after
-       * it, and `#link` attaches the local tracks as it builds the connection  - 
+       * it, and `#link` attaches the local tracks as it builds the connection  -
        * announcing first would race a leg into existence with nothing to send
        * down it, and that leg would be silent for the rest of the call.
        */
@@ -1219,12 +1337,23 @@ export class SupabaseCallService implements CallService {
     for (const track of this.#localStream?.getAudioTracks() ?? []) {
       track.enabled = !muted;
     }
+    /*
+     * And told to the room, which is not the same thing.
+     *
+     * Disabling the track already stops the audio - the published track is this
+     * one. What this adds is the *state*: LiveKit tells the other participants
+     * somebody is muted, so their screens can show it. Without it the audio
+     * stops and nobody is told why.
+     */
+    this.#room?.setMicrophoneEnabled(!muted);
     this.#update({ muted });
   }
 
   setCameraOff(callId: string, cameraOff: boolean): void {
     if (this.#call?.id !== callId || this.#call.kind !== 'video') return;
     this.#applyCameraOff(cameraOff);
+    // Same reason as mute: the track stops either way, this is what says so.
+    this.#room?.setCameraEnabled(!cameraOff);
     this.#update({ cameraOff });
   }
 
@@ -1271,11 +1400,21 @@ export class SupabaseCallService implements CallService {
     // un-mute a camera the user had deliberately turned off.
     track.enabled = !this.#call.cameraOff;
 
-    // Every leg. One sender per person, and a camera swap that reached only the
-    // first of them would leave the rest of the room watching the old lens.
-    await Promise.all(
-      [...this.#peers.values()].map((link) => link.videoSender?.replaceTrack(track)),
-    );
+    /*
+     * One republish, or one `replaceTrack` per leg.
+     *
+     * The room is the easy case: everybody subscribes to the same publication,
+     * so swapping it once reaches the whole call. The mesh below is the reason
+     * this used to be a loop - one sender per person, and a swap that reached
+     * only the first would leave the rest watching the old lens.
+     */
+    if (this.#room) {
+      await this.#room.replaceVideo(track);
+    } else {
+      await Promise.all(
+        [...this.#peers.values()].map((link) => link.videoSender?.replaceTrack(track)),
+      );
+    }
 
     for (const old of this.#localStream?.getVideoTracks() ?? []) {
       this.#localStream?.removeTrack(old);
@@ -1308,6 +1447,18 @@ export class SupabaseCallService implements CallService {
   #teardown(reason: CallEndReason): void {
     this.#clearRingTimeout();
     this.#closeOutbound();
+
+    /*
+     * Leave the room before the tracks are stopped.
+     *
+     * Cleared first so the room's own `Disconnected` event - which this
+     * disconnect causes - finds no room and does not tear the call down a
+     * second time. Not awaited: the call is over on this screen either way, and
+     * LiveKit closes the transport regardless.
+     */
+    const room = this.#room;
+    this.#room = undefined;
+    void room?.leave().catch(() => undefined);
 
     /*
      * Both sets, and `#rawTracks` is the one that matters.

@@ -183,6 +183,20 @@ export interface CallServiceOptions {
 
   /** Start a video call with the camera already off. */
   cameraOff?: boolean;
+
+  /**
+   * The conversation this call belongs to.
+   *
+   * Required by the LiveKit transport and not by the mesh, which is why it is
+   * optional. A room token is authorised against *membership of this
+   * conversation* - that is what stops a signed-in stranger minting a pass into
+   * somebody else's call - so without one there is nothing for the server to
+   * check and the call falls back to peer-to-peer.
+   *
+   * Screens that know the thread pass it. A call placed from a profile page,
+   * where no conversation may exist yet, cannot.
+   */
+  conversationId?: string;
 }
 
 export interface CallService {
