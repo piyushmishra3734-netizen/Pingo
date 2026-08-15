@@ -109,6 +109,15 @@ export function CallOverlay() {
   const name = known?.name ?? call.peer.name;
   const incoming = call.direction === 'incoming' && call.state === 'ringing';
   const video = call.kind === 'video';
+  /*
+   * Somebody is actually on the other end.
+   *
+   * The controls that need a second person - screen sharing, chat - wait for
+   * this. Before it there is only your own equipment to set up, and three
+   * switches is the whole of what a ringing phone should be asking you to
+   * think about.
+   */
+  const connected = call.state === 'connected' || call.state === 'reconnecting';
 
   /*
    * A group call shows a roster instead of one big face.
@@ -291,7 +300,12 @@ export function CallOverlay() {
 
       {/* The self-preview, from the moment the camera opens. */}
       {video && localStream && !incoming ? (
-        <LocalPreview stream={localStream} cameraOff={call.cameraOff} />
+        <LocalPreview
+          stream={localStream}
+          cameraOff={call.cameraOff}
+          onFlip={() => void switchCamera()}
+          flipLabel={t('call.switchCamera')}
+        />
       ) : null}
 
       {incoming ? (
@@ -320,28 +334,22 @@ export function CallOverlay() {
         </div>
       ) : (
         /*
-          Two pieces, not one row of seven identical circles.
+          Two rows: what you can switch, then the one thing you cannot undo.
 
-          The toggles are one object - a single glass bar - because they are one
-          kind of thing: reversible switches for your own media. Ending the call
-          is the only control on this screen that cannot be undone, so it sits
-          apart from them, larger, and in the one colour nothing else uses. The
-          old row gave the hang-up button exactly as much weight as "flip
-          camera", and put both of them in a line that ran off the side of a
-          narrow phone.
+          No container around the switches. They were in a glass bar, and a
+          translucent slab sitting over a moving picture is the one place that
+          material does not work - it takes its colour from whatever is behind
+          it, so the bar changed shade every time the other person moved. Solid
+          circles read the same against a face, a shared spreadsheet and the
+          plain page behind a voice call.
 
-          The bar wraps rather than overflowing. On a video call in a room there
-          are six switches, and six will not fit across a 360px screen at a size
-          anybody can hit - two tidy rows inside the bar beats one row that is
-          cut off or shrunk to nothing.
+          Five switches at most, which fits one row on a narrow phone. Ending
+          the call gets its own row and its own size, because giving the hang-up
+          button exactly as much weight as "flip camera" is how people press it
+          by accident.
         */
         <div className="relative flex flex-col items-center gap-4">
-          <div
-            className={cn(
-              'flex max-w-[20rem] flex-wrap items-center justify-center gap-1.5',
-              'glass-surface rounded-[1.75rem] border border-line/60 p-2 shadow-lg',
-            )}
-          >
+          <div className="flex items-center justify-center gap-2.5">
             <CallAction
               label={call.muted ? t('call.unmuteMic') : t('call.muteMic')}
               tone="neutral"
@@ -385,11 +393,23 @@ export function CallOverlay() {
             there is no second video track to spare - a hidden control beats one
             that always fails.
           */}
-            {canOfferScreenShare({
+            {/*
+              Sharing and chat appear once the call is actually up.
+
+              Until somebody picks up there is nothing to share a screen with
+              and nobody to type to, and offering either while a phone is still
+              ringing is four controls where three would do. Waiting for a call
+              to connect is the moment to be given the fewest possible things to
+              look at: your microphone, your camera, and where the sound comes
+              out.
+            */}
+            {connected &&
+            canOfferScreenShare({
               kind: call.kind,
               onRoom: Boolean(toggleScreenShare),
               incoming,
-            }) && toggleScreenShare ? (
+            }) &&
+            toggleScreenShare ? (
               <CallAction
                 label={call.screenSharing ? t('call.stopShare') : t('call.shareScreen')}
                 /*
@@ -416,7 +436,7 @@ export function CallOverlay() {
             being shared - somebody spelling out an address is the other reason
             this exists.
           */}
-            {sendChat ? (
+            {connected && sendChat ? (
               <CallAction
                 label={t('call.chatTitle')}
                 tone="neutral"
@@ -429,19 +449,11 @@ export function CallOverlay() {
             ) : null}
 
             {/*
-              Only while there is a picture to flip. Offering "switch camera"
-              with the camera off is a button that changes nothing you can see,
-              and it was taking a slot in a bar that has no slots to spare.
+              Flipping the camera is not here. It belongs to the little picture
+              of yourself in the corner - that is the thing it changes, and a
+              control that sits on what it affects needs no label and no place
+              in a row that has none to spare. See `LocalPreview`.
             */}
-            {video && !call.cameraOff ? (
-              <CallAction
-                label={t('call.switchCamera')}
-                tone="neutral"
-                onClick={() => void switchCamera()}
-              >
-                <CameraFlipIcon size={22} />
-              </CallAction>
-            ) : null}
           </div>
 
           <CallAction label={t('call.end')} tone="end" size="lg" onClick={() => void hangUp()}>
@@ -668,31 +680,80 @@ function RemoteVideo({
   );
 }
 
-/** The self-preview: small, corner-pinned, and always muted. */
-function LocalPreview({ stream, cameraOff }: { stream: MediaStream; cameraOff: boolean }) {
+/**
+ * The little picture of yourself, bottom right, with its own camera switch.
+ *
+ * ## Where it sits
+ *
+ * Bottom right, above the controls, because that is where every video call
+ * anybody has used puts it - and because the top of the screen belongs to the
+ * other person's name. It used to be top right, over exactly that.
+ *
+ * ## Why the flip button lives here
+ *
+ * Switching between the front and rear camera changes *this* picture and
+ * nothing else, so the control belongs on it. In the row below it was a sixth
+ * anonymous circle competing with hang-up; here it needs no label, because it
+ * is sitting on the thing it changes. It also disappears with the preview when
+ * the camera is off, which is correct - there is nothing to flip.
+ *
+ * Kept out of the accessibility tree apart from the button: a mirrored video of
+ * yourself has nothing to announce, but a control does.
+ */
+function LocalPreview({
+  stream,
+  cameraOff,
+  onFlip,
+  flipLabel,
+}: {
+  stream: MediaStream;
+  cameraOff: boolean;
+  onFlip: () => void;
+  flipLabel: string;
+}) {
   const ref = useStream(stream);
 
   return (
     <div
       className={cn(
-        'absolute top-6 right-6 z-10 overflow-hidden rounded-lg',
-        'h-40 w-28 border border-white/15 bg-black shadow-lg',
+        /*
+          Clear of the controls, not floating over them. The block below is two
+          rows - switches then hang-up - and it ends 96px up from the bottom
+          edge, so this starts above all of it.
+        */
+        'absolute right-4 bottom-60 z-10 overflow-hidden rounded-2xl',
+        'h-36 w-28 border border-white/20 bg-backdrop shadow-xl',
         'transition-opacity duration-base ease-standard',
-        cameraOff && 'opacity-0',
+        // Hidden rather than unmounted, so turning the camera back on does not
+        // rebuild the element and lose the first second of picture.
+        cameraOff && 'pointer-events-none opacity-0',
       )}
-      aria-hidden
     >
       <video
         ref={ref}
         autoPlay
         playsInline
         muted
+        aria-hidden
         /*
           Mirrored, like every selfie preview and every video app. Only the
           preview - what the peer receives is never flipped.
         */
         className="size-full -scale-x-100 object-cover"
       />
+
+      <button
+        type="button"
+        onClick={onFlip}
+        aria-label={flipLabel}
+        className={cn(
+          'focus-ring absolute right-1.5 bottom-1.5 grid size-8 place-items-center',
+          'rounded-full bg-black/55 text-white',
+          'transition-transform duration-instant active:scale-90',
+        )}
+      >
+        <CameraFlipIcon size={16} />
+      </button>
     </div>
   );
 }
@@ -833,15 +894,22 @@ function CallAction({
         'transition-[transform,background-color] duration-instant ease-standard active:scale-95',
         tone === 'answer' && 'bg-online text-white shadow-md',
         tone === 'end' && 'bg-danger text-white shadow-lg',
-        tone === 'active' && 'bg-brand text-white',
+        tone === 'active' && 'bg-brand text-white shadow-md',
         /*
-          Transparent when on, filled when off - the inverse of what a button
-          usually does, and correct here. These switches spend the call in their
-          normal state, and a bar of six filled circles is six things shouting
-          at once. Filling only the ones that are *off* means the screen draws
-          attention to the microphone you muted and nothing else.
+          Solid, and inverted when the switch is on.
+
+          Dark circle with a white glyph is the resting state, and it holds
+          against everything this screen can put behind it: a face, a shared
+          document, the plain page of a voice call. The glass version borrowed
+          its colour from whatever was underneath, which meant the controls
+          changed shade whenever the other person moved.
+
+          Flipping to white is how "muted" and "camera off" announce
+          themselves. It is the loudest thing available and it is spent on the
+          two states somebody needs to notice they are in.
         */
-        tone === 'neutral' && (pressed ? 'bg-ink text-surface' : 'text-ink'),
+        tone === 'neutral' &&
+          (pressed ? 'bg-white text-ink shadow-md' : 'bg-ink/85 text-white shadow-sm'),
       )}
     >
       {children}

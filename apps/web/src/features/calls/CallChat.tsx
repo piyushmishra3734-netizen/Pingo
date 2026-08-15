@@ -53,7 +53,13 @@ export function CallChatPanel({
       aria-label={t('call.chatTitle')}
       className={cn(
         'z-20 flex flex-col overflow-hidden',
-        'glass-surface border-line',
+        /*
+          Solid, like the call controls and for the same reason: this panel
+          spends its life over a moving picture, and a translucent one takes its
+          colour from whatever is behind it - so the text sat on a background
+          that changed every time the shared screen scrolled.
+        */
+        'border-line bg-surface shadow-2xl',
         docked
           ? 'absolute inset-y-0 right-0 w-80 border-l'
           : [
@@ -145,8 +151,8 @@ function CallChatLog({
                 className={cn(
                   'px-3 py-2 text-body break-words',
                   mine
-                    ? 'rounded-2xl rounded-br-sm bg-brand-glass text-on-brand'
-                    : 'rounded-2xl rounded-bl-sm glass-surface text-ink',
+                    ? 'rounded-2xl rounded-br-sm bg-brand text-white'
+                    : 'rounded-2xl rounded-bl-sm bg-sunken text-ink',
                 )}
               >
                 {message.body}
