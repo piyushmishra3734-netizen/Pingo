@@ -1,5 +1,6 @@
 import {
   useAuth,
+  useChat,
   type Call,
   type CallKind,
   type CallQuality,
@@ -124,6 +125,9 @@ export function CallProvider({
   service: CallService;
 }) {
   const { signedIn } = useAuth();
+  // The chat service, for the one thing a call needs from it: which thread a
+  // call belongs to. See `startCall`.
+  const { service: chat } = useChat();
   const { preferences } = usePreferences();
 
   const [call, setCall] = useState<Call | undefined>();
@@ -217,6 +221,31 @@ export function CallProvider({
     ) => {
       setError(undefined);
       try {
+        /*
+         * The thread this call belongs to, found or made before it rings.
+         *
+         * A room token is authorised against conversation membership, so a call
+         * with no conversation had nothing for the server to check and fell
+         * back to peer-to-peer. That covered every call placed from a profile
+         * page or the call history - which is most of them.
+         *
+         * `startDirectConversation` is find-or-create and idempotent, so this
+         * is not a side effect so much as arriving at the same row the first
+         * message would have made. The call log wants it too: `useCallLog` has
+         * always needed a thread to write into and gave up silently without
+         * one, which is why calls placed from a profile never appeared in
+         * anybody's history.
+         *
+         * A failure here is not fatal. The call proceeds without a room and the
+         * mesh carries it, exactly as it did before.
+         */
+        let thread = conversationId;
+        if (!thread) {
+          thread = await chat
+            .startDirectConversation(peerUserId)
+            .catch(() => undefined);
+        }
+
         const started = await service.call(peerUserId, {
           kind,
           noiseSuppression,
@@ -233,7 +262,7 @@ export function CallProvider({
            * conversation yet - such a call falls back to peer-to-peer rather
            * than being refused. See `CallServiceOptions.conversationId`.
            */
-          ...(conversationId ? { conversationId } : {}),
+          ...(thread ? { conversationId: thread } : {}),
         });
         setCall({ ...started, peer: { ...started.peer, name: peerName } });
       } catch (cause) {
