@@ -49,8 +49,15 @@ import { getSupabaseClient } from '../supabase/client.js';
 export interface RoomHandlers {
   /** A remote participant's media, ready to attach. */
   onRemoteStream: (userId: string, stream: MediaStream) => void;
-  /** They left, or their media went away. */
+  /** They left, or their media went away. Not proof they are gone. */
   onRemoteGone: (userId: string) => void;
+  /**
+   * They are gone from the room, which is not the same thing.
+   *
+   * `onRemoteGone` also fires when the last track is unsubscribed, and that
+   * happens during a reconnect. This one is the participant themselves.
+   */
+  onParticipantLeft?: (userId: string) => void;
   /**
    * Somebody started sharing their screen.
    *
@@ -339,6 +346,9 @@ export class CallRoom {
       if (this.#screens.delete(participant.identity)) {
         this.#handlers.onScreenGone?.(participant.identity);
       }
+      // Last, and only from here: this is the event that means *gone*, as
+      // opposed to "their media stopped arriving for a moment".
+      this.#handlers.onParticipantLeft?.(participant.identity);
     });
 
     room.on(RoomEvent.Reconnecting, () => this.#handlers.onReconnecting());

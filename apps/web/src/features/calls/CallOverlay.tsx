@@ -248,6 +248,32 @@ export function CallOverlay() {
         </div>
       </div>
 
+      {/*
+        Scrims, top and bottom, whenever something is playing behind the chrome.
+
+        The name and the control bar were relying on a drop shadow to stay
+        legible over whatever the camera happened to be pointing at, and a drop
+        shadow does nothing against a bright wall. Two short gradients fading to
+        nothing give both ends a floor to sit on without dimming the picture in
+        the middle, which is where the person actually is.
+
+        A shared screen does not get them: that stage is already dark, its own
+        labels carry their own backgrounds, and a bottom scrim would fall
+        straight across the strip of faces.
+      */}
+      {showingRemote ? (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/55 to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/60 to-transparent"
+          />
+        </>
+      ) : null}
+
       {/* Once video fills the screen the name needs to come back, legibly. */}
       {showingRemote ? (
         <div className="pointer-events-none absolute inset-x-0 top-10 text-center">
@@ -270,7 +296,12 @@ export function CallOverlay() {
 
       {incoming ? (
         <div className="relative flex w-full max-w-xs items-center justify-between">
-          <CallAction label={t('call.decline')} tone="end" onClick={() => void decline()}>
+          <CallAction
+            label={t('call.decline')}
+            tone="end"
+            size="lg"
+            onClick={() => void decline()}
+          >
             {/*
               A handset rotated 135° - the universal hang-up glyph, and the same
               icon as the answer button so the pair reads as one gesture.
@@ -281,32 +312,55 @@ export function CallOverlay() {
           <CallAction
             label={video ? t('call.answerVideo') : t('call.answer')}
             tone="answer"
+            size="lg"
             onClick={() => void answer()}
           >
             {video ? <VideoIcon size={26} /> : <PhoneIcon size={26} />}
           </CallAction>
         </div>
       ) : (
-        <div className="relative flex items-center gap-4">
-          <CallAction
-            label={call.muted ? t('call.unmuteMic') : t('call.muteMic')}
-            tone="neutral"
-            pressed={call.muted}
-            onClick={toggleMute}
-          >
-            {call.muted ? <MicOffIcon size={24} /> : <MicIcon size={24} />}
-          </CallAction>
+        /*
+          Two pieces, not one row of seven identical circles.
 
-          {video ? (
+          The toggles are one object - a single glass bar - because they are one
+          kind of thing: reversible switches for your own media. Ending the call
+          is the only control on this screen that cannot be undone, so it sits
+          apart from them, larger, and in the one colour nothing else uses. The
+          old row gave the hang-up button exactly as much weight as "flip
+          camera", and put both of them in a line that ran off the side of a
+          narrow phone.
+
+          The bar wraps rather than overflowing. On a video call in a room there
+          are six switches, and six will not fit across a 360px screen at a size
+          anybody can hit - two tidy rows inside the bar beats one row that is
+          cut off or shrunk to nothing.
+        */
+        <div className="relative flex flex-col items-center gap-4">
+          <div
+            className={cn(
+              'flex max-w-[20rem] flex-wrap items-center justify-center gap-1.5',
+              'glass-surface rounded-[1.75rem] border border-line/60 p-2 shadow-lg',
+            )}
+          >
             <CallAction
-              label={call.cameraOff ? t('call.cameraOn') : t('call.cameraOff')}
+              label={call.muted ? t('call.unmuteMic') : t('call.muteMic')}
               tone="neutral"
-              pressed={call.cameraOff}
-              onClick={toggleCamera}
+              pressed={call.muted}
+              onClick={toggleMute}
             >
-              {call.cameraOff ? <VideoOffIcon size={24} /> : <VideoIcon size={24} />}
+              {call.muted ? <MicOffIcon size={22} /> : <MicIcon size={22} />}
             </CallAction>
-          ) : null}
+
+            {video ? (
+              <CallAction
+                label={call.cameraOff ? t('call.cameraOn') : t('call.cameraOff')}
+                tone="neutral"
+                pressed={call.cameraOff}
+                onClick={toggleCamera}
+              >
+                {call.cameraOff ? <VideoOffIcon size={22} /> : <VideoIcon size={22} />}
+              </CallAction>
+            ) : null}
 
           {/*
             Offered from the moment a call starts rather than from when it
@@ -314,16 +368,16 @@ export function CallOverlay() {
             is the normal way round, and the choice is applied as soon as there
             is sound to apply it to.
           */}
-          {speaker && (
-            <CallAction
-              label={speaker.on ? t('call.speakerOff') : t('call.speakerOn')}
-              tone="neutral"
-              pressed={speaker.on}
-              onClick={speaker.toggle}
-            >
-              <SpeakerIcon size={24} />
-            </CallAction>
-          )}
+            {speaker && (
+              <CallAction
+                label={speaker.on ? t('call.speakerOff') : t('call.speakerOn')}
+                tone="neutral"
+                pressed={speaker.on}
+                onClick={speaker.toggle}
+              >
+                <SpeakerIcon size={22} />
+              </CallAction>
+            )}
 
           {/*
             Video calls only, and only when the call can actually carry one.
@@ -331,24 +385,30 @@ export function CallOverlay() {
             there is no second video track to spare - a hidden control beats one
             that always fails.
           */}
-          {canOfferScreenShare({
-            kind: call.kind,
-            onRoom: Boolean(toggleScreenShare),
-            incoming,
-          }) && toggleScreenShare ? (
-            <CallAction
-              label={call.screenSharing ? t('call.stopShare') : t('call.shareScreen')}
-              tone="neutral"
-              pressed={Boolean(call.screenSharing)}
-              onClick={() => void toggleScreenShare()}
-            >
-              {call.screenSharing ? (
-                <ScreenShareOffIcon size={24} />
-              ) : (
-                <ScreenShareIcon size={24} />
-              )}
-            </CallAction>
-          ) : null}
+            {canOfferScreenShare({
+              kind: call.kind,
+              onRoom: Boolean(toggleScreenShare),
+              incoming,
+            }) && toggleScreenShare ? (
+              <CallAction
+                label={call.screenSharing ? t('call.stopShare') : t('call.shareScreen')}
+                /*
+                  Brand, not the "off" ink chip the other toggles use. Every
+                  other switch here turns something of yours off; this one is
+                  the only control that starts broadcasting, and it should not
+                  look like the state you are in when you are muted.
+                */
+                tone={call.screenSharing ? 'active' : 'neutral'}
+                pressed={Boolean(call.screenSharing)}
+                onClick={() => void toggleScreenShare()}
+              >
+                {call.screenSharing ? (
+                  <ScreenShareOffIcon size={22} />
+                ) : (
+                  <ScreenShareIcon size={22} />
+                )}
+              </CallAction>
+            ) : null}
 
           {/*
             The chat, with a count of what has been said while it was shut.
@@ -356,29 +416,35 @@ export function CallOverlay() {
             being shared - somebody spelling out an address is the other reason
             this exists.
           */}
-          {sendChat ? (
-            <CallAction
-              label={t('call.chatTitle')}
-              tone="neutral"
-              pressed={chatOpen}
-              badge={unread}
-              onClick={() => setChatOpen((open) => !open)}
-            >
-              <ChatIcon size={24} />
-            </CallAction>
-          ) : null}
+            {sendChat ? (
+              <CallAction
+                label={t('call.chatTitle')}
+                tone="neutral"
+                pressed={chatOpen}
+                badge={unread}
+                onClick={() => setChatOpen((open) => !open)}
+              >
+                <ChatIcon size={22} />
+              </CallAction>
+            ) : null}
 
-          {video ? (
-            <CallAction
-              label={t('call.switchCamera')}
-              tone="neutral"
-              onClick={() => void switchCamera()}
-            >
-              <CameraFlipIcon size={24} />
-            </CallAction>
-          ) : null}
+            {/*
+              Only while there is a picture to flip. Offering "switch camera"
+              with the camera off is a button that changes nothing you can see,
+              and it was taking a slot in a bar that has no slots to spare.
+            */}
+            {video && !call.cameraOff ? (
+              <CallAction
+                label={t('call.switchCamera')}
+                tone="neutral"
+                onClick={() => void switchCamera()}
+              >
+                <CameraFlipIcon size={22} />
+              </CallAction>
+            ) : null}
+          </div>
 
-          <CallAction label={t('call.end')} tone="end" onClick={() => void hangUp()}>
+          <CallAction label={t('call.end')} tone="end" size="lg" onClick={() => void hangUp()}>
             <PhoneIcon size={26} className="rotate-[135deg]" />
           </CallAction>
         </div>
@@ -735,14 +801,23 @@ function CallAction({
   tone,
   pressed,
   badge,
+  size = 'md',
   onClick,
   children,
 }: {
   label: string;
-  tone: 'answer' | 'end' | 'neutral';
+  /**
+   * `neutral` is a switch, `active` is a switch that is broadcasting, and the
+   * other two are the two ways a call begins and ends. They are separated
+   * because colour here is meaning, not decoration: red appears exactly once on
+   * this screen and it is the thing you cannot undo.
+   */
+  tone: 'answer' | 'end' | 'neutral' | 'active';
   pressed?: boolean;
   /** A count to show on the corner. Zero draws nothing. */
   badge?: number;
+  /** `lg` is for the two buttons that start and end a call. */
+  size?: 'md' | 'lg';
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -750,15 +825,23 @@ function CallAction({
     <button
       type="button"
       aria-label={badge ? `${label}, ${badge} new` : label}
-      aria-pressed={tone === 'neutral' ? pressed : undefined}
+      aria-pressed={tone === 'neutral' || tone === 'active' ? pressed : undefined}
       onClick={onClick}
       className={cn(
-        'focus-ring relative grid size-16 place-items-center rounded-full',
-        'transition-transform duration-instant ease-standard active:scale-95',
+        'focus-ring relative grid shrink-0 place-items-center rounded-full',
+        size === 'lg' ? 'size-16' : 'size-12',
+        'transition-[transform,background-color] duration-instant ease-standard active:scale-95',
         tone === 'answer' && 'bg-online text-white shadow-md',
-        tone === 'end' && 'bg-danger text-white shadow-md',
-        tone === 'neutral' &&
-          (pressed ? 'bg-ink text-surface' : 'bg-surface text-ink shadow-sm'),
+        tone === 'end' && 'bg-danger text-white shadow-lg',
+        tone === 'active' && 'bg-brand text-white',
+        /*
+          Transparent when on, filled when off - the inverse of what a button
+          usually does, and correct here. These switches spend the call in their
+          normal state, and a bar of six filled circles is six things shouting
+          at once. Filling only the ones that are *off* means the screen draws
+          attention to the microphone you muted and nothing else.
+        */
+        tone === 'neutral' && (pressed ? 'bg-ink text-surface' : 'text-ink'),
       )}
     >
       {children}

@@ -442,9 +442,27 @@ export class SupabaseCallService implements CallService {
           state: 'ringing',
           muted: false,
           cameraOff: true,
-          participants: signal.participants
-            .filter((id) => id !== this.#userId)
-            .map((userId) => ({ userId, state: 'ringing' as const })),
+          /*
+           * A roster, and only for a call that has one.
+           *
+           * `participants` is what the UI reads to decide it is looking at a
+           * room: with it there is a grid of faces, without it there is one
+           * person filling the screen. A direct call carried by LiveKit arrives
+           * on the same `invite` a group does, and setting it here for both
+           * meant every LiveKit call looked like a group of one - the other
+           * person's video played in the little round tile where their avatar
+           * goes, instead of behind the whole call.
+           *
+           * The caller never had this, because `call()` builds its own state
+           * and leaves `participants` unset. So it was wrong on exactly one
+           * side of every video call, which is why it read as "my camera shows
+           * up in the wrong place" rather than as a layout that was broken.
+           */
+          participants: signal.direct
+            ? undefined
+            : signal.participants
+                .filter((id) => id !== this.#userId)
+                .map((userId) => ({ userId, state: 'ringing' as const })),
         };
 
         this.#emit({ type: 'call:incoming', call: this.#call });
@@ -980,6 +998,31 @@ export class SupabaseCallService implements CallService {
         this.#setParticipantState(userId, 'left');
         this.#emit({ type: 'call:remote-stream-ended', userId });
       },
+
+      /*
+       * On a direct call, the other person leaving the room is the call ending.
+       *
+       * The `hangup` signal is the polite path and it covers somebody pressing
+       * the red button. It does not cover a closed tab, a killed app, a phone
+       * that ran out of battery, or a crash - and in every one of those the
+       * room does tell us, immediately, because the socket went. Without this
+       * the survivor sat on a connected call with a timer still counting
+       * against somebody who was not there.
+       *
+       * Separate from `onRemoteGone` deliberately. That one also fires when a
+       * participant's last track is unsubscribed, which happens transiently
+       * during a reconnect - ending a live call because a track blinked would
+       * be a worse bug than the one this fixes. This fires only when LiveKit
+       * says the participant is gone.
+       *
+       * A group is the opposite: one person leaving ends it for nobody, and
+       * `#dropPeer` already ends a room once the last of them has gone.
+       */
+      onParticipantLeft: (userId) => {
+        if (this.#call && !this.#call.participants && userId === this.#call.peer.userId) {
+          this.#teardown('hung-up');
+        }
+      },
       onScreenStream: (userId, stream) =>
         this.#emit({ type: 'call:screen-stream', stream, userId }),
       onScreenGone: (userId) => this.#emit({ type: 'call:screen-ended', userId }),
@@ -1221,11 +1264,17 @@ export class SupabaseCallService implements CallService {
   async answer(callId: string, options?: CallServiceOptions): Promise<void> {
     if (!this.#call || this.#call.id !== callId) return;
 
-    // A group ring carries no offer, so there is nothing to answer - there is a
-    // room to announce yourself to. See `#answerGroup`.
-    if (this.#call.participants) return this.#answerGroup(callId, options);
-
-    if (!this.#pendingOffer) return;
+    /*
+     * No offer means a room, not a person.
+     *
+     * This used to branch on `participants`, which forced every call carried by
+     * LiveKit to carry a roster whether or not it was a group - and a roster is
+     * what the UI reads to draw a grid instead of one big picture. The honest
+     * test is the one the signal already makes: an `invite` carries no SDP
+     * because there is nothing to pre-negotiate, so there is nothing to answer
+     * and a room to join instead. See `#answerGroup`.
+     */
+    if (!this.#pendingOffer) return this.#answerGroup(callId, options);
 
     this.#clearRingTimeout();
     // `options.kind` is ignored here on purpose: the offer decides. See the
@@ -1331,7 +1380,7 @@ export class SupabaseCallService implements CallService {
   }
 
   async #answerGroup(callId: string, options?: CallServiceOptions): Promise<void> {
-    if (!this.#call?.participants) return;
+    if (!this.#call) return;
 
     this.#clearRingTimeout();
     const kind = this.#call.kind;
@@ -1340,9 +1389,13 @@ export class SupabaseCallService implements CallService {
      *
      * `peer.userId` is the *conversation* on a group call, not the host, so
      * there is no separate person to tell - reading it as one would have sent
-     * every announcement to a topic nobody listens on.
+     * every announcement to a topic nobody listens on. On a direct call it is
+     * the opposite: there is no roster and `peer` is exactly the one person
+     * who needs telling.
      */
-    const roster = this.#call.participants.map((participant) => participant.userId);
+    const roster = this.#call.participants
+      ? this.#call.participants.map((participant) => participant.userId)
+      : [this.#call.peer.userId];
 
     this.#update({ state: 'connecting', cameraOff: kind === 'voice' });
 
