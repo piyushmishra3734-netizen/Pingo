@@ -1,4 +1,5 @@
 import { deviceIdentity } from '../../lib/crypto/keys.js';
+import { BUILD_ID } from '../../lib/build-id.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { activityStatusOn } from '../settings/privacy-flags.js';
 
@@ -52,7 +53,7 @@ async function beat(): Promise<void> {
     const identity = await deviceIdentity();
     await getSupabaseClient()
       .from('device_keys')
-      .update({ last_seen_at: new Date().toISOString() })
+      .update({ last_seen_at: new Date().toISOString(), build: BUILD_ID })
       .eq('device_id', identity.deviceId);
   } catch {
     /*

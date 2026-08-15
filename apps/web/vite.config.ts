@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import basicSsl from '@vitejs/plugin-basic-ssl';
@@ -39,7 +40,28 @@ function stripEmDashes() {
   };
 }
 
+/**
+ * Which build this is, so a running client can say so.
+ *
+ * Cloudflare Pages sets `CF_PAGES_COMMIT_SHA`; a local build falls back to git,
+ * and a checkout without git says `dev`. Seven characters is enough to tell two
+ * deploys apart, and a commit hash is not information about anybody.
+ *
+ * This exists because a deploy was live for fifteen hours while the fleet went
+ * on running the previous bundle, and nothing in production could say so.
+ */
+const BUILD_ID = (() => {
+  const fromPages = process.env['CF_PAGES_COMMIT_SHA'];
+  if (fromPages) return fromPages.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short=7 HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'dev';
+  }
+})();
+
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     stripEmDashes(),
     react(),

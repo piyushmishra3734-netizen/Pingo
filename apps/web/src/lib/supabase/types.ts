@@ -199,6 +199,8 @@ export type DeviceKeyRow = {
   last_seen_at: string;
   /** What the device calls itself. Null on rows published before labels existed. */
   label?: string | null;
+  /** Commit hash of the bundle it last ran. Rollout measurement only. */
+  build?: string | null;
 };
 
 /** A device thrown off this account. Its id can never publish a key again. */
@@ -501,8 +503,9 @@ export type Database = {
           public_key: string;
           last_seen_at?: string;
           label?: string | null;
+          build?: string | null;
         };
-        Update: { last_seen_at?: string; label?: string | null };
+        Update: { last_seen_at?: string; label?: string | null; build?: string | null };
         Relationships: [];
       };
       /** Read-only to the client; rows are written by `revoke_device`. */

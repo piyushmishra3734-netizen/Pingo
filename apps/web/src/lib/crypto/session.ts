@@ -13,6 +13,7 @@ import {
 } from '../local/db.js';
 import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import { deviceLabel } from '../../features/settings/device-label.js';
+import { BUILD_ID } from '../build-id.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
@@ -211,6 +212,8 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
         // So the owner's device list has a row they recognise rather than a
         // uuid. Sent every launch, because a browser can be upgraded.
         label: deviceLabel(),
+        // Which bundle is running, so rollout is measurable - see build-id.ts.
+        build: BUILD_ID,
         ...(activityStatusOn() ? { last_seen_at: new Date().toISOString() } : {}),
       },
       { onConflict: 'device_id' },
