@@ -53,6 +53,8 @@ export function useSpeaker(
 
   const context = useRef<AudioContext | undefined>(undefined);
   const gain = useRef<GainNode | undefined>(undefined);
+  /** Built with the graph, but only wired in while the boost is on. */
+  const limiterNode = useRef<DynamicsCompressorNode | undefined>(undefined);
 
   useEffect(() => {
     const element = audio.current;
@@ -71,6 +73,21 @@ export function useSpeaker(
        * amplified past 1.0 clips, and clipped speech is harder to understand
        * than quiet speech. This keeps the peaks in check so the boost adds
        * loudness rather than distortion.
+       *
+       * ## It is only in the path while the boost is
+       *
+       * This used to be wired in permanently, which meant every one-to-one call
+       * was compressed 12:1 whether or not anybody had asked to be louder. With
+       * the default 30 dB knee that starts working around -40 dBFS, so it was
+       * not catching peaks - it was compressing all of ordinary speech, all the
+       * time, with a 3 ms attack. Heard as pumping and crushed consonants, and
+       * *louder* rather than quieter, because squashing the peaks is what makes
+       * a signal dense.
+       *
+       * A group call was clean by accident: with more than one remote stream
+       * this hook is handed `undefined`, no graph is built, and the element
+       * plays the call untouched. That is what the good calls had in common -
+       * not video, as it appeared, but the absence of this node.
        */
       const limiter = ctx.createDynamicsCompressor();
       limiter.threshold.value = -10;
@@ -78,10 +95,14 @@ export function useSpeaker(
       limiter.attack.value = 0.003;
       limiter.release.value = 0.15;
 
-      source.connect(volume).connect(limiter).connect(ctx.destination);
+      source.connect(volume);
+      // Unity is a straight wire. Nothing is protecting anything at 1.0.
+      if (on) volume.connect(limiter).connect(ctx.destination);
+      else volume.connect(ctx.destination);
 
       context.current = ctx;
       gain.current = volume;
+      limiterNode.current = limiter;
 
       // Whatever was chosen before the stream existed applies now.
       volume.gain.value = on ? BOOST : 1;
@@ -112,15 +133,35 @@ export function useSpeaker(
     setOn(next);
 
     const volume = gain.current;
+    const limiter = limiterNode.current;
+    const ctx = context.current;
     // Pressed before the call connected. The state is kept and applied by the
     // effect above the moment the remote stream arrives.
-    if (!volume || !context.current) return;
+    if (!volume || !ctx) return;
 
     /*
      * Ramped rather than set. A gain that jumps produces a step in the
      * waveform, heard as a click in the middle of somebody's sentence.
      */
-    volume.gain.setTargetAtTime(next ? BOOST : 1, context.current.currentTime, 0.02);
+    volume.gain.setTargetAtTime(next ? BOOST : 1, ctx.currentTime, 0.02);
+
+    /*
+     * And the limiter comes and goes with it.
+     *
+     * Re-routed rather than left in place, because leaving it in is the bug
+     * this fixes - at unity it has nothing to catch and compresses the call
+     * anyway. Disconnecting only `volume` leaves the limiter's own outgoing
+     * connection alone, which is why the reconnect below names the whole chain.
+     */
+    if (!limiter) return;
+    try {
+      volume.disconnect();
+      limiter.disconnect();
+      if (next) volume.connect(limiter).connect(ctx.destination);
+      else volume.connect(ctx.destination);
+    } catch {
+      // A closed context between the tap and here. The call is over anyway.
+    }
   }, [on]);
 
   // Reset between calls: each one starts from the earpiece.

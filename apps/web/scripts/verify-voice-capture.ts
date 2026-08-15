@@ -165,5 +165,38 @@ console.log('\n— it survives what the audio thread actually does —');
   check(total(p.posted) === 4_100, `frames that straddle a block boundary are kept (${total(p.posted)})`);
 }
 
+
+/*
+ * The flush is answered by a *marked* message, and the reader has to wait for
+ * that marker rather than for whichever message arrives next.
+ *
+ * A full block can already be in flight when stop() asks to flush - at 48 kHz
+ * one lands every 85 ms, so on a note of any length it usually is. Resolving on
+ * the first message meant stop() carried on and reset the chunk list, and the
+ * real tail was pushed into the new list and thrown away with it: the last
+ * syllable missing from the note, exactly the thing the flush was added to fix.
+ */
+{
+  const p = makeProcessor();
+
+  // Enough to post two full blocks and leave a partial one held.
+  p.feed(2 * PCM_BLOCK_FRAMES + 500, 128);
+  check(p.posted.length === 2, `blocks post as they fill (${p.posted.length})`);
+
+  // None of those carried the marker; only the flush reply does.
+  check(
+    p.posted.every((m) => !m.flush),
+    "an ordinary block is not marked as the flush",
+  );
+
+  p.flush();
+  const last = p.posted[p.posted.length - 1];
+  check(Boolean(last && last.flush), "the flush reply is marked");
+  check(
+    total(p.posted) === 2 * PCM_BLOCK_FRAMES + 500,
+    `every frame survives a flush that follows a full block (${total(p.posted)})`,
+  );
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

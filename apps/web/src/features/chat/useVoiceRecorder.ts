@@ -363,8 +363,25 @@ export function useVoiceRecorder(): VoiceRecorder {
     if (node) {
       await new Promise<void>((resolve) => {
         const settle = setTimeout(resolve, 80);
-        node.port.onmessage = (event: MessageEvent<{ pcm: Float32Array }>) => {
+        /*
+         * Waits for the flush, not for the next message.
+         *
+         * A full 4096-frame block can already be in flight when the request
+         * goes out - at 48 kHz one lands every 85 ms, so on a note of any
+         * length it usually is. Resolving on whichever message arrived first
+         * meant `stop()` carried on, reset `pcmChunks`, and the real tail
+         * pushed into the new array and was thrown away with it.
+         *
+         * The worklet marks its reply, so the marker is what to wait for. Any
+         * ordinary block arriving in the meantime is still kept - it is audio
+         * that was recorded, and dropping it would trade one lost tail for a
+         * lost middle.
+         */
+        node.port.onmessage = (
+          event: MessageEvent<{ pcm: Float32Array; flush?: boolean }>,
+        ) => {
           if (event.data.pcm.length > 0) pcmChunks.current.push(event.data.pcm);
+          if (!event.data.flush) return;
           clearTimeout(settle);
           resolve();
         };
