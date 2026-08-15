@@ -1007,6 +1007,13 @@ export class SupabaseCallService implements CallService {
       onReconnecting: () => this.#update({ state: 'reconnecting' }),
       onReconnected: () => this.#update({ state: 'connected' }),
       onDisconnected: () => {
+        /*
+         * Said out loud, because this is the one way a call can end that looks
+         * from the outside exactly like the UI having crashed: the screen goes,
+         * and nobody is told which of the two happened. One line in the console
+         * separates "the room dropped us" from "React gave up".
+         */
+        if (this.#room) console.warn('[call] the room disconnected; ending the call');
         // Only ends the call if the room was the thing carrying it.
         if (this.#room) this.#teardown('failed');
       },
