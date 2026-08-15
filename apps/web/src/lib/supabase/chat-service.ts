@@ -655,6 +655,14 @@ export class SupabaseChatService implements ChatService {
     this.#previewRows.delete(messageId);
   }
 
+  /**
+   * The list rows as this session last built them.
+   *
+   * What lets an arriving message patch a conversation instead of rebuilding
+   * it from fourteen queries. See `#bumpConversation`.
+   */
+  #known = new Map<ConversationId, Conversation>();
+
   /** The whole-list read in flight or just finished. See `listConversations`. */
   #conversationListRead: { at: number; work: Promise<Conversation[]> } | undefined;
 
@@ -1041,11 +1049,28 @@ export class SupabaseChatService implements ChatService {
               }
             });
 
-          // The list needs the new preview and a bumped position, and only a
-          // refetch can produce a correctly-shaped `Conversation`.
-          void this.getConversation(row.conversation_id).then((conversation) => {
-            if (conversation) this.#emit({ type: 'conversation:updated', conversation });
-          });
+          /*
+           * The list needs the new preview and a bumped position - and that is
+           * all it needs, so it is patched rather than rebuilt.
+           *
+           * This used to refetch, on every device, for every message. See
+           * `#bumpConversation` for what that cost. The refetch is still here
+           * for the only case that needs it: a conversation this device has
+           * never loaded, where there is nothing to patch.
+           */
+          void openRow(row)
+            .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
+            .then(async ([message]) => {
+              if (!message) return;
+              const mine = message.authorId === (await this.#userId().catch(() => undefined));
+              const patched = this.#bumpConversation(row.conversation_id, message, mine);
+              if (patched) {
+                this.#emit({ type: 'conversation:updated', conversation: patched });
+                return;
+              }
+              const rebuilt = await this.getConversation(row.conversation_id);
+              if (rebuilt) this.#emit({ type: 'conversation:updated', conversation: rebuilt });
+            });
         },
       )
       /*
@@ -1705,7 +1730,61 @@ export class SupabaseChatService implements ChatService {
       .sort((a, b) => {
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         return b.updatedAt - a.updatedAt;
+      })
+      /*
+       * Remembered on the way out, so an arriving message does not have to ask
+       * the server what this conversation looks like - see `#bumpConversation`.
+       */
+      .map((conversation) => {
+        this.#known.set(conversation.id, conversation);
+        return conversation;
       });
+  }
+
+  /**
+   * The list row for a conversation a message just landed in.
+   *
+   * ## Why this exists
+   *
+   * The realtime handler used to call `getConversation`, whose comment said
+   * "only a refetch can produce a correctly-shaped `Conversation`". That was
+   * true and it was expensive: a rebuild is fourteen queries, and it ran once
+   * per arriving message **on every recipient's device**. Measured over 15.8
+   * hours of ordinary production traffic, that path was running at roughly 450
+   * hydrations an hour - about 6 MB an hour, or 4 GB a month, to learn things
+   * that had not changed.
+   *
+   * Nothing a new message changes is worth fourteen queries. The title is the
+   * same, the roster is the same, the wallpaper is the same. What moves is the
+   * preview line, the position in the list, and the unread count.
+   *
+   * ## What it does not do
+   *
+   * Invent a row it has never seen. Without a cached copy this returns
+   * undefined and the caller falls back to the refetch, which is correct for
+   * the one case that genuinely needs it: a conversation this device has not
+   * loaded yet.
+   *
+   * The unread count is incremented rather than re-counted, so it can drift
+   * from the server's own tally between rebuilds. That is the same arithmetic
+   * the read cursor already does locally, and any real hydrate corrects it.
+   */
+  #bumpConversation(
+    conversationId: ConversationId,
+    message: Message,
+    mine: boolean,
+  ): Conversation | undefined {
+    const known = this.#known.get(conversationId);
+    if (!known) return undefined;
+
+    const next: Conversation = {
+      ...known,
+      lastMessage: message,
+      updatedAt: message.createdAt,
+      unreadCount: mine ? known.unreadCount : known.unreadCount + 1,
+    };
+    this.#known.set(conversationId, next);
+    return next;
   }
 
   // -- session -------------------------------------------------------------

@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 
 import { initNativeShell } from './features/native/shell.js';
 import { requestPersistentStorage } from './lib/local/db.js';
+import { keepServiceWorkerFresh } from './lib/sw-refresh.js';
 
 import { App } from './App.js';
 import './styles/app.css';
@@ -30,6 +31,15 @@ createRoot(container).render(
  * a sheet will claim it here rather than each binding their own listener.
  */
 void initNativeShell(() => false);
+
+/*
+ * And notice when a new build exists.
+ *
+ * Registration happens once on load and never asks again, which is how a
+ * deploy that removed the largest source of egress was still reaching nobody
+ * fifteen hours later. See `sw-refresh.ts`.
+ */
+keepServiceWorkerFresh();
 
 /*
  * Ask to keep what is on disk.

@@ -23,7 +23,7 @@
  */
 import assert from 'node:assert/strict';
 
-import { shouldLoadOlder, trimEnvelopeKeys, shouldTrustCache } from '../src/lib/egress-rules.js';
+import { bumpedRow, shouldLoadOlder, trimEnvelopeKeys, shouldTrustCache } from '../src/lib/egress-rules.js';
 
 // -- 1. Older history is only fetched from a real scroll, at a real top ------
 
@@ -102,3 +102,23 @@ assert.equal(shouldTrustCache({ hasPlaceholder: false, alreadyRetried: false }),
 assert.equal(shouldTrustCache({ hasPlaceholder: false, alreadyRetried: true }), true);
 
 console.log('egress rules: ok');
+
+// -- 4. A realtime message patches its row, it does not rebuild it ----------
+
+const row = { id: 'c1', unreadCount: 2, updatedAt: 100, title: 'Chichora gang' };
+
+const theirs = bumpedRow(row, { createdAt: 500 }, false);
+assert.equal(theirs!.unreadCount, 3, 'somebody else writing raises the unread count');
+assert.equal(theirs!.updatedAt, 500, 'and moves the conversation up the list');
+assert.equal(theirs!.title, 'Chichora gang', 'everything a message does not change survives');
+
+const own = bumpedRow(row, { createdAt: 500 }, true);
+assert.equal(own!.unreadCount, 2, 'your own message is not unread to you');
+
+// The one case that still has to ask the server: a conversation never loaded.
+assert.equal(bumpedRow(undefined, { createdAt: 500 }, false), undefined);
+
+// The original is untouched, so a patch cannot corrupt the row it came from.
+assert.equal(row.unreadCount, 2);
+
+console.log('realtime patch rule: ok');
