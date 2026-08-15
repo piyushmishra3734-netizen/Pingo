@@ -243,6 +243,28 @@ export class CallRoom {
    * have been fewer lines and would mean turning the camera back on ends the
    * share.
    *
+   * ## Every surface the browser can offer
+   *
+   * The picker's contents are decided entirely by what this asks for, and the
+   * way to get all three - entire screen, a window, a tab - is to name none of
+   * them. So there is deliberately no `displaySurface` constraint and no
+   * `preferCurrentTab` here: either one narrows the dialog to a single kind of
+   * surface, and `preferCurrentTab` narrows it to exactly one entry.
+   *
+   * What is set is set to *widen* it:
+   *
+   *   - `surfaceSwitching: 'include'` puts Chrome's "Share this tab instead"
+   *     control in the sharing bar, so somebody who picked the wrong thing can
+   *     change it without stopping and restarting the share;
+   *   - `systemAudio: 'include'` asks for the audio checkbox wherever the
+   *     platform can do it;
+   *   - `selfBrowserSurface: 'exclude'` is the one exclusion, and it removes
+   *     exactly one entry: PINGO's own tab. Sharing the tab you are calling
+   *     from is the infinite-mirror screenshot, never what anybody meant, and
+   *     leaving it in the list is how people pick it by accident. Entire
+   *     screen and window are untouched - a monitor that happens to have PINGO
+   *     on it still shares, mirror and all, because that is what was asked for.
+   *
    * ## Audio is offered, not required
    *
    * `audio: true` asks the browser to *offer* system audio in its picker; every
@@ -262,6 +284,17 @@ export class CallRoom {
 
     const published = await room.localParticipant.setScreenShareEnabled(true, {
       audio: true,
+      // See the note above. No `displaySurface`, no `preferCurrentTab` - their
+      // absence is what keeps entire screen and window in the picker.
+      selfBrowserSurface: 'exclude',
+      surfaceSwitching: 'include',
+      systemAudio: 'include',
+      /*
+       * Text, not motion. A shared screen is usually a document or an editor,
+       * and the encoder's default assumption of moving video spends the
+       * bitrate on frame rate and leaves small type unreadable.
+       */
+      contentHint: 'detail',
     });
 
     const track = published?.track?.mediaStreamTrack;

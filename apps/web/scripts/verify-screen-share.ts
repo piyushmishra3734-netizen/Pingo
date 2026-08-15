@@ -128,4 +128,41 @@ assert.ok(
   'a ring with no offer is a room to join, whoever it is from',
 );
 
+// -- The picker offers every surface, not just tabs ------------------------
+
+/*
+ * What the picker contains is decided entirely by the constraints, and the way
+ * to get entire screen, window and tab is to name none of them. Two options
+ * take that away, silently and without an error:
+ *
+ *   - `displaySurface` narrows the dialog to one kind of surface;
+ *   - `preferCurrentTab` narrows it to exactly one entry.
+ *
+ * Neither ever belongs here, and both are the sort of thing that gets added
+ * while debugging something else and left behind. This is the assertion that
+ * notices.
+ */
+const room = await readFile(
+  // Run from the repo root - see the `verify:screen-share` script.
+  resolve(process.cwd(), 'apps/web/src/lib/livekit/room.ts'),
+  'utf8',
+);
+
+const start = room.indexOf('async startScreenShare(');
+assert.notEqual(start, -1, 'startScreenShare still exists');
+const share = room.slice(start, room.indexOf('async stopScreenShare('));
+
+for (const narrowing of ['displaySurface', 'preferCurrentTab']) {
+  assert.ok(
+    !new RegExp(`^\\s*${narrowing}\\s*:`, 'm').test(share),
+    `${narrowing} would take entire screen and window out of the picker`,
+  );
+}
+
+// And the widening options are actually asked for.
+assert.match(share, /surfaceSwitching:\s*'include'/, 'the user can switch surface mid-share');
+assert.match(share, /systemAudio:\s*'include'/, 'system audio is offered where it exists');
+// The one exclusion, and it removes a single entry rather than a whole class.
+assert.match(share, /selfBrowserSurface:\s*'exclude'/, "PINGO's own tab is not offered");
+
 console.log('screen share: ok');
