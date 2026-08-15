@@ -233,7 +233,23 @@ function isUuid(value: string): boolean {
 function corsHeaders(request: Request): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': request.headers.get('Origin') ?? '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    /*
+     * Reflect what the browser asks for, exactly as `turn-credentials` does.
+     *
+     * A fixed list breaks the moment the client sends a header it does not
+     * name, and this function shipped with one that did not name
+     * `x-pingo-client` - the header the Supabase client attaches to every
+     * request for log attribution. The preflight refused it, `functions.invoke`
+     * reported a network failure, and every call quietly fell back to the
+     * peer-to-peer mesh. Screen sharing was the first thing to notice, because
+     * the fallback has no room to publish a second video track into.
+     *
+     * Widening the preflight gives nothing away: the request still has to carry
+     * a valid session and pass the conversation-membership check below.
+     */
+    'Access-Control-Allow-Headers':
+      request.headers.get('Access-Control-Request-Headers') ??
+      'authorization, x-client-info, apikey, content-type, x-pingo-client',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',
   };
