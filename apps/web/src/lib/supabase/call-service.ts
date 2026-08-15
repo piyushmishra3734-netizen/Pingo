@@ -10,6 +10,7 @@ import type {
   CallState,
 } from '@pingo/core';
 
+import { trimCallChat } from '../../features/calls/call-chat-rules.js';
 import { boostAudioSender, speechAudioConstraints } from '../audio/capture.js';
 import { resolveIceServers } from '../webrtc/ice-servers.js';
 import { CallRoom } from '../livekit/room.js';
@@ -44,6 +45,16 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 
 /** How long an unanswered call rings before it gives up. */
 const RING_TIMEOUT_MS = 45_000;
+
+/*
+ * The longest line the in-call chat will carry, shared with the composer.
+ *
+ * A broadcast payload is not a message body - it goes over the signalling
+ * channel that also has to deliver ICE candidates promptly. Somebody pasting a
+ * log into the call chat is truncated rather than allowed to hold up the
+ * connection everybody else is on. Enforced here because this is the boundary;
+ * the field knowing the same number is a courtesy, not the rule.
+ */
 
 type SignalPayload =
   /*
@@ -91,7 +102,22 @@ type SignalPayload =
   /** "So have I." The reply that lets a joiner discover who is already in. */
   | { kind: 'here'; callId: string; from: string }
   /** "I am gone." Ends one connection, not the call. */
-  | { kind: 'leave'; callId: string; from: string };
+  | { kind: 'leave'; callId: string; from: string }
+  /**
+   * A line of in-call chat.
+   *
+   * On the signalling channel rather than in the conversation, because it is
+   * not a conversation message - see `CallChatMessage`. That also means it
+   * costs nothing when nobody types: a call that has no chat sends no chat.
+   */
+  | {
+      kind: 'chat';
+      callId: string;
+      from: string;
+      messageId: string;
+      body: string;
+      sentAt: number;
+    };
 
 /**
  * One leg of the mesh.
@@ -423,6 +449,27 @@ export class SupabaseCallService implements CallService {
 
         this.#emit({ type: 'call:incoming', call: this.#call });
         this.#armRingTimeout();
+        break;
+      }
+
+      /*
+       * Somebody said something.
+       *
+       * Dropped unless it belongs to the call on screen: a line from a call
+       * that has already ended has nowhere to go, and one for a call this
+       * device is not on is not ours to display.
+       */
+      case 'chat': {
+        if (this.#call?.id !== signal.callId) return;
+        this.#emit({
+          type: 'call:chat',
+          message: {
+            id: signal.messageId,
+            userId: signal.from,
+            body: signal.body,
+            sentAt: signal.sentAt,
+          },
+        });
         break;
       }
 
@@ -936,7 +983,27 @@ export class SupabaseCallService implements CallService {
       onScreenStream: (userId, stream) =>
         this.#emit({ type: 'call:screen-stream', stream, userId }),
       onScreenGone: (userId) => this.#emit({ type: 'call:screen-ended', userId }),
-      onParticipantJoined: (userId) => this.#setParticipantState(userId, 'connecting'),
+      /*
+       * Somebody being in the room is somebody having answered.
+       *
+       * This used to only mark the tile `connecting` and leave the call
+       * ringing until their first track arrived - which is fine right up until
+       * a participant has no tracks. A video call now survives a refused
+       * camera and microphone, so "they joined with nothing" is a real state,
+       * and in it no track ever arrived, the ringback never stopped, and the
+       * caller sat listening to their own phone ring at somebody who was
+       * already on the call.
+       *
+       * Presence in the room is the transport telling us they picked up, and
+       * it does not depend on them having anything to send.
+       */
+      onParticipantJoined: (userId) => {
+        this.#setParticipantState(userId, 'connected');
+        this.#clearRingTimeout();
+        if (this.#call && this.#call.state !== 'connected') {
+          this.#update({ state: 'connected', connectedAt: this.#call.connectedAt ?? Date.now() });
+        }
+      },
       onReconnecting: () => this.#update({ state: 'reconnecting' }),
       onReconnected: () => this.#update({ state: 'connected' }),
       onDisconnected: () => {
@@ -1336,6 +1403,49 @@ export class SupabaseCallService implements CallService {
     }
   }
 
+  /**
+   * Says something to everybody on the call.
+   *
+   * Echoed locally rather than sent to our own topic. Publishing to
+   * `call:<self>` would make an outbound channel carrying the same topic as
+   * the subscribed one, and tearing that down at the end of the call
+   * unsubscribes the channel this device *listens* on - which is the failure
+   * already recorded on `#clearOutbound`, and it leaves the user unreachable
+   * rather than merely without their own message.
+   *
+   * Empty and runaway input is refused here rather than in the composer,
+   * because this is the boundary: the composer is one caller, and the next one
+   * would have to remember the same two rules.
+   */
+  async sendCallChat(callId: string, body: string): Promise<void> {
+    if (this.#call?.id !== callId || !this.#userId) return;
+
+    const text = trimCallChat(body);
+    if (!text) return;
+
+    const message = {
+      id: crypto.randomUUID(),
+      userId: this.#userId,
+      body: text,
+      sentAt: Date.now(),
+    };
+
+    this.#emit({ type: 'call:chat', message });
+
+    await Promise.all(
+      this.#audience().map((userId) =>
+        this.#send(userId, {
+          kind: 'chat',
+          callId,
+          from: this.#userId!,
+          messageId: message.id,
+          body: message.body,
+          sentAt: message.sentAt,
+        }).catch(() => {}),
+      ),
+    );
+  }
+
   /** Everyone this call has to be told about, deduplicated. */
   #audience(): string[] {
     if (!this.#call) return [];
@@ -1413,10 +1523,82 @@ export class SupabaseCallService implements CallService {
 
   setCameraOff(callId: string, cameraOff: boolean): void {
     if (this.#call?.id !== callId || this.#call.kind !== 'video') return;
+
+    /*
+     * There may be no camera track to enable.
+     *
+     * A video call now survives a refused camera - that is what lets somebody
+     * join to share their screen with nothing switched on. The cost was that
+     * `#applyCameraOff` then looped over zero video tracks forever: the button
+     * flipped, nothing was captured, and the other side never saw a picture.
+     * Turning the camera *on* has to be able to open one.
+     */
+    if (!cameraOff && (this.#localStream?.getVideoTracks().length ?? 0) === 0) {
+      void this.#startCamera();
+      return;
+    }
+
     this.#applyCameraOff(cameraOff);
     // Same reason as mute: the track stops either way, this is what says so.
     this.#room?.setCameraEnabled(!cameraOff);
     this.#update({ cameraOff });
+  }
+
+  /**
+   * Opens a camera mid-call and publishes it.
+   *
+   * Only reachable when the call started without one. The permission prompt
+   * appears now rather than at the start, which is the honest moment for it -
+   * this is the click that asks for a camera.
+   *
+   * A refusal puts the button back rather than leaving it showing a camera that
+   * is not on. The call is untouched either way: somebody who declines twice is
+   * still on the call, listening.
+   */
+  async #startCamera(): Promise<void> {
+    const callId = this.#call?.id;
+    if (!callId) return;
+
+    try {
+      const opened = await navigator.mediaDevices.getUserMedia({
+        video: this.#videoConstraints(),
+      });
+      const track = opened.getVideoTracks()[0];
+      if (!track) throw new Error('No camera track.');
+      if (this.#call?.id !== callId) {
+        // The call ended while the prompt was open. Do not leave the camera on.
+        track.stop();
+        return;
+      }
+
+      this.#rawTracks = [...this.#rawTracks, track];
+      this.#localStream?.addTrack(track);
+
+      /*
+       * The room can take a new publication mid-call; the mesh cannot.
+       *
+       * A peer connection built without a video sender needs a fresh offer and
+       * answer to grow one, and that renegotiation does not exist here. The
+       * mesh is the fallback for a room we could not reach, and a call that
+       * started with no camera on the fallback keeps none - it is a corner of a
+       * corner, and inventing renegotiation for it would be the tail wagging
+       * the dog. `videoSender` is present whenever the call opened with a
+       * camera, which is every other case.
+       */
+      if (this.#room) await this.#room.replaceVideo(track);
+      else {
+        await Promise.all(
+          [...this.#peers.values()].map((link) => link.videoSender?.replaceTrack(track)),
+        );
+      }
+
+      if (this.#localStream) {
+        this.#emit({ type: 'call:local-stream', stream: this.#localStream });
+      }
+      this.#update({ cameraOff: false });
+    } catch {
+      this.#update({ cameraOff: true });
+    }
   }
 
   /**

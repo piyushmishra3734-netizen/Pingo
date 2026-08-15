@@ -148,6 +148,18 @@ export class CallRoom {
     await room.connect(grant.url, grant.token);
 
     /*
+     * Whoever was already here.
+     *
+     * `ParticipantConnected` only fires for people who arrive *after* us, so
+     * somebody walking into a call in progress would be told about nobody. The
+     * handler is what stops the ringing, and it has to run for a room that was
+     * already occupied as much as for one that fills up later.
+     */
+    for (const participant of room.remoteParticipants.values()) {
+      this.#handlers.onParticipantJoined(participant.identity);
+    }
+
+    /*
      * Published, not captured.
      *
      * `publishTrack` on the existing tracks keeps PINGO's own audio pipeline -
@@ -176,6 +188,9 @@ export class CallRoom {
   setCameraEnabled(enabled: boolean): void {
     for (const publication of this.#room?.localParticipant.videoTrackPublications.values() ??
       []) {
+      // Never the shared screen: turning the camera off is not a request to
+      // stop showing everybody the thing you are presenting.
+      if (publication.source === Track.Source.ScreenShare) continue;
       if (enabled) void publication.track?.unmute();
       else void publication.track?.mute();
     }
@@ -192,9 +207,22 @@ export class CallRoom {
     if (!room) return;
 
     for (const publication of room.localParticipant.videoTrackPublications.values()) {
+      // The camera only. A shared screen is a video publication too, and
+      // unpublishing everything here meant switching to the front camera
+      // silently ended the share.
+      if (publication.source === Track.Source.ScreenShare) continue;
       if (publication.track) await room.localParticipant.unpublishTrack(publication.track);
     }
-    await room.localParticipant.publishTrack(track);
+    await room.localParticipant.publishTrack(track, { source: Track.Source.Camera });
+  }
+
+  /** Whether this device is publishing a camera at all, muted or otherwise. */
+  hasCamera(): boolean {
+    for (const publication of this.#room?.localParticipant.videoTrackPublications.values() ??
+      []) {
+      if (publication.source !== Track.Source.ScreenShare) return true;
+    }
+    return false;
   }
 
   /**

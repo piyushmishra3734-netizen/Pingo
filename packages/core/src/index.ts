@@ -95,6 +95,7 @@ export type {
   CallEvent,
   CallEndReason,
   CallQuality,
+  CallChatMessage,
 } from './call-service.js';
 
 // Appearance settings and the searchable registry

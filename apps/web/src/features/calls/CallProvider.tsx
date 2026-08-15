@@ -2,6 +2,7 @@ import {
   useAuth,
   useChat,
   type Call,
+  type CallChatMessage,
   type CallKind,
   type CallQuality,
   type CallService,
@@ -82,6 +83,16 @@ interface CallContextValue {
   toggleScreenShare: (() => Promise<void>) | undefined;
   /** Why the last attempt did not start. Cleared when another is made. */
   screenError: string | undefined;
+  /** Everything said in this call, oldest first. Never persisted. */
+  chat: CallChatMessage[];
+  /**
+   * Says something to the call.
+   *
+   * Undefined when the service cannot carry it, for the same reason as
+   * `toggleScreenShare` - a control that is always going to fail is worse than
+   * a control that is not there.
+   */
+  sendChat: ((body: string) => Promise<void>) | undefined;
   answer: () => Promise<void>;
   decline: () => Promise<void>;
   hangUp: () => Promise<void>;
@@ -156,6 +167,14 @@ export function CallProvider({
   /** One per person sharing. Usually zero or one; a room may have more. */
   const [screenStreams, setScreenStreams] = useState<Map<string, MediaStream>>(new Map());
   const [screenError, setScreenError] = useState<string | undefined>();
+  /**
+   * In-call chat, oldest first. Emptied when the call ends - it is not history.
+   *
+   * Named `callChat` locally because `chat` in this file is already the chat
+   * *service*, and the two are unrelated: one is a conversation store, the
+   * other is a handful of lines that will not outlive the call.
+   */
+  const [callChat, setCallChat] = useState<CallChatMessage[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // The Calls settings screen drives the media, so its toggles are not decorative.
@@ -196,6 +215,10 @@ export function CallProvider({
           setCall(undefined);
           setLocalStream(undefined);
           setRemoteStreams(new Map());
+          setScreenStreams(new Map());
+          // A meeting chat belongs to the meeting. Carrying it into the next
+          // call would show lines from a conversation that already ended.
+          setCallChat([]);
           if (audioRef.current) audioRef.current.srcObject = null;
           break;
 
@@ -244,6 +267,18 @@ export function CallProvider({
 
         case 'call:local-stream':
           setLocalStream(event.stream);
+          break;
+
+        case 'call:chat':
+          /*
+           * Deduplicated by id, because a resend is a real possibility and a
+           * line appearing twice reads as the person having said it twice.
+           */
+          setCallChat((previous) =>
+            previous.some((line) => line.id === event.message.id)
+              ? previous
+              : [...previous, event.message],
+          );
           break;
       }
     });
@@ -418,6 +453,11 @@ export function CallProvider({
         setScreenError("Screen sharing couldn't start.");
       }
     };
+  }, [service, call]);
+
+  const sendChat = useMemo(() => {
+    if (!call || !service.sendCallChat) return undefined;
+    return (body: string) => service.sendCallChat!(call.id, body);
   }, [service, call]);
 
   const hangUp = useCallback(async () => {
@@ -611,6 +651,8 @@ export function CallProvider({
       screenStreams,
       toggleScreenShare,
       screenError,
+      chat: callChat,
+      sendChat,
       startGroupCall,
       joinGroupCall,
       error,
@@ -630,6 +672,21 @@ export function CallProvider({
       switchCamera,
       localStream,
       remoteStreams,
+      /*
+       * The rest of what the value actually reads.
+       *
+       * These were missing, and a missing dependency here is not a stale
+       * closure - it is a context that does not update. A screen arriving
+       * changed `screenStreams` and produced no new value, so the share
+       * appeared for nobody until something else happened to re-render; and a
+       * chat line would have landed in state that the panel never saw.
+       */
+      screenStreams,
+      toggleScreenShare,
+      screenError,
+      callChat,
+      sendChat,
+      joinGroupCall,
       startGroupCall,
       // Not read above - it is here so a track appearing inside an unchanged
       // stream still produces a new context value. See the effect above.

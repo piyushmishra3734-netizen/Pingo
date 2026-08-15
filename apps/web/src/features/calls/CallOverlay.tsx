@@ -1,7 +1,8 @@
-import { formatDuration, useChat, type CallParticipant } from '@pingo/core';
+import { formatDuration, useAuth, useChat, type CallParticipant } from '@pingo/core';
 import {
   Avatar,
   CameraFlipIcon,
+  ChatIcon,
   FullscreenIcon,
   ScreenShareIcon,
   ScreenShareOffIcon,
@@ -14,8 +15,10 @@ import {
   cn,
 } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { useT } from '../i18n/useT.js';
+import { CallChatPanel, useCallChatUnread, useChatWindow } from './CallChat.js';
 import { useCall } from './CallProvider.js';
 import { canOfferScreenShare, primaryShare } from './screen-share-rules.js';
 
@@ -55,6 +58,8 @@ export function CallOverlay() {
     screenStreams,
     toggleScreenShare,
     screenError,
+    chat,
+    sendChat,
     error,
     dismissError,
     failureNotice,
@@ -62,7 +67,27 @@ export function CallOverlay() {
     weakConnection,
   } = useCall();
   const { users } = useChat();
+  const { session } = useAuth();
   const t = useT();
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const selfId = session?.user.id;
+  const unread = useCallChatUnread(chat, chatOpen, selfId);
+
+  /*
+   * A floating window, but only while this device is the one sharing.
+   *
+   * The sharer is the person who cannot see PINGO - they are looking at
+   * whatever they are presenting. Everybody else already has the panel in
+   * front of them and does not need a second window on top of their desktop.
+   */
+  const chatWindow = useChatWindow(chatOpen && Boolean(call?.screenSharing));
+  const wide = useWideWindow();
+
+  // A call that ends with the panel open must not reopen it on the next one.
+  useEffect(() => {
+    if (!call) setChatOpen(false);
+  }, [call]);
 
   /*
    * A call that never started still has something to say. "No microphone found"
@@ -148,6 +173,22 @@ export function CallOverlay() {
           stream={sharedScreen}
           mine={Boolean(call.screenSharing)}
           who={users.find((u) => u.id === sharerId)?.name ?? name}
+          /*
+            Everybody whose face the strip can show. A group call names them
+            from the roster; a direct call has exactly one other person and
+            `peer` already is them.
+          */
+          faces={(roster ?? [{ userId: call.peer.userId, state: 'connected' as const }]).map(
+            (participant) => {
+              const person = users.find((user) => user.id === participant.userId);
+              return {
+                userId: participant.userId,
+                name: person?.name ?? t('call.someone'),
+                avatarUrl: person?.avatarUrl,
+                stream: remoteStreams.get(participant.userId),
+              };
+            },
+          )}
         />
       ) : showingRemote ? (
         <RemoteVideo stream={primaryRemote} />
@@ -309,6 +350,24 @@ export function CallOverlay() {
             </CallAction>
           ) : null}
 
+          {/*
+            The chat, with a count of what has been said while it was shut.
+            Offered on every call that can carry it, not only while a screen is
+            being shared - somebody spelling out an address is the other reason
+            this exists.
+          */}
+          {sendChat ? (
+            <CallAction
+              label={t('call.chatTitle')}
+              tone="neutral"
+              pressed={chatOpen}
+              badge={unread}
+              onClick={() => setChatOpen((open) => !open)}
+            >
+              <ChatIcon size={24} />
+            </CallAction>
+          ) : null}
+
           {video ? (
             <CallAction
               label={t('call.switchCamera')}
@@ -324,8 +383,66 @@ export function CallOverlay() {
           </CallAction>
         </div>
       )}
+
+      {/*
+        Docked beside a shared screen on a wide window, a sheet everywhere else.
+
+        Presenting is the case that earns the dock: the screen is the content
+        and the chat is a margin note beside it, so neither covers the other.
+        With no share there is nothing to sit beside, and on a phone there is no
+        room to sit beside anything.
+      */}
+      {chatOpen && sendChat && !chatWindow ? (
+        <CallChatPanel
+          messages={chat}
+          onSend={sendChat}
+          onClose={() => setChatOpen(false)}
+          selfId={selfId}
+          docked={Boolean(sharedScreen) && wide}
+        />
+      ) : null}
+
+      {/*
+        The same panel, in the floating window, when there is one. Portalled
+        rather than re-implemented: one chat, rendered in a different place.
+      */}
+      {chatOpen && sendChat && chatWindow
+        ? createPortal(
+            <CallChatPanel
+              messages={chat}
+              onSend={sendChat}
+              onClose={() => setChatOpen(false)}
+              selfId={selfId}
+              docked
+            />,
+            chatWindow as unknown as Element,
+          )
+        : null}
     </div>
   );
+}
+
+/**
+ * Whether the window is wide enough to put two things side by side.
+ *
+ * A media query rather than a breakpoint class, because the answer changes
+ * which component tree is built - `docked` is a prop, not a style - and a
+ * class cannot decide that.
+ */
+function useWideWindow(): boolean {
+  const [wide, setWide] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth >= 768,
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 768px)');
+    const onChange = () => setWide(query.matches);
+    onChange();
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  return wide;
 }
 
 /**
@@ -617,23 +734,26 @@ function CallAction({
   label,
   tone,
   pressed,
+  badge,
   onClick,
   children,
 }: {
   label: string;
   tone: 'answer' | 'end' | 'neutral';
   pressed?: boolean;
+  /** A count to show on the corner. Zero draws nothing. */
+  badge?: number;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
-      aria-label={label}
+      aria-label={badge ? `${label}, ${badge} new` : label}
       aria-pressed={tone === 'neutral' ? pressed : undefined}
       onClick={onClick}
       className={cn(
-        'focus-ring grid size-16 place-items-center rounded-full',
+        'focus-ring relative grid size-16 place-items-center rounded-full',
         'transition-transform duration-instant ease-standard active:scale-95',
         tone === 'answer' && 'bg-online text-white shadow-md',
         tone === 'end' && 'bg-danger text-white shadow-md',
@@ -642,6 +762,18 @@ function CallAction({
       )}
     >
       {children}
+      {badge ? (
+        <span
+          aria-hidden
+          className={cn(
+            'absolute -top-0.5 -right-0.5 grid min-w-5 place-items-center',
+            'rounded-full bg-brand px-1.5 py-0.5',
+            'text-caption font-semibold text-white tabular-nums',
+          )}
+        >
+          {badge > 9 ? '9+' : badge}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -668,12 +800,16 @@ function SharedScreen({
   stream,
   who,
   mine,
+  faces,
 }: {
   stream: MediaStream;
-  /** Whose screen it is. Not shown for your own - you know. */
+  /** Whose screen it is. Said differently for your own - you know it is yours. */
   who: string;
   mine: boolean;
+  /** Everybody else on the call, for the strip along the bottom. */
+  faces: { userId: string; name: string; avatarUrl?: string; stream?: MediaStream }[];
 }) {
+  const t = useT();
   const ref = useStream(stream);
   const frame = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
@@ -696,40 +832,98 @@ function SharedScreen({
   };
 
   return (
-    <div ref={frame} className="absolute inset-0 bg-black">
+    <div
+      ref={frame}
+      /*
+        `backdrop`, the same near-black the camera and the story viewer sit on,
+        and the one colour that does not follow the theme - a shared screen is
+        a picture, and a picture is dark around the edges in every product on
+        earth. Using `ink` here would turn the stage white in dark mode.
+      */
+      className="absolute inset-0 bg-backdrop"
+    >
       <video ref={ref} autoPlay playsInline muted className="size-full object-contain" />
 
       {/*
-        Said plainly, and only to the people who need telling. Somebody sharing
-        their own screen can see that they are; the label is for everybody else.
+        One bar across the top carrying everything: who is presenting on the
+        left, the controls on the right. Two floating islands at different
+        heights was the arrangement before, and it read as two unrelated things
+        stuck on rather than one piece of chrome belonging to the stage.
       */}
-      {!mine && (
-        <div className="pointer-events-none absolute inset-x-0 top-10 flex justify-center">
-          <span
-            className={cn(
-              'rounded-full px-3 py-1.5 text-caption font-medium',
-              'bg-black/55 text-white backdrop-blur-glass',
-            )}
-          >
-            {who} is sharing their screen
-          </span>
-        </div>
-      )}
-
-      {canFullscreen && (
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3 pt-10">
+        <span
           className={cn(
-            'focus-ring absolute right-4 top-10 grid size-10 place-items-center rounded-full',
+            'pointer-events-auto flex items-center gap-2 rounded-full py-1.5 pr-3.5 pl-2.5',
             'bg-black/55 text-white backdrop-blur-glass',
-            'transition-transform duration-instant active:scale-95',
+            'text-caption font-medium',
           )}
         >
-          <FullscreenIcon size={20} />
-        </button>
+          {/*
+            A live dot, because a still frame and a frozen one look identical.
+            It is the one piece of motion on this surface and it earns its
+            place: it is the difference between "this is happening" and "this
+            has stopped".
+          */}
+          <span
+            aria-hidden
+            className="size-2 shrink-0 animate-pulse rounded-full bg-danger"
+          />
+          {mine ? t('call.youArePresenting') : t('call.isPresenting', { name: who })}
+        </span>
+
+        {canFullscreen && (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={full ? t('call.exitFullscreen') : t('call.fullscreen')}
+            className={cn(
+              'pointer-events-auto focus-ring grid size-10 shrink-0 place-items-center rounded-full',
+              'bg-black/55 text-white backdrop-blur-glass',
+              'transition-transform duration-instant active:scale-95',
+            )}
+          >
+            <FullscreenIcon size={20} />
+          </button>
+        )}
+      </div>
+
+      {/*
+        The faces, kept along the bottom of the stage.
+
+        A shared screen with nobody visible beside it is a screen recording, not
+        a call. The strip is small on purpose - the content is the point and the
+        people are context - and it sits above the control row rather than
+        behind it.
+      */}
+      {faces.length > 0 && (
+        <ul className="pointer-events-none absolute inset-x-0 bottom-28 flex justify-center gap-2 px-3">
+          {faces.map((face) => (
+            <li key={face.userId}>
+              {face.stream?.getVideoTracks().length ? (
+                <span className="block overflow-hidden rounded-lg border border-white/15 shadow-lg">
+                  <PresenterFace stream={face.stream} />
+                </span>
+              ) : (
+                <Avatar name={face.name} id={face.userId} src={face.avatarUrl} size="md" />
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
+  );
+}
+
+/** A face beside a shared screen. Small, cropped to fill, always muted. */
+function PresenterFace({ stream }: { stream: MediaStream }) {
+  const ref = useStream(stream);
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted
+      className="h-16 w-24 bg-backdrop object-cover"
+    />
   );
 }
