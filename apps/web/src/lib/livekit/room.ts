@@ -51,6 +51,16 @@ export interface RoomHandlers {
   onRemoteStream: (userId: string, stream: MediaStream) => void;
   /** They left, or their media went away. */
   onRemoteGone: (userId: string) => void;
+  /**
+   * Somebody started sharing their screen.
+   *
+   * Separate from `onRemoteStream` because it is a different thing on screen,
+   * not a second camera: a shared screen becomes the main content and the faces
+   * become small. Keeping them in one channel would mean the layout guessing
+   * which stream was which from its aspect ratio.
+   */
+  onScreenStream?: (userId: string, stream: MediaStream) => void;
+  onScreenGone?: (userId: string) => void;
   /** Somebody is in the room and connected. */
   onParticipantJoined: (userId: string) => void;
   /** The room is re-establishing itself after a network change. */
@@ -93,6 +103,8 @@ export class CallRoom {
   #handlers: RoomHandlers;
   /** One stream per remote participant, built up as their tracks arrive. */
   #remote = new Map<string, MediaStream>();
+  /** Shared screens, kept apart from faces - see `onScreenStream`. */
+  #screens = new Map<string, MediaStream>();
 
   constructor(handlers: RoomHandlers) {
     this.#handlers = handlers;
@@ -185,15 +197,81 @@ export class CallRoom {
     await room.localParticipant.publishTrack(track);
   }
 
+  /**
+   * Publishes this device's screen as its own track.
+   *
+   * ## Its own track, never the camera's
+   *
+   * `setScreenShareEnabled` publishes with source `ScreenShare` alongside
+   * whatever else is up, so a camera that was on stays on and the far end gets
+   * two pictures rather than one replaced. Replacing the camera track would
+   * have been fewer lines and would mean turning the camera back on ends the
+   * share.
+   *
+   * ## Audio is offered, not required
+   *
+   * `audio: true` asks the browser to *offer* system audio in its picker; every
+   * platform that cannot do it simply does not show the option, and the share
+   * proceeds without it. Nothing here fails for want of it.
+   *
+   * ## Ending it from the browser's own control
+   *
+   * Chrome puts a "Stop sharing" bar at the bottom of the screen, and people
+   * use it. That ends the track without going through this class, so the caller
+   * is told through `onEnded` - otherwise PINGO would go on showing a share
+   * button in the "sharing" state over a track that had stopped.
+   */
+  async startScreenShare(onEnded: () => void): Promise<void> {
+    const room = this.#room;
+    if (!room) throw new Error('The call is not connected.');
+
+    const published = await room.localParticipant.setScreenShareEnabled(true, {
+      audio: true,
+    });
+
+    const track = published?.track?.mediaStreamTrack;
+    if (track) track.addEventListener('ended', onEnded, { once: true });
+  }
+
+  async stopScreenShare(): Promise<void> {
+    await this.#room?.localParticipant.setScreenShareEnabled(false);
+  }
+
+  /** What this device is publishing as a screen, for the sharer's own preview. */
+  localScreen(): MediaStream | undefined {
+    for (const publication of this.#room?.localParticipant.videoTrackPublications.values() ??
+      []) {
+      if (publication.source !== Track.Source.ScreenShare) continue;
+      const track = publication.track?.mediaStreamTrack;
+      if (track) return new MediaStream([track]);
+    }
+    return undefined;
+  }
+
   async leave(): Promise<void> {
     const room = this.#room;
     this.#room = undefined;
     this.#remote.clear();
+    this.#screens.clear();
     await room?.disconnect();
   }
 
   #bind(room: Room): void {
-    room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
+    room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication, participant) => {
+      /*
+       * A shared screen is its own channel, not a second camera.
+       *
+       * LiveKit labels the publication's source, so this is read rather than
+       * guessed - a screen and a camera are both video tracks and telling them
+       * apart by shape would be a coin flip on a portrait monitor.
+       */
+      if (publication.source === Track.Source.ScreenShare) {
+        const screen = new MediaStream([track.mediaStreamTrack]);
+        this.#screens.set(participant.identity, screen);
+        this.#handlers.onScreenStream?.(participant.identity, screen);
+        return;
+      }
+
       /*
        * One stream per person, grown as their tracks arrive.
        *
@@ -208,7 +286,13 @@ export class CallRoom {
       this.#handlers.onRemoteStream(participant.identity, stream);
     });
 
-    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub, participant) => {
+    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication, participant) => {
+      if (publication.source === Track.Source.ScreenShare) {
+        this.#screens.delete(participant.identity);
+        this.#handlers.onScreenGone?.(participant.identity);
+        return;
+      }
+
       const stream = this.#remote.get(participant.identity);
       stream?.removeTrack(track.mediaStreamTrack);
       if (stream && stream.getTracks().length === 0) {
@@ -224,6 +308,9 @@ export class CallRoom {
     room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       this.#remote.delete(participant.identity);
       this.#handlers.onRemoteGone(participant.identity);
+      if (this.#screens.delete(participant.identity)) {
+        this.#handlers.onScreenGone?.(participant.identity);
+      }
     });
 
     room.on(RoomEvent.Reconnecting, () => this.#handlers.onReconnecting());

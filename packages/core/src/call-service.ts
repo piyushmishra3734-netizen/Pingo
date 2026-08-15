@@ -87,6 +87,15 @@ export interface Call {
   cameraOff: boolean;
 
   /**
+   * True while this device is sharing its screen.
+   *
+   * Independent of the camera and the microphone on purpose: somebody can be in
+   * a call with both off and still be the one showing everybody something,
+   * which is the ordinary way a screen gets shared.
+   */
+  screenSharing?: boolean;
+
+  /**
    * Everyone else on the call. Present only for a group call.
    *
    * Its absence is what distinguishes the two: a direct call has exactly one
@@ -113,6 +122,16 @@ export type CallEvent =
   | { type: 'call:remote-stream'; stream: MediaStream; userId: string }
   /** That peer is gone. Detach and forget their stream. */
   | { type: 'call:remote-stream-ended'; userId: string }
+  /*
+   * Somebody's screen, which is not somebody's face.
+   *
+   * Its own event rather than another remote stream: a shared screen becomes
+   * the main thing on the display and the people become tiles beside it, and a
+   * layout that had to guess which stream was which from its shape would get
+   * a portrait monitor wrong.
+   */
+  | { type: 'call:screen-stream'; stream: MediaStream; userId: string }
+  | { type: 'call:screen-ended'; userId: string }
   /**
    * This device's own camera, for the self-preview.
    *
@@ -251,6 +270,16 @@ export interface CallService {
   hangUp(callId: string): Promise<void>;
 
   setMuted(callId: string, muted: boolean): void;
+
+  /**
+   * Starts or stops sharing this device's screen.
+   *
+   * Optional so a service with no room to publish into - the in-memory mock -
+   * simply does not offer it rather than pretending. Rejects when the person
+   * refuses the browser's capture prompt, and the call is expected to carry on
+   * regardless: declining to share a screen is not a reason to hang up.
+   */
+  setScreenShare?(callId: string, sharing: boolean): Promise<void>;
 
   /** No-op on a voice call, which has no camera track to disable. */
   setCameraOff(callId: string, cameraOff: boolean): void;

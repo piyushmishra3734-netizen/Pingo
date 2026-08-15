@@ -2,6 +2,9 @@ import { formatDuration, useChat, type CallParticipant } from '@pingo/core';
 import {
   Avatar,
   CameraFlipIcon,
+  FullscreenIcon,
+  ScreenShareIcon,
+  ScreenShareOffIcon,
   MicIcon,
   MicOffIcon,
   PhoneIcon,
@@ -14,6 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useT } from '../i18n/useT.js';
 import { useCall } from './CallProvider.js';
+import { canOfferScreenShare, primaryShare } from './screen-share-rules.js';
 
 /**
  * The call surface: incoming sheet, in-call screen, voice and video.
@@ -48,6 +52,9 @@ export function CallOverlay() {
     switchCamera,
     localStream,
     remoteStreams,
+    screenStreams,
+    toggleScreenShare,
+    screenError,
     error,
     dismissError,
     failureNotice,
@@ -97,6 +104,20 @@ export function CallOverlay() {
    * when four people are talking.
    */
   const primaryRemote = [...remoteStreams.values()][0];
+
+  /*
+   * A shared screen is the main content, whoever it belongs to.
+   *
+   * It outranks every camera including this device's own: somebody sharing is
+   * showing the room something, and the faces become context around it. Only
+   * the first is promoted - two people sharing at once is rare enough that
+   * picking one and leaving the other as a tile beats a split view nobody could
+   * read on a phone.
+   */
+  const share = primaryShare(screenStreams);
+  const sharerId = share?.userId;
+  const sharedScreen = share?.stream;
+
   const showingRemote =
     video && !roster && Boolean(primaryRemote?.getVideoTracks().length);
 
@@ -122,7 +143,13 @@ export function CallOverlay() {
         'animate-fade-in',
       )}
     >
-      {showingRemote ? (
+      {sharedScreen ? (
+        <SharedScreen
+          stream={sharedScreen}
+          mine={Boolean(call.screenSharing)}
+          who={users.find((u) => u.id === sharerId)?.name ?? name}
+        />
+      ) : showingRemote ? (
         <RemoteVideo stream={primaryRemote} />
       ) : (
         <div className="pointer-events-none absolute inset-0 bg-brand-wash" aria-hidden />
@@ -156,6 +183,27 @@ export function CallOverlay() {
           </p>
           {weakConnection ? <WeakLine /> : null}
           {error ? <p className="mt-2 text-caption text-brand">{error}</p> : null}
+
+          {/*
+            A refused capture prompt is not a broken call.
+
+            Somebody who opens the picker and changes their mind produces the
+            same error as a real failure, and neither is a reason to hang up.
+            The line says what happened and offers the button again; the call
+            carries on underneath it either way.
+          */}
+          {screenError && toggleScreenShare ? (
+            <p className="mt-2 flex items-center justify-center gap-2 text-caption text-brand">
+              {t('call.shareFailed')}
+              <button
+                type="button"
+                onClick={() => void toggleScreenShare()}
+                className="focus-ring rounded-full px-2 py-0.5 font-medium underline"
+              >
+                {t('call.tryAgain')}
+              </button>
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -235,6 +283,31 @@ export function CallOverlay() {
               <SpeakerIcon size={24} />
             </CallAction>
           )}
+
+          {/*
+            Video calls only, and only when the call can actually carry one.
+            `toggleScreenShare` is undefined on the peer-to-peer fallback, where
+            there is no second video track to spare - a hidden control beats one
+            that always fails.
+          */}
+          {canOfferScreenShare({
+            kind: call.kind,
+            onRoom: Boolean(toggleScreenShare),
+            incoming,
+          }) && toggleScreenShare ? (
+            <CallAction
+              label={call.screenSharing ? t('call.stopShare') : t('call.shareScreen')}
+              tone="neutral"
+              pressed={Boolean(call.screenSharing)}
+              onClick={() => void toggleScreenShare()}
+            >
+              {call.screenSharing ? (
+                <ScreenShareOffIcon size={24} />
+              ) : (
+                <ScreenShareIcon size={24} />
+              )}
+            </CallAction>
+          ) : null}
 
           {video ? (
             <CallAction
@@ -570,5 +643,93 @@ function CallAction({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Somebody's screen, as the main content of the call.
+ *
+ * ## `contain`, not `cover`
+ *
+ * The opposite of every other video in this file, and deliberately. A face
+ * cropped to fill looks right; a spreadsheet cropped to fill has lost the
+ * column somebody is pointing at. A shared screen is information, so all of it
+ * is shown and the letterboxing is accepted.
+ *
+ * ## Fullscreen is on the surface, not in a menu
+ *
+ * The one thing anybody wants from a shared screen on a phone is *bigger*.
+ * `requestFullscreen` is asked of the wrapper rather than the video element,
+ * because on iOS a fullscreen `<video>` is taken over by the system player -
+ * which would put native controls over a live call and lose the call UI behind
+ * it. Where the API is missing entirely the button is not drawn.
+ */
+function SharedScreen({
+  stream,
+  who,
+  mine,
+}: {
+  stream: MediaStream;
+  /** Whose screen it is. Not shown for your own - you know. */
+  who: string;
+  mine: boolean;
+}) {
+  const ref = useStream(stream);
+  const frame = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setFull(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const canFullscreen =
+    typeof document !== 'undefined' && Boolean(document.fullscreenEnabled);
+
+  const toggle = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    void frame.current?.requestFullscreen?.().catch(() => undefined);
+  };
+
+  return (
+    <div ref={frame} className="absolute inset-0 bg-black">
+      <video ref={ref} autoPlay playsInline muted className="size-full object-contain" />
+
+      {/*
+        Said plainly, and only to the people who need telling. Somebody sharing
+        their own screen can see that they are; the label is for everybody else.
+      */}
+      {!mine && (
+        <div className="pointer-events-none absolute inset-x-0 top-10 flex justify-center">
+          <span
+            className={cn(
+              'rounded-full px-3 py-1.5 text-caption font-medium',
+              'bg-black/55 text-white backdrop-blur-glass',
+            )}
+          >
+            {who} is sharing their screen
+          </span>
+        </div>
+      )}
+
+      {canFullscreen && (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}
+          className={cn(
+            'focus-ring absolute right-4 top-10 grid size-10 place-items-center rounded-full',
+            'bg-black/55 text-white backdrop-blur-glass',
+            'transition-transform duration-instant active:scale-95',
+          )}
+        >
+          <FullscreenIcon size={20} />
+        </button>
+      )}
+    </div>
   );
 }

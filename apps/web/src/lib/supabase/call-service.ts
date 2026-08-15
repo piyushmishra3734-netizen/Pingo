@@ -628,7 +628,21 @@ export class SupabaseCallService implements CallService {
      * minimal constraints. One path keeps them even - 48 kHz mono speech with
      * the browser's AEC/NS/AGC, then optional RNNoise on top.
      */
-    const raw = await navigator.mediaDevices.getUserMedia({
+    /*
+     * A video call may legitimately have nothing to capture.
+     *
+     * Somebody joining to share their screen has no reason to have granted a
+     * camera or a microphone, and being refused either used to end the call
+     * before it started - the throw below tore it down and the person never got
+     * as far as the share button. So on a video call a refusal is survivable:
+     * the call connects with whatever tracks exist, which may be none, and the
+     * screen can still be published into it.
+     *
+     * A voice call keeps the old behaviour. There is nothing to join a voice
+     * call *for* without a microphone, and connecting one silently would be a
+     * worse answer than saying the microphone was refused.
+     */
+    const wanted: MediaStreamConstraints = {
       audio: speechAudioConstraints({
         echoCancellation: options?.echoCancellation !== false,
         // Browser NS stays on even when RNNoise is requested - RNNoise is a
@@ -638,7 +652,35 @@ export class SupabaseCallService implements CallService {
         hd: options?.hdAudio !== false,
       }),
       video: kind === 'video' ? this.#videoConstraints(options) : false,
-    });
+    };
+
+    let raw: MediaStream;
+    try {
+      raw = await navigator.mediaDevices.getUserMedia(wanted);
+    } catch (cause) {
+      if (kind !== 'video') throw cause;
+
+      /*
+       * Try each half on its own before giving up on both.
+       *
+       * A refused camera and a refused microphone are separate permissions, and
+       * `getUserMedia` fails the whole request if either is denied - so asking
+       * for both and catching once would drop a working microphone because the
+       * camera was off. Whatever is available is used; an empty stream is a
+       * valid answer and is what a screen-share-only participant joins with.
+       */
+      const parts: MediaStreamTrack[] = [];
+      for (const half of [{ audio: wanted.audio }, { video: wanted.video }]) {
+        if (!half.audio && !half.video) continue;
+        try {
+          const got = await navigator.mediaDevices.getUserMedia(half);
+          parts.push(...got.getTracks());
+        } catch {
+          // Refused or absent. The call proceeds without it.
+        }
+      }
+      raw = new MediaStream(parts);
+    }
 
     /*
      * Held separately from the stream that gets sent.
@@ -891,6 +933,9 @@ export class SupabaseCallService implements CallService {
         this.#setParticipantState(userId, 'left');
         this.#emit({ type: 'call:remote-stream-ended', userId });
       },
+      onScreenStream: (userId, stream) =>
+        this.#emit({ type: 'call:screen-stream', stream, userId }),
+      onScreenGone: (userId) => this.#emit({ type: 'call:screen-ended', userId }),
       onParticipantJoined: (userId) => this.#setParticipantState(userId, 'connecting'),
       onReconnecting: () => this.#update({ state: 'reconnecting' }),
       onReconnected: () => this.#update({ state: 'connected' }),
@@ -1368,6 +1413,50 @@ export class SupabaseCallService implements CallService {
   #applyCameraOff(cameraOff: boolean): void {
     for (const track of this.#localStream?.getVideoTracks() ?? []) {
       track.enabled = !cameraOff;
+    }
+  }
+
+  /**
+   * Starts or stops sharing this device's screen.
+   *
+   * Only a room can carry it: a screen is a second video track alongside the
+   * camera, and the mesh's per-leg senders were built for exactly one. A call
+   * that fell back to peer-to-peer therefore says so rather than appearing to
+   * share into a void.
+   *
+   * Rejecting is normal. Somebody who opens the browser's picker and changes
+   * their mind produces exactly the same error as a failure, and neither is a
+   * reason to end a call - the caller shows a retry and the call carries on.
+   */
+  async setScreenShare(callId: string, sharing: boolean): Promise<void> {
+    if (this.#call?.id !== callId) return;
+
+    const room = this.#room;
+    if (!room) throw new Error('Screen sharing needs a room-based call.');
+
+    if (!sharing) {
+      await room.stopScreenShare();
+      this.#update({ screenSharing: false });
+      this.#emit({ type: 'call:screen-ended', userId: this.#userId! });
+      return;
+    }
+
+    await room.startScreenShare(() => {
+      /*
+       * The browser's own "Stop sharing" bar ends the track without coming
+       * through here. Without this the button would still say "sharing" over a
+       * track that had stopped.
+       */
+      this.#update({ screenSharing: false });
+      this.#emit({ type: 'call:screen-ended', userId: this.#userId! });
+    });
+
+    this.#update({ screenSharing: true });
+
+    // The sharer sees their own screen too, so they can tell what is going out.
+    const own = room.localScreen();
+    if (own) {
+      this.#emit({ type: 'call:screen-stream', stream: own, userId: this.#userId! });
     }
   }
 

@@ -64,6 +64,24 @@ interface CallContextValue {
     memberIds: string[],
     kind?: CallKind,
   ) => Promise<void>;
+  /**
+   * Screens being shared, keyed by whoever is sharing.
+   *
+   * Kept apart from `remoteStreams` because a shared screen is the main content
+   * and a face is a tile beside it - one map each is what lets the layout say
+   * that without inspecting stream shapes.
+   */
+  screenStreams: Map<string, MediaStream>;
+  /**
+   * Starts or stops this device's share.
+   *
+   * Undefined when the call cannot carry one - a peer-to-peer fallback has no
+   * second video track to spare - so the control is hidden rather than offered
+   * and then refused.
+   */
+  toggleScreenShare: (() => Promise<void>) | undefined;
+  /** Why the last attempt did not start. Cleared when another is made. */
+  screenError: string | undefined;
   answer: () => Promise<void>;
   decline: () => Promise<void>;
   hangUp: () => Promise<void>;
@@ -135,6 +153,9 @@ export function CallProvider({
   const [localStream, setLocalStream] = useState<MediaStream | undefined>();
   /** One per person on the call. A direct call has exactly one entry. */
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  /** One per person sharing. Usually zero or one; a room may have more. */
+  const [screenStreams, setScreenStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [screenError, setScreenError] = useState<string | undefined>();
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // The Calls settings screen drives the media, so its toggles are not decorative.
@@ -196,6 +217,24 @@ export function CallProvider({
 
         case 'call:remote-stream-ended':
           setRemoteStreams((previous) => {
+            if (!previous.has(event.userId)) return previous;
+            const next = new Map(previous);
+            next.delete(event.userId);
+            return next;
+          });
+          break;
+
+        case 'call:screen-stream':
+          setScreenStreams((previous) => {
+            if (previous.get(event.userId) === event.stream) return previous;
+            const next = new Map(previous);
+            next.set(event.userId, event.stream);
+            return next;
+          });
+          break;
+
+        case 'call:screen-ended':
+          setScreenStreams((previous) => {
             if (!previous.has(event.userId)) return previous;
             const next = new Map(previous);
             next.delete(event.userId);
@@ -355,6 +394,30 @@ export function CallProvider({
 
   const decline = useCallback(async () => {
     if (call) await service.decline(call.id);
+  }, [service, call]);
+
+  /**
+   * Starts or stops this device's share.
+   *
+   * Undefined while there is no call, and while the call is on the
+   * peer-to-peer fallback, which has no room to publish a second video into.
+   * Hiding it beats offering a button that always fails.
+   *
+   * Refusing the browser's picker lands here as an error like any other, and it
+   * must not end the call - somebody who changes their mind about sharing is
+   * still on the call. The message is shown with a retry and nothing else
+   * happens.
+   */
+  const toggleScreenShare = useMemo(() => {
+    if (!call || !service.setScreenShare) return undefined;
+    return async () => {
+      setScreenError(undefined);
+      try {
+        await service.setScreenShare!(call.id, !call.screenSharing);
+      } catch {
+        setScreenError("Screen sharing couldn't start.");
+      }
+    };
   }, [service, call]);
 
   const hangUp = useCallback(async () => {
@@ -545,6 +608,9 @@ export function CallProvider({
       switchCamera,
       localStream,
       remoteStreams,
+      screenStreams,
+      toggleScreenShare,
+      screenError,
       startGroupCall,
       joinGroupCall,
       error,

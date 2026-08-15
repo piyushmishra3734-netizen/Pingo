@@ -262,6 +262,42 @@ export const PaletteIcon = (props: IconProps) => (
   </IconBase>
 );
 
+
+/**
+ * Sharing a screen: a display with an arrow leaving it.
+ *
+ * The arrow points up and out rather than down and in, because what the control
+ * does is send this screen to everybody else. A plain monitor would read as
+ * "display settings"; the direction is the whole meaning.
+ */
+export const ScreenShareIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <rect x="2.5" y="4" width="19" height="12.5" rx="2.4" />
+    <path d="M8.5 20.5h7" />
+    <path d="M12 7.5v5" />
+    <path d="M9.75 9.75 12 7.5l2.25 2.25" />
+  </IconBase>
+);
+
+/** Stopping a share: the same display, crossed. */
+export const ScreenShareOffIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <rect x="2.5" y="4" width="19" height="12.5" rx="2.4" />
+    <path d="M8.5 20.5h7" />
+    <path d="m4 3 16 16" />
+  </IconBase>
+);
+
+/** Filling the screen with one thing. Four corners, pushed outwards. */
+export const FullscreenIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9" />
+    <path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9" />
+    <path d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15" />
+    <path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" />
+  </IconBase>
+);
+
 export const StorageIcon = (props: IconProps) => (
   <IconBase {...props}>
     <rect x="3.5" y="4.5" width="17" height="6" rx="2.4" />
