@@ -1093,6 +1093,23 @@ export class SupabaseCallService implements CallService {
       }
 
       /*
+       * The room, before anybody is invited.
+       *
+       * `#answerGroup` joins the room and, having joined, sends no `join` to
+       * the mesh - there is nobody to negotiate with in an SFU. So if the host
+       * is not already in that room when the invites go out, every person who
+       * picks up walks into an empty one and the host sits ringing forever
+       * waiting for a mesh signal that will never be sent. That is what a group
+       * call did until the moment the token endpoint started working: the
+       * fallback hid it, because a room nobody could join is a room nobody was
+       * missing from.
+       *
+       * `call()` has always done this for direct calls. Groups are the same
+       * rule, and the failure was that only one of the two paths said so.
+       */
+      await this.#joinRoom(callId, conversationId);
+
+      /*
        * The state deliberately stays `dialling`.
        *
        * The caller counts as being in the room from the moment they place the

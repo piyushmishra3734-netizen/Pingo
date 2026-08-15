@@ -17,6 +17,9 @@
  * Run with `pnpm verify:group-calls`.
  */
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
 import { messagePreview, type Conversation, type Message } from '@pingo/core';
 
 import { callRecordFrom, isLiveCall } from '../src/features/calls/call-log-rules.js';
@@ -99,5 +102,41 @@ assert.match(
   ),
   /Missed/,
 );
+
+// -- Everybody who is on a call is in the room -----------------------------
+
+/*
+ * A source check, because the thing that broke cannot be reached from Node:
+ * `callGroup` opened its media, sent the invites and never joined the room.
+ * Whoever picked up joined an empty one - `#answerGroup` sends no mesh `join`
+ * once it is on a room, correctly - and the host rang until it timed out.
+ *
+ * It hid for as long as it did because the token endpoint's CORS preflight was
+ * refusing a header, so `#joinRoom` always failed and every call quietly used
+ * the mesh. The day that was fixed, group calls stopped connecting.
+ *
+ * The rule is simply that all three entry points agree, and that is what this
+ * asserts: place a direct call, place a group call, answer a group call.
+ */
+const service = await readFile(
+  // Run from the repo root - see the `verify:group-calls` script.
+  resolve(process.cwd(), 'apps/web/src/lib/supabase/call-service.ts'),
+  'utf8',
+);
+
+for (const method of ['async call(', 'async callGroup(', 'async #answerGroup(']) {
+  const start = service.indexOf(method);
+  assert.notEqual(start, -1, `${method} still exists`);
+
+  // To the next method at class indentation, which is where this body ends.
+  const rest = service.slice(start + method.length);
+  const end = rest.search(/\n {2}(?:async |#|\/\*\*)/);
+  const body = end === -1 ? rest : rest.slice(0, end);
+
+  assert.ok(
+    body.includes('#joinRoom('),
+    `${method} must join the LiveKit room, or its participants sit in different places`,
+  );
+}
 
 console.log('group calls: ok');
