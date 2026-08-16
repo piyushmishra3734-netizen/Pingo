@@ -1,5 +1,5 @@
 import { AuthProvider, ChatProvider, ProfileProvider } from '@pingo/core';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { BrowserRouter } from 'react-router-dom';
 
@@ -26,62 +26,84 @@ import {
   SupabaseProfileService,
   SupabaseStoryService,
 } from './lib/supabase/index.js';
-import { CallsScreen } from './screens/CallsScreen.js';
-import { CameraScreen } from './screens/CameraScreen.js';
+/**
+ * A screen fetched when somebody goes to it, rather than before they arrive.
+ *
+ * Every screen in this app was imported statically, which put all fifty-five of
+ * them - settings, camera, stories, backup, the QR reader, the legal pages - in
+ * one 2 MB chunk that had to arrive before the chat list could be drawn. On a
+ * fast connection that is invisible. On 2G it is minutes of staring at nothing
+ * to read a message, and it happens again after every deploy.
+ *
+ * Four screens stay eager because they are the whole of what a returning user
+ * sees: the splash, the chat list and thread (one screen), and the two first-run
+ * ones. Everything else costs a request the first time it is opened, and the
+ * service worker precaches the lot in the background anyway - so the trade is
+ * "first paint now, the rest while you read" rather than "wait for all of it".
+ *
+ * `React.lazy` wants a default export and this codebase uses named ones, which
+ * is the whole of what this wrapper does.
+ */
+function lazyScreen<M extends Record<string, unknown>>(load: () => Promise<M>, name: keyof M) {
+  return lazy(async () => ({ default: (await load())[name] as ComponentType }));
+}
+
+const CallsScreen = lazyScreen(() => import('./screens/CallsScreen.js'), 'CallsScreen');
+const CameraScreen = lazyScreen(() => import('./screens/CameraScreen.js'), 'CameraScreen');
 import { ChatsScreen } from './screens/ChatsScreen.js';
-import { CommunitiesScreen } from './screens/CommunitiesScreen.js';
-import { FollowRequestsScreen } from './screens/FollowRequestsScreen.js';
+const CommunitiesScreen = lazyScreen(() => import('./screens/CommunitiesScreen.js'), 'CommunitiesScreen');
+const FollowRequestsScreen = lazyScreen(() => import('./screens/FollowRequestsScreen.js'), 'FollowRequestsScreen');
 import { LiveProfile } from './features/profile/LiveProfile.js';
-import { DownloadScreen } from './screens/DownloadScreen.js';
-import { PrivacyPolicyScreen } from './screens/PrivacyPolicyScreen.js';
-import { TermsScreen } from './screens/TermsScreen.js';
-import { NewChatScreen } from './screens/NewChatScreen.js';
-import { ShareScreen } from './screens/ShareScreen.js';
-import { NewGroupScreen } from './screens/NewGroupScreen.js';
-import { JoinGroupScreen } from './screens/JoinGroupScreen.js';
-import { NotificationsScreen as NotificationsFeedScreen } from './screens/NotificationsScreen.js';
-import { EditProfileScreen } from './screens/EditProfileScreen.js';
-import { JourneyScreen } from './screens/JourneyScreen.js';
-import { ProfileScreen } from './screens/ProfileScreen.js';
-import { StoryArchiveScreen } from './screens/StoryArchiveScreen.js';
-import { SettingsScreen } from './screens/SettingsScreen.js';
-import { AccountScreen } from './screens/settings/AccountScreen.js';
-import { ChangePasswordScreen } from './screens/settings/ChangePasswordScreen.js';
-import { AdvancedScreen } from './screens/settings/AdvancedScreen.js';
-import { AppearanceScreen } from './screens/settings/AppearanceScreen.js';
-import { CallsSettingsScreen } from './screens/settings/CallsSettingsScreen.js';
-import { MutedStoriesScreen } from './screens/settings/MutedStoriesScreen.js';
-import { CameraSettingsScreen } from './screens/settings/CameraSettingsScreen.js';
-import { ChatsSettingsScreen } from './screens/settings/ChatsSettingsScreen.js';
-import { WallpaperScreen } from './screens/settings/WallpaperScreen.js';
-import { HelpScreen } from './screens/settings/HelpScreen.js';
-import { LanguageScreen } from './screens/settings/LanguageScreen.js';
-import { NotificationsScreen } from './screens/settings/NotificationsScreen.js';
-import { PrivacyScreen } from './screens/settings/PrivacyScreen.js';
-import { PushDebugScreen } from './screens/settings/PushDebugScreen.js';
-import { SecureBackupScreen } from './screens/settings/SecureBackupScreen.js';
-import { DevicesScreen } from './screens/settings/DevicesScreen.js';
-import { StorageScreen } from './screens/settings/StorageScreen.js';
+const DownloadScreen = lazyScreen(() => import('./screens/DownloadScreen.js'), 'DownloadScreen');
+const PrivacyPolicyScreen = lazyScreen(() => import('./screens/PrivacyPolicyScreen.js'), 'PrivacyPolicyScreen');
+const TermsScreen = lazyScreen(() => import('./screens/TermsScreen.js'), 'TermsScreen');
+const NewChatScreen = lazyScreen(() => import('./screens/NewChatScreen.js'), 'NewChatScreen');
+const ShareScreen = lazyScreen(() => import('./screens/ShareScreen.js'), 'ShareScreen');
+const NewGroupScreen = lazyScreen(() => import('./screens/NewGroupScreen.js'), 'NewGroupScreen');
+const JoinGroupScreen = lazyScreen(() => import('./screens/JoinGroupScreen.js'), 'JoinGroupScreen');
+const NotificationsFeedScreen = lazyScreen(() => import('./screens/NotificationsScreen.js'), 'NotificationsScreen');
+const EditProfileScreen = lazyScreen(() => import('./screens/EditProfileScreen.js'), 'EditProfileScreen');
+const JourneyScreen = lazyScreen(() => import('./screens/JourneyScreen.js'), 'JourneyScreen');
+const ProfileScreen = lazyScreen(() => import('./screens/ProfileScreen.js'), 'ProfileScreen');
+const StoryArchiveScreen = lazyScreen(() => import('./screens/StoryArchiveScreen.js'), 'StoryArchiveScreen');
+const SettingsScreen = lazyScreen(() => import('./screens/SettingsScreen.js'), 'SettingsScreen');
+const AccountScreen = lazyScreen(() => import('./screens/settings/AccountScreen.js'), 'AccountScreen');
+const ChangePasswordScreen = lazyScreen(() => import('./screens/settings/ChangePasswordScreen.js'), 'ChangePasswordScreen');
+const AdvancedScreen = lazyScreen(() => import('./screens/settings/AdvancedScreen.js'), 'AdvancedScreen');
+const AppearanceScreen = lazyScreen(() => import('./screens/settings/AppearanceScreen.js'), 'AppearanceScreen');
+const CallsSettingsScreen = lazyScreen(() => import('./screens/settings/CallsSettingsScreen.js'), 'CallsSettingsScreen');
+const MutedStoriesScreen = lazyScreen(() => import('./screens/settings/MutedStoriesScreen.js'), 'MutedStoriesScreen');
+const CameraSettingsScreen = lazyScreen(() => import('./screens/settings/CameraSettingsScreen.js'), 'CameraSettingsScreen');
+const ChatsSettingsScreen = lazyScreen(() => import('./screens/settings/ChatsSettingsScreen.js'), 'ChatsSettingsScreen');
+const WallpaperScreen = lazyScreen(() => import('./screens/settings/WallpaperScreen.js'), 'WallpaperScreen');
+const HelpScreen = lazyScreen(() => import('./screens/settings/HelpScreen.js'), 'HelpScreen');
+const LanguageScreen = lazyScreen(() => import('./screens/settings/LanguageScreen.js'), 'LanguageScreen');
+const NotificationsScreen = lazyScreen(() => import('./screens/settings/NotificationsScreen.js'), 'NotificationsScreen');
+const PrivacyScreen = lazyScreen(() => import('./screens/settings/PrivacyScreen.js'), 'PrivacyScreen');
+const PushDebugScreen = lazyScreen(() => import('./screens/settings/PushDebugScreen.js'), 'PushDebugScreen');
+const SecureBackupScreen = lazyScreen(() => import('./screens/settings/SecureBackupScreen.js'), 'SecureBackupScreen');
+const DevicesScreen = lazyScreen(() => import('./screens/settings/DevicesScreen.js'), 'DevicesScreen');
+const StorageScreen = lazyScreen(() => import('./screens/settings/StorageScreen.js'), 'StorageScreen');
 import { IntroSlidesScreen } from './screens/IntroSlidesScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
 import { SplashScreen } from './screens/SplashScreen.js';
-import { ControllingScreen } from './screens/settings/ControllingScreen.js';
-import { ToastFeelLab } from './screens/dev/ToastFeelLab.js';
-import { CreatePasswordScreen } from './screens/auth/CreatePasswordScreen.js';
-import { GoogleConnectingScreen } from './screens/auth/GoogleConnectingScreen.js';
-import { LoginEmailScreen } from './screens/auth/LoginEmailScreen.js';
-import { LoginMethodScreen } from './screens/auth/LoginMethodScreen.js';
-import { LoginPasswordScreen } from './screens/auth/LoginPasswordScreen.js';
-import { LoginPhoneScreen } from './screens/auth/LoginPhoneScreen.js';
-import { LoginUsernameScreen } from './screens/auth/LoginUsernameScreen.js';
-import { SignUpEmailScreen } from './screens/auth/SignUpEmailScreen.js';
-import { SignUpMethodScreen } from './screens/auth/SignUpMethodScreen.js';
-import { SignUpPhoneScreen } from './screens/auth/SignUpPhoneScreen.js';
-import { NameScreen } from './screens/setup/NameScreen.js';
-import { BackupScreen } from './screens/setup/BackupScreen.js';
-import { PermissionsScreen } from './screens/setup/PermissionsScreen.js';
-import { PhotoScreen } from './screens/setup/PhotoScreen.js';
-import { UsernameScreen } from './screens/setup/UsernameScreen.js';
+const ControllingScreen = lazyScreen(() => import('./screens/settings/ControllingScreen.js'), 'ControllingScreen');
+const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');
+const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
+const GoogleConnectingScreen = lazyScreen(() => import('./screens/auth/GoogleConnectingScreen.js'), 'GoogleConnectingScreen');
+const LoginEmailScreen = lazyScreen(() => import('./screens/auth/LoginEmailScreen.js'), 'LoginEmailScreen');
+const LoginMethodScreen = lazyScreen(() => import('./screens/auth/LoginMethodScreen.js'), 'LoginMethodScreen');
+const LoginPasswordScreen = lazyScreen(() => import('./screens/auth/LoginPasswordScreen.js'), 'LoginPasswordScreen');
+const LoginPhoneScreen = lazyScreen(() => import('./screens/auth/LoginPhoneScreen.js'), 'LoginPhoneScreen');
+const LoginUsernameScreen = lazyScreen(() => import('./screens/auth/LoginUsernameScreen.js'), 'LoginUsernameScreen');
+const SignUpEmailScreen = lazyScreen(() => import('./screens/auth/SignUpEmailScreen.js'), 'SignUpEmailScreen');
+const SignUpMethodScreen = lazyScreen(() => import('./screens/auth/SignUpMethodScreen.js'), 'SignUpMethodScreen');
+const SignUpPhoneScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneScreen.js'), 'SignUpPhoneScreen');
+const NameScreen = lazyScreen(() => import('./screens/setup/NameScreen.js'), 'NameScreen');
+const BackupScreen = lazyScreen(() => import('./screens/setup/BackupScreen.js'), 'BackupScreen');
+const PermissionsScreen = lazyScreen(() => import('./screens/setup/PermissionsScreen.js'), 'PermissionsScreen');
+const PhotoScreen = lazyScreen(() => import('./screens/setup/PhotoScreen.js'), 'PhotoScreen');
+const UsernameScreen = lazyScreen(() => import('./screens/setup/UsernameScreen.js'), 'UsernameScreen');
 
 /**
  * Route map and composition root.
@@ -277,6 +299,16 @@ export function App() {
             message toasts when a new message arrives outside the open thread.
           */}
           <MessageToastProvider>
+          {/*
+            Nothing is drawn while a lazy screen is being fetched.
+
+            The screens that matter are eager, so this only ever covers a
+            navigation somebody just asked for - and on a cached load the chunk
+            is already on disk and this never renders at all. A spinner here
+            would flash on every settings tap on a fast connection, which is a
+            worse thing to have than a blank beat on a slow one.
+          */}
+          <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<SplashScreen />} />
 
@@ -429,6 +461,7 @@ export function App() {
             */}
             <Route path="*" element={<Navigate to="/chats" replace />} />
           </Routes>
+          </Suspense>
           </MessageToastProvider>
         </BrowserRouter>
         {/*

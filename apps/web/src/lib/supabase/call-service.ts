@@ -14,7 +14,20 @@ import { trimCallChat } from '../../features/calls/call-chat-rules.js';
 import { isScreenIdentity } from '../../features/calls/screen-share-rules.js';
 import { boostAudioSender, speechAudioConstraints } from '../audio/capture.js';
 import { resolveIceServers } from '../webrtc/ice-servers.js';
-import { CallRoom } from '../livekit/room.js';
+/*
+ * Type-only, so `livekit-client` is not on the startup path.
+ *
+ * The SDK is the single largest thing this app can load, and importing the room
+ * module for real pulled all of it into the main bundle - which meant every
+ * person opening PINGO to read a message downloaded an entire WebRTC client
+ * first, whether or not they ever made a call. On 2G that is the difference
+ * between the chat list appearing and the app looking dead.
+ *
+ * The real import happens in `#joinRoom`, which is already async and is the
+ * first moment the code is needed. Placing a call pays for it once and the
+ * browser caches it from then on.
+ */
+import type { CallRoom } from '../livekit/room.js';
 import {
   nativeScreenCaptureAvailable,
   startNativeScreenShare,
@@ -1019,6 +1032,9 @@ export class SupabaseCallService implements CallService {
    */
   async #joinRoom(callId: string, conversationId: string | undefined): Promise<boolean> {
     if (!conversationId || !this.#localStream) return false;
+
+    // Fetched now rather than at startup - see the note on the type import.
+    const { CallRoom } = await import('../livekit/room.js');
 
     const room = new CallRoom({
       onRemoteStream: (userId, stream) => {

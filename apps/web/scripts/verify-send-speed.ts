@@ -126,4 +126,51 @@ assert.ok(
   'keys must not be cached long enough for a new device to miss a message',
 );
 
+// -- What has to arrive before the chat list can be drawn ------------------
+
+/*
+ * Every screen was imported statically, so all fifty-five of them - settings,
+ * camera, stories, backup, the legal pages - were in one chunk that had to
+ * download before anything appeared. And the LiveKit client came with them, so
+ * somebody opening PINGO to read a message first downloaded an entire WebRTC
+ * stack whether or not they ever placed a call.
+ *
+ * Both are one static import away from coming back, and neither would show up
+ * as anything but "the app feels slow again".
+ */
+const callService = await readFile(
+  resolve(process.cwd(), 'apps/web/src/lib/supabase/call-service.ts'),
+  'utf8',
+);
+assert.match(
+  callService,
+  /import type \{ CallRoom \} from '\.\.\/livekit\/room\.js'/,
+  'the call transport is a type here - a value import puts livekit-client on the ' +
+    'startup path for people who never call',
+);
+assert.match(
+  callService,
+  /await import\('\.\.\/livekit\/room\.js'\)/,
+  'and it is fetched when a call actually needs it',
+);
+
+const app = await readFile(resolve(process.cwd(), 'apps/web/src/App.tsx'), 'utf8');
+
+/*
+ * Four screens stay eager, and they are the whole of what a returning user
+ * sees. Everything else is fetched on the way to it.
+ */
+const eager = [...app.matchAll(/^import \{ (\w+Screen) \} from '\.\/screens\//gm)].map(
+  (m) => m[1],
+);
+assert.deepEqual(
+  eager.sort(),
+  ['ChatsScreen', 'IntroSlidesScreen', 'OnboardingScreen', 'SplashScreen'],
+  'only the first-paint screens are imported eagerly',
+);
+
+const lazyCount = (app.match(/lazyScreen\(\(\) => import\(/g) ?? []).length;
+assert.ok(lazyCount > 40, `every other screen is lazy - found ${lazyCount}`);
+assert.match(app, /<Suspense fallback=\{null\}>/, 'and there is a boundary to render them into');
+
 console.log('send speed: ok');
