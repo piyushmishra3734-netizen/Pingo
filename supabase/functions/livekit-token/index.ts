@@ -42,7 +42,24 @@ interface TokenRequest {
   conversationId?: string;
   /** The call, so two calls in one conversation are two rooms. */
   callId?: string;
+  /**
+   * A token for this device's *screen*, not for the person.
+   *
+   * On Android the screen cannot be captured by the browser at all - Chrome
+   * ships `getDisplayMedia` and rejects every call to it - so the native shell
+   * captures it with MediaProjection and publishes it itself. That means a
+   * second connection to the same room from the same phone, and LiveKit
+   * removes the first participant when a second joins under the same identity.
+   * So the screen joins as `<user>#screen`.
+   *
+   * It is a strictly weaker pass than the person's: it may publish a screen and
+   * nothing else, and it may not subscribe to anybody. A screen has no ears.
+   */
+  screen?: boolean;
 }
+
+/** The suffix that marks a participant as somebody's screen rather than them. */
+const SCREEN_SUFFIX = '#screen';
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === 'OPTIONS') {
@@ -105,7 +122,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
     apiKey,
     apiSecret,
     room,
-    identity: user.id,
+    identity: body.screen ? `${user.id}${SCREEN_SUFFIX}` : user.id,
+    screenOnly: body.screen === true,
     ttlSeconds: TTL_SECONDS,
   });
 
@@ -173,6 +191,8 @@ async function mintToken(input: {
   apiSecret: string;
   room: string;
   identity: string;
+  /** A screen's pass: publish one screen, hear nothing. See `TokenRequest`. */
+  screenOnly?: boolean;
   ttlSeconds: number;
 }): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
@@ -190,9 +210,21 @@ async function mintToken(input: {
       room: input.room,
       roomJoin: true,
       canPublish: true,
-      canSubscribe: true,
+      /*
+       * A screen is not a participant with ears.
+       *
+       * The native screen connection exists to push one track upward. Letting
+       * it subscribe would have the phone download every other person's video
+       * a second time, over mobile data, to render nowhere. And naming the
+       * sources it may publish means a leaked screen token cannot be used to
+       * put a microphone into somebody's call.
+       */
+      canSubscribe: !input.screenOnly,
+      ...(input.screenOnly
+        ? { canPublishSources: ['screen_share', 'screen_share_audio'] }
+        : {}),
       // Nobody on a call needs to write room metadata or manage anybody else.
-      canPublishData: true,
+      canPublishData: !input.screenOnly,
       roomAdmin: false,
       roomCreate: false,
     },

@@ -6,6 +6,31 @@
  * JSX every time the layout is touched.
  */
 
+/**
+ * The suffix a native screen connection joins under.
+ *
+ * A phone cannot capture its screen from the browser, so the shell does it and
+ * publishes from a second connection - and LiveKit evicts the first participant
+ * when a second joins under the same identity. So the screen is `<user>#screen`,
+ * and everything that turns an identity into a person has to know that.
+ *
+ * Kept here rather than in the transport because the UI is what asks "whose
+ * screen is this?", and the answer is a person, not a connection.
+ */
+export const SCREEN_SUFFIX = '#screen';
+
+/** The person a room identity belongs to, whether it is them or their screen. */
+export function personBehind(identity: string): string {
+  return identity.endsWith(SCREEN_SUFFIX)
+    ? identity.slice(0, -SCREEN_SUFFIX.length)
+    : identity;
+}
+
+/** Whether this identity is somebody's screen rather than somebody. */
+export function isScreenIdentity(identity: string): boolean {
+  return identity.endsWith(SCREEN_SUFFIX);
+}
+
 /** Whose screen is the main content, if anybody's. */
 export function primaryShare(
   screens: ReadonlyMap<string, MediaStream>,

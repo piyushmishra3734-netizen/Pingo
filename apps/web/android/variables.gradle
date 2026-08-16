@@ -14,4 +14,14 @@ ext {
     androidxJunitVersion = '1.3.0'
     androidxEspressoCoreVersion = '3.7.0'
     cordovaAndroidVersion = '14.0.1'
+    /*
+     * Kotlin and LiveKit, both only for native screen capture.
+     *
+     * A phone cannot share its screen from the browser - Chrome on Android
+     * ships getDisplayMedia and rejects every call to it - so MediaProjection
+     * has to publish into the call itself, and that means the Android SDK.
+     * See ScreenCaptureService.
+     */
+    kotlinVersion = '2.0.21'
+    livekitVersion = '2.13.1'
 }

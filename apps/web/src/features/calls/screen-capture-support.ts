@@ -1,3 +1,4 @@
+import { nativeScreenCaptureAvailable } from '../../lib/livekit/native-screen.js';
 import { canCaptureScreen } from './screen-share-rules.js';
 
 /**
@@ -39,10 +40,7 @@ function isMobileBrowser(): boolean {
  * has somewhere to read it from rather than being rewritten later.
  */
 function hasNativeCapture(): boolean {
-  return Boolean(
-    (globalThis as { Capacitor?: { isPluginAvailable?: (name: string) => boolean } }).Capacitor
-      ?.isPluginAvailable?.('ScreenCapture'),
-  );
+  return nativeScreenCaptureAvailable();
 }
 
 export function screenCaptureAvailable(): boolean {

@@ -21,7 +21,7 @@ import { useT } from '../i18n/useT.js';
 import { CallChatPanel, useCallChatUnread, useChatWindow } from './CallChat.js';
 import { useCall } from './CallProvider.js';
 import { screenCaptureAvailable } from './screen-capture-support.js';
-import { canOfferScreenShare, primaryShare } from './screen-share-rules.js';
+import { canOfferScreenShare, personBehind, primaryShare } from './screen-share-rules.js';
 
 /**
  * The call surface: incoming sheet, in-call screen, voice and video.
@@ -182,7 +182,13 @@ export function CallOverlay() {
         <SharedScreen
           stream={sharedScreen}
           mine={Boolean(call.screenSharing)}
-          who={users.find((u) => u.id === sharerId)?.name ?? name}
+          /*
+            The sharer, not the connection sharing. On Android the screen
+            arrives from `<user>#screen` - a separate LiveKit participant,
+            because a phone captures its screen natively and joins twice.
+            Nobody wants to read "piyush#screen is presenting".
+          */
+          who={users.find((u) => u.id === personBehind(sharerId ?? ''))?.name ?? name}
           /*
             Everybody whose face the strip can show. A group call names them
             from the roster; a direct call has exactly one other person and

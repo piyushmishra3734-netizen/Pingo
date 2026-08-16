@@ -11,9 +11,15 @@ import type {
 } from '@pingo/core';
 
 import { trimCallChat } from '../../features/calls/call-chat-rules.js';
+import { isScreenIdentity } from '../../features/calls/screen-share-rules.js';
 import { boostAudioSender, speechAudioConstraints } from '../audio/capture.js';
 import { resolveIceServers } from '../webrtc/ice-servers.js';
 import { CallRoom } from '../livekit/room.js';
+import {
+  nativeScreenCaptureAvailable,
+  startNativeScreenShare,
+  stopNativeScreenShare,
+} from '../livekit/native-screen.js';
 import { qualityReader } from '../webrtc/quality.js';
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
@@ -1041,6 +1047,11 @@ export class SupabaseCallService implements CallService {
        * it does not depend on them having anything to send.
        */
       onParticipantJoined: (userId) => {
+        // A screen arriving is not a person answering. On Android the shell
+        // joins a second time to publish the screen it captured natively, and
+        // that connection must not be what stops the phone ringing.
+        if (isScreenIdentity(userId)) return;
+
         this.#setParticipantState(userId, 'connected');
         this.#clearRingTimeout();
         if (this.#call && this.#call.state !== 'connected') {
@@ -1692,6 +1703,27 @@ export class SupabaseCallService implements CallService {
 
     const room = this.#room;
     if (!room) throw new Error('Screen sharing needs a room-based call.');
+
+    /*
+     * On a phone the shell captures the screen, not the page.
+     *
+     * `getDisplayMedia` is a stub that always rejects on Android, so where the
+     * native plugin exists it does the work: it joins the same room as
+     * `<user>#screen` and publishes from there. The frames come back to this
+     * device through the ordinary subscribe path, so everything below this
+     * function - the stage, the preview, the "you're presenting" line - is
+     * unchanged and does not know the difference.
+     */
+    if (nativeScreenCaptureAvailable()) {
+      if (!sharing) {
+        await stopNativeScreenShare();
+        this.#update({ screenSharing: false });
+        return;
+      }
+      await startNativeScreenShare(callId, this.#call.conversationId ?? '');
+      this.#update({ screenSharing: true });
+      return;
+    }
 
     if (!sharing) {
       await room.stopScreenShare();

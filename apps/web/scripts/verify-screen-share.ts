@@ -15,6 +15,8 @@ import { resolve } from 'node:path';
 import {
   canCaptureScreen,
   canOfferScreenShare,
+  isScreenIdentity,
+  personBehind,
   primaryShare,
   stageContent,
 } from '../src/features/calls/screen-share-rules.js';
@@ -203,5 +205,22 @@ assert.match(share, /surfaceSwitching:\s*'include'/, 'the user can switch surfac
 assert.match(share, /systemAudio:\s*'include'/, 'system audio is offered where it exists');
 // The one exclusion, and it removes a single entry rather than a whole class.
 assert.match(share, /selfBrowserSurface:\s*'exclude'/, "PINGO's own tab is not offered");
+
+// -- A screen is a connection; the sharer is a person -----------------------
+
+/*
+ * On Android the screen joins the room as its own participant, because
+ * MediaProjection produces frames in the app and there is no way to hand them
+ * to the WebView's WebRTC stack. LiveKit evicts a participant when a second one
+ * joins under the same identity, so the screen has to be `<user>#screen` - and
+ * every place that turns an identity into a name has to undo that, or the call
+ * says "piyush#screen is presenting".
+ */
+assert.equal(personBehind('abc-123#screen'), 'abc-123');
+assert.equal(personBehind('abc-123'), 'abc-123', 'an ordinary identity is left alone');
+assert.equal(isScreenIdentity('abc-123#screen'), true);
+assert.equal(isScreenIdentity('abc-123'), false);
+// A name that merely contains the word is not a screen.
+assert.equal(isScreenIdentity('screen-abc'), false);
 
 console.log('screen share: ok');

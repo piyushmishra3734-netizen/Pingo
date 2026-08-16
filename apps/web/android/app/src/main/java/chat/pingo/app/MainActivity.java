@@ -63,6 +63,14 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        /*
+         * Registered before super, which is where Capacitor builds the bridge.
+         * A plugin added afterwards is not in the map the page asks, so
+         * `Capacitor.isPluginAvailable('ScreenCapture')` answers false and the
+         * share control hides itself on the one platform that needs it.
+         */
+        registerPlugin(ScreenCapturePlugin.class);
+
         super.onCreate(savedInstanceState);
 
         WebView webView = getBridge().getWebView();

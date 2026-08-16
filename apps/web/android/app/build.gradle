@@ -1,4 +1,6 @@
 apply plugin: 'com.android.application'
+// One Kotlin file: ScreenCaptureService. See the note in variables.gradle.
+apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace = "chat.pingo.app"
@@ -115,6 +117,18 @@ dependencies {
      * dependency graph means an appcompat bump could quietly take them away.
      */
     implementation "androidx.core:core:$androidxCoreVersion"
+    /*
+     * LiveKit's Android SDK, for screen capture and nothing else.
+     *
+     * The call itself runs in the WebView on livekit-client, and that does not
+     * change. This is here because MediaProjection produces frames in the app
+     * rather than in the page, and there is no supported way to hand them to
+     * the WebView's own WebRTC stack - so the screen joins the room as its own
+     * participant. See ScreenCaptureService.
+     *
+     * It carries a WebRTC binary, which is the real cost of this feature.
+     */
+    implementation "io.livekit:livekit-android:$livekitVersion"
     /*
      * Passkeys, asked for by the app rather than by the page. See PasskeyBridge
      * for why the WebView cannot do it. The play-services artefact is not

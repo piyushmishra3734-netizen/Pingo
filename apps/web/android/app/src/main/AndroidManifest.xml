@@ -117,6 +117,20 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/colorPrimary" />
+
+        <!--
+            The screen share, which Android will not let an app hold without it.
+
+            A MediaProjection must be owned by a foreground service of type
+            mediaProjection, and from Android 14 the service has to already be
+            running when the projection is used. exported="false" because
+            nothing outside PINGO has any business starting a capture of the
+            user's screen.
+        -->
+        <service
+            android:name=".ScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
     </application>
 
     <!-- Permissions -->
@@ -137,6 +151,18 @@
         store listing as something the app wants for no visible reason.
     -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!--
+        Screen sharing in a call.
+
+        Neither of these is a runtime prompt - the system's own capture dialog
+        is what asks the user, every session, and it cannot be remembered. These
+        two only make it legal for the service to hold the projection while the
+        app is in the background, which is the entire point: people share a
+        screen in order to go and look at something else.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
