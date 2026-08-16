@@ -255,6 +255,25 @@ export function GroupInfoSheet({
     if (ok) await run(service.setGroupAdmin(conversation.id, person.id, true));
   };
 
+  /**
+   * Takes the assistant out of this group.
+   *
+   * Confirmed, because it changes what the group *is* for everybody in it, not
+   * just for the admin pressing the button - and the confirmation is where the
+   * good news goes: every message goes back to being sealed, with no exception
+   * for the ones that mention it.
+   */
+  const turnAiOff = async () => {
+    const ok = await confirm({
+      title: 'Turn off PINGO AI here?',
+      description:
+        '@pingoai will stop replying in this group, and every message goes back to ' +
+        'being end-to-end encrypted with no exceptions. You can turn it back on later.',
+      confirmLabel: 'Turn off',
+    });
+    if (ok) await run(service.setGroupAi(conversation.id, false));
+  };
+
   const demote = async (person: User) => {
     const ok = await confirm({
       title: `Dismiss ${person.name} as admin?`,
@@ -597,29 +616,46 @@ export function GroupInfoSheet({
             PINGO AI
           </h3>
           {aiInGroup ? (
-            <p className="text-caption text-text-secondary">
-              PINGO AI is in this group. Anyone can type{' '}
-              <span className="font-medium text-ink">@pingoai</span> and it will reply
-              here. Messages that mention AI are readable by the server so it can answer
-              (not end-to-end encrypted).
-            </p>
-          ) : (
             <>
-              <p className="mb-2.5 text-caption text-text-tertiary">
-                Add PINGO AI so members can @pingoai and get a reply in this chat.
+              <p className="text-caption text-text-secondary">
+                Anyone can type <span className="font-medium text-ink">@pingoai</span> and
+                it will reply here.
+              </p>
+              {/*
+                Said plainly, and not buried.
+
+                A message that @mentions the assistant is sent unencrypted, because
+                something has to read it in order to answer it. Every other message in
+                this group stays end-to-end encrypted exactly as before - that
+                distinction is the whole reason this is worth spelling out rather than
+                summarising as "AI is on".
+              */}
+              <p className="mt-1.5 text-caption text-text-tertiary">
+                Messages that mention it are <span className="font-medium">not</span>{' '}
+                end-to-end encrypted, so it can read what you asked. Everything else in
+                this group stays encrypted.
               </p>
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={busy || !service.addPingoAiToGroup}
-                onClick={() =>
-                  void run(
-                    (service.addPingoAiToGroup
-                      ? service.addPingoAiToGroup(conversation.id)
-                      : Promise.reject(new Error('AI add is unavailable.'))
-                    ).then(() => undefined),
-                  )
-                }
+                className="mt-2.5"
+                disabled={busy}
+                onClick={() => void turnAiOff()}
+              >
+                Turn off PINGO AI
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="mb-2.5 text-caption text-text-tertiary">
+                Add PINGO AI so members can @pingoai and get a reply in this chat.
+                Messages that mention it are not end-to-end encrypted.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onClick={() => void run(service.setGroupAi(conversation.id, true))}
               >
                 Add PINGO AI
               </Button>

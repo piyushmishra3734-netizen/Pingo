@@ -537,14 +537,17 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   new_device: { body: 'A new device signed in to your account' },
 };
 
-/** Fixed AI identity - same uuid as `public.pingo_ai_user_id()` and the Edge Function. */
-const PINGO_AI_USER_ID = 'a1000000-0000-4000-8000-0000000000a1';
+/*
+ * Both live in `features/ai/ai-mentions` now.
+ *
+ * `mentionsPingoAi` is the test that decides whether a group message is
+ * encrypted at all, and it could not be asserted from here - importing this
+ * module pulls in the Supabase client, which needs a browser. A rule that
+ * important should be checkable without one.
+ */
+import { mentionsPingoAi, PINGO_AI_USER_ID } from '../../features/ai/ai-mentions.js';
 
-/** @pingoai / @pingo_ai — triggers a reply when PINGO AI is a group member. */
-export function mentionsPingoAi(text: string): boolean {
-  // Accept both the autocomplete handle and the profile username form.
-  return /@pingo_?ai\b/i.test(text);
-}
+export { mentionsPingoAi, PINGO_AI_USER_ID };
 
 /**
  * Handles from a message body (`@anaya`, `@pingoai`).
@@ -3608,17 +3611,6 @@ export class SupabaseChatService implements ChatService {
     return [...new Set(ids)];
   }
 
-  /**
-   * Admin: put PINGO AI in a group so members can @pingoai for a reply.
-   */
-  async addPingoAiToGroup(conversationId: ConversationId): Promise<void> {
-    const { error } = await this.#client.rpc('add_pingo_ai_to_group', {
-      conv: conversationId,
-    });
-    if (error) throw groupError(error);
-    this.#rememberAiPerson('PINGO AI');
-    await this.#announce(conversationId);
-  }
 
   /** Local typing dots for the AI person - not a Realtime presence channel. */
   #setAiTyping(conversationId: ConversationId, typing: boolean): void {
@@ -3848,6 +3840,25 @@ export class SupabaseChatService implements ChatService {
       make_admin: admin,
     });
     if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  /**
+   * Adds or removes PINGO AI from a group.
+   *
+   * A membership change, not a setting - see `set_group_ai`. `#announce`
+   * re-reads the conversation so `participantIds` is right immediately, which
+   * matters more than usual here: that list is what `sendMessage` consults
+   * before deciding a message may go in plaintext, and a stale copy would keep
+   * sending one to an assistant that had just been removed.
+   */
+  async setGroupAi(conversationId: ConversationId, enabled: boolean): Promise<void> {
+    const { error } = await this.#client.rpc('set_group_ai', {
+      conv: conversationId,
+      enabled,
+    });
+    if (error) throw groupError(error);
+    if (enabled) this.#rememberAiPerson('PINGO AI');
     await this.#announce(conversationId);
   }
 
