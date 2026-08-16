@@ -196,6 +196,24 @@ export const CheckIcon = (props: IconProps) => (
   </IconBase>
 );
 
+/**
+ * A message that has not left yet.
+ *
+ * The first state of the three every messenger draws in the same corner of the
+ * same bubble - clock, then one tick, then two. It reads as "waiting" before
+ * anybody is taught what it means, which is the whole reason to use the shape
+ * everybody else uses rather than something of our own.
+ *
+ * Hands at ten past ten: at twelve o'clock the two overlap into one stroke and
+ * the circle looks empty at 14px.
+ */
+export const ClockIcon = (props: IconProps) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7.5V12l3 2" />
+  </IconBase>
+);
+
 /** Read receipt. Two overlapping checks, as on the outgoing bubble. */
 export const CheckDoubleIcon = (props: IconProps) => (
   <IconBase {...props}>

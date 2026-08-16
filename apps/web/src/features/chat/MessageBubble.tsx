@@ -9,6 +9,7 @@ import {
 import {
   CheckDoubleIcon,
   CheckIcon,
+  ClockIcon,
   PingoDot,
   cn,
   variantFromSeed,
@@ -623,8 +624,18 @@ function DeliveryIndicator({ status }: { status: Message['status'] }) {
     );
   }
 
+  /*
+   * A clock, not a spinner.
+   *
+   * This was PINGO's own pulsing dot, which is a loading indicator - it says
+   * "something is happening" and nothing about what. The clock is the first of
+   * the three shapes every messenger draws in this exact corner, so it is
+   * already understood before anybody is told: waiting, then sent, then seen.
+   * The one place to be unoriginal is the thing a person checks fifty times a
+   * day without looking properly.
+   */
   if (status === 'sending') {
-    return <PingoDot state="loading" size={3} label={t('thread.sending')} className="ml-0.5" />;
+    return <ClockIcon size={13} className="text-text-tertiary" title={t('thread.sending')} />;
   }
 
   if (status === 'failed') {
