@@ -293,7 +293,40 @@ function supported(): boolean {
   );
 }
 
+/**
+ * Whether this surface has something in it that the lens would ruin.
+ *
+ * An SVG filter in `backdrop-filter` puts Chrome on a software path, and
+ * anything inside the element that composites separately gets flattened through
+ * it. For a cross-origin `<iframe>` - a YouTube or Instagram embed, which runs
+ * in its own process - that means the embed is rasterised through the
+ * displacement map and comes out visibly blurred. A `<video>` is the same case.
+ *
+ * It only bites on a received message, because only incoming bubbles are glass:
+ * the sent bubble is the brand gradient with a plain `blur()` behind it, and a
+ * plain blur composites fine. So a link played back from somebody else came out
+ * soft while the identical link you sent yourself was sharp - which is exactly
+ * how it was reported.
+ *
+ * Measured rather than reasoned about: the same embed inside one of these
+ * bubbles is blurred, inside the same bubble with only the `url(#...)` removed
+ * is sharp, and the plain `blur()` half changes nothing either way.
+ *
+ * The lens is decoration. The video is the message.
+ */
+function carriesEmbed(el: HTMLElement): boolean {
+  return el.querySelector('iframe, video') !== null;
+}
+
 function applyTo(el: HTMLElement): void {
+  if (carriesEmbed(el)) {
+    // Back to ordinary glass: the class's own `backdrop-filter` applies again
+    // once the inline override is gone.
+    el.style.removeProperty('backdrop-filter');
+    el.style.removeProperty('-webkit-backdrop-filter');
+    return;
+  }
+
   const rect = el.getBoundingClientRect();
   const w = Math.round(rect.width);
   const h = Math.round(rect.height);
