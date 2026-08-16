@@ -207,14 +207,23 @@ export function CallOverlay() {
       )}
 
       {/*
-        Hidden rather than unmounted once video takes over, so the name and timer
-        stay in the accessibility tree and the layout does not reflow.
+        The picture and the name are for the part of a call where there is
+        nothing else.
+
+        It goes the moment there is a picture, and it stays whenever there is
+        not - a connected video call where the other person's camera is off
+        still needs to show somebody, or the screen is blank apart from the
+        controls. So the test is "are we showing a picture", not "is this a
+        video call".
+
+        Hidden rather than unmounted: the timer and status stay in the
+        accessibility tree, and nothing reflows underneath.
       */}
       <div
         className={cn(
           'relative flex flex-col items-center gap-5',
           'transition-opacity duration-base ease-standard',
-          showingRemote && 'pointer-events-none opacity-0',
+          (showingRemote || Boolean(sharedScreen)) && 'pointer-events-none opacity-0',
         )}
       >
         {roster ? (
@@ -284,17 +293,33 @@ export function CallOverlay() {
         </>
       ) : null}
 
-      {/* Once video fills the screen the name needs to come back, legibly. */}
+      {/*
+        Over video, the only thing worth saying is how long it has been.
+
+        This was the name at 24px across the top of somebody's face, plus a
+        status line under it - two pieces of chrome restating what the picture
+        already makes obvious. You know who you called. What a call screen is
+        actually asked, repeatedly, is how long you have been on it.
+
+        While it is still connecting the status is worth its place, because
+        then it is the only thing on screen that is not a guess. Once it is up,
+        the timer alone.
+      */}
       {showingRemote ? (
-        <div className="pointer-events-none absolute inset-x-0 top-10 text-center">
-          <p className="text-h2 text-white drop-shadow-lg">{name}</p>
-          <p className="mt-0.5 text-caption text-white/80 drop-shadow-lg" aria-live="polite">
+        <div className="pointer-events-none absolute inset-x-0 top-10 flex flex-col items-center gap-1">
+          <span
+            className={cn(
+              'rounded-full px-2.5 py-1 text-caption font-medium tabular-nums',
+              'bg-black/45 text-white/95',
+            )}
+            aria-live="polite"
+          >
             <StatusLine
               state={call.state}
               direction={call.direction}
               connectedAt={call.connectedAt}
             />
-          </p>
+          </span>
           {weakConnection ? <WeakLine onVideo /> : null}
         </div>
       ) : null}
@@ -714,18 +739,23 @@ function LocalPreview({
   flipLabel: string;
 }) {
   const ref = useStream(stream);
+  const { corner, dragging, handlers } = useDraggableCorner();
 
   return (
     <div
+      {...handlers}
       className={cn(
-        /*
-          Clear of the controls, not floating over them. The block below is two
-          rows - switches then hang-up - and it ends 96px up from the bottom
-          edge, so this starts above all of it.
-        */
-        'absolute right-4 bottom-60 z-10 overflow-hidden rounded-2xl',
+        'absolute z-10 overflow-hidden rounded-2xl',
         'h-36 w-28 border border-white/20 bg-backdrop shadow-xl',
-        'transition-opacity duration-base ease-standard',
+        'touch-none select-none',
+        // Bottom corners clear the control block: two rows ending 96px up.
+        corner === 'bottom-right' && 'right-4 bottom-60',
+        corner === 'bottom-left' && 'bottom-60 left-4',
+        corner === 'top-right' && 'top-24 right-4',
+        corner === 'top-left' && 'top-24 left-4',
+        // No transition while a finger is on it, or the tile lags behind.
+        !dragging && 'transition-all duration-base ease-standard',
+        dragging && 'scale-105 shadow-2xl',
         // Hidden rather than unmounted, so turning the camera back on does not
         // rebuild the element and lose the first second of picture.
         cameraOff && 'pointer-events-none opacity-0',
@@ -758,6 +788,72 @@ function LocalPreview({
       </button>
     </div>
   );
+}
+
+type Corner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+/**
+ * Lets the self-preview be dragged out of the way, and snapped to a corner.
+ *
+ * ## Corners, not free placement
+ *
+ * The tile only ever exists to be got out of the way of something - a face, a
+ * shared spreadsheet, a caption. Four corners answers that completely, and it
+ * is the arrangement that cannot be got wrong: nothing ends up half off the
+ * screen, nothing needs remembering in pixels, and a rotation does not leave
+ * the tile somewhere that no longer exists.
+ *
+ * ## Why the drag is measured, not followed
+ *
+ * The element does not move under the finger - it snaps when the finger lifts.
+ * Following the pointer means positioning in pixels, which means owning the
+ * edges, the safe areas and the rotation, all to end at one of four places
+ * anyway. The lift decides, and the scale-up during the drag is what says the
+ * gesture was noticed.
+ *
+ * The flip button is inside the tile and must still be pressable, so a gesture
+ * that never really moved is not a drag at all.
+ */
+function useDraggableCorner() {
+  const [corner, setCorner] = useState<Corner>('bottom-right');
+  const [dragging, setDragging] = useState(false);
+  const from = useRef<{ x: number; y: number } | undefined>(undefined);
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    from.current = { x: event.clientX, y: event.clientY };
+    setDragging(true);
+  };
+
+  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = from.current;
+    from.current = undefined;
+    setDragging(false);
+    if (!start) return;
+
+    // Under this it was a tap, and the flip button underneath needs it.
+    const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    if (moved < 24) return;
+
+    setCorner(
+      `${event.clientY < window.innerHeight / 2 ? 'top' : 'bottom'}-${
+        event.clientX < window.innerWidth / 2 ? 'left' : 'right'
+      }` as Corner,
+    );
+  };
+
+  return {
+    corner,
+    dragging,
+    handlers: {
+      onPointerDown,
+      onPointerUp,
+      // A pointer that leaves the window must not leave the tile enlarged.
+      onPointerCancel: () => {
+        from.current = undefined;
+        setDragging(false);
+      },
+    },
+  };
 }
 
 /** A toast for a call that could not begin. Dismissible, and never blocking. */

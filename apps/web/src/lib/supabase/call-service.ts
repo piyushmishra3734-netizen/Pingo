@@ -1118,6 +1118,19 @@ export class SupabaseCallService implements CallService {
       if (this.#call.cameraOff) this.#applyCameraOff(true);
 
       /*
+       * The self-preview, which the mesh used to publish as a side effect.
+       *
+       * `#link` emits this while building a peer connection, and on the room
+       * path there is no `#link` - so the person who *placed* a video call
+       * never saw their own camera. `callGroup` and `#answerGroup` both do it
+       * explicitly and this was the one entry point that did not, which is why
+       * it was missing on exactly one side of every call.
+       */
+      if (stream.getVideoTracks().length > 0) {
+        this.#emit({ type: 'call:local-stream', stream });
+      }
+
+      /*
        * The room first, the mesh only if there is no room.
        *
        * A direct call still rings over the same broadcast channel either way -

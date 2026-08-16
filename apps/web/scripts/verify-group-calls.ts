@@ -137,6 +137,21 @@ for (const method of ['async call(', 'async callGroup(', 'async #answerGroup('])
     body.includes('#joinRoom('),
     `${method} must join the LiveKit room, or its participants sit in different places`,
   );
+
+  /*
+   * And each of them shows you your own camera.
+   *
+   * The mesh emitted this as a side effect of `#link` building a peer
+   * connection. There is no `#link` on the room path, and `call()` was the one
+   * entry point that never did it explicitly - so whoever *placed* a video
+   * call had no picture of themselves for the whole of it, while the person
+   * who answered did. Same rule, same three places, same reason it broke: two
+   * of them said it and the third did not.
+   */
+  assert.ok(
+    body.includes("type: 'call:local-stream'"),
+    `${method} must publish the self-preview, or one side of the call cannot see themselves`,
+  );
 }
 
 console.log('group calls: ok');
