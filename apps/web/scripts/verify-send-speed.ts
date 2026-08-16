@@ -41,8 +41,9 @@ assert.match(
 );
 assert.match(
   sendNow,
-  /const id = crypto\.randomUUID\(\)/,
-  'the id is generated here, so the row the server writes is the bubble already shown',
+  /const id = existingId \?\? crypto\.randomUUID\(\)/,
+  'the id is generated here - or reused from the queue - so the row the server ' +
+    'writes is the bubble already shown',
 );
 // `\s` rather than `\n` between the lines: this file is checked out with CRLF
 // on Windows, and a pattern that insists on a bare newline matches nothing.
@@ -125,6 +126,74 @@ assert.ok(
   Number(window[1]) <= 2000,
   'keys must not be cached long enough for a new device to miss a message',
 );
+
+// -- Everything gets a bubble, not just text -------------------------------
+
+/*
+ * A photo, a voice note and a file all have to be uploaded before the server
+ * knows anything about them - seconds on a slow line - and the bubble used to
+ * wait for the upload *and* the insert. The bytes are on the device already:
+ * an object URL is the exact picture being sent, and a voice note's waveform
+ * and duration were measured before `sendMessage` was called.
+ */
+for (const [what, needle] of [
+  ['voice note', /kind: 'audio' as const,\s+url: preview\(draft\.voice\.audio\)/],
+  ['file', /kind: 'file' as const,\s+url: preview\(draft\.document\.file\)/],
+  ['photo', /photo: \{\s+url: preview\(draft\.photo\.image\)/],
+  ['sticker', /draft\.sticker \? \{ sticker: draft\.sticker \}/],
+] as const) {
+  assert.match(beforeInsert, needle, `${what} shows itself while it uploads`);
+}
+
+/*
+ * A Ping is the exception and has to stay one: `PingRef` carries no URL at all,
+ * because the image only ever comes back through `open_ping` and that is what
+ * makes the view limit real. Handing the sender a local URL here would be the
+ * one bubble in the app whose picture the limit does not govern.
+ */
+assert.ok(
+  !/ping: \{[\s\S]{0,200}?url:/.test(beforeInsert),
+  'a Ping gets its cover, never a preview URL - the limit is the point',
+);
+
+// The object URLs are handed back, or a thread full of sent photos pins every
+// one of their blobs in memory for the life of the tab.
+assert.match(sendNow, /URL\.revokeObjectURL\(url\)/, 'previews are revoked after the swap');
+
+// -- A dropped connection is not a failed message --------------------------
+
+/*
+ * On a weak signal requests time out, and that used to mark the message
+ * `failed` - so on 2G most sends died and had to be noticed and repeated. A
+ * refusal from Postgres carries a `code` and will happen again; everything else
+ * is the network, and the network comes back.
+ */
+assert.match(
+  sendNow,
+  /const serverRefused = Boolean\(\(error as \{ code\?: string \}\)\.code\)/,
+  'a server refusal is told apart from a connection giving out',
+);
+assert.match(
+  sendNow,
+  /if \(!serverRefused && !hasMediaDraft\(draft\) && !existingId\) \{\s+await enqueue\(draft, id\)/,
+  'a network failure queues the message under the id already on screen',
+);
+
+/*
+ * And the id survives the queue. Without this the flushed send invents a new
+ * one, the row that arrives is a different message as far as the thread is
+ * concerned, and the sender watches their message appear twice.
+ */
+const outbox = await readFile(
+  resolve(process.cwd(), 'apps/web/src/lib/local/outbox.ts'),
+  'utf8',
+);
+assert.match(
+  outbox,
+  /send: \(draft: OutgoingMessage, id: string\) => Promise<unknown>/,
+  'flush hands the entry id to the send',
+);
+assert.match(outbox, /await send\(entry\.draft, entry\.id\)/, 'and actually passes it');
 
 // -- What has to arrive before the chat list can be drawn ------------------
 

@@ -48,9 +48,11 @@ export interface OutboxEntry {
  */
 const MAX_ATTEMPTS = 5;
 
-export async function enqueue(draft: OutgoingMessage): Promise<OutboxEntry> {
+export async function enqueue(draft: OutgoingMessage, id?: string): Promise<OutboxEntry> {
   const entry: OutboxEntry = {
-    id: crypto.randomUUID(),
+    // Given when the bubble already exists under an id - a send that failed
+    // mid-flight is queued under the one the thread is already showing.
+    id: id ?? crypto.randomUUID(),
     draft,
     queuedAt: Date.now(),
     attempts: 0,
@@ -101,14 +103,23 @@ async function fail(entry: OutboxEntry): Promise<void> {
  * "nothing was waiting" and "nothing could be sent".
  */
 export async function flush(
-  send: (draft: OutgoingMessage) => Promise<unknown>,
+  /*
+   * The entry's id goes with the draft, and that is not incidental.
+   *
+   * A queued message is already on screen under the id it was queued with. If
+   * the send invents a new one, the row that arrives is a *different* message
+   * as far as the thread is concerned - so the queued bubble stays where it is
+   * and the real one appears beneath it, and the sender sees their message
+   * twice. One id from the keypress to the row is what stops that.
+   */
+  send: (draft: OutgoingMessage, id: string) => Promise<unknown>,
 ): Promise<number> {
   const queue = await pending();
   let sent = 0;
 
   for (const entry of queue) {
     try {
-      await send(entry.draft);
+      await send(entry.draft, entry.id);
       await forget(entry.id);
       sent += 1;
     } catch {

@@ -93,6 +93,18 @@ import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
 
+/**
+ * Whether this draft carries bytes rather than only words.
+ *
+ * The outbox cannot hold media: a `File` or a `Blob` is a handle into the page
+ * that is gone the moment the tab reloads, so queueing one would promise a
+ * delivery it could not keep. Both places that decide whether to queue ask this,
+ * and they used to ask it in two different ways.
+ */
+function hasMediaDraft(draft: OutgoingMessage): boolean {
+  return Boolean(draft.photo ?? draft.ping ?? draft.voice ?? draft.document ?? draft.sticker);
+}
+
 /** Until a settings table exists, these are what every session starts from. */
 const DEFAULT_SETTINGS: UserSettings = {
   appearance: 'system',
@@ -3299,10 +3311,7 @@ export class SupabaseChatService implements ChatService {
      * that does not survive a reload, so queueing one would promise a delivery
      * the outbox cannot keep. Those still fail immediately and visibly.
      */
-    const hasMedia = Boolean(
-      draft.photo ?? draft.ping ?? draft.voice ?? draft.document ?? draft.sticker,
-    );
-    if (!navigator.onLine && !hasMedia) {
+    if (!navigator.onLine && !hasMediaDraft(draft)) {
       const entry = await enqueue(draft);
       const queued: Message = {
         id: entry.id,
@@ -3322,7 +3331,7 @@ export class SupabaseChatService implements ChatService {
     return this.#sendNow(draft);
   }
 
-  async #sendNow(draft: OutgoingMessage): Promise<Message> {
+  async #sendNow(draft: OutgoingMessage, existingId?: string): Promise<Message> {
     const me = await this.#userId();
 
     /*
@@ -3343,30 +3352,110 @@ export class SupabaseChatService implements ChatService {
      * so the optimistic bubble becomes the real one in place, with no flicker
      * and nothing to merge.
      *
-     * Text only. A photo or a voice note has to be uploaded before there is
-     * anything to show, and an optimistic bubble for one would be a picture
-     * that is not there yet - a different problem with a different answer.
+     * Media too, and that is the part that used to be missing. A photo, a voice
+     * note or a file has to be uploaded before the server knows anything about
+     * it - seconds on a slow connection - and the bubble waited for the upload
+     * *and* the insert. But the bytes are already on the device: an object URL
+     * shows the exact picture that is being sent, immediately, and the waveform
+     * and duration of a voice note were recorded before this was even called.
+     * The only thing the network adds is a URL somebody else can read.
      */
-    const id = crypto.randomUUID();
-    const optimistic =
-      !draft.photo && !draft.ping && !draft.voice && !draft.document && !draft.sticker;
+    // A flushed queue entry keeps the id its bubble is already showing.
+    const id = existingId ?? crypto.randomUUID();
 
-    if (optimistic) {
-      this.#emit({
-        type: 'message:new',
-        message: {
-          id,
-          conversationId: draft.conversationId,
-          authorId: me,
-          body: draft.body,
-          createdAt: Date.now(),
-          status: 'sending',
-          attachments: [],
-          reactions: [],
-          ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
-        },
+    const previews: string[] = [];
+    const preview = (blob: Blob) => {
+      const url = URL.createObjectURL(blob);
+      previews.push(url);
+      return url;
+    };
+
+    const pending: Message = {
+      id,
+      conversationId: draft.conversationId,
+      authorId: me,
+      body: draft.body,
+      createdAt: Date.now(),
+      status: 'sending',
+        /*
+         * A voice note plays from the local blob while it uploads, and a file
+         * shows its real name and size - both are known here and neither needs
+         * the server to say them.
+         */
+        attachments: draft.voice
+          ? [
+              {
+                id,
+                kind: 'audio' as const,
+                url: preview(draft.voice.audio),
+                duration: draft.voice.seconds,
+                waveform: draft.voice.waveform,
+              },
+            ]
+          : draft.document
+            ? [
+                {
+                  id,
+                  kind: 'file' as const,
+                  url: preview(draft.document.file),
+                  fileName: draft.document.file.name,
+                  mimeType: draft.document.file.type || 'application/octet-stream',
+                  size: draft.document.file.size,
+                },
+              ]
+            : [],
+        reactions: [],
+        ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
+        ...(draft.sticker ? { sticker: draft.sticker } : {}),
+        ...(draft.photo
+          ? {
+              photo: {
+                url: preview(draft.photo.image),
+                ...(draft.photo.viewLimit ? { viewLimit: draft.photo.viewLimit } : {}),
+              },
+            }
+          : {}),
+      /*
+       * A Ping gets its cover, and deliberately not the picture.
+       *
+       * `PingRef` carries no URL at all - the image only ever comes back
+       * through `open_ping`, which is what makes the view limit real. The
+       * bubble a Ping shows before it is opened is the cover, so that is the
+       * whole of what there is to show optimistically, and it is the same thing
+       * the sender would see a second later anyway.
+       *
+       * `expiresAt` is a placeholder the real row replaces; a Ping that has not
+       * been written has no expiry yet.
+       */
+      ...(draft.ping
+        ? {
+            ping: {
+              expiresAt: Date.now(),
+              gone: false,
+              views: draft.ping.views ?? 0,
+            },
+          }
+        : {}),
+    };
+
+    this.#emit({ type: 'message:new', message: pending });
+
+    /*
+     * Handed back when the real row replaces this one.
+     *
+     * An object URL pins its blob in memory until it is revoked, and a thread
+     * where somebody sends thirty photos would hold all thirty for the life of
+     * the tab. Revoked on the next frame after the swap, not immediately: the
+     * element is still pointing at it until React has painted the new one.
+     */
+    const releasePreviews = () => {
+      if (previews.length === 0) return;
+      const urls = [...previews];
+      previews.length = 0;
+      requestAnimationFrame(() => {
+        for (const url of urls) URL.revokeObjectURL(url);
       });
-    }
+    };
 
     /*
      * Uploaded before the row is inserted, deliberately. A message row whose
@@ -3548,22 +3637,43 @@ export class SupabaseChatService implements ChatService {
        * would retype it, or worse, believe it went. `failed` is a state the
        * thread already knows how to draw.
        */
-      if (optimistic) {
-        this.#emit({
-          type: 'message:updated',
-          message: {
-            id,
-            conversationId: draft.conversationId,
-            authorId: me,
-            body: draft.body,
-            createdAt: Date.now(),
-            status: 'failed',
-            attachments: [],
-            reactions: [],
-            ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
-          },
-        });
+      /*
+       * A connection that gave out is not a message that failed.
+       *
+       * On a weak signal a request times out or the socket drops, and that used
+       * to end the message: `failed`, and the sender had to notice and press
+       * again. On 2G that is most sends, which is the whole of why chatting on
+       * a bad line felt impossible.
+       *
+       * The distinction is the error itself. Postgres refusing something -
+       * permission, a constraint, a rule - carries a `code`, and it will refuse
+       * it again in a minute, so retrying is pointless and saying so is honest.
+       * Everything else is the network, and the network comes back.
+       *
+       * So it goes in the queue that already exists for being offline, under
+       * the id the bubble is already showing, and stays `sending`. It leaves on
+       * the next flush with no one having to do anything.
+       *
+       * Media is the exception, as it is for the offline path: a queued photo
+       * is a file handle that does not survive a reload, so promising to send
+       * it later is a promise the queue cannot keep.
+       */
+      const serverRefused = Boolean((error as { code?: string }).code);
+
+      if (!serverRefused && !hasMediaDraft(draft) && !existingId) {
+        await enqueue(draft, id).catch(() => undefined);
+        throw error;
       }
+
+      /*
+       * The same bubble, still holding its own picture.
+       *
+       * Rebuilding it as a bare text message would blank a failed photo, which
+       * reads as the photo being lost rather than not sent. The previews are
+       * deliberately not revoked here - they are what the bubble is still
+       * showing.
+       */
+      this.#emit({ type: 'message:updated', message: { ...pending, status: 'failed' } });
       throw error;
     }
 
@@ -3605,7 +3715,8 @@ export class SupabaseChatService implements ChatService {
      * de-duplicates by id on the other - so the optimistic bubble turns into
      * the real row in place rather than blinking out and back.
      */
-    this.#emit({ type: optimistic ? 'message:updated' : 'message:new', message });
+    this.#emit({ type: 'message:updated', message });
+    releasePreviews();
 
     /*
      * Replying is the receipt.
@@ -4157,9 +4268,10 @@ export class SupabaseChatService implements ChatService {
    * resolves and a duplicate would arrive beside it over realtime.
    */
   async #flushOutbox(): Promise<void> {
-    await flush(async (draft) => {
-      const sent = await this.#sendNow(draft);
-      this.#emit({ type: 'message:new', message: sent });
+    await flush(async (draft, id) => {
+      // Same id, so the bubble that has been sitting at `sending` becomes the
+      // real message rather than being joined by a copy of itself.
+      await this.#sendNow(draft, id);
     });
   }
 
