@@ -13,6 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import {
+  canCaptureScreen,
   canOfferScreenShare,
   primaryShare,
   stageContent,
@@ -20,8 +21,10 @@ import {
 
 // -- The control does not depend on a camera or a microphone ----------------
 
+const on = { onRoom: true, incoming: false, supported: true } as const;
+
 assert.equal(
-  canOfferScreenShare({ kind: 'video', onRoom: true, incoming: false }),
+  canOfferScreenShare({ kind: 'video', ...on }),
   true,
   'a connected video call offers the control',
 );
@@ -30,19 +33,55 @@ assert.equal(
 // no state of either that can take the control away.
 
 assert.equal(
-  canOfferScreenShare({ kind: 'voice', onRoom: true, incoming: false }),
+  canOfferScreenShare({ kind: 'voice', ...on }),
   false,
   'a voice call has no picture to share into',
 );
 assert.equal(
-  canOfferScreenShare({ kind: 'video', onRoom: false, incoming: false }),
+  canOfferScreenShare({ kind: 'video', onRoom: false, incoming: false, supported: true }),
   false,
   'the peer-to-peer fallback cannot carry a second video track',
 );
 assert.equal(
-  canOfferScreenShare({ kind: 'video', onRoom: true, incoming: true }),
+  canOfferScreenShare({ kind: 'video', onRoom: true, incoming: true, supported: true }),
   false,
   'a call still ringing has nothing to share into yet',
+);
+assert.equal(
+  canOfferScreenShare({ kind: 'video', onRoom: true, incoming: false, supported: false }),
+  false,
+  'a device that cannot capture is not offered a button that cannot work',
+);
+
+// -- What "can capture" means, given a lying API ---------------------------
+
+/*
+ * Chrome and Firefox on Android define `getDisplayMedia` and reject every call
+ * to it with `NotAllowedError` - which is also what somebody gets for closing
+ * the picker. The two cannot be told apart, so the presence of the method is
+ * not evidence of anything and the platform has to be asked instead.
+ */
+assert.equal(
+  canCaptureScreen({ hasDisplayMedia: true, mobile: true, native: false }),
+  false,
+  'a mobile browser ships the method and never honours it',
+);
+assert.equal(
+  canCaptureScreen({ hasDisplayMedia: true, mobile: false, native: false }),
+  true,
+  'a desktop browser with the method can capture',
+);
+assert.equal(
+  canCaptureScreen({ hasDisplayMedia: false, mobile: false, native: false }),
+  false,
+  'no method, no capture',
+);
+// The way out on a phone is the shell, not the browser - MediaProjection on
+// Android, ReplayKit on iOS. When that exists, nothing else matters.
+assert.equal(
+  canCaptureScreen({ hasDisplayMedia: false, mobile: true, native: true }),
+  true,
+  'a native shell that can capture overrides every browser limitation',
 );
 
 // -- A shared screen is the main content ------------------------------------

@@ -15,13 +15,46 @@ export function primaryShare(
 }
 
 /**
+ * Whether this device can capture a screen at all.
+ *
+ * ## Feature detection does not work here, and that is not our fault
+ *
+ * Chrome and Firefox on Android both ship `getDisplayMedia` and then reject
+ * every call to it with `NotAllowedError` - the API is defined and not
+ * implemented. `NotAllowedError` is also exactly what a person gets for opening
+ * the picker and changing their mind, so the two are indistinguishable: PINGO
+ * showed "couldn't start, try again" and somebody on a phone could press it for
+ * the rest of their life.
+ *
+ * So the platform has to be asked instead of the API. It is the kind of check
+ * that ages badly, which is why it is one function with the reason written
+ * down: the day a mobile browser implements this, delete the `mobile` term.
+ *
+ * `native` is the way out rather than a workaround. Screen capture on a phone
+ * is `MediaProjection` on Android and ReplayKit on iOS, which is what every
+ * conferencing app uses, and it is a shell capability rather than a web one.
+ */
+export function canCaptureScreen(env: {
+  /** `navigator.mediaDevices.getDisplayMedia` exists. Necessary, not sufficient. */
+  hasDisplayMedia: boolean;
+  /** A mobile browser, where the method above is a stub that always rejects. */
+  mobile: boolean;
+  /** A native shell that can capture the screen itself. */
+  native: boolean;
+}): boolean {
+  if (env.native) return true;
+  return env.hasDisplayMedia && !env.mobile;
+}
+
+/**
  * Whether the screen-share control should be offered at all.
  *
  * Video calls only - a voice call has no picture and a share button on one
  * would be a promise the layout cannot keep. And only where the transport can
  * carry a second video track: the peer-to-peer fallback has one sender per
  * person, built for exactly one camera, so the control is hidden rather than
- * offered and then refused.
+ * offered and then refused. `supported` is the same rule applied to the device
+ * - see `canCaptureScreen`.
  *
  * Note what is *not* here: the microphone and the camera. Somebody joins with
  * both off precisely so they can show everybody something, and requiring either
@@ -31,8 +64,9 @@ export function canOfferScreenShare(state: {
   kind: 'voice' | 'video';
   onRoom: boolean;
   incoming: boolean;
+  supported: boolean;
 }): boolean {
-  return state.kind === 'video' && state.onRoom && !state.incoming;
+  return state.kind === 'video' && state.onRoom && !state.incoming && state.supported;
 }
 
 /**

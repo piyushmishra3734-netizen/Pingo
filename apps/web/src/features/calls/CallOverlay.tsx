@@ -20,6 +20,7 @@ import { createPortal } from 'react-dom';
 import { useT } from '../i18n/useT.js';
 import { CallChatPanel, useCallChatUnread, useChatWindow } from './CallChat.js';
 import { useCall } from './CallProvider.js';
+import { screenCaptureAvailable } from './screen-capture-support.js';
 import { canOfferScreenShare, primaryShare } from './screen-share-rules.js';
 
 /**
@@ -408,6 +409,7 @@ export function CallOverlay() {
               kind: call.kind,
               onRoom: Boolean(toggleScreenShare),
               incoming,
+              supported: screenCaptureAvailable(),
             }) &&
             toggleScreenShare ? (
               <CallAction
