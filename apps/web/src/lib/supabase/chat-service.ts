@@ -3641,8 +3641,30 @@ export class SupabaseChatService implements ChatService {
    * on rows that might still be ciphertext from an earlier bug.
    */
   async #requestAiReply(conversationId: ConversationId, userMessage: string): Promise<void> {
-    this.#aiConversationIds.add(conversationId);
+    /*
+     * This used to add the conversation to `#aiConversationIds`, and that one
+     * line was the whole of a bad bug.
+     *
+     * That set is the cache behind `#isAiConversation`, which answers "is this
+     * a one-to-one thread with the assistant" - a thread whose `kind` is `ai`,
+     * where nothing is encrypted because the server has to read all of it.
+     * Adding a *group* to it made every later message in that group answer yes.
+     *
+     * From then on `isAi` was true, so `plaintextForAi` was true, so every
+     * message anybody typed in that group was sent unencrypted - not only the
+     * ones mentioning @pingoai - and `#requestAiReply` ran on all of them.
+     * `isAi` also short-circuits the membership test, which is why removing
+     * the assistant from the group changed nothing: the typing indicator kept
+     * appearing on every message, and only the server's refusal stopped a
+     * reply. One @pingoai, once, and the group's encryption was off for that
+     * device for the rest of the session.
+     *
+     * Nothing is cached here now. `#isAiConversation` reads `kind` and caches
+     * only a genuine `ai` thread, which is what it was always for.
+     */
     this.#setAiTyping(conversationId, true);
+    // Anything older than this is a message the UI already has.
+    const startedAt = Date.now();
 
     try {
       void this.#client.rpc('log_ai_user_turn', {
@@ -3655,20 +3677,50 @@ export class SupabaseChatService implements ChatService {
       // Ensure the new assistant row is in the list even if realtime lags.
       const conversation = await this.getConversation(conversationId);
       if (conversation) this.#emit({ type: 'conversation:updated', conversation });
-      const latest = await this.listMessages(conversationId, { limit: 8 });
-      for (const msg of latest) {
+
+      /*
+       * The reply, not the last eight messages.
+       *
+       * This announced a whole page as `message:new` every time, so everything
+       * that reacts to a new message - the sound, the badge, the unread mark -
+       * fired again for messages already on screen. It is meant to be a safety
+       * net for realtime lagging, and a net that catches things it already had
+       * is how the app ends up announcing an assistant reply from an hour ago.
+       */
+      for (const msg of await this.listMessages(conversationId, { limit: 8 })) {
+        if (msg.authorId !== PINGO_AI_USER_ID) continue;
+        if (msg.createdAt < startedAt) continue;
         this.#emit({ type: 'message:new', message: msg });
       }
     } catch (cause) {
       console.error('[pingo-ai]', cause);
+
+      /*
+       * Nothing to apologise for when the assistant simply is not there.
+       *
+       * The fallback below exists for a model that failed, and it is wrong for
+       * a group that has turned PINGO AI off: the server refuses correctly, and
+       * writing "something glitched on my side" would be the assistant speaking
+       * in a room it was removed from. Silence is the right answer, and the
+       * conversation is re-read so this device stops believing otherwise.
+       */
+      if (String(cause).includes('not in this group')) {
+        const fresh = await this.getConversation(conversationId);
+        if (fresh) this.#emit({ type: 'conversation:updated', conversation: fresh });
+        return;
+      }
+
       // Last resort only - do not spam this if post_ai_reply already wrote one.
       try {
         await this.#client.rpc('post_ai_reply', {
           target_conversation: conversationId,
           reply_body: "Something glitched on my side. Say that again?",
         });
-        const latest = await this.listMessages(conversationId, { limit: 5 });
-        for (const msg of latest) this.#emit({ type: 'message:new', message: msg });
+        for (const msg of await this.listMessages(conversationId, { limit: 5 })) {
+          if (msg.authorId !== PINGO_AI_USER_ID) continue;
+          if (msg.createdAt < startedAt) continue;
+          this.#emit({ type: 'message:new', message: msg });
+        }
       } catch {
         /* ignore double-failure */
       }

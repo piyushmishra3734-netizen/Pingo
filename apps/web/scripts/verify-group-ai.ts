@@ -75,4 +75,40 @@ assert.ok(
 );
 assert.match(service, /rpc\('set_group_ai'/, 'and the two-way one is what is called');
 
+// -- A group is never cached as an AI thread -------------------------------
+
+/*
+ * The one that mattered most, and it was one line.
+ *
+ * `#aiConversationIds` is the cache behind `#isAiConversation`, which answers
+ * "is this a one-to-one thread with the assistant" - a `kind = 'ai'` thread,
+ * where nothing is encrypted because the server has to read all of it.
+ * `#requestAiReply` added its conversation to that set, and it is called for
+ * groups.
+ *
+ * So one `@pingoai` in a group made `isAi` true for that group forever after,
+ * on that device. `plaintextForAi` is `isAi || callAiInGroup`, so *every*
+ * message in the group went out unencrypted - not only the ones mentioning the
+ * assistant. `isAi` also short-circuits the membership check, which is why
+ * removing PINGO AI from the group changed nothing.
+ *
+ * Every writer to that set must be guarded by an actual `kind === 'ai'`.
+ */
+const requestAiReply = service.slice(
+  service.indexOf('async #requestAiReply('),
+  service.indexOf('async #invokeAiChat('),
+);
+assert.ok(
+  !requestAiReply.includes('#aiConversationIds.add('),
+  'asking for a reply must not mark the conversation as an AI thread - it is ' +
+    'called for groups, and that flag turns their encryption off',
+);
+
+for (const [label, guard] of [
+  ['hydrate', /if \(row\.kind === 'ai'\) this\.#aiConversationIds\.add\(row\.id\)/],
+  ['#isAiConversation', /data\?\.kind === 'ai'\)\s*\{\s*\n\s*this\.#aiConversationIds\.add/],
+] as const) {
+  assert.match(service, guard, `${label} only caches a real 'ai' conversation`);
+}
+
 console.log('group ai: ok');
