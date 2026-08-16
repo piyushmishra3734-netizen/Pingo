@@ -119,18 +119,16 @@
             android:resource="@color/colorPrimary" />
 
         <!--
-            The screen share, which Android will not let an app hold without it.
+            No service declared here for the screen share.
 
-            A MediaProjection must be owned by a foreground service of type
-            mediaProjection, and from Android 14 the service has to already be
-            running when the projection is used. exported="false" because
-            nothing outside PINGO has any business starting a capture of the
-            user's screen.
+            Android will not let an app hold a MediaProjection without a
+            foreground service of type mediaProjection, and this used to declare
+            one. livekit-android ships and declares its own, with the right
+            type and its own notification, and `startForegroundService` on the
+            track binds to it - so a second one meant two notifications for one
+            screen share and a manifest entry duplicating a dependency's. See
+            ScreenShare.kt.
         -->
-        <service
-            android:name=".ScreenCaptureService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
     </application>
 
     <!-- Permissions -->

@@ -22,6 +22,7 @@ ext {
      * has to publish into the call itself, and that means the Android SDK.
      * See ScreenCaptureService.
      */
-    kotlinVersion = '2.0.21'
-    livekitVersion = '2.13.1'
+    // kotlinVersion lives in build.gradle's buildscript block - this file is
+    // applied after it, so a version needed on the classpath cannot live here.
+    livekitVersion = '2.18.2'
 }

@@ -1,7 +1,17 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    
+    /*
+     * Declared here, not in variables.gradle.
+     *
+     * `apply from: "variables.gradle"` runs *after* this block - buildscript is
+     * evaluated first, before the project has any of those properties - so
+     * reading `$kotlinVersion` from it here fails the build outright with
+     * "unknown property". Everything the classpath needs has to be defined in
+     * the same block that uses it.
+     */
+    ext.kotlinVersion = '2.0.21'
+
     repositories {
         google()
         mavenCentral()
@@ -30,6 +40,15 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        /*
+         * JitPack, for one transitive dependency.
+         *
+         * livekit-android pulls in `com.github.davidliu:audioswitch` pinned to
+         * a commit hash, and that is published on JitPack rather than Maven
+         * Central. Without this the build fails resolving a library nothing in
+         * this repo names, which is a confusing way to find out.
+         */
+        maven { url 'https://jitpack.io' }
     }
 }
 

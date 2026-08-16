@@ -101,34 +101,34 @@ public class ScreenCapturePlugin extends Plugin {
             return;
         }
 
-        Intent service = new Intent(getContext(), ScreenCaptureService.class);
-        service.putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.getResultCode());
-        service.putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.getData());
-        service.putExtra(ScreenCaptureService.EXTRA_URL, pendingUrl);
-        service.putExtra(ScreenCaptureService.EXTRA_TOKEN, pendingToken);
-
+        String url = pendingUrl;
+        String token = pendingToken;
         pendingUrl = null;
         pendingToken = null;
 
-        /*
-         * Foreground, and before the projection is touched. See the note above:
-         * from Android 14 the projection belongs to the service, and starting
-         * it the other way round fails only on the newest devices.
-         */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getContext().startForegroundService(service);
-        } else {
-            getContext().startService(service);
+        if (url == null || token == null) {
+            call.reject("Screen sharing could not start.");
+            return;
         }
+
+        /*
+         * Resolved once the projection has been granted, not once the room has
+         * accepted the track.
+         *
+         * Connecting and publishing take a moment and the page has a call to
+         * carry on running in the meantime. A failure after this point reaches
+         * the user as the share simply not appearing - the SDK's own foreground
+         * notification is the thing that says whether a screen is being
+         * captured, and it is the honest one because it comes from Android.
+         */
+        ScreenShare.start(getContext(), url, token, result.getData());
 
         call.resolve(new JSObject());
     }
 
     @PluginMethod
     public void stop(PluginCall call) {
-        Intent service = new Intent(getContext(), ScreenCaptureService.class);
-        service.setAction(ScreenCaptureService.ACTION_STOP);
-        getContext().startService(service);
+        ScreenShare.stop();
         call.resolve(new JSObject());
     }
 }
