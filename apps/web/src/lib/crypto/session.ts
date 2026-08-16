@@ -298,7 +298,49 @@ function keyingMemberIds(userIds: string[]): string[] {
  * how a network blip turns into a message sent in the clear. The caller decides
  * what an unknown answer is worth; this refuses to invent a confident one.
  */
+/**
+ * Keying reads in flight, so a burst of messages pays for one.
+ *
+ * Sealing a message costs two sequential network stages - the roster, then
+ * everybody's device and recovery keys - and it ran once per message. Typing
+ * three lines quickly meant six round trips for keys that had not changed
+ * between them, which on a slow connection is most of the wait.
+ *
+ * The window is deliberately tiny. Cached keys are a correctness question, not
+ * a performance one: seal against a stale roster and a device that joined a
+ * moment ago cannot read the message, permanently. A second is short enough
+ * that it only ever merges sends that were already in flight together, and long
+ * enough to collapse the burst that made this noticeable.
+ */
+const KEYING_COALESCE_MS = 1000;
+const keyingReads = new Map<string, { at: number; work: Promise<Keying> }>();
+
 export async function conversationKeying(
+  client: PingoSupabaseClient,
+  conversationId: string,
+): Promise<Keying> {
+  const pending = keyingReads.get(conversationId);
+  if (pending && Date.now() - pending.at < KEYING_COALESCE_MS) return pending.work;
+
+  const work = readConversationKeying(client, conversationId);
+  keyingReads.set(conversationId, { at: Date.now(), work });
+
+  // Dropped when the window is up, and a failed read is never left behind as
+  // the answer a later send would get.
+  void work
+    .catch(() => undefined)
+    .finally(() => {
+      setTimeout(() => {
+        if (keyingReads.get(conversationId)?.work === work) {
+          keyingReads.delete(conversationId);
+        }
+      }, KEYING_COALESCE_MS);
+    });
+
+  return work;
+}
+
+async function readConversationKeying(
   client: PingoSupabaseClient,
   conversationId: string,
 ): Promise<Keying> {

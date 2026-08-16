@@ -44,7 +44,12 @@ const service = await readFile(
  */
 assert.match(
   service,
-  /const callAiInGroup = groupHasAi && mentionsPingoAi\(draft\.body\)/,
+  /const mentioned = mentionsPingoAi\(draft\.body\)/,
+  'the mention test is the one in ai-mentions, not a second copy of the regex',
+);
+assert.match(
+  service,
+  /const callAiInGroup = groupHasAi && mentioned/,
   'plaintext needs the assistant to be in the group AND to be mentioned',
 );
 
@@ -106,7 +111,7 @@ assert.ok(
 
 for (const [label, guard] of [
   ['hydrate', /if \(row\.kind === 'ai'\) this\.#aiConversationIds\.add\(row\.id\)/],
-  ['#isAiConversation', /data\?\.kind === 'ai'\)\s*\{\s*\n\s*this\.#aiConversationIds\.add/],
+  ['#isAiConversation', /data\.kind === 'ai'\)\s*\{\s+this\.#aiConversationIds\.add/],
 ] as const) {
   assert.match(service, guard, `${label} only caches a real 'ai' conversation`);
 }

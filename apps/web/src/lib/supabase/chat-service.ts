@@ -600,6 +600,8 @@ export class SupabaseChatService implements ChatService {
    * go through E2EE - the model cannot read ciphertext.
    */
   #aiConversationIds = new Set<ConversationId>();
+  /** The other answer, cached for the same reason. See `#isAiConversation`. */
+  #nonAiConversationIds = new Set<ConversationId>();
 
   /**
    * The backing store for `Message.reactions`. docs/13 § 8.1.
@@ -3324,6 +3326,49 @@ export class SupabaseChatService implements ChatService {
     const me = await this.#userId();
 
     /*
+     * The bubble appears now, not six round trips from now.
+     *
+     * Sending a line of text used to wait on a chain of sequential requests
+     * before anything reached the screen: is this an AI thread, then the whole
+     * conversation with its members and previews, then the recipients' device
+     * keys to seal with, then the insert. Each is a round trip, and on a slow
+     * connection each is a second. The message did not appear until the last
+     * one came back, so on 2G the app looked broken for the length of the
+     * whole chain - while every other messenger has put the text on screen the
+     * instant you press send and dealt with the network behind it.
+     *
+     * The id is generated here and handed to the insert, so the row the server
+     * writes *is* this message rather than a second one to reconcile against.
+     * `message:new` de-duplicates by id and `message:updated` replaces by id,
+     * so the optimistic bubble becomes the real one in place, with no flicker
+     * and nothing to merge.
+     *
+     * Text only. A photo or a voice note has to be uploaded before there is
+     * anything to show, and an optimistic bubble for one would be a picture
+     * that is not there yet - a different problem with a different answer.
+     */
+    const id = crypto.randomUUID();
+    const optimistic =
+      !draft.photo && !draft.ping && !draft.voice && !draft.document && !draft.sticker;
+
+    if (optimistic) {
+      this.#emit({
+        type: 'message:new',
+        message: {
+          id,
+          conversationId: draft.conversationId,
+          authorId: me,
+          body: draft.body,
+          createdAt: Date.now(),
+          status: 'sending',
+          attachments: [],
+          reactions: [],
+          ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
+        },
+      });
+    }
+
+    /*
      * Uploaded before the row is inserted, deliberately. A message row whose
      * media never arrived is a permanently broken bubble in someone's thread;
      * a failed upload that inserts nothing is a retry.
@@ -3365,12 +3410,31 @@ export class SupabaseChatService implements ChatService {
      * reply. Group messages that @mention PINGO AI are also plaintext so the
      * model can see the ask — other group messages stay sealed as usual.
      */
+    /*
+     * The heavy read happens only when it can change the answer.
+     *
+     * `getConversation` is not one request - it hydrates members, previews,
+     * streaks and profiles - and it was awaited on every single send, right
+     * after a separate round trip asking whether the thread was an AI one.
+     * Two sequential requests to answer one question, on the path where each
+     * costs a second on a slow connection.
+     *
+     * `#isAiConversation` now remembers both answers, so it is one small query
+     * per conversation per session rather than one per message. And the
+     * conversation itself is only fetched when the body actually mentions the
+     * assistant, which is what decides whether a *group* message goes in the
+     * clear. No mention, nothing to look up, straight to sealing.
+     */
+    const mentioned = mentionsPingoAi(draft.body);
     const isAi = await this.#isAiConversation(draft.conversationId);
-    const conversationSnap = await this.getConversation(draft.conversationId);
+
+    const conversationSnap =
+      mentioned && !isAi ? await this.getConversation(draft.conversationId) : undefined;
+
     const groupHasAi =
       (conversationSnap?.kind === 'group' || conversationSnap?.kind === 'community') &&
       Boolean(conversationSnap.participantIds.includes(PINGO_AI_USER_ID));
-    const callAiInGroup = groupHasAi && mentionsPingoAi(draft.body);
+    const callAiInGroup = groupHasAi && mentioned;
     const plaintextForAi = isAi || callAiInGroup;
 
     const sealed = plaintextForAi
@@ -3416,6 +3480,8 @@ export class SupabaseChatService implements ChatService {
     const { data, error } = await this.#client
       .from('messages')
       .insert({
+        // Ours, so the row the server writes is the bubble already on screen.
+        id,
         conversation_id: draft.conversationId,
         sender_id: me,
         body: sealed.body,
@@ -3473,7 +3539,33 @@ export class SupabaseChatService implements ChatService {
       .select('*')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      /*
+       * The bubble stays, and says so.
+       *
+       * Removing it would make a failed send look like a message that was
+       * never typed, which is the one outcome worse than a failure - somebody
+       * would retype it, or worse, believe it went. `failed` is a state the
+       * thread already knows how to draw.
+       */
+      if (optimistic) {
+        this.#emit({
+          type: 'message:updated',
+          message: {
+            id,
+            conversationId: draft.conversationId,
+            authorId: me,
+            body: draft.body,
+            createdAt: Date.now(),
+            status: 'failed',
+            attachments: [],
+            reactions: [],
+            ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
+          },
+        });
+      }
+      throw error;
+    }
 
     /*
      * The row that came back holds the ciphertext this method just wrote, and
@@ -3506,7 +3598,14 @@ export class SupabaseChatService implements ChatService {
      */
     void this.#releaseUploadClaims([snapPath, photoPath, voicePath, filePath]);
 
-    this.#emit({ type: 'message:new', message });
+    /*
+     * `updated` when the bubble is already there, `new` when it is not.
+     *
+     * Both carry the same id, and the hook replaces by id on one and
+     * de-duplicates by id on the other - so the optimistic bubble turns into
+     * the real row in place rather than blinking out and back.
+     */
+    this.#emit({ type: optimistic ? 'message:updated' : 'message:new', message });
 
     /*
      * Replying is the receipt.
@@ -3517,18 +3616,32 @@ export class SupabaseChatService implements ChatService {
      * which is exactly the rule the setting promises: not before I say
      * something, and never a surprise afterwards.
      */
+    /*
+     * Both of these are after-the-fact, so neither is awaited.
+     *
+     * The message is written and on screen by this point. Publishing the read
+     * cursor and refreshing the chat-list row are housekeeping - two more round
+     * trips that the send was waiting on for no reason anybody could see. On a
+     * slow connection they were the difference between "sent" and "still
+     * spinning", and neither can fail in a way the sender needs to know about.
+     */
     if (hasHeldRead(draft.conversationId)) {
-      try {
-        await this.#client.rpc('mark_conversation_read', { conv: draft.conversationId });
-        releaseRead(draft.conversationId);
-      } catch {
-        // The reply is sent either way; the cursor stays held and goes with
-        // the next one rather than failing a send nobody asked to retry.
-      }
+      void (async () => {
+        try {
+          await this.#client.rpc('mark_conversation_read', { conv: draft.conversationId });
+          releaseRead(draft.conversationId);
+        } catch {
+          // The reply is sent either way; the cursor stays held and goes with
+          // the next one rather than failing a send nobody asked to retry.
+        }
+      })();
     }
 
-    const conversation = await this.getConversation(draft.conversationId);
-    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+    void this.getConversation(draft.conversationId)
+      .then((conversation) => {
+        if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+      })
+      .catch(() => undefined);
 
     // Person-shaped AI: 1:1 thread always replies; groups only on @pingoai.
     if ((isAi || callAiInGroup) && draft.body.trim()) {
@@ -3540,9 +3653,20 @@ export class SupabaseChatService implements ChatService {
     return message;
   }
 
-  /** True for `kind = 'ai'` threads. Cached so a flaky re-select cannot seal ciphertext. */
+  /**
+   * True for `kind = 'ai'` threads. Cached so a flaky re-select cannot seal
+   * ciphertext into a thread the server has to be able to read.
+   *
+   * Both answers are remembered, not only the yes. Caching only the positive
+   * meant every message in every ordinary conversation paid a round trip to be
+   * told "no" again - once per message, forever, on the path where a round trip
+   * is the thing that makes a slow connection feel broken. A conversation's
+   * `kind` does not change, so one query per conversation per session is the
+   * honest cost of the question.
+   */
   async #isAiConversation(conversationId: ConversationId): Promise<boolean> {
     if (this.#aiConversationIds.has(conversationId)) return true;
+    if (this.#nonAiConversationIds.has(conversationId)) return false;
 
     const { data, error } = await this.#client
       .from('conversations')
@@ -3550,10 +3674,15 @@ export class SupabaseChatService implements ChatService {
       .eq('id', conversationId)
       .maybeSingle();
 
-    if (!error && data?.kind === 'ai') {
+    // A failed read is not an answer. Left uncached so the next send asks
+    // again rather than sealing a thread on the strength of a dropped request.
+    if (error || !data) return false;
+
+    if (data.kind === 'ai') {
       this.#aiConversationIds.add(conversationId);
       return true;
     }
+    this.#nonAiConversationIds.add(conversationId);
     return false;
   }
 

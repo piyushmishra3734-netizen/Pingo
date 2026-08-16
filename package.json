@@ -61,7 +61,8 @@
     "verify:picked-media": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-picked-media.ts",
     "verify:call-chat": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-call-chat.ts",
     "verify:video-quality": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-video-quality.ts",
-    "verify:group-ai": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-group-ai.ts"
+    "verify:group-ai": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-group-ai.ts",
+    "verify:send-speed": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-send-speed.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
