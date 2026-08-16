@@ -548,11 +548,6 @@ export interface ChatService {
   /** Admin only. Every id must be a mutual follow of the person adding. */
   addGroupMembers(conversationId: ConversationId, memberIds: UserId[]): Promise<void>;
 
-  /**
-   * Admin only. Adds the PINGO AI bot to a group so members can @pingoai.
-   */
-  addPingoAiToGroup?(conversationId: ConversationId): Promise<void>;
-
   /** Admin only, and never yourself - leaving has its own door. */
   removeGroupMember(conversationId: ConversationId, userId: UserId): Promise<void>;
 
@@ -563,6 +558,20 @@ export interface ChatService {
    * again - promotion needs an admin, and there would not be one.
    */
   leaveGroup(conversationId: ConversationId): Promise<void>;
+
+  /**
+   * Whether PINGO AI is in this group at all.
+   *
+   * Membership *is* the switch - the assistant answers because it is a member,
+   * and a message is only sent in plaintext when it @mentions an assistant that
+   * is in the room. So turning this off does not mute a listener: it removes
+   * one, and every message in the group goes back to being sealed with no
+   * exception for anybody.
+   *
+   * Admin-only, the same as adding members and the invite link. Whether there
+   * is an assistant in the room is the room's decision.
+   */
+  setGroupAi(conversationId: ConversationId, enabled: boolean): Promise<void>;
 
   /** Admin only. `false` demotes, and is refused if you are the last admin. */
   setGroupAdmin(

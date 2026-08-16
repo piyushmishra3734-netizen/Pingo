@@ -873,9 +873,16 @@ export type Database = {
         Args: { other_user: string };
         Returns: string;
       };
-      /** One AI conversation per user - person-shaped row in Chats. */
-      add_pingo_ai_to_group: {
-        Args: { conv: string };
+      /**
+       * Adds or removes PINGO AI from one group. Admin only.
+       *
+       * Membership is the switch: the assistant answers because it is a member,
+       * and a message only leaves this device unencrypted when it mentions an
+       * assistant that is in the room. Replaces `add_pingo_ai_to_group`, which
+       * could only ever go one way.
+       */
+      set_group_ai: {
+        Args: { conv: string; enabled: boolean };
         Returns: undefined;
       };
       ensure_ai_conversation: {

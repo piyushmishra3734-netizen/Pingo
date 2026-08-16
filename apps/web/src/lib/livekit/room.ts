@@ -45,6 +45,38 @@ import { getSupabaseClient } from '../supabase/client.js';
  * discovering later.
  */
 
+/**
+ * How this device's camera is published.
+ *
+ * ## Bitrate, said out loud
+ *
+ * Nothing here set one, so the SDK guessed from the track's dimensions. A guess
+ * is fine until the camera hands back something unexpected - and phone cameras
+ * do, constantly - at which point the picture is quietly encoded for a
+ * resolution nobody asked for. 1.7 Mbps is 720p30 of a face: enough that skin
+ * and text on a T-shirt hold together, and well under what a phone on 4G can
+ * actually push uphill.
+ *
+ * ## Framerate over resolution
+ *
+ * `maintain-framerate` is the one that matters and it was not set. Under
+ * congestion the encoder has to give something up, and the default gives up
+ * frames - which on a call is the worst possible trade, because a face at
+ * 8fps reads as a broken connection while the same face at 30fps and half the
+ * resolution just reads as a slightly soft picture. People forgive softness.
+ * Nobody forgives stutter.
+ *
+ * ## Simulcast is the SDK's default and stays on
+ *
+ * Three layers, so a phone on a bad train line is sent a smaller one instead of
+ * everybody on the call being held to its speed. That is the whole reason HD
+ * capture is affordable now - see the note on `hdVideo`.
+ */
+const CAMERA_PUBLISH = {
+  videoEncoding: { maxBitrate: 1_700_000, maxFramerate: 30 },
+  degradationPreference: 'maintain-framerate',
+} as const;
+
 /** How a room reports itself back to the call service. */
 export interface RoomHandlers {
   /** A remote participant's media, ready to attach. */
@@ -132,15 +164,29 @@ export class CallRoom {
 
     const room = new Room({
       /*
-       * Adaptive stream and dynacast are off.
+       * Adaptive stream off, dynacast on.
        *
-       * Both are bandwidth optimisations for rooms with an audience - pausing
-       * tracks nobody is looking at, dropping layers nobody subscribes to. On a
-       * call every participant is watching every other one, so they would cost
-       * a decision per track to save nothing.
+       * They are not the same trade, and holding both off was treating them as
+       * if they were.
+       *
+       * Dynacast is free quality. Simulcast has this device encoding and
+       * uploading three layers of its own camera, and dynacast stops sending
+       * the ones nobody is currently subscribed to - which on a one-to-one
+       * call is two of the three. That uplink goes back to the layer somebody
+       * is actually watching, on exactly the phones where uplink is the thing
+       * in short supply.
+       *
+       * Adaptive stream is the other direction: it drops *incoming* tracks to
+       * the layer that fits the element they are painted into, and pauses ones
+       * that are not on screen. It would save real bandwidth when a shared
+       * screen pushes every face down to a 96px tile. It is off because the
+       * cost lands on the thing being fixed here - coming back up from the
+       * small layer takes a beat, and that beat is visible every time the
+       * layout changes. Worth revisiting if group calls get bigger; not worth
+       * it for a call between two people looking at each other full-screen.
        */
       adaptiveStream: false,
-      dynacast: false,
+      dynacast: true,
       // Matches the capture side: mono speech at 48 kHz. See `#openMedia`.
       audioCaptureDefaults: {
         echoCancellation: true,
@@ -176,8 +222,9 @@ export class CallRoom {
     for (const track of local.getTracks()) {
       await room.localParticipant.publishTrack(track, {
         // Speech, not music: mono at a bitrate that stays intelligible on a
-        // train. Video defaults are the SDK's, which are tuned for calls.
+        // train.
         ...(track.kind === 'audio' ? { audioBitrate: 32_000, dtx: true, red: true } : {}),
+        ...(track.kind === 'video' ? CAMERA_PUBLISH : {}),
       });
     }
   }
@@ -220,7 +267,12 @@ export class CallRoom {
       if (publication.source === Track.Source.ScreenShare) continue;
       if (publication.track) await room.localParticipant.unpublishTrack(publication.track);
     }
-    await room.localParticipant.publishTrack(track, { source: Track.Source.Camera });
+    // Same settings as the first publish, or flipping the camera would quietly
+    // republish it on the SDK's guesses instead. See `CAMERA_PUBLISH`.
+    await room.localParticipant.publishTrack(track, {
+      source: Track.Source.Camera,
+      ...CAMERA_PUBLISH,
+    });
   }
 
   /** Whether this device is publishing a camera at all, muted or otherwise. */

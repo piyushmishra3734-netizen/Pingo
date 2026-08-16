@@ -537,14 +537,17 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
   new_device: { body: 'A new device signed in to your account' },
 };
 
-/** Fixed AI identity - same uuid as `public.pingo_ai_user_id()` and the Edge Function. */
-const PINGO_AI_USER_ID = 'a1000000-0000-4000-8000-0000000000a1';
+/*
+ * Both live in `features/ai/ai-mentions` now.
+ *
+ * `mentionsPingoAi` is the test that decides whether a group message is
+ * encrypted at all, and it could not be asserted from here - importing this
+ * module pulls in the Supabase client, which needs a browser. A rule that
+ * important should be checkable without one.
+ */
+import { mentionsPingoAi, PINGO_AI_USER_ID } from '../../features/ai/ai-mentions.js';
 
-/** @pingoai / @pingo_ai — triggers a reply when PINGO AI is a group member. */
-export function mentionsPingoAi(text: string): boolean {
-  // Accept both the autocomplete handle and the profile username form.
-  return /@pingo_?ai\b/i.test(text);
-}
+export { mentionsPingoAi, PINGO_AI_USER_ID };
 
 /**
  * Handles from a message body (`@anaya`, `@pingoai`).
@@ -3608,17 +3611,6 @@ export class SupabaseChatService implements ChatService {
     return [...new Set(ids)];
   }
 
-  /**
-   * Admin: put PINGO AI in a group so members can @pingoai for a reply.
-   */
-  async addPingoAiToGroup(conversationId: ConversationId): Promise<void> {
-    const { error } = await this.#client.rpc('add_pingo_ai_to_group', {
-      conv: conversationId,
-    });
-    if (error) throw groupError(error);
-    this.#rememberAiPerson('PINGO AI');
-    await this.#announce(conversationId);
-  }
 
   /** Local typing dots for the AI person - not a Realtime presence channel. */
   #setAiTyping(conversationId: ConversationId, typing: boolean): void {
@@ -3649,8 +3641,30 @@ export class SupabaseChatService implements ChatService {
    * on rows that might still be ciphertext from an earlier bug.
    */
   async #requestAiReply(conversationId: ConversationId, userMessage: string): Promise<void> {
-    this.#aiConversationIds.add(conversationId);
+    /*
+     * This used to add the conversation to `#aiConversationIds`, and that one
+     * line was the whole of a bad bug.
+     *
+     * That set is the cache behind `#isAiConversation`, which answers "is this
+     * a one-to-one thread with the assistant" - a thread whose `kind` is `ai`,
+     * where nothing is encrypted because the server has to read all of it.
+     * Adding a *group* to it made every later message in that group answer yes.
+     *
+     * From then on `isAi` was true, so `plaintextForAi` was true, so every
+     * message anybody typed in that group was sent unencrypted - not only the
+     * ones mentioning @pingoai - and `#requestAiReply` ran on all of them.
+     * `isAi` also short-circuits the membership test, which is why removing
+     * the assistant from the group changed nothing: the typing indicator kept
+     * appearing on every message, and only the server's refusal stopped a
+     * reply. One @pingoai, once, and the group's encryption was off for that
+     * device for the rest of the session.
+     *
+     * Nothing is cached here now. `#isAiConversation` reads `kind` and caches
+     * only a genuine `ai` thread, which is what it was always for.
+     */
     this.#setAiTyping(conversationId, true);
+    // Anything older than this is a message the UI already has.
+    const startedAt = Date.now();
 
     try {
       void this.#client.rpc('log_ai_user_turn', {
@@ -3663,20 +3677,50 @@ export class SupabaseChatService implements ChatService {
       // Ensure the new assistant row is in the list even if realtime lags.
       const conversation = await this.getConversation(conversationId);
       if (conversation) this.#emit({ type: 'conversation:updated', conversation });
-      const latest = await this.listMessages(conversationId, { limit: 8 });
-      for (const msg of latest) {
+
+      /*
+       * The reply, not the last eight messages.
+       *
+       * This announced a whole page as `message:new` every time, so everything
+       * that reacts to a new message - the sound, the badge, the unread mark -
+       * fired again for messages already on screen. It is meant to be a safety
+       * net for realtime lagging, and a net that catches things it already had
+       * is how the app ends up announcing an assistant reply from an hour ago.
+       */
+      for (const msg of await this.listMessages(conversationId, { limit: 8 })) {
+        if (msg.authorId !== PINGO_AI_USER_ID) continue;
+        if (msg.createdAt < startedAt) continue;
         this.#emit({ type: 'message:new', message: msg });
       }
     } catch (cause) {
       console.error('[pingo-ai]', cause);
+
+      /*
+       * Nothing to apologise for when the assistant simply is not there.
+       *
+       * The fallback below exists for a model that failed, and it is wrong for
+       * a group that has turned PINGO AI off: the server refuses correctly, and
+       * writing "something glitched on my side" would be the assistant speaking
+       * in a room it was removed from. Silence is the right answer, and the
+       * conversation is re-read so this device stops believing otherwise.
+       */
+      if (String(cause).includes('not in this group')) {
+        const fresh = await this.getConversation(conversationId);
+        if (fresh) this.#emit({ type: 'conversation:updated', conversation: fresh });
+        return;
+      }
+
       // Last resort only - do not spam this if post_ai_reply already wrote one.
       try {
         await this.#client.rpc('post_ai_reply', {
           target_conversation: conversationId,
           reply_body: "Something glitched on my side. Say that again?",
         });
-        const latest = await this.listMessages(conversationId, { limit: 5 });
-        for (const msg of latest) this.#emit({ type: 'message:new', message: msg });
+        for (const msg of await this.listMessages(conversationId, { limit: 5 })) {
+          if (msg.authorId !== PINGO_AI_USER_ID) continue;
+          if (msg.createdAt < startedAt) continue;
+          this.#emit({ type: 'message:new', message: msg });
+        }
       } catch {
         /* ignore double-failure */
       }
@@ -3848,6 +3892,25 @@ export class SupabaseChatService implements ChatService {
       make_admin: admin,
     });
     if (error) throw groupError(error);
+    await this.#announce(conversationId);
+  }
+
+  /**
+   * Adds or removes PINGO AI from a group.
+   *
+   * A membership change, not a setting - see `set_group_ai`. `#announce`
+   * re-reads the conversation so `participantIds` is right immediately, which
+   * matters more than usual here: that list is what `sendMessage` consults
+   * before deciding a message may go in plaintext, and a stale copy would keep
+   * sending one to an assistant that had just been removed.
+   */
+  async setGroupAi(conversationId: ConversationId, enabled: boolean): Promise<void> {
+    const { error } = await this.#client.rpc('set_group_ai', {
+      conv: conversationId,
+      enabled,
+    });
+    if (error) throw groupError(error);
+    if (enabled) this.#rememberAiPerson('PINGO AI');
     await this.#announce(conversationId);
   }
 

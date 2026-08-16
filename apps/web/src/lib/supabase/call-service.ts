@@ -678,6 +678,17 @@ export class SupabaseCallService implements CallService {
 
   /** Constraints for the camera, in one place because two call sites need them. */
   #videoConstraints(options?: CallServiceOptions): MediaTrackConstraints {
+    /*
+     * The call's own setting, not just this caller's.
+     *
+     * `switchCamera` and `#startCamera` open a camera mid-call and had no
+     * `options` to pass, so both fell through to the standard-definition
+     * branch: flipping to the rear camera silently dropped a 720p call to
+     * 640x480 for the rest of its length, and it never came back. The choice
+     * belongs to the call, so the call remembers it.
+     */
+    const hd = options?.hdVideo ?? this.#hdVideo;
+
     return {
       facingMode: this.#facing,
       /*
@@ -685,10 +696,28 @@ export class SupabaseCallService implements CallService {
        * 720p rejects with `OverconstrainedError` and kills the call; ideal asks
        * for it and accepts whatever the hardware actually offers.
        */
-      width: { ideal: options?.hdVideo ? 1280 : 640 },
-      height: { ideal: options?.hdVideo ? 720 : 480 },
+      width: { ideal: hd ? 1280 : 640 },
+      height: { ideal: hd ? 720 : 480 },
+      /*
+       * Asked for, because a camera that is not asked does not offer it.
+       *
+       * Nothing here requested a frame rate, and a phone camera left to itself
+       * will happily hand back 15fps in poor light - which is the setting that
+       * makes a call look like a slideshow while every number about it says the
+       * resolution is fine.
+       */
+      frameRate: { ideal: 30 },
     };
   }
+
+  /**
+   * Whether this call asked for HD video. See `#videoConstraints`.
+   *
+   * Held beside `#hdAudio` for the same reason: a call's media settings are
+   * chosen once, at the start, and everything that opens a device afterwards
+   * has to honour the same answer.
+   */
+  #hdVideo = true;
 
   async #openMedia(kind: CallKind, options?: CallServiceOptions): Promise<MediaStream> {
     /*
@@ -763,6 +792,7 @@ export class SupabaseCallService implements CallService {
      */
     this.#rawTracks = raw.getTracks();
     this.#hdAudio = options?.hdAudio !== false;
+    this.#hdVideo = options?.hdVideo !== false;
 
     if (!options?.noiseSuppression) return raw;
 
@@ -1127,6 +1157,19 @@ export class SupabaseCallService implements CallService {
       // Honours `cameraOff` before the first frame is ever sent, so starting
       // camera-off never leaks a moment of video.
       if (this.#call.cameraOff) this.#applyCameraOff(true);
+
+      /*
+       * The self-preview, which the mesh used to publish as a side effect.
+       *
+       * `#link` emits this while building a peer connection, and on the room
+       * path there is no `#link` - so the person who *placed* a video call
+       * never saw their own camera. `callGroup` and `#answerGroup` both do it
+       * explicitly and this was the one entry point that did not, which is why
+       * it was missing on exactly one side of every call.
+       */
+      if (stream.getVideoTracks().length > 0) {
+        this.#emit({ type: 'call:local-stream', stream });
+      }
 
       /*
        * The room first, the mesh only if there is no room.
