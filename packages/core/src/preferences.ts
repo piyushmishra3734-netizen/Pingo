@@ -212,7 +212,23 @@ export const DEFAULT_PREFERENCES: Preferences = {
     noiseCancellation: true,
     echoCancellation: true,
     hdAudio: true,
-    hdVideo: false,
+    /*
+     * On, now that an SFU carries the call.
+     *
+     * This was off, and it made every video call 640x480 by default while
+     * audio shipped HD - a picture with a quarter of 720p's pixels, stretched
+     * over a phone screen. The reason was the peer-to-peer mesh: the sender
+     * uploaded one copy of their camera *per participant*, so resolution was
+     * charged to them again for every person on the call.
+     *
+     * LiveKit removed that. One upload reaches everybody, and simulcast means
+     * a device that cannot take the top layer is sent a smaller one rather
+     * than everybody being held to the weakest link. The conservative default
+     * was answering a question that no longer gets asked.
+     *
+     * The setting stays, and off is now a data saver rather than the norm.
+     */
+    hdVideo: true,
     cameraOnByDefault: true,
   },
   advanced: {
