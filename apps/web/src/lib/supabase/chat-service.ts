@@ -218,7 +218,10 @@ function normalizeWaveform(raw: unknown): number[] {
  * page signs one bucket per request rather than one row at a time.
  */
 function toAttachments(row: MessageRow): Attachment[] {
-  if (row.kind === 'voice' && row.voice_path) {
+  // A purged row still becomes an attachment, for the reason set out on the
+  // photo branch below: no attachment means no bubble, and no bubble means the
+  // copy on this device is never asked for.
+  if (row.kind === 'voice' && (row.voice_path || row.media_purged_at)) {
     return [
       {
         id: row.id,
@@ -226,13 +229,14 @@ function toAttachments(row: MessageRow): Attachment[] {
         url: '',
         duration: row.voice_duration ?? 0,
         waveform: normalizeWaveform(row.voice_waveform),
-        // Path survives even when the signed URL is empty or expires.
-        storagePath: row.voice_path,
+        // Path survives even when the signed URL is empty or expires. It is
+        // gone only once the object itself is.
+        ...(row.voice_path ? { storagePath: row.voice_path } : {}),
       },
     ];
   }
 
-  if (row.kind === 'document' && row.file_path) {
+  if (row.kind === 'document' && (row.file_path || row.media_purged_at)) {
     return [
       {
         id: row.id,
@@ -242,7 +246,7 @@ function toAttachments(row: MessageRow): Attachment[] {
         // The generic type is what a server falls back to when it cannot tell,
         // so it is the honest value here rather than an empty string.
         mimeType: row.file_mime ?? 'application/octet-stream',
-        storagePath: row.file_path,
+        ...(row.file_path ? { storagePath: row.file_path } : {}),
         ...(row.file_size !== null ? { size: row.file_size } : {}),
       },
     ];
@@ -404,13 +408,26 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
      * whole page in one pass. Signing here would mean an await per row and a
      * request per row for a thread that renders fifty of them.
      */
-    ...(row.kind === 'photo' && row.photo_path
+    /*
+     * `media_purged_at` and not just the path, because the server's copy is
+     * meant to go and this device's is meant to stay.
+     *
+     * Keying on `photo_path` alone meant a purged row produced no `photo` at
+     * all, so `PhotoBubble` never mounted, so the vault was never asked - and
+     * the picture vanished from the thread of the very recipient who had
+     * downloaded it. The local-first lifecycle deleted the copy it was built to
+     * protect. The bubble is mounted with no path instead, which is exactly the
+     * "ask the device" case `useOfflineMedia` already handles.
+     */
+    ...(row.kind === 'photo' && (row.photo_path || row.media_purged_at)
       ? {
           photo: {
             ...(row.view_limit ? { viewLimit: row.view_limit } : {}),
             // Kept even though the URL is not: this is what a cached page
-            // re-signs from once the hour is up.
-            storagePath: row.photo_path,
+            // re-signs from once the hour is up. Absent once the object is
+            // gone, which is how the bubble tells "deleted" from "not signed
+            // yet".
+            ...(row.photo_path ? { storagePath: row.photo_path } : {}),
           },
         }
       : {}),

@@ -158,6 +158,15 @@ export type MessageRow = {
   view_limit: number | null;
   /** The sticker image. Null for text messages. */
   media_url: string | null;
+  /**
+   * When the server's copy of this message's media was deleted.
+   *
+   * The path columns are nulled at the same moment, so this is the only thing
+   * left saying the row ever carried a photo, a document or a voice note. The
+   * bubble needs to know: the copy on this device is still there, and it is
+   * the one the whole lifecycle exists to leave behind.
+   */
+  media_purged_at: string | null;
   /** Storage path of a snap's image. Nulled out when the snap is destroyed. */
   snap_path: string | null;
   snap_expires_at: string | null;

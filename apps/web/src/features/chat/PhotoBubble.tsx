@@ -103,8 +103,15 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           mine ? 'animate-bubble-in-mine' : 'animate-bubble-in',
         )}
       >
-        {url ? (
+        {shown ? (
           /*
+           * `shown`, not `url`.
+           *
+           * The gate used to be the server's URL while the `src` underneath it
+           * was the local copy, so a device holding the whole picture and no
+           * signature - offline, or after PINGO's copy was deleted - rendered
+           * the spinner below over bytes it already had.
+           *
            * A button, not a bare image.
            *
            * Tapping a photo to see it properly is the one interaction people
@@ -134,10 +141,15 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           </button>
         ) : !limited ? (
           /*
-           * An unlimited photo with no URL is one whose signing has not landed
-           * - a slow round trip, or one that failed. It is emphatically not a
-           * view-once cover, which is what it used to render: an ordinary photo
-           * inviting you to spend a view it does not have.
+           * Nothing to show, and two quite different reasons for it.
+           *
+           * A path still on the row means the object is still in the bucket and
+           * the signature has not landed yet - a slow round trip, or one that
+           * failed - so waiting is the honest thing to draw. No path means the
+           * server's copy was collected and this device never kept one, and
+           * waiting would be a lie that never resolves. It is emphatically not
+           * a view-once cover either way, which is what this used to render: an
+           * ordinary photo inviting you to spend a view it does not have.
            */
           <div
             className={cn(
@@ -145,7 +157,14 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
               'glass-water',
             )}
           >
-            <PingoDot state="loading" size={5} label="Loading photo" />
+            {photo.storagePath ? (
+              <PingoDot state="loading" size={5} label="Loading photo" />
+            ) : (
+              <span className="flex flex-col items-center gap-2 text-text-secondary">
+                <ImageIcon size={22} />
+                <span className="text-caption">Photo no longer available</span>
+              </span>
+            )}
           </div>
         ) : (
           <button
