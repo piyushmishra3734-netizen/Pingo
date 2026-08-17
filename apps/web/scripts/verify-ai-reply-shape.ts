@@ -262,6 +262,28 @@ assert.deepEqual(
   'numbering never survives, whatever punctuation follows it',
 );
 
+/*
+ * Inline numbering, which is what actually shipped. Seen live:
+ * `Ab kya? 1. Baat karna chahte ho? 2. Kuch aur puchhna?` - all one line, so
+ * the per-line strip never saw it. A model told not to number still does it
+ * inline, because inline does not look like a list to it.
+ */
+const inlineList = splitIntoBubbles(
+  'Ab kya? 1. Baat karni hai us din ke baare mein? 2. Kuch aur puchhna hai?',
+  'short',
+);
+assert.ok(
+  !inlineList.some((b) => /\d[.)]\s/.test(b)),
+  `inline numbering is unpacked, not shipped - got ${JSON.stringify(inlineList)}`,
+);
+
+// One number is a date or a price, not a list.
+assert.deepEqual(
+  splitIntoBubbles('aaj 1. tarikh hai bhai', 'short'),
+  ['aaj 1. tarikh hai bhai'],
+  'a single number is left alone',
+);
+
 // And a genuine numbered list of facts still loses only the numbering.
 assert.deepEqual(
   splitIntoBubbles('1. Chetan: 8 aam\n2. Bina: 4 aam\n3. Amit: 6 aam', 'short'),

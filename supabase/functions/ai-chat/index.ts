@@ -121,6 +121,27 @@ Deno.serve(async (request) => {
       }
     }
 
+    /*
+     * The thread is asked for now and read later.
+     *
+     * It does not depend on the profile or the memories, and it was queued
+     * behind both - three round trips one after another before the model was
+     * even called. Started here it overlaps with them and costs nothing.
+     */
+    const historyQuery = userClient
+      .from('messages')
+      .select('sender_id, body, created_at, encryption')
+      .eq('conversation_id', conversationId)
+      /*
+       * Encrypted rows are not fetched at all, rather than fetched and thrown
+       * away. In a group that is almost the entire thread - only messages
+       * mentioning @pingoai are plaintext - so of 200 rows perhaps five
+       * survived and the rest crossed the wire to be discarded.
+       */
+      .is('encryption', null)
+      .order('created_at', { ascending: false })
+      .limit(120);
+
     const { data: profile } = await userClient
       .from('ai_profiles')
       .select('*')
@@ -157,33 +178,8 @@ Deno.serve(async (request) => {
       memories = data ?? [];
     }
 
-    /*
-     * Deeper than the window, on purpose.
-     *
-     * Most of what comes back is discarded - encrypted rows the assistant
-     * cannot read, system notices, format markers - so fetching exactly as many
-     * as the model will take means arriving with far fewer. 200 rows is one
-     * query either way and leaves enough survivors to fill the sixty turns
-     * `trimHistoryForModel` asks for.
-     */
-    const { data: rows } = await userClient
-      .from('messages')
-      .select('sender_id, body, created_at, encryption')
-      .eq('conversation_id', conversationId)
-      /*
-       * Encrypted rows are not fetched at all now, rather than fetched and
-       * thrown away.
-       *
-       * The filter below already dropped every row with an `encryption` value -
-       * the assistant cannot read them - but the database was still sending
-       * them. In a group that is almost the entire thread: only messages that
-       * mention @pingoai are plaintext, so of 200 rows perhaps five survived
-       * and 195 ciphertext bodies crossed the wire to be discarded. That is
-       * most of why a group reply took so much longer than a direct one.
-       */
-      .is('encryption', null)
-      .order('created_at', { ascending: false })
-      .limit(120);
+    // Started before the profile fetch, above.
+    const { data: rows } = await historyQuery;
 
     const chronological = [...(rows ?? [])]
       .reverse()
@@ -396,7 +392,21 @@ Deno.serve(async (request) => {
      * talking, and doubling the wait to sharpen a sentence is the wrong trade
      * there.
      */
-    if (!isGroup && shouldRetryAnswer(reply, live ?? '', intent)) {
+    /*
+     * A repeated reply is worth a second pass anywhere, including a group.
+     *
+     * `isTooSimilarToRecent` guarded the follow-up question and nothing else,
+     * so the *reply* itself could be - and was - sent again word for word. Two
+     * different messages produced near-identical answers, which is the whole of
+     * "wo baar baar wahi bol raha hai".
+     *
+     * Vagueness is still a direct-chat-only retry: it costs a full extra model
+     * call and a group is a room full of people waiting. Repeating yourself is
+     * different - it is worse in a group than a delay is.
+     */
+    const repeated = isTooSimilarToRecent(reply, recentAssistant);
+
+    if (repeated || (!isGroup && shouldRetryAnswer(reply, live ?? '', intent))) {
       const threadBrief = formatThreadForPrompt(historyForModel, 16, 320);
       const retryMessages = [
         {
@@ -414,6 +424,15 @@ Deno.serve(async (request) => {
             'If they use ye/uska/wo/upar/pehle/that/it — resolve from the conversation above.',
             'Step 1 (silent): What do they want, given the whole thread?',
             'Step 2: Answer with that context. General knowledge OK. No vague filler.',
+            ...(repeated
+              ? [
+                  '',
+                  'IMPORTANT: your last attempt repeated something you have already said:',
+                  `"""${reply.slice(0, 300)}"""`,
+                  'Do not send that again, and do not send a reworded version of it.',
+                  'Say something new, or say the one thing that actually answers them.',
+                ]
+              : []),
             'Return ONLY JSON: {"reply":"...","ask":""}',
           ].join('\n'),
         },
@@ -940,26 +959,6 @@ function buildFocusDirective(
         ? 'LENGTH: balanced — 2–4 short lines'
         : 'LENGTH: SHORT chat lines, but never drop required context/facts';
 
-  /*
-   * The restated thread, which is a second and much tighter context path.
-   *
-   * The message array carries sixty turns; this is a compact transcript put
-   * back into the directive so the model is pointed at it rather than left to
-   * find it. It was 14 turns at 280 characters - narrow enough that a question
-   * about something said twenty lines ago was answered from a transcript that
-   * did not contain it, even though the full history was sitting right there
-   * in the same request.
-   *
-   * Raised, not removed. It is duplicated content and costs tokens, so it stays
-   * a summary rather than growing to match the history.
-   */
-  const recentUser = history
-    .filter((m) => m.role === 'user')
-    .slice(-16)
-    .map((m, i, arr) => `${arr.length - i}. ${m.content.slice(0, 400)}`)
-    .join('\n');
-
-  const thread = formatThreadForPrompt(history, 20, 400);
 
   const avoidOpeners = recentAssistant
     .slice(-4)
@@ -1037,11 +1036,21 @@ function buildFocusDirective(
       ? 'Clear request — real answer, prefer ask:"".'
       : 'React specifically; use prior context if this continues a topic.',
     '',
-    'THREAD (recent turns — short-term memory):',
-    thread || '(none)',
-    '',
-    'USER messages recently (numbered, oldest→newest among these):',
-    recentUser || '(none)',
+    /*
+     * The thread is not restated here any more.
+     *
+     * It used to be, twice: twenty turns as a transcript and sixteen more as a
+     * numbered list of user lines - on top of the sixty turns already sitting
+     * in the message array as real turns. The same conversation, sent three
+     * times, in one request.
+     *
+     * That made sense for an 8B model, which needed the thread pointed at.
+     * It stopped making sense the moment the model got bigger, and it became
+     * the reason a two-word message took seven seconds: prefill scales with
+     * the prompt, and two thirds of this prompt was a copy of the other third.
+     *
+     * The conversation is in the messages. This says what to do with it.
+     */
     '',
     'Avoid copy-pasting these openers:',
     avoidOpeners || '(none)',
@@ -1188,7 +1197,18 @@ function trimHistoryForModel(
    * budget now.
    */
   return history
-    .slice(-60)
+    /*
+     * Forty, not sixty.
+     *
+     * Sixty was chosen against the window the models have, which is enormous -
+     * but prefill is paid per token on every message, and measured live a
+     * two-word reply took seven seconds. Cutting the duplicated transcript out
+     * of the directive took that to five; this is the other half of the same
+     * problem. Forty turns is still comfortably more than the twenty-eight this
+     * started at, and the difference between forty and sixty turns of chat is
+     * not something anybody has ever noticed in a reply.
+     */
+    .slice(-40)
     .map((m) => ({
       role: m.role,
       content:
@@ -1218,8 +1238,32 @@ const BANNED_REPLY_OPEN =
  * Soft-scrub spam from past assistant bubbles.
  * Keep real answers — aggressive wiping was making the model forget the thread.
  */
+/** Takes list numbering off the assistant's own past replies. See below. */
+function stripOwnNumbering(text: string): string {
+  const inline = (text.match(/(?:^|\s)\d{1,2}[.)]\s+\S/g) ?? []).length >= 2;
+  const flat = inline ? text.replace(/\s+(\d{1,2}[.)]\s+)/g, '\n$1') : text;
+  return flat
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:\(?\d{1,2}[.):\]]|[-*•–])\s*/, '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
 function sanitizeHistoryAssistant(text: string): string {
-  let t = text.replace(/\r\n/g, '\n').trim();
+  /*
+   * Its own numbering comes off before it reads itself back.
+   *
+   * Numbering is stripped on the way out, but a reply written before that
+   * existed is still sitting in the thread - and the model reads the thread. It
+   * copies what it finds there, so one numbered reply from last week teaches it
+   * to number this week's. Seen exactly that: two different messages producing
+   * near-identical numbered replies, the second one plainly copied from the
+   * first.
+   *
+   * Cleaning it here means the transcript shows the assistant talking the way
+   * it is supposed to talk, whatever it actually did at the time.
+   */
+  let t = stripOwnNumbering(text.replace(/\r\n/g, '\n').trim());
   // Drop only pure spam lines; keep useful content lines.
   t = t
     .split('\n')

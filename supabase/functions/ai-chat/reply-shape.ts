@@ -85,7 +85,7 @@ export function splitIntoBubbles(
   const budget = userMessage === undefined ? undefined : replyBudget(userMessage);
   if (budget?.bubbles === 1) return [shapeReply(body, 'short').slice(0, budget.chars).trim()];
 
-  const lines = body
+  const lines = unpackInlineList(body)
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
@@ -171,6 +171,23 @@ export function splitIntoBubbles(
  * Only ever applied to lines that are about to become their own message, so a
  * genuine numbered list - which stays one block - keeps its numbering.
  */
+/**
+ * Puts an enumerated list that was written on one line onto its own lines.
+ *
+ * Seen live: `Ab kya? 1. Baat karna chahte ho? 2. Kuch aur puchhna?` - one
+ * line, so the per-line strip below never saw it and the numbers shipped. A
+ * model told not to number will still do it inline, because inline does not
+ * look like a list to it.
+ *
+ * Requires two of them, which is what makes it a list rather than a date or a
+ * price. "aaj 1. tarikh hai" has one and is left alone.
+ */
+function unpackInlineList(text: string): string {
+  const marks = text.match(/(?:^|\s)\d{1,2}[.)]\s+\S/g) ?? [];
+  if (marks.length < 2) return text;
+  return text.replace(/\s+(\d{1,2}[.)]\s+)/g, '\n$1');
+}
+
 function unnumber(line: string): string {
   /*
    * `1.` `1)` `1]` `1:` and the bullets. The colon matters: a model writing
