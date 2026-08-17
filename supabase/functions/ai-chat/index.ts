@@ -8,6 +8,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
+// Pure, and the one piece here with a right answer that can be stated - so it
+// lives where it can be asserted outside Deno. See `verify:ai-reply-shape`.
+import { shapeReply, splitIntoBubbles } from './reply-shape.ts';
+
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
 const BOT_ID = 'a1000000-0000-4000-8000-0000000000a1';
@@ -152,13 +156,21 @@ Deno.serve(async (request) => {
       memories = data ?? [];
     }
 
-    // Load a deep thread — context stickiness needs more than a few bubbles.
+    /*
+     * Deeper than the window, on purpose.
+     *
+     * Most of what comes back is discarded - encrypted rows the assistant
+     * cannot read, system notices, format markers - so fetching exactly as many
+     * as the model will take means arriving with far fewer. 200 rows is one
+     * query either way and leaves enough survivors to fill the sixty turns
+     * `trimHistoryForModel` asks for.
+     */
     const { data: rows } = await userClient
       .from('messages')
       .select('sender_id, body, created_at, encryption')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
-      .limit(80);
+      .limit(200);
 
     const chronological = [...(rows ?? [])]
       .reverse()
@@ -172,6 +184,36 @@ Deno.serve(async (request) => {
           !/<<<\s*(REPLY|ASK)\s*>>>/i.test(row.body),
       );
 
+    /*
+     * Who said each line, which a group cannot do without.
+     *
+     * Every human in the transcript was `role: 'user'` with nothing to tell
+     * them apart, so in a group of six the model saw one person with six
+     * personalities - and `collapseHistory` then merged consecutive lines from
+     * *different* people into a single message. Asked about something Baani
+     * said, it would answer with something Eddy said, because as far as it
+     * could see they were the same speaker.
+     *
+     * One query for the names, and only in a group - a direct thread has one
+     * other person and labelling their every line "Piyush:" is noise.
+     */
+    const speakerNames = new Map<string, string>();
+    if (isGroup) {
+      const senderIds = [
+        ...new Set(chronological.map((r) => r.sender_id).filter((id) => id && id !== BOT_ID)),
+      ];
+      if (senderIds.length > 0) {
+        const { data: people } = await userClient
+          .from('profiles')
+          .select('id, display_name, username')
+          .in('id', senderIds);
+        for (const p of people ?? []) {
+          const name = (p.display_name ?? '').trim() || (p.username ?? '').trim();
+          if (name) speakerNames.set(p.id, name);
+        }
+      }
+    }
+
     const history = chronological
       .map((row) => {
         const raw = stripMarkers(row.body.trim()).slice(0, 2000);
@@ -179,9 +221,20 @@ Deno.serve(async (request) => {
           | 'assistant'
           | 'user';
         // Soft-scrub spam from assistant only — keep real content for context.
-        const content =
+        const cleaned =
           role === 'assistant' ? sanitizeHistoryAssistant(raw) : raw;
-        return { role, content };
+
+        /*
+         * Named in the text, not in a field the API would drop.
+         *
+         * OpenAI-compatible chat completions have a `name` on a message, but
+         * support for it is uneven across the models in the chain and a
+         * silently ignored field is exactly the kind of thing that looks like
+         * it is working. A prefix is read by every model there is.
+         */
+        const speaker = role === 'assistant' ? '' : (speakerNames.get(row.sender_id) ?? '');
+        const content = speaker ? `${speaker}: ${cleaned}` : cleaned;
+        return { role, content, speaker };
       })
       .filter(
         (m) =>
@@ -223,7 +276,22 @@ Deno.serve(async (request) => {
             '',
             '## Group chat mode',
             'You are PINGO AI inside a multi-person group. Someone mentioned you with @pingoai / @pingo_ai.',
+            '',
+            '### Who said what',
+            'Every human line in the transcript starts with that person\'s name, like "Baani: kal chalein?".',
+            'That prefix is the speaker. It is not part of what they said.',
+            'Keep them apart. Track what EACH person said separately - their questions, their plans, their facts.',
+            'Never attribute one person\'s words, opinions or details to another. If two people said different things, they are two people.',
+            'If you are unsure which of them said something, say so instead of guessing a name.',
+            '',
+            '### Who you are answering',
+            `The person who just tagged you is ${
+              speakerNames.get(user.id) ?? 'the latest speaker'
+            }. Answer them, using what THEY said - and bring in what others said only when it is relevant to their question.`,
+            'If they refer to something someone else said ("wo jo Eddy ne bola"), find that person\'s line and use it.',
+            '',
             'Reply as yourself in the group — short, clear, helpful. Address the room, not just one private DM tone.',
+            'Do not prefix your own reply with a name. You are not one of the labelled speakers.',
             'You only see plaintext lines (encrypted human-only messages may be missing). Rely on the latest @mention message.',
             'Do not claim to be a human. Do not spam long dual-bubble questions — one solid reply is enough.',
           ].join('\n')
@@ -260,13 +328,29 @@ Deno.serve(async (request) => {
     }
 
     const base = (Deno.env.get('NVIDIA_BASE_URL') ?? DEFAULT_BASE).replace(/\/$/, '');
-    const model = Deno.env.get('NVIDIA_MODEL') ?? DEFAULT_MODEL;
+    /*
+     * Empty means "use the chain" - see `MODEL_CHAIN`.
+     *
+     * It used to fall back to the 8B by name, which is why nothing ever tried
+     * anything better: the default was a decision nobody had revisited.
+     */
+    const model = Deno.env.get('NVIDIA_MODEL') ?? '';
     const length = profile?.response_length ?? 'short';
 
     // Soft intent hint only — never a hard-coded answer bank for specific words.
     const intent = detectIntent(live ?? '');
+    /*
+     * Room to finish the sentence, not permission to ramble.
+     *
+     * How long a reply *should* be is set by the system prompt; this is the
+     * hard ceiling, and at 280 tokens a reply that reasoned its way to an
+     * answer was being cut off mid-word - which reads as the assistant losing
+     * its train of thought rather than as a limit being hit. Raising the
+     * ceiling does not make short replies longer, it stops them ending
+     * halfway.
+     */
     const maxTokens =
-      length === 'detailed' ? 640 : length === 'balanced' ? 360 : 280;
+      length === 'detailed' ? 1200 : length === 'balanced' ? 700 : 400;
 
     const raw1 = await callChatModel(apiKey, base, model, messages, {
       temperature: 0.55,
@@ -350,13 +434,38 @@ Deno.serve(async (request) => {
     const mainBody =
       reply || smartFallbackReply(live ?? '', recentAssistant, intent);
 
-    const { data: messageId, error: postError } = await userClient.rpc('post_ai_reply', {
-      target_conversation: conversationId,
-      reply_body: mainBody,
-    });
+    /*
+     * Sent the way a person sends it: a few short bubbles, not one block.
+     *
+     * A human answering "hi, kaise ho, kya kar rahe ho" sends four messages.
+     * The assistant put the same four thoughts in one paragraph, which reads
+     * like a form letter in the middle of a chat - correct and joyless.
+     *
+     * The model already writes in lines when asked to; this posts each of them
+     * as its own message, which is the only thing that makes it *look* like
+     * chatting. Capped at three so a list does not become a wall of bubbles,
+     * and skipped entirely on `detailed`, where somebody has explicitly asked
+     * for a written answer rather than a conversation.
+     */
+    const bubbles = splitIntoBubbles(mainBody, length, live ?? '');
 
-    if (postError) {
-      return json(request, { error: postError.message }, 500);
+    let messageId: string | null = null;
+    for (const bubble of bubbles) {
+      const { data: id, error: postError } = await userClient.rpc('post_ai_reply', {
+        target_conversation: conversationId,
+        reply_body: bubble,
+      });
+      // The first one failing is a failure; a later one is a shorter reply,
+      // and stopping there beats reporting an error over a message that sent.
+      if (postError) {
+        if (messageId === null) return json(request, { error: postError.message }, 500);
+        break;
+      }
+      messageId ??= id as string;
+    }
+
+    if (messageId === null) {
+      return json(request, { error: 'Nothing to send.' }, 500);
     }
 
     // Second bubble only in 1:1 DMs. Groups get one reply to keep noise down.
@@ -406,7 +515,69 @@ function json(request: Request, body: unknown, status = 200) {
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
+/**
+ * Which model answers, in order of preference.
+ *
+ * `NVIDIA_MODEL` still wins outright when it is set - this is only what happens
+ * when nobody has said.
+ *
+ * The first entry is the one that makes PINGO AI able to think: an 8B model
+ * follows a conversation but does not reason through one, and every complaint
+ * about the assistant being shallow is that parameter count rather than the
+ * prompt. The rest are here because a model id is a thing that goes away -
+ * `llama-3.3-70b` is deprecated on 2026-08-25, which is a week from now - and
+ * an assistant that stops answering because a name changed is worse than one
+ * that answers a little less well.
+ *
+ * So the list is walked until one replies, ending at the 8B that has been
+ * serving all along. Whichever answers is remembered for the life of the
+ * instance, so the fallback is paid once rather than on every message.
+ */
+const MODEL_CHAIN = [
+  'nvidia/llama-3.3-nemotron-super-49b-v1',
+  'qwen/qwen2.5-72b-instruct',
+  'meta/llama-3.3-70b-instruct',
+  DEFAULT_MODEL,
+];
+
+/** The first model in the chain that answered, remembered per instance. */
+let workingModel: string | undefined;
+
 async function callChatModel(
+  apiKey: string,
+  base: string,
+  model: string,
+  messages: ChatMessage[],
+  opts: {
+    temperature: number;
+    top_p: number;
+    frequency_penalty: number;
+    presence_penalty: number;
+    max_tokens: number;
+  },
+): Promise<string | null> {
+  /*
+   * An explicit choice is honoured exactly; otherwise walk the chain.
+   *
+   * `workingModel` short-circuits it after the first success, so a deployment
+   * whose best model is unavailable pays for that discovery once and not on
+   * every reply.
+   */
+  const candidates = model ? [model] : [workingModel ?? '', ...MODEL_CHAIN].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const reply = await callOneModel(apiKey, base, candidate, messages, opts);
+    if (reply !== null) {
+      workingModel = candidate;
+      return reply;
+    }
+    // Only worth trying the next name if there is one; the last failure is
+    // reported by `callOneModel` either way.
+  }
+  return null;
+}
+
+async function callOneModel(
   apiKey: string,
   base: string,
   model: string,
@@ -438,7 +609,7 @@ async function callChatModel(
       }),
     });
     if (!res.ok) {
-      console.error('nvidia', res.status, await res.text());
+      console.error('nvidia', model, res.status, await res.text());
       return null;
     }
     const payload = (await res.json()) as {
@@ -733,14 +904,26 @@ function buildFocusDirective(
         ? 'LENGTH: balanced — 2–4 short lines'
         : 'LENGTH: SHORT chat lines, but never drop required context/facts';
 
-  // More user lines so pronouns and follow-ups resolve.
+  /*
+   * The restated thread, which is a second and much tighter context path.
+   *
+   * The message array carries sixty turns; this is a compact transcript put
+   * back into the directive so the model is pointed at it rather than left to
+   * find it. It was 14 turns at 280 characters - narrow enough that a question
+   * about something said twenty lines ago was answered from a transcript that
+   * did not contain it, even though the full history was sitting right there
+   * in the same request.
+   *
+   * Raised, not removed. It is duplicated content and costs tokens, so it stays
+   * a summary rather than growing to match the history.
+   */
   const recentUser = history
     .filter((m) => m.role === 'user')
-    .slice(-12)
-    .map((m, i, arr) => `${arr.length - i}. ${m.content.slice(0, 280)}`)
+    .slice(-16)
+    .map((m, i, arr) => `${arr.length - i}. ${m.content.slice(0, 400)}`)
     .join('\n');
 
-  const thread = formatThreadForPrompt(history, 14, 280);
+  const thread = formatThreadForPrompt(history, 20, 400);
 
   const avoidOpeners = recentAssistant
     .slice(-4)
@@ -771,6 +954,43 @@ function buildFocusDirective(
   const needsContext = refersToPriorContext(lastUser);
 
   return [
+    /*
+     * First, because everything under it is a preference and this is not.
+     *
+     * The directive was a stack of persona and anti-repetition rules with the
+     * actual request somewhere inside it, and the model treated the request as
+     * one input among many - answering the vibe and inventing its own topic
+     * rather than doing the thing asked. What somebody asked for outranks how
+     * they should be spoken to.
+     */
+    'RULE 0 — DO WHAT THEY ASKED.',
+    'Read the latest message and do exactly that thing. If they asked a question, answer it.',
+    'If they asked you to write, list, explain, calculate or fix something, do it now in this reply.',
+    'Do not change the subject, do not invent a topic, do not tell a story they did not ask for.',
+    'Every rule below is about tone and length. None of them override this one.',
+    '',
+    /*
+     * And how it is written. Broken into lines is what makes it read as
+     * chatting rather than as a letter; each line is posted as its own bubble.
+     */
+    'HOW MUCH — match the size of what they sent.',
+    'A greeting or a one-word message gets one short line back. Not three.',
+    'A real question gets a real answer, as long as it needs and no longer.',
+    'Look at their message and decide the length from it. That judgement is part of the job.',
+    'Say only what they asked for. If one line answers it, send one line and nothing else.',
+    'No preamble. Do not restate their question. Do not say "great question" or "sure thing".',
+    'Do not add extra information they did not ask for, and do not offer to do more.',
+    'Do not end with a question unless you genuinely need something to answer them.',
+    'A reply nobody finishes reading is a reply that failed, however correct it was.',
+    '',
+    'HOW TO WRITE IT — like a person typing, not like a document.',
+    'Short lines. One thought per line, separated by newlines.',
+    'A greeting is "hey" / "kaise ho" / "kya kar rahe the" on separate lines, not one sentence with commas.',
+    'NEVER number or bullet those lines. No "1.", no "2)", no dashes. Nobody chats in a numbered list.',
+    'Just the words, one per line, the way they would arrive as separate messages.',
+    'No paragraphs. No "Firstly/Secondly". No markdown headings or bold.',
+    'A list of numbers or facts stays together as one block - that is a list, not chatting.',
+    '',
     'THIS TURN — use the whole conversation, then answer the latest line:',
     `Latest user message: """${lastUser.slice(0, 800)}"""`,
     `Soft intent hint: ${intent}`,
@@ -915,14 +1135,29 @@ function extractDefineTerm(message: string): string | null {
 function trimHistoryForModel(
   history: { role: 'user' | 'assistant'; content: string }[],
 ): { role: 'user' | 'assistant'; content: string }[] {
-  // ~28 turns ≈ strong short-term context for 8B without blowing the window.
+  /*
+   * Sized for the window the models actually have, not for the 8B.
+   *
+   * 28 turns was chosen against `llama-3.1-8b`, and even that has a 128K
+   * window - the number was cautious rather than measured. Sixty turns of chat
+   * is roughly 15K tokens with the system prompt and memories on top, which is
+   * a small fraction of any model in the chain and is the difference between
+   * an assistant that remembers this morning and one that remembers the last
+   * ten minutes.
+   *
+   * The assistant's own replies were cut at 500 characters, which is the more
+   * damaging half: it could read what you said in full and only a truncated
+   * version of what it had answered, so anything it had explained at length
+   * was gone from its own view of the conversation. Both sides get the same
+   * budget now.
+   */
   return history
-    .slice(-28)
+    .slice(-60)
     .map((m) => ({
       role: m.role,
       content:
         m.role === 'assistant'
-          ? sanitizeHistoryAssistant(m.content).slice(0, 500)
+          ? sanitizeHistoryAssistant(m.content).slice(0, 1200)
           : m.content.slice(0, 1200),
     }))
     .filter(
@@ -1399,7 +1634,19 @@ function parseModelPayload(
   // 2) Marker format (legacy / misbehaving models)
   let normalized = text
     .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '<<<REPLY>>>')
-    .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '<<<ASK>>>');
+    .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '<<<ASK>>>')
+    /*
+     * The bare words, on their own line.
+     *
+     * A model asked for `<<<REPLY>>>` will sometimes write the label plainly
+     * instead - "Reply" on one line, the answer, then "Ask" - and only the
+     * angle-bracket form was recognised. The label then survived every strip
+     * and shipped as part of the message: the chat list read "PINGO: Reply
+     * Chetan: 8 Aam…". Anchored to its own line so a reply that genuinely
+     * begins "Reply karo bhai" is untouched.
+     */
+    .replace(/^[ \t]*REPLY[ \t]*:?[ \t]*$/gim, '<<<REPLY>>>')
+    .replace(/^[ \t]*ASK[ \t]*:?[ \t]*$/gim, '<<<ASK>>>');
 
   if (/<<<\s*ASK\s*>>>/i.test(normalized)) {
     let head = normalized;
@@ -1427,7 +1674,18 @@ function parseModelPayload(
 
   return {
     reply: shapeReply(stripMarkers(text), length),
-    ask: shapeAsk('Aur bata? 😊'),
+    /*
+     * No invented follow-up.
+     *
+     * When the model produced no question, the app made one up - "Aur bata?
+     * 😊" - so every single reply ended with a second bubble asking something
+     * nobody wanted answered. That is a message a person did not send and does
+     * not read, appended to every message the assistant ever sent.
+     *
+     * A real follow-up from the model still goes out. This is only the case
+     * where there wasn't one.
+     */
+    ask: '',
   };
 }
 
@@ -1460,6 +1718,8 @@ function stripMarkers(text: string): string {
     .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '')
     .replace(/\bREPLY\s*:/gi, '')
     .replace(/\bASK\s*:/gi, '')
+    // The bare label on its own line - see the note in the splitter.
+    .replace(/^[ \t]*(REPLY|ASK)[ \t]*$/gim, '')
     .trim();
 }
 
@@ -1494,13 +1754,23 @@ function shapeAsk(text: string): string {
   return ask;
 }
 
+/**
+ * Merges a run of messages from the same speaker into one turn.
+ *
+ * The same *speaker*, not merely the same role. Every human in a group is
+ * `role: 'user'`, so merging on role alone glued Baani's line to Eddy's reply
+ * to it and handed the model one message containing both - which is precisely
+ * how it came to attribute one person's words to another. A direct chat is
+ * unaffected: there is only one other person, so role and speaker say the same
+ * thing.
+ */
 function collapseHistory(
-  history: { role: 'user' | 'assistant'; content: string }[],
-): { role: 'user' | 'assistant'; content: string }[] {
-  const out: { role: 'user' | 'assistant'; content: string }[] = [];
+  history: { role: 'user' | 'assistant'; content: string; speaker?: string }[],
+): { role: 'user' | 'assistant'; content: string; speaker?: string }[] {
+  const out: { role: 'user' | 'assistant'; content: string; speaker?: string }[] = [];
   for (const msg of history) {
     const prev = out[out.length - 1];
-    if (prev && prev.role === msg.role) {
+    if (prev && prev.role === msg.role && (prev.speaker ?? '') === (msg.speaker ?? '')) {
       // Merge dual bubbles / rapid same-role sends; keep both bodies for context.
       prev.content = `${prev.content}\n${msg.content}`.slice(0, 4000);
     } else {
@@ -1508,31 +1778,26 @@ function collapseHistory(
     }
   }
   // Cap after merge — still deep enough for multi-topic chats.
-  return out.slice(-40);
+  return out.slice(-60);
 }
 
 function cleanModelArtifacts(text: string): string {
   return text
+    /*
+     * Its own label, if it copied the transcript's format.
+     *
+     * Group history labels every human line with a speaker, and a model shown
+     * "Baani: ..." lines will sometimes answer "PINGO: ...". Only its own names
+     * are stripped - taking off any leading `Word:` would eat "Answer: 18",
+     * which is the shape of exactly the replies worth keeping.
+     */
+    .replace(/^\s*(pingo(\s*ai)?|assistant)\s*:\s*/i, '')
     .replace(/^\s*(as an ai|as a language model|i'm an ai)[^\n]*\n?/gi, '')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
     .trim();
 }
 
-function shapeReply(text: string, length: string): string {
-  const cleaned = text.replace(/\r\n/g, '\n').trim();
-  if (length === 'detailed') return cleaned.slice(0, 4000);
-  if (length === 'balanced') {
-    const lines = cleaned.split('\n').filter(Boolean);
-    if (lines.length <= 4 && cleaned.length <= 420) return cleaned;
-    return lines.slice(0, 4).join('\n').slice(0, 420);
-  }
-  // short — hard
-  const lines = cleaned.split('\n').filter(Boolean);
-  const tight = lines.slice(0, 2).join('\n').trim();
-  if (tight.length <= 140) return tight;
-  return `${tight.slice(0, 137).trim()}…`;
-}
 
 /**
  * Explicit save only — never match questions like "yaad hai?" / "kya yaad hai".
