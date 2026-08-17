@@ -10,6 +10,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 // Pure, and the one piece here with a right answer that can be stated - so it
 // lives where it can be asserted outside Deno. See `verify:ai-reply-shape`.
+import { characterPrompt } from './character.ts';
 import { shapeReply, splitIntoBubbles } from './reply-shape.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
@@ -806,6 +807,19 @@ function buildSystemPrompt(
     `You are ${name} inside the PINGO messenger — a person in chat, not a product demo.`,
     'Not a support bot. Real chat energy. Hindi / Hinglish / English / slang / typos — you handle all of it.',
     'No markdown headings. No "As an AI…".',
+    '',
+    /*
+     * The character, in elizaOS's shape - see `character.ts`.
+     *
+     * This block is the half that was missing. Everything else in this prompt
+     * is rules about what to do and how long to be; none of it says who is
+     * speaking or how they feel about it, and an assistant with rules and no
+     * character answers like a form.
+     *
+     * Placed before the reasoning rules on purpose: who you are comes first,
+     * and the mechanics are how that person operates.
+     */
+    characterPrompt(),
     '',
     '## GENERAL REASONING (works for EVERY prompt, not special keywords)',
     '1. Read the full conversation history, then the latest user message.',

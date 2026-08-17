@@ -313,6 +313,41 @@ assert.match(
   'no question means no second bubble',
 );
 
+// -- There is a character, and it is shown rather than described -----------
+
+/*
+ * The prompt had one line about voice - "Voice: friendly, still actually
+ * answer" - and nothing about feeling. Rules about length and none about mood
+ * is how an assistant ends up answering like a form.
+ *
+ * The character is elizaOS's shape (bio, adjectives, style, messageExamples)
+ * without elizaOS - the runtime is an agent framework with a database, a
+ * plugin system and node built-ins, 14 MB unpacked; the character file is data
+ * and is the part that decides whether it reads as a person.
+ */
+const character = await readFile(
+  resolve(process.cwd(), 'supabase/functions/ai-chat/character.ts'),
+  'utf8',
+);
+
+for (const field of ['bio', 'adjectives', 'style', 'messageExamples']) {
+  assert.match(character, new RegExp(`\\b${field}\\b`), `the character has ${field}`);
+}
+
+/*
+ * The examples are the part a model copies, so there have to be enough of them
+ * to cover the cases it kept getting wrong - a greeting answered at length, a
+ * vent answered with advice, a one-word message answered with a paragraph.
+ */
+const exampleCount = (character.match(/\{\s*user:/g) ?? []).length;
+assert.ok(exampleCount >= 5, `tone is shown, not described - found ${exampleCount} examples`);
+
+// And it is actually in the prompt, before the mechanics.
+assert.match(source, /characterPrompt\(\)/, 'the character is folded into the system prompt');
+const charAt = source.indexOf('characterPrompt(),');
+const rulesAt = source.indexOf('## GENERAL REASONING');
+assert.ok(charAt !== -1 && charAt < rulesAt, 'who you are comes before how you operate');
+
 // -- The request outranks the persona --------------------------------------
 
 /*
