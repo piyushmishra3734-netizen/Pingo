@@ -330,17 +330,54 @@ const character = await readFile(
   'utf8',
 );
 
-for (const field of ['bio', 'adjectives', 'style', 'messageExamples']) {
+for (const field of ['bio', 'adjectives', 'style', 'moods', 'messageExamples']) {
   assert.match(character, new RegExp(`\\b${field}\\b`), `the character has ${field}`);
 }
+
+/*
+ * The whole range, not just the pleasant end. A character that can only be warm
+ * is a customer service voice, and people can tell instantly - somebody who
+ * cannot be annoyed, cannot disagree and cannot be bored has nothing at stake.
+ */
+for (const feeling of ['Annoyed', 'Frustrated', 'Bored', 'Firm', 'Sarcastic']) {
+  assert.match(character, new RegExp(feeling), `it can be ${feeling.toLowerCase()}`);
+}
+
+/*
+ * And the line that keeps the range usable. An assistant that insults its user
+ * is not spirited, it is a product nobody opens twice - so the range is aimed
+ * at the situation and never at the person. This is a safety property, not a
+ * style note, which is why it is asserted rather than left in a comment.
+ */
+assert.match(
+  character,
+  /never turn on them/i,
+  'the hard line is stated: annoyed at the situation, never at the person',
+);
+assert.match(character, /No insults, no contempt/i, 'and spelled out');
+assert.match(
+  character,
+  /## What you feel/,
+  'the moods reach the prompt text, not just the data',
+);
 
 /*
  * The examples are the part a model copies, so there have to be enough of them
  * to cover the cases it kept getting wrong - a greeting answered at length, a
  * vent answered with advice, a one-word message answered with a paragraph.
  */
-const exampleCount = (character.match(/\{\s*user:/g) ?? []).length;
-assert.ok(exampleCount >= 5, `tone is shown, not described - found ${exampleCount} examples`);
+const exampleTurns = (character.match(/from: 'them'/g) ?? []).length;
+assert.ok(exampleTurns >= 8, `tone is shown, not described - found ${exampleTurns} turns`);
+
+/*
+ * And they are whole exchanges, which is elizaOS's own shape
+ * (`MessageExample[][]`). A single pair only teaches how the character opens;
+ * a three-turn exchange teaches what it does when the first answer was not
+ * enough, which is exactly where an assistant reverts to being an assistant.
+ */
+const multiTurn = (character.match(/from: 'them'[\s\S]{0,400}?from: 'you'[\s\S]{0,400}?from: 'them'/g) ?? [])
+  .length;
+assert.ok(multiTurn >= 2, `some examples run past the first reply - found ${multiTurn}`);
 
 // And it is actually in the prompt, before the mechanics.
 assert.match(source, /characterPrompt\(\)/, 'the character is folded into the system prompt');
