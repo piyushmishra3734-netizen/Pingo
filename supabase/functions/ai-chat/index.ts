@@ -11,7 +11,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 // Pure, and the one piece here with a right answer that can be stated - so it
 // lives where it can be asserted outside Deno. See `verify:ai-reply-shape`.
 import { characterPrompt } from './character.ts';
-import { shapeReply, splitIntoBubbles } from './reply-shape.ts';
+import { replyBudget, shapeReply, splitIntoBubbles } from './reply-shape.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
@@ -49,6 +49,17 @@ type AiProfile = {
 };
 
 Deno.serve(async (request) => {
+  /*
+   * Three numbers, so 'it is slow' can be answered instead of argued about:
+   * everything before the model, the model itself, and everything after. Cheap
+   * enough to leave in - three timestamps - and it is the difference between
+   * tuning the right thing and tuning the nearest thing.
+   */
+  const t0 = Date.now();
+  let tModel = 0;
+  let tModelDone = 0;
+  let tRetryDone = 0;
+  let tPostStart = 0;
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders(request) });
   }
@@ -318,6 +329,20 @@ Deno.serve(async (request) => {
     const historyForModel = trimHistoryForModel(cleanHistory);
 
     const messages = [
+      /*
+       * Nemotron's reasoning switch, and it has to be its own first message.
+       *
+       * These models emit a chain of thought by default, and PINGO published
+       * it: a reply that began "Here's a thinking process: 1. Analyze User
+       * Input..." went into somebody's chat. It is also most of the model time -
+       * measured, 8.9s to answer "theek hai bhai", nearly all of it spent
+       * writing reasoning nobody would ever read.
+       *
+       * NVIDIA's documented control for this is a system message containing
+       * exactly `detailed thinking off`. Harmless to any model that does not
+       * know it - it reads as an instruction it has no reason to follow.
+       */
+      { role: 'system' as const, content: 'detailed thinking off' },
       { role: 'system' as const, content: system },
       ...historyForModel.slice(0, -1),
       { role: 'system' as const, content: focus },
@@ -361,6 +386,7 @@ Deno.serve(async (request) => {
     const maxTokens =
       length === 'detailed' ? 1200 : length === 'balanced' ? 700 : 400;
 
+    tModel = Date.now();
     const raw1 = await callChatModel(apiKey, base, model, messages, {
       temperature: 0.55,
       top_p: 0.9,
@@ -368,6 +394,8 @@ Deno.serve(async (request) => {
       presence_penalty: 0.1,
       max_tokens: maxTokens,
     });
+
+    tModelDone = Date.now();
 
     if (raw1 == null) {
       const { data: id } = await userClient.rpc('post_ai_reply', {
@@ -406,7 +434,26 @@ Deno.serve(async (request) => {
      */
     const repeated = isTooSimilarToRecent(reply, recentAssistant);
 
-    if (repeated || (!isGroup && shouldRetryAnswer(reply, live ?? '', intent))) {
+    /*
+     * The retry is the most expensive thing in this request, by a distance.
+     *
+     * Timed on the live function, answering "ok bhai": 906ms of queries, 6.3s
+     * for the model, 29ms to post - and 13.6s for the retry. Two thirds of the
+     * wait, spent sharpening a reply to a message that said "ok".
+     *
+     * `shouldRetryAnswer` was tuned against the 8B, which produced vague
+     * answers often enough to be worth a second pass. On a 30B the first answer
+     * is usually the answer, so the same test now mostly buys nothing and
+     * charges double for it.
+     *
+     * So vagueness only earns a retry when something was actually asked -
+     * `replyBudget` already knows the difference, and a message it sizes at one
+     * bubble is chit-chat. A repeat still earns one anywhere: sending the same
+     * words twice is a defect, not a matter of polish.
+     */
+    const chitChat = replyBudget(live ?? '').bubbles === 1;
+
+    if (repeated || (!isGroup && !chitChat && shouldRetryAnswer(reply, live ?? '', intent))) {
       const threadBrief = formatThreadForPrompt(historyForModel, 16, 320);
       const retryMessages = [
         {
@@ -489,7 +536,9 @@ Deno.serve(async (request) => {
      * and skipped entirely on `detailed`, where somebody has explicitly asked
      * for a written answer rather than a conversation.
      */
+    tRetryDone = Date.now();
     const bubbles = splitIntoBubbles(mainBody, length, live ?? '');
+    tPostStart = Date.now();
 
     let messageId: string | null = null;
     for (const bubble of bubbles) {
@@ -537,6 +586,24 @@ Deno.serve(async (request) => {
       askId,
       ask,
       memorySaved: justSaved ? true : false,
+      /*
+       * Which model actually answered.
+       *
+       * The chain falls back silently, so without this there is no way to know
+       * whether a reply came from the fast one at the top or the 8B at the
+       * bottom - and "is it slow because of the model" is exactly the question
+       * that keeps coming up. Not a secret: it is the caller's own assistant,
+       * and the id is a public model name.
+       */
+      model: workingModel ?? model ?? DEFAULT_MODEL,
+      ms: {
+        before: tModel - t0,
+        model: tModelDone - tModel,
+        retry: tRetryDone - tModelDone,
+        posting: Date.now() - tPostStart,
+        after: Date.now() - tModelDone,
+        total: Date.now() - t0,
+      },
     });
   } catch (cause) {
     console.error(cause);
@@ -575,10 +642,30 @@ type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
  * serving all along. Whichever answers is remembered for the life of the
  * instance, so the fallback is paid once rather than on every message.
  */
+/*
+ * Ordered by answer-per-second, not by parameter count.
+ *
+ * A dense 49B reasons well and takes five seconds to say "haan". The models
+ * worth having here are mixture-of-experts: large enough to think, but only a
+ * few billion parameters *active* per token, so they answer at close to 8B
+ * speed. `qwen3-next-80b-a3b` is 80B total and 3B active - that ratio is the
+ * whole reason it belongs at the top.
+ *
+ * These four are real: taken from `GET integrate.api.nvidia.com/v1/models`,
+ * which lists without a key. The first version of this list was guessed and
+ * every guess 404'd, so the dense 49B at the bottom answered everything - and
+ * measured live, a three-step arithmetic question on it took fifteen seconds.
+ *
+ * A name that stops resolving costs one fast 404 and the chain moves on; a
+ * name that resolves and is slow costs seconds on every single message. That
+ * is why speed decides the order and the 8B stays at the bottom as a floor.
+ */
 const MODEL_CHAIN = [
-  'nvidia/llama-3.3-nemotron-super-49b-v1',
-  'qwen/qwen2.5-72b-instruct',
-  'meta/llama-3.3-70b-instruct',
+  // 30B total, 3B active. Thinks like a 30B, answers at close to 8B speed.
+  'nvidia/nemotron-3.5-lightning-30b-a3b',
+  'nvidia/nemotron-nano-3-30b-a3b',
+  // 120B total, 12B active - smarter, still a fraction of a dense 49B's work.
+  'nvidia/nemotron-3-super-120b-a12b',
   DEFAULT_MODEL,
 ];
 
@@ -1863,6 +1950,21 @@ function collapseHistory(
 
 function cleanModelArtifacts(text: string): string {
   return text
+    /*
+     * Reasoning that leaked into the answer.
+     *
+     * `detailed thinking off` handles this at the source, but a switch a model
+     * may or may not honour is not something to publish somebody's chat on. A
+     * `<think>` block, or a preamble announcing a thinking process, is never
+     * the reply - and if the whole output turns out to be thinking, better to
+     * send nothing here and let the fallback speak than to send the notes.
+     */
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/^[\s\S]*?<\/think>/i, '')
+    .replace(
+      /^\s*(here'?s (a|my) (thinking|thought) process|thinking process|let me think|reasoning)\s*:?[\s\S]*$/i,
+      '',
+    )
     /*
      * Its own label, if it copied the transcript's format.
      *
