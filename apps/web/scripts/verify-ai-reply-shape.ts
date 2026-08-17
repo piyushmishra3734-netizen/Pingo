@@ -199,17 +199,30 @@ assert.deepEqual(splitIntoBubbles('haan bilkul', 'short'), ['haan bilkul']);
  * replied with all three in a single line - so the break is made here, on
  * sentence ends, rather than waiting for formatting that does not arrive.
  */
-const oneLine =
-  'Hey bhai! Main theek hoon, tere questions solve kar raha tha. Khana abhi nahi khaya, tere saath chat mein busy tha!';
-const asBubbles = splitIntoBubbles(oneLine, 'short');
-assert.ok(asBubbles.length >= 2, 'a packed line becomes several messages');
-assert.ok(asBubbles.length <= 3, 'and never more than three');
+/*
+ * And it is rare. Cutting one line on its full stops is *our* guess, not the
+ * model's - at 80 characters and two sentences it fired on almost every reply,
+ * so everything arrived as three bubbles whether or not there were three
+ * things to say. Most replies are one message.
+ */
+const ordinary =
+  'Hey bhai! Main theek hoon, tere questions solve kar raha tha aaj.';
+assert.deepEqual(
+  splitIntoBubbles(ordinary, 'short'),
+  [ordinary],
+  'an ordinary two-sentence reply stays one message',
+);
+
+const wall =
+  'Hey bhai main bilkul theek hoon aur aaj kaafi busy tha. Subah se tere questions solve kar raha tha lagataar. Khana abhi tak nahi khaya hai yaar. Bas chat mein hi poora time nikal gaya aaj.';
+const asBubbles = splitIntoBubbles(wall, 'short');
+assert.equal(asBubbles.length, 2, 'a genuine wall is broken in half, not scattered');
 assert.equal(
   asBubbles.join(' ').replace(/\s+/g, ' '),
-  oneLine.replace(/\s+/g, ' '),
+  wall.replace(/\s+/g, ' '),
   'nothing is added or lost in the split',
 );
-assert.ok(asBubbles[0]!.startsWith('Hey bhai!'), 'the first bubble is the greeting');
+assert.ok(asBubbles[0]!.startsWith('Hey bhai'), 'the first bubble opens the reply');
 
 // A short one is one message however it is punctuated.
 assert.deepEqual(splitIntoBubbles('haan. bilkul.', 'short'), ['haan. bilkul.']);
@@ -231,11 +244,29 @@ assert.deepEqual(
   'and so do bulleted ones',
 );
 
-// A real list - a label and a value - keeps its shape and its formatting.
+// A real list - a label and a value - keeps its shape.
 assert.deepEqual(
   splitIntoBubbles('Chetan: 8 aam\nBina: 4 aam\nAmit: 6 aam', 'short'),
   ['Chetan: 8 aam\nBina: 4 aam\nAmit: 6 aam'],
   'a labelled list stays one message',
+);
+
+/*
+ * Numbered *and* colon'd was the hole: the enumerator was stripped only after
+ * the list test, so "1: hey / 2: kaise ho" was read as a list, kept as one
+ * block, and shipped with the numbers still on it.
+ */
+assert.deepEqual(
+  splitIntoBubbles('1: hey\n2: kaise ho\n3: khana khaya', 'short'),
+  ['hey', 'kaise ho', 'khana khaya'],
+  'numbering never survives, whatever punctuation follows it',
+);
+
+// And a genuine numbered list of facts still loses only the numbering.
+assert.deepEqual(
+  splitIntoBubbles('1. Chetan: 8 aam\n2. Bina: 4 aam\n3. Amit: 6 aam', 'short'),
+  ['Chetan: 8 aam\nBina: 4 aam\nAmit: 6 aam'],
+  'a numbered list of labels stays one message, without the numbers',
 );
 
 /*
@@ -278,9 +309,19 @@ assert.deepEqual(
   'and so does a grunt',
 );
 
-assert.ok(
-  splitIntoBubbles(chatty, 'short', 'tu kaisa hai? kya kar raha tha?').length > 1,
-  'a real question gets room to answer',
+/*
+ * A question earns a bigger budget - but a budget is a ceiling, not a quota. A
+ * short reply to a question is still one message; only a wall gets broken up.
+ */
+assert.deepEqual(
+  splitIntoBubbles(chatty, 'short', 'tu kaisa hai? kya kar raha tha?'),
+  [chatty],
+  'room to answer is not an obligation to fill it',
+);
+assert.equal(
+  splitIntoBubbles(wall, 'short', 'tu kaisa hai? kya kar raha tha?').length,
+  2,
+  'and a genuine wall still gets broken',
 );
 
 // The budget itself, stated plainly.

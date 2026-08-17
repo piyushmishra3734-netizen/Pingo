@@ -170,8 +170,20 @@ Deno.serve(async (request) => {
       .from('messages')
       .select('sender_id, body, created_at, encryption')
       .eq('conversation_id', conversationId)
+      /*
+       * Encrypted rows are not fetched at all now, rather than fetched and
+       * thrown away.
+       *
+       * The filter below already dropped every row with an `encryption` value -
+       * the assistant cannot read them - but the database was still sending
+       * them. In a group that is almost the entire thread: only messages that
+       * mention @pingoai are plaintext, so of 200 rows perhaps five survived
+       * and 195 ciphertext bodies crossed the wire to be discarded. That is
+       * most of why a group reply took so much longer than a direct one.
+       */
+      .is('encryption', null)
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(120);
 
     const chronological = [...(rows ?? [])]
       .reverse()
@@ -374,7 +386,17 @@ Deno.serve(async (request) => {
     ask = finalizeAsk(ask);
 
     // Second pass if first answer is off/vague — keep full thread context.
-    if (shouldRetryAnswer(reply, live ?? '', intent)) {
+    /*
+     * No second pass in a group.
+     *
+     * The retry is a whole extra model call - the single largest thing in this
+     * request - and it exists to rescue a vague answer in a one-to-one chat
+     * where the assistant is the only other voice. A group already gets one
+     * reply by design, everybody is waiting on it in a room that is still
+     * talking, and doubling the wait to sharpen a sentence is the wrong trade
+     * there.
+     */
+    if (!isGroup && shouldRetryAnswer(reply, live ?? '', intent)) {
       const threadBrief = formatThreadForPrompt(historyForModel, 16, 320);
       const retryMessages = [
         {

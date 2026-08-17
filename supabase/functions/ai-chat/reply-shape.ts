@@ -104,14 +104,27 @@ export function splitIntoBubbles(
    */
   if (lines.length === 1) {
     const only = lines[0]!;
-    if (only.length < 80) return [only];
+
+    /*
+     * Splitting one line is rare, and it used to be constant.
+     *
+     * A newline is the model's own decision that two thoughts are separate,
+     * and respecting it is honest. Cutting a single line on its full stops is
+     * *our* guess, and at 80 characters and two sentences it fired on almost
+     * every reply - so every message arrived as three bubbles whether or not
+     * there were three things to say.
+     *
+     * The bar is now a reply long enough that reading it as one block is
+     * genuinely worse: three sentences and past 180 characters. Below that it
+     * is one message, which is what most replies should be. And it gives two
+     * bubbles, never three - a wall broken in half, not scattered.
+     */
     const sentences = only.match(/[^.!?]+[.!?]+[\s]*|[^.!?]+$/g) ?? [];
     const parts = sentences.map((s) => s.trim()).filter(Boolean);
-    if (parts.length < 2) return [only];
-    const cap = budget?.bubbles ?? 3;
-    return parts.length <= cap
-      ? parts
-      : [...parts.slice(0, cap - 1), parts.slice(cap - 1).join(' ')];
+    if (only.length < 180 || parts.length < 3) return [only];
+
+    const half = Math.ceil(parts.length / 2);
+    return [parts.slice(0, half).join(' '), parts.slice(half).join(' ')];
   }
 
   if (lines.length < 2) return [body];
@@ -128,10 +141,20 @@ export function splitIntoBubbles(
    * A real list is "Chetan: 8 aam" - a label and a value. That is what this
    * looks for now, and the numbering is stripped rather than respected.
    */
-  const listish = lines.filter((l) => /\S+\s*:\s*\S/.test(l)).length >= Math.ceil(lines.length * 0.6);
-  if (listish) return [body];
-
+  /*
+   * Numbering comes off first, before anything decides what this is.
+   *
+   * It used to be stripped only after the list test, so "1: hey / 2: kaise ho"
+   * - numbered *and* colon'd - was read as a list, kept as one block, and
+   * shipped with the numbers still on it. The enumerator is never content: it
+   * is the model formatting a chat reply as a document, and nobody chats in a
+   * numbered list. Take it off, then decide.
+   */
   const spoken = lines.map(unnumber).filter(Boolean);
+
+  const listish =
+    spoken.filter((l) => /\S+\s*:\s*\S/.test(l)).length >= Math.ceil(spoken.length * 0.6);
+  if (listish) return [spoken.join('\n')];
   if (spoken.length === 0) return [body];
   if (spoken.length === 1) return [spoken[0]!];
 
@@ -149,7 +172,14 @@ export function splitIntoBubbles(
  * genuine numbered list - which stays one block - keeps its numbering.
  */
 function unnumber(line: string): string {
-  return line.replace(/^\s*(?:\(?\d{1,2}[.)\]]|[-*•–])\s*/, '').trim();
+  /*
+   * `1.` `1)` `1]` `1:` and the bullets. The colon matters: a model writing
+   * "1: hey" was both numbered and colon'd, which used to read as a list.
+   *
+   * Anchored to a digit, so "Chetan: 8 aam" - a label, which is content - is
+   * never touched.
+   */
+  return line.replace(/^\s*(?:\(?\d{1,2}[.):\]]|[-*•–])\s*/, '').trim();
 }
 
 export function shapeReply(text: string, length: string): string {
