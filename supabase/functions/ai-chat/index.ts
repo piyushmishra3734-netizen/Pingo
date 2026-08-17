@@ -661,9 +661,18 @@ type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
  * is why speed decides the order and the 8B stays at the bottom as a floor.
  */
 const MODEL_CHAIN = [
-  // 30B total, 3B active. Thinks like a 30B, answers at close to 8B speed.
-  'nvidia/nemotron-3.5-lightning-30b-a3b',
+  /*
+   * 30B total, 3B active - thinks like a 30B, answers near 8B speed.
+   *
+   * The plain `nano` rather than `lightning`, because NVIDIA publishes
+   * `nemotron-3-nano-omni-30b-a3b-reasoning` as a separate id, which means
+   * this one is the variant that does not reason out loud. `lightning` does:
+   * measured, it spent seven seconds writing "Let me analyze the question
+   * carefully. The user is asking..." and PINGO published it as the reply.
+   */
+  'nvidia/nemotron-3-nano-30b-a3b',
   'nvidia/nemotron-nano-3-30b-a3b',
+  'nvidia/nemotron-3.5-lightning-30b-a3b',
   // 120B total, 12B active - smarter, still a fraction of a dense 49B's work.
   'nvidia/nemotron-3-super-120b-a12b',
   DEFAULT_MODEL,
@@ -1961,8 +1970,14 @@ function cleanModelArtifacts(text: string): string {
      */
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .replace(/^[\s\S]*?<\/think>/i, '')
+    /*
+     * A reply that starts by narrating what it is about to do is thinking, not
+     * an answer, and the whole thing goes. Matched on openers rather than on
+     * content because thinking always announces itself - "let me analyze",
+     * "the user is asking" - and an actual reply to a person never does.
+     */
     .replace(
-      /^\s*(here'?s (a|my) (thinking|thought) process|thinking process|let me think|reasoning)\s*:?[\s\S]*$/i,
+      /^\s*(here'?s (a|my) (thinking|thought) process|thinking process|let me (think|analyz|work|break|see|check)|reasoning|the user (is )?(ask|say|want)|first,? (i|let)|step 1)\b[\s\S]*$/i,
       '',
     )
     /*
