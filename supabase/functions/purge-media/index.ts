@@ -34,6 +34,20 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 /** Never more than this in one run, so a backlog cannot monopolise a worker. */
 const BATCH = 200;
 
+/**
+ * How long an expired story stays readable in its author's archive.
+ *
+ * A story leaves the feed at `expires_at` - 24 hours after it was posted - and
+ * `listArchive()` keeps showing it to its author after that, from the server,
+ * with no local copy anywhere. So the archive is exactly as long as the bytes
+ * are kept, and this is the number that decides it.
+ *
+ * Not in SQL with the message retentions because nothing else reads it: the
+ * stories pass below is the only consumer, and a second place to look would be
+ * a second place to get out of sync.
+ */
+const STORY_ARCHIVE_MS = 24 * 60 * 60 * 1000;
+
 interface ParkedRow {
   id: string;
   media_purge_path: string;
@@ -135,5 +149,63 @@ Deno.serve(async (request: Request) => {
     deleted += 1;
   }
 
-  return Response.json({ considered: rows.length, deleted, alreadyGone: missing });
+  /*
+   * Stories, which had no collector at all.
+   *
+   * `20260725210000` gave stories an `expires_at` and nothing to act on it, so
+   * they left the feed on time and their bytes stayed for ever - the oldest in
+   * production was three weeks past its deadline.
+   *
+   * Unlike a message, an archived-out story has nothing left worth keeping:
+   * the row exists only to point at the media, and `story_views`,
+   * `story_likes` and `story_audience` all cascade. So the row goes too, and in
+   * that order - bytes first, then the row that names them, for the reason set
+   * out above.
+   */
+  const storyCutoff = new Date(Date.now() - STORY_ARCHIVE_MS).toISOString();
+  const { data: storyRows, error: storyError } = await admin
+    .from('stories')
+    .select('id, media_path, audio')
+    .lt('expires_at', storyCutoff)
+    .limit(BATCH);
+
+  if (storyError) console.error('[purge-media] could not read expired stories', storyError.message);
+
+  let storiesDeleted = 0;
+
+  for (const story of storyRows ?? []) {
+    /*
+     * A story's sound lives in the same private bucket as its picture and is
+     * just as orphaned once the row is gone. `audio` is `[{path, at, ...}]`.
+     */
+    const audio = Array.isArray(story.audio) ? story.audio : [];
+    const paths = [
+      story.media_path,
+      ...audio.map((clip: { path?: string }) => clip?.path),
+    ].filter((path): path is string => typeof path === 'string' && path.length > 0);
+
+    if (paths.length > 0) {
+      const { error: removeError } = await admin.storage.from('stories').remove(paths);
+      // Already gone is a success, exactly as above.
+      if (removeError && !/not\s*found/i.test(removeError.message)) {
+        console.error('[purge-media] story delete failed', story.id, removeError.message);
+        continue;
+      }
+    }
+
+    const { error: rowError } = await admin.from('stories').delete().eq('id', story.id);
+    if (rowError) {
+      console.error('[purge-media] could not delete story row', story.id, rowError.message);
+      continue;
+    }
+    storiesDeleted += 1;
+  }
+
+  return Response.json({
+    considered: rows.length,
+    deleted,
+    alreadyGone: missing,
+    storiesConsidered: storyRows?.length ?? 0,
+    storiesDeleted,
+  });
 });
