@@ -115,6 +115,36 @@ export interface VoiceCallProps {
   ) => Promise<string | undefined>;
 }
 
+/**
+ * Is this the microphone hearing PINGO, rather than a person?
+ *
+ * Compared on words rather than characters, because a transcript of speech
+ * played through a speaker is never character-exact - it drops punctuation,
+ * mishears an ending, splits a compound. Half of a short phrase matching what
+ * is currently being said is far more likely to be an echo than a coincidence.
+ *
+ * Biased towards treating things as echo. A missed interruption costs somebody
+ * repeating themselves; a false one stops PINGO mid-sentence for no reason,
+ * which is the failure that was actually reported.
+ */
+function isEcho(heard: string, speaking: string): boolean {
+  const words = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/[^p{L}p{N}s]/gu, ' ')
+      .split(/s+/)
+      .filter(Boolean);
+
+  const mine = new Set(words(speaking));
+  if (mine.size === 0) return false;
+
+  const theirs = words(heard);
+  if (theirs.length === 0) return true;
+
+  const shared = theirs.filter((word) => mine.has(word)).length;
+  return shared / theirs.length >= 0.5;
+}
+
 export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   const [phase, setPhase] = useState<Phase>('listening');
   const [heard, setHeard] = useState('');
@@ -146,6 +176,20 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   phaseRef.current = phase;
   const micLevel = useRef(0);
 
+  /*
+   * What PINGO is currently saying, for telling an interruption from an echo.
+   *
+   * A speaker plays into the microphone. Browser echo cancellation removes most
+   * of it and not all - on a phone held at arm's length, almost none - so the
+   * detector hears a voice, calls it speech, and PINGO stops itself mid-sentence
+   * while nobody has said a word. That is the reported bug: it sits paused
+   * waiting for a person who is not talking.
+   *
+   * The only reliable difference between an echo and an interruption is *what
+   * the words are*. An echo transcribes as PINGO's own sentence.
+   */
+  const saying = useRef('');
+
   const level = useCallback(
     () => (phaseRef.current === 'speaking' ? (speech.current?.level() ?? 0) : micLevel.current),
     [],
@@ -168,6 +212,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
       setPhase('thinking');
       setStage(undefined);
       setSaid('');
+      saying.current = '';
 
       /*
        * Speaking starts on the first sentence, not on the finished answer.
@@ -185,6 +230,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
         if (!live.current) return;
         if (phaseRef.current !== 'speaking') setPhase('speaking');
         setSaid((before) => (before ? `${before} ${sentence}` : sentence));
+        saying.current = `${saying.current} ${sentence}`.trim();
         queue.push(sentence);
       });
 
@@ -228,12 +274,34 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   const transcript = useLiveTranscript({
     onFinal: (text) => {
       /*
-       * A turn that lands while PINGO is talking is somebody talking over it.
-       * Dropped rather than queued: answering a question from thirty seconds
-       * ago is worse than missing it.
+       * Arriving mid-answer means one of two things, and they are opposites.
+       *
+       * Either somebody talked over PINGO - which is a real turn and should be
+       * taken - or the microphone heard PINGO itself and transcribed it back.
+       * Echo is filtered out; anything left is a person, and a person who
+       * interrupted has been waiting since they started.
        */
-      if (phaseRef.current !== 'listening') return;
+      if (phaseRef.current === 'speaking') {
+        if (isEcho(text, saying.current)) return;
+        speech.current?.stop();
+        speech.current = undefined;
+      } else if (phaseRef.current !== 'listening') {
+        return;
+      }
       void answer(text);
+    },
+    /*
+     * The live partial is enough to stop on, and stopping fast is the whole
+     * point - waiting for the settled sentence means talking over somebody for
+     * another half second after they started.
+     */
+    onPartial: (text) => {
+      if (phaseRef.current !== 'speaking') return;
+      if (text.trim().length < 6) return;
+      if (isEcho(text, saying.current)) return;
+      speech.current?.stop();
+      speech.current = undefined;
+      setPhase('listening');
     },
     onLevel: (value) => {
       micLevel.current = value;
@@ -259,12 +327,14 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
      * because they have heard enough, and finishing the sentence anyway is what
      * makes an assistant feel like it is reading from a script.
      */
-    onSpeechStart: () => {
-      if (phaseRef.current !== 'speaking') return;
-      speech.current?.stop();
-      speech.current = undefined;
-      setPhase('listening');
-    },
+    /*
+     * Not acted on by itself.
+     *
+     * Voice activity during playback is far more often the speaker than a
+     * person - stopping on it alone is how PINGO ended up interrupting itself
+     * on every single answer. The decision waits for words, below.
+     */
+    onSpeechStart: () => {},
   });
 
   /*

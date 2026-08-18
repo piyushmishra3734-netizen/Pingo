@@ -119,6 +119,14 @@ const PREROLL_FRAMES = 6;
 export interface LiveTranscriptOptions {
   /** A completed utterance. Fires the instant the provider says it ended. */
   onFinal: (text: string) => void;
+  /**
+   * The utterance so far, as it is being said.
+   *
+   * Enough to stop on. Waiting for the settled sentence before reacting to an
+   * interruption means talking over somebody for another half second after they
+   * started, which is exactly the thing being interrupted about.
+   */
+  onPartial?: (text: string) => void;
   /** Live loudness for whatever is drawing, read rather than pushed. */
   onLevel?: (level: number) => void;
   /**
@@ -154,6 +162,7 @@ export interface LiveTranscriptOptions {
 
 export function useLiveTranscript({
   onFinal,
+  onPartial,
   onLevel,
   onSpeechEnd,
   onSpeechStart,
@@ -169,6 +178,8 @@ export function useLiveTranscript({
   const node = useRef<ScriptProcessorNode | undefined>(undefined);
   const finalRef = useRef(onFinal);
   finalRef.current = onFinal;
+  const partialRef = useRef(onPartial);
+  partialRef.current = onPartial;
   const levelRef = useRef(onLevel);
   levelRef.current = onLevel;
   const endedRef = useRef(onSpeechEnd);
@@ -249,7 +260,10 @@ export function useLiveTranscript({
         }
 
         const text = message.text?.trim();
-        if (message.event === 'transcript.partial' && text) setPartial(text);
+        if (message.event === 'transcript.partial' && text) {
+          setPartial(text);
+          partialRef.current?.(text);
+        }
         if (message.event === 'transcript.final') {
           setPartial('');
           if (text) finalRef.current(text);

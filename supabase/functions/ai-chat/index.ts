@@ -370,6 +370,7 @@ async function runTurn(
         memories,
         memoryOn,
         justSaved,
+        spoken,
       ) +
       (isGroup
         ? [
@@ -707,11 +708,20 @@ async function runTurn(
     ask = diversifyAsk(ask, live ?? '', reply, recentAssistant, intent);
 
     /*
-     * No follow-up question out loud.
+     * No follow-up *bubble* out loud - which is not the same as no curiosity.
      *
-     * A second bubble is a second thing to synthesise, a second thing to wait
-     * for, and a question nobody asked - and in a voice call it arrives as the
-     * assistant talking past the end of its own answer.
+     * Killing this to save latency also killed the conversation: PINGO answered
+     * and stopped, every time, and talking to it stopped being worth doing. The
+     * research on why voice assistants feel flat says the same thing - rigid
+     * turn-taking with no initiative, the assistant never carrying anything
+     * forward.
+     *
+     * The bubble was the wrong thing to keep and the wrong thing to remove
+     * entirely. A separate `ask` is a second synthesis, a second wait, and it
+     * lands as the assistant talking past the end of its own answer. Curiosity
+     * belongs *inside* the reply, where it costs nothing extra and arrives as
+     * one breath - which is how a person does it. That instruction is in the
+     * voice prompt.
      */
     if (spoken) ask = '';
 
@@ -1339,6 +1349,14 @@ function buildSystemPrompt(
   memories: { key: string; value: string }[],
   memoryOn = true,
   justSaved: { key: string; value: string } | null = null,
+  /**
+   * Somebody is listening to this rather than reading it.
+   *
+   * The difference is not the words, it is the shape of the exchange: a person
+   * on a call is waiting in silence and expects to be talked *with*. See the
+   * block it adds below.
+   */
+  spoken = false,
 ): string {
   const name = profile?.display_name?.trim() || 'PINGO';
   const length = profile?.response_length ?? 'short';
@@ -1490,6 +1508,20 @@ function buildSystemPrompt(
      * question there is no follow-up, which is the honest outcome and was
      * already the intended one.
      */
+    ...(spoken
+      ? [
+          '## You are on a call',
+          'They are talking to you out loud, right now, and waiting in silence.',
+          'Be a person in a conversation, not a search result.',
+          'React before you answer - "arre", "haan", "acha" - the way somebody does.',
+          'Keep it to a line or two. Nobody listens to a paragraph.',
+          'Stay curious. If something they said is worth following, follow it in the',
+          'same breath - one short question at the end of your own sentence, not a',
+          'separate line and never every single turn.',
+          'Never say you are an AI or narrate what you are doing.',
+          '',
+        ]
+      : []),
     '## Output',
     'Write your reply as plain text. Nothing else.',
     'No JSON, no braces, no field names, no quotes wrapped around the whole thing.',
