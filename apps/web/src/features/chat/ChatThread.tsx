@@ -162,6 +162,8 @@ const AI_STAGES = {
   reading: 'catching up on our chat',
   thinking: 'thinking',
   reconsidering: 'thinking that through again',
+  reading_reply: 'reading it back',
+  polishing: 'tidying that up',
   drawing: 'drawing your picture',
   uploading: 'sending it over',
   writing: 'writing',

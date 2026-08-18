@@ -77,5 +77,44 @@ survives('We can do that tomorrow if you want.', 'starts with "We" but is not a 
 survives('Let me know if that helps.', 'starts with "Let me" but is not a trace');
 survives('', 'empty stays empty');
 
+console.log('\n--- third-person notes about the exchange ---');
+// The leak that arrived after the first pass shipped. It opens in a way no
+// list of openers had, which is why the rule is about the third person instead.
+leaks(
+  'We must not repeat previous answer. The assistant previously responded: "Better: respond" to Baani\'s message? Actually after Baani\'s message "chii thrkii kahi kahaa", the assistant said "Better: respond".Then Piuxxh said "acha tu firr baani ko firr confess ker". The assistant hasn\'t yet responded to that.',
+  'we must not repeat / the assistant previously responded',
+);
+check(
+  stripReasoning(
+    'The user said "hello".\nWe must not repeat previous answer.\nHaan bhai, sab badhiya! Tum sunao.',
+  ) === 'Haan bhai, sab badhiya! Tum sunao.',
+  'the reply after a block of notes survives',
+);
+check(
+  stripReasoning('We must not repeat previous answer. The assistant previously responded.') === '',
+  'a message that is only notes becomes empty',
+);
+survives(
+  'An AI assistant is a program that answers questions for you.',
+  'a reply that merely contains the word assistant',
+);
+survives('Haan the user experience improve hui hai', 'the words "the user" in ordinary prose');
+
+console.log('\n--- reasoning about the output format ---');
+// Arrives most on memory questions: those add the biggest block of rules to the
+// prompt, and the more rules there are the more the model thinks about them.
+leaks(
+  'We must not add extra text. So reply should be short chat lines, maybe separated by newline? But JSON string cannot contain newline?\n\nIt can contain \n but they said each line is one message. In JSON reply field we can include newline characters? Probably okay but safer to keep as a single line string?',
+  'working out how to obey the envelope',
+);
+check(
+  stripReasoning(
+    'We must not add extra text.\nBut JSON string cannot contain newline?\nHaan yaad hai, tumne kaha tha ki tumhe coffee pasand hai.',
+  ) === 'Haan yaad hai, tumne kaha tha ki tumhe coffee pasand hai.',
+  'the memory answer after the format notes survives',
+);
+survives('Tumhara reply format thoda alag tha', 'the word reply in ordinary prose');
+survives('Main JSON parse karna sikha raha tha', 'JSON mentioned without the meta phrasing');
+
 console.log(failures === 0 ? '\nAll reasoning-leak checks passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

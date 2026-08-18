@@ -262,6 +262,8 @@ export type ChatActivity =
   | 'reading'
   | 'thinking'
   | 'reconsidering'
+  | 'reading_reply'
+  | 'polishing'
   | 'drawing'
   | 'uploading'
   | 'writing';

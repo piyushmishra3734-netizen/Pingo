@@ -388,9 +388,59 @@ const TRACE_LINE = [
   /^user (sent|wrote|asks|asked|said)/i,
   /^\d+\.\s*(analyze|understand|identify|consider|plan|check)\b/i,
   /^(thinking|analysis|reasoning|plan|thought process|step \d+)\s*:/i,
-  /^(we|i) (must|will) (answer|reply|respond|follow)/i,
+  /^(we|i) (must|should|can'?t|cannot|shouldn'?t|will|won'?t)\b/i,
+  /^(note|important|remember|caveat)s*[:,]/i,
+  /^(first|second|third|next|then|finally)s*[,:]/i,
+  /^actually[,]?s+(after|the|it|we|i)\b/i,
+  /^so (the|we|i)\b/i,
   /^(this|that) is the latest message/i,
   /^according to (the )?(rules|instructions|system)/i,
+];
+
+/**
+ * The model talking *about* the conversation instead of taking part in it.
+ *
+ * Broadening the opener list one leaked message at a time is a losing game -
+ * the openers are unbounded, and this arrived after the first pass shipped:
+ *
+ *   We must not repeat previous answer. The assistant previously responded:
+ *   "Better: respond" to Baani's message? Actually after Baani's message…
+ *
+ * What every one of them has in common is not how it starts. It is that the
+ * participants are referred to in the third person. A reply *to* somebody never
+ * says "the assistant previously responded" or "the user hasn't yet" - only a
+ * note written about the exchange does. That property is what is matched here,
+ * anywhere in the text, and it holds for leaks that open in ways nobody has
+ * seen yet.
+ *
+ * The phrases are kept narrow on purpose: each one pairs a participant with a
+ * word about *responding*, so a genuine reply to "what is an AI assistant?"
+ * does not trip it by containing the word "assistant".
+ */
+const TRACE_META = [
+  /\bthe assistant (previously |already |then )?(responded|said|replied|answered|wrote|hasn'?t|has not|did not|didn'?t)\b/i,
+  /\bthe user (said|wrote|asked|sent|hasn'?t|has not|wants|is asking|then said)\b/i,
+  /\bwe (must|should|need to) not (repeat|say|answer|reply|mention)\b/i,
+  /\bprevious (answer|response|reply|message) (was|is|said)\b/i,
+  /\b(must not|should not) repeat (the )?previous\b/i,
+  /\baccording to the (system|instructions|rules) (prompt|above|given)\b/i,
+  /*
+   * Reasoning about the *format* rather than the conversation.
+   *
+   * "We must not add extra text. So reply should be short chat lines... But
+   * JSON string cannot contain newline?" - the model working out how to obey
+   * the envelope instruction, out loud, into the thread. It arrives most on
+   * questions about memory, because those add the largest block of
+   * instructions to the prompt and the more rules there are the more likely
+   * the model is to think about them instead of the person.
+   */
+  /\bwe (must|should|need to|can'?t|cannot) not? ?(add|include|output|write|use|exceed)\b/i,
+  /\b(they|the prompt|the system) (said|says|wants|asked for|requires)\b/i,
+  /\bjson (string|field|reply|object|format)\b/i,
+  /\b(the )?(reply|response|answer) (field|format) (is|are|should|must|can|cannot|needs)\b/i,
+  /\b(reply|response|answer) should be (a|an|the|short|one|single|plain|kept|separated)\b/i,
+  /\b(safer|better) to keep (it )?as\b/i,
+  /\b(single.line|multi.line) string\b/i,
 ];
 
 export function stripReasoning(text: string): string {
@@ -421,6 +471,26 @@ export function stripReasoning(text: string): string {
       continue;
     }
     break;
+  }
+
+  /*
+   * Meta first, because it survives the prefix walk: "We must not repeat
+   * previous answer." is not in the opener list and never will be reliably.
+   *
+   * Everything up to and including the last line that talks about the exchange
+   * goes, and whatever is left is the reply. When nothing is left the whole
+   * message was a note about the conversation, and '' is the truthful result -
+   * the caller treats it as a failed generation rather than posting the scraps.
+   */
+  const metaAt = lines.reduce(
+    (last, line, index) => (TRACE_META.some((re) => re.test(line)) ? index : last),
+    -1,
+  );
+  if (metaAt >= 0) {
+    const after = lines.slice(metaAt + 1).join('\n').trim();
+    // A trailing fragment shorter than this is the tail of the note, not a
+    // reply - "?" and "Then" and similar.
+    return after.length > 12 ? after : '';
   }
 
   // Nothing was trace: the overwhelmingly common case, and it must cost nothing.

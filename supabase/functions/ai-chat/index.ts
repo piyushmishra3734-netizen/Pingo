@@ -64,6 +64,8 @@ export type Stage =
   | 'reading'
   | 'thinking'
   | 'reconsidering'
+  | 'reading_reply'
+  | 'polishing'
   | 'drawing'
   | 'uploading'
   | 'writing';
@@ -481,6 +483,7 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
       return json(request, { messageId: id, error: 'model_failed' }, 200);
     }
 
+    emit('reading_reply');
     let { reply, ask } = parseModelPayload(raw1, length);
     reply = finalizeBubble(reply, length);
     ask = finalizeAsk(ask);
@@ -511,6 +514,21 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
     const repeated = isTooSimilarToRecent(reply, recentAssistant);
 
     /*
+     * Nothing survived the strip, so the model never wrote an answer.
+     *
+     * `stripReasoning` returns '' when the whole generation was the model
+     * thinking out loud, and that is the honest result - but an empty reply is
+     * not something to post. It used to reach `post_ai_reply`, which refuses
+     * it, so the turn simply failed and the person watched the indicator go out
+     * with nothing behind it.
+     *
+     * A second pass is exactly the right answer here and costs what it costs.
+     * It earns one in a group too: a message that produced no reply at all is
+     * not the "sharpen a vague sentence" case the group exemption is about.
+     */
+    const cameBackEmpty = reply.trim().length === 0;
+
+    /*
      * The retry is the most expensive thing in this request, by a distance.
      *
      * Timed on the live function, answering "ok bhai": 906ms of queries, 6.3s
@@ -529,7 +547,11 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
      */
     const chitChat = replyBudget(live ?? '').bubbles === 1;
 
-    if (repeated || (!isGroup && !chitChat && shouldRetryAnswer(reply, live ?? '', intent))) {
+    if (
+      cameBackEmpty ||
+      repeated ||
+      (!isGroup && !chitChat && shouldRetryAnswer(reply, live ?? '', intent))
+    ) {
       const threadBrief = formatThreadForPrompt(historyForModel, 16, 320);
       const retryMessages = [
         {
@@ -591,6 +613,13 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
     }
 
     // Spam cleanup only — keep real answers.
+    /*
+     * Named because it is a step somebody waits through, not because it sounds
+     * impressive. Rewriting an answer that repeats a recent one, trimming it to
+     * the length this person asked for, cutting the padding - all of it happens
+     * here and all of it took a silent second.
+     */
+    emit('polishing');
     reply = diversifyReply(reply, live ?? '', recentAssistant, length, intent);
     ask = diversifyAsk(ask, live ?? '', reply, recentAssistant, intent);
 
