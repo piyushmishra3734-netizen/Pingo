@@ -3,6 +3,7 @@ import { ChevronLeftIcon, EditIcon, PhoneIcon, PlusIcon, SendIcon, cn } from '@p
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { openSpeech, type Speech } from '../chat/speak.js';
+import { isEcho } from './echo.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { useLiveTranscript } from './useLiveTranscript.js';
 import { VoiceWave } from './VoiceWave.js';
@@ -138,35 +139,6 @@ export interface VoiceCallProps {
   ) => Promise<string | undefined>;
 }
 
-/**
- * Is this the microphone hearing PINGO, rather than a person?
- *
- * Compared on words rather than characters, because a transcript of speech
- * played through a speaker is never character-exact - it drops punctuation,
- * mishears an ending, splits a compound. Half of a short phrase matching what
- * is currently being said is far more likely to be an echo than a coincidence.
- *
- * Biased towards treating things as echo. A missed interruption costs somebody
- * repeating themselves; a false one stops PINGO mid-sentence for no reason,
- * which is the failure that was actually reported.
- */
-function isEcho(heard: string, speaking: string): boolean {
-  const words = (text: string) =>
-    text
-      .toLowerCase()
-      .replace(/[^p{L}p{N}s]/gu, ' ')
-      .split(/s+/)
-      .filter(Boolean);
-
-  const mine = new Set(words(speaking));
-  if (mine.size === 0) return false;
-
-  const theirs = words(heard);
-  if (theirs.length === 0) return true;
-
-  const shared = theirs.filter((word) => mine.has(word)).length;
-  return shared / theirs.length >= 0.5;
-}
 
 export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   const [phase, setPhase] = useState<Phase>('speaking');
@@ -256,13 +228,32 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
       const queue = openSpeech(fetchSentence);
       speech.current = queue.speech;
 
-      const reply = await ask(words, setStage, (sentence) => {
-        if (!live.current) return;
-        if (phaseRef.current !== 'speaking') setPhase('speaking');
-        setSaid((before) => (before ? `${before} ${sentence}` : sentence));
-        saying.current = `${saying.current} ${sentence}`.trim();
-        queue.push(sentence);
-      });
+      /*
+       * A turn that throws must still end.
+       *
+       * Without this, a failed send - a dropped connection, a function that
+       * five-hundreds - rejects out of here and the screen keeps saying
+       * "thinking" for as long as somebody is willing to hold the phone. There
+       * is no way back from that except closing the call, which is how a
+       * hiccup becomes a broken feature.
+       */
+      let reply: string | undefined;
+      try {
+        reply = await ask(words, setStage, (sentence) => {
+          if (!live.current) return;
+          if (phaseRef.current !== 'speaking') setPhase('speaking');
+          setSaid((before) => (before ? `${before} ${sentence}` : sentence));
+          saying.current = `${saying.current} ${sentence}`.trim();
+          queue.push(sentence);
+        });
+      } catch {
+        queue.end();
+        if (live.current) {
+          setPhase('error');
+          window.setTimeout(() => live.current && setPhase('listening'), 1600);
+        }
+        return;
+      }
 
       if (!live.current) {
         queue.end();
