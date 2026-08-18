@@ -44,6 +44,7 @@ import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
 import { AiProfileSheet } from '../ai/AiProfileSheet.js';
+import { VoiceCall } from '../ai/VoiceCall.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
@@ -590,8 +591,53 @@ export function ChatThread({
    * AI has no ringing - the call buttons are omitted entirely, not greyed out.
    */
   const isGroup = conversation.kind !== 'direct' && !isAi;
+  const [voiceCall, setVoiceCall] = useState(false);
+
+  /*
+   * The current messages, readable from inside an async loop.
+   *
+   * `askByVoice` waits for a reply that arrives after it started, and a closure
+   * over `messages` would be looking at the list as it was when the turn began -
+   * which never contains the answer.
+   */
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
+  /**
+   * A spoken turn, sent the way a typed one is.
+   *
+   * The transcript goes through `sendMessage`, so it lands in the thread, gets
+   * the same model routing, the same memory and the same filters - and the
+   * conversation is still there afterwards to scroll back through. A separate
+   * path for voice would be a second assistant to keep in step with the first.
+   *
+   * The reply is then waited for rather than returned, because the send does
+   * not carry one: the answer arrives as a message like any other. Polling the
+   * rendered list is the honest way to see it - that is the same list the
+   * person would be reading.
+   */
+  const askByVoice = useCallback(
+    async (spoken: string): Promise<string | undefined> => {
+      const before = Date.now();
+      await service.sendMessage({ conversationId: conversation.id, body: spoken });
+
+      // Generous, because a heavy question routes to the 120B and can take a
+      // retry on top. Giving up early would look like PINGO ignoring them.
+      const deadline = before + 60_000;
+      while (Date.now() < deadline) {
+        const reply = messagesRef.current.find(
+          (m) => m.authorId === PINGO_AI_USER_ID && m.createdAt >= before && m.body.trim(),
+        );
+        if (reply) return reply.body;
+        await new Promise((r) => setTimeout(r, 400));
+      }
+      return undefined;
+    },
+    [service, conversation.id],
+  );
+
   const canCall = isAi
-    ? false
+    ? true
     : isGroup
       ? conversation.participantIds.length > 1
       : Boolean(partner && mutuals?.has(partner.id));
@@ -638,6 +684,18 @@ export function ChatThread({
     }
 
     // The conversation authorises the room token - see `startCall`.
+    /*
+     * The assistant's call is not a call.
+     *
+     * There is no room, no ringing and nobody to answer - it is the microphone,
+     * two models and a speaker, all on this device and two edge functions. So
+     * it opens its own screen rather than going anywhere near LiveKit, and only
+     * audio: there is nothing to look at.
+     */
+    if (isAi) {
+      setVoiceCall(true);
+      return;
+    }
     if (partner) void startCall(partner.id, partner.name, kind, conversation.id);
   };
 
@@ -961,6 +1019,24 @@ export function ChatThread({
 
     return options.length > 0 ? options : undefined;
   }, [isAi, isGroup, conversation.participantIds, members, currentUser?.id]);
+
+  /*
+   * The call replaces what this renders, not this.
+   *
+   * `ChatThread` stays mounted and its subscriptions keep running, so the reply
+   * the call is waiting for still arrives in `messages` and `messagesRef` stays
+   * current. Showing the call from somewhere else - a route, a portal above the
+   * thread - would have meant unmounting the thing the call is listening to.
+   */
+  if (voiceCall) {
+    return (
+      <VoiceCall
+        conversationId={conversation.id}
+        onEnd={() => setVoiceCall(false)}
+        ask={askByVoice}
+      />
+    );
+  }
 
   return (
     <div
