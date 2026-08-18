@@ -30,13 +30,19 @@
 const DEFAULT_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
 /**
- * schnell's own default, and its sweet spot.
+ * Eight, which is schnell's maximum, not its default of four.
  *
- * The model is distilled to need very few steps; the maximum it accepts is
- * eight and the extra four buy little beyond doubling the per-step cost, which
- * is the larger half of the bill.
+ * The guess written here first was that the extra four steps bought little for
+ * double the per-step cost. Compared side by side on the same prompt they buy a
+ * great deal - skin, hair and fabric go from smeared to resolved, which is the
+ * difference between "an AI made this" and a photograph. The first version of
+ * this feature was called an old model on sight, and this was why.
+ *
+ * The bill: about 58 neurons an image at four steps, 96 at eight, against
+ * 10,000 free a day. Roughly 170 pictures a day becomes roughly 104, and
+ * nobody is sending a hundred pictures a day.
  */
-const DEFAULT_STEPS = 4;
+const DEFAULT_STEPS = 8;
 
 /**
  * Generation is slow and a hung request is worse than a refusal.
@@ -136,6 +142,15 @@ export async function generateImage(prompt: string): Promise<GeneratedImage> {
     // Cloudflare reports an exhausted allocation in the body as often as in the
     // status, so the words are checked too rather than the code alone.
     if (/quota|limit|exceed|credit|neuron/i.test(detail)) throw new Error('out-of-credits');
+    /*
+     * The safety filter, which is touchier than anyone expects.
+     *
+     * "a young Indian woman in a red saree standing in a Mumbai street" was
+     * refused as NSFW. That is a false positive on an entirely ordinary
+     * sentence, and it will happen to people who asked for nothing unusual - so
+     * the reply has to be about the filter rather than about them.
+     */
+    if (/nsfw|safety|content policy|blocked/i.test(detail)) throw new Error('blocked-prompt');
     throw new Error(detail);
   }
 

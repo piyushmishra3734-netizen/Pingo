@@ -2168,6 +2168,13 @@ async function replyWithImage(
         error: 'image_no_credits',
       });
     }
+    if (reason === 'blocked-prompt') {
+      return say(
+        "The image filter blocked that one - it's touchy, and it isn't a judgement on you. Try wording it differently?",
+        200,
+        { error: 'image_blocked' },
+      );
+    }
     if (/abort|timeout/i.test(reason)) {
       return say('That one took too long to draw. Try me again?', 200, { error: 'image_timeout' });
     }
