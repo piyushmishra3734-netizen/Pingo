@@ -1,4 +1,4 @@
-﻿import { ChevronLeftIcon, EditIcon, PhoneIcon, PlusIcon, SendIcon, cn } from '@pingo/ui';
+import { ChevronLeftIcon, EditIcon, PhoneIcon, PlusIcon, SendIcon, cn } from '@pingo/ui';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -433,7 +433,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
     async (file: File) => {
       if (!live.current) return;
       setPhase('thinking');
-      setHeard('photo dekh raha hoonâ€¦');
+      setHeard('photo dekh raha hoon…');
       try {
         const image = await shrink(file);
         const response = await authed('vision', { image });
@@ -475,7 +475,15 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   return (
     <div
       className={cn(
-        'fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#07080d] text-white',
+        /*
+         * Above the dock, which sits at 200.
+         *
+         * At the old `z-50` the navigation bar and the chats list floated over
+         * the call - three quiet grey glyphs and a list of other conversations
+         * drawn on top of a screen whose whole job is that you are talking to
+         * somebody. A call is modal by nature; this is the number that says so.
+         */
+        'fixed inset-0 z-400 flex flex-col overflow-hidden bg-[#07080d] text-white',
         /*
          * Rising from the bottom edge, because that is the edge it was summoned
          * from. The gesture is a hold at the bottom of the screen and the
@@ -602,7 +610,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
             'line-clamp-3',
           )}
         >
-          {line || (phase === 'listening' ? 'Bolo, main sun raha hoonâ€¦' : '')}
+          {line || (phase === 'listening' ? 'Bolo, main sun raha hoon…' : '')}
         </p>
 
         {/* The line itself. Everything above and below is context for it. */}
@@ -622,7 +630,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
           className="text-caption mt-4 h-5 text-white/40"
           aria-live="polite"
         >
-          {phase === 'thinking' ? (stage ?? 'soch raha hoonâ€¦') : WHAT[phase]}
+          {phase === 'thinking' ? (stage ?? 'soch raha hoon…') : WHAT[phase]}
         </p>
 
         {transcript.error && (
@@ -651,7 +659,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
             <input
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
-              placeholder="Ya likh doâ€¦"
+              placeholder="Ya likh do…"
               aria-label="Type instead of speaking"
               autoFocus
               className={cn(
