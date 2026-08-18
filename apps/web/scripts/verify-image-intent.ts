@@ -51,6 +51,11 @@ wants('cat ka photo generate karo', 'cat');
 wants('sunset ka image bana kar do', 'sunset');
 wants('dog ki picture nikal do', 'dog');
 
+// A clause after the verb describes the picture too, and used to be dropped.
+wants('ek red bicycle ka photo banao jo baarish mein deewar se tiki ho',
+  'red bicycle jo baarish mein deewar se tiki ho');
+wants('cat ka photo banao jo hass raha ho', 'cat jo hass raha ho');
+
 console.log('\n--- must not fire ---');
 // The making verbs without a picture word. These are the false positives that
 // would replace an answer with an oil painting.
