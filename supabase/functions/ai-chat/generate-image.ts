@@ -1,41 +1,50 @@
 /**
- * Turning a prompt into a picture, and the picture into a message.
+ * Turning a prompt into a picture, on Cloudflare Workers AI.
  *
- * ## Why the SDK and not a fetch
+ * ## Why not Hugging Face any more
  *
- * Hugging Face's Inference Providers route a model to whichever provider is
- * serving it, and the request shape is the provider's, not Hugging Face's -
- * wavespeed's is not replicate's is not fal's. `@huggingface/inference` is what
- * knows the mapping. Writing the URL by hand means owning that table and
- * finding out it changed when somebody's picture fails to arrive.
+ * The first version called FLUX.1-dev through Hugging Face Inference Providers
+ * and never drew anything, because there is no longer a free tier to draw it
+ * with. Every route returns the same 402 - the provider ones, and HF's own
+ * `hf-inference` too, whose one remaining text-to-image model answers with the
+ * identical "you have depleted your monthly included credits". The credit pool
+ * is shared, so there was nothing to route around.
+ *
+ * Workers AI has a free daily allocation - 10,000 Neurons, reset at 00:00 UTC -
+ * and FLUX-1-schnell costs roughly 58 of them for a 1024x1024 image, which is
+ * about 170 a day before anything is owed. Past that it is $0.011 per thousand
+ * Neurons, or about 65 cents per thousand pictures. PINGO already runs on
+ * Cloudflare, so this is the platform that was already there.
+ *
+ * schnell rather than dev is the trade: four steps instead of dozens, so it is
+ * faster and slightly less detailed. In a chat bubble that is the right side of
+ * the trade.
  *
  * ## The key never leaves here
  *
  * Same rule as the chat model: the browser asks this function, this function
- * holds `HF_TOKEN`. A token in a bundle is a token anybody can spend.
+ * holds the token. A token in a bundle is a token anybody can spend.
  */
 
-import { InferenceClient } from 'https://esm.sh/@huggingface/inference@4.13.27';
-
-/** The model the request names. Overridable so a swap needs no deploy. */
-const DEFAULT_MODEL = 'black-forest-labs/FLUX.1-dev';
+/** Overridable so a model swap is configuration rather than a deploy. */
+const DEFAULT_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
 /**
- * Which provider serves it.
+ * schnell's own default, and its sweet spot.
  *
- * Named explicitly rather than left to auto-routing: this is the one that was
- * measured, and a silent switch to a slower provider reads to a user as PINGO
- * getting worse for no reason.
+ * The model is distilled to need very few steps; the maximum it accepts is
+ * eight and the extra four buy little beyond doubling the per-step cost, which
+ * is the larger half of the bill.
  */
-const DEFAULT_PROVIDER = 'wavespeed';
+const DEFAULT_STEPS = 4;
 
 /**
  * Generation is slow and a hung request is worse than a refusal.
  *
- * FLUX on wavespeed lands inside ten seconds in the ordinary case. Sixty is
- * the point past which somebody has already decided nothing is coming, and the
- * Edge Function has its own ceiling anyway - better to fail with a sentence
- * than to be killed mid-await with none.
+ * schnell lands in a few seconds. Sixty is the point past which somebody has
+ * already decided nothing is coming, and the Edge Function has its own ceiling
+ * anyway - better to fail with a sentence than to be killed mid-await with
+ * none.
  */
 const TIMEOUT_MS = 60_000;
 
@@ -45,47 +54,95 @@ export interface GeneratedImage {
   extension: string;
 }
 
-/** What the bucket will accept, mapped to what to call the object. */
-const EXTENSIONS: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/webp': 'webp',
-};
+/** `atob` gives one character per byte; this is the byte array that implies. */
+function fromBase64(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 /**
  * Draw it, or throw with something worth showing a person.
  *
  * Every failure here is one the caller turns into a sentence in the thread, so
- * the messages are written to be read by whoever asked rather than by whoever
- * is reading the logs.
+ * the thrown messages are the vocabulary that sentence is chosen from rather
+ * than free text for a log.
  */
 export async function generateImage(prompt: string): Promise<GeneratedImage> {
-  const token = Deno.env.get('HF_TOKEN');
-  if (!token) throw new Error('not-configured');
+  const account = Deno.env.get('CF_ACCOUNT_ID');
+  const token = Deno.env.get('CF_AI_TOKEN');
+  if (!account || !token) throw new Error('not-configured');
 
-  const client = new InferenceClient(token);
+  const model = Deno.env.get('CF_IMAGE_MODEL') ?? DEFAULT_MODEL;
+  const steps = Number(Deno.env.get('CF_IMAGE_STEPS') ?? DEFAULT_STEPS);
 
-  /*
-   * `AbortSignal.timeout` rather than a `Promise.race`: racing leaves the
-   * request running and its response arriving into nothing, which on a paid
-   * provider means paying for pictures nobody will ever see.
-   */
-  const blob = await client.textToImage(
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${model}`,
     {
-      provider: (Deno.env.get('HF_IMAGE_PROVIDER') ?? DEFAULT_PROVIDER) as never,
-      model: Deno.env.get('HF_IMAGE_MODEL') ?? DEFAULT_MODEL,
-      inputs: prompt,
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt, steps }),
+      /*
+       * `AbortSignal.timeout` rather than a `Promise.race`: racing leaves the
+       * request running and its response arriving into nothing, which on a
+       * metered endpoint means paying for pictures nobody will ever see.
+       */
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     },
-    { signal: AbortSignal.timeout(TIMEOUT_MS) },
   );
 
-  const contentType = blob.type || 'image/png';
-  const extension = EXTENSIONS[contentType];
-  if (!extension) throw new Error(`unsupported-type:${contentType}`);
+  /*
+   * The daily allocation running out is not a broken prompt, and it is the
+   * failure this will actually hit - so it is separated from every other
+   * refusal before anything else is read.
+   */
+  if (response.status === 429) throw new Error('out-of-credits');
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('bad-token');
+  }
 
-  return {
-    bytes: new Uint8Array(await blob.arrayBuffer()),
-    contentType,
-    extension,
+  /*
+   * Two shapes, because the REST endpoint has two.
+   *
+   * Image models usually answer with the JSON envelope every Cloudflare API
+   * uses, carrying base64 in `result.image`; some answer with the bytes
+   * directly. Content type is what says which, and guessing wrong means a
+   * picture that is actually a JSON error message.
+   */
+  const contentType = response.headers.get('Content-Type') ?? '';
+
+  if (contentType.startsWith('image/')) {
+    if (!response.ok) throw new Error(`http-${response.status}`);
+    const type = contentType.split(';')[0]!.trim();
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      contentType: type,
+      extension: type === 'image/png' ? 'png' : 'jpg',
+    };
+  }
+
+  const payload = (await response.json()) as {
+    success?: boolean;
+    result?: { image?: string };
+    errors?: { code?: number; message?: string }[];
   };
+
+  if (!response.ok || payload.success === false) {
+    const detail = payload.errors?.map((e) => e.message).join('; ') ?? `http-${response.status}`;
+    // Cloudflare reports an exhausted allocation in the body as often as in the
+    // status, so the words are checked too rather than the code alone.
+    if (/quota|limit|exceed|credit|neuron/i.test(detail)) throw new Error('out-of-credits');
+    throw new Error(detail);
+  }
+
+  const base64 = payload.result?.image;
+  if (!base64) throw new Error('empty-result');
+
+  // schnell returns JPEG. Stated by the model's output schema rather than
+  // sniffed, because there is no content type on a base64 string to sniff.
+  return { bytes: fromBase64(base64), contentType: 'image/jpeg', extension: 'jpg' };
 }

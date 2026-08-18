@@ -2149,7 +2149,9 @@ async function replyWithImage(
     const reason = error instanceof Error ? error.message : String(error);
     console.error('[ai-chat] image generation failed', reason);
 
-    if (reason === 'not-configured') {
+    // A missing token and a rejected one are the same news to whoever asked:
+    // nothing they typed is wrong and nothing they can do will fix it.
+    if (reason === 'not-configured' || reason === 'bad-token') {
       return say("I can't draw yet - my image setup isn't finished. Ask me again soon.", 200, {
         error: 'image_not_configured',
       });
