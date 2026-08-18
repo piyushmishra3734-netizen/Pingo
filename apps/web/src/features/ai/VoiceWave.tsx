@@ -31,8 +31,14 @@ import { useEffect, useRef } from 'react';
 export interface VoiceWaveProps {
   /** Current loudness, 0-1, read every frame. */
   level: () => number;
-  /** Dimmed and slowed when nothing is happening. */
-  active: boolean;
+  /**
+   * Whether to move, read every frame like the level.
+   *
+   * A boolean prop would restart the loop on every phase change, which is a
+   * visible hitch at exactly the moment the line is meant to hand over from
+   * listening to speaking.
+   */
+  active: () => boolean;
   className?: string;
 }
 
@@ -97,7 +103,7 @@ export function VoiceWave({ level, active, className }: VoiceWaveProps) {
     const draw = () => {
       frame = requestAnimationFrame(draw);
 
-      const target = active ? Math.max(level(), FLOOR) : FLOOR * 0.5;
+      const target = active() ? Math.max(level(), FLOOR) : FLOOR * 0.5;
       // Rise fast, fall slow - see RISE/FALL.
       smoothed += (target - smoothed) * (target > smoothed ? RISE : FALL);
       phase += stillness.matches ? 0.004 : 0.02;
@@ -154,6 +160,8 @@ export function VoiceWave({ level, active, className }: VoiceWaveProps) {
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
+    // Both inputs are read per frame and are stable by contract, so this runs
+    // once for the life of the canvas - which is what keeps it smooth.
   }, [level, active]);
 
   return (

@@ -327,9 +327,36 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
    * number every frame - and that is what makes the same line read as "I am
    * hearing you" and "I am saying this" without ever changing shape.
    */
+  /*
+   * Stable for the life of the call, and that is the whole point.
+   *
+   * `recorder.level` is React state, so it changes many times a second while
+   * somebody is talking. A callback listing it as a dependency is a *new
+   * function* on every one of those changes, which tore down and restarted the
+   * canvas animation loop each time - and that is exactly why the line stuttered
+   * while the user spoke and was perfectly smooth while PINGO did. The speaking
+   * half read from a ref and never re-created anything.
+   *
+   * The latest values are mirrored into refs and read inside, so the identity
+   * never changes and the loop starts once.
+   */
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const micLevel = useRef(0);
+  micLevel.current = recorder.level;
+
   const level = useCallback(
-    () => (phase === 'speaking' ? (speech.current?.level() ?? 0) : recorder.level),
-    [phase, recorder.level],
+    () => (phaseRef.current === 'speaking' ? (speech.current?.level() ?? 0) : micLevel.current),
+    [],
+  );
+
+  /*
+   * Likewise: whether the line should move at all is read per frame rather than
+   * passed as a prop, so a phase change does not restart the loop either.
+   */
+  const active = useCallback(
+    () => phaseRef.current === 'listening' || phaseRef.current === 'speaking',
+    [],
   );
 
   return (
@@ -377,7 +404,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
 
         {/* The line itself. Everything above and below is context for it. */}
         <div className="h-28 w-full">
-          <VoiceWave level={level} active={phase === 'listening' || phase === 'speaking'} />
+          <VoiceWave level={level} active={active} />
         </div>
 
         <p className="text-caption text-white/40">

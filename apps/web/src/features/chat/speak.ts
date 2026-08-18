@@ -21,8 +21,29 @@
  * because a single reply can and does switch script halfway.
  */
 
-/** Long enough to sound like a sentence, short enough to arrive quickly. */
-const MAX_CHUNK = 220;
+/**
+ * A whole reply, in one request, unless it is genuinely long.
+ *
+ * ## What this is fixing
+ *
+ * Chunking per sentence was designed when synthesis was slow: split the reply,
+ * speak the first part while fetching the rest, and the wait becomes the length
+ * of a sentence instead of an answer.
+ *
+ * Then the provider changed. Sarvam returns a full reply in one and a half to
+ * two and a half seconds and accepts 2500 characters, so splitting a 200
+ * character reply into four buys perhaps a second and costs four requests. It
+ * showed up exactly as you would expect: about ten reads produced 57 requests
+ * on the dashboard.
+ *
+ * So the budget is now the provider's, not a sentence's. Almost every reply is
+ * one request. Only something genuinely long is split, and then into halves
+ * rather than sentences.
+ *
+ * The pipeline underneath is unchanged and still earns its keep on those - the
+ * second half is fetched while the first plays.
+ */
+const MAX_CHUNK = 900;
 
 /**
  * Break a reply into the pieces that get spoken one at a time.
@@ -38,6 +59,15 @@ const MAX_CHUNK = 220;
 export function chunkForSpeech(text: string, max = MAX_CHUNK): string[] {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean) return [];
+
+  /*
+   * Under the budget is one request, whatever its punctuation.
+   *
+   * This is the line that matters: it is the difference between "haan bhai.
+   * sab badhiya. tum sunao." costing three requests and costing one, and that
+   * shape is most of what PINGO says.
+   */
+  if (clean.length <= max) return [clean];
 
   const sentences = clean.match(/[^.!?।]+[.!?।]+\s*|[^.!?।]+$/g) ?? [clean];
   const out: string[] = [];

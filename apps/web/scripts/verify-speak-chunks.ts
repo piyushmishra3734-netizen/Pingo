@@ -32,7 +32,7 @@ for (const text of [
   const chunks = chunkForSpeech(text);
   check(noWordSplit(chunks, text), `nothing dropped: "${text.slice(0, 42)}…"`);
   check(
-    chunks.every((c) => c.length <= 220),
+    chunks.every((c) => c.length <= 900),
     `  every chunk within budget (longest ${Math.max(0, ...chunks.map((c) => c.length))})`,
   );
   check(
@@ -49,7 +49,7 @@ check(
 // Real words, because the point is that the cut lands between them. A single
 // 210-character "word" has no legal cut and is not what a reply looks like.
 const sentence = 'ek chhota jumla jo baar baar dohraya gaya hai taaki lamba ho jaye ';
-const long = chunkForSpeech(sentence.repeat(6));
+const long = chunkForSpeech(sentence.repeat(20));
 check(long.length >= 2, 'a long reply is split');
 check(
   long.every((c) => c === c.trim() && c.length > 0),
@@ -58,9 +58,23 @@ check(
 check(
   // Each boundary falls on a space in the original, so no chunk starts or ends
   // with half a word.
-  long.every((c) => !/[a-z]$/i.test(c) || sentence.repeat(6).includes(`${c} `)),
+  long.every((c) => !/[a-z]$/i.test(c) || sentence.repeat(20).includes(`${c} `)),
   'chunks end where a space was, not inside a word',
 );
+
+console.log('\n--- one reply, one request ---');
+// The whole point of the budget. About ten Read alouds produced 57 provider
+// requests when every sentence was its own; these are the shapes that did it.
+for (const [text, why] of [
+  ['Haan bhai. Sab badhiya. Tum sunao.', 'three short sentences'],
+  ['koi baat nahi', 'one line'],
+  [
+    'log darr ke karte hain jhoot - ya to saza bachane ke liye ya fayda uthane ke liye. koi baar toh bas habit ho jaata hai, soch samajh bina bol dete hain.',
+    'a real two-sentence reply',
+  ],
+] as const) {
+  check(chunkForSpeech(text).length === 1, `one request: ${why} (${text.length} chars)`);
+}
 
 console.log('\n--- degenerate input ---');
 check(chunkForSpeech('').length === 0, 'empty text gives no chunks');
