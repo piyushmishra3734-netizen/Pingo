@@ -15,6 +15,7 @@ import {
   replyBudget,
   salvageTruncatedEnvelope,
   shapeReply,
+  stripReasoning,
   splitIntoBubbles,
   trimEnvelopeDebris,
 } from './reply-shape.ts';
@@ -1990,7 +1991,14 @@ function parseModelPayload(
   raw: string,
   length: string,
 ): { reply: string; ask: string } {
-  const text = raw.replace(/\r\n/g, '\n').trim();
+  /*
+   * The working-out comes off before anything is parsed.
+   *
+   * A model narrating its plan wraps everything after it, so a trace left in
+   * place makes the envelope unfindable and the marker split land in the
+   * wrong place. Stripping first means every branch below sees only an answer.
+   */
+  const text = stripReasoning(raw.replace(/\r\n/g, '\n').trim());
 
   // 1) JSON object
   const jsonHit = tryParseReplyJson(text);

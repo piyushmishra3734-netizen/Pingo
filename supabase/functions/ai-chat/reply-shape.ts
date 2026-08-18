@@ -344,3 +344,105 @@ export function trimEnvelopeDebris(text: string): string {
   return out;
 }
 
+
+/**
+ * Cut the model's working-out off the front of its answer.
+ *
+ * ## What was reaching people
+ *
+ * These are real assistant messages, taken from the database:
+ *
+ *   Here's a thinking process:
+ *   1. Analyze User Input: - User sent: `"theek hai bhai"` - This is the latest…
+ *
+ *   We need to interpret the latest user message: "4 mese kons aoption shi hai"…
+ *
+ *   We need to follow rules: answer the latest message. The user wrote "@pingoai…
+ *
+ * It reads as the assistant parroting whatever you just said, because the trace
+ * quotes you inside it. It is not parroting - it is thinking out loud into the
+ * thread. Same class as the JSON envelope: the app's own scaffolding, published.
+ *
+ * `'detailed thinking off'` is sent as a system message for exactly this and
+ * plainly does not always take. A prompt is a request; this is the check.
+ *
+ * ## The rule
+ *
+ * Trace is a *prefix*. A model narrates its plan and then answers, so leading
+ * lines that look like narration are dropped and whatever follows is kept.
+ * Nothing is removed from the middle: a reply that happens to quote you in the
+ * course of answering - "Ispe seedha try: 'ye mujhe hee bass reply kyu de rha
+ * hai?' - main clear answer dena chahta hoon" - is a real answer and survives.
+ *
+ * Returns '' when the whole thing was trace, which is the truthful result and
+ * lets the caller treat it as a failed generation rather than post the scraps.
+ */
+
+/** Openers that are the model addressing itself, never the person. */
+const TRACE_LINE = [
+  /^here'?s (a|my|the) (thinking|thought|reasoning) process/i,
+  /^(okay|ok|alright|so|first)[,:]?\s+(let me|let's|i need to|we need to|i should|we should)\b/i,
+  /^(we|i) (need|have) to\b/i,
+  /^let me (analyze|think|break|consider|see|check|figure)/i,
+  /^the user (sent|wrote|asks|asked|is asking|said|wants|means)/i,
+  /^user (sent|wrote|asks|asked|said)/i,
+  /^\d+\.\s*(analyze|understand|identify|consider|plan|check)\b/i,
+  /^(thinking|analysis|reasoning|plan|thought process|step \d+)\s*:/i,
+  /^(we|i) (must|will) (answer|reply|respond|follow)/i,
+  /^(this|that) is the latest message/i,
+  /^according to (the )?(rules|instructions|system)/i,
+];
+
+export function stripReasoning(text: string): string {
+  /*
+   * Tagged reasoning first, wherever it sits. An unterminated `<think>` is the
+   * common shape - the model ran out of room inside it - so a missing closing
+   * tag means everything after the opener goes.
+   */
+  let out = text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/i, '')
+    .replace(/<\/think>/gi, '')
+    .trim();
+
+  const lines = out.split('\n');
+  let start = 0;
+
+  while (start < lines.length) {
+    const line = lines[start]!.trim();
+    // Blank lines between trace lines are part of the trace, but only once the
+    // first one has been recognised - a reply may legitimately start blank.
+    if (line === '' && start > 0) {
+      start += 1;
+      continue;
+    }
+    if (TRACE_LINE.some((re) => re.test(line))) {
+      start += 1;
+      continue;
+    }
+    break;
+  }
+
+  // Nothing was trace: the overwhelmingly common case, and it must cost nothing.
+  if (start === 0) return out;
+
+  out = lines.slice(start).join('\n').trim();
+
+  /*
+   * A numbered plan continues past its first line, and dropping only the
+   * heading leaves "1. Analyze User Input: - User sent: …" as the message.
+   * Once trace has been recognised, list items that are still narration go too.
+   */
+  const rest = out.split('\n');
+  let from = 0;
+  while (from < rest.length) {
+    const line = rest[from]!.trim();
+    if (line === '' || /^[-*\d.)\s]*(analyz|identif|understand|consider|check|the user|user )/i.test(line)) {
+      from += 1;
+      continue;
+    }
+    break;
+  }
+
+  return rest.slice(from).join('\n').trim();
+}
