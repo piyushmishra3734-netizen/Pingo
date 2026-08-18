@@ -486,6 +486,55 @@ async function runTurn(
     const preferred = length === 'detailed' ? 1200 : length === 'balanced' ? 700 : 400;
     const maxTokens = demand === 'heavy' ? Math.max(preferred, 1200) : preferred;
 
+    /*
+     * The prompt minus the part the model is supposed to repeat.
+     *
+     * Needed here rather than after the call, because the streamed sentences
+     * are checked against it as they leave - see `speakable` below.
+     *
+     * The saved notes are excluded because a memory answer *is* the facts from
+     * the prompt: said back is the whole point of "tujhe kya yaad hai?", and an
+     * echo filter that cannot tell recall from copying deletes the answer.
+     * Everything else - the rules, the transcript, the scaffolding - stays in.
+     */
+    const quotable = new Set(memories.map((m) => m.value.trim()).filter(Boolean));
+    const sentToModel = messages
+      .map((m) => m.content)
+      .join('\n')
+      .split('\n')
+      .filter((line) => !quotable.has(line.replace(/^\s*\d+\.\s*/, '').trim()))
+      .join('\n');
+
+    /*
+     * Every streamed sentence goes through the filters, or none of them do.
+     *
+     * The streaming path handed raw model output straight to the voice, while
+     * the filters - the reasoning strip, the prompt-echo check, the envelope
+     * trim - all ran afterwards on the assembled reply. So the screen showed a
+     * clean answer and the speaker read out the model's working: two different
+     * messages from one turn, which is exactly what was reported.
+     *
+     * A sentence any filter would have touched is not spoken, and it stops the
+     * streaming for the rest of the turn. Trace rarely arrives alone, and a
+     * sentence already spoken cannot be taken back - so the first sign of one
+     * abandons the fast path and the client falls back to the finished,
+     * filtered reply. Slower, and correct.
+     */
+    let streamingClean = true;
+    const speakable = (sentence: string) => {
+      if (!streamingClean) return;
+
+      const cleaned = trimEnvelopeDebris(
+        stripPromptEcho(stripReasoning(sentence), sentToModel),
+      ).trim();
+
+      if (!cleaned || cleaned !== sentence.trim()) {
+        streamingClean = false;
+        return;
+      }
+      emitSentence(cleaned);
+    };
+
     emit('thinking');
     tModel = Date.now();
     const raw1 = await callChatModel(apiKey, base, model, messages, {
@@ -498,7 +547,7 @@ async function runTurn(
        * between speaking after the answer is finished and speaking while it is
        * still being written.
        */
-      ...(spoken ? { onSentence: (sentence: string) => emitSentence(sentence) } : {}),
+      ...(spoken ? { onSentence: speakable } : {}),
       temperature: 0.55,
       top_p: 0.9,
       frequency_penalty: 0.2,
@@ -544,13 +593,6 @@ async function runTurn(
      * So the saved notes are excluded from the comparison. Everything else -
      * the rules, the transcript, the scaffolding - stays in it.
      */
-    const quotable = new Set(memories.map((m) => m.value.trim()).filter(Boolean));
-    const sentToModel = messages
-      .map((m) => m.content)
-      .join('\n')
-      .split('\n')
-      .filter((line) => !quotable.has(line.replace(/^\s*\d+\.\s*/, '').trim()))
-      .join('\n');
     let { reply, ask } = parseModelPayload(raw1, length, sentToModel);
     reply = finalizeBubble(reply, length);
     ask = finalizeAsk(ask);
