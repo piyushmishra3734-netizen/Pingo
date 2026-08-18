@@ -248,3 +248,99 @@ export function shapeReply(text: string, length: string): string {
 
   return kept.join('\n').trim();
 }
+
+/**
+ * Rescue the reply out of a JSON envelope the model never finished.
+ *
+ * ## The bug this exists for
+ *
+ * The models are asked to answer as `{"reply": "...", "ask": "..."}`, and the
+ * parser found that object by taking everything between the first `{` and the
+ * last `}`. A model that hits its token ceiling mid-sentence never writes the
+ * closing brace, so there was no last `}`, so the parse returned nothing, so
+ * the raw text was posted as the message. Four of these went into real threads:
+ *
+ *   {"reply":"Abhi tak koi complete mathematical proof nahi mila; Riemann…
+ *
+ * Every leaked one is cut off mid-string, which is the whole tell. It is not
+ * the model misbehaving - it answered correctly and ran out of room, and the
+ * envelope is the app's own scaffolding leaking through.
+ *
+ * ## What it does
+ *
+ * Takes the value of the first `reply`/`message` key and reads to the end of
+ * the available text, honouring escapes so a quotation inside the answer does
+ * not end it early. Truncation is expected here rather than guarded against -
+ * the input is a sentence that stops mid-word, and half an answer is
+ * enormously better than a brace and a key name.
+ *
+ * Returns undefined when the text is not an envelope at all, which is the
+ * ordinary case: most replies are plain prose and must pass through untouched.
+ */
+export function salvageTruncatedEnvelope(text: string): string | undefined {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith('{')) return undefined;
+
+  const key = /"(?:reply|message)"\s*:\s*"/.exec(trimmed);
+  if (!key) return undefined;
+
+  let out = '';
+  for (let i = key.index + key[0].length; i < trimmed.length; i += 1) {
+    const ch = trimmed[i]!;
+    if (ch === '\\') {
+      const next = trimmed[i + 1];
+      // The escapes a model actually emits. Anything else keeps its literal
+      // character, which is closer to right than dropping it.
+      out += next === 'n' ? '\n' : next === 't' ? '\t' : (next ?? '');
+      i += 1;
+      continue;
+    }
+    // An unescaped quote ends the string - the envelope was complete after all,
+    // or at least this field was.
+    if (ch === '"') break;
+    out += ch;
+  }
+
+  const salvaged = out.trim();
+  return salvaged.length > 0 ? salvaged : undefined;
+}
+
+/**
+ * Strip the punctuation left behind when an envelope is peeled off badly.
+ *
+ * Replies were arriving with a stray tail - `Ab kya chahte hain? " ""` - which
+ * is the closing quote of the JSON string plus the empty `ask` that followed
+ * it, surviving because nothing looked at the end of the line. Five of those
+ * went out.
+ *
+ * Only quotes, commas and braces, and only trailing: a reply that genuinely
+ * ends in a quotation - "…and he said 'no'" - keeps its own punctuation because
+ * the pattern needs a run of bare quote characters, not one closing a sentence.
+ */
+export function trimEnvelopeDebris(text: string): string {
+  let out = text.trim();
+
+  // A run of two or more quotes is never prose. This is the `" ""` tail that
+  // was arriving: the envelope's closing quote followed by an empty `ask`.
+  out = out.replace(/[s]*["'`]{2,}[s]*[,}]?[s]*$/g, '').trim();
+
+  // Structural leftovers - a lone comma or brace - are never the end of a
+  // sentence either.
+  out = out.replace(/[s]*[,{}]+[s]*$/g, '').trim();
+
+  /*
+   * A single trailing quote only goes if nothing opened it.
+   *
+   * `usne kaha "nahi"` ends in a quote and must keep it; `Ab kya chahte hain? "`
+   * ends in the envelope's. Counting is what tells them apart - an odd number
+   * of quote characters means the last one has no partner - and the first
+   * version of this stripped both, which quietly edited people's sentences.
+   */
+  if (/["`]$/.test(out)) {
+    const quotes = (out.match(/["`]/g) ?? []).length;
+    if (quotes % 2 === 1) out = out.replace(/[s]*["`]$/, '').trim();
+  }
+
+  return out;
+}
+

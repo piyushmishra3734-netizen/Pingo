@@ -11,7 +11,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 // Pure, and the one piece here with a right answer that can be stated - so it
 // lives where it can be asserted outside Deno. See `verify:ai-reply-shape`.
 import { characterPrompt } from './character.ts';
-import { replyBudget, shapeReply, splitIntoBubbles } from './reply-shape.ts';
+import {
+  replyBudget,
+  salvageTruncatedEnvelope,
+  shapeReply,
+  splitIntoBubbles,
+  trimEnvelopeDebris,
+} from './reply-shape.ts';
 import { imagePrompt } from './image-intent.ts';
 import { generateImage } from './generate-image.ts';
 
@@ -1980,6 +1986,16 @@ function parseModelPayload(
     }
   }
 
+  /*
+   * Last line of defence. Anything still shaped like an envelope here is one
+   * the parser could not open, and shipping it raw is the bug this whole path
+   * exists to stop.
+   */
+  const rescued = salvageTruncatedEnvelope(text);
+  if (rescued) {
+    return { reply: shapeReply(stripMarkers(rescued), length) || 'Hmm 😅', ask: '' };
+  }
+
   return {
     reply: shapeReply(stripMarkers(text), length),
     /*
@@ -2014,21 +2030,32 @@ function tryParseReplyJson(text: string): { reply: string; ask: string } | null 
     if (!reply && !ask) return null;
     return { reply, ask };
   } catch {
-    return null;
+    /*
+     * Unparseable is the common failure, not a rare one: the model runs out of
+     * tokens mid-string and never writes the closing brace. Returning null here
+     * is what posted `{"reply":"Abhi tak koi complete mathematical proof…` into
+     * somebody's chat.
+     */
+    const salvaged = salvageTruncatedEnvelope(text);
+    return salvaged ? { reply: salvaged, ask: '' } : null;
   }
 }
 
 function stripMarkers(text: string): string {
-  return text
-    .replace(/<<<\s*REPLY\s*>>>/gi, '')
-    .replace(/<<<\s*ASK\s*>>>/gi, '')
-    .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '')
-    .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '')
-    .replace(/\bREPLY\s*:/gi, '')
-    .replace(/\bASK\s*:/gi, '')
-    // The bare label on its own line - see the note in the splitter.
-    .replace(/^[ \t]*(REPLY|ASK)[ \t]*$/gim, '')
-    .trim();
+  // `trimEnvelopeDebris` last, because the marker strips above can themselves
+  // expose a trailing quote that was previously buried mid-string.
+  return trimEnvelopeDebris(
+    text
+      .replace(/<<<\s*REPLY\s*>>>/gi, '')
+      .replace(/<<<\s*ASK\s*>>>/gi, '')
+      .replace(/<{1,3}\s*REPLY\s*>{1,3}/gi, '')
+      .replace(/<{1,3}\s*ASK\s*>{1,3}/gi, '')
+      .replace(/\bREPLY\s*:/gi, '')
+      .replace(/\bASK\s*:/gi, '')
+      // The bare label on its own line - see the note in the splitter.
+      .replace(/^[ \t]*(REPLY|ASK)[ \t]*$/gim, '')
+      .trim(),
+  );
 }
 
 function looksLikeMarkerGarbage(text: string): boolean {
