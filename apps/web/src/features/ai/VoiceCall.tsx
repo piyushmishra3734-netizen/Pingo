@@ -1,4 +1,4 @@
-import { PingoDot, cn } from '@pingo/ui';
+import { PingoDot, SendIcon, cn } from '@pingo/ui';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -102,6 +102,20 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   const [heard, setHeard] = useState('');
   const [said, setSaid] = useState('');
 
+  /*
+   * Typing, during a call.
+   *
+   * Every assistant people compare this to keeps a text field on the call
+   * screen, and the reason is not convenience - it is that speech recognition
+   * gets things wrong, and the repair for a misheard sentence has to be
+   * something other than saying it louder. Hinglish is exactly where that
+   * happens: "theek" comes back "diek" often enough to matter.
+   *
+   * It is also the answer to a room that is too loud, a phone in a pocket, and
+   * anybody who simply does not want to talk out loud where they are.
+   */
+  const [typed, setTyped] = useState('');
+
   const speech = useRef<Speech | undefined>(undefined);
   const live = useRef(true);
   const quietSince = useRef<number | undefined>(undefined);
@@ -124,6 +138,37 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
     // call down on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
+  );
+
+  /**
+   * Everything after the words exist: ask, speak, go back to listening.
+   *
+   * Shared by the microphone and the text field on purpose - a typed turn and a
+   * spoken one must not be able to behave differently, and the only thing that
+   * differs between them is where the sentence came from.
+   */
+  const answer = useCallback(
+    async (said: string) => {
+      if (!live.current) return;
+      setHeard(said);
+      const reply = await ask(said);
+      if (!live.current) return;
+
+      if (!reply) {
+        setPhase('error');
+        window.setTimeout(() => live.current && setPhase('listening'), 1600);
+        return;
+      }
+
+      setSaid(reply);
+      setPhase('speaking');
+      const started = speakStreaming(reply, fetchSentence);
+      speech.current = started;
+      await started.done;
+      speech.current = undefined;
+      if (live.current) setPhase('listening');
+    },
+    [ask],
   );
 
   /** One turn: hear it, ask, speak the answer, and go back to listening. */
@@ -155,25 +200,9 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
         return;
       }
 
-      setHeard(transcript);
-      const reply = await ask(transcript);
-      if (!live.current) return;
-
-      if (!reply) {
-        setPhase('error');
-        window.setTimeout(() => live.current && setPhase('listening'), 1600);
-        return;
-      }
-
-      setSaid(reply);
-      setPhase('speaking');
-      const started = speakStreaming(reply, fetchSentence);
-      speech.current = started;
-      await started.done;
-      speech.current = undefined;
-      if (live.current) setPhase('listening');
+      await answer(transcript);
     },
-    [ask],
+    [answer],
   );
 
   /*
@@ -279,10 +308,56 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
         End call
       </button>
 
+      {/*
+        Typing, on the call screen.
+
+        Speech recognition gets Hinglish wrong often enough that saying it again
+        louder is not a repair - "theek" comes back "diek" - and this is the way
+        out of that loop. It is also the answer to a loud room and to anybody who
+        does not want to speak out loud where they are.
+
+        Sending stops the microphone for that turn: two sources of truth about
+        what was just said is how you get PINGO answering the wrong one.
+      */}
+      <form
+        className="flex w-full max-w-sm items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const words = typed.trim();
+          if (!words || phase === 'thinking' || phase === 'speaking') return;
+          setTyped('');
+          recorder.cancel();
+          setPhase('thinking');
+          void answer(words);
+        }}
+      >
+        <input
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          placeholder="Ya likh do…"
+          aria-label="Type instead of speaking"
+          className={cn(
+            'focus-ring bg-sunken text-body min-w-0 flex-1 rounded-full px-4 py-2.5',
+            'placeholder:text-text-tertiary',
+          )}
+        />
+        <button
+          type="submit"
+          disabled={!typed.trim() || phase === 'thinking' || phase === 'speaking'}
+          aria-label="Send"
+          className={cn(
+            'focus-ring bg-brand grid h-10 w-10 shrink-0 place-items-center rounded-full text-white',
+            'transition-transform duration-instant active:scale-95 disabled:opacity-40',
+          )}
+        >
+          <SendIcon size={18} />
+        </button>
+      </form>
+
       <p className="text-caption text-text-tertiary max-w-xs text-center">
         {/* Said once, plainly, rather than discovered by being cut off. */}
-        Speak, then pause — PINGO answers when you stop. It cannot be interrupted
-        mid-sentence yet.
+        Bolo, phir ruk jao — PINGO tab jawab deta hai. Beech mein tok nahi sakte
+        abhi. Ya neeche likh do.
       </p>
 
       <span className="sr-only" aria-live="polite">
