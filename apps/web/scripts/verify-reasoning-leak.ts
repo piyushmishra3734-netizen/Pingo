@@ -116,5 +116,24 @@ check(
 survives('Tumhara reply format thoda alag tha', 'the word reply in ordinary prose');
 survives('Main JSON parse karna sikha raha tha', 'JSON mentioned without the meta phrasing');
 
+console.log('\n--- deliberation, caught by weight not by phrase ---');
+// No single phrase here is damning. The pile is.
+leaks(
+  'So maybe "arre yaar, kya baat hai?" That\'s one line? Actually we can have multiple lines but each line separate thought.\n\nBut must be short and match size. Their message length is moderate; we can answer with maybe 2 lines.',
+  'weighing how to word the reply',
+);
+check(
+  stripReasoning(
+    'So maybe "arre yaar"? Actually we can have two lines. Their message length is moderate.',
+  ) === '',
+  'a message that is only deliberation becomes empty',
+);
+
+console.log('\n--- one signal alone is a coincidence, not a trace ---');
+survives('Actually we can meet tomorrow if you want', 'one "actually we can"');
+survives('Maybe "chal theek hai" bol dena usse', 'one quoted suggestion');
+survives('Tumhari message length thodi zyada thi', 'one measurement-sounding line');
+survives('We can go together', 'plain first person plural');
+
 console.log(failures === 0 ? '\nAll reasoning-leak checks passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

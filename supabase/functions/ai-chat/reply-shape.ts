@@ -443,6 +443,45 @@ const TRACE_META = [
   /\b(single.line|multi.line) string\b/i,
 ];
 
+/**
+ * Deliberation, recognised by how much of it there is rather than by phrase.
+ *
+ * `TRACE_META` catches sentences that can only be a note about the exchange.
+ * This catches the other half, which no list of phrases was ever going to:
+ *
+ *   So maybe "arre yaar, kya baat hai?" That's one line? Actually we can have
+ *   multiple lines but each line separate thought. But must be short and match
+ *   size. Their message length is moderate; we can answer with maybe 2 lines.
+ *
+ * Not one phrase there is damning on its own. "So maybe" is how anybody talks.
+ * What gives it away is the pile: planning in the first person plural,
+ * measuring the reply, weighing options aloud, all in English, in a chat that
+ * is not conducted in English.
+ *
+ * So these are weighed rather than matched. One hit is a coincidence and is
+ * ignored; two distinct ones is a model talking to itself. That threshold is
+ * what lets the signals stay loose enough to catch shapes nobody has seen,
+ * without a single innocent sentence tripping the whole reply.
+ */
+const DELIBERATION = [
+  // Planning in the first person plural. PINGO speaks as "main", never "we".
+  /\bwe (can|could|should|might|will|may) (have|answer|say|reply|use|do|give|keep|make|write|add)\b/i,
+  // Measuring the reply instead of writing it.
+  /\b(their|the user'?s|his|her) (message|reply|question) (length|is|was|seems)\b/i,
+  /\b(must|should) be short and\b/i,
+  /\bmatch (the )?size\b/i,
+  /\b(one|two|three|d+) lines?\b.{0,40}\b(separate|each|maybe|about)\b/i,
+  /\bseparate thought\b/i,
+  // Weighing options aloud.
+  /^(so )?maybe ["‘“]/im,
+  /\bthat'?s (one|a) line\b/i,
+  /^actually,? (we|i|it|that|the)\b/im,
+  /^but (must|we|it should|that)\b/im,
+];
+
+/** Two independent signals. One is a coincidence; two is a habit. */
+const DELIBERATION_THRESHOLD = 2;
+
 export function stripReasoning(text: string): string {
   /*
    * Tagged reasoning first, wherever it sits. An unterminated `<think>` is the
@@ -482,6 +521,15 @@ export function stripReasoning(text: string): string {
    * message was a note about the conversation, and '' is the truthful result -
    * the caller treats it as a failed generation rather than posting the scraps.
    */
+  /*
+   * Weighed before the line-by-line rules, because deliberation is a property
+   * of the whole message rather than of any one line in it. Two signals and the
+   * generation is the model talking to itself - there is no reply buried in it
+   * to rescue, and '' sends it back for a second pass.
+   */
+  const signals = DELIBERATION.filter((re) => re.test(out)).length;
+  if (signals >= DELIBERATION_THRESHOLD) return '';
+
   const metaAt = lines.reduce(
     (last, line, index) => (TRACE_META.some((re) => re.test(line)) ? index : last),
     -1,
