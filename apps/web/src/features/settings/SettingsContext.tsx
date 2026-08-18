@@ -1,4 +1,5 @@
 import {
+  DEFAULT_APPEARANCE,
   DEFAULT_PREFERENCES,
   FONT_SCALE,
   type AppearanceSettings,
@@ -37,6 +38,29 @@ const STORAGE_KEY = 'pingo:preferences';
 /** The v1 key, when only appearance existed. Migrated on first read. */
 const LEGACY_APPEARANCE_KEY = 'pingo:appearance';
 
+/**
+ * Set once the ink-to-green move has been applied to this install.
+ *
+ * ## Why a migration is needed at all
+ *
+ * Changing `DEFAULT_APPEARANCE.accent` moves the arriving colour for a fresh
+ * install and nobody else, because the whole preferences object is written to
+ * storage on mount - so every existing install already has `accent: 'blue'`
+ * saved, and the merge below rightly prefers what is stored. Without this, the
+ * new default would reach approximately nobody.
+ *
+ * ## What it cannot tell apart
+ *
+ * `blue` is both "never chose a colour" and "deliberately chose Ink" - the same
+ * value is written either way, so there is no signal separating them. This
+ * moves both, which means somebody who picked Ink on purpose has it changed
+ * once and has to pick it again.
+ *
+ * That is the cost, and it is paid once: the marker means a person who re-picks
+ * Ink afterwards keeps it for good.
+ */
+const ACCENT_GREEN_MIGRATION_KEY = 'pingo:accent-green-v1';
+
 interface SettingsContextValue {
   preferences: Preferences;
   /** Shorthand - appearance is read far more often than anything else. */
@@ -54,6 +78,26 @@ interface SettingsContextValue {
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
+/**
+ * Move an untouched ink accent to green, once per install.
+ *
+ * Only `blue` is touched. Purple, pink and a custom hex are colours somebody
+ * went and chose, and a default changing underneath a choice is the thing this
+ * is careful not to do.
+ */
+function migrateAccent(appearance: AppearanceSettings): AppearanceSettings {
+  try {
+    if (localStorage.getItem(ACCENT_GREEN_MIGRATION_KEY)) return appearance;
+    localStorage.setItem(ACCENT_GREEN_MIGRATION_KEY, '1');
+    if (appearance.accent !== 'blue') return appearance;
+    return { ...appearance, accent: 'green' };
+  } catch {
+    // Private mode: no marker, no migration. The stored colour stands, which is
+    // the safe direction to be wrong in.
+    return appearance;
+  }
+}
+
 function read(): Preferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -67,7 +111,7 @@ function read(): Preferences {
       return {
         ...DEFAULT_PREFERENCES,
         ...stored,
-        appearance: { ...DEFAULT_PREFERENCES.appearance, ...stored.appearance },
+        appearance: migrateAccent({ ...DEFAULT_PREFERENCES.appearance, ...stored.appearance }),
         notifications: { ...DEFAULT_PREFERENCES.notifications, ...stored.notifications },
         privacy: { ...DEFAULT_PREFERENCES.privacy, ...stored.privacy },
         chats: { ...DEFAULT_PREFERENCES.chats, ...stored.chats },
@@ -82,10 +126,13 @@ function read(): Preferences {
     if (legacy) {
       return {
         ...DEFAULT_PREFERENCES,
-        appearance: {
+        // Migrated here too: an install still on the v1 key is the oldest one
+        // there is, and skipping it would leave exactly the people who have
+        // been here longest on the old colour.
+        appearance: migrateAccent({
           ...DEFAULT_PREFERENCES.appearance,
           ...(JSON.parse(legacy) as Partial<AppearanceSettings>),
-        },
+        }),
       };
     }
   } catch {
@@ -131,11 +178,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     root.setAttribute('data-theme', resolvedTheme);
     /*
      * Accent drives --color-brand, --gradient-*, --color-dot, hover/focus across
-     * the whole product (buttons, bubbles, chips, loaders, rings). Default is
-     * ink via data-accent=blue; user picks override every surface that reads
-     * brand tokens — not hard-coded blacks.
+     * the whole product (buttons, bubbles, chips, loaders, rings). User picks
+     * override every surface that reads brand tokens — not hard-coded blacks.
+     *
+     * The fallback is `DEFAULT_APPEARANCE.accent` rather than a literal, because
+     * a second copy of the default is a second thing to forget: this one said
+     * `blue` and would have quietly kept painting the product ink for anybody
+     * whose stored settings had no accent in them at all.
      */
-    root.setAttribute('data-accent', appearance.accent || 'blue');
+    root.setAttribute('data-accent', appearance.accent || DEFAULT_APPEARANCE.accent);
     root.setAttribute('data-motion', appearance.motion);
     root.setAttribute('data-glass', String(appearance.glass));
 
