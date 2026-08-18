@@ -2156,6 +2156,16 @@ async function replyWithImage(
     }
     // `AbortSignal.timeout` throws a TimeoutError; everything else is the
     // provider having a bad day, and neither is the asker's fault.
+    /*
+     * Out of credits reads as a broken prompt unless it is said plainly. The
+     * provider returns 402 and a sentence; neither is the asker's fault and
+     * neither is fixed by describing the picture differently.
+     */
+    if (/credit|quota|402|billing|payment required/i.test(reason)) {
+      return say("I'm out of drawing credits right now - nothing to do with what you asked. Try me later.", 200, {
+        error: 'image_no_credits',
+      });
+    }
     if (/abort|timeout/i.test(reason)) {
       return say('That one took too long to draw. Try me again?', 200, { error: 'image_timeout' });
     }

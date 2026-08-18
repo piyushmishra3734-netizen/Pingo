@@ -43,6 +43,14 @@ wants('mujhe sunset ki tasveer bana do', 'sunset');
 wants('lion ka image bana', 'lion');
 wants('pahado ka wallpaper banade yaar', 'pahado');
 
+console.log('\n--- hinglish, as actually typed ---');
+// Real messages from the thread that used to fall through to the chat model.
+// "genrate ker" is not a typo worth correcting, it is how it gets typed.
+wants('ek random image genrate ker', 'random');
+wants('cat ka photo generate karo', 'cat');
+wants('sunset ka image bana kar do', 'sunset');
+wants('dog ki picture nikal do', 'dog');
+
 console.log('\n--- must not fire ---');
 // The making verbs without a picture word. These are the false positives that
 // would replace an answer with an oil painting.

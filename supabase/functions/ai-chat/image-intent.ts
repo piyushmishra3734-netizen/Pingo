@@ -43,7 +43,7 @@ const ENGLISH =
  * pattern with alternation.
  */
 const HINGLISH =
-  /^\s*(.*?)\s*(?:ka|ki|ke)?\s*(?:images|image|pictures|picture|photos|photo|photu|tasveer|tasvir|pic|artwork|art|drawing|wallpaper)\s+(?:bana\s*do|bana\s*de|banade|banaao|banao|bana|nikal\s*do|nikalo|de\s*do|do)\b(?:\s+(?:please|pls|plz|na|naa|yaar|yr|bhai|bro|dost))*\s*[.!?]*\s*$/i;
+  /^\s*(.*?)\s*(?:ka|ki|ke)?\s*(?:images|image|pictures|picture|photos|photo|photu|tasveer|tasvir|pic|artwork|art|drawing|wallpaper)\s+(?:bana|banaa|banao|banaao|banade|generate|genrate|genarate|create|draw|nikal|nikalo)\s*(?:karo|kardo|kar|kro|krdo|kr|kero|kerdo|ker)?\s*(?:do|de|dijiye)?\s*(?:\s+(?:please|pls|plz|na|naa|yaar|yr|bhai|bro|dost))*\s*[.!?]*\s*$/i;
 
 /** Leading filler the subject never actually starts with. */
 const LEADING_FILLER = /^(?:me|mujhe|mereko|hume|humein|ek|एक|a|an|the|of|for)\s+/i;
