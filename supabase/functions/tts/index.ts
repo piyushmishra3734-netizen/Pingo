@@ -99,8 +99,9 @@ async function speakWithSarvam(text: string): Promise<Uint8Array | undefined> {
    * PINGO writes Hinglish in Latin letters, and that is Hindi with English
    * words in it - not English. Asking for `en-IN` would get an English voice
    * reading Hindi words, which is the seam this engine was chosen to avoid.
-   * `enable_preprocessing` is what normalises the mixed script before
-   * synthesis.
+   *
+   * `enable_preprocessing` used to be sent here and is documented as
+   * unsupported on v3. It was doing nothing.
    */
   const response = await fetch('https://api.sarvam.ai/text-to-speech', {
     method: 'POST',
@@ -111,7 +112,21 @@ async function speakWithSarvam(text: string): Promise<Uint8Array | undefined> {
       model: Deno.env.get('SARVAM_TTS_MODEL') ?? 'bulbul:v3',
       speaker: Deno.env.get('SARVAM_TTS_SPEAKER') ?? DEFAULT_SPEAKER,
       output_audio_codec: 'mp3',
-      enable_preprocessing: true,
+      /*
+       * Expressiveness, which is the only delivery control this model has.
+       *
+       * bulbul:v3 takes no emotion tag and no style - v4 does, and is not on
+       * this key: the API accepts v2, v3-beta and v3 and refuses v4. Pitch and
+       * loudness are documented as unsupported here too. So there is exactly
+       * one dial, and it is this one.
+       *
+       * 0.85 against a default of 0.6. Higher is livelier and starts to
+       * introduce artefacts; the documented range says 2.0 and the API actually
+       * refuses anything above 1.0, which is worth knowing before somebody
+       * tries to turn it up. Left as an env var because liveliness is a matter
+       * of taste and nobody should need a deploy to change their mind.
+       */
+      temperature: Number(Deno.env.get('SARVAM_TTS_TEMPERATURE') ?? 0.85),
     }),
     signal: AbortSignal.timeout(20_000),
   });
