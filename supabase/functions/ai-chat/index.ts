@@ -19,6 +19,7 @@ import {
   trimEnvelopeDebris,
 } from './reply-shape.ts';
 import { imagePrompt } from './image-intent.ts';
+import { reasoningDemand, type Demand } from './demand.ts';
 import { generateImage } from './generate-image.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
@@ -437,12 +438,31 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
      * ceiling does not make short replies longer, it stops them ending
      * halfway.
      */
-    const maxTokens =
-      length === 'detailed' ? 1200 : length === 'balanced' ? 700 : 400;
+    /*
+     * What this message actually asks for, decided from the text before any
+     * model is called. See `demand.ts` for why it is not another model call.
+     */
+    const demand = reasoningDemand(live ?? '');
+
+    /*
+     * Room to finish, and a floor for anything that had to be worked out.
+     *
+     * The ceiling used to come from the reply-length *preference* alone, so
+     * somebody who likes short answers got 400 tokens for a proof - and the
+     * model, asked to answer as JSON, ran out mid-string. That is exactly how
+     * `{"reply":"Abhi tak koi complete mathematical proof…` reached a thread:
+     * not a parser bug at heart, a ceiling set by the wrong question.
+     *
+     * Preference still decides how long a reply *should* be; this only stops it
+     * being cut off in the middle of one.
+     */
+    const preferred = length === 'detailed' ? 1200 : length === 'balanced' ? 700 : 400;
+    const maxTokens = demand === 'heavy' ? Math.max(preferred, 1200) : preferred;
 
     emit('thinking');
     tModel = Date.now();
     const raw1 = await callChatModel(apiKey, base, model, messages, {
+      demand,
       temperature: 0.55,
       top_p: 0.9,
       frequency_penalty: 0.2,
@@ -541,6 +561,12 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
       ];
       emit('reconsidering');
       const raw2 = await callChatModel(apiKey, base, model, retryMessages, {
+        /*
+         * The retry is what happens when the first answer missed. Sending it
+         * back to the same size of model is asking the question that already
+         * failed - so a retry is always heavy, whatever the first pass was.
+         */
+        demand: 'heavy' as const,
         temperature: 0.4,
         top_p: 0.9,
         frequency_penalty: 0.1,
@@ -652,7 +678,7 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
        * that keeps coming up. Not a secret: it is the caller's own assistant,
        * and the id is a public model name.
        */
-      model: workingModel ?? model ?? DEFAULT_MODEL,
+      model: workingModel.heavy ?? workingModel.light ?? model ?? DEFAULT_MODEL,
       ms: {
         before: tModel - t0,
         model: tModelDone - tModel,
@@ -798,6 +824,22 @@ type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
  * name that resolves and is slow costs seconds on every single message. That
  * is why speed decides the order and the 8B stays at the bottom as a floor.
  */
+/**
+ * The big models first, for messages that need one.
+ *
+ * This ordering is the whole fix. The chain below is walked for availability -
+ * first name that answers wins - so a single list starting at the 30B meant the
+ * 120B was never reached unless the 30B was down. A question that needed
+ * reasoning got the model chosen for answering "haan bhai" quickly.
+ */
+const HEAVY_CHAIN = [
+  // 120B total, 12B active - smarter, still a fraction of a dense 49B's work.
+  'nvidia/nemotron-3-super-120b-a12b',
+  'nvidia/nemotron-3-nano-30b-a3b',
+  'nvidia/nemotron-nano-3-30b-a3b',
+  DEFAULT_MODEL,
+];
+
 const MODEL_CHAIN = [
   /*
    * 30B total, 3B active - thinks like a 30B, answers near 8B speed.
@@ -817,7 +859,17 @@ const MODEL_CHAIN = [
 ];
 
 /** The first model in the chain that answered, remembered per instance. */
-let workingModel: string | undefined;
+/*
+ * Remembered per tier, not once.
+ *
+ * A single `workingModel` was pinned by whichever call came first, and since
+ * most messages are light that was always the 30B - which then answered the
+ * heavy ones too, quietly undoing the routing.
+ */
+const workingModel: Record<Demand, string | undefined> = {
+  heavy: undefined,
+  light: undefined,
+};
 
 async function callChatModel(
   apiKey: string,
@@ -830,21 +882,25 @@ async function callChatModel(
     frequency_penalty: number;
     presence_penalty: number;
     max_tokens: number;
+    /** Which chain to walk. Decided from the message, before the call. */
+    demand?: Demand;
   },
 ): Promise<string | null> {
+  const tier: Demand = opts.demand ?? 'light';
+  const chain = tier === 'heavy' ? HEAVY_CHAIN : MODEL_CHAIN;
   /*
-   * An explicit choice is honoured exactly; otherwise walk the chain.
+   * An explicit choice is honoured exactly; otherwise walk this tier's chain.
    *
    * `workingModel` short-circuits it after the first success, so a deployment
    * whose best model is unavailable pays for that discovery once and not on
    * every reply.
    */
-  const candidates = model ? [model] : [workingModel ?? '', ...MODEL_CHAIN].filter(Boolean);
+  const candidates = model ? [model] : [workingModel[tier] ?? '', ...chain].filter(Boolean);
 
   for (const candidate of candidates) {
     const reply = await callOneModel(apiKey, base, candidate, messages, opts);
     if (reply !== null) {
-      workingModel = candidate;
+      workingModel[tier] = candidate;
       return reply;
     }
     // Only worth trying the next name if there is one; the last failure is
