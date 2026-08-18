@@ -36,3 +36,9 @@ apps/web/android/*.keystore
 dist-apk/
 E:/pingo-build-tmp
 test-accounts.json
+_gork_session.json
+
+
+# Built APKs. 77 MB of binary that rebuilds from source; one was committed
+# by a broad `git add` and this is what stops the next one.
+*.apk
