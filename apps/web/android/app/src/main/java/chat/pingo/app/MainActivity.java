@@ -9,8 +9,14 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.view.ContentInfoCompat;
 import androidx.core.view.OnReceiveContentListener;
 import androidx.core.view.ViewCompat;
@@ -61,6 +67,37 @@ public class MainActivity extends BridgeActivity {
      */
     private static final String[] ACCEPTED = PingoWebView.ACCEPTED_CONTENT;
 
+    /** Request code for the microphone prompt raised on the page's behalf. */
+    private static final int MIC_PERMISSION = 4711;
+
+    /**
+     * The page's request, held while Android asks the user.
+     *
+     * Granted straight away if the answer comes back yes, so somebody who
+     * allows it does not also have to press call a second time.
+     */
+    private PermissionRequest pendingMicRequest;
+
+    @Override
+    public void onRequestPermissionsResult(
+        int requestCode, String[] permissions, int[] results
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != MIC_PERMISSION || pendingMicRequest == null) {
+            return;
+        }
+
+        boolean allowed = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (allowed) {
+            pendingMicRequest.grant(
+                new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+            );
+        } else {
+            pendingMicRequest.deny();
+        }
+        pendingMicRequest = null;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         /*
@@ -95,6 +132,67 @@ public class MainActivity extends BridgeActivity {
          * from any page the WebView ever loads.
          */
         webView.addJavascriptInterface(new PasskeyBridge(this, webView), "AndroidPasskey");
+
+        /*
+         * The microphone, which a WebView refuses by default.
+         *
+         * `getUserMedia` inside a WebView does not go to the system permission
+         * dialog. It calls `onPermissionRequest` on the host app, and an app
+         * that does not implement it denies silently - which the page then
+         * reports as no microphone at all. That is the "PINGO ke paas
+         * microphone nahi hai" on every phone: the permission was in the
+         * manifest, granted by the user, and never handed across.
+         *
+         * Two gates, and both have to pass. Android must have granted RECORD_AUDIO
+         * to the app, and the app must then grant it to the page.
+         */
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                runOnUiThread(() -> {
+                    boolean wantsAudio = false;
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                            wantsAudio = true;
+                        }
+                    }
+
+                    if (!wantsAudio) {
+                        /*
+                         * Only audio is granted here. Anything else - the camera,
+                         * a protected media id - is denied rather than waved
+                         * through, because a WebChromeClient is the wrong place
+                         * to be broadening what a page can reach.
+                         */
+                        request.deny();
+                        return;
+                    }
+
+                    boolean held = ContextCompat.checkSelfPermission(
+                        MainActivity.this, Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED;
+
+                    if (held) {
+                        request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+                        return;
+                    }
+
+                    /*
+                     * Not granted yet, so ask - and deny this request rather
+                     * than holding it open. The system dialog is asynchronous
+                     * and the page has already been told no by the time it
+                     * closes; the honest thing is for the page to be told to
+                     * try again, which is what it says on screen.
+                     */
+                    pendingMicRequest = request;
+                    ActivityCompat.requestPermissions(
+                        MainActivity.this,
+                        new String[] { Manifest.permission.RECORD_AUDIO },
+                        MIC_PERMISSION
+                    );
+                });
+            }
+        });
 
         /*
          * Shared files are answered on their own path, so the client has to be
