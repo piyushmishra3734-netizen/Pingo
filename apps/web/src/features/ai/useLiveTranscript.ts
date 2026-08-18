@@ -107,6 +107,19 @@ function downsample(input: Float32Array, from: number): Float32Array {
 const NOISE_FLOOR = 0.012;
 
 /**
+ * How long to keep sending after the last loud frame.
+ *
+ * The detector decides a turn has ended by *hearing* the silence after it, so
+ * the silence has to be sent. Gating it away is what made PINGO sit on
+ * "listening" when somebody paused mid-sentence: it received no audio at all,
+ * which is not the same thing as receiving quiet, so it never called the turn.
+ *
+ * Comfortably longer than the 300 ms window, so the end of a turn is always
+ * decided by the provider hearing a real pause rather than by this running out.
+ */
+const TRAIL_MS = 1200;
+
+/**
  * Frames of audio kept from just before speech starts.
  *
  * A voice-activity detector needs a lead-in: handed audio that begins exactly
@@ -301,6 +314,16 @@ export function useLiveTranscript({
        */
       const preroll: string[] = [];
 
+      /*
+       * When something was last actually said.
+       *
+       * While this is recent, every frame goes up including the quiet ones -
+       * that quiet is the evidence the turn is over. Only once nobody has
+       * spoken for a while does the gate close again and stop paying to
+       * transcribe an empty room.
+       */
+      let lastVoice = 0;
+
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
 
@@ -326,11 +349,23 @@ export function useLiveTranscript({
         const encoded = toBase64(toPcm16(downsample(input, audio.sampleRate)));
 
         if (peak < NOISE_FLOOR) {
-          // Silence, remembered rather than sent, and only the most recent.
+          /*
+           * Quiet, and it matters which kind.
+           *
+           * Inside a turn it is the pause the detector is waiting for, so it
+           * goes up. Outside one it is an empty room, so it is held in the
+           * lead-in and nothing is sent.
+           */
+          if (Date.now() - lastVoice < TRAIL_MS) {
+            ws.send(JSON.stringify({ event: 'audio_input', audio: encoded }));
+            return;
+          }
           preroll.push(encoded);
           if (preroll.length > PREROLL_FRAMES) preroll.shift();
           return;
         }
+
+        lastVoice = Date.now();
 
         for (const held of preroll.splice(0)) {
           ws.send(JSON.stringify({ event: 'audio_input', audio: held }));
