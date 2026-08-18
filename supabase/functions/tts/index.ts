@@ -30,6 +30,9 @@
  * Sarvam directly is a browser holding a credential anybody can spend.
  */
 
+// Billing lives where it can be asserted outside Deno. See `verify:speakable`.
+import { speakableOnly } from './speakable.ts';
+
 /** One request, one voice line. 2500 is the v3 ceiling; this is a sentence. */
 const MAX_CHARS = 1200;
 
@@ -52,6 +55,27 @@ const FALLBACK_MODEL = '@cf/deepgram/aura-2-en';
  * signal it gives, and Sarvam is checked the same way rather than trusted.
  */
 const SILENT_BYTES = 4000;
+
+/**
+ * The same sentence twice is the same sound, and the second one should be free.
+ *
+ * The `Cache-Control` header below does nothing: these are POSTs and no browser
+ * caches a POST. So the memo lives on this side. It lasts as long as the
+ * instance does, which covers the case that actually happens - Read aloud
+ * pressed twice, or the same stock line coming round again in a call.
+ *
+ * ponytail: per-instance Map, capped. Move it to Storage keyed by a hash if
+ * repeats across devices ever show up on the bill.
+ */
+const spokenBefore = new Map<string, Uint8Array>();
+const CACHE_ENTRIES = 60;
+
+function remember(key: string, bytes: Uint8Array): void {
+  spokenBefore.set(key, bytes);
+  if (spokenBefore.size > CACHE_ENTRIES) {
+    spokenBefore.delete(spokenBefore.keys().next().value!);
+  }
+}
 
 function corsHeaders(request: Request): HeadersInit {
   return {
@@ -180,10 +204,27 @@ Deno.serve(async (request) => {
   }
 
   const body = (await request.json().catch(() => ({}))) as { text?: string };
-  const text = (body.text ?? '').trim().slice(0, MAX_CHARS);
+  const text = speakableOnly(body.text ?? '').slice(0, MAX_CHARS);
   if (!text) {
     return Response.json({ error: 'empty' }, { status: 400, headers: corsHeaders(request) });
   }
+
+  const key = `${Deno.env.get('SARVAM_TTS_MODEL') ?? 'bulbul:v3'}|${
+    Deno.env.get('SARVAM_TTS_SPEAKER') ?? DEFAULT_SPEAKER
+  }|${text}`;
+
+  const known = spokenBefore.get(key);
+  if (known) {
+    console.log('[tts] cached', text.length, 'chars');
+    return audio(known, request);
+  }
+
+  /*
+   * Every request says what it cost, because characters are the unit on the
+   * invoice. Until this line there was no way to tell a bill of ten thousand
+   * characters from one of a thousand except by adding up a dashboard.
+   */
+  console.log('[tts] billing', text.length, 'chars');
 
   const spoken = (await speakWithSarvam(text)) ?? (await speakWithAura(text));
 
@@ -204,5 +245,6 @@ Deno.serve(async (request) => {
     return Response.json({ error: 'silent' }, { status: 415, headers: corsHeaders(request) });
   }
 
+  remember(key, spoken);
   return audio(spoken, request);
 });
