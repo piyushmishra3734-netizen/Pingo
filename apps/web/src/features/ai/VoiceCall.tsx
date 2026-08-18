@@ -510,25 +510,33 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
         aria-hidden
         className={cn(
           'pointer-events-none absolute inset-0 transition-opacity duration-slow ease-liquid',
-          phase === 'speaking' ? 'opacity-100' : phase === 'thinking' ? 'opacity-45' : 'opacity-70',
+          phase === 'speaking' ? 'opacity-100' : phase === 'thinking' ? 'opacity-55' : 'opacity-80',
         )}
       >
         <div
           className="absolute -top-1/4 left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 rounded-[50%] blur-[80px] motion-safe:animate-aurora-drift"
           style={{
             background:
-              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-from, #7c5cff) 55%, transparent), transparent 70%)',
+              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-from, #7c5cff) 78%, transparent), transparent 70%)',
           }}
         />
+        {/*
+          The second one sits behind the wave rather than at the bottom edge.
+
+          Down there it was light leaking in from off-screen, which is only ever
+          background. Here the line is *in* it - the pool of colour is centred on
+          the one thing that moves, so the light reads as coming off the voice
+          rather than off the wallpaper.
+        */}
         <div
-          className="absolute -bottom-1/3 left-1/2 h-[70vh] w-[110vw] -translate-x-1/2 rounded-[50%] blur-[90px] motion-safe:animate-aurora-drift-slow"
+          className="absolute top-[38%] left-1/2 h-[55vh] w-[105vw] -translate-x-1/2 rounded-[50%] blur-[90px] motion-safe:animate-aurora-drift-slow"
           style={{
             background:
-              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-to, #3a8dff) 60%, transparent), transparent 72%)',
+              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-to, #3a8dff) 70%, transparent), transparent 72%)',
           }}
         />
         {/* A vignette, so the controls at the edges keep their contrast. */}
-        <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_50%,transparent_35%,rgba(3,4,8,0.75)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_45%,transparent_42%,rgba(3,4,8,0.72)_100%)]" />
       </div>
 
       {/*
