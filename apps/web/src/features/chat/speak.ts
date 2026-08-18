@@ -73,12 +73,28 @@ export function chunkForSpeech(text: string, max = MAX_CHUNK): string[] {
   return out.filter(Boolean);
 }
 
+/**
+ * How loud the voice is right now, 0-1.
+ *
+ * Read every frame by whatever is drawing, rather than pushed, because the
+ * thing that wants it is a render loop and a callback per sample would be a
+ * state update per sample.
+ *
+ * The point is that the mark on screen moves with the actual voice - louder on
+ * a stressed syllable, still in a pause - and not on a timer pretending to. A
+ * timer is what everything looked like before, and it reads as decoration
+ * because it is.
+ */
+export type Amplitude = () => number;
+
 /** Handle on a reading in progress. */
 export interface Speech {
   /** Stops immediately, wherever it is. */
   stop: () => void;
   /** Resolves when the last sentence has finished, or when stopped. */
   done: Promise<void>;
+  /** How loud it is, right now. Zero when nothing is playing. */
+  level: Amplitude;
   /**
    * Resolves the moment the first sound starts.
    *
@@ -140,6 +156,33 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
    * Assigned synchronously by the Promise constructor, which the compiler
    * cannot see. A no-op default keeps it honest without an assertion.
    */
+  /*
+   * One context and one analyser for the whole reading.
+   *
+   * Created lazily because an `AudioContext` made before a user gesture starts
+   * suspended, and reused across sentences because building one per sentence
+   * would click audibly at every seam.
+   */
+  let context: AudioContext | undefined;
+  let analyser: AnalyserNode | undefined;
+  let bins: Uint8Array<ArrayBuffer> | undefined;
+
+  const level: Amplitude = () => {
+    if (!analyser || !bins) return 0;
+    analyser.getByteTimeDomainData(bins);
+    /*
+     * Peak deviation from silence rather than an average. An average over a
+     * whole frame flattens speech into a nearly constant number - the mark
+     * would hum rather than move with the words.
+     */
+    let peak = 0;
+    for (let i = 0; i < bins.length; i += 1) {
+      const away = Math.abs(bins[i]! - 128);
+      if (away > peak) peak = away;
+    }
+    return Math.min(1, peak / 90);
+  };
+
   let finish: () => void = () => {};
   const done = new Promise<void>((resolve) => {
     finish = resolve;
@@ -155,6 +198,9 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
     current = undefined;
     cancelLocal?.();
     cancelLocal = undefined;
+    analyser = undefined;
+    void context?.close().catch(() => undefined);
+    context = undefined;
     // Stopping before anything played still ends the waiting state; nobody is
     // left watching a button that says it is preparing something cancelled.
     begin();
@@ -190,6 +236,31 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
         const url = URL.createObjectURL(audio);
         const element = new Audio(url);
         current = element;
+
+        /*
+         * Tapped for its amplitude on the way to the speakers.
+         *
+         * `createMediaElementSource` re-routes the element, so it must also be
+         * connected to the destination or the audio plays silently - a mistake
+         * that presents as "the animation works but there is no sound".
+         */
+        try {
+          context ??= new AudioContext();
+          if (context.state === 'suspended') void context.resume();
+          analyser ??= (() => {
+            const node = context.createAnalyser();
+            node.fftSize = 256;
+            // Backed by a plain `ArrayBuffer`: `getByteTimeDomainData` will not accept
+            // one that might be shared.
+            bins = new Uint8Array(new ArrayBuffer(node.frequencyBinCount));
+            node.connect(context.destination);
+            return node;
+          })();
+          context.createMediaElementSource(element).connect(analyser);
+        } catch {
+          // No Web Audio, or an element that cannot be tapped. The sound still
+          // plays; only the animation loses its input.
+        }
         const release = () => {
           URL.revokeObjectURL(url);
           next();
@@ -205,5 +276,5 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
     if (!stopped) finish();
   })();
 
-  return { stop, done, started };
+  return { stop, done, started, level };
 }

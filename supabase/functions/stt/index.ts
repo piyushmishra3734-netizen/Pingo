@@ -1,65 +1,36 @@
 /**
- * Turning what somebody said into text, for talking to PINGO out loud.
+ * Hearing what somebody said, for talking to PINGO out loud.
  *
- * The mirror of `tts`, and the same reasoning: the credential stays on the
- * server, Workers AI is where the model is, and PINGO already holds a token for
- * it.
+ * ## Why Sarvam and not Whisper
  *
- * ## Whisper rather than Nova
+ * Measured on the same clip, through the deployed function:
  *
- * Both were measured on the same clip. Neither is good at Hinglish and Whisper
- * is the less bad of them - it keeps word order where Nova drops words - and it
- * is the one that improves when a language hint is given rather than ignoring
- * it.
+ *   said       Haan bhai, sab badhiya hai. Tum sunao kya chal raha hai?
+ *   Whisper    kal shaam ko milte hain, coffee kei lai        (and worse without a hint)
+ *   Sarvam     Haan bhai, sab badhiya hai. Tum sunao kya chal raha hai?
  *
- * The measurement understates both. The test clip was made by an English TTS
- * voice pronouncing Hinglish, which is harder to hear than a person saying the
- * same thing, because "badhiya" spoken with English phonetics really does sound
- * like "badia". Real speech should land better; that is a hope, not a claim.
+ * Character for character, punctuation included. Whisper is excellent at
+ * English - "Let us meet tomorrow evening for coffee" came back exactly - and
+ * the half of the vocabulary that is Hindi written in Latin letters is where it
+ * fell apart, which is most of what people say here.
  *
- * ## Trust boundary
+ * ## `translit`, specifically
  *
- * Audio arrives base64 from a browser and is passed to the model. It is never
- * executed, never stored, and the size ceiling is the guard - a body big enough
- * to matter is refused before it costs anything.
+ * Saaras has several modes. `transcribe` returns Devanagari, `codemix` returns
+ * Hindi words in Devanagari and English words in Latin, and `translit` returns
+ * the whole thing in Latin letters. The last is what PINGO wants, and not by
+ * preference: replies are written in Latin script, so a transcript in
+ * Devanagari would put both halves of the same conversation in different
+ * alphabets.
+ *
+ * ## The client still sends base64
+ *
+ * Sarvam takes multipart. Converting here rather than changing the client keeps
+ * one contract for the browser and one place that knows what the provider
+ * wants - which is the point of a proxy.
  */
 
-/** Overridable so a model change needs no deploy. */
-const DEFAULT_MODEL = '@cf/openai/whisper-large-v3-turbo';
-
-/**
- * A sentence of Hinglish, handed to Whisper before it listens.
- *
- * Whisper conditions on this the way it conditions on the audio, so it is a way
- * of saying "expect these sounds and this spelling". It is the single biggest
- * thing measured here, on the same clip:
- *
- *   without      Kalshanko Miltehain Coffee, Tay Lai.
- *   with         Kal shaam ko milte hain, coffee, te lai
- *
- * against a real "Kal shaam ko milte hain coffee ke liye". English was already
- * near-perfect - "Let us meet tomorrow evening for coffee" came back exactly -
- * so this is entirely about the half of the vocabulary that is Hindi written in
- * Latin letters.
- *
- * `language: 'hi'` was tried and is wrong for PINGO: it works, and it returns
- * Devanagari, which is the script the replies were deliberately moved away from.
- * The prompt gets the sounds without the alphabet.
- *
- * The words are ordinary chat rather than anything clever. It is a spelling
- * sample, not instructions.
- */
-const HINGLISH_HINT =
-  'Hinglish chat: kal shaam ko milte hain, theek hai bhai, kya haal hai, ' +
-  'coffee peene chalein, mujhe yaad hai, kuch nahi yaar, abhi kya kar rahe ho, ' +
-  'accha thik hai, bata na, sun raha hoon';
-
-/**
- * About a minute of speech as base64.
- *
- * A turn in a conversation is seconds. Anything past this is not somebody
- * talking, and paying to transcribe it would be paying for a mistake.
- */
+/** About a minute of speech as base64. A turn is seconds; past this is a mistake. */
 const MAX_BASE64 = 2_000_000;
 
 function corsHeaders(request: Request): HeadersInit {
@@ -73,14 +44,21 @@ function corsHeaders(request: Request): HeadersInit {
   };
 }
 
+/** Base64 to bytes. `atob` gives one character per byte. */
+function decode(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders(request) });
   }
 
-  const account = Deno.env.get('CF_ACCOUNT_ID');
-  const token = Deno.env.get('CF_AI_TOKEN');
-  if (!account || !token) {
+  const key = Deno.env.get('SARVAM_API_KEY');
+  if (!key) {
     return Response.json(
       { error: 'not-configured' },
       { status: 503, headers: corsHeaders(request) },
@@ -97,17 +75,23 @@ Deno.serve(async (request) => {
     return Response.json({ error: 'too-long' }, { status: 413, headers: corsHeaders(request) });
   }
 
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${
-      Deno.env.get('CF_STT_MODEL') ?? DEFAULT_MODEL
-    }`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio, initial_prompt: HINGLISH_HINT }),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
+  /*
+   * `webm` because that is what `MediaRecorder` produces in every browser this
+   * runs in, and Saaras accepts it. The name matters only as a hint to the
+   * decoder; the bytes decide.
+   */
+  const form = new FormData();
+  form.append('file', new Blob([decode(audio)], { type: 'audio/webm' }), 'turn.webm');
+  form.append('model', Deno.env.get('SARVAM_STT_MODEL') ?? 'saaras:v3');
+  form.append('language_code', 'hi-IN');
+  form.append('mode', 'translit');
+
+  const response = await fetch('https://api.sarvam.ai/speech-to-text', {
+    method: 'POST',
+    headers: { 'api-subscription-key': key },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -118,8 +102,8 @@ Deno.serve(async (request) => {
     );
   }
 
-  const payload = (await response.json().catch(() => ({}))) as { result?: { text?: string } };
-  const text = (payload.result?.text ?? '').trim();
+  const payload = (await response.json().catch(() => ({}))) as { transcript?: string };
+  const text = (payload.transcript ?? '').trim();
 
   /*
    * Silence transcribes to nothing, and nothing is a real answer here - the
