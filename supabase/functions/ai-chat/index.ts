@@ -593,7 +593,7 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
                   'Say something new, or say the one thing that actually answers them.',
                 ]
               : []),
-            'Return ONLY JSON: {"reply":"...","ask":""}',
+            'Plain text only. No JSON, no braces, no field names, no labels.',
           ].join('\n'),
         },
       ];
@@ -1030,7 +1030,7 @@ function buildRetrySystem(profile: AiProfile | null): string {
       ? 'Voice: Gen Z / desi chat energy, still actually answer.'
       : `Voice: ${personality}, still actually answer.`,
     lang ? `Prefer language: ${lang}` : 'Match their language.',
-    'Output ONLY JSON: {"reply":"your answer","ask":""}',
+    'Plain text only. No JSON, no braces, no field names, no labels.',
   ].join('\n');
 }
 
@@ -1062,7 +1062,7 @@ function personalityBlock(profile: AiProfile | null): string {
       return [
         '## VOICE LAW (CUSTOM) — highest priority',
         `You MUST sound like this: "${custom}"`,
-        'Every sentence of <<<REPLY>>> and <<<ASK>>> must match that vibe.',
+        'Every sentence must match that vibe.',
         'Do not become a neutral assistant. Custom wins over all other style tips.',
       ].join('\n');
     }
@@ -1124,7 +1124,7 @@ function personalityBlock(profile: AiProfile | null): string {
     '## VOICE LAW — highest priority',
     `Personality mode: ${personality}`,
     map[personality] ?? map.friendly!,
-    'Stay in this mode for BOTH <<<REPLY>>> and <<<ASK>>>. Do not drift to another personality.',
+    'Stay in this mode for the whole reply. Do not drift to another personality.',
   ].join('\n');
 }
 
@@ -1139,7 +1139,7 @@ function lengthBlock(length: string): string {
   if (length === 'balanced') {
     return [
       '## LENGTH LAW: balanced',
-      'About 2–4 short chat lines in <<<REPLY>>>. Not one word. Not a paragraph wall.',
+      'About 2–4 short chat lines. Not one word. Not a paragraph wall.',
     ].join('\n');
   }
   return [
@@ -1252,9 +1252,33 @@ function buildSystemPrompt(
     '## Emoji',
     '1–3 natural chat emojis when it fits. No spam.',
     '',
-    '## Output (JSON only)',
-    '{"reply":"main answer","ask":"optional short follow-up or empty string"}',
-    'No text outside JSON. Prefer ask:"" when you already fully answered.',
+    /*
+     * Plain text, because the envelope was the thing being reasoned about.
+     *
+     * This used to demand `{"reply":"…","ask":"…"}`, and the model spent its
+     * output working out how to comply - verbatim, into somebody's thread:
+     *
+     *   We must not add extra text. So reply should be short chat lines, maybe
+     *   separated by newline? But JSON string cannot contain newline?
+     *
+     * A format with rules is a puzzle, and a model given a puzzle thinks about
+     * the puzzle. Six commits of filters were chasing the symptom of this one
+     * instruction. There is nothing to deliberate about here.
+     *
+     * It also removes the truncation failure entirely: a generation cut off
+     * mid-sentence is a short reply, where a generation cut off mid-JSON was an
+     * unparseable brace that got posted raw.
+     *
+     * The follow-up question is no longer a field. If the last line is a
+     * question it becomes one - see `parseModelPayload` - and if there is no
+     * question there is no follow-up, which is the honest outcome and was
+     * already the intended one.
+     */
+    '## Output',
+    'Write your reply as plain text. Nothing else.',
+    'No JSON, no braces, no field names, no quotes wrapped around the whole thing.',
+    'No labels like Reply: or Ask:. Do not describe what you are about to say.',
+    'One short thought per line. End with a question only if you genuinely have one.',
     '',
     '## Truth',
     '1. Answer the latest message.',
@@ -1411,7 +1435,7 @@ function buildFocusDirective(
     voice,
     len,
     lang ? `LANGUAGE: write in ${lang}` : 'LANGUAGE: match user',
-    'Return ONLY JSON: {"reply":"...","ask":""}',
+    'Plain text only. No JSON, no braces, no field names, no labels.',
     'Spam banned: "Bhai full drama", "Kya hua koi baat", "Tumne kaha tha", "maine socha tha tum".',
     denial
       ? 'User annoyed / topic change — brief apology if needed, then follow THEIR new topic (still remember if they refer back).'
