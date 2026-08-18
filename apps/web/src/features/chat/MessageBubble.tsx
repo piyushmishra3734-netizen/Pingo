@@ -23,6 +23,8 @@ import {
   EventBubble,
   LocationBubble,
 } from './AttachmentBubbles.js';
+import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
+import { AiMessageActions } from './AiMessageActions.js';
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
@@ -71,6 +73,17 @@ export interface MessageBubbleProps {
    * the thread is what knows which conversation and which members.
    */
   onJoinCall?: () => void;
+  /**
+   * Quote this message in the composer.
+   *
+   * Only used by the assistant's action row for now. The context menu has its
+   * own path to the same place, and both end up calling the thread's reply
+   * handler - this one is passed down because a row of buttons under a bubble
+   * cannot reach for the menu's plumbing.
+   */
+  onReply?: () => void;
+  /** Ask the assistant again. Absent on anything that is not its reply. */
+  onRegenerate?: () => void;
   /** Reactions, rendered beneath. Passed in so the bubble stays presentational. */
   reactions?: React.ReactNode;
   /**
@@ -159,8 +172,22 @@ export function MessageBubble({
   replyTo,
   replyToAuthor,
   onJumpToReply,
+  onReply,
+  onRegenerate,
 }: MessageBubbleProps) {
   const { service } = useChat();
+
+  /*
+   * The assistant's own text, and nothing else.
+   *
+   * Keyed on the author rather than on the conversation kind: the assistant
+   * speaks in groups too, and every other message in that group belongs to a
+   * person. A photo it drew is excluded because none of the three actions means
+   * anything for one - there is no text to copy, nothing to read aloud, and
+   * "try again" on a picture is a different feature with a different cost.
+   */
+  const isAiReply =
+    message.authorId === PINGO_AI_USER_ID && !!message.body.trim() && !message.photo;
 
   /*
    * Which way this bubble comes in from.
@@ -546,6 +573,21 @@ export function MessageBubble({
             </p>
           )}
         </div>
+
+        {/*
+          Under the answer, and only the assistant's.
+          
+          Not on a person's message: there is nothing to regenerate, reading a
+          friend's line aloud is not what anybody wants, and a row of controls
+          under every bubble in a busy group would be most of the screen.
+        */}
+        {isAiReply && (
+          <AiMessageActions
+            text={message.body}
+            onReply={() => onReply?.()}
+            {...(onRegenerate ? { onRegenerate } : {})}
+          />
+        )}
 
         {message.reactions.length > 0 && (
           <div

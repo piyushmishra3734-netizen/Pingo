@@ -40,6 +40,7 @@ import { useSharedElement } from '../../hooks/useSharedElement.js';
 import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
 import { AiProfileSheet } from '../ai/AiProfileSheet.js';
@@ -270,6 +271,29 @@ export function ChatThread({
    * gesture that happens nowhere near it.
    */
   const [replyTo, setReplyTo] = useState<Message>();
+
+  /**
+   * Ask again, with the message that produced this answer.
+   *
+   * The prompt is the last thing a person said before the assistant spoke, so
+   * that is what is searched for - walking back past the assistant's own
+   * bubbles, since one turn can produce several. Nothing happens when there is
+   * nothing to re-ask, which is the opening greeting and only that.
+   */
+  const regenerate = useCallback(
+    (reply: Message) => {
+      const index = messages.findIndex((m) => m.id === reply.id);
+      if (index < 0) return;
+      for (let i = index - 1; i >= 0; i -= 1) {
+        const candidate = messages[i]!;
+        if (candidate.authorId === PINGO_AI_USER_ID) continue;
+        const body = candidate.body.trim();
+        if (body) void service.regenerateAiReply?.(conversation.id, body).catch(() => undefined);
+        return;
+      }
+    },
+    [messages, service, conversation.id],
+  );
 
   /**
    * Message ids picked out, or undefined when the thread is being read normally.
@@ -1340,6 +1364,16 @@ export function ChatThread({
                     message,
                     mine,
                     position,
+                    /*
+                     * The assistant's action row. Reply lands in the same place
+                     * the swipe and the menu do; "try again" re-sends the
+                     * message that produced this answer, which the thread knows
+                     * and a bubble cannot.
+                     */
+                    onReply: () => setReplyTo(message),
+                    ...(message.authorId === PINGO_AI_USER_ID
+                      ? { onRegenerate: () => regenerate(message) }
+                      : {}),
                     showMeta: index === cluster.length - 1,
                     ...(authorName ? { authorName } : {}),
                     replyTo: message.replyToId ? byId.get(message.replyToId) : undefined,

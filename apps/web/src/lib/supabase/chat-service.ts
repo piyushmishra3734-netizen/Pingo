@@ -3923,6 +3923,17 @@ export class SupabaseChatService implements ChatService {
    * `userMessage` is the plaintext we just sent - the model must not depend only
    * on rows that might still be ciphertext from an earlier bug.
    */
+  /**
+   * "Try again" - the same question, a fresh answer.
+   *
+   * Deliberately the same path as an ordinary turn, retry and model routing
+   * included, so a second attempt is not a different feature with its own
+   * behaviour to keep in step.
+   */
+  async regenerateAiReply(conversationId: ConversationId, userMessage: string): Promise<void> {
+    await this.#requestAiReply(conversationId, userMessage);
+  }
+
   async #requestAiReply(conversationId: ConversationId, userMessage: string): Promise<void> {
     /*
      * This used to add the conversation to `#aiConversationIds`, and that one

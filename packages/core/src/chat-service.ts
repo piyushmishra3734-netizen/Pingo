@@ -436,6 +436,16 @@ export interface ChatService {
    * Optional: the in-memory mock has no storage to free.
    */
   confirmMediaReceived?(messageId: MessageId): Promise<void>;
+
+  /**
+   * Ask the assistant the same thing again.
+   *
+   * Takes the original message rather than the reply, because that is what the
+   * model is given - a reply is an output and cannot be re-run. Nothing is
+   * posted to the thread on the way: re-sending the user's message would put a
+   * second copy of it in the conversation, which is not what "try again" means.
+   */
+  regenerateAiReply?(conversationId: ConversationId, userMessage: string): Promise<void>;
   markConversationRead(conversationId: ConversationId): Promise<void>;
 
   /**
