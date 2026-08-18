@@ -28,6 +28,33 @@
 const DEFAULT_MODEL = '@cf/openai/whisper-large-v3-turbo';
 
 /**
+ * A sentence of Hinglish, handed to Whisper before it listens.
+ *
+ * Whisper conditions on this the way it conditions on the audio, so it is a way
+ * of saying "expect these sounds and this spelling". It is the single biggest
+ * thing measured here, on the same clip:
+ *
+ *   without      Kalshanko Miltehain Coffee, Tay Lai.
+ *   with         Kal shaam ko milte hain, coffee, te lai
+ *
+ * against a real "Kal shaam ko milte hain coffee ke liye". English was already
+ * near-perfect - "Let us meet tomorrow evening for coffee" came back exactly -
+ * so this is entirely about the half of the vocabulary that is Hindi written in
+ * Latin letters.
+ *
+ * `language: 'hi'` was tried and is wrong for PINGO: it works, and it returns
+ * Devanagari, which is the script the replies were deliberately moved away from.
+ * The prompt gets the sounds without the alphabet.
+ *
+ * The words are ordinary chat rather than anything clever. It is a spelling
+ * sample, not instructions.
+ */
+const HINGLISH_HINT =
+  'Hinglish chat: kal shaam ko milte hain, theek hai bhai, kya haal hai, ' +
+  'coffee peene chalein, mujhe yaad hai, kuch nahi yaar, abhi kya kar rahe ho, ' +
+  'accha thik hai, bata na, sun raha hoon';
+
+/**
  * About a minute of speech as base64.
  *
  * A turn in a conversation is seconds. Anything past this is not somebody
@@ -77,7 +104,7 @@ Deno.serve(async (request) => {
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio }),
+      body: JSON.stringify({ audio, initial_prompt: HINGLISH_HINT }),
       signal: AbortSignal.timeout(30_000),
     },
   );
