@@ -617,7 +617,10 @@ export function ChatThread({
    * person would be reading.
    */
   const askByVoice = useCallback(
-    async (spoken: string): Promise<string | undefined> => {
+    async (
+      spoken: string,
+      onStage?: (stage: string) => void,
+    ): Promise<string | undefined> => {
       const before = Date.now();
       /*
        * `voice` on the draft, not a second call.
@@ -627,6 +630,24 @@ export function ChatThread({
        * and the function drops its retry and its follow-up question - the retry
        * alone measured at 13.6 seconds, which on a call is dead air.
        */
+      /*
+       * The stage the function reports is forwarded straight to the call
+       * screen, so the longest silence in the exchange says what it is doing
+       * rather than "thinking" for all of it.
+       */
+      if (onStage) {
+        const off = service.subscribe?.((event) => {
+          if (event.type === 'typing:changed' && event.conversationId === conversation.id) {
+            const stage = event.activity;
+            if (stage && stage !== 'typing' && stage !== 'recording') {
+              onStage(AI_STAGES[stage as keyof typeof AI_STAGES] ?? String(stage));
+            }
+          }
+        });
+        // Released when the turn ends, whichever way it ends.
+        window.setTimeout(() => off?.(), 60_000);
+      }
+
       await service.sendMessage({
         conversationId: conversation.id,
         body: spoken,

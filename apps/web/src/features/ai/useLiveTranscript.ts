@@ -96,11 +96,43 @@ function downsample(input: Float32Array, from: number): Float32Array {
   return out;
 }
 
+/**
+ * Below this a frame is room tone, and sending it is paying to transcribe a
+ * quiet room.
+ *
+ * Deliberately low. Getting this wrong upward clips the first syllable of every
+ * sentence, which is far worse than a few wasted frames - so it is set to catch
+ * genuine silence and nothing else.
+ */
+const NOISE_FLOOR = 0.012;
+
+/**
+ * Frames of audio kept from just before speech starts.
+ *
+ * A voice-activity detector needs a lead-in: handed audio that begins exactly
+ * at the first vowel, it clips the consonant in front of it. Half a second of
+ * pre-roll is held back and flushed the moment something is heard, so gating on
+ * silence costs nothing at the start of a sentence.
+ */
+const PREROLL_FRAMES = 6;
+
 export interface LiveTranscriptOptions {
   /** A completed utterance. Fires the instant the provider says it ended. */
   onFinal: (text: string) => void;
   /** Live loudness for whatever is drawing, read rather than pushed. */
   onLevel?: (level: number) => void;
+  /**
+   * Whether audio should be going up at all right now.
+   *
+   * Read per frame rather than passed as state. The socket used to stream from
+   * the moment the call screen opened and never stop - through PINGO thinking,
+   * PINGO talking, and every silence in between - at about 700 frames a minute.
+   * A few conversations came to 210 provider requests.
+   *
+   * Nothing about the connection changes; it stays open so the next turn does
+   * not pay for a handshake. Only the audio stops.
+   */
+  shouldSend?: () => boolean;
   /**
    * The provider heard the utterance end.
    *
@@ -114,6 +146,7 @@ export function useLiveTranscript({
   onFinal,
   onLevel,
   onSpeechEnd,
+  shouldSend,
 }: LiveTranscriptOptions): LiveTranscript {
   const [partial, setPartial] = useState('');
   const [listening, setListening] = useState(false);
@@ -129,6 +162,8 @@ export function useLiveTranscript({
   levelRef.current = onLevel;
   const endedRef = useRef(onSpeechEnd);
   endedRef.current = onSpeechEnd;
+  const sendingRef = useRef(shouldSend);
+  sendingRef.current = shouldSend;
 
   const stop = useCallback(() => {
     setListening(false);
@@ -229,21 +264,50 @@ export function useLiveTranscript({
       const processor = audio.createScriptProcessor(FRAME_SIZE, 1, 1);
       node.current = processor;
 
+      /*
+       * A rolling lead-in, so gating on silence never eats the first consonant.
+       *
+       * Frames below the floor are held here instead of sent. When speech does
+       * start, this goes up in front of it - which is what a VAD needs to hear
+       * the attack of a word rather than its middle.
+       */
+      const preroll: string[] = [];
+
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
 
-        if (levelRef.current) {
-          let peak = 0;
-          for (let i = 0; i < input.length; i += 1) {
-            const size = Math.abs(input[i]!);
-            if (size > peak) peak = size;
-          }
-          levelRef.current(Math.min(1, peak * 2.2));
+        let peak = 0;
+        for (let i = 0; i < input.length; i += 1) {
+          const size = Math.abs(input[i]!);
+          if (size > peak) peak = size;
         }
+        levelRef.current?.(Math.min(1, peak * 2.2));
 
         if (ws.readyState !== WebSocket.OPEN) return;
-        const pcm = toPcm16(downsample(input, audio.sampleRate));
-        ws.send(JSON.stringify({ event: 'audio_input', audio: toBase64(pcm) }));
+
+        /*
+         * Not our turn. The socket stays open - a handshake per turn would be
+         * latency where this whole change is about removing it - but nothing
+         * goes up while PINGO is thinking or talking.
+         */
+        if (sendingRef.current && !sendingRef.current()) {
+          preroll.length = 0;
+          return;
+        }
+
+        const encoded = toBase64(toPcm16(downsample(input, audio.sampleRate)));
+
+        if (peak < NOISE_FLOOR) {
+          // Silence, remembered rather than sent, and only the most recent.
+          preroll.push(encoded);
+          if (preroll.length > PREROLL_FRAMES) preroll.shift();
+          return;
+        }
+
+        for (const held of preroll.splice(0)) {
+          ws.send(JSON.stringify({ event: 'audio_input', audio: held }));
+        }
+        ws.send(JSON.stringify({ event: 'audio_input', audio: encoded }));
       };
 
       source.connect(processor);

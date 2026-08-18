@@ -108,7 +108,7 @@ export interface VoiceCallProps {
    * takes exactly the path a typed one does - same model routing, same memory,
    * same filters - and is still in the thread afterwards to scroll back through.
    */
-  ask: (text: string) => Promise<string | undefined>;
+  ask: (text: string, onStage?: (stage: string) => void) => Promise<string | undefined>;
 }
 
 export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
@@ -116,6 +116,16 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   const [heard, setHeard] = useState('');
   const [said, setSaid] = useState('');
   const [typed, setTyped] = useState('');
+  /*
+   * What the assistant is actually doing, streamed from the function.
+   *
+   * The screen used to say "thinking" for everything between the question and
+   * the voice, which covers reading the thread, two possible model calls and
+   * the reply being shaped. On a call that is the longest silence of the whole
+   * exchange, and a single word for all of it tells somebody nothing about
+   * whether to keep waiting.
+   */
+  const [stage, setStage] = useState<string>();
   const picker = useRef<HTMLInputElement>(null);
 
   const speech = useRef<Speech | undefined>(undefined);
@@ -152,7 +162,8 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
       if (!live.current) return;
       setHeard(words);
       setPhase('thinking');
-      const reply = await ask(words);
+      setStage(undefined);
+      const reply = await ask(words, setStage);
       if (!live.current) return;
 
       if (!reply) {
@@ -191,6 +202,15 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
     onLevel: (value) => {
       micLevel.current = value;
     },
+    /*
+     * Only while it is the person's turn.
+     *
+     * The socket stays open either way - a handshake per turn would be latency
+     * where all of this is about removing it - but audio stops going up while
+     * PINGO is thinking or talking. It used to stream from the moment the screen
+     * opened until it closed, at about 700 frames a minute.
+     */
+    shouldSend: () => phaseRef.current === 'listening',
   });
 
   /*
@@ -299,7 +319,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
         </div>
 
         <p className="text-caption text-white/40">
-          {phase === 'thinking' ? 'soch raha hoon…' : WHAT[phase]}
+          {phase === 'thinking' ? (stage ?? 'soch raha hoon…') : WHAT[phase]}
         </p>
 
         {transcript.error && <p className="text-caption text-red-300">{transcript.error}</p>}
