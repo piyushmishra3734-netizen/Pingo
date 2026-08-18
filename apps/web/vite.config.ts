@@ -162,17 +162,7 @@ export default defineConfig({
          * load pay for a feature most sessions never touch. They are fetched
          * on demand and cached by the browser normally.
          */
-        /*
-         * The Hindi voice engine is excluded for the same reason, and it is a
-         * sharper case: it is two megabytes of JavaScript that exists only to
-         * drive an 88 MB download somebody has to agree to. Precaching it would
-         * mean every first load pays for the wrapper around a file most people
-         * will never fetch - which is the whole thing the opt-in is for.
-         *
-         * The chunk is named from the module, so `kokoro-*` is stable across
-         * builds; only the content hash moves.
-         */
-        globIgnores: ['vision/**', 'assets/kokoro-*.js'],
+        globIgnores: ['vision/**'],
         // Raised for the app shell itself; the default 2MB would silently drop
         // the main bundle from the precache and quietly break offline start.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,

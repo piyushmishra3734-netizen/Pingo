@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { speakStreaming, type Speech } from './speak.js';
-import { kokoroReady, speakWithKokoro } from './kokoro.js';
-import { HindiVoiceSheet } from './HindiVoiceSheet.js';
 
 /**
  * One sentence of speech from the server, or nothing.
@@ -15,16 +13,6 @@ import { HindiVoiceSheet } from './HindiVoiceSheet.js';
  * It is deliberately not an error: the fallback is a route, not a failure.
  */
 async function fetchSentence(text: string): Promise<Blob | undefined> {
-  /*
-   * The device first, when it has the engine.
-   *
-   * Not for speed - the server is comparable - but because it is the only
-   * route that can read Devanagari at all, and because a reply that switches
-   * script halfway should not switch voice halfway with it.
-   */
-  const local = await speakWithKokoro(text);
-  if (local) return local;
-
   try {
     const client = getSupabaseClient();
     const {
@@ -110,14 +98,6 @@ export function AiMessageActions({
    * difference between "nothing happened" and "it is coming".
    */
   const [preparing, setPreparing] = useState(false);
-  /*
-   * Asked for Hindi speech without the engine to produce it.
-   *
-   * Raised at the point of need rather than buried in settings: somebody who
-   * just pressed play on a Devanagari reply is the only person for whom an
-   * 88 MB download is worth explaining.
-   */
-  const [offerHindi, setOfferHindi] = useState(false);
 
   // The clipboard confirmation lives here rather than in a toast: the thing it
   // confirms is on screen, and a toast would point somewhere else.
@@ -172,17 +152,6 @@ export function AiMessageActions({
       return;
     }
 
-    /*
-     * Devanagari with nothing that can read it - not the server, and not the
-     * engine, because it has not been downloaded. Ask before speaking rather
-     * than falling through to a device voice that is very likely silence.
-     */
-    if (/[ऀ-ॿ]/.test(text)) {
-      void kokoroReady().then((ready) => {
-        if (!ready) setOfferHindi(true);
-      });
-    }
-
     const started = speakStreaming(text, fetchSentence);
     reading.current = started;
     setSpeaking(true);
@@ -202,15 +171,6 @@ export function AiMessageActions({
   };
 
   return (
-    <>
-      {offerHindi && (
-        <HindiVoiceSheet
-          onClose={() => setOfferHindi(false)}
-          // Downloaded mid-reply: the next sentence picks it up on its own,
-          // because every sentence asks the device before the server.
-          onReady={() => setOfferHindi(false)}
-        />
-      )}
     <div
       className={cn('flex items-center gap-0.5 pt-1 pl-1', className)}
       // Not a toolbar: these are four unrelated actions, not a set to arrow
@@ -255,7 +215,6 @@ export function AiMessageActions({
         </ActionButton>
       )}
     </div>
-    </>
   );
 }
 
