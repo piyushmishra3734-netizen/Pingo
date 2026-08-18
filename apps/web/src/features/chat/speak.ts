@@ -79,6 +79,16 @@ export interface Speech {
   stop: () => void;
   /** Resolves when the last sentence has finished, or when stopped. */
   done: Promise<void>;
+  /**
+   * Resolves the moment the first sound starts.
+   *
+   * The gap before it is not always short: Workers AI cold-starts the voice
+   * after an idle spell and the first sentence measured at ten seconds against
+   * one and a half warm. Ten seconds of nothing after pressing a button reads
+   * as broken, so the caller needs to know when the silence ends in order to
+   * say something during it.
+   */
+  started: Promise<void>;
 }
 
 /** Where the audio for one sentence comes from. */
@@ -134,6 +144,10 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
   const done = new Promise<void>((resolve) => {
     finish = resolve;
   });
+  let begin: () => void = () => {};
+  const started = new Promise<void>((resolve) => {
+    begin = resolve;
+  });
 
   const stop = () => {
     stopped = true;
@@ -141,6 +155,9 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
     current = undefined;
     cancelLocal?.();
     cancelLocal = undefined;
+    // Stopping before anything played still ends the waiting state; nobody is
+    // left watching a button that says it is preparing something cancelled.
+    begin();
     finish();
   };
 
@@ -158,6 +175,10 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
       const audio = await ahead;
       ahead = chunks[i + 1] ? fetchAudio(chunks[i + 1]!) : undefined;
       if (stopped) break;
+
+      // The first chunk is the only one anybody waits through - every later one
+      // was fetched while its predecessor played.
+      begin();
 
       await new Promise<void>((next) => {
         if (!audio) {
@@ -184,5 +205,5 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
     if (!stopped) finish();
   })();
 
-  return { stop, done };
+  return { stop, done, started };
 }

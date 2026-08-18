@@ -89,6 +89,15 @@ export function AiMessageActions({
 }: AiMessageActionsProps) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  /*
+   * Pressed, but no sound yet.
+   *
+   * Workers AI cold-starts the voice after an idle spell - ten seconds for the
+   * first sentence against one and a half warm - and ten seconds of a button
+   * that looks unchanged is a button somebody presses again. This is the
+   * difference between "nothing happened" and "it is coming".
+   */
+  const [preparing, setPreparing] = useState(false);
 
   // The clipboard confirmation lives here rather than in a toast: the thing it
   // confirms is on screen, and a toast would point somewhere else.
@@ -139,12 +148,15 @@ export function AiMessageActions({
       reading.current.stop();
       reading.current = undefined;
       setSpeaking(false);
+      setPreparing(false);
       return;
     }
 
     const started = speakStreaming(text, fetchSentence);
     reading.current = started;
     setSpeaking(true);
+    setPreparing(true);
+    void started.started.then(() => setPreparing(false));
 
     void started.done.then(() => {
       // Only if this reading is still the current one: pressing stop and
@@ -153,6 +165,7 @@ export function AiMessageActions({
       if (reading.current === started) {
         reading.current = undefined;
         setSpeaking(false);
+        setPreparing(false);
       }
     });
   };
@@ -176,8 +189,19 @@ export function AiMessageActions({
       {/* Absent rather than disabled where the browser has no speech: a dead
           control is a question the interface cannot answer. */}
       {typeof window !== 'undefined' && 'speechSynthesis' in window && (
-        <ActionButton label={speaking ? 'Stop' : 'Read aloud'} active={speaking} onClick={speak}>
-          {speaking ? <MuteIcon size={14} /> : <SpeakerIcon size={14} />}
+        <ActionButton
+          label={preparing ? 'Getting the voice ready' : speaking ? 'Stop' : 'Read aloud'}
+          active={speaking}
+          onClick={speak}
+        >
+          {/*
+            The speaker pulses rather than turning into a spinner. A spinner
+            says "loading", which is true of everything; a pulsing speaker says
+            "sound is coming", which is the specific thing being waited for.
+          */}
+          <span className={cn(preparing && 'animate-dot-pulse')}>
+            {speaking && !preparing ? <MuteIcon size={14} /> : <SpeakerIcon size={14} />}
+          </span>
         </ActionButton>
       )}
 
