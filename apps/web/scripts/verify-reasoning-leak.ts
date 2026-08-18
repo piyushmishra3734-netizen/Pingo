@@ -143,7 +143,7 @@ leaks('But rule: "A greeting or a one-word message gets one short', 'citing a ru
 check(
   stripPromptEcho(
     'A greeting or a one-word message gets one short reply and nothing else.\nHaan bhai sab badhiya!',
-    'Rules: A greeting or a one-word message gets one short reply and nothing else. Never open with a compliment.',
+    'Rules:\nA greeting or a one-word message gets one short reply and nothing else.\nNever open with a compliment.',
   ) === 'Haan bhai sab badhiya!',
   'a line copied from the prompt is dropped, the reply kept',
 );
@@ -196,7 +196,27 @@ check(
 
 console.log('\n--- a single "we" is still allowed to be a sentence ---');
 survives('We can go together', 'plain first person plural, one signal');
-survives('Hum dono ne socha tha ki we should meet', 'code-switched but only one signal');
+// "we should" is a certainty now, deliberately, so this is caught. A rare
+// code-switched sentence costs a retry; "we should compile notes from
+// transcript" reaching somebody's chat cost six commits.
+check(
+  stripReasoning('Hum dono ne socha tha ki we should meet') === '',
+  'code-switched "we should" is caught, by design',
+);
+
+console.log('\n--- obligation in the first person plural ---');
+// Production, 09:58, after the echo filter was loosened to stop it eating real
+// memory answers. PINGO has nobody to plan with.
+leaks(
+  'We should compile notes from transcript: - User has a girlfriend (ex?) full drama, lowkey interested in j? unclear.',
+  'we should compile / from transcript',
+);
+check(
+  stripReasoning('We must summarise the saved notes for them.') === '',
+  'we must + verb is a certainty on its own',
+);
+survives('We can go together', 'we can is still just a sentence');
+survives('We will see kal', 'we will is still just a sentence');
 
 console.log(failures === 0 ? '\nAll reasoning-leak checks passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

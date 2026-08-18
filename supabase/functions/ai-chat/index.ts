@@ -498,7 +498,27 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
      * Which is precisely what "it copy-pastes my own messages" has been all
      * along, and it was never in the system prompt to be caught.
      */
-    const sentToModel = messages.map((m) => m.content).join('\n');
+    /*
+     * The prompt minus the part the model is supposed to repeat.
+     *
+     * Comparing a reply against everything sent to the model closed the
+     * transcript leak and immediately broke memory recall, because a memory
+     * answer *is* the facts from the prompt - said back is the whole point of
+     * asking "tujhe kya yaad hai?". The echo filter could not tell "quoting the
+     * instructions" from "answering with what it was given", so it deleted the
+     * answer and PINGO fell back to "thoda specific kar do?" for every memory
+     * question.
+     *
+     * So the saved notes are excluded from the comparison. Everything else -
+     * the rules, the transcript, the scaffolding - stays in it.
+     */
+    const quotable = new Set(memories.map((m) => m.value.trim()).filter(Boolean));
+    const sentToModel = messages
+      .map((m) => m.content)
+      .join('\n')
+      .split('\n')
+      .filter((line) => !quotable.has(line.replace(/^\s*\d+\.\s*/, '').trim()))
+      .join('\n');
     let { reply, ask } = parseModelPayload(raw1, length, sentToModel);
     reply = finalizeBubble(reply, length);
     ask = finalizeAsk(ask);
@@ -1174,6 +1194,19 @@ function buildSystemPrompt(
       'When they ask "yaad hai?", "memory se dekh", "tujhe yaad hai", answer ONLY from this list.',
       'If something is NOT in this list: say you don\'t have that saved — do NOT invent from chat vibes.',
       'Use naturally in chat when relevant — do not dump the whole list unprompted.',
+      /*
+       * The notes are written to be stored, not to be read out.
+       *
+       * They are terse and third-person - "user cooked their exam", "user denied
+       * residing in Mhow" - because that is the shape a fact gets saved in. Read
+       * back verbatim they arrive as a database row, and asking somebody's
+       * friend what they remember should not sound like a query result.
+       *
+       * The facts themselves stay fixed; only the wording is the model's. That
+       * distinction matters, which is why it is stated twice.
+       */
+      'Say these back in your own words, the way you talk — not copied out line by line.',
+      'Never change what a note means or add to it. Reword only, and never turn "user" into a third person: it is the person you are talking to.',
       'SAVED NOTES:',
       ...memories.map((m, i) => `${i + 1}. ${m.value}`),
       justSaved

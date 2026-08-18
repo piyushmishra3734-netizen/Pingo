@@ -388,7 +388,14 @@ const TRACE_LINE = [
   /^user (sent|wrote|asks|asked|said)/i,
   /^\d+\.\s*(analyze|understand|identify|consider|plan|check)\b/i,
   /^(thinking|analysis|reasoning|plan|thought process|step \d+)\s*:/i,
-  /^(we|i) (must|should|can'?t|cannot|shouldn'?t|will|won'?t)\b/i,
+  /*
+   * The same certainty set as the meta rule, and no wider.
+   *
+   * This used to include `will` and `cannot`, which deleted "We will see kal"
+   * outright - the line was the whole reply, so stripping the prefix left
+   * nothing. An obligation is the tell; a plain future tense is a sentence.
+   */
+  /^(we|i) (must|should|need to|have to)\b/i,
   /^(note|important|remember|caveat)s*[:,]/i,
   /^(first|second|third|next|then|finally)s*[,:]/i,
   /^actually[,]?s+(after|the|it|we|i)\b/i,
@@ -421,6 +428,21 @@ const TRACE_META = [
   /\bthe assistant (previously |already |then )?(responded|said|replied|answered|wrote|hasn'?t|has not|did not|didn'?t)\b/i,
   /\bthe user (said|wrote|asked|sent|hasn'?t|has not|wants|is asking|then said)\b/i,
   /\bwe (must|should|need to) not (repeat|say|answer|reply|mention)\b/i,
+  /*
+   * "we should", "we must", "we need to" - promoted from a weighed signal to a
+   * certainty after "We should compile notes from transcript:" got through a
+   * filter written for exactly this.
+   *
+   * PINGO has nobody to plan with. An obligation in the first person plural is
+   * the model instructing itself, every time. `we can` and `we will` stay
+   * weighed, because "we can go together" and "we will see" are things a person
+   * says; "we should compile" is not.
+   *
+   * The cost of being wrong here is a retry, not a lost reply - an empty result
+   * earns a second pass - which is what makes the promotion affordable.
+   */
+  /\bwe (must|should|need to|have to)\s+\w+/i,
+  /\b(from|in|the) transcript\b/i,
   /\bprevious (answer|response|reply|message) (was|is|said)\b/i,
   /\b(must not|should not) repeat (the )?previous\b/i,
   /\baccording to the (system|instructions|rules) (prompt|above|given)\b/i,
@@ -611,6 +633,16 @@ export function stripReasoning(text: string): string {
  */
 const SHINGLE = 6;
 
+/**
+ * Below this a copied line is not evidence of anything.
+ *
+ * "hey", "haan", "ok" appear in the transcript and in genuine replies with
+ * equal frequency; matching them would delete half of normal conversation.
+ * Three words is where a line starts being a thing somebody wrote rather than a
+ * noise anybody makes.
+ */
+const MIN_ECHO_WORDS = 3;
+
 /** Comparison is on words alone: case, punctuation and quoting all vary. */
 function words(text: string): string[] {
   return text
@@ -668,17 +700,46 @@ export function stripPromptEcho(text: string, instructions: string): string {
    * scaffolding is the half that needs no comparison to recognise. Only the
    * quotation half depends on having something to compare against.
    */
-  const known = instructions.trim() ? shingles(instructions) : new Set<string>();
+  /*
+   * Whole lines, not six-word runs.
+   *
+   * The shingle version deleted real answers. The prompt contains the recent
+   * transcript, and the transcript contains PINGO's own past replies - so any
+   * new reply that overlapped an old one by six words was thrown away as an
+   * echo. Every memory question broke this way at once: "tujhe kya yaad hai?"
+   * is answered with facts that are, necessarily, already in the prompt.
+   *
+   * An echo is a line the model copied out whole. Matching whole lines cannot
+   * mistake a fresh sentence for one, and it still catches what was actually
+   * observed - "Them: hey", "You: arre hey", "ek sunset beach ka photo banao"
+   * came back character for character.
+   *
+   * It gives up partial quotations, which is a real loss and an acceptable one:
+   * "But rule: \"A greeting or a one-word message…" is caught by the rule
+   * pattern in `DELIBERATION` instead, and deleting somebody's answer is a
+   * worse failure than letting a half-quote through.
+   */
+  const known = new Set(
+    instructions
+      .split('\n')
+      /*
+       * The speaker label comes off before comparing.
+       *
+       * Transcript lines are written as "User: ek sunset beach ka photo banao",
+       * and a model reading one back out drops the label - it copies the words,
+       * not the formatting. Comparing with the prefix still attached matched
+       * nothing, which is how the transcript leak survived a filter written to
+       * catch it.
+       */
+      .map((line) => words(line.replace(/^\s*(them|you|user|assistant)\s*:\s*/i, '')).join(' '))
+      // Too short to be distinctive: "hey" is not a quotation of anything.
+      .filter((line) => line.split(' ').length >= MIN_ECHO_WORDS),
+  );
 
   const kept = text.split('\n').filter((line) => {
-    // Our own headings, which are too short to shingle but unmistakable.
+    // Our own headings, which are short but unmistakable.
     if (SCAFFOLD_LINE.some((re) => re.test(line.trim()))) return false;
-    // A short line cannot carry a six-word run, so it cannot be a quotation.
-    if (known.size === 0 || words(line).length < SHINGLE) return true;
-    for (const shingle of shingles(line)) {
-      if (known.has(shingle)) return false;
-    }
-    return true;
+    return !known.has(words(line).join(' '));
   });
 
   return kept.join('\n').trim();
