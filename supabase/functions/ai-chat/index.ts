@@ -485,7 +485,21 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
     }
 
     emit('reading_reply');
-    let { reply, ask } = parseModelPayload(raw1, length, system);
+    /*
+     * The whole prompt, not the system message.
+     *
+     * The transcript PINGO feeds the model for context travels in a *user*
+     * message, so comparing against `system` alone left it unguarded - and the
+     * model duly read it back out:
+     *
+     *   From transcript:
+     *   Them: hey / You: arre hey / You: kya chal raha hai
+     *
+     * Which is precisely what "it copy-pastes my own messages" has been all
+     * along, and it was never in the system prompt to be caught.
+     */
+    const sentToModel = messages.map((m) => m.content).join('\n');
+    let { reply, ask } = parseModelPayload(raw1, length, sentToModel);
     reply = finalizeBubble(reply, length);
     ask = finalizeAsk(ask);
 
@@ -598,7 +612,11 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
         max_tokens: maxTokens,
       });
       if (raw2) {
-        const second = parseModelPayload(raw2, length, buildRetrySystem(profile as AiProfile | null));
+        const second = parseModelPayload(
+          raw2,
+          length,
+          retryMessages.map((m) => m.content).join('\n'),
+        );
         const r2 = finalizeBubble(second.reply, length);
         if (r2 && !shouldRetryAnswer(r2, live ?? '', intent)) {
           reply = r2;

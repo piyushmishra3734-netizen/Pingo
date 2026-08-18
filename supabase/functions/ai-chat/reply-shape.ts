@@ -464,8 +464,21 @@ const TRACE_META = [
  * without a single innocent sentence tripping the whole reply.
  */
 const DELIBERATION = [
-  // Planning in the first person plural. PINGO speaks as "main", never "we".
-  /\bwe (can|could|should|might|will|may) (have|answer|say|reply|use|do|give|keep|make|write|add)\b/i,
+  /*
+   * The first person plural, which is the single strongest tell there is.
+   *
+   * PINGO speaks as "main". It has no colleagues. Every "we" in a generation is
+   * the model conferring with itself about the task - "we should do", "we
+   * remember the three ideas", "they want us to recall" - and the only reason
+   * this is a weighed signal rather than a hard one is that "we can go
+   * together" is a thing somebody might genuinely say in a reply.
+   */
+  /\bwe (can|could|should|might|will|may|must|need to|have to) (have|answer|say|reply|use|do|give|keep|make|write|add|recall|remember|mention)\b/i,
+  /\bwe (remember|know|assume|note|see|interpret)\b/i,
+  /\b(they|user|the user) (want|wants|need|needs|is asking|are asking|asked) us\b/i,
+  // Reasoning connectives, at the start of a line, where a reply never puts them.
+  /^(thus|hence|therefore|so answer|in summary|conclusion)\b[,:]?/im,
+  /\blikely (asking|means|meaning|wants|referring)\b/i,
   // Measuring the reply instead of writing it.
   /\b(their|the user'?s|his|her) (message|reply|question) (length|is|was|seems)\b/i,
   /\b(must|should) be short and\b/i,
@@ -623,15 +636,45 @@ function shingles(text: string): Set<string> {
  * rule and then answers properly underneath it - and throwing away a real answer
  * to remove a quotation would be trading one defect for a worse one.
  */
-export function stripPromptEcho(text: string, instructions: string): string {
-  if (!text.trim() || !instructions.trim()) return text;
+/**
+ * The labels PINGO wraps around the context it sends, read back out.
+ *
+ * `stripPromptEcho` catches the transcript itself, because that is copied
+ * verbatim and long. It cannot catch the headings - "From transcript:",
+ * "-- 1 ---", "User messages:" - because a heading is three words and six are
+ * needed before a match can be trusted.
+ *
+ * They are worth naming individually anyway: these are strings this codebase
+ * writes, not English somebody might say. A reply beginning "Them:" is the
+ * scaffolding, every time.
+ */
+const SCAFFOLD_LINE = [
+  /^(from |the )?transcript( includes| below| so far)?\s*:/i,
+  /^(user|assistant|their|your) messages?\s*:/i,
+  /^(full |recent )?conversation( so far| below)?\s*:/i,
+  /^-{2,}\s*\d+\s*-{2,}$/,
+  /^(them|you|user|assistant)\s*:\s/i,
+  /^(memories|memory|facts|notes|context)\s*:/i,
+];
 
-  const known = shingles(instructions);
-  if (known.size === 0) return text;
+export function stripPromptEcho(text: string, instructions: string): string {
+  if (!text.trim()) return text;
+
+  /*
+   * The headings are ours whatever the instructions were.
+   *
+   * This used to return early when there was nothing long enough to shingle,
+   * which meant a short prompt disabled the scaffolding check as well - and the
+   * scaffolding is the half that needs no comparison to recognise. Only the
+   * quotation half depends on having something to compare against.
+   */
+  const known = instructions.trim() ? shingles(instructions) : new Set<string>();
 
   const kept = text.split('\n').filter((line) => {
+    // Our own headings, which are too short to shingle but unmistakable.
+    if (SCAFFOLD_LINE.some((re) => re.test(line.trim()))) return false;
     // A short line cannot carry a six-word run, so it cannot be a quotation.
-    if (words(line).length < SHINGLE) return true;
+    if (known.size === 0 || words(line).length < SHINGLE) return true;
     for (const shingle of shingles(line)) {
       if (known.has(shingle)) return false;
     }

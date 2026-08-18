@@ -158,5 +158,45 @@ check(
 );
 check(stripPromptEcho('anything at all', '') === 'anything at all', 'no instructions means no change');
 
+console.log('\n--- the context PINGO sends, read back out ---');
+// Verbatim from production, 09:00 and 09:01 - the real "it copy-pastes my
+// messages" complaint. The transcript travels in a user message, so comparing
+// only against the system prompt never saw it.
+check(
+  stripPromptEcho(
+    'From transcript:\nUser messages:\nek sunset beach ka photo banao\nHaan yaad hai, tumne beach wali photo maangi thi.',
+    'Full recent conversation (USE THIS):\nUser: ek sunset beach ka photo banao\nYou: yeh rahi',
+  ) === 'Haan yaad hai, tumne beach wali photo maangi thi.',
+  'headings and copied turns go, the real answer stays',
+);
+check(
+  stripPromptEcho('-- 1 ---\nThem: hey\nYou: arre hey\nBas yahi yaad hai mujhe.', 'Them: hey') ===
+    'Bas yahi yaad hai mujhe.',
+  'the numbered separators and Them:/You: lines go',
+);
+survives('Them ko bol dena main aa raha hoon', 'a sentence starting with a similar word');
+check(
+  stripPromptEcho('Memories: coffee, cricket', 'anything') === '',
+  'a bare context heading is not a reply',
+);
+
+console.log('\n--- conferring with itself ---');
+// Verbatim from production at 09:08, after two commits that each claimed to
+// have closed this. PINGO has no colleagues; every "we" is the model.
+leaks(
+  'Thus "konsa idea? " likely asking which of those ideas we should do? Or they want us to recall the ideas.',
+  'thus / likely asking / we should do',
+);
+check(
+  stripReasoning(
+    'So answer: we remember the three ideas: sunset beach photo, realistic girl image, mountain lake wallpaper.',
+  ) === '',
+  'so answer / we remember becomes empty',
+);
+
+console.log('\n--- a single "we" is still allowed to be a sentence ---');
+survives('We can go together', 'plain first person plural, one signal');
+survives('Hum dono ne socha tha ki we should meet', 'code-switched but only one signal');
+
 console.log(failures === 0 ? '\nAll reasoning-leak checks passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);
