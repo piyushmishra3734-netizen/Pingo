@@ -43,7 +43,7 @@ const ENGLISH =
  * pattern with alternation.
  */
 const HINGLISH =
-  /^\s*(.*?)\s*(?:ka|ki|ke)?\s*(?:images|image|pictures|picture|photos|photo|photu|tasveer|tasvir|pic|artwork|art|drawing|wallpaper)\s+(?:banaao|banade|banao|banaa|bana|genarate|genrate|generate|create|draw|nikalo|nikal)\s*(?:karo|kardo|kar|kro|krdo|kr|kero|kerdo|ker)?\s*(?:do|de|dijiye)?(?:\s+(?:please|pls|plz|na|naa|yaar|yr|bhai|bro|dost))*\s*(.*?)\s*[.!?]*\s*$/i;
+  /^\s*(.*?)\s*(?:ka|ki|ke)?\s*(?:images|image|pictures|picture|photos|photo|photu|tasveer|tasvir|pic|artwork|art|drawing|wallpaper)\s+(?:banaao|banade|banao|banaa|bana|bnaao|bnade|bnao|bnaa|bna|genarate|genrate|generate|create|draw|nikalo|nikal)\s*(?:karo|kardo|kar|kro|krdo|kr|kero|kerdo|ker)?\s*(?:do|de|dijiye)?(?:\s+(?:please|pls|plz|na|naa|yaar|yr|bhai|bro|dost))*\s*(.*?)\s*[.!?]*\s*$/i;
 
 /** Leading filler the subject never actually starts with. */
 const LEADING_FILLER = /^(?:me|mujhe|mereko|hume|humein|ek|एक|a|an|the|of|for)\s+/i;

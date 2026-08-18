@@ -56,6 +56,11 @@ wants('ek red bicycle ka photo banao jo baarish mein deewar se tiki ho',
   'red bicycle jo baarish mein deewar se tiki ho');
 wants('cat ka photo banao jo hass raha ho', 'cat jo hass raha ho');
 
+// Vowels get dropped when people type fast. These are real messages too.
+wants('ek realistic ladki ki image bnao', 'realistic ladki');
+wants('sunset ka photo bna do', 'sunset');
+wants('ek car ka pic bnado', 'car');
+
 console.log('\n--- must not fire ---');
 // The making verbs without a picture word. These are the false positives that
 // would replace an answer with an oil painting.
