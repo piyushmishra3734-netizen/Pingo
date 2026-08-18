@@ -37,6 +37,16 @@ const TARGET_RATE = 16_000;
 /** Bigger buffers mean fewer frames and more delay. This is about 85 ms. */
 const FRAME_SIZE = 4096;
 
+/**
+ * How long a pause has to be before the turn counts as over.
+ *
+ * Sarvam's default is 500 ms and it is paid on every turn as pure latency -
+ * dead air between somebody finishing and PINGO starting. 300 is the shortest
+ * that does not cut people off mid-breath, and it comes off the front of every
+ * single answer.
+ */
+export const SILENCE_MS = 300;
+
 export interface LiveTranscript {
   /** Text so far for the utterance in progress. Cleared when it completes. */
   partial: string;
@@ -91,9 +101,20 @@ export interface LiveTranscriptOptions {
   onFinal: (text: string) => void;
   /** Live loudness for whatever is drawing, read rather than pushed. */
   onLevel?: (level: number) => void;
+  /**
+   * The provider heard the utterance end.
+   *
+   * Fires slightly before the final text, so the screen can change state while
+   * the last word is still settling rather than after it.
+   */
+  onSpeechEnd?: () => void;
 }
 
-export function useLiveTranscript({ onFinal, onLevel }: LiveTranscriptOptions): LiveTranscript {
+export function useLiveTranscript({
+  onFinal,
+  onLevel,
+  onSpeechEnd,
+}: LiveTranscriptOptions): LiveTranscript {
   const [partial, setPartial] = useState('');
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string>();
@@ -106,6 +127,8 @@ export function useLiveTranscript({ onFinal, onLevel }: LiveTranscriptOptions): 
   finalRef.current = onFinal;
   const levelRef = useRef(onLevel);
   levelRef.current = onLevel;
+  const endedRef = useRef(onSpeechEnd);
+  endedRef.current = onSpeechEnd;
 
   const stop = useCallback(() => {
     setListening(false);
@@ -154,23 +177,42 @@ export function useLiveTranscript({ onFinal, onLevel }: LiveTranscriptOptions): 
       }
 
       const ws = new WebSocket(
-        `${base}/functions/v1/stt-stream?jwt=${encodeURIComponent(session.access_token)}`,
+        `${base}/functions/v1/stt-stream?jwt=${encodeURIComponent(session.access_token)}` +
+          `&silence_duration_ms=${SILENCE_MS}`,
       );
       socket.current = ws;
 
-      ws.onmessage = (event) => {
-        let message: { type?: string; data?: { text?: string } };
+      ws.onmessage = (frame) => {
+        /*
+         * `event` and a top-level `text`, which is not what the first version
+         * read.
+         *
+         * It looked for `type` and `data.text` - a shape from the documentation
+         * page rather than the wire - so nothing ever matched and transcription
+         * silently did nothing at all. Confirmed against the live socket:
+         *
+         *   {"event":"transcript.final","utterance_idx":0,"text":"Haan bhai, …"}
+         */
+        let message: { event?: string; text?: string };
         try {
-          message = JSON.parse(String(event.data));
+          message = JSON.parse(String(frame.data));
         } catch {
           return;
         }
-        const text = message.data?.text?.trim();
-        if (message.type === 'transcript.partial' && text) setPartial(text);
-        if (message.type === 'transcript.final') {
+
+        const text = message.text?.trim();
+        if (message.event === 'transcript.partial' && text) setPartial(text);
+        if (message.event === 'transcript.final') {
           setPartial('');
           if (text) finalRef.current(text);
         }
+
+        /*
+         * Speech ending is worth knowing a beat before the words settle: the
+         * screen can stop saying "listening" while the last fragment lands,
+         * which is the difference between feeling answered and feeling ignored.
+         */
+        if (message.event === 'vad.speech_end') endedRef.current?.();
       };
       ws.onerror = () => setError('The transcriber dropped out.');
 

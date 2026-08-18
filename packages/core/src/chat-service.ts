@@ -112,6 +112,17 @@ export interface VideoOverlayItem {
 }
 
 export interface OutgoingMessage {
+  /**
+   * This message was spoken and the answer will be read out loud.
+   *
+   * Named away from `voice`, which on this type already means a voice note.
+   *
+   * Carried on the draft rather than as a separate call because sending is
+   * already what asks the assistant - a second call would produce a second
+   * reply to one sentence. The function uses it to drop the work that trades
+   * latency for polish, which on a call is silence down the line.
+   */
+  spokenAloud?: boolean;
   conversationId: ConversationId;
   /** For a sticker this is its emoji or name - the text fallback. */
   body: string;
@@ -448,6 +459,7 @@ export interface ChatService {
    * second copy of it in the conversation, which is not what "try again" means.
    */
   regenerateAiReply?(conversationId: ConversationId, userMessage: string): Promise<void>;
+
   markConversationRead(conversationId: ConversationId): Promise<void>;
 
   /**

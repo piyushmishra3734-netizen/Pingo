@@ -619,7 +619,19 @@ export function ChatThread({
   const askByVoice = useCallback(
     async (spoken: string): Promise<string | undefined> => {
       const before = Date.now();
-      await service.sendMessage({ conversationId: conversation.id, body: spoken });
+      /*
+       * `voice` on the draft, not a second call.
+       *
+       * Sending is already what asks the assistant, so a separate "ask aloud"
+       * would have produced two replies to one sentence. The flag rides along
+       * and the function drops its retry and its follow-up question - the retry
+       * alone measured at 13.6 seconds, which on a call is dead air.
+       */
+      await service.sendMessage({
+        conversationId: conversation.id,
+        body: spoken,
+        spokenAloud: true,
+      });
 
       // Generous, because a heavy question routes to the 120B and can take a
       // retry on top. Giving up early would look like PINGO ignoring them.
@@ -629,7 +641,13 @@ export function ChatThread({
           (m) => m.authorId === PINGO_AI_USER_ID && m.createdAt >= before && m.body.trim(),
         );
         if (reply) return reply.body;
-        await new Promise((r) => setTimeout(r, 400));
+        /*
+         * A tenth of a second. This loop sits between the answer existing and
+         * the voice starting, so its interval is latency in the most literal
+         * sense - the old 400 ms added a fifth of a second on average to every
+         * spoken turn for nothing.
+         */
+        await new Promise((r) => setTimeout(r, 100));
       }
       return undefined;
     },

@@ -123,7 +123,16 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
       userMessage?: string;
       /** Group mode: only set when the bot is a member and the user @mentioned AI. */
       mode?: 'dm' | 'group';
+      /**
+       * This turn is being spoken out loud.
+       *
+       * A voice call is the one place where a fast adequate answer beats a slow
+       * good one, because the person is sitting in silence waiting for a mouth
+       * to open. Set by the call screen and by nothing else.
+       */
+      voice?: boolean;
     };
+    const spoken = body.voice === true;
     const conversationId = body.conversationId;
     if (!conversationId) {
       return json(request, { error: 'conversationId required.' }, 400);
@@ -582,10 +591,23 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
      */
     const chitChat = replyBudget(live ?? '').bubbles === 1;
 
+    /*
+     * Timed on the live function at 13.6 seconds - two thirds of a slow turn.
+     *
+     * In a typed thread that buys a sharper sentence and costs a wait somebody
+     * is not watching. In a voice call it is thirteen seconds of silence while
+     * they hold the phone to their ear, which is the difference between a
+     * conversation and a broken one. A vague answer said quickly can be asked
+     * about again; a perfect one after thirteen seconds has already lost.
+     *
+     * An empty generation still earns a retry out loud - there is nothing to
+     * say otherwise - and so does a repeat, because hearing the same sentence
+     * twice is worse than waiting for a different one.
+     */
     if (
       cameBackEmpty ||
       repeated ||
-      (!isGroup && !chitChat && shouldRetryAnswer(reply, live ?? '', intent))
+      (!isGroup && !spoken && !chitChat && shouldRetryAnswer(reply, live ?? '', intent))
     ) {
       const threadBrief = formatThreadForPrompt(historyForModel, 16, 320);
       const retryMessages = [
@@ -661,6 +683,15 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
     emit('polishing');
     reply = diversifyReply(reply, live ?? '', recentAssistant, length, intent);
     ask = diversifyAsk(ask, live ?? '', reply, recentAssistant, intent);
+
+    /*
+     * No follow-up question out loud.
+     *
+     * A second bubble is a second thing to synthesise, a second thing to wait
+     * for, and a question nobody asked - and in a voice call it arrives as the
+     * assistant talking past the end of its own answer.
+     */
+    if (spoken) ask = '';
 
     // Clear requests / greetings → one bubble (no random second question).
     if (

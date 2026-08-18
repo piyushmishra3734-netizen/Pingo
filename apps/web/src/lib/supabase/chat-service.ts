@@ -3785,7 +3785,7 @@ export class SupabaseChatService implements ChatService {
 
     // Person-shaped AI: 1:1 thread always replies; groups only on @pingoai.
     if ((isAi || callAiInGroup) && draft.body.trim()) {
-      void this.#requestAiReply(draft.conversationId, draft.body).catch((cause) => {
+      void this.#requestAiReply(draft.conversationId, draft.body, draft.spokenAloud === true).catch((cause) => {
         console.error('[pingo-ai]', cause);
       });
     }
@@ -3934,7 +3934,12 @@ export class SupabaseChatService implements ChatService {
     await this.#requestAiReply(conversationId, userMessage);
   }
 
-  async #requestAiReply(conversationId: ConversationId, userMessage: string): Promise<void> {
+
+  async #requestAiReply(
+    conversationId: ConversationId,
+    userMessage: string,
+    spoken = false,
+  ): Promise<void> {
     /*
      * This used to add the conversation to `#aiConversationIds`, and that one
      * line was the whole of a bad bug.
@@ -3992,13 +3997,14 @@ export class SupabaseChatService implements ChatService {
         conversationId,
         userMessage.slice(0, 4000),
         (stage) => this.#setAiTyping(conversationId, true, stage),
+        spoken,
       ).catch((cause) => {
         // A thrown turn is a real failure and must not be retried by the
         // fallback - that would post two replies.
         throw cause;
       });
 
-      if (!streamed) await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000));
+      if (!streamed) await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000), spoken);
 
       // Ensure the new assistant row is in the list even if realtime lags.
       const conversation = await this.getConversation(conversationId);
@@ -4078,6 +4084,7 @@ export class SupabaseChatService implements ChatService {
     conversationId: ConversationId,
     userMessage: string,
     onStage: (stage: ChatActivity) => void,
+    spoken = false,
   ): Promise<boolean> {
     const {
       data: { session },
@@ -4094,7 +4101,7 @@ export class SupabaseChatService implements ChatService {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
       },
-      body: JSON.stringify({ conversationId, userMessage, stream: true }),
+      body: JSON.stringify({ conversationId, userMessage, stream: true, voice: spoken }),
     });
 
     /*
@@ -4149,7 +4156,11 @@ export class SupabaseChatService implements ChatService {
     return finished;
   }
 
-  async #invokeAiChat(conversationId: ConversationId, userMessage: string): Promise<void> {
+  async #invokeAiChat(
+    conversationId: ConversationId,
+    userMessage: string,
+    spoken = false,
+  ): Promise<void> {
     const {
       data: { session },
     } = await this.#client.auth.getSession();
@@ -4159,7 +4170,7 @@ export class SupabaseChatService implements ChatService {
 
     // Prefer invoke; on failure fall through to a direct fetch with the same JWT.
     const { data, error } = await this.#client.functions.invoke('ai-chat', {
-      body: { conversationId, userMessage },
+      body: { conversationId, userMessage, voice: spoken },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
@@ -4183,7 +4194,7 @@ export class SupabaseChatService implements ChatService {
         apikey: anon,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ conversationId, userMessage }),
+      body: JSON.stringify({ conversationId, userMessage, voice: spoken }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {
