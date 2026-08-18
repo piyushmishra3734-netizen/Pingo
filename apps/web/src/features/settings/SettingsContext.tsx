@@ -39,15 +39,22 @@ const STORAGE_KEY = 'pingo:preferences';
 const LEGACY_APPEARANCE_KEY = 'pingo:appearance';
 
 /**
- * Set once the ink-to-green move has been applied to this install.
+ * Set once the move to purple has been applied to this install.
  *
  * ## Why a migration is needed at all
  *
  * Changing `DEFAULT_APPEARANCE.accent` moves the arriving colour for a fresh
  * install and nobody else, because the whole preferences object is written to
- * storage on mount - so every existing install already has `accent: 'blue'`
- * saved, and the merge below rightly prefers what is stored. Without this, the
- * new default would reach approximately nobody.
+ * storage on mount - so every existing install already has an accent saved, and
+ * the merge below rightly prefers what is stored. Without this, the new default
+ * would reach approximately nobody.
+ *
+ * ## Why v2
+ *
+ * v1 moved ink to green and has already run on any install that opened the app
+ * in the hour green was the default. Reusing its key would mean those installs
+ * skip this one and sit on green for good, which is the opposite of the point.
+ * A new key runs once more, everywhere.
  *
  * ## What it cannot tell apart
  *
@@ -57,9 +64,9 @@ const LEGACY_APPEARANCE_KEY = 'pingo:appearance';
  * once and has to pick it again.
  *
  * That is the cost, and it is paid once: the marker means a person who re-picks
- * Ink afterwards keeps it for good.
+ * their colour afterwards keeps it for good.
  */
-const ACCENT_GREEN_MIGRATION_KEY = 'pingo:accent-green-v1';
+const ACCENT_MIGRATION_KEY = 'pingo:accent-purple-v2';
 
 interface SettingsContextValue {
   preferences: Preferences;
@@ -79,18 +86,25 @@ interface SettingsContextValue {
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
 /**
- * Move an untouched ink accent to green, once per install.
+ * Move an untouched accent to purple, once per install.
  *
- * Only `blue` is touched. Purple, pink and a custom hex are colours somebody
- * went and chose, and a default changing underneath a choice is the thing this
- * is careful not to do.
+ * `blue` is the ink default nobody picked. `green` is here because it was the
+ * default for about an hour between two commits, so an install that loaded the
+ * app in that window has green stored without anybody having chosen it - and
+ * leaving it would strand exactly the people who happened to open the app at
+ * the wrong moment.
+ *
+ * That is the one place this could be wrong: somebody who genuinely picked green
+ * in that hour is moved too. Pink, purple and a custom hex are untouched, which
+ * is the rule everywhere else - a default changing underneath a choice is the
+ * thing this is careful not to do.
  */
 function migrateAccent(appearance: AppearanceSettings): AppearanceSettings {
   try {
-    if (localStorage.getItem(ACCENT_GREEN_MIGRATION_KEY)) return appearance;
-    localStorage.setItem(ACCENT_GREEN_MIGRATION_KEY, '1');
-    if (appearance.accent !== 'blue') return appearance;
-    return { ...appearance, accent: 'green' };
+    if (localStorage.getItem(ACCENT_MIGRATION_KEY)) return appearance;
+    localStorage.setItem(ACCENT_MIGRATION_KEY, '1');
+    if (appearance.accent !== 'blue' && appearance.accent !== 'green') return appearance;
+    return { ...appearance, accent: 'purple' };
   } catch {
     // Private mode: no marker, no migration. The stored colour stands, which is
     // the safe direction to be wrong in.

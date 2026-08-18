@@ -42,16 +42,19 @@ export interface AppearanceSettings {
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   theme: 'auto',
   /**
-   * Green.
+   * Purple.
    *
    * Was ink, whose storage key is `blue` for older installs - the CSS map for
    * `data-accent=blue` is the ink palette, and that mapping stays, because
    * anybody who chose ink chose it under that name.
    *
+   * Was green for about an hour in between, which is why the migration beside
+   * this one moves green as well as blue.
+   *
    * This is the arriving colour only. A stored preference is read after this
    * and wins, so nobody who has picked a colour has it changed underneath them.
    */
-  accent: 'green',
+  accent: 'purple',
   motion: 'balanced',
   glass: 50,
 };
