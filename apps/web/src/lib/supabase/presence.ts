@@ -29,12 +29,19 @@ import type { PingoSupabaseClient } from './client.js';
 /**
  * What someone is doing in a thread right now.
  *
- * One channel carries both, because they are the same kind of fact -- true for
- * seconds, wrong forever after -- and share an expiry sweeper. A second channel
- * would need its own timeout and could disagree with this one about whether the
- * person is still there.
+ * One channel carries all of them, because they are the same kind of fact --
+ * true for seconds, wrong forever after -- and share an expiry sweeper. A
+ * second channel would need its own timeout and could disagree with this one
+ * about whether the person is still there.
+ *
+ * Re-exported from `@pingo/core` rather than declared again. It was declared
+ * twice, and the copies had already drifted: adding 'drawing' to the shared one
+ * left this file's version behind, and since this is the one the chat service
+ * imports, the shared change compiled into nothing. A type with two definitions
+ * is a type that is wrong in one of them.
  */
-export type ChatActivity = 'typing' | 'recording';
+export type { ChatActivity } from '@pingo/core';
+import type { ChatActivity } from '@pingo/core';
 
 /** How long a typing signal stands before it is assumed stale. */
 const TYPING_TIMEOUT_MS = 4_000;

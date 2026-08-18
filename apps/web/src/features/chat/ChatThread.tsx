@@ -16,6 +16,7 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   IconButton,
+  ImageIcon,
   LoadingState,
   MoreIcon,
   PhoneIcon,
@@ -127,6 +128,42 @@ const DIVIDER_HOLD_MS = 600;
  * stands alone in the thread - with no bubble and no words around it, the mark
  * has to carry the meaning by itself, and at 12px it reads as a speck.
  */
+/**
+ * "A picture is being made", for the seconds that takes.
+ *
+ * Drawing is the longest thing PINGO does on somebody's behalf - seconds, not
+ * the instant before a sentence lands - and the typing dots spend all of it
+ * promising words. This says the true thing instead, in a shape nobody has to
+ * learn: a frame, and a sweep of light crossing the words the way every
+ * loading state on the web has for a decade.
+ *
+ * The sweep is the one place a shimmer is right. `Skeleton` deliberately
+ * refuses one because it cannot know about progress; here the wait is real,
+ * bounded and already under way, and movement is what separates "working" from
+ * "stuck".
+ *
+ * `motion-reduce` drops the sweep and leaves the words, because the
+ * information is the sentence, not the light.
+ */
+function DrawingIndicator({ label = 'drawing your picture' }: { label?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2" role="status">
+      <ImageIcon size={16} className="shrink-0 text-brand" aria-hidden />
+      <span
+        className={cn(
+          'bg-clip-text text-transparent',
+          'bg-[linear-gradient(100deg,var(--color-text-secondary)_35%,var(--color-brand)_50%,var(--color-text-secondary)_65%)]',
+          'bg-[length:220%_100%] animate-ai-sweep',
+          'motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-text-secondary',
+        )}
+      >
+        {label}
+      </span>
+      <span className="sr-only">PINGO is drawing a picture. This takes a few seconds.</span>
+    </span>
+  );
+}
+
 function RecordingPulse({ size = 12 }: { size?: number }) {
   return (
     <span
@@ -562,6 +599,7 @@ export function ChatThread({
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
   const isRecording = isTyping && conversation.typingActivity === 'recording';
+  const isDrawing = isTyping && conversation.typingActivity === 'drawing';
   /** AI has no contact row - still show a normal typing line, not a blank. */
   const typingLabel = isAi
     ? 'typing…'
@@ -1106,8 +1144,14 @@ export function ChatThread({
                   promise and a different wait. Reusing the same mark would make
                   the receiver read it as text on the way.
                 */}
-                {isRecording ? <RecordingPulse /> : <PingoDot state="typing" size={4} />}
-                {typingLabel}
+                {isDrawing ? (
+                  <DrawingIndicator label="drawing…" />
+                ) : (
+                  <>
+                    {isRecording ? <RecordingPulse /> : <PingoDot state="typing" size={4} />}
+                    {typingLabel}
+                  </>
+                )}
               </span>
             ) : (
               <span className="block truncate text-caption text-text-secondary">
@@ -1438,7 +1482,20 @@ export function ChatThread({
                 bubble because dots inside one read as a message being formed,
                 which is exactly what they mean.
               */
-              (isRecording ? (
+              (isDrawing ? (
+                /*
+                  Inside a bubble, unlike the microphone.
+
+                  The microphone stands bare because the mark *is* the whole
+                  message. This is a sentence, and a sentence with no bubble
+                  behind it reads as part of the wallpaper.
+                */
+                <div className="flex justify-start pt-1">
+                  <div className="glass-water rounded-lg px-4 py-3 text-caption">
+                    <DrawingIndicator />
+                  </div>
+                </div>
+              ) : isRecording ? (
                 <div className="flex justify-start pt-1 pl-1">
                   <RecordingPulse size={22} />
                 </div>

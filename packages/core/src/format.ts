@@ -218,7 +218,8 @@ export function formatTypingLabel(
   users: User[],
   activity: ChatActivity = 'typing',
 ): string {
-  const verb = activity === 'recording' ? 'recording' : 'typing';
+  const verb =
+    activity === 'recording' ? 'recording' : activity === 'drawing' ? 'drawing' : 'typing';
   const names = userIds
     .map((id) => users.find((u) => u.id === id)?.name.split(' ')[0])
     .filter((n): n is string => Boolean(n));

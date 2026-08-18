@@ -91,6 +91,18 @@ import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/priva
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
+/*
+ * The same file the Edge Function matches with, imported rather than copied.
+ *
+ * Both sides have to agree on what counts as a request for a picture: the
+ * server decides whether to draw one, the client decides what to say it is
+ * doing while that happens, and a second regex here would drift into promising
+ * a picture that never comes. It is pure - no Deno, no network - which is why
+ * it can live in a function directory and still be read from here, exactly as
+ * `verify:image-intent` reads it.
+ */
+import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-intent.js';
+
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
 
 /**
@@ -3870,13 +3882,27 @@ export class SupabaseChatService implements ChatService {
 
 
   /** Local typing dots for the AI person - not a Realtime presence channel. */
-  #setAiTyping(conversationId: ConversationId, typing: boolean): void {
+  /*
+   * `activity` because "drawing" is a different promise from "typing", and a
+   * ten-second wait under dots that mean words reads as the assistant being
+   * broken.
+   *
+   * Written into `#liveTyping` as well as emitted, which the previous version
+   * did not do. That map is what a conversation rebuild restores from - see the
+   * note at its other writer - and realtime rebuilds constantly, so without
+   * this the line lasted until the next refresh. Human typing already had the
+   * fix; the assistant's had been missed.
+   */
+  #setAiTyping(
+    conversationId: ConversationId,
+    typing: boolean,
+    activity: ChatActivity = 'typing',
+  ): void {
     this.#rememberAiPerson();
-    this.#emit({
-      type: 'typing:changed',
-      conversationId,
-      userIds: typing ? [PINGO_AI_USER_ID] : [],
-    });
+    const userIds = typing ? [PINGO_AI_USER_ID] : [];
+    if (typing) this.#liveTyping.set(conversationId, { userIds, activity });
+    else this.#liveTyping.delete(conversationId);
+    this.#emit({ type: 'typing:changed', conversationId, userIds, activity });
   }
 
   /** So "PINGO is typing" has a name even when the bot is not in contacts. */
@@ -3919,7 +3945,13 @@ export class SupabaseChatService implements ChatService {
      * Nothing is cached here now. `#isAiConversation` reads `kind` and caches
      * only a genuine `ai` thread, which is what it was always for.
      */
-    this.#setAiTyping(conversationId, true);
+    /*
+     * Decided here rather than waited for, because the server cannot tell the
+     * client anything until it has already finished. The detector is the same
+     * one the function runs on the same text, so the line somebody reads while
+     * they wait is the truth about what is happening.
+     */
+    this.#setAiTyping(conversationId, true, imagePrompt(userMessage) ? 'drawing' : 'typing');
     // Anything older than this is a message the UI already has.
     const startedAt = Date.now();
 

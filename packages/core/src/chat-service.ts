@@ -236,7 +236,15 @@ export interface MessageReceipt {
  * This is what keeps phone and desktop consistent: both consume the same stream.
  */
 /** What somebody is doing in a thread right now. */
-export type ChatActivity = 'typing' | 'recording';
+/*
+ * What the other side is doing, when it is not simply typing.
+ *
+ * 'drawing' is the assistant only. It matters because it is a *long* wait -
+ * seconds, not the moment before a sentence lands - and dots that mean "words
+ * are coming" spend that whole time promising the wrong thing. Same reason
+ * 'recording' exists.
+ */
+export type ChatActivity = 'typing' | 'recording' | 'drawing';
 
 export type ChatEvent =
   | { type: 'message:new'; message: Message }

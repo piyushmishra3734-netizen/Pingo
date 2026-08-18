@@ -385,3 +385,30 @@ video {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/*
+ * The light that crosses "drawing your picture" while it is being drawn.
+ *
+ * Everywhere else in PINGO a shimmer is refused - `Skeleton` says so in as many
+ * words - because sweeping light across a placeholder implies progress nothing
+ * is measuring. This is the exception the rule was written around: the work is
+ * real, it has started, and it ends in a few seconds. Movement is the only
+ * thing separating "still going" from "stuck", and a person watching a still
+ * sentence for eight seconds concludes the second one.
+ *
+ * Slow, because it sits under a picture that is worth waiting for and a fast
+ * sweep reads as urgency. The gradient is 220% of the text so the highlight is
+ * always travelling and never parked.
+ */
+@keyframes ai-sweep {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+
+.animate-ai-sweep {
+  animation: ai-sweep 2200ms linear infinite;
+}
