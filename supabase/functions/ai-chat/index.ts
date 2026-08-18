@@ -1050,6 +1050,7 @@ function buildRetrySystem(profile: AiProfile | null): string {
       ? 'Voice: Gen Z / desi chat energy, still actually answer.'
       : `Voice: ${personality}, still actually answer.`,
     lang ? `Prefer language: ${lang}` : 'Match their language.',
+    'Latin letters only, never Devanagari. Same language, different alphabet.',
     'Plain text only. No JSON, no braces, no field names, no labels.',
   ].join('\n');
 }
@@ -1274,13 +1275,32 @@ function buildSystemPrompt(
     '',
     lengthBlock(length),
     '',
+    /*
+     * The language is theirs; the script is Latin.
+     *
+     * PINGO answers Hindi in Devanagari unless told otherwise, and that breaks
+     * two things at once. Read aloud is English-only at the provider - Aura
+     * answers Devanagari with a silent file - so half the replies could not be
+     * spoken at all. And people here type Hinglish in Latin script, so a reply
+     * in Devanagari is not even matching them; it is answering a different way
+     * from how they asked.
+     *
+     * Hindi stays Hindi. "kya haal hai" rather than "how are you". Only the
+     * letters change.
+     */
     lang
       ? [
           '## LANGUAGE',
           `Write reply and ask primarily in: ${lang}.`,
           'Only mix languages if they mixed first.',
+          'Always write in Latin letters, never Devanagari - "kya haal hai", not "क्या हाल है".',
         ].join('\n')
-      : '## LANGUAGE\nMatch the language they write in.',
+      : [
+          '## LANGUAGE',
+          'Match the language they write in.',
+          'Always write in Latin letters, never Devanagari - "kya haal hai", not "क्या हाल है".',
+          'This is about the alphabet only. Keep answering in their language.',
+        ].join('\n'),
     '',
     '## Emoji',
     '1–3 natural chat emojis when it fits. No spam.',
@@ -1468,6 +1488,7 @@ function buildFocusDirective(
     voice,
     len,
     lang ? `LANGUAGE: write in ${lang}` : 'LANGUAGE: match user',
+    'SCRIPT: Latin letters only, never Devanagari. Same language, different alphabet.',
     'Plain text only. No JSON, no braces, no field names, no labels.',
     'Spam banned: "Bhai full drama", "Kya hua koi baat", "Tumne kaha tha", "maine socha tha tum".',
     denial
