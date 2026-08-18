@@ -1,6 +1,44 @@
 import { CheckIcon, ChatIcon, MuteIcon, SpeakerIcon, SwapIcon, cn } from '@pingo/ui';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { speakStreaming, type Speech } from './speak.js';
+
+/**
+ * One sentence of speech from the server, or nothing.
+ *
+ * Undefined means "the server will not read this one" - Devanagari, a provider
+ * refusal, no session - and the caller falls back to the device's own voices.
+ * It is deliberately not an error: the fallback is a route, not a failure.
+ */
+async function fetchSentence(text: string): Promise<Blob | undefined> {
+  try {
+    const client = getSupabaseClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    const base = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '');
+    const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!session?.access_token || !base || !anon) return undefined;
+
+    const response = await fetch(`${base}/functions/v1/tts`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: anon,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) return undefined;
+    if (!(response.headers.get('Content-Type') ?? '').startsWith('audio/')) return undefined;
+    return await response.blob();
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * What you can do with an answer, under the answer.
@@ -61,18 +99,21 @@ export function AiMessageActions({
   }, [copied]);
 
   /*
-   * Speech is one queue for the whole page, so this button can stop being true
-   * without ever being pressed - another message speaking cancels this one.
-   * Polling is the only signal the API offers; a quarter of a second is far
-   * below noticing and costs nothing.
+   * The reading in progress, if any.
+   *
+   * A ref rather than state: nothing renders from it, and putting it in state
+   * would re-run the effect below every time a sentence started.
    */
-  useEffect(() => {
-    if (!speaking) return;
-    const timer = window.setInterval(() => {
-      if (!window.speechSynthesis?.speaking) setSpeaking(false);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [speaking]);
+  const reading = useRef<Speech | undefined>(undefined);
+
+  /*
+   * Leaving the thread stops the voice.
+   *
+   * Without this, scrolling away or opening another chat left it talking about
+   * a message no longer on screen - which is the kind of thing people close the
+   * app over.
+   */
+  useEffect(() => () => reading.current?.stop(), []);
 
   const copy = async () => {
     try {
@@ -86,55 +127,34 @@ export function AiMessageActions({
     }
   };
 
+  /**
+   * Start reading, or stop if it is already reading.
+   *
+   * The whole reply is handed over at once and split inside - the pipeline
+   * decides where the sentences are, because that is also where it decides
+   * what to fetch next, and splitting in two places would let them disagree.
+   */
   const speak = () => {
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    if (synth.speaking) {
-      synth.cancel();
+    if (reading.current) {
+      reading.current.stop();
+      reading.current = undefined;
       setSpeaking(false);
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(text);
 
-    /*
-     * Say which language, or nothing comes out.
-     *
-     * PINGO answers in Devanagari as readily as in Latin script, and an
-     * utterance with no `lang` inherits the document's - English. An English
-     * voice handed `कोई बात नहीं` does not fail, it simply produces silence,
-     * and the button flickers on and off with no explanation. Measured on a
-     * stock Windows install: 24 voices, none of them Hindi.
-     */
-    const devanagari = /[ऀ-ॿ]/.test(text);
-    utterance.lang = devanagari ? 'hi-IN' : 'en-IN';
-
-    /*
-     * An exact voice when the platform has one, and an Indian-English voice as
-     * the fallback for Hinglish in Latin script - it reads "bhai" and "theek
-     * hai" as a person would, which a US voice does not.
-     */
-    const voices = synth.getVoices();
-    const match =
-      voices.find((v) => v.lang.replace('_', '-').toLowerCase() === utterance.lang.toLowerCase()) ??
-      voices.find((v) => v.lang.toLowerCase().startsWith(devanagari ? 'hi' : 'en-in')) ??
-      (devanagari ? undefined : voices.find((v) => v.lang.toLowerCase().startsWith('en')));
-    if (match) utterance.voice = match;
-
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    synth.cancel();
-    synth.speak(utterance);
+    const started = speakStreaming(text, fetchSentence);
+    reading.current = started;
     setSpeaking(true);
 
-    /*
-     * Nothing started, so stop claiming it did.
-     *
-     * `speak()` on text no installed voice can read returns without speaking
-     * and without an error - the only way to know is to look a moment later.
-     */
-    window.setTimeout(() => {
-      if (!synth.speaking && !synth.pending) setSpeaking(false);
-    }, 700);
+    void started.done.then(() => {
+      // Only if this reading is still the current one: pressing stop and
+      // starting again resolves the old promise afterwards, and it must not
+      // switch off the new one.
+      if (reading.current === started) {
+        reading.current = undefined;
+        setSpeaking(false);
+      }
+    });
   };
 
   return (

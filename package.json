@@ -17,7 +17,7 @@
     "verify:recovery": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery.ts",
     "bench": "node apps/web/scripts/benchmark.mjs",
     "functions:deploy": "supabase functions deploy turn-credentials ai-chat --project-ref lppzoqgvshhmxqsvggug",
-    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery && pnpm verify:local-first && pnpm verify:image-intent && pnpm verify:reply-envelope && pnpm verify:demand && pnpm verify:reasoning-leak",
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery && pnpm verify:local-first && pnpm verify:image-intent && pnpm verify:reply-envelope && pnpm verify:demand && pnpm verify:reasoning-leak && pnpm verify:speak-chunks",
     "verify:recovery-wrap": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery-wrap.ts",
     "verify:secure-backup": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-secure-backup.ts",
     "verify:archive": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-archive.ts",
@@ -68,7 +68,8 @@
     "verify:image-intent": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-image-intent.ts",
     "verify:reply-envelope": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-reply-envelope.ts",
     "verify:demand": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-demand.ts",
-    "verify:reasoning-leak": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-reasoning-leak.ts"
+    "verify:reasoning-leak": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-reasoning-leak.ts",
+    "verify:speak-chunks": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-speak-chunks.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
