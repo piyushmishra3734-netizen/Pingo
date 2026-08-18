@@ -12,6 +12,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 // lives where it can be asserted outside Deno. See `verify:ai-reply-shape`.
 import { characterPrompt } from './character.ts';
 import { replyBudget, shapeReply, splitIntoBubbles } from './reply-shape.ts';
+import { imagePrompt } from './image-intent.ts';
+import { generateImage } from './generate-image.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
@@ -165,6 +167,25 @@ Deno.serve(async (request) => {
     // ONLY save when user explicitly asks (yaad rakh / remember / memory me save).
     // Never auto-extract facts from casual chat.
     const livePreview = typeof body.userMessage === 'string' ? body.userMessage.trim() : '';
+
+    /*
+     * A picture, when that is what was asked for.
+     *
+     * Placed before the profile, the memories and the history are assembled,
+     * because none of them tells a diffusion model anything: the prompt is the
+     * sentence the person just typed. Assembling them first would add a second
+     * of latency to the one request that is already the slowest thing PINGO
+     * does.
+     *
+     * Anything `imagePrompt` does not recognise falls through to the ordinary
+     * reply path, where the model can say what it can and cannot do - which is
+     * a better answer to "draw a conclusion" than a picture of one.
+     */
+    const drawing = imagePrompt(livePreview);
+    if (drawing) {
+      return await replyWithImage(request, userClient, supabaseUrl, conversationId, drawing);
+    }
+
     let justSaved: { key: string; value: string } | null = null;
     if (memoryOn && livePreview) {
       const forced = parseExplicitMemory(livePreview);
@@ -2080,4 +2101,106 @@ async function capMemories(
     const drop = all.slice(0, all.length - max).map((r) => r.id);
     await userClient.from('ai_memories').delete().in('id', drop);
   }
+}
+
+/**
+ * Draw what was asked for, put it in the thread, and say so if it fails.
+ *
+ * ## Three things happen and any of them can fail
+ *
+ * The provider draws it, the object goes into the bucket, and a row points at
+ * the object. They fail differently and a person should be told something
+ * different each time - "PINGO cannot draw yet" and "that took too long" are
+ * not the same news, and neither is worth a stack trace in somebody's chat.
+ *
+ * ## The bytes are cleaned up if the row never happens
+ *
+ * An upload that succeeds followed by an insert that does not leaves an object
+ * nothing points at, which is precisely the orphan `media_uploads` exists to
+ * catch for people - and the bot has no client to run that sweep. So it is
+ * removed here, immediately, while the path is still in a variable.
+ *
+ * ## No special retention
+ *
+ * The picture is an ordinary photo message. The insert trigger stamps it, the
+ * sweeper collects it 24 hours later, and the copy on the recipient's device is
+ * the one that lasts. A generated image is not more precious than a sent one.
+ */
+async function replyWithImage(
+  request: Request,
+  userClient: ReturnType<typeof createClient>,
+  supabaseUrl: string,
+  conversationId: string,
+  prompt: string,
+): Promise<Response> {
+  /** Said in the thread, so it is written to be read rather than logged. */
+  const say = async (body: string, status = 200, extra: Record<string, unknown> = {}) => {
+    const { data: id } = await userClient.rpc('post_ai_reply', {
+      target_conversation: conversationId,
+      reply_body: body,
+    });
+    return json(request, { messageId: id, ...extra }, status);
+  };
+
+  let image;
+  try {
+    image = await generateImage(prompt);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error('[ai-chat] image generation failed', reason);
+
+    if (reason === 'not-configured') {
+      return say("I can't draw yet - my image setup isn't finished. Ask me again soon.", 200, {
+        error: 'image_not_configured',
+      });
+    }
+    // `AbortSignal.timeout` throws a TimeoutError; everything else is the
+    // provider having a bad day, and neither is the asker's fault.
+    if (/abort|timeout/i.test(reason)) {
+      return say('That one took too long to draw. Try me again?', 200, { error: 'image_timeout' });
+    }
+    return say("I couldn't draw that one. Want to try describing it differently?", 200, {
+      error: 'image_failed',
+    });
+  }
+
+  /*
+   * Service role, and only for this.
+   *
+   * Storage lets nobody but an uploader write to their own folder, and the bot
+   * has no session to be that uploader. This is the one credential that can
+   * put an object under the bot's prefix, it is used for exactly that, and
+   * `post_ai_photo` still runs as the caller so membership is decided by the
+   * same rules as every other message.
+   */
+  const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    auth: { persistSession: false },
+  });
+
+  const path = `${BOT_ID}/${crypto.randomUUID()}.${image.extension}`;
+  const { error: uploadError } = await admin.storage
+    .from('photos')
+    .upload(path, image.bytes, { contentType: image.contentType, upsert: false });
+
+  if (uploadError) {
+    console.error('[ai-chat] image upload failed', uploadError.message);
+    return say("I drew it but couldn't send it. Try again?", 200, { error: 'image_upload_failed' });
+  }
+
+  const { data: messageId, error: postError } = await userClient.rpc('post_ai_photo', {
+    target_conversation: conversationId,
+    photo_path: path,
+    caption: prompt,
+  });
+
+  if (postError) {
+    console.error('[ai-chat] image post failed', postError.message);
+    // The row is what makes the object reachable, so without one the bytes are
+    // unreferenced from the moment they land. Removed now rather than left for
+    // a sweeper that has no rule that would ever match them.
+    await admin.storage.from('photos').remove([path]);
+    return say("I drew it but couldn't send it. Try again?", 200, { error: 'image_post_failed' });
+  }
+
+  return json(request, { messageId, image: true, prompt });
 }
