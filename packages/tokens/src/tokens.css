@@ -347,6 +347,27 @@
      which is the one thing a banner has to earn. */
   --animate-install-in: install-in 420ms var(--ease-liquid) backwards;
 
+  /* The assistant's call arriving.
+
+     It is summoned by a hold at the bottom edge of the screen, so it comes up
+     from that edge - the same axis as the gesture, which is why both phones
+     animate their assistant this way rather than fading it in. Further and
+     slower than a sheet: a call taking over the whole screen is the largest
+     thing this app does, and it should be watched arriving.
+
+     `ease-liquid` decelerates hard at the end, so it looks like weight coming
+     to rest rather than a panel stopping. */
+  --animate-call-in: call-in 460ms var(--ease-liquid) backwards;
+
+  /* Light behind the call, drifting.
+
+     Two of them at different speeds and directions so the two blobs are never
+     in the same relative position twice - a single loop of a single gradient
+     reads as a loop within about four seconds. Long enough that nothing on
+     screen appears to be *doing* anything; it is only never quite still. */
+  --animate-aurora-drift: aurora-drift 18s var(--ease-ambient) infinite;
+  --animate-aurora-drift-slow: aurora-drift-slow 26s var(--ease-ambient) infinite;
+
   /* Legacy ping (still used if referenced). */
   --animate-ping-ripple: ping-ripple 1200ms cubic-bezier(0.23, 1, 0.32, 1) infinite;
   --animate-ping-core: ping-core 1200ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -655,6 +676,42 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* The call rising from the bottom edge it was summoned from. It also comes up
+   very slightly small, so the screen reads as travelling towards you rather
+   than sliding past. */
+@keyframes call-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Slow light. Scale as well as position, or the blob reads as a shape being
+   moved rather than as light changing. */
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    transform: translate(-46%, 4%) scale(1.12);
+  }
+}
+
+@keyframes aurora-drift-slow {
+  0%,
+  100% {
+    transform: translate(-50%, 0) scale(1.08);
+  }
+  50% {
+    transform: translate(-55%, -4%) scale(0.95);
   }
 }
 

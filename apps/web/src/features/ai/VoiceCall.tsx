@@ -1,4 +1,4 @@
-import { PlusIcon, SendIcon, cn } from '@pingo/ui';
+﻿import { ChevronLeftIcon, EditIcon, PhoneIcon, PlusIcon, SendIcon, cn } from '@pingo/ui';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -42,6 +42,29 @@ const WHAT: Record<Phase, string> = {
   speaking: 'speaking',
   error: 'that did not work',
 };
+
+/**
+ * The line PINGO opens with, before anybody has said anything.
+ *
+ * A call that opens in silence puts the work on the person who just started it:
+ * they hold a phone to their face and wait to find out whether the thing is
+ * listening. Every assistant worth the name speaks first, and the first line is
+ * doing one job - proving the microphone, the model and the voice are all
+ * already up - so it is short and it invites an answer.
+ *
+ * Not a model call. It is the same three sentences forever, and asking a 120B
+ * model to improvise a greeting would put four seconds of thinking in front of
+ * a call that is meant to feel instant. Straight to the voice.
+ *
+ * Three of them because a fixed greeting on the twentieth call is a recording,
+ * and a stranger's app that says exactly the same words every time is the
+ * clearest possible signal that nobody is home.
+ */
+const HELLOS = [
+  'Haan bolo, kya chal raha hai dimaag mein?',
+  'Bolo bhai, kya scene hai?',
+  'Sun raha hoon. Bolo kya baat hai?',
+];
 
 async function authed(path: string, payload: unknown): Promise<Response | undefined> {
   const client = getSupabaseClient();
@@ -146,10 +169,17 @@ function isEcho(heard: string, speaking: string): boolean {
 }
 
 export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
-  const [phase, setPhase] = useState<Phase>('listening');
+  const [phase, setPhase] = useState<Phase>('speaking');
   const [heard, setHeard] = useState('');
   const [said, setSaid] = useState('');
   const [typed, setTyped] = useState('');
+  /*
+   * Typing, which is the fallback and looks like one.
+   *
+   * Closed by default: a text field open on a voice call is the screen saying
+   * it does not expect the voice half to work.
+   */
+  const [keyboard, setKeyboard] = useState(false);
   /*
    * What the assistant is actually doing, streamed from the function.
    *
@@ -364,6 +394,32 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * PINGO speaks first.
+   *
+   * Straight into the same queue a real answer uses, so it is interrupted the
+   * same way, drawn by the same wave and filtered out of the microphone by the
+   * same echo test - `saying` is set for exactly that reason. It is the one
+   * turn in the call with no question in front of it.
+   */
+  useEffect(() => {
+    const hello = HELLOS[Math.floor(Math.random() * HELLOS.length)]!;
+    setSaid(hello);
+    saying.current = hello;
+
+    const queue = openSpeech(fetchSentence);
+    speech.current = queue.speech;
+    queue.push(hello);
+    queue.end();
+
+    void queue.speech.done.then(() => {
+      if (speech.current === queue.speech) speech.current = undefined;
+      if (live.current && phaseRef.current === 'speaking') setPhase('listening');
+    });
+    // Once, with the screen. Everything it touches is a ref or a setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /**
    * A picture, looked at and then talked about.
    *
@@ -377,7 +433,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
     async (file: File) => {
       if (!live.current) return;
       setPhase('thinking');
-      setHeard('photo dekh raha hoon…');
+      setHeard('photo dekh raha hoonâ€¦');
       try {
         const image = await shrink(file);
         const response = await authed('vision', { image });
@@ -399,66 +455,226 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   );
 
   /*
-   * What the person is saying, as they say it.
+   * The one line of text the screen is about, and whose line it is.
    *
-   * The live partial while listening, the settled sentence afterwards - so the
-   * screen is never blank during the part of a call where somebody most wants
-   * to know they are being heard.
+   * Two columns of transcript - yours on one side, PINGO's on the other - is
+   * how a debugging view looks. A call has exactly one speaker at a time, so
+   * the screen shows exactly one thing: the partial while somebody is talking,
+   * the answer while PINGO is, and what was heard while it thinks about it.
    */
-  const showing = phase === 'listening' ? transcript.partial || heard || 'Bolo…' : heard || ' ';
+  const speakingNow = phase === 'speaking' || (phase === 'thinking' && !heard);
+  const line = speakingNow
+    ? said
+    : phase === 'listening'
+      ? transcript.partial || heard
+      : heard;
+
+  /** Who the words on screen belong to, which is the only label needed. */
+  const whose = speakingNow ? 'PINGO' : 'You';
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden bg-[#050b1a] px-6">
+    <div
+      className={cn(
+        'fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#07080d] text-white',
+        /*
+         * Rising from the bottom edge, because that is the edge it was summoned
+         * from. The gesture is a hold at the bottom of the screen and the
+         * answer to it travels the same axis - which is the whole reason both
+         * phones animate their assistant this way rather than fading it in.
+         */
+        'motion-safe:animate-call-in',
+      )}
+    >
       {/*
-        The halo behind everything. Not decoration for its own sake: it puts the
-        card on a stage, and it is what stops a dark screen reading as an error.
+        Light, in three layers, none of it decoration.
+
+        A single flat radial gradient is what the first version had, and a flat
+        gradient behind a moving line reads as a screenshot with an animation
+        pasted on. These drift at different speeds and different sizes, so the
+        background is never quite the same twice - the same trick a lava lamp
+        plays, and the reason a dark screen can feel awake rather than off.
+
+        Brightened while PINGO is speaking and dimmed while it thinks, so the
+        room itself carries the state and the caption underneath is confirming
+        something the eye already knows.
       */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -bottom-1/2 h-[110vh] rounded-[50%]"
-        style={{
-          background:
-            'radial-gradient(closest-side, rgba(64,120,255,0.55), rgba(64,120,255,0.12) 60%, transparent 75%)',
-          filter: 'blur(28px)',
-        }}
-      />
-
-      <div
         className={cn(
-          'relative flex w-full max-w-sm flex-col items-center gap-5 rounded-3xl p-6',
-          // Frosted, so the halo shows through rather than being hidden by it.
-          'border border-white/10 bg-white/[0.06] backdrop-blur-xl',
+          'pointer-events-none absolute inset-0 transition-opacity duration-slow ease-liquid',
+          phase === 'speaking' ? 'opacity-100' : phase === 'thinking' ? 'opacity-45' : 'opacity-70',
         )}
       >
-        <div className="min-h-[3.5rem] w-full text-center">
-          <p className="text-body text-white/90">{showing}</p>
-          {said && phase === 'speaking' && (
-            <p className="text-caption mt-1 line-clamp-2 text-white/45">{said}</p>
+        <div
+          className="absolute -top-1/4 left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 rounded-[50%] blur-[80px] motion-safe:animate-aurora-drift"
+          style={{
+            background:
+              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-from, #7c5cff) 55%, transparent), transparent 70%)',
+          }}
+        />
+        <div
+          className="absolute -bottom-1/3 left-1/2 h-[70vh] w-[110vw] -translate-x-1/2 rounded-[50%] blur-[90px] motion-safe:animate-aurora-drift-slow"
+          style={{
+            background:
+              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-to, #3a8dff) 60%, transparent), transparent 72%)',
+          }}
+        />
+        {/* A vignette, so the controls at the edges keep their contrast. */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_50%,transparent_35%,rgba(3,4,8,0.75)_100%)]" />
+      </div>
+
+      {/*
+        The header does two jobs and no more: say whose call this is, and give
+        the way out. Anything else up here competes with the only thing that
+        matters, which is in the middle of the screen.
+      */}
+      <header className="relative z-10 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button
+          type="button"
+          onClick={onEnd}
+          aria-label="Close the call"
+          className={cn(
+            'focus-ring grid size-10 place-items-center rounded-full',
+            'bg-white/[0.07] text-white/80 backdrop-blur-md',
+            'transition-transform duration-instant active:scale-95',
           )}
+        >
+          <ChevronLeftIcon size={20} />
+        </button>
+
+        <div className="flex items-center gap-2">
+          {/*
+            A live dot, and it is not always green.
+
+            It pulses only while the microphone is actually open. During
+            thinking it is still - which is the honest picture, because nothing
+            is being heard then, and a permanently blinking "live" light is the
+            kind of detail that makes people distrust everything next to it.
+          */}
+          <span
+            aria-hidden
+            className={cn(
+              'size-1.5 rounded-full',
+              phase === 'listening'
+                ? 'bg-emerald-400 motion-safe:animate-dot-pulse'
+                : phase === 'error'
+                  ? 'bg-red-400'
+                  : 'bg-white/35',
+            )}
+          />
+          <span className="text-caption font-medium tracking-wide text-white/70">PINGO</span>
         </div>
 
+        {/* Balances the close button so the name sits truly centred. */}
+        <span aria-hidden className="size-10" />
+      </header>
+
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+        {/*
+          Whose voice it is, above the words.
+
+          Small, uppercase, low contrast - a label rather than content. Without
+          it, a reply and a transcript of your own sentence look identical, and
+          on a call that is the one ambiguity that makes people repeat
+          themselves.
+        */}
+        <p
+          className={cn(
+            'text-caption mb-3 font-medium tracking-[0.18em] uppercase',
+            'transition-colors duration-base',
+            speakingNow ? 'text-white/45' : 'text-white/30',
+          )}
+        >
+          {line ? whose : ''}
+        </p>
+
+        {/*
+          The words. Sized to be read at arm's length, which is where a phone is
+          during a call, and clamped so a long answer cannot push the wave off
+          the screen.
+        */}
+        <p
+          className={cn(
+            'min-h-[4.5rem] max-w-md text-center text-balance',
+            'text-xl leading-snug font-light',
+            'transition-opacity duration-base ease-liquid',
+            line ? 'text-white/95 opacity-100' : 'text-white/40 opacity-100',
+            'line-clamp-3',
+          )}
+        >
+          {line || (phase === 'listening' ? 'Bolo, main sun raha hoonâ€¦' : '')}
+        </p>
+
         {/* The line itself. Everything above and below is context for it. */}
-        <div className="h-28 w-full">
+        <div className="mt-6 h-32 w-full max-w-md">
           <VoiceWave level={level} active={active} />
         </div>
 
-        <p className="text-caption text-white/40">
-          {phase === 'thinking' ? (stage ?? 'soch raha hoon…') : WHAT[phase]}
+        {/*
+          What it is doing, in its own words.
+
+          The function reports its stage - reading the thread, asking the big
+          model, shaping the reply - and this is where it lands. It is the
+          longest silence in the exchange and the only place the screen can say
+          why.
+        */}
+        <p
+          className="text-caption mt-4 h-5 text-white/40"
+          aria-live="polite"
+        >
+          {phase === 'thinking' ? (stage ?? 'soch raha hoonâ€¦') : WHAT[phase]}
         </p>
 
-        {transcript.error && <p className="text-caption text-red-300">{transcript.error}</p>}
-      </div>
+        {transcript.error && (
+          <p className="text-caption mt-2 max-w-xs text-center text-red-300">{transcript.error}</p>
+        )}
+      </main>
 
-      <form
-        className="relative mt-6 flex w-full max-w-sm items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const words = typed.trim();
-          if (!words || phase === 'thinking' || phase === 'speaking') return;
-          setTyped('');
-          void answer(words);
-        }}
-      >
+      <footer className="relative z-10 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {/*
+          Typing is a fallback, so it lives behind a key rather than in front of
+          it. A text field sitting open on a voice call says the voice part is
+          not trusted - and it takes the space the answer should have.
+        */}
+        {keyboard && (
+          <form
+            className="motion-safe:animate-panel-in mx-auto mb-4 flex w-full max-w-md items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const words = typed.trim();
+              if (!words || phase === 'thinking' || phase === 'speaking') return;
+              setTyped('');
+              setKeyboard(false);
+              void answer(words);
+            }}
+          >
+            <input
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              placeholder="Ya likh doâ€¦"
+              aria-label="Type instead of speaking"
+              autoFocus
+              className={cn(
+                'focus-ring text-body min-w-0 flex-1 rounded-full px-4 py-2.5',
+                'border border-white/10 bg-white/[0.07] text-white placeholder:text-white/35',
+                'backdrop-blur-md',
+              )}
+            />
+            <button
+              type="submit"
+              disabled={!typed.trim() || phase === 'thinking' || phase === 'speaking'}
+              aria-label="Send"
+              className={cn(
+                'focus-ring grid size-11 shrink-0 place-items-center rounded-full',
+                'bg-white/15 text-white transition-transform duration-instant',
+                'active:scale-95 disabled:opacity-30',
+              )}
+            >
+              <SendIcon size={18} />
+            </button>
+          </form>
+        )}
+
         <input
           ref={picker}
           type="file"
@@ -471,53 +687,65 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
             if (file) void share(file);
           }}
         />
-        <button
-          type="button"
-          onClick={() => picker.current?.click()}
-          disabled={phase === 'thinking' || phase === 'speaking'}
-          aria-label="Send a photo to look at"
-          className={cn(
-            'focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full',
-            'border border-white/10 bg-white/[0.06] text-white',
-            'transition-transform duration-instant active:scale-95 disabled:opacity-30',
-          )}
-        >
-          <PlusIcon size={18} />
-        </button>
-        <input
-          value={typed}
-          onChange={(event) => setTyped(event.target.value)}
-          placeholder="Ya likh do…"
-          aria-label="Type instead of speaking"
-          className={cn(
-            'focus-ring text-body min-w-0 flex-1 rounded-full px-4 py-2.5',
-            'border border-white/10 bg-white/[0.06] text-white placeholder:text-white/35',
-          )}
-        />
-        <button
-          type="submit"
-          disabled={!typed.trim() || phase === 'thinking' || phase === 'speaking'}
-          aria-label="Send"
-          className={cn(
-            'focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-full',
-            'bg-white/15 text-white transition-transform duration-instant',
-            'active:scale-95 disabled:opacity-30',
-          )}
-        >
-          <SendIcon size={18} />
-        </button>
-      </form>
 
-      <button
-        type="button"
-        onClick={onEnd}
-        className={cn(
-          'focus-ring relative mt-6 rounded-full bg-red-500/90 px-8 py-3 text-white',
-          'transition-transform duration-instant active:scale-95',
-        )}
-      >
-        End call
-      </button>
+        {/*
+          Three controls, and the one that ends the call is the only one with a
+          colour.
+
+          The old screen had a red pill that said "End call" in words, which is
+          the largest and loudest thing on a screen whose subject is a moving
+          line. Every phone in the world draws this as a round red key between
+          two quiet ones; there is no reason to be the exception, and being the
+          exception here reads as a prototype.
+        */}
+        <div className="mx-auto flex w-full max-w-xs items-center justify-center gap-6">
+          <button
+            type="button"
+            onClick={() => picker.current?.click()}
+            disabled={phase === 'thinking' || phase === 'speaking'}
+            aria-label="Send a photo to look at"
+            className={cn(
+              'focus-ring grid size-14 place-items-center rounded-full',
+              'border border-white/10 bg-white/[0.07] text-white/85 backdrop-blur-md',
+              'transition-transform duration-instant active:scale-95 disabled:opacity-25',
+            )}
+          >
+            <PlusIcon size={22} />
+          </button>
+
+          <button
+            type="button"
+            onClick={onEnd}
+            aria-label="End call"
+            className={cn(
+              'focus-ring grid size-16 place-items-center rounded-full',
+              'bg-red-500 text-white',
+              // Lit along the top and dropping a red shadow: a key with a
+              // surface, matching the camera key in the dock.
+              'shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_10px_28px_-10px_rgb(239_68_68/0.9)]',
+              'transition-transform duration-instant active:scale-95',
+            )}
+          >
+            {/* A handset turned over is "hang up" everywhere, in every app. */}
+            <PhoneIcon size={24} className="rotate-[135deg]" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setKeyboard((open) => !open)}
+            aria-label={keyboard ? 'Hide the keyboard' : 'Type instead of speaking'}
+            aria-pressed={keyboard}
+            className={cn(
+              'focus-ring grid size-14 place-items-center rounded-full',
+              'border border-white/10 backdrop-blur-md',
+              'transition-transform duration-instant active:scale-95',
+              keyboard ? 'bg-white/20 text-white' : 'bg-white/[0.07] text-white/85',
+            )}
+          >
+            <EditIcon size={20} />
+          </button>
+        </div>
+      </footer>
 
       <span className="sr-only" aria-live="polite">{`PINGO is ${WHAT[phase]}`}</span>
       <span className="sr-only">{conversationId}</span>

@@ -13,6 +13,7 @@ import {
 import { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 
+import { AiPill } from './AiPill.js';
 import { useT } from '../features/i18n/useT.js';
 import { useNotifications } from '../features/notifications/NotificationContext.js';
 import { canAccessCommunities } from '../lib/community-access.js';
@@ -73,7 +74,8 @@ export function Dock() {
       aria-label={t('nav.primary')}
       className={cn(
         'pointer-events-none fixed inset-x-0 bottom-0 z-200',
-        'flex justify-center',
+        // A column now: the dock, and the assistant's line under it.
+        'flex flex-col items-center gap-1',
         // The dock clears the viewport edge, and the iOS home indicator.
         'px-5 pb-5',
         'pb-[max(1.25rem,env(safe-area-inset-bottom))]',
@@ -229,6 +231,18 @@ export function Dock() {
           </NavLink>
         ))}
       </GlassPanel>
+
+      {/*
+        Under the dock rather than in it.
+
+        In it, it would be a sixth destination competing with five; under it, it
+        is the same gesture both phones already put at the bottom of the screen -
+        hold the line, the assistant comes up. It sits above the safe-area inset
+        so it never argues with the system's own gesture bar.
+      */}
+      <div className="pointer-events-auto">
+        <AiPill />
+      </div>
     </nav>
   );
 }

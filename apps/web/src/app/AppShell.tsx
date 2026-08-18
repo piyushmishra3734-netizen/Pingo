@@ -139,8 +139,9 @@ export function AppShell() {
       <main
         className={cn(
           'min-h-0 flex-1',
-          // Clears the floating dock: its height plus the gap it leaves below.
-          !fullscreen && 'pb-[6.5rem]',
+          // Clears the floating dock: its height, the assistant's line under
+          // it, and the gap they leave below.
+          !fullscreen && 'pb-[8rem]',
         )}
       >
         {/*

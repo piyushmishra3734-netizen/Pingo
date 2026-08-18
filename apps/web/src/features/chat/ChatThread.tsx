@@ -34,7 +34,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { useSharedElement } from '../../hooks/useSharedElement.js';
 import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
@@ -592,6 +592,24 @@ export function ChatThread({
    */
   const isGroup = conversation.kind !== 'direct' && !isAi;
   const [voiceCall, setVoiceCall] = useState(false);
+
+  /*
+   * Arriving already talking.
+   *
+   * Holding the line under the dock lands here with `voice` on the navigation
+   * state rather than opening a call of its own - the call needs this thread's
+   * `askByVoice`, so the gesture asks the thread to open it. The state is
+   * replaced away immediately: without that, a back gesture returning to this
+   * route would open the call a second time, which is a phone call you did not
+   * make.
+   */
+  const location = useLocation();
+  useEffect(() => {
+    if (!isAi) return;
+    if (!(location.state as { voice?: boolean } | null)?.voice) return;
+    setVoiceCall(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [isAi, location.pathname, location.state, navigate]);
 
   /*
    * The current messages, readable from inside an async loop.
