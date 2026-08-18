@@ -1046,8 +1046,25 @@ export class SupabaseCallService implements CallService {
           this.#update({ state: 'connected', connectedAt: this.#call.connectedAt ?? Date.now() });
         }
       },
+      /*
+       * Their media stopped. They are still on the call.
+       *
+       * This set the participant to `left`, and that is the whole of "it says
+       * people left when they are still there". `onRemoteGone` fires when a
+       * participant's last track is unsubscribed - which is what happens when
+       * somebody mutes on a voice call, when a camera goes off with nothing
+       * else published, and transiently on every reconnect. None of those is
+       * somebody leaving.
+       *
+       * The distinction was already understood one handler down: the note on
+       * `onParticipantLeft` says in as many words that this event is not the
+       * one that means gone. It just never got applied here.
+       *
+       * `connected` is the honest state - there is no `muted` in the union, and
+       * the tile going quiet is exactly what `call:remote-stream-ended` is for.
+       */
       onRemoteGone: (userId) => {
-        this.#setParticipantState(userId, 'left');
+        this.#setParticipantState(userId, 'connected');
         this.#emit({ type: 'call:remote-stream-ended', userId });
       },
 
@@ -1071,6 +1088,15 @@ export class SupabaseCallService implements CallService {
        * `#dropPeer` already ends a room once the last of them has gone.
        */
       onParticipantLeft: (userId) => {
+        /*
+         * The only place `left` is set, now that `onRemoteGone` no longer does.
+         *
+         * It matters most in a group, where the call carries on without them
+         * and the tile is all anybody has to go on - a direct call tears down
+         * a line below and the state stops being looked at.
+         */
+        this.#setParticipantState(userId, 'left');
+
         if (this.#call && !this.#call.participants && userId === this.#call.peer.userId) {
           this.#teardown('hung-up');
         }
