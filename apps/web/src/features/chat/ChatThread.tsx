@@ -1304,28 +1304,28 @@ export function ChatThread({
             each other yet". Hiding them instead would make the feature look
             absent rather than conditional.
 
-            AI is the exception: there is nobody to ring, so the icons stay off
-            rather than explaining a permanent dead-end.
+            AI gets the phone and not the camera. There is still nobody to ring -
+            pressing it opens the microphone and talks to the model - but there
+            is genuinely nothing to look at, and a video icon that produced an
+            audio call would be a promise the screen breaks.
           */}
+          <IconButton
+            label={isAi ? 'Talk to PINGO' : 'Voice call'}
+            size="sm"
+            className={cn(!canCall && 'text-text-tertiary')}
+            onClick={() => placeCall('voice')}
+          >
+            <PhoneIcon size={20} />
+          </IconButton>
           {!isAi && (
-            <>
-              <IconButton
-                label="Voice call"
-                size="sm"
-                className={cn(!canCall && 'text-text-tertiary')}
-                onClick={() => placeCall('voice')}
-              >
-                <PhoneIcon size={20} />
-              </IconButton>
-              <IconButton
-                label="Video call"
-                size="sm"
-                className={cn(!canCall && 'text-text-tertiary')}
-                onClick={() => placeCall('video')}
-              >
-                <VideoIcon size={20} />
-              </IconButton>
-            </>
+            <IconButton
+              label="Video call"
+              size="sm"
+              className={cn(!canCall && 'text-text-tertiary')}
+              onClick={() => placeCall('video')}
+            >
+              <VideoIcon size={20} />
+            </IconButton>
           )}
           <ConversationMenu
             conversation={conversation}
