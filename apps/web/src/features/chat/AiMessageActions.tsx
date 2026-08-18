@@ -95,11 +95,46 @@ export function AiMessageActions({
       return;
     }
     const utterance = new SpeechSynthesisUtterance(text);
+
+    /*
+     * Say which language, or nothing comes out.
+     *
+     * PINGO answers in Devanagari as readily as in Latin script, and an
+     * utterance with no `lang` inherits the document's - English. An English
+     * voice handed `कोई बात नहीं` does not fail, it simply produces silence,
+     * and the button flickers on and off with no explanation. Measured on a
+     * stock Windows install: 24 voices, none of them Hindi.
+     */
+    const devanagari = /[ऀ-ॿ]/.test(text);
+    utterance.lang = devanagari ? 'hi-IN' : 'en-IN';
+
+    /*
+     * An exact voice when the platform has one, and an Indian-English voice as
+     * the fallback for Hinglish in Latin script - it reads "bhai" and "theek
+     * hai" as a person would, which a US voice does not.
+     */
+    const voices = synth.getVoices();
+    const match =
+      voices.find((v) => v.lang.replace('_', '-').toLowerCase() === utterance.lang.toLowerCase()) ??
+      voices.find((v) => v.lang.toLowerCase().startsWith(devanagari ? 'hi' : 'en-in')) ??
+      (devanagari ? undefined : voices.find((v) => v.lang.toLowerCase().startsWith('en')));
+    if (match) utterance.voice = match;
+
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     synth.cancel();
     synth.speak(utterance);
     setSpeaking(true);
+
+    /*
+     * Nothing started, so stop claiming it did.
+     *
+     * `speak()` on text no installed voice can read returns without speaking
+     * and without an error - the only way to know is to look a moment later.
+     */
+    window.setTimeout(() => {
+      if (!synth.speaking && !synth.pending) setSpeaking(false);
+    }, 700);
   };
 
   return (

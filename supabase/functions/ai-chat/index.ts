@@ -679,7 +679,16 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
        * that keeps coming up. Not a secret: it is the caller's own assistant,
        * and the id is a public model name.
        */
-      model: workingModel.heavy ?? workingModel.light ?? model ?? DEFAULT_MODEL,
+      /*
+       * The model that answered *this* turn, and the tier that chose it.
+       *
+       * It used to report whichever tier happened to hold a name, which is
+       * unfalsifiable - it would say "120b" for a message that never went near
+       * one. Routing that cannot be checked from outside is routing nobody can
+       * tell is broken.
+       */
+      model: workingModel[demand] ?? model ?? DEFAULT_MODEL,
+      demand,
       ms: {
         before: tModel - t0,
         model: tModelDone - tModel,
