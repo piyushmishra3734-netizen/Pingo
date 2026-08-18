@@ -15,6 +15,7 @@ import {
   replyBudget,
   salvageTruncatedEnvelope,
   shapeReply,
+  stripPromptEcho,
   stripReasoning,
   splitIntoBubbles,
   trimEnvelopeDebris,
@@ -484,7 +485,7 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
     }
 
     emit('reading_reply');
-    let { reply, ask } = parseModelPayload(raw1, length);
+    let { reply, ask } = parseModelPayload(raw1, length, system);
     reply = finalizeBubble(reply, length);
     ask = finalizeAsk(ask);
 
@@ -597,7 +598,7 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
         max_tokens: maxTokens,
       });
       if (raw2) {
-        const second = parseModelPayload(raw2, length);
+        const second = parseModelPayload(raw2, length, buildRetrySystem(profile as AiProfile | null));
         const r2 = finalizeBubble(second.reply, length);
         if (r2 && !shouldRetryAnswer(r2, live ?? '', intent)) {
           reply = r2;
@@ -2028,6 +2029,15 @@ function contextualFallbackAsk(lastUser: string, recent: string[] = []): string 
 function parseModelPayload(
   raw: string,
   length: string,
+  /**
+   * The instructions this generation came from.
+   *
+   * Passed in so anything the model copied out of them can be recognised
+   * exactly rather than guessed at from a list of phrases. Optional because two
+   * of the three callers are tests that have no prompt to compare against, and
+   * the rules above still apply without it.
+   */
+  instructions = '',
 ): { reply: string; ask: string } {
   /*
    * The working-out comes off before anything is parsed.
@@ -2036,7 +2046,10 @@ function parseModelPayload(
    * place makes the envelope unfindable and the marker split land in the
    * wrong place. Stripping first means every branch below sees only an answer.
    */
-  const text = stripReasoning(raw.replace(/\r\n/g, '\n').trim());
+  const text = stripPromptEcho(
+    stripReasoning(raw.replace(/\r\n/g, '\n').trim()),
+    instructions,
+  );
 
   // 1) JSON object
   const jsonHit = tryParseReplyJson(text);

@@ -477,6 +477,9 @@ const DELIBERATION = [
   /\bthat'?s (one|a) line\b/i,
   /^actually,? (we|i|it|that|the)\b/im,
   /^but (must|we|it should|that)\b/im,
+  // Citing the instructions as a rule, which a reply to a person never does.
+  /^(but |and |also )?rules*[:—-]/im,
+  /\b(the )?(rule|instruction|system prompt) (says|said|is that)\b/i,
 ];
 
 /** Two independent signals. One is a coincidence; two is a habit. */
@@ -563,4 +566,77 @@ export function stripReasoning(text: string): string {
   }
 
   return rest.slice(from).join('\n').trim();
+}
+
+/**
+ * Lines the model copied out of its own instructions.
+ *
+ * ## Why this exists when there are already three other rules
+ *
+ * Because the other three are lists, and lists of phrases do not converge. Each
+ * leak that got through arrived in a shape the previous list had no entry for -
+ * an opener, then a third-person note, then deliberation with no quotable
+ * phrase at all, and then this:
+ *
+ *   But rule: "A greeting or a one-word message gets one short
+ *
+ * That is the character prompt, quoted back. And a quotation is the one kind of
+ * leak that can be recognised exactly rather than guessed at, because the text
+ * it came from is sitting right there in the same function.
+ *
+ * So the reply is compared against the instructions that produced it. Anything
+ * the model copied out of them is not a reply to anybody; it is the homework
+ * showing through. No pattern to maintain, and it covers rules nobody has
+ * written yet.
+ *
+ * ## Six words
+ *
+ * Short enough to catch a half-quoted rule, long enough that ordinary language
+ * cannot collide with it by accident. Three words would flag "let me know if" in
+ * a real reply; a whole sentence would miss every partial quotation, which is
+ * what a truncated generation always produces.
+ */
+const SHINGLE = 6;
+
+/** Comparison is on words alone: case, punctuation and quoting all vary. */
+function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function shingles(text: string): Set<string> {
+  const w = words(text);
+  const out = new Set<string>();
+  for (let i = 0; i + SHINGLE <= w.length; i += 1) {
+    out.add(w.slice(i, i + SHINGLE).join(' '));
+  }
+  return out;
+}
+
+/**
+ * Drop every line of `text` that quotes `instructions`.
+ *
+ * Line by line rather than all-or-nothing, because a generation often quotes one
+ * rule and then answers properly underneath it - and throwing away a real answer
+ * to remove a quotation would be trading one defect for a worse one.
+ */
+export function stripPromptEcho(text: string, instructions: string): string {
+  if (!text.trim() || !instructions.trim()) return text;
+
+  const known = shingles(instructions);
+  if (known.size === 0) return text;
+
+  const kept = text.split('\n').filter((line) => {
+    // A short line cannot carry a six-word run, so it cannot be a quotation.
+    if (words(line).length < SHINGLE) return true;
+    for (const shingle of shingles(line)) {
+      if (known.has(shingle)) return false;
+    }
+    return true;
+  });
+
+  return kept.join('\n').trim();
 }

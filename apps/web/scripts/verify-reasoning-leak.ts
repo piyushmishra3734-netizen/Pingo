@@ -11,7 +11,10 @@
  *
  * Run with `pnpm verify:reasoning-leak`.
  */
-import { stripReasoning } from '../../../supabase/functions/ai-chat/reply-shape.js';
+import {
+  stripPromptEcho,
+  stripReasoning,
+} from '../../../supabase/functions/ai-chat/reply-shape.js';
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
@@ -134,6 +137,26 @@ survives('Actually we can meet tomorrow if you want', 'one "actually we can"');
 survives('Maybe "chal theek hai" bol dena usse', 'one quoted suggestion');
 survives('Tumhari message length thodi zyada thi', 'one measurement-sounding line');
 survives('We can go together', 'plain first person plural');
+
+console.log('\n--- quoting the instructions back ---');
+leaks('But rule: "A greeting or a one-word message gets one short', 'citing a rule');
+check(
+  stripPromptEcho(
+    'A greeting or a one-word message gets one short reply and nothing else.\nHaan bhai sab badhiya!',
+    'Rules: A greeting or a one-word message gets one short reply and nothing else. Never open with a compliment.',
+  ) === 'Haan bhai sab badhiya!',
+  'a line copied from the prompt is dropped, the reply kept',
+);
+check(
+  stripPromptEcho('Haan bhai sab badhiya, tum sunao kya chal raha hai', 'Rules: never open with a compliment about the question.') ===
+    'Haan bhai sab badhiya, tum sunao kya chal raha hai',
+  'an ordinary reply is untouched by the comparison',
+);
+check(
+  stripPromptEcho('Haan', 'Rules: something entirely different here') === 'Haan',
+  'a line too short to carry six words cannot be a quotation',
+);
+check(stripPromptEcho('anything at all', '') === 'anything at all', 'no instructions means no change');
 
 console.log(failures === 0 ? '\nAll reasoning-leak checks passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);
