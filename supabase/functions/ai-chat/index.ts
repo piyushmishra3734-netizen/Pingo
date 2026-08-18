@@ -75,6 +75,15 @@ export type Stage =
 type Emit = (stage: Stage) => void;
 
 /**
+ * Told each finished sentence, while the rest is still being written.
+ *
+ * Separate from the stage channel because it carries content rather than
+ * status, and the client does very different things with the two: a stage
+ * changes a line of text, a sentence starts a voice.
+ */
+type EmitSentence = (sentence: string) => void;
+
+/**
  * One turn, start to finish.
  *
  * Was the body of `Deno.serve` directly. It is a named function now so the
@@ -82,7 +91,11 @@ type Emit = (stage: Stage) => void;
  * stream that reports each stage as it is reached - the difference is one
  * argument, and neither path duplicates a line of what happens in between.
  */
-async function runTurn(request: Request, emit: Emit): Promise<Response> {
+async function runTurn(
+  request: Request,
+  emit: Emit,
+  emitSentence: EmitSentence = () => {},
+): Promise<Response> {
   /*
    * Three numbers, so 'it is slow' can be answered instead of argued about:
    * everything before the model, the model itself, and everything after. Cheap
@@ -476,6 +489,15 @@ async function runTurn(request: Request, emit: Emit): Promise<Response> {
     tModel = Date.now();
     const raw1 = await callChatModel(apiKey, base, model, messages, {
       demand,
+      /*
+       * Sentences leave as they are written, but only out loud.
+       *
+       * A typed reply appears all at once anyway, so streaming it would be
+       * parsing work for no visible difference. On a call it is the difference
+       * between speaking after the answer is finished and speaking while it is
+       * still being written.
+       */
+      ...(spoken ? { onSentence: (sentence: string) => emitSentence(sentence) } : {}),
       temperature: 0.55,
       top_p: 0.9,
       frequency_penalty: 0.2,
@@ -863,7 +885,11 @@ Deno.serve(async (request) => {
       };
 
       try {
-        const response = await runTurn(request, (stage) => send({ stage }));
+        const response = await runTurn(
+          request,
+          (stage) => send({ stage }),
+          (sentence) => send({ sentence }),
+        );
         const body = await response.json().catch(() => ({}));
         send({ done: true, status: response.status, payload: body });
       } catch (cause) {
@@ -993,6 +1019,14 @@ async function callChatModel(
     max_tokens: number;
     /** Which chain to walk. Decided from the message, before the call. */
     demand?: Demand;
+    /**
+     * Where finished sentences go as they appear.
+     *
+     * Set only for a spoken turn. Its presence is what switches the provider
+     * call into streaming mode - there is no reason to pay the extra parsing
+     * for a reply nobody is waiting to hear.
+     */
+    onSentence?: SentenceSink;
   },
 ): Promise<string | null> {
   const tier: Demand = opts.demand ?? 'light';
@@ -1004,10 +1038,22 @@ async function callChatModel(
    * whose best model is unavailable pays for that discovery once and not on
    * every reply.
    */
+  /*
+   * Only the first candidate streams.
+   *
+   * A fallback firing means the first name was unavailable, and re-emitting
+   * sentences from a second attempt would speak the reply twice.
+   */
   const candidates = model ? [model] : [workingModel[tier] ?? '', ...chain].filter(Boolean);
+  let streamed = false;
 
   for (const candidate of candidates) {
-    const reply = await callOneModel(apiKey, base, candidate, messages, opts);
+    const sink = streamed ? undefined : opts.onSentence;
+    streamed = true;
+    const reply = await callOneModel(apiKey, base, candidate, messages, {
+      ...opts,
+      ...(sink ? { onSentence: sink } : {}),
+    });
     if (reply !== null) {
       workingModel[tier] = candidate;
       return reply;
@@ -1017,6 +1063,22 @@ async function callChatModel(
   }
   return null;
 }
+
+/**
+ * Told each time a whole sentence exists, before the rest is written.
+ *
+ * This is the single change that makes a voice call feel like a conversation.
+ * Waiting for a complete reply and then synthesising it stacks the model and
+ * the voice end to end - two to six seconds, then another one and a half. A
+ * sentence handed over the moment it is finished lets the speaking start while
+ * the writing is still going, and the two costs overlap instead of adding.
+ *
+ * Published guidance for voice agents puts the human-conversation threshold at
+ * 250-500 ms and the whole budget at first-token, not last: 100-180 ms to the
+ * model's first token, 40-80 ms to the first audio chunk. Neither is reachable
+ * while anything waits for a whole answer.
+ */
+type SentenceSink = (sentence: string) => void;
 
 async function callOneModel(
   apiKey: string,
@@ -1029,8 +1091,11 @@ async function callOneModel(
     frequency_penalty: number;
     presence_penalty: number;
     max_tokens: number;
+    /** Finished sentences, as they appear. Streaming is on when this is set. */
+    onSentence?: SentenceSink;
   },
 ): Promise<string | null> {
+  const streaming = typeof opts.onSentence === 'function';
   try {
     const res = await fetch(`${base}/chat/completions`, {
       method: 'POST',
@@ -1046,17 +1111,84 @@ async function callOneModel(
         frequency_penalty: opts.frequency_penalty,
         presence_penalty: opts.presence_penalty,
         max_tokens: opts.max_tokens,
-        stream: false,
+        stream: streaming,
       }),
     });
     if (!res.ok) {
       console.error('nvidia', model, res.status, await res.text());
       return null;
     }
-    const payload = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return cleanModelArtifacts(payload.choices?.[0]?.message?.content?.trim() ?? '');
+
+    if (!streaming || !res.body) {
+      const payload = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      return cleanModelArtifacts(payload.choices?.[0]?.message?.content?.trim() ?? '');
+    }
+
+    /*
+     * Server-sent events from the provider, reassembled into sentences.
+     *
+     * Tokens arrive a few characters at a time and are useless alone - "Haa"
+     * cannot be spoken. A sentence is the smallest unit that can, so the buffer
+     * holds tokens until a terminator appears and hands over the whole thing.
+     *
+     * The full text is still returned at the end, because everything after this
+     * - the filters, the shaping, the row that goes in the thread - works on a
+     * finished reply. The sentences are an early copy for the voice, not a
+     * replacement for it.
+     */
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    let sentence = '';
+    let whole = '';
+
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+
+      const frames = buffer.split('\n');
+      buffer = frames.pop() ?? '';
+
+      for (const frame of frames) {
+        if (!frame.startsWith('data: ')) continue;
+        const body = frame.slice(6).trim();
+        if (!body || body === '[DONE]') continue;
+
+        let chunk: { choices?: { delta?: { content?: string } }[] };
+        try {
+          chunk = JSON.parse(body);
+        } catch {
+          continue;
+        }
+
+        const token = chunk.choices?.[0]?.delta?.content;
+        if (!token) continue;
+
+        whole += token;
+        sentence += token;
+
+        /*
+         * Split on a terminator, not on a newline: the model writes one thought
+         * per line and a line can hold two sentences. Anything under a handful
+         * of characters is held back - "Haan." on its own is a round trip whose
+         * pause is longer than the word.
+         */
+        const at = sentence.search(/[.!?।]\s|[.!?।]$/);
+        if (at >= 0 && sentence.trim().length > 12) {
+          const finished = sentence.slice(0, at + 1).trim();
+          sentence = sentence.slice(at + 1);
+          if (finished) opts.onSentence?.(cleanModelArtifacts(finished));
+        }
+      }
+    }
+
+    // Whatever is left had no terminator - the model simply stopped.
+    const tail = sentence.trim();
+    if (tail) opts.onSentence?.(cleanModelArtifacts(tail));
+
+    return cleanModelArtifacts(whole.trim());
   } catch (err) {
     console.error('nvidia-call', err);
     return null;

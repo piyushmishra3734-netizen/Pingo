@@ -308,3 +308,158 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
 
   return { stop, done, started, level };
 }
+
+/** A reading that is still being written. */
+export interface SpeechQueue {
+  /** Add a finished sentence. Speaking starts on the first one. */
+  push: (sentence: string) => void;
+  /** No more sentences are coming. */
+  end: () => void;
+  /** True once anything has been queued, so a caller can tell it was used. */
+  readonly started: boolean;
+  /** The usual handle - stop, done, level. */
+  speech: Speech;
+}
+
+/**
+ * Speak sentences as they arrive, before the answer is finished.
+ *
+ * `speakStreaming` needs the whole reply up front, which is fine for a button
+ * that reads a message already on screen. A call cannot afford it: the model
+ * takes two to six seconds and the voice another one and a half, and run end to
+ * end that is most of a conversation spent in silence.
+ *
+ * Here the model streams, and each finished sentence is pushed in as it exists.
+ * The first one starts the voice while the rest is still being written, so the
+ * two costs overlap rather than add - which is what published voice-agent
+ * guidance means by budgeting to *first* token and *first* audio chunk rather
+ * than to the whole reply.
+ *
+ * One request per sentence here, deliberately, where the Read aloud path
+ * batches. The batching was to stop a four-sentence reply costing four charges;
+ * on a call the first sentence has to leave immediately and there is nothing to
+ * batch it with yet.
+ */
+export function openSpeech(fetchAudio: Fetcher): SpeechQueue {
+  const pending: string[] = [];
+  let closed = false;
+  let stopped = false;
+  let queued = 0;
+
+  let current: HTMLAudioElement | undefined;
+  let context: AudioContext | undefined;
+  let analyser: AnalyserNode | undefined;
+  let bins: Uint8Array<ArrayBuffer> | undefined;
+
+  let finish: () => void = () => {};
+  const done = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  /** Wakes the pump when a sentence lands while it is waiting. */
+  let wake: () => void = () => {};
+
+  const level: Amplitude = () => {
+    if (!analyser || !bins) return 0;
+    analyser.getByteTimeDomainData(bins);
+    let peak = 0;
+    for (let i = 0; i < bins.length; i += 1) {
+      const away = Math.abs(bins[i]! - 128);
+      if (away > peak) peak = away;
+    }
+    return Math.min(1, peak / 90);
+  };
+
+  const stop = () => {
+    stopped = true;
+    closed = true;
+    pending.length = 0;
+    current?.pause();
+    current = undefined;
+    analyser = undefined;
+    void context?.close().catch(() => undefined);
+    context = undefined;
+    wake();
+    finish();
+  };
+
+  const play = async (audio: Blob) =>
+    new Promise<void>((next) => {
+      const url = URL.createObjectURL(audio);
+      const element = new Audio(url);
+      current = element;
+
+      try {
+        context ??= new AudioContext();
+        if (context.state === 'suspended') void context.resume();
+        analyser ??= (() => {
+          const node = context.createAnalyser();
+          node.fftSize = 256;
+          bins = new Uint8Array(new ArrayBuffer(node.frequencyBinCount));
+          node.connect(context.destination);
+          return node;
+        })();
+        context.createMediaElementSource(element).connect(analyser);
+      } catch {
+        // No Web Audio, or an element that cannot be tapped. The sound still
+        // plays; only the meter loses its input.
+      }
+
+      const release = () => {
+        URL.revokeObjectURL(url);
+        next();
+      };
+      element.onended = release;
+      element.onerror = release;
+      void element.play().catch(release);
+    });
+
+  /*
+   * One sentence at a time, in order, fetching the next while the current one
+   * plays. Order matters more than throughput here - audio that arrives out of
+   * sequence is worse than audio that arrives a moment later.
+   */
+  void (async () => {
+    let ahead: Promise<Blob | undefined> | undefined;
+
+    for (;;) {
+      if (stopped) break;
+
+      if (!ahead) {
+        const next = pending.shift();
+        if (next === undefined) {
+          if (closed) break;
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+          });
+          continue;
+        }
+        ahead = fetchAudio(next);
+      }
+
+      const audio = await ahead;
+      ahead = pending.length > 0 ? fetchAudio(pending.shift()!) : undefined;
+      if (stopped) break;
+      if (audio) await play(audio);
+    }
+
+    if (!stopped) finish();
+  })();
+
+  return {
+    push: (sentence: string) => {
+      const words = sentence.trim();
+      if (!words || closed) return;
+      queued += 1;
+      pending.push(words);
+      wake();
+    },
+    end: () => {
+      closed = true;
+      wake();
+    },
+    get started() {
+      return queued > 0;
+    },
+    speech: { stop, done, level, started: done },
+  };
+}

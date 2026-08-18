@@ -134,6 +134,16 @@ export interface LiveTranscriptOptions {
    */
   shouldSend?: () => boolean;
   /**
+   * The provider heard somebody start talking.
+   *
+   * This is what makes interrupting possible: while PINGO is speaking the
+   * microphone is still open, and the first sign of a voice is the signal to
+   * stop. Without it an assistant talks over the person trying to correct it,
+   * which is the thing that makes one feel like a recording rather than a
+   * conversation.
+   */
+  onSpeechStart?: () => void;
+  /**
    * The provider heard the utterance end.
    *
    * Fires slightly before the final text, so the screen can change state while
@@ -146,6 +156,7 @@ export function useLiveTranscript({
   onFinal,
   onLevel,
   onSpeechEnd,
+  onSpeechStart,
   shouldSend,
 }: LiveTranscriptOptions): LiveTranscript {
   const [partial, setPartial] = useState('');
@@ -164,6 +175,8 @@ export function useLiveTranscript({
   endedRef.current = onSpeechEnd;
   const sendingRef = useRef(shouldSend);
   sendingRef.current = shouldSend;
+  const startedRef = useRef(onSpeechStart);
+  startedRef.current = onSpeechStart;
 
   const stop = useCallback(() => {
     setListening(false);
@@ -247,6 +260,7 @@ export function useLiveTranscript({
          * screen can stop saying "listening" while the last fragment lands,
          * which is the difference between feeling answered and feeling ignored.
          */
+        if (message.event === 'vad.speech_start') startedRef.current?.();
         if (message.event === 'vad.speech_end') endedRef.current?.();
       };
       ws.onerror = () => setError('The transcriber dropped out.');

@@ -2,7 +2,7 @@ import { PlusIcon, SendIcon, cn } from '@pingo/ui';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { speakStreaming, type Speech } from '../chat/speak.js';
+import { openSpeech, type Speech } from '../chat/speak.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { useLiveTranscript } from './useLiveTranscript.js';
 import { VoiceWave } from './VoiceWave.js';
@@ -108,7 +108,11 @@ export interface VoiceCallProps {
    * takes exactly the path a typed one does - same model routing, same memory,
    * same filters - and is still in the thread afterwards to scroll back through.
    */
-  ask: (text: string, onStage?: (stage: string) => void) => Promise<string | undefined>;
+  ask: (
+    text: string,
+    onStage?: (stage: string) => void,
+    onSentence?: (sentence: string) => void,
+  ) => Promise<string | undefined>;
 }
 
 export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
@@ -163,20 +167,52 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
       setHeard(words);
       setPhase('thinking');
       setStage(undefined);
-      const reply = await ask(words, setStage);
-      if (!live.current) return;
+      setSaid('');
 
-      if (!reply) {
+      /*
+       * Speaking starts on the first sentence, not on the finished answer.
+       *
+       * The model streams, so a sentence exists long before the reply does.
+       * Handing it straight to the voice means the two overlap - the rest is
+       * still being written while the first line is already being said, which
+       * is the whole difference between an answer that arrives and one that
+       * begins.
+       */
+      const queue = openSpeech(fetchSentence);
+      speech.current = queue.speech;
+
+      const reply = await ask(words, setStage, (sentence) => {
+        if (!live.current) return;
+        if (phaseRef.current !== 'speaking') setPhase('speaking');
+        setSaid((before) => (before ? `${before} ${sentence}` : sentence));
+        queue.push(sentence);
+      });
+
+      if (!live.current) {
+        queue.end();
+        return;
+      }
+
+      /*
+       * Nothing was streamed - an older deploy, a fallback, a turn that failed.
+       * The finished reply is spoken instead, which is what used to happen for
+       * every turn.
+       */
+      if (!queue.started && reply) {
+        setSaid(reply);
+        setPhase('speaking');
+        queue.push(reply);
+      }
+
+      queue.end();
+
+      if (!reply && !queue.started) {
         setPhase('error');
         window.setTimeout(() => live.current && setPhase('listening'), 1600);
         return;
       }
 
-      setSaid(reply);
-      setPhase('speaking');
-      const started = speakStreaming(reply, fetchSentence);
-      speech.current = started;
-      await started.done;
+      await queue.speech.done;
       speech.current = undefined;
       if (live.current) setPhase('listening');
     },
@@ -210,7 +246,25 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
      * PINGO is thinking or talking. It used to stream from the moment the screen
      * opened until it closed, at about 700 frames a minute.
      */
-    shouldSend: () => phaseRef.current === 'listening',
+    /*
+     * Listening, and also while speaking - which is what allows an interruption
+     * to be heard at all. Not while thinking: there is nothing to interrupt yet
+     * and it is the one stretch with no sound to talk over.
+     */
+    shouldSend: () => phaseRef.current === 'listening' || phaseRef.current === 'speaking',
+    /*
+     * Somebody has started talking over the answer. Stop it.
+     *
+     * Cutting PINGO off mid-word is exactly right here: they are interrupting
+     * because they have heard enough, and finishing the sentence anyway is what
+     * makes an assistant feel like it is reading from a script.
+     */
+    onSpeechStart: () => {
+      if (phaseRef.current !== 'speaking') return;
+      speech.current?.stop();
+      speech.current = undefined;
+      setPhase('listening');
+    },
   });
 
   /*

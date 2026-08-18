@@ -3785,7 +3785,12 @@ export class SupabaseChatService implements ChatService {
 
     // Person-shaped AI: 1:1 thread always replies; groups only on @pingoai.
     if ((isAi || callAiInGroup) && draft.body.trim()) {
-      void this.#requestAiReply(draft.conversationId, draft.body, draft.spokenAloud === true).catch((cause) => {
+      void this.#requestAiReply(
+        draft.conversationId,
+        draft.body,
+        draft.spokenAloud === true,
+        draft.onSentence,
+      ).catch((cause) => {
         console.error('[pingo-ai]', cause);
       });
     }
@@ -3939,6 +3944,7 @@ export class SupabaseChatService implements ChatService {
     conversationId: ConversationId,
     userMessage: string,
     spoken = false,
+    onSentence?: (sentence: string) => void,
   ): Promise<void> {
     /*
      * This used to add the conversation to `#aiConversationIds`, and that one
@@ -3998,6 +4004,7 @@ export class SupabaseChatService implements ChatService {
         userMessage.slice(0, 4000),
         (stage) => this.#setAiTyping(conversationId, true, stage),
         spoken,
+        onSentence,
       ).catch((cause) => {
         // A thrown turn is a real failure and must not be retried by the
         // fallback - that would post two replies.
@@ -4085,6 +4092,7 @@ export class SupabaseChatService implements ChatService {
     userMessage: string,
     onStage: (stage: ChatActivity) => void,
     spoken = false,
+    onSentence?: (sentence: string) => void,
   ): Promise<boolean> {
     const {
       data: { session },
@@ -4132,13 +4140,26 @@ export class SupabaseChatService implements ChatService {
       for (const frame of frames) {
         const line = frame.split('\n').find((l) => l.startsWith('data: '));
         if (!line) continue;
-        let event: { stage?: string; done?: boolean; payload?: { error?: string; messageId?: string } };
+        let event: {
+          stage?: string;
+          sentence?: string;
+          done?: boolean;
+          payload?: { error?: string; messageId?: string };
+        };
         try {
           event = JSON.parse(line.slice(6));
         } catch {
           continue;
         }
         if (event.stage) onStage(event.stage as ChatActivity);
+        /*
+         * A finished sentence, while the rest is still being written.
+         *
+         * Handed straight on so the voice can start on it. This is the whole
+         * point of the streaming turn: the model and the speaking overlap
+         * instead of running end to end.
+         */
+        if (event.sentence) onSentence?.(event.sentence);
         if (event.done) {
           finished = true;
           const failed = event.payload?.error && !event.payload.messageId;

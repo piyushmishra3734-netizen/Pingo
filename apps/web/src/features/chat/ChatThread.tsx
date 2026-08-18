@@ -620,6 +620,7 @@ export function ChatThread({
     async (
       spoken: string,
       onStage?: (stage: string) => void,
+      onSentence?: (sentence: string) => void,
     ): Promise<string | undefined> => {
       const before = Date.now();
       /*
@@ -652,6 +653,7 @@ export function ChatThread({
         conversationId: conversation.id,
         body: spoken,
         spokenAloud: true,
+        ...(onSentence ? { onSentence } : {}),
       });
 
       // Generous, because a heavy question routes to the 120B and can take a

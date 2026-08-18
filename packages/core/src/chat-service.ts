@@ -123,6 +123,17 @@ export interface OutgoingMessage {
    * latency for polish, which on a call is silence down the line.
    */
   spokenAloud?: boolean;
+
+  /**
+   * Each finished sentence of the reply, as the model writes it.
+   *
+   * Set only on a spoken turn. Waiting for a whole answer and then synthesising
+   * it stacks the model and the voice end to end - two to six seconds, then
+   * another one and a half. A sentence handed over the moment it exists lets
+   * the two overlap, which is the difference between an answer that arrives and
+   * one that begins.
+   */
+  onSentence?: (sentence: string) => void;
   conversationId: ConversationId;
   /** For a sticker this is its emoji or name - the text fallback. */
   body: string;
