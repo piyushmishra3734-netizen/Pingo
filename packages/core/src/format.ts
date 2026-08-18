@@ -218,8 +218,13 @@ export function formatTypingLabel(
   users: User[],
   activity: ChatActivity = 'typing',
 ): string {
-  const verb =
-    activity === 'recording' ? 'recording' : activity === 'drawing' ? 'drawing' : 'typing';
+  /*
+   * Only the two a *person* can be doing get a name here. The assistant's
+   * stages never reach this function - they render as one bubble with no name
+   * in front, because "PINGO is reconsidering" reads as a third party being
+   * discussed rather than the thing you are waiting for.
+   */
+  const verb = activity === 'recording' ? 'recording' : 'typing';
   const names = userIds
     .map((id) => users.find((u) => u.id === id)?.name.split(' ')[0])
     .filter((n): n is string => Boolean(n));

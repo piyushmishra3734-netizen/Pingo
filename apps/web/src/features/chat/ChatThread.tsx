@@ -129,13 +129,16 @@ const DIVIDER_HOLD_MS = 600;
  * has to carry the meaning by itself, and at 12px it reads as a speck.
  */
 /**
- * "A picture is being made", for the seconds that takes.
+ * What the assistant is doing right now, in one line that changes as it does.
  *
- * Drawing is the longest thing PINGO does on somebody's behalf - seconds, not
+ * Answering is the longest thing PINGO does on somebody's behalf - seconds, not
  * the instant before a sentence lands - and the typing dots spend all of it
  * promising words. This says the true thing instead, in a shape nobody has to
- * learn: a frame, and a sweep of light crossing the words the way every
- * loading state on the web has for a decade.
+ * learn: a mark, and a sweep of light crossing the words the way every loading
+ * state on the web has for a decade.
+ *
+ * The words come from the server as each stage is reached, so the line is a
+ * report and not a story told by a timer here.
  *
  * The sweep is the one place a shimmer is right. `Skeleton` deliberately
  * refuses one because it cannot know about progress; here the wait is real,
@@ -145,7 +148,25 @@ const DIVIDER_HOLD_MS = 600;
  * `motion-reduce` drops the sweep and leaves the words, because the
  * information is the sentence, not the light.
  */
-function DrawingIndicator({ label = 'drawing your picture' }: { label?: string }) {
+/**
+ * What each stage is called, in words somebody waiting would use.
+ *
+ * Plain and present tense. "Invoking inference endpoint" is the app admiring
+ * its own plumbing; "thinking" is what a person wants to know. 'reconsidering'
+ * earns its place - it is a second complete model call, two thirds of a slow
+ * turn, and without a name for it the wait looks like nothing happening.
+ */
+const AI_STAGES = {
+  remembering: 'saving that for later',
+  reading: 'catching up on our chat',
+  thinking: 'thinking',
+  reconsidering: 'thinking that through again',
+  drawing: 'drawing your picture',
+  uploading: 'sending it over',
+  writing: 'writing',
+} as const;
+
+function AiActivity({ label = 'drawing your picture' }: { label?: string }) {
   return (
     <span className="inline-flex items-center gap-2" role="status">
       <ImageIcon size={16} className="shrink-0 text-brand" aria-hidden />
@@ -159,7 +180,11 @@ function DrawingIndicator({ label = 'drawing your picture' }: { label?: string }
       >
         {label}
       </span>
-      <span className="sr-only">PINGO is drawing a picture. This takes a few seconds.</span>
+      {/*
+        The visible words are already the whole message, so this only adds who
+        is doing it - a screen reader meets "thinking…" with no idea whose.
+      */}
+      <span className="sr-only">PINGO is {label}.</span>
     </span>
   );
 }
@@ -599,7 +624,14 @@ export function ChatThread({
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
   const isRecording = isTyping && conversation.typingActivity === 'recording';
-  const isDrawing = isTyping && conversation.typingActivity === 'drawing';
+  /*
+   * Everything the assistant reports about itself, as opposed to the two
+   * things a person can be doing. One list, so adding a stage is one edit.
+   */
+  const aiStage =
+    isTyping && conversation.typingActivity && conversation.typingActivity in AI_STAGES
+      ? (conversation.typingActivity as keyof typeof AI_STAGES)
+      : undefined;
   /** AI has no contact row - still show a normal typing line, not a blank. */
   const typingLabel = isAi
     ? 'typing…'
@@ -1144,8 +1176,8 @@ export function ChatThread({
                   promise and a different wait. Reusing the same mark would make
                   the receiver read it as text on the way.
                 */}
-                {isDrawing ? (
-                  <DrawingIndicator label="drawing…" />
+                {aiStage ? (
+                  <AiActivity label={`${AI_STAGES[aiStage]}…`} />
                 ) : (
                   <>
                     {isRecording ? <RecordingPulse /> : <PingoDot state="typing" size={4} />}
@@ -1482,7 +1514,7 @@ export function ChatThread({
                 bubble because dots inside one read as a message being formed,
                 which is exactly what they mean.
               */
-              (isDrawing ? (
+              (aiStage ? (
                 /*
                   Inside a bubble, unlike the microphone.
 
@@ -1492,7 +1524,7 @@ export function ChatThread({
                 */
                 <div className="flex justify-start pt-1">
                   <div className="glass-water rounded-lg px-4 py-3 text-caption">
-                    <DrawingIndicator />
+                    <AiActivity label={`${AI_STAGES[aiStage]}…`} />
                   </div>
                 </div>
               ) : isRecording ? (

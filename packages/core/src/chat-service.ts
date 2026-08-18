@@ -244,7 +244,27 @@ export interface MessageReceipt {
  * are coming" spend that whole time promising the wrong thing. Same reason
  * 'recording' exists.
  */
-export type ChatActivity = 'typing' | 'recording' | 'drawing';
+export type ChatActivity =
+  | 'typing'
+  | 'recording'
+  /*
+   * The rest are the assistant reporting on itself, streamed from the Edge
+   * Function as each stage is reached rather than guessed from a timer here.
+   * They share this channel with human typing because they answer the same
+   * question - what is the other side doing - and a second channel would need
+   * its own expiry to say a thing that is true for four seconds.
+   *
+   * 'reconsidering' is the one worth having. A vague first answer earns a
+   * second complete model call, measured at two thirds of a slow turn, and
+   * under an unchanging indicator all of it looks exactly like being stuck.
+   */
+  | 'remembering'
+  | 'reading'
+  | 'thinking'
+  | 'reconsidering'
+  | 'drawing'
+  | 'uploading'
+  | 'writing';
 
 export type ChatEvent =
   | { type: 'message:new'; message: Message }

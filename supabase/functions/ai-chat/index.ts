@@ -50,7 +50,28 @@ type AiProfile = {
   age?: number | null;
 };
 
-Deno.serve(async (request) => {
+/** What the assistant is doing right now, in the order it happens. */
+export type Stage =
+  | 'remembering'
+  | 'reading'
+  | 'thinking'
+  | 'reconsidering'
+  | 'drawing'
+  | 'uploading'
+  | 'writing';
+
+/** Told each time the turn moves on. A no-op when nobody is listening. */
+type Emit = (stage: Stage) => void;
+
+/**
+ * One turn, start to finish.
+ *
+ * Was the body of `Deno.serve` directly. It is a named function now so the
+ * same code can either be awaited for a single JSON reply or driven by a
+ * stream that reports each stage as it is reached - the difference is one
+ * argument, and neither path duplicates a line of what happens in between.
+ */
+async function runTurn(request: Request, emit: Emit): Promise<Response> {
   /*
    * Three numbers, so 'it is slow' can be answered instead of argued about:
    * everything before the model, the model itself, and everything after. Cheap
@@ -183,14 +204,20 @@ Deno.serve(async (request) => {
      */
     const drawing = imagePrompt(livePreview);
     if (drawing) {
-      return await replyWithImage(request, userClient, supabaseUrl, conversationId, drawing);
+      return await replyWithImage(request, userClient, supabaseUrl, conversationId, drawing, emit);
     }
+
+    // Everything from here to the model call is fetching what the model needs
+    // to know: who this person is, what it has been told to remember, and what
+    // was just said.
+    emit('reading');
 
     let justSaved: { key: string; value: string } | null = null;
     if (memoryOn && livePreview) {
       const forced = parseExplicitMemory(livePreview);
       if (forced) {
         try {
+          emit('remembering');
           await upsertMemoryRow(userClient, user.id, forced.key, forced.value);
           justSaved = forced;
           await capMemories(userClient, user.id, 40);
@@ -407,6 +434,7 @@ Deno.serve(async (request) => {
     const maxTokens =
       length === 'detailed' ? 1200 : length === 'balanced' ? 700 : 400;
 
+    emit('thinking');
     tModel = Date.now();
     const raw1 = await callChatModel(apiKey, base, model, messages, {
       temperature: 0.55,
@@ -505,6 +533,7 @@ Deno.serve(async (request) => {
           ].join('\n'),
         },
       ];
+      emit('reconsidering');
       const raw2 = await callChatModel(apiKey, base, model, retryMessages, {
         temperature: 0.4,
         top_p: 0.9,
@@ -559,6 +588,7 @@ Deno.serve(async (request) => {
      */
     tRetryDone = Date.now();
     const bubbles = splitIntoBubbles(mainBody, length, live ?? '');
+    emit('writing');
     tPostStart = Date.now();
 
     let messageId: string | null = null;
@@ -634,6 +664,87 @@ Deno.serve(async (request) => {
       500,
     );
   }
+}
+
+/**
+ * The door. One turn, reported live or delivered whole.
+ *
+ * ## Why stream at all
+ *
+ * Answering can take fifteen seconds, and most of it is invisible: the model
+ * call, and - when the first answer came back vague - a second complete model
+ * call that costs as much again. Measured, that retry was two thirds of the
+ * request. Under a single unchanging indicator all of it looks identical to
+ * being stuck, which is what a person concludes.
+ *
+ * So the stages are sent as they happen. Not a guess made by the client from a
+ * timer, which would be a story rather than a report - if the words say
+ * "reconsidering" it is because a second model call is genuinely running.
+ *
+ * ## Server-sent events, not a websocket
+ *
+ * One direction, one request, dies with it. A socket would need its own
+ * lifecycle to say a thing that is only true for a few seconds.
+ *
+ * A client that does not ask for a stream gets exactly what it got before,
+ * which is what keeps this safe to deploy ahead of the app that uses it.
+ */
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders(request) });
+  }
+
+  /*
+   * `clone()` because `runTurn` reads the body too, and a request body is a
+   * stream that can only be consumed once.
+   */
+  const peek = await request
+    .clone()
+    .json()
+    .catch(() => ({}) as Record<string, unknown>);
+
+  if (!peek || (peek as { stream?: boolean }).stream !== true) {
+    return runTurn(request, () => {});
+  }
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (payload: unknown) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}
+
+`));
+        } catch {
+          // The reader went away - the person closed the thread. Nothing to do
+          // and nothing worth logging; the turn finishes on its own.
+        }
+      };
+
+      try {
+        const response = await runTurn(request, (stage) => send({ stage }));
+        const body = await response.json().catch(() => ({}));
+        send({ done: true, status: response.status, payload: body });
+      } catch (cause) {
+        console.error('[ai-chat] stream failed', cause);
+        send({
+          done: true,
+          status: 500,
+          payload: { error: cause instanceof Error ? cause.message : 'Unexpected error' },
+        });
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      ...corsHeaders(request),
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 });
 
 function json(request: Request, body: unknown, status = 200) {
@@ -2132,6 +2243,7 @@ async function replyWithImage(
   supabaseUrl: string,
   conversationId: string,
   prompt: string,
+  emit: Emit,
 ): Promise<Response> {
   /** Said in the thread, so it is written to be read rather than logged. */
   const say = async (body: string, status = 200, extra: Record<string, unknown> = {}) => {
@@ -2144,6 +2256,7 @@ async function replyWithImage(
 
   let image;
   try {
+    emit('drawing');
     image = await generateImage(prompt);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
@@ -2196,6 +2309,7 @@ async function replyWithImage(
     auth: { persistSession: false },
   });
 
+  emit('uploading');
   const path = `${BOT_ID}/${crypto.randomUUID()}.${image.extension}`;
   const { error: uploadError } = await admin.storage
     .from('photos')

@@ -3951,7 +3951,13 @@ export class SupabaseChatService implements ChatService {
      * one the function runs on the same text, so the line somebody reads while
      * they wait is the truth about what is happening.
      */
-    this.#setAiTyping(conversationId, true, imagePrompt(userMessage) ? 'drawing' : 'typing');
+    /*
+     * The opening guess, replaced within a moment by what the server actually
+     * reports. It exists because the first stage cannot arrive before the
+     * request does, and an empty pause is the one thing this is here to
+     * remove.
+     */
+    this.#setAiTyping(conversationId, true, imagePrompt(userMessage) ? 'drawing' : 'thinking');
     // Anything older than this is a message the UI already has.
     const startedAt = Date.now();
 
@@ -3961,7 +3967,27 @@ export class SupabaseChatService implements ChatService {
         turn_body: userMessage.slice(0, 4000),
       });
 
-      await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000));
+      /*
+       * Streaming first, the plain call if it cannot be used.
+       *
+       * `#streamAiChat` returns false only when it never got a stream to read -
+       * no session, a proxy answering instead, an older deploy. A turn that
+       * genuinely failed throws, and is handled by the same catch as before.
+       * The fallback is deliberately the untouched original call, so the worst
+       * case is today's behaviour with no running commentary rather than a
+       * reply that does not arrive.
+       */
+      const streamed = await this.#streamAiChat(
+        conversationId,
+        userMessage.slice(0, 4000),
+        (stage) => this.#setAiTyping(conversationId, true, stage),
+      ).catch((cause) => {
+        // A thrown turn is a real failure and must not be retried by the
+        // fallback - that would post two replies.
+        throw cause;
+      });
+
+      if (!streamed) await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000));
 
       // Ensure the new assistant row is in the list even if realtime lags.
       const conversation = await this.getConversation(conversationId);
@@ -4025,6 +4051,93 @@ export class SupabaseChatService implements ChatService {
    * invoke helper can surface opaque CORS/relay errors without the body that
    * already contains a successful `messageId`.
    */
+  /**
+   * Read the turn as it happens, and report each stage.
+   *
+   * The function sends server-sent events - one per stage, then a final frame
+   * carrying what the non-streaming call would have returned. Anything that
+   * goes wrong on the way is answered by falling back to the plain call, so a
+   * proxy that will not stream costs a person nothing but the running
+   * commentary.
+   *
+   * Resolves false when this route could not be used at all, which is the
+   * caller's signal to take the ordinary one.
+   */
+  async #streamAiChat(
+    conversationId: ConversationId,
+    userMessage: string,
+    onStage: (stage: ChatActivity) => void,
+  ): Promise<boolean> {
+    const {
+      data: { session },
+    } = await this.#client.auth.getSession();
+    const base = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '');
+    const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!session?.access_token || !base || !anon) return false;
+
+    const response = await fetch(`${base}/functions/v1/ai-chat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: anon,
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({ conversationId, userMessage, stream: true }),
+    });
+
+    /*
+     * A body that is not an event stream means something in front of the
+     * function answered instead - a proxy, an error page, an older deploy. Do
+     * not try to parse it; hand back to the caller.
+     */
+    if (!response.ok || !response.body) return false;
+    if (!(response.headers.get('Content-Type') ?? '').includes('text/event-stream')) return false;
+
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    let finished = false;
+
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+
+      /*
+       * Split on the blank line that ends an event, and keep the remainder:
+       * a chunk boundary lands mid-frame often enough that parsing per chunk
+       * silently drops stages.
+       */
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+
+      for (const frame of frames) {
+        const line = frame.split('\n').find((l) => l.startsWith('data: '));
+        if (!line) continue;
+        let event: { stage?: string; done?: boolean; payload?: { error?: string; messageId?: string } };
+        try {
+          event = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
+        if (event.stage) onStage(event.stage as ChatActivity);
+        if (event.done) {
+          finished = true;
+          const failed = event.payload?.error && !event.payload.messageId;
+          if (failed) throw new Error(String(event.payload?.error));
+        }
+      }
+    }
+
+    /*
+     * A stream that ended without its final frame is a turn whose outcome
+     * nobody knows. Reported as not-handled so the plain call runs, rather
+     * than as success - the cost of being wrong the other way is a reply that
+     * never arrives and nothing saying so.
+     */
+    return finished;
+  }
+
   async #invokeAiChat(conversationId: ConversationId, userMessage: string): Promise<void> {
     const {
       data: { session },
