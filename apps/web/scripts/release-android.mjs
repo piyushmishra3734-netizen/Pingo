@@ -68,14 +68,19 @@ run('node', ['scripts/trim-android-assets.mjs']);
 
 console.log(`\n▸ building the signed release APK`);
 /*
- * `gradlew.bat` on Windows, `./gradlew` everywhere else.
+ * `.\gradlew.bat` on Windows, `./gradlew` everywhere else.
  *
- * `shell: true` spawns cmd.exe on Windows, and cmd does not understand a `./`
- * prefix — it reports "'.' is not recognized as an internal or external
- * command", which reads like a missing tool rather than a path syntax the
- * shell cannot parse.
+ * `shell: true` spawns cmd.exe on Windows, and the two shells disagree about
+ * both halves of this. cmd does not understand a `./` prefix — it reports
+ * "'.' is not recognized as an internal or external command", which reads like
+ * a missing tool rather than a path syntax the shell cannot parse. And a bare
+ * `gradlew.bat` is not found either, because cmd will not search the working
+ * directory when `NoDefaultCurrentDirectoryInExePath` is set — the same error
+ * text, from the opposite cause, on a file that is sitting right there.
+ *
+ * `.\` is explicit and is the one spelling both cases accept.
  */
-const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+const gradlew = process.platform === 'win32' ? '.\\gradlew.bat' : './gradlew';
 run(gradlew, ['assembleRelease', '--no-daemon'], { cwd: 'android', env, shell: true });
 
 if (!existsSync(apk)) {
