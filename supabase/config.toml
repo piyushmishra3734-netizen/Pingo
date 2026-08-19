@@ -80,3 +80,14 @@ verify_jwt = false
 # `functions/purge-media/index.ts`.
 [functions.purge-media]
 verify_jwt = false
+
+# A browser cannot set headers on a WebSocket, so the platform's check - which
+# reads a header - can never pass for this one. The JWT arrives as a query
+# parameter and is verified in code before Sarvam is dialled at all; see the
+# header of `functions/stt-stream/index.ts`.
+#
+# It was set on the dashboard and not here, which meant the next `functions
+# deploy` would have quietly turned verification back on and taken every voice
+# call down with it. The repo is the record.
+[functions.stt-stream]
+verify_jwt = false
