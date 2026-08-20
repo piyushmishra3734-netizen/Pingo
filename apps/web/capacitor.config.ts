@@ -1,4 +1,50 @@
+import { readFileSync } from 'node:fs';
+
 import type { CapacitorConfig } from '@capacitor/cli';
+
+/**
+ * The one value in this file that comes from outside it.
+ *
+ * `.env` is Vite's file, not Node's. Vite loads it when it builds the web
+ * bundle, so `import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID` is correct inside the
+ * app - but this config is evaluated by `cap sync` under plain Node, where
+ * `process.env` knows nothing about it. The shipped v2.26.34.1 APK went out
+ * with `serverClientId: ""` for exactly that reason: the web half of the build
+ * had the id, the native half silently did not, and Google Sign-In on Android
+ * fails with no clue as to why.
+ *
+ * So the file is read here too. Six lines against an entire class of build that
+ * looks correct, installs correctly, and cannot back anything up.
+ */
+function fromEnvFile(name: string): string | undefined {
+  /*
+   * Both spellings, because this file is read from two places: `cap sync` runs
+   * in `apps/web`, and the release script runs it from the repository root.
+   *
+   * Deliberately not `import.meta.url`, which would be the obvious way to find
+   * a file beside this one and is the way that breaks: the Capacitor CLI loads
+   * this config through a CommonJS require hook, and any `import.meta` in it
+   * fails the parse with "exports is not defined in ES module scope" - which
+   * reads like a broken toolchain rather than one unavailable expression.
+   */
+  for (const path of ['.env', 'apps/web/.env']) {
+    try {
+      const line = readFileSync(path, 'utf8')
+        .split('\n')
+        .find((row) => row.trimStart().startsWith(`${name}=`));
+      // Quotes are allowed in a dotenv value and are not part of it.
+      const value = line?.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
+      if (value) return value;
+    } catch {
+      // Not here; try the other spelling. No file at all is a normal state -
+      // CI passes the value in the environment.
+    }
+  }
+  return undefined;
+}
+
+const GOOGLE_WEB_CLIENT_ID =
+  process.env.VITE_GOOGLE_WEB_CLIENT_ID?.trim() || fromEnvFile('VITE_GOOGLE_WEB_CLIENT_ID') || '';
 
 /**
  * PINGO as a real installed application.
@@ -75,10 +121,11 @@ const config: CapacitorConfig = {
      *
      * Read from the environment rather than written here: the value differs
      * between a personal build and anything shared, and a client ID committed
-     * to a repository is a value nobody can rotate.
+     * to a repository is a value nobody can rotate. See `fromEnvFile` for why
+     * the environment alone was not enough.
      */
     GoogleAuth: {
-      serverClientId: process.env.VITE_GOOGLE_WEB_CLIENT_ID ?? '',
+      serverClientId: GOOGLE_WEB_CLIENT_ID,
       forceCodeForRefreshToken: false,
     },
 

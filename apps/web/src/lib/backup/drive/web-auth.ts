@@ -76,6 +76,43 @@ async function loadGis(): Promise<GoogleIdentity> {
 }
 
 /**
+ * A Cloudflare Pages preview build, which Google can never be told about.
+ *
+ * Every deploy gets its own `<hash>.pingochat.pages.dev`, and an OAuth client
+ * authorises exact origins - no wildcards. So a preview URL fails the origin
+ * check every time, by design, and no amount of adding origins will fix the
+ * next one.
+ */
+function isPreviewOrigin(): boolean {
+  return /^https:\/\/[^.]+\.pingochat\.pages\.dev$/.test(location.origin)
+    && location.origin !== 'https://pingochat.pages.dev';
+}
+
+/**
+ * What actually went wrong, in words somebody can act on.
+ *
+ * Every non-cancellation used to collapse into "Google Drive authorisation
+ * failed", which is the least useful true sentence available: by far the most
+ * common cause is `origin_mismatch`, a configuration fact with an exact remedy,
+ * and it was being reported as though Drive itself had refused. Finding it
+ * meant opening the console and reading Google's own error out of a popup that
+ * had already closed.
+ *
+ * The origin is named because it is the thing that has to be pasted into the
+ * OAuth client's authorised origins, and it is not always the one somebody
+ * assumes - a preview deploy and a local dev server are both "the app".
+ */
+function describeFailure(type: string | undefined): string {
+  if (isPreviewOrigin()) {
+    return `Drive backup only works on https://pingochat.pages.dev. This is a preview build (${location.origin}), and Google cannot authorise an address that changes with every deploy.`;
+  }
+  if (type === 'origin_mismatch') {
+    return `Google will not accept Drive requests from ${location.origin}. Add it to the OAuth client's authorised JavaScript origins.`;
+  }
+  return 'Google Drive authorisation failed.';
+}
+
+/**
  * Where the token lives between page loads.
  *
  * Holding it only in memory made connecting useless: the grant survived, the
@@ -149,7 +186,7 @@ export class WebDriveAuth implements DriveAuth {
           const cancelled = error.type === 'popup_closed' || error.type === 'popup_failed_to_open';
           reject(
             new DriveAuthError(
-              cancelled ? 'Google Drive was not connected.' : 'Google Drive authorisation failed.',
+              cancelled ? 'Google Drive was not connected.' : describeFailure(error.type),
               cancelled ? 'cancelled' : 'failed',
             ),
           );

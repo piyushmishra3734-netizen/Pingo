@@ -66,6 +66,30 @@ console.log(`\n▸ syncing into Android`);
 run('npx', ['cap', 'sync', 'android'], { shell: true });
 run('node', ['scripts/trim-android-assets.mjs']);
 
+/*
+ * The half of the build that fails silently.
+ *
+ * `cap sync` writes `capacitor.config.json` into the APK's assets, and the
+ * Google client id in it comes from a file Node does not read by default. When
+ * it is missing the sync still succeeds, the APK still installs, the app still
+ * opens - and Drive backup is dead, with no error anybody sees until somebody
+ * tries to back up. v2.26.34.1 shipped that way.
+ *
+ * Checked after the sync rather than before, because the sync is what writes
+ * the value being checked.
+ */
+const synced = JSON.parse(
+  readFileSync('android/app/src/main/assets/capacitor.config.json', 'utf8'),
+);
+if (!synced.plugins?.GoogleAuth?.serverClientId) {
+  console.error(
+    '\nserverClientId is empty in the synced capacitor config.\n' +
+      'Drive backup would be dead in this APK. Set VITE_GOOGLE_WEB_CLIENT_ID\n' +
+      'in apps/web/.env or in the environment, then run this again.',
+  );
+  process.exit(1);
+}
+
 console.log(`\n▸ building the signed release APK`);
 /*
  * `.\gradlew.bat` on Windows, `./gradlew` everywhere else.
