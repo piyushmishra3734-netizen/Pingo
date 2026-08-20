@@ -65,6 +65,16 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
   const [saved, setSaved] = useState(false);
   /** The local copy's object URL, once this device has the file. */
   const [localHref, setLocalHref] = useState<string>();
+  /*
+   * The image source that would not load, if one has.
+   *
+   * An image attachment is drawn as the picture itself, so once PINGO's copy
+   * has been collected at twenty-four hours the bubble becomes a broken frame
+   * that never recovers. Falling back to the ordinary file row is the honest
+   * shape: the message is still there, its name is still there, the picture is
+   * not. Keyed on the url rather than a flag so a re-signed link tries again.
+   */
+  const [gone, setGone] = useState<string>();
 
   /*
    * A document lives on the device as well, and by the same rule as everything
@@ -121,7 +131,7 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
     return <AudioBubble file={file} name={name} mine={mine} spaced={spaced} messageId={messageId} />;
   }
 
-  if (mime.startsWith('image/') && file.url) {
+  if (mime.startsWith('image/') && file.url && gone !== file.url) {
     return (
       <div className={cn('w-full', spaced && 'mb-2')} {...swallow}>
         <button
@@ -137,6 +147,10 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
             src={file.url}
             alt={name}
             onContextMenu={(event) => event.preventDefault()}
+            // Collected after its 24 hours, or a signature that no longer
+            // opens it. Falling through to the file row below says so; a
+            // broken picture in the thread says nothing. See `gone`.
+            onError={() => setGone(file.url)}
             className="max-h-[22rem] w-full rounded-lg object-cover"
           />
         </button>

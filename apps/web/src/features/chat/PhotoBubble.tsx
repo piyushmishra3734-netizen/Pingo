@@ -63,6 +63,26 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
   const [viewing, setViewing] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  /*
+   * The source that would not load, if one has.
+   *
+   * Every state below this bubble was already honest about a photo PINGO no
+   * longer holds - except the one that actually happens. After the 24-hour
+   * collection the server object is gone, and a device that still has the row
+   * cached from before still has the path in it: `shown` is truthy, the `img`
+   * asks for a file that was deleted, and the thread keeps a broken picture in
+   * it for ever. Measured on a live thread: five images, one of them broken,
+   * and the word "expired" nowhere on the screen. That is the whole of "the
+   * deletion is not working" - it worked, and the bubble went on pretending
+   * otherwise.
+   *
+   * Holding the failed *url* rather than a boolean is what makes this
+   * self-healing: a fresh signature arriving in props no longer matches, so a
+   * blocked network or a signature that expired mid-scroll recovers by itself
+   * on the next render, while a genuinely collected object stays gone.
+   */
+  const [failedSrc, setFailedSrc] = useState<string>();
+
   const caption = message.body.trim();
   const limited = photo.viewLimit !== undefined;
 
@@ -79,6 +99,8 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
     void service.confirmMediaReceived?.(message.id).catch(() => undefined);
   });
   const shown = limited ? url : offline.src;
+  /** This exact source has already been tried and did not load. */
+  const broken = failedSrc !== undefined && failedSrc === shown;
 
   const open = async () => {
     if (opening || url) return;
@@ -103,7 +125,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           mine ? 'animate-bubble-in-mine' : 'animate-bubble-in',
         )}
       >
-        {shown ? (
+        {shown && !broken ? (
           /*
            * `shown`, not `url`.
            *
@@ -131,6 +153,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
             <img
               src={shown}
               alt={caption || 'Photo'}
+              // The file is gone, or this signature no longer opens it. Either
+              // way the honest panel below says so - see `failedSrc`.
+              onError={() => setFailedSrc(shown)}
               className={cn(
                 'max-h-[22rem] w-full rounded-lg object-cover',
                 // A limited photo that is currently open is ringed, so it is
@@ -157,7 +182,13 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
               'glass-water',
             )}
           >
-            {photo.storagePath ? (
+            {photo.storagePath && !broken ? (
+              /*
+               * Still waiting is only honest while nothing has failed. A path
+               * on the row survives on a device that cached it before the
+               * collection, so `storagePath` alone would spin for ever over a
+               * file that was deleted yesterday.
+               */
               <PingoDot state="loading" size={5} label="Loading photo" />
             ) : (
               <span className="flex flex-col items-center gap-2 text-text-secondary">
