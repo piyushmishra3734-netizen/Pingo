@@ -1157,13 +1157,37 @@ export class SupabaseChatService implements ChatService {
                 type: 'message:updated',
                 message: { ...signed, reactions: this.#reactions.get(row.id) ?? [] },
               });
+
+              /*
+               * The list only shows this message while it is the newest one, so
+               * that is the only case where an edit changes the preview - and
+               * it is one field, not a rebuild.
+               *
+               * This used to be a nine-query `getConversation` on *every* row
+               * update in the conversation, and the assistant streams its
+               * answer as a series of updates to a single row: one spoken reply
+               * rebuilt the whole list once per sentence, re-reading a roster
+               * that had not moved. The unread count is deliberately untouched
+               * - editing a message is not receiving one.
+               */
+              const known = this.#known.get(row.conversation_id);
+              if (known?.lastMessage?.id === row.id) {
+                const next = { ...known, lastMessage: signed };
+                this.#known.set(row.conversation_id, next);
+                this.#emit({ type: 'conversation:updated', conversation: next });
+              }
             });
 
-          // The list shows this message when it is the newest one, so an edit
-          // or a deletion has to reach the preview as well as the thread.
-          void this.getConversation(row.conversation_id).then((conversation) => {
-            if (conversation) this.#emit({ type: 'conversation:updated', conversation });
-          });
+          /*
+           * A conversation this device has never listed. Only then is the full
+           * read the right answer - the preview for a known one is patched
+           * above, beside the message it came from.
+           */
+          if (!this.#known.has(row.conversation_id)) {
+            void this.getConversation(row.conversation_id).then((conversation) => {
+              if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+            });
+          }
         },
       )
       /*
