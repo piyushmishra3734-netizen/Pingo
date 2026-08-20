@@ -62,6 +62,21 @@ const env = {
 console.log(`\n▸ building the web bundle`);
 run('pnpm', ['--filter', '@pingo/web', 'build'], { cwd: '../..', shell: true });
 
+/*
+ * The native artwork, which a web deploy never touches.
+ *
+ * `cap sync` copies `dist`, so everything the browser gets, the APK gets. The
+ * launch splash is not in `dist`: it is a set of PNGs under `android/res`,
+ * generated from `assets/splash-mobile.png` by a script somebody has to
+ * remember to run. Nobody remembers, and the failure is invisible from the
+ * outside - the app just opens on artwork from whenever it was last generated.
+ *
+ * Regenerated on every release instead. It is a no-op when the artwork has not
+ * changed, and the one time it is not a no-op is the time it matters.
+ */
+console.log(`\n▸ regenerating the launch splash`);
+run('node', ['scripts/make-splash.mjs'], { cwd: '../..', shell: true });
+
 console.log(`\n▸ syncing into Android`);
 run('npx', ['cap', 'sync', 'android'], { shell: true });
 run('node', ['scripts/trim-android-assets.mjs']);
