@@ -150,6 +150,64 @@ Deno.serve(async (request: Request) => {
   }
 
   /*
+   * Snaps, which had a collector that could not be relied on.
+   *
+   * A snap is parked the same way media is - `snap_purge_path` set, bytes still
+   * in the bucket - and until now the only thing that ever deleted them was
+   * `pending_snap_purges` running in the *uploader's own browser*. That works
+   * for somebody who keeps using PINGO and does nothing at all for somebody who
+   * does not. Found in production: a snap uploaded on 26 July, opened and
+   * parked on 13 August, still sitting in the bucket a week later because the
+   * person who sent it had not been back.
+   *
+   * The whole point of a snap is that it stops existing. "Unless the sender
+   * never opens the app again" is not a footnote anybody agreed to, so the
+   * service role collects them here on the same ten-minute tick as everything
+   * else. The client sweep stays: it is faster when it happens, and this is
+   * the floor under it.
+   */
+  const { data: snapRows, error: snapError } = await admin
+    .from('messages')
+    .select('id, snap_purge_path')
+    .not('snap_purge_path', 'is', null)
+    .limit(BATCH);
+
+  if (snapError) console.error('[purge-media] could not read parked snaps', snapError.message);
+
+  let snapsDeleted = 0;
+
+  for (const snap of (snapRows ?? []) as { id: string; snap_purge_path: string }[]) {
+    if (!snap.snap_purge_path) continue;
+
+    const { error: removeError } = await admin.storage
+      .from('snaps')
+      .remove([snap.snap_purge_path]);
+
+    // Already gone is a success, exactly as above.
+    if (removeError && !/not\s*found/i.test(removeError.message)) {
+      console.error('[purge-media] snap delete failed', snap.snap_purge_path, removeError.message);
+      continue;
+    }
+
+    /*
+     * Pointer last, and only if it is still the path just deleted - the same
+     * guard the media pass uses, and for the same reason: the uploader's own
+     * client may have got here first.
+     */
+    const { error: clearError } = await admin
+      .from('messages')
+      .update({ snap_purge_path: null, snap_path: null })
+      .eq('id', snap.id)
+      .eq('snap_purge_path', snap.snap_purge_path);
+
+    if (clearError) {
+      console.error('[purge-media] could not clear snap pointer', snap.id, clearError.message);
+      continue;
+    }
+    snapsDeleted += 1;
+  }
+
+  /*
    * Stories, which had no collector at all.
    *
    * `20260725210000` gave stories an `expires_at` and nothing to act on it, so
@@ -205,6 +263,8 @@ Deno.serve(async (request: Request) => {
     considered: rows.length,
     deleted,
     alreadyGone: missing,
+    snapsConsidered: snapRows?.length ?? 0,
+    snapsDeleted,
     storiesConsidered: storyRows?.length ?? 0,
     storiesDeleted,
   });
