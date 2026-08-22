@@ -4357,8 +4357,7 @@ export class SupabaseChatService implements ChatService {
      */
     if (!readReceiptsOn()) {
       holdRead(conversationId);
-      const held = await this.getConversation(conversationId);
-      if (held) this.#emit({ type: 'conversation:updated', conversation: held });
+      this.#publishRead(conversationId);
       return;
     }
 
@@ -4374,8 +4373,43 @@ export class SupabaseChatService implements ChatService {
     await this.#client.rpc('mark_conversation_read', { conv: conversationId });
     releaseRead(conversationId);
 
-    const conversation = await this.getConversation(conversationId);
-    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+    this.#publishRead(conversationId);
+  }
+
+  /**
+   * The badge going to zero, which is all that reading changes on the list.
+   *
+   * ## Why this is not a refetch
+   *
+   * Both branches above used to call `getConversation` - nine queries - and
+   * this is the most frequently called thing in the app: opening a thread marks
+   * it read, and so does every message that arrives while it is open. Measured
+   * on 2026-08-22, after the receipts, send and update paths had already been
+   * patched: `mark_conversation_read` ran 5,619 times in a day, and rebuilds
+   * were still running at seven per message with the assistant completely idle.
+   * This was the rest of it.
+   *
+   * Nothing else about a conversation changes when you read it. The title, the
+   * roster, the wallpaper and the streaks are all exactly what they were.
+   */
+  #publishRead(conversationId: ConversationId): void {
+    const known = this.#known.get(conversationId);
+    if (!known) {
+      // Never listed on this device - the one case that needs the real read.
+      void this.getConversation(conversationId)
+        .then((conversation) => {
+          if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    // Already zero: emitting again would be a render for no change.
+    if (known.unreadCount === 0) return;
+
+    const next: Conversation = { ...known, unreadCount: 0 };
+    this.#known.set(conversationId, next);
+    this.#emit({ type: 'conversation:updated', conversation: next });
   }
 
   // -- groups ---------------------------------------------------------------
