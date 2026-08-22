@@ -33,12 +33,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
-import { MythicBadge, MythicMark } from '../features/referrals/MythicBadge.js';
-import {
-  hasBadge,
-  MYTHIC_PIONEER,
-  useEarnedBadges,
-} from '../features/referrals/useEarnedBadges.js';
+import { AchievementArt, AchievementMark } from '../features/achievements/AchievementArt.js';
+import { MythicAura, mythicAccentStyle } from '../features/achievements/MythicAura.js';
+import { useAchievements } from '../features/achievements/useAchievements.js';
+import { usePreferences } from '../features/settings/SettingsContext.js';
 import { ProfileJourney } from '../features/journey/ProfileJourney.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
@@ -293,7 +291,10 @@ export function ProfileScreen() {
    * `person?.id` rather than `person.id` for the same reason: this now runs
    * while there is nobody yet, and the hook is built to be asked about nothing.
    */
-  const profileBadges = useEarnedBadges([person?.id]);
+  const achievements = useAchievements([person?.id]);
+  const { preferences } = usePreferences();
+  /* The rare layer, asked for by tier so a future badge inherits it. */
+  const isMythic = achievements.isMythic(person?.id);
 
   if (person === undefined) return <LoadingState label="Loading profile" />;
 
@@ -449,7 +450,20 @@ export function ProfileScreen() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
+    /*
+      The wash sits behind the top of the page, never over it.
+
+      Positioned rather than painted on the scroller so it stays at the top of
+      the profile as it scrolls away, and so nothing between it and the reader
+      changes: no text is tinted, no control is overlaid, and with it on or off
+      every word is exactly as legible. The accent is handed down as a custom
+      property for the few details that opt into it.
+    */
+    <div
+      className={cn('relative h-full overflow-y-auto', isMythic && 'isolate')}
+      style={isMythic ? mythicAccentStyle(preferences.mythic.accent) : undefined}
+    >
+      {isMythic && <MythicAura accent={preferences.mythic.accent} className="-z-10" />}
       {avatarEditorSrc && (
         <AvatarPhotoEditor
           src={avatarEditorSrc}
@@ -544,10 +558,7 @@ export function ProfileScreen() {
               Deliberately bigger here than in a chat list, where the name is
               body text and the same twenty-four pixels would tower over it.
             */}
-            <MythicMark
-              show={hasBadge(profileBadges(person.id), MYTHIC_PIONEER)}
-              className="size-6"
-            />
+            <AchievementMark achievement={achievements.lead(person.id)} className="size-6" />
           </h2>
 
           {/* Handle + bio as one quiet identity group under the name. */}
@@ -569,43 +580,63 @@ export function ProfileScreen() {
             mission lives on their own profile below, which is where somebody
             goes looking for "how do I get that".
           */}
-          {hasBadge(profileBadges(person.id), MYTHIC_PIONEER) && (
+          {achievements.lead(person.id) && (
             /*
-              The badge and its name, standing in the page on their own.
+              The achievement standing in the page on its own.
 
-              No plate, no border, no panel. A card around this turned an
-              achievement into a product tile - the visual language of a landing
-              page, on the profile of a private messenger. What somebody has
-              earned belongs in the page the way their bio does: as part of who
-              they are, not as a section about them.
+              No plate, no border, no panel. A card around this turned it into a
+              product tile - the visual language of a landing page, on the
+              profile of a private messenger. What somebody earned belongs here
+              the way their bio does: part of who they are, not a section about
+              them.
 
-              The line under it is gone with the card. How the badge was earned
-              is the mission's business; a profile that explains its own badges
-              is advertising them.
+              Whichever achievement leads, not a named one. The day there is a
+              second rare badge this draws it without being touched.
             */
             <div className="mt-6 flex flex-col items-center gap-2">
-              <MythicBadge size="medium" glow title="MYTHIC PIONEER" />
-              <p className="text-body font-semibold tracking-[0.14em] text-ink">MYTHIC PIONEER</p>
+              <AchievementArt
+                achievement={achievements.lead(person.id)!}
+                size="medium"
+                aura={preferences.mythic.aura}
+              />
+              <p className="text-body font-semibold tracking-[0.14em] text-ink">
+                {achievements.lead(person.id)!.title}
+              </p>
             </div>
           )}
 
           {/*
-            Your own way to the mission, and only yours.
+            Your own collection, and your own way to the mission.
 
-            Named and nothing else - no requirement, no count, no invitation.
-            Everything about how it is earned lives on the mission screen, which
-            is what this opens. A profile is not where somebody is sold a thing
-            to go and do.
+            One row, named and nothing else - no requirement, no count, no
+            invitation. Everything about how a badge is earned lives on the
+            mission screen. A profile is not where somebody is sold a thing to
+            go and do.
           */}
-          {isSelf && !hasBadge(profileBadges(person.id), MYTHIC_PIONEER) && (
+          {isSelf && (
             <Link
-              to="/profile/mission"
+              to={achievements.isMythic(person.id) ? '/profile/achievements' : '/profile/mission'}
               className="focus-ring mt-6 flex w-full max-w-xs items-center gap-3 rounded-lg p-3 text-left"
             >
-              <MythicBadge size="small" className="size-9 opacity-45" />
+              {achievements.lead(person.id) ? (
+                <AchievementArt
+                  achievement={achievements.lead(person.id)!}
+                  size="small"
+                  className="size-9"
+                />
+              ) : (
+                <span
+                  aria-hidden
+                  className="grid size-9 place-items-center rounded-full bg-hover text-caption font-semibold tracking-widest text-text-tertiary"
+                >
+                  ???
+                </span>
+              )}
               <span className="min-w-0 flex-1">
-                <span className="block text-body font-medium text-ink">MYTHIC PIONEER</span>
-                <span className="block text-caption text-text-secondary">Locked</span>
+                <span className="block text-body font-medium text-ink">Achievements</span>
+                <span className="block text-caption text-text-secondary">
+                  {achievements.lead(person.id)?.title ?? 'Nothing earned yet'}
+                </span>
               </span>
               <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
             </Link>

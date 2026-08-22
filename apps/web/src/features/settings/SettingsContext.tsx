@@ -132,6 +132,7 @@ function read(): Preferences {
         camera: { ...DEFAULT_PREFERENCES.camera, ...stored.camera },
         calls: { ...DEFAULT_PREFERENCES.calls, ...stored.calls },
         advanced: { ...DEFAULT_PREFERENCES.advanced, ...stored.advanced },
+        mythic: { ...DEFAULT_PREFERENCES.mythic, ...stored.mythic },
       };
     }
 

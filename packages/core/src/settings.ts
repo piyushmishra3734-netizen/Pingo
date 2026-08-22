@@ -303,3 +303,35 @@ export function searchSettings(query: string): SettingsEntry[] {
     .sort((a, b) => b.score - a.score || a.entry.label.localeCompare(b.entry.label))
     .map((item) => item.entry);
 }
+
+/**
+ * What a Mythic account may change about how its own achievement is drawn.
+ *
+ * ## Why this is a preference and not a theme
+ *
+ * Unlocking a rare badge should feel like it gave you something, and the
+ * cheapest honest version of that is a choice nobody else has. It is
+ * deliberately a short list: two decisions, three options each. A long panel
+ * would turn a collectible into a settings screen, and the point is the badge,
+ * not the configuring of it.
+ *
+ * Neither option touches the rest of PINGO. `aura` is the light behind the
+ * emblem, `accent` is the tint on the profile's own highlights - and both are
+ * inert for an account that has not earned anything, which is why they can sit
+ * in preferences safely for everybody.
+ */
+export type MythicAura = 'classic' | 'iridescent' | 'gold';
+export type MythicAccent = 'aurora' | 'gold' | 'prism';
+
+export interface MythicPreferences {
+  /** The light behind the emblem. */
+  aura: MythicAura;
+  /** The tint on a Mythic profile's own highlights. */
+  accent: MythicAccent;
+}
+
+/** What an account arrives with the moment it first earns something. */
+export const DEFAULT_MYTHIC: MythicPreferences = {
+  aura: 'classic',
+  accent: 'aurora',
+};

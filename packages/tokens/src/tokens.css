@@ -368,6 +368,15 @@
   --animate-aurora-drift: aurora-drift 18s var(--ease-ambient) infinite;
   --animate-aurora-drift-slow: aurora-drift-slow 26s var(--ease-ambient) infinite;
 
+  /* Light on a rare profile.
+
+     Twenty-two seconds for a few percent of movement, which is under the
+     threshold where the eye reads something as animated - it reads as light
+     that is not quite still. Long and cheap on purpose: this is on screen for
+     as long as somebody is reading a profile, so it moves two properties and
+     never repaints text. */
+  --animate-mythic-drift: mythic-drift 22s var(--ease-ambient) infinite;
+
   /* Legacy ping (still used if referenced). */
   --animate-ping-ripple: ping-ripple 1200ms cubic-bezier(0.23, 1, 0.32, 1) infinite;
   --animate-ping-core: ping-core 1200ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -712,6 +721,20 @@
   }
   50% {
     transform: translate(-55%, -4%) scale(0.95);
+  }
+}
+
+/* The Mythic wash, barely moving. Transform and opacity only - both composited,
+   so this costs nothing on a phone and never forces a text repaint. */
+@keyframes mythic-drift {
+  0%,
+  100% {
+    transform: translate3d(-2%, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(2%, 1.5%, 0) scale(1.06);
+    opacity: 1;
   }
 }
 

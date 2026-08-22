@@ -19,8 +19,8 @@ import {
 } from '@pingo/ui';
 import { Link } from 'react-router-dom';
 
-import { MythicMark } from '../referrals/MythicBadge.js';
-import { hasBadge, MYTHIC_PIONEER, useEarnedBadges } from '../referrals/useEarnedBadges.js';
+import { AchievementMark } from '../achievements/AchievementArt.js';
+import { useAchievements } from '../achievements/useAchievements.js';
 
 import { rememberSharedElement } from '../../hooks/useSharedElement.js';
 import { useLongPress } from '../chat/context-menu/useLongPress.js';
@@ -79,7 +79,7 @@ export function ConversationRow({
     conversation.kind === 'direct'
       ? conversation.participantIds.find((id) => id !== currentUser?.id)
       : undefined;
-  const badges = useEarnedBadges([badgeHolder]);
+  const achievements = useAchievements([badgeHolder]);
 
   const isTyping = conversation.typingUserIds.length > 0;
   const hasUnread = conversation.unreadCount > 0;
@@ -161,7 +161,7 @@ export function ConversationRow({
             to a room. Groups show it next to the sender instead, where the name
             is a person's.
           */}
-          <MythicMark show={badgeHolder ? hasBadge(badges(badgeHolder), MYTHIC_PIONEER) : false} />
+          <AchievementMark achievement={achievements.lead(badgeHolder)} />
 
           {/*
             Markers at tertiary weight so none compete with the title or the

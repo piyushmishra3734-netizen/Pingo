@@ -3,8 +3,8 @@ import { Avatar, LoadingState, UsersIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { MythicMark } from '../referrals/MythicBadge.js';
-import { hasBadge, MYTHIC_PIONEER, useEarnedBadges } from '../referrals/useEarnedBadges.js';
+import { AchievementMark } from '../achievements/AchievementArt.js';
+import { useAchievements } from '../achievements/useAchievements.js';
 import { Sheet } from '../../components/Sheet.js';
 
 /**
@@ -33,7 +33,7 @@ export function FriendsSheet({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const [people, setPeople] = useState<Profile[]>();
   /* Every visible card in one query, same cache as everywhere else. */
-  const cardBadges = useEarnedBadges((people ?? []).map((p) => p.id));
+  const cardAchievements = useAchievements((people ?? []).map((p) => p.id));
 
   useEffect(() => {
     let live = true;
@@ -100,7 +100,7 @@ export function FriendsSheet({ onClose }: { onClose: () => void }) {
                   <span className="flex items-center gap-1 text-body font-medium text-ink">
                     <span className="truncate">{person.displayName}</span>
                     {/* The same mark as the chat list, on the compact card. */}
-                    <MythicMark show={hasBadge(cardBadges(person.id), MYTHIC_PIONEER)} />
+                    <AchievementMark achievement={cardAchievements.lead(person.id)} />
                   </span>
                   <span className="block truncate text-caption text-text-secondary">
                     @{person.username}

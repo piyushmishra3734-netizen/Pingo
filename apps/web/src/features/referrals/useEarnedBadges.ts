@@ -104,17 +104,3 @@ export function useEarnedBadges(userIds: (string | undefined)[]): (id?: string) 
 
   return (id?: string) => (id ? (known.get(id) ?? []) : []);
 }
-
-/** The one badge this task is about, by the id the mission hands out. */
-export const MYTHIC_PIONEER = 'mythic_pioneer';
-
-/**
- * The state the future Mythic experience layer will read.
- *
- * Named as the brief asks for it - `hasBadge('MYTHIC_PIONEER')` - so the
- * animation, the chest and the sound can be built against something that
- * already exists and is already true.
- */
-export function hasBadge(badges: string[], badgeId: string): boolean {
-  return badges.includes(badgeId.toLowerCase());
-}

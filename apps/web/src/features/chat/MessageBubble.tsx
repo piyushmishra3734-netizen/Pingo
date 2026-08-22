@@ -24,8 +24,8 @@ import {
   LocationBubble,
 } from './AttachmentBubbles.js';
 import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
-import { MythicMark } from '../referrals/MythicBadge.js';
-import { hasBadge, MYTHIC_PIONEER, useEarnedBadges } from '../referrals/useEarnedBadges.js';
+import { AchievementMark } from '../achievements/AchievementArt.js';
+import { useAchievements } from '../achievements/useAchievements.js';
 import { AiMessageActions } from './AiMessageActions.js';
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
@@ -181,7 +181,7 @@ export function MessageBubble({
    * Only the sender of this bubble. Every bubble on screen asks in the same
    * tick, so the whole thread resolves in one query - see `useEarnedBadges`.
    */
-  const authorBadges = useEarnedBadges([message.authorId]);
+  const authorAchievements = useAchievements([message.authorId]);
   const { service } = useChat();
 
   /*
@@ -253,7 +253,7 @@ export function MessageBubble({
           decorate every line they write with an achievement, which is the
           opposite of a badge - it stops being a mark and becomes wallpaper.
         */}
-        <MythicMark show={hasBadge(authorBadges(message.authorId), MYTHIC_PIONEER)} />
+        <AchievementMark achievement={authorAchievements.lead(message.authorId)} />
       </span>
     ) : null;
 

@@ -2,7 +2,8 @@ import { Button, CheckIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
-import { MythicBadge } from '../features/referrals/MythicBadge.js';
+import { AchievementArt } from '../features/achievements/AchievementArt.js';
+import { achievementById } from '../features/achievements/registry.js';
 import { referralLink } from '../features/referrals/referral-code.js';
 import {
   fetchReferralProgress,
@@ -92,19 +93,25 @@ export function MythicMissionScreen() {
               cannot see the prize of is a chore.
             */}
             <div className="mt-6 flex flex-col items-center text-center">
-              <MythicBadge
-                size="large"
-                title={progress.title}
-                /*
-                 * Dimmed until earned, and only dimmed: no greyscale, no lock
-                 * icon over the artwork. The badge is not to be reinterpreted,
-                 * and a padlock drawn on top of it is a reinterpretation.
-                 */
-                className={cn(
-                  'transition-opacity duration-slow',
-                  progress.unlocked ? 'opacity-100' : 'opacity-45',
-                )}
-              />
+              {/*
+                The prize itself, from the registry rather than a path typed
+                here - the mission names the badge it hands over, so the art
+                follows whatever that badge is.
+
+                Dimmed until earned, and only dimmed: no greyscale, no padlock
+                over the artwork. A lock drawn on top of it is a reinterpretation
+                of a piece of design that is not to be reinterpreted.
+              */}
+              {achievementById(progress.badgeId) && (
+                <AchievementArt
+                  achievement={achievementById(progress.badgeId)!}
+                  size="large"
+                  className={cn(
+                    'transition-opacity duration-slow',
+                    progress.unlocked ? 'opacity-100' : 'opacity-45',
+                  )}
+                />
+              )}
 
               <h1 className="mt-5 text-xl font-semibold tracking-wide text-ink">
                 {progress.title}

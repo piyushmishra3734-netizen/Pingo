@@ -23,8 +23,8 @@
  * and every screen says which is which.
  */
 
-import type { AppearanceSettings } from './settings.js';
-import { DEFAULT_APPEARANCE } from './settings.js';
+import type { AppearanceSettings, MythicPreferences } from './settings.js';
+import { DEFAULT_APPEARANCE, DEFAULT_MYTHIC } from './settings.js';
 
 export type Audience = 'everyone' | 'friends' | 'nobody';
 export type AddAudience = 'everyone' | 'friends-of-friends' | 'nobody';
@@ -150,6 +150,13 @@ export interface Preferences {
   camera: CameraPreferences;
   calls: CallPreferences;
   advanced: AdvancedPreferences;
+  /**
+   * How this account draws what it has earned.
+   *
+   * Inert until something is earned, which is why it can sit here for
+   * everybody rather than appearing only for the accounts that have a badge.
+   */
+  mythic: MythicPreferences;
   language: string;
 }
 
@@ -237,6 +244,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     betaFeatures: false,
     debugLogs: false,
   },
+  mythic: DEFAULT_MYTHIC,
   language: 'en',
 };
 

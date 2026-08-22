@@ -101,6 +101,9 @@ export type {
 // Appearance settings and the searchable registry
 export type {
   AppearanceSettings,
+  MythicAccent,
+  MythicAura,
+  MythicPreferences,
   ThemeMode,
   AccentName,
   MotionLevel,
@@ -109,6 +112,7 @@ export type {
 } from './settings.js';
 export {
   DEFAULT_APPEARANCE,
+  DEFAULT_MYTHIC,
   ACCENT_SWATCHES,
   SETTINGS_REGISTRY,
   searchSettings,

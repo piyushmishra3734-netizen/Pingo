@@ -68,6 +68,10 @@ const JoinGroupScreen = lazyScreen(() => import('./screens/JoinGroupScreen.js'),
 const NotificationsFeedScreen = lazyScreen(() => import('./screens/NotificationsScreen.js'), 'NotificationsScreen');
 const EditProfileScreen = lazyScreen(() => import('./screens/EditProfileScreen.js'), 'EditProfileScreen');
 const JourneyScreen = lazyScreen(() => import('./screens/JourneyScreen.js'), 'JourneyScreen');
+const AchievementsScreen = lazyScreen(
+  () => import('./screens/AchievementsScreen.js'),
+  'AchievementsScreen',
+);
 const MythicMissionScreen = lazyScreen(
   () => import('./screens/MythicMissionScreen.js'),
   'MythicMissionScreen',
@@ -443,6 +447,7 @@ export function App() {
                   <Route path="/profile/edit" element={<EditProfileScreen />} />
                   <Route path="/profile/journey" element={<JourneyScreen />} />
                   <Route path="/profile/mission" element={<MythicMissionScreen />} />
+                  <Route path="/profile/achievements" element={<AchievementsScreen />} />
                   {/* Accepts a handle or a user id - see `ProfileService.find`. */}
                   <Route path="/profile/:handle" element={<ProfileScreen />} />
                   {/* Private, and owner-only by the read policy rather than by this route. */}
