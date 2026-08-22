@@ -38,7 +38,6 @@ import {
   hasBadge,
   MYTHIC_PIONEER,
   useEarnedBadges,
-  useMissionRequirement,
 } from '../features/referrals/useEarnedBadges.js';
 import { ProfileJourney } from '../features/journey/ProfileJourney.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
@@ -295,8 +294,6 @@ export function ProfileScreen() {
    * while there is nobody yet, and the hook is built to be asked about nothing.
    */
   const profileBadges = useEarnedBadges([person?.id]);
-  /* Also above the returns, and for the same reason. */
-  const requiredFriends = useMissionRequirement();
 
   if (person === undefined) return <LoadingState label="Loading profile" />;
 
@@ -536,9 +533,20 @@ export function ProfileScreen() {
           */}
           <h2 className="mt-1.5 flex items-center justify-center gap-1.5 text-h1 tracking-tight text-ink">
             {person.displayName}
+            {/*
+              Twenty-four pixels: a status marker, not an emoji.
+
+              At sixteen it read as a decoration somebody had put next to their
+              name. Larger than the cap height of the name it sits beside and
+              still well under its size, so it is the second thing read and
+              never the first.
+
+              Deliberately bigger here than in a chat list, where the name is
+              body text and the same twenty-four pixels would tower over it.
+            */}
             <MythicMark
               show={hasBadge(profileBadges(person.id), MYTHIC_PIONEER)}
-              className="size-5"
+              className="size-6"
             />
           </h2>
 
@@ -563,53 +571,41 @@ export function ProfileScreen() {
           */}
           {hasBadge(profileBadges(person.id), MYTHIC_PIONEER) && (
             /*
-              Badge and title as one object, not three stacked things.
+              The badge and its name, standing in the page on their own.
 
-              Loose on the page the emblem read as floating - a picture that
-              happened to be above some words. A single quiet plate underneath
-              binds them: the badge is the achievement's face, the two lines are
-              its name, and the block as a whole is one item in the profile
-              rather than an interruption between the bio and the numbers.
+              No plate, no border, no panel. A card around this turned an
+              achievement into a product tile - the visual language of a landing
+              page, on the profile of a private messenger. What somebody has
+              earned belongs in the page the way their bio does: as part of who
+              they are, not as a section about them.
+
+              The line under it is gone with the card. How the badge was earned
+              is the mission's business; a profile that explains its own badges
+              is advertising them.
             */
-            <div
-              className={cn(
-                'mt-6 flex w-full max-w-xs flex-col items-center gap-2 rounded-2xl px-6 py-5',
-                'bg-surface/70 ring-1 ring-hairline',
-              )}
-            >
+            <div className="mt-6 flex flex-col items-center gap-2">
               <MythicBadge size="medium" glow title="MYTHIC PIONEER" />
               <p className="text-body font-semibold tracking-[0.14em] text-ink">MYTHIC PIONEER</p>
-              {/*
-                The requirement, from the row Controlling edits - never a five
-                typed into a sentence. Held back until it loads rather than
-                shown with a gap, because "Pioneer ·  Friends" is worse than a
-                beat of nothing.
-              */}
-              {requiredFriends !== undefined && (
-                <p className="text-caption text-text-secondary">
-                  Pioneer · {requiredFriends} Friends Referred
-                </p>
-              )}
             </div>
           )}
 
           {/*
-            Your own way in. Only on your own profile, and only while the badge
-            is still to be earned - once it is unlocked the block above says so
-            and a second "go and do the mission" would be asking for something
-            already done.
+            Your own way to the mission, and only yours.
+
+            Named and nothing else - no requirement, no count, no invitation.
+            Everything about how it is earned lives on the mission screen, which
+            is what this opens. A profile is not where somebody is sold a thing
+            to go and do.
           */}
           {isSelf && !hasBadge(profileBadges(person.id), MYTHIC_PIONEER) && (
             <Link
               to="/profile/mission"
-              className="focus-ring mt-6 flex w-full max-w-xs items-center gap-3 rounded-lg bg-surface p-3 text-left"
+              className="focus-ring mt-6 flex w-full max-w-xs items-center gap-3 rounded-lg p-3 text-left"
             >
-              <MythicBadge size="small" className="size-10" />
+              <MythicBadge size="small" className="size-9 opacity-45" />
               <span className="min-w-0 flex-1">
                 <span className="block text-body font-medium text-ink">MYTHIC PIONEER</span>
-                <span className="block text-caption text-text-secondary">
-                  Refer friends to unlock
-                </span>
+                <span className="block text-caption text-text-secondary">Locked</span>
               </span>
               <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
             </Link>
