@@ -34,7 +34,12 @@ import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
 import { MythicBadge, MythicMark } from '../features/referrals/MythicBadge.js';
-import { hasBadge, MYTHIC_PIONEER, useEarnedBadges } from '../features/referrals/useEarnedBadges.js';
+import {
+  hasBadge,
+  MYTHIC_PIONEER,
+  useEarnedBadges,
+  useMissionRequirement,
+} from '../features/referrals/useEarnedBadges.js';
 import { ProfileJourney } from '../features/journey/ProfileJourney.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
@@ -290,6 +295,8 @@ export function ProfileScreen() {
    * while there is nobody yet, and the hook is built to be asked about nothing.
    */
   const profileBadges = useEarnedBadges([person?.id]);
+  /* Also above the returns, and for the same reason. */
+  const requiredFriends = useMissionRequirement();
 
   if (person === undefined) return <LoadingState label="Loading profile" />;
 
@@ -555,12 +562,34 @@ export function ProfileScreen() {
             goes looking for "how do I get that".
           */}
           {hasBadge(profileBadges(person.id), MYTHIC_PIONEER) && (
-            <div className="mt-6 flex flex-col items-center">
-              <MythicBadge size="medium" title="MYTHIC PIONEER" />
-              <p className="mt-2 text-body font-semibold tracking-wide text-ink">MYTHIC PIONEER</p>
-              <p className="text-caption text-text-secondary">
-                {isSelf ? 'Unlocked' : `Referred friends to PINGO`}
-              </p>
+            /*
+              Badge and title as one object, not three stacked things.
+
+              Loose on the page the emblem read as floating - a picture that
+              happened to be above some words. A single quiet plate underneath
+              binds them: the badge is the achievement's face, the two lines are
+              its name, and the block as a whole is one item in the profile
+              rather than an interruption between the bio and the numbers.
+            */
+            <div
+              className={cn(
+                'mt-6 flex w-full max-w-xs flex-col items-center gap-2 rounded-2xl px-6 py-5',
+                'bg-surface/70 ring-1 ring-hairline',
+              )}
+            >
+              <MythicBadge size="medium" glow title="MYTHIC PIONEER" />
+              <p className="text-body font-semibold tracking-[0.14em] text-ink">MYTHIC PIONEER</p>
+              {/*
+                The requirement, from the row Controlling edits - never a five
+                typed into a sentence. Held back until it loads rather than
+                shown with a gap, because "Pioneer ·  Friends" is worse than a
+                beat of nothing.
+              */}
+              {requiredFriends !== undefined && (
+                <p className="text-caption text-text-secondary">
+                  Pioneer · {requiredFriends} Friends Referred
+                </p>
+              )}
             </div>
           )}
 

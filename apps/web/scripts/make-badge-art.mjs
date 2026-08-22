@@ -4,10 +4,14 @@
  * ## Scaling only
  *
  * The badge is a finished piece of design and is not to be reinterpreted, so
- * this script does exactly one thing: it averages the original down to smaller
- * squares. No recolouring, no cropping, no simplification, no substitute glyph
- * at small sizes. The 24-pixel indicator in a chat list is the same emblem as
- * the one on the profile, just further away.
+ * this script only ever moves pixels the artwork already contains: it averages
+ * the original down to smaller squares, and it takes one crop out of it. No
+ * recolouring, no simplification, no substitute glyph, nothing drawn.
+ *
+ * Two artworks come out of the one file. The full emblem, for anywhere it has
+ * room to be the subject; and the crest - the crowned ghost, cropped - for the
+ * sixteen pixels beside a name, where the emblem's wreath and banner are four
+ * grey smudges and the thing that makes it recognisable is gone. See `CREST`.
  *
  * ## Premultiplied, which is the whole reason this is a script
  *
@@ -42,7 +46,45 @@ const OUT_DIR = 'apps/web/public/badges';
  */
 const SIZES = [512, 128, 48];
 
+/**
+ * The crest: the crowned ghost, cropped out of the same artwork.
+ *
+ * Beside a name the emblem is drawn at sixteen pixels, and at sixteen pixels a
+ * wreath, a banner and the word MYTHIC are four grey smudges - the whole shape
+ * that makes it recognisable is thrown away by the scale. The crown and the
+ * ghost survive it, because they are two large forms with one silhouette.
+ *
+ * This is a crop, not a redrawing: every pixel is the supplied file's. The
+ * brief allows exactly this - "size variants only by technically safe scaling
+ * or cropping" - and it is the difference between a mark somebody recognises
+ * across a chat list and a gold dot.
+ */
+const CREST = { x: 280, y: 0, size: 770 };
+const CREST_SIZES = [96, 48];
+
 const src = PNG.sync.read(readFileSync(SOURCE));
+
+/** The crest region of the source, as its own image to scale down from. */
+function crestSource() {
+  const out = new PNG({ width: CREST.size, height: CREST.size });
+  for (let y = 0; y < CREST.size; y += 1) {
+    for (let x = 0; x < CREST.size; x += 1) {
+      const sx = x + CREST.x;
+      const sy = y + CREST.y;
+      const d = (CREST.size * y + x) << 2;
+      if (sx < 0 || sy < 0 || sx >= src.width || sy >= src.height) {
+        out.data[d + 3] = 0;
+        continue;
+      }
+      const s = (src.width * sy + sx) << 2;
+      out.data[d] = src.data[s];
+      out.data[d + 1] = src.data[s + 1];
+      out.data[d + 2] = src.data[s + 2];
+      out.data[d + 3] = src.data[s + 3];
+    }
+  }
+  return out;
+}
 
 /** One output pixel: the average of every source pixel it covers. */
 function box(image, x0, y0, x1, y1) {
@@ -73,7 +115,8 @@ function box(image, x0, y0, x1, y1) {
 
 mkdirSync(OUT_DIR, { recursive: true });
 
-for (const size of SIZES) {
+/** Scale one source image down to a square of `size`, and write it. */
+function emit(image, size, name) {
   const out = new PNG({ width: size, height: size });
   /*
    * Square output for a picture that is not square: the badge is 1312x1199, and
@@ -81,9 +124,9 @@ for (const size of SIZES) {
    * proportions - stretching to fill would be a redesign, and the one thing
    * nobody would forgive is a squashed crown.
    */
-  const scale = Math.min(size / src.width, size / src.height);
-  const drawnW = Math.round(src.width * scale);
-  const drawnH = Math.round(src.height * scale);
+  const scale = Math.min(size / image.width, size / image.height);
+  const drawnW = Math.round(image.width * scale);
+  const drawnH = Math.round(image.height * scale);
   const offsetX = Math.floor((size - drawnW) / 2);
   const offsetY = Math.floor((size - drawnH) / 2);
 
@@ -99,11 +142,11 @@ for (const size of SIZES) {
       }
 
       const [r, g, b, a] = box(
-        src,
-        Math.floor((insideX / drawnW) * src.width),
-        Math.floor((insideY / drawnH) * src.height),
-        Math.max(Math.floor((insideX / drawnW) * src.width) + 1, Math.ceil(((insideX + 1) / drawnW) * src.width)),
-        Math.max(Math.floor((insideY / drawnH) * src.height) + 1, Math.ceil(((insideY + 1) / drawnH) * src.height)),
+        image,
+        Math.floor((insideX / drawnW) * image.width),
+        Math.floor((insideY / drawnH) * image.height),
+        Math.max(Math.floor((insideX / drawnW) * image.width) + 1, Math.ceil(((insideX + 1) / drawnW) * image.width)),
+        Math.max(Math.floor((insideY / drawnH) * image.height) + 1, Math.ceil(((insideY + 1) / drawnH) * image.height)),
       );
 
       out.data[i] = r;
@@ -113,7 +156,12 @@ for (const size of SIZES) {
     }
   }
 
-  const path = `${OUT_DIR}/mythic-pioneer-${size}.png`;
+  const path = `${OUT_DIR}/${name}-${size}.png`;
   writeFileSync(path, PNG.sync.write(out));
   console.log(`${path}  ${size}x${size}`);
 }
+
+for (const size of SIZES) emit(src, size, 'mythic-pioneer');
+
+const crest = crestSource();
+for (const size of CREST_SIZES) emit(crest, size, 'mythic-crest');
