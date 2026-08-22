@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
+import { MissionControl } from '../../features/referrals/MissionControl.js';
 import {
   listAppSplashRows,
   listOnboardingSlideRows,
@@ -135,6 +136,8 @@ export function ControllingScreen() {
         {ok ? (
           <p className="mb-3 rounded-lg bg-brand/10 px-3 py-2 text-caption text-brand">{ok}</p>
         ) : null}
+
+        <MissionControl />
 
         {/* Splash */}
         <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">

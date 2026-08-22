@@ -55,6 +55,10 @@ const CommunitiesScreen = lazyScreen(() => import('./screens/CommunitiesScreen.j
 const FollowRequestsScreen = lazyScreen(() => import('./screens/FollowRequestsScreen.js'), 'FollowRequestsScreen');
 import { LiveProfile } from './features/profile/LiveProfile.js';
 const DownloadScreen = lazyScreen(() => import('./screens/DownloadScreen.js'), 'DownloadScreen');
+const ReferralLandingScreen = lazyScreen(
+  () => import('./screens/ReferralLandingScreen.js'),
+  'ReferralLandingScreen',
+);
 const PrivacyPolicyScreen = lazyScreen(() => import('./screens/PrivacyPolicyScreen.js'), 'PrivacyPolicyScreen');
 const TermsScreen = lazyScreen(() => import('./screens/TermsScreen.js'), 'TermsScreen');
 const NewChatScreen = lazyScreen(() => import('./screens/NewChatScreen.js'), 'NewChatScreen');
@@ -64,6 +68,10 @@ const JoinGroupScreen = lazyScreen(() => import('./screens/JoinGroupScreen.js'),
 const NotificationsFeedScreen = lazyScreen(() => import('./screens/NotificationsScreen.js'), 'NotificationsScreen');
 const EditProfileScreen = lazyScreen(() => import('./screens/EditProfileScreen.js'), 'EditProfileScreen');
 const JourneyScreen = lazyScreen(() => import('./screens/JourneyScreen.js'), 'JourneyScreen');
+const MythicMissionScreen = lazyScreen(
+  () => import('./screens/MythicMissionScreen.js'),
+  'MythicMissionScreen',
+);
 const ProfileScreen = lazyScreen(() => import('./screens/ProfileScreen.js'), 'ProfileScreen');
 const StoryArchiveScreen = lazyScreen(() => import('./screens/StoryArchiveScreen.js'), 'StoryArchiveScreen');
 const SettingsScreen = lazyScreen(() => import('./screens/SettingsScreen.js'), 'SettingsScreen');
@@ -336,6 +344,13 @@ export function App() {
             <Route path="/terms" element={<TermsScreen />} />
             <Route path="/privacy" element={<PrivacyPolicyScreen />} />
             {/*
+              A referral link, which is for somebody who has no account yet -
+              so it is public for the same reason the download page is. It
+              records the code and hands straight over to the splash, which
+              already knows where a visitor belongs. See `ReferralLandingScreen`.
+            */}
+            <Route path="/r/:code" element={<ReferralLandingScreen />} />
+            {/*
               Dev-only pressure test for floating message banners. Unauthenticated
               on purpose so the lab opens without a session. Not linked from UI.
             */}
@@ -427,6 +442,7 @@ export function App() {
                   {/* Before `:handle`, or "edit" would be read as a username. */}
                   <Route path="/profile/edit" element={<EditProfileScreen />} />
                   <Route path="/profile/journey" element={<JourneyScreen />} />
+                  <Route path="/profile/mission" element={<MythicMissionScreen />} />
                   {/* Accepts a handle or a user id - see `ProfileService.find`. */}
                   <Route path="/profile/:handle" element={<ProfileScreen />} />
                   {/* Private, and owner-only by the read policy rather than by this route. */}

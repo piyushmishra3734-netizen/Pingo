@@ -9,6 +9,7 @@ import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
 import { startLensing } from '../features/glass/lens.js';
+import { redeemHeldReferral } from '../features/referrals/referrals-service.js';
 import { doneAddingAccount } from '../features/auth/adding-account.js';
 import { useLiveOnResume } from '../features/notifications/useLiveOnResume.js';
 import { usePushTapRouting } from '../features/notifications/usePushTapRouting.js';
@@ -32,6 +33,19 @@ export function AppShell() {
   // A share can start the app, so it is listened for above every screen -
   // see the note in useIncomingShare.
   useIncomingShare();
+
+  /*
+   * A referral that did not get recorded when the account was created.
+   *
+   * The signup path calls this already; this is the second chance, for the
+   * person who opened the link, abandoned signup halfway and came back a day
+   * later, or whose connection dropped at exactly the wrong moment. It is one
+   * call per launch, and `redeemHeldReferral` returns immediately when there is
+   * no code waiting - which is every launch for almost everybody.
+   */
+  useEffect(() => {
+    void redeemHeldReferral().catch(() => undefined);
+  }, []);
 
   /*
    * The refracting rim on every glass surface. Started once, above every

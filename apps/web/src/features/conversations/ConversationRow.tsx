@@ -19,6 +19,9 @@ import {
 } from '@pingo/ui';
 import { Link } from 'react-router-dom';
 
+import { MythicMark } from '../referrals/MythicBadge.js';
+import { hasBadge, MYTHIC_PIONEER, useEarnedBadges } from '../referrals/useEarnedBadges.js';
+
 import { rememberSharedElement } from '../../hooks/useSharedElement.js';
 import { useLongPress } from '../chat/context-menu/useLongPress.js';
 import { StreakFlame } from './StreakFlame.js';
@@ -65,6 +68,18 @@ export function ConversationRow({
   onEnterSelection,
 }: ConversationRowProps) {
   const { currentUser, users } = useChat();
+
+  /*
+   * Whose badge this row could show: the other person in a direct chat, and
+   * nobody in a group. Resolved before the lookup so the hook is asked about
+   * one id per row and the whole list is answered in a single query - see
+   * `useEarnedBadges` for why that matters here in particular.
+   */
+  const badgeHolder =
+    conversation.kind === 'direct'
+      ? conversation.participantIds.find((id) => id !== currentUser?.id)
+      : undefined;
+  const badges = useEarnedBadges([badgeHolder]);
 
   const isTyping = conversation.typingUserIds.length > 0;
   const hasUnread = conversation.unreadCount > 0;
@@ -137,6 +152,16 @@ export function ConversationRow({
           >
             {conversation.title}
           </span>
+
+          {/*
+            The badge beside the name it belongs to.
+
+            Only on a direct chat: the title of a group is the group's name, and
+            hanging a person's badge off it would be attributing an achievement
+            to a room. Groups show it next to the sender instead, where the name
+            is a person's.
+          */}
+          <MythicMark show={badgeHolder ? hasBadge(badges(badgeHolder), MYTHIC_PIONEER) : false} />
 
           {/*
             Markers at tertiary weight so none compete with the title or the

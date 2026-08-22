@@ -847,10 +847,108 @@ export type Database = {
         Update: { user_id?: string; platform?: 'android' | 'ios' | 'web'; last_seen_at?: string };
         Relationships: [];
       };
+      /**
+       * Mission definitions, edited from Controlling rather than shipped in a
+       * build. `required_count` is the only place the target number lives.
+       */
+      missions: {
+        Row: {
+          id: string;
+          title: string;
+          description: string;
+          badge_id: string;
+          kind: 'referral';
+          required_count: number;
+          enabled: boolean;
+          counts_from: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          title: string;
+          description: string;
+          badge_id: string;
+          kind: 'referral';
+          required_count: number;
+          enabled?: boolean;
+          counts_from?: string;
+        };
+        Update: {
+          title?: string;
+          description?: string;
+          badge_id?: string;
+          required_count?: number;
+          enabled?: boolean;
+          counts_from?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /**
+       * Who brought whom. No `Insert` or `Update`: every write goes through
+       * `redeem_referral`, and a client that could insert here directly would
+       * make every rule in that function decorative.
+       */
+      referrals: {
+        Row: {
+          referred_id: string;
+          referrer_id: string;
+          mission_id: string;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      /**
+       * Badges the server itself vouches for - readable by anybody signed in,
+       * writable by nobody. Distinct from `journey_public.badge_ids`, which the
+       * owner publishes about their own device. See the migration header.
+       */
+      user_badges: {
+        Row: {
+          user_id: string;
+          badge_id: string;
+          mission_id: string | null;
+          unlocked_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     /* Empty groups, in the shape the generator emits. */
     Views: { [_ in never]: never };
     Functions: {
+      /**
+       * Records who invited the caller, once they have a real account. Returns
+       * `{ ok, reason }` rather than raising: opening your own link, or a
+       * second link after already being attributed, are ordinary events.
+       */
+      redeem_referral: {
+        Args: { code: string };
+        Returns: { ok: boolean; reason: string };
+      };
+      /**
+       * The mission screen in one call - the link, the count, the requirement
+       * and whether it is unlocked, all derived server-side.
+       */
+      referral_progress: {
+        Args: Record<string, never>;
+        Returns: {
+          ok: boolean;
+          reason?: string;
+          missionId?: string;
+          title?: string;
+          description?: string;
+          badgeId?: string;
+          referralCode?: string;
+          count?: number;
+          required?: number;
+          unlocked?: boolean;
+        };
+      };
       /**
        * Product-wide push health. Raises for anybody not on the operator
        * allowlist, so the caller must tolerate a rejection rather than assume

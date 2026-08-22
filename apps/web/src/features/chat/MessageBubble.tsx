@@ -24,6 +24,8 @@ import {
   LocationBubble,
 } from './AttachmentBubbles.js';
 import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
+import { MythicMark } from '../referrals/MythicBadge.js';
+import { hasBadge, MYTHIC_PIONEER, useEarnedBadges } from '../referrals/useEarnedBadges.js';
 import { AiMessageActions } from './AiMessageActions.js';
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
@@ -175,6 +177,11 @@ export function MessageBubble({
   onReply,
   onRegenerate,
 }: MessageBubbleProps) {
+  /*
+   * Only the sender of this bubble. Every bubble on screen asks in the same
+   * tick, so the whole thread resolves in one query - see `useEarnedBadges`.
+   */
+  const authorBadges = useEarnedBadges([message.authorId]);
   const { service } = useChat();
 
   /*
@@ -233,11 +240,20 @@ export function MessageBubble({
     !mine && authorName && (position === 'first' || position === 'single') ? (
       <span
         className={cn(
-          'mb-0.5 block truncate px-1 text-caption font-medium',
+          'mb-0.5 flex items-center gap-1 truncate px-1 text-caption font-medium',
           authorNameClass(message.authorId || authorName),
         )}
       >
-        {authorName}
+        <span className="truncate">{authorName}</span>
+        {/*
+          On the name label, never on the bubble.
+
+          This is the one place in a group where a person is named, so it is the
+          one place their badge belongs. Putting it on the message itself would
+          decorate every line they write with an achievement, which is the
+          opposite of a badge - it stops being a mark and becomes wallpaper.
+        */}
+        <MythicMark show={hasBadge(authorBadges(message.authorId), MYTHIC_PIONEER)} />
       </span>
     ) : null;
 

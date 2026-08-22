@@ -28,11 +28,13 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
+import { MythicBadge, MythicMark } from '../features/referrals/MythicBadge.js';
+import { hasBadge, MYTHIC_PIONEER, useEarnedBadges } from '../features/referrals/useEarnedBadges.js';
 import { ProfileJourney } from '../features/journey/ProfileJourney.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
@@ -293,6 +295,8 @@ export function ProfileScreen() {
   );
   const canCall = !isSelf && Boolean(mutuals?.has(person.id));
   const roster = users.find((u) => u.id === person.id);
+  /* One id, and the same cache every other surface reads. */
+  const profileBadges = useEarnedBadges([person.id]);
   const online = roster?.presence.state === 'online';
   const showMediaTab = isSelf;
 
@@ -509,7 +513,13 @@ export function ProfileScreen() {
             leaves a screen reader with no single answer to "what is this page".
             Styled as `text-h1` because it is still the largest thing here.
           */}
-          <h2 className="mt-1.5 text-h1 tracking-tight text-ink">{person.displayName}</h2>
+          <h2 className="mt-1.5 flex items-center justify-center gap-1.5 text-h1 tracking-tight text-ink">
+            {person.displayName}
+            <MythicMark
+              show={hasBadge(profileBadges(person.id), MYTHIC_PIONEER)}
+              className="size-5"
+            />
+          </h2>
 
           {/* Handle + bio as one quiet identity group under the name. */}
           <div className="mt-1 flex max-w-sm flex-col items-center gap-1.5">
@@ -520,6 +530,47 @@ export function ProfileScreen() {
               </p>
             )}
           </div>
+
+          {/*
+            The achievement, at the size it was drawn.
+
+            Shown only to somebody who has it: an empty trophy case on every
+            profile in the product would make the badge look like a slot nobody
+            fills rather than something rare. The owner's own route into the
+            mission lives on their own profile below, which is where somebody
+            goes looking for "how do I get that".
+          */}
+          {hasBadge(profileBadges(person.id), MYTHIC_PIONEER) && (
+            <div className="mt-6 flex flex-col items-center">
+              <MythicBadge size="medium" title="MYTHIC PIONEER" />
+              <p className="mt-2 text-body font-semibold tracking-wide text-ink">MYTHIC PIONEER</p>
+              <p className="text-caption text-text-secondary">
+                {isSelf ? 'Unlocked' : `Referred friends to PINGO`}
+              </p>
+            </div>
+          )}
+
+          {/*
+            Your own way in. Only on your own profile, and only while the badge
+            is still to be earned - once it is unlocked the block above says so
+            and a second "go and do the mission" would be asking for something
+            already done.
+          */}
+          {isSelf && !hasBadge(profileBadges(person.id), MYTHIC_PIONEER) && (
+            <Link
+              to="/profile/mission"
+              className="focus-ring mt-6 flex w-full max-w-xs items-center gap-3 rounded-lg bg-surface p-3 text-left"
+            >
+              <MythicBadge size="small" className="size-10" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-body font-medium text-ink">MYTHIC PIONEER</span>
+                <span className="block text-caption text-text-secondary">
+                  Refer friends to unlock
+                </span>
+              </span>
+              <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
+            </Link>
+          )}
 
           {/* Stats sit in the hero stack, not a separate band. */}
           {/*

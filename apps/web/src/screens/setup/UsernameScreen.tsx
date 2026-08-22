@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useT } from '../../features/i18n/useT.js';
 import { useProfileSetup } from '../../features/profile/ProfileSetupFlow.js';
+import { redeemHeldReferral } from '../../features/referrals/referrals-service.js';
 import { SETUP_PROGRESS } from './progress.js';
 
 /**
@@ -103,6 +104,19 @@ export function UsernameScreen() {
 
     try {
       await create({ username, displayName });
+
+      /*
+       * The account now exists, which is the only moment a referral can be
+       * recorded: everything before this is a session that can still be
+       * abandoned, and the server refuses it for exactly that reason.
+       *
+       * Not awaited, and its failure is not this screen's problem. Somebody
+       * finishing signup must not be held on a spinner, or shown an error,
+       * because of whose link they arrived through - the code stays on the
+       * device and `redeemHeldReferral` is called again on the next launch.
+       */
+      void redeemHeldReferral().catch(() => undefined);
+
       navigate('/setup/photo', { replace: true });
     } catch (cause) {
       if (cause instanceof ProfileError && cause.code === 'username_taken') {
