@@ -275,6 +275,22 @@ export function ProfileScreen() {
   /** Set when the file picker was opened to replace one specific post. */
   const replaceTarget = useRef<Post | undefined>(undefined);
 
+  /*
+   * Above the early returns, and it has to be.
+   *
+   * `person` is undefined on the first render of somebody else's profile and
+   * resolves a moment later, so the two returns below run on some renders and
+   * not others. A hook called after them is called conditionally: React counts
+   * a different number of hooks on the second render than the first, throws,
+   * and the screen goes white. That is exactly what shipped - it looked fine
+   * opening your own profile, where the provider already had the answer before
+   * the first render, and broke on everybody else's.
+   *
+   * `person?.id` rather than `person.id` for the same reason: this now runs
+   * while there is nobody yet, and the hook is built to be asked about nothing.
+   */
+  const profileBadges = useEarnedBadges([person?.id]);
+
   if (person === undefined) return <LoadingState label="Loading profile" />;
 
   if (person === null) {
@@ -295,8 +311,6 @@ export function ProfileScreen() {
   );
   const canCall = !isSelf && Boolean(mutuals?.has(person.id));
   const roster = users.find((u) => u.id === person.id);
-  /* One id, and the same cache every other surface reads. */
-  const profileBadges = useEarnedBadges([person.id]);
   const online = roster?.presence.state === 'online';
   const showMediaTab = isSelf;
 
