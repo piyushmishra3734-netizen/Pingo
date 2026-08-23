@@ -1,4 +1,4 @@
-import mark from '../../assets/pingo-mark.png?inline';
+import mark from '../../assets/pingo-qr-mark.png?inline';
 
 import { encodeQr, type QrLevel } from './qr.js';
 
@@ -218,6 +218,13 @@ export function QrArt({
             logo is a fixed asset and approximating it in paths - which an
             earlier version of this file did - produces something that is nearly
             the logo, which is worse than not having one.
+
+            Its own file rather than the app-icon mark, because the two want
+            opposite things. The icon is a penguin on a tile; here the tile
+            would be a second square inside the plate, and its rim a thin light
+            ring a scanner has to read past. `make-qr-mark.mjs` cuts the bird
+            out of it, background and all, and every surviving pixel is still
+            the supplied file's.
           */}
           <image
             href={mark}
