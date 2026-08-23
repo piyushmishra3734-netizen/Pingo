@@ -11,6 +11,15 @@
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { forgetReferralCode, heldReferralCode } from './referral-code.js';
 
+/** One person who joined because of you, as the mission screen draws them. */
+export interface ReferredFriend {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  joinedAt: string;
+}
+
 export interface ReferralProgress {
   missionId: string;
   title: string;
@@ -19,6 +28,14 @@ export interface ReferralProgress {
   referralCode: string;
   count: number;
   required: number;
+  /**
+   * The people behind the count, oldest first, capped by the server.
+   *
+   * `count` stays the authority on how many - a long-finished mission has more
+   * friends than faces - so nothing should ever render `friends.length` as the
+   * progress number.
+   */
+  friends: ReferredFriend[];
   unlocked: boolean;
 }
 
@@ -36,7 +53,21 @@ export async function fetchReferralProgress(): Promise<ReferralProgress | undefi
     referralCode: String(row.referralCode ?? ''),
     count: Number(row.count ?? 0),
     required: Number(row.required ?? 0),
+    friends: Array.isArray(row.friends) ? (row.friends as unknown[]).map(toFriend) : [],
     unlocked: row.unlocked === true,
+  };
+}
+
+/** Defensive on every field: this row is JSON the server built, not a typed view. */
+function toFriend(value: unknown): ReferredFriend {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const avatarUrl = row.avatarUrl ? String(row.avatarUrl) : undefined;
+  return {
+    id: String(row.id ?? ''),
+    username: String(row.username ?? ''),
+    displayName: String(row.displayName ?? row.username ?? ''),
+    ...(avatarUrl ? { avatarUrl } : {}),
+    joinedAt: String(row.joinedAt ?? ''),
   };
 }
 

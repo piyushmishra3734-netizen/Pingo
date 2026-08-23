@@ -978,6 +978,14 @@ export type Database = {
           referralCode?: string;
           count?: number;
           required?: number;
+          /** The people behind the count, oldest first, capped server-side. */
+          friends?: Array<{
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string | null;
+            joinedAt: string;
+          }>;
           unlocked?: boolean;
         };
       };
