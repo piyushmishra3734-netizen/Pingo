@@ -1,9 +1,26 @@
-import mark from '../../assets/pingo-qr-mark.png?inline';
-
 import { encodeQr, type QrLevel } from './qr.js';
 
 /**
- * The branded QR: purple-to-blue, rounded modules, PINGO in the middle.
+ * The branded QR: the account's own accent, rounded modules, PINGO in the middle.
+ *
+ * ## The ink follows the theme, but only its hue
+ *
+ * This was a fixed purple-to-blue, and on a pink account it read as somebody
+ * else's graphic dropped into the page - measured: the accent was `#e0559b` and
+ * the code was `#7C3AED`, which is not a near miss, it is a different family.
+ *
+ * So the stops are derived from `--color-brand`: its hue and saturation are
+ * kept and its lightness is *replaced* with two fixed dark values. That
+ * direction matters. Using the accent as given would have shipped a code at
+ * luminance 135 on white, which is the wrong side of where a scanner puts its
+ * threshold; forcing the lightness means every accent - and the near-white one
+ * the dark theme uses - lands at the same safe darkness, and only the colour
+ * changes.
+ *
+ * Resolved to literal hex here rather than left as `var(--color-brand)` in the
+ * stop. The QR sheet exports a PNG by serialising this SVG and drawing it into
+ * a canvas, and a serialised SVG has no document to read custom properties
+ * from - the saved image would come out with no ink at all.
  *
  * ## Everything here is subordinate to one rule
  *
@@ -38,33 +55,119 @@ import { encodeQr, type QrLevel } from './qr.js';
  * one clear module between), rather than as rounded versions of each module,
  * which would break the 1:1:3:1:1 run ratio a decoder measures across them.
  *
- * ## The logo is damage, and is budgeted as such
+ * ## There is no logo, and that is what made it legible
  *
- * Level H recovers about 30% of a code. The logo plate is 22% of the width,
- * which is 4.8% of the area - a fifth of the budget, leaving the rest for what
- * a camera actually adds: angle, motion blur, glare, a cheap sensor. The mark
- * itself is capped at 18% of the width as specified, and the plate is larger
- * than the mark so the logo never lands on a live module.
+ * There was one - the penguin, on a white plate in the middle - and it was
+ * costing more than it looked like it was. A logo needs level H to survive
+ * being drawn over, H needs 30% more modules for the same URL, and more modules
+ * at a fixed pixel width means smaller ones: the referral code came out at
+ * version 6, forty-one modules across, 3.4 pixels each. That is what read as
+ * confetti.
+ *
+ * Taking the logo out lets the level go back to M, which puts the same link in
+ * version 3 - twenty-nine across - and every module gets nearly twice the area.
+ * The code is plainer and enormously easier to look at, and to scan.
+ *
+ * `make-qr-mark.mjs` still cuts the mark out of the artwork if it is ever
+ * wanted back; nothing here imports it, so nothing ships in the bundle for it.
  *
  * Verified rather than reasoned: `pnpm verify:qr` decodes the real output with
- * jsQR, including the centre blanked at 18, 22, 26 and 30 per cent.
+ * jsQR, at both levels and with the centre blanked, and the preview that chose
+ * this decoded the rendered SVG itself.
  */
 
 /** Modules of quiet zone. Four is the specification's minimum, not a taste. */
 const QUIET = 4;
 
 /**
- * The white plate behind the logo, as a fraction of the code's width.
+ * The two lightnesses the ink is forced to, whatever the accent is.
  *
- * Slightly larger than the mark so the logo never touches a module - a scanner
- * reading a module that is half-covered is worse off than one reading a module
- * that is cleanly absent, because absence is what the error correction is
- * designed to reconstruct.
+ * 0.19 and 0.34 put both stops between luminance 45 and 90 on white for every
+ * accent PINGO ships, which is comfortably the dark side of where a scanner
+ * thresholds. The spread is small on purpose: a gradient wide enough to notice
+ * is a gradient whose pale end is closer to the paper.
  */
-const PLATE = 0.22;
+const INK_DARK = 0.19;
+const INK_LIGHT = 0.34;
 
-/** The mark itself. The brief's ceiling, and the reason the plate is separate. */
-const MARK = 0.18;
+/** Deep ink, for when the accent cannot be read. Never light, never absent. */
+const FALLBACK: [string, string] = ['#241a33', '#3d2a5c'];
+
+function hexToRgb(hex: string): [number, number, number] | undefined {
+  const clean = hex.trim().replace('#', '');
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return undefined;
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+  ];
+}
+
+/** Hue and saturation from the accent, lightness from us. See `INK_DARK`. */
+function atLightness([r, g, b]: [number, number, number], lightness: number): string {
+  const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  const d = max - min;
+
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+
+  /*
+   * A floor under the saturation, so a near-grey accent - the default theme's
+   * `#111113`, and the near-white one the dark theme uses - still comes out as
+   * ink with a colour in it rather than as flat charcoal.
+   */
+  const sat = Math.max(s, 0.35);
+  const c = (1 - Math.abs(2 * lightness - 1)) * sat;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lightness - c / 2;
+  const sector = Math.floor(h / 60) % 6;
+  const rgb = [
+    [c, x, 0],
+    [x, c, 0],
+    [0, c, x],
+    [0, x, c],
+    [x, 0, c],
+    [c, 0, x],
+  ][sector]!;
+
+  return `#${rgb
+    .map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+/**
+ * The two stops, read from the theme at render time.
+ *
+ * A plain read, not a hook: it is called during render, the value is only ever
+ * two strings, and the screens that own a QR already re-render when the accent
+ * changes because they are the ones that read the preference.
+ */
+function inkStops(): [string, string] {
+  if (typeof window === 'undefined') return FALLBACK;
+  const accent = getComputedStyle(document.documentElement)
+    .getPropertyValue('--color-brand')
+    .trim();
+  const rgb = accent ? hexToRgb(accent) : undefined;
+  if (!rgb) return FALLBACK;
+  return [atLightness(rgb, INK_DARK), atLightness(rgb, INK_LIGHT)];
+}
 
 export interface QrArtProps {
   /** What the code encodes. */
@@ -72,25 +175,18 @@ export interface QrArtProps {
   /** Rendered width in px. The SVG scales; the module count does not change. */
   size?: number;
   /**
-   * Level H by default, because the logo needs it.
+   * Level M by default.
    *
-   * A caller that has no logo can ask for M and get a less dense code.
+   * H exists for a caller that covers part of the code - it recovers about 30%
+   * instead of 15% - and it costs a denser, smaller-moduled code for the same
+   * link. Nothing covers the code any more, so nothing pays for that.
    */
   level?: QrLevel;
-  /** Drawn in the centre. Omit for a plain code. */
-  logo?: boolean;
   className?: string;
   title?: string;
 }
 
-export function QrArt({
-  value,
-  size = 260,
-  level = 'H',
-  logo = true,
-  className,
-  title,
-}: QrArtProps) {
+export function QrArt({ value, size = 260, level = 'M', className, title }: QrArtProps) {
   const modules = encodeQr(value, level);
   const count = modules.length;
   const span = count + QUIET * 2;
@@ -104,29 +200,22 @@ export function QrArt({
   const inFinder = (x: number, y: number) =>
     finders.some(([fx, fy]) => x >= fx && x < fx + 7 && y >= fy && y < fy + 7);
 
-  /*
-   * The modules the logo will cover, dropped before they are drawn.
-   *
-   * Painting them and then covering them would leave their edges peeking out
-   * from behind the plate, which reads as a rendering bug and gives a scanner a
-   * partial module to misjudge. Cleared here, the plate sits on empty white.
-   */
-  const plateSpan = logo ? count * PLATE : 0;
-  const plateFrom = (count - plateSpan) / 2;
-  const plateTo = plateFrom + plateSpan;
-  const underPlate = (x: number, y: number) =>
-    logo && x + 1 > plateFrom && x < plateTo && y + 1 > plateFrom && y < plateTo;
-
   const dots: { x: number; y: number }[] = [];
   for (let y = 0; y < count; y += 1) {
     for (let x = 0; x < count; x += 1) {
       if (!modules[y]![x]) continue;
-      if (inFinder(x, y) || underPlate(x, y)) continue;
+      if (inFinder(x, y)) continue;
       dots.push({ x, y });
     }
   }
 
-  const id = `qr-${value.length}-${count}`;
+  const [inkFrom, inkTo] = inkStops();
+  /*
+   * The colour goes in the id. Two codes on one page under different accents
+   * would otherwise share a gradient definition, and the second one drawn would
+   * silently take the first one's ink.
+   */
+  const id = `qr-${value.length}-${count}-${inkFrom.slice(1)}`;
 
   return (
     <svg
@@ -140,9 +229,10 @@ export function QrArt({
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          {/* Purple to blue, both dark enough to threshold as "black". */}
-          <stop offset="0%" stopColor="#7C3AED" />
-          <stop offset="100%" stopColor="#2563EB" />
+          {/* The account's accent at our lightness, both dark enough to
+              threshold as "black". See `inkStops`. */}
+          <stop offset="0%" stopColor={inkFrom} />
+          <stop offset="100%" stopColor={inkTo} />
         </linearGradient>
       </defs>
 
@@ -164,11 +254,11 @@ export function QrArt({
         {dots.map(({ x, y }) => (
           <rect
             key={`${x}-${y}`}
-            x={x + 0.08}
-            y={y + 0.08}
-            width={0.84}
-            height={0.84}
-            rx={0.3}
+            x={x + 0.03}
+            y={y + 0.03}
+            width={0.94}
+            height={0.94}
+            rx={0.28}
           />
         ))}
 
@@ -200,42 +290,6 @@ export function QrArt({
         ))}
       </g>
 
-      {logo && (
-        <g transform={`translate(${QUIET} ${QUIET})`}>
-          {/* The plate, so the mark never overlaps a live module. */}
-          <rect
-            x={plateFrom}
-            y={plateFrom}
-            width={plateSpan}
-            height={plateSpan}
-            rx={plateSpan * 0.26}
-            fill="#FFFFFF"
-          />
-          {/*
-            The official mark, unmodified.
-
-            An `<image>` of the real artwork rather than a redrawing of it: the
-            logo is a fixed asset and approximating it in paths - which an
-            earlier version of this file did - produces something that is nearly
-            the logo, which is worse than not having one.
-
-            Its own file rather than the app-icon mark, because the two want
-            opposite things. The icon is a penguin on a tile; here the tile
-            would be a second square inside the plate, and its rim a thin light
-            ring a scanner has to read past. `make-qr-mark.mjs` cuts the bird
-            out of it, background and all, and every surviving pixel is still
-            the supplied file's.
-          */}
-          <image
-            href={mark}
-            x={(count - count * MARK) / 2}
-            y={(count - count * MARK) / 2}
-            width={count * MARK}
-            height={count * MARK}
-            preserveAspectRatio="xMidYMid meet"
-          />
-        </g>
-      )}
     </svg>
   );
 }

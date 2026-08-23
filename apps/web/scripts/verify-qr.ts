@@ -40,12 +40,13 @@ const cases = [
 ];
 
 /**
- * Blanks the centre, the way the logo plate does.
+ * Blanks the centre, the way a logo plate would.
  *
- * This is the test the branded design actually rests on. The plate is 22% of
- * the width; anything it covers is unreadable, and only the error correction
- * puts it back. Running it at the shipped size *and* well beyond shows how much
- * headroom is left rather than merely that it works today.
+ * Nothing covers the shipped code any more - the centre mark was taken out
+ * because the level H it needed made the code too dense to read comfortably.
+ * This stays because it is the measurement that says what a logo would cost if
+ * one is ever wanted back: at what fraction, and at which level, the code stops
+ * coming apart.
  */
 function punch(modules: boolean[][], fraction: number): boolean[][] {
   const count = modules.length;
@@ -82,13 +83,11 @@ const link = 'https://pingochat.pages.dev/profile/' + 'a'.repeat(20);
 for (const fraction of [0.18, 0.22, 0.26, 0.3]) {
   for (const level of ['M', 'H'] as const) {
     const got = decode(punch(encodeQr(link, level), fraction));
-    const shipped = fraction === 0.22;
-    const label = `${level} with ${Math.round(fraction * 100)}% of the width blanked${
-      shipped ? '  <- the shipped plate' : ''
-    }`;
+    const label = `${level} with ${Math.round(fraction * 100)}% of the width blanked`;
 
-    // Level M is expected to fail here, and that failure is the whole reason
-    // the branded code uses H. Only H is held to passing.
+    // Level M is expected to fail here, and that failure is exactly why a
+    // centre mark and a comfortable module size cannot both be had. Only H is
+    // held to passing.
     if (level === 'H') say(got === link, label);
     else console.log(`${got === link ? 'ok  ' : 'dead'}  ${label}`);
   }

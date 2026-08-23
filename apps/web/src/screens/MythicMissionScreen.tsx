@@ -376,7 +376,7 @@ function InviteCard({
               the theme and this must not.
             */}
             <div className="rounded-2xl bg-white p-3 shadow-sm">
-              <QrArt value={link} size={168} level="H" logo title="QR code for your PINGO invite" />
+              <QrArt value={link} size={232} title="QR code for your PINGO invite" />
             </div>
             {/*
               Read aloud more often than it is tapped, so it is set as something to

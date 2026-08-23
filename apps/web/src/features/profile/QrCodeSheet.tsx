@@ -175,13 +175,7 @@ export function QrCodeSheet({
               because the token follows the theme and this must not.
             */}
             <div className="rounded-2xl bg-white p-3 shadow-sm">
-              <QrArt
-                value={link}
-                size={216}
-                level="H"
-                logo
-                title={`QR code for ${displayName} on PINGO`}
-              />
+              <QrArt value={link} size={216} title={`QR code for ${displayName} on PINGO`} />
             </div>
 
             <p className="text-caption text-text-secondary">Scan to connect on PINGO</p>
