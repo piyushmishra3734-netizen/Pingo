@@ -246,6 +246,18 @@ export function MythicMissionScreen() {
  * server caps the roster, so a long-finished mission has more friends than
  * faces and the row must not read as though people went missing.
  */
+/**
+ * The name under a face, in the width a face has.
+ *
+ * "Aarav Sharma" in a fifty-six pixel tile becomes "Aarav S...", which is a
+ * worse label than "Aarav" and looks like a bug. The full name is on the
+ * profile this tile opens; here it only has to say which of five people this
+ * one is. Falls back to the whole string when there is nothing to split.
+ */
+function firstName(displayName: string): string {
+  return displayName.trim().split(/s+/)[0] || displayName;
+}
+
 function Roster({
   friends,
   required,
@@ -281,7 +293,7 @@ function Roster({
               size="md"
             />
             <span className="text-caption w-full truncate text-center text-text-secondary">
-              {friend.displayName}
+              {firstName(friend.displayName)}
             </span>
           </button>
         ))}
