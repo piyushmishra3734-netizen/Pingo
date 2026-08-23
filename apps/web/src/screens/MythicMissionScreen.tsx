@@ -255,7 +255,7 @@ export function MythicMissionScreen() {
  * one is. Falls back to the whole string when there is nothing to split.
  */
 function firstName(displayName: string): string {
-  return displayName.trim().split(/s+/)[0] || displayName;
+  return displayName.trim().split(/\s+/)[0] || displayName;
 }
 
 function Roster({
