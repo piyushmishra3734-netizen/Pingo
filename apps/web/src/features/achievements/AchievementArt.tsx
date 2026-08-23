@@ -67,11 +67,15 @@ export function AchievementArt({
       alt=""
       aria-hidden
       /*
-       * Small art is beside content already on screen and is a few kilobytes;
-       * the full emblem is worth deferring until the screen it belongs to is
-       * actually open.
+       * Eager at every size.
+       *
+       * `large` is only ever the subject of a screen somebody has just opened -
+       * the emblem at the top of the mission page - and deferring it made the
+       * hero of the page arrive after the words underneath it. The saving it was
+       * meant to buy is already bought by the route being code-split: the screen
+       * is not downloaded until it is opened either.
        */
-      loading={size === 'large' ? 'lazy' : 'eager'}
+      loading="eager"
       decoding="async"
       draggable={false}
       className={cn(
@@ -86,7 +90,18 @@ export function AchievementArt({
   if (!aura || locked || size === 'mark') return image;
 
   return (
-    <span className="relative inline-grid place-items-center">
+    /*
+     * `isolate`, and the wash explicitly behind on `-z-10`.
+     *
+     * Not tidiness. `blur` promotes the wash to its own compositing layer, and
+     * with both children at `z-index: auto` the browser is free to raise that
+     * layer above the emblem - which it did, intermittently, leaving a screen
+     * with a soft glow where the badge should be and no error anywhere. Measured
+     * live on the mission screen. A stacking context of our own, with the wash
+     * given a negative index inside it, makes the order ours rather than the
+     * compositor's. Same fix, same reason, as the glow behind the profile QR.
+     */
+    <span className="relative isolate inline-grid place-items-center">
       {/*
         Behind the artwork and wider than it, so the light appears to come off
         the emblem rather than to be a shape sitting under it. Blurred rather
@@ -94,7 +109,7 @@ export function AchievementArt({
       */}
       <span
         aria-hidden
-        className="pointer-events-none absolute size-[150%] rounded-full opacity-45 blur-2xl"
+        className="pointer-events-none absolute -z-10 size-[150%] rounded-full opacity-45 blur-2xl"
         style={{ background: AURA[aura] }}
       />
       {image}
