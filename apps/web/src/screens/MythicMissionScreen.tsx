@@ -116,7 +116,7 @@ export function MythicMissionScreen() {
 
       <ScreenHeader title="Mission" showBack />
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto px-5 pb-12">
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-5 pb-28">
         {loading ? (
           <MissionSkeleton />
         ) : !progress ? (
@@ -179,21 +179,31 @@ export function MythicMissionScreen() {
                 The same fraction, drawn, and kept after unlocking so a finished
                 mission still shows itself as finished. Nothing here knows the
                 number is five.
+
+                Unlocked fills it whatever the count says. The two can disagree -
+                a badge granted by hand sits on an account with no referrals at
+                all - and when they do, the badge is the fact: an "Unlocked" pill
+                above five empty segments reads as a screen that is broken rather
+                than as an account that is unusual.
               */}
               <div
                 className="mt-5 flex w-full max-w-[16rem] gap-1.5"
                 role="progressbar"
-                aria-valuenow={progress.count}
+                aria-valuenow={unlocked ? progress.required : progress.count}
                 aria-valuemin={0}
                 aria-valuemax={progress.required}
-                aria-label={`${progress.count} of ${progress.required} friends joined`}
+                aria-label={
+                  unlocked
+                    ? 'Mission complete'
+                    : `${progress.count} of ${progress.required} friends joined`
+                }
               >
                 {Array.from({ length: progress.required }, (_, i) => (
                   <span
                     key={i}
                     className={cn(
                       'h-1.5 flex-1 rounded-full transition-colors duration-slow',
-                      i < progress.count
+                      unlocked || i < progress.count
                         ? 'bg-[color:var(--mythic-accent,var(--color-brand))]'
                         : 'bg-hover',
                     )}
@@ -252,7 +262,7 @@ function Roster({
   return (
     <section className="mt-10">
       <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
-        {count === 0 ? 'Nobody yet' : count === 1 ? '1 friend joined' : `${count} friends joined`}
+        {count === 0 ? 'Who joins' : count === 1 ? '1 friend joined' : `${count} friends joined`}
       </h2>
 
       <div className="mt-3 flex flex-wrap items-start gap-x-3 gap-y-4">
@@ -354,7 +364,11 @@ function InviteCard({
             <div className="rounded-2xl bg-white p-3 shadow-sm">
               <QrArt value={link} size={168} level="H" logo title="QR code for your PINGO invite" />
             </div>
-            <p className="text-caption mt-3 font-mono tracking-[0.2em] text-text-secondary uppercase">
+            {/*
+              Read aloud more often than it is tapped, so it is set as something to
+              read: the code, not a caption about the code.
+            */}
+            <p className="text-body mt-3 font-mono font-medium tracking-[0.25em] text-ink uppercase">
               {code}
             </p>
           </div>
