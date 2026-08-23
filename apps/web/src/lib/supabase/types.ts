@@ -917,6 +917,24 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      /**
+       * Which backup generation is current, and the hash of its manifest. The
+       * one fact about a Drive backup that the owner of the Drive folder cannot
+       * rewrite. Readable by its owner; no `Insert` or `Update`, because a
+       * direct write would be a way around the monotonic rule that is the
+       * entire defence - see `set_backup_anchor`.
+       */
+      backup_anchor: {
+        Row: {
+          user_id: string;
+          generation: number;
+          manifest_hash: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     /* Empty groups, in the shape the generator emits. */
     Views: { [_ in never]: never };
@@ -929,6 +947,20 @@ export type Database = {
       redeem_referral: {
         Args: { code: string };
         Returns: { ok: boolean; reason: string };
+      };
+      /**
+       * Advances the backup anchor. Raises when the generation is not strictly
+       * newer than the one recorded, which is what makes a rollback impossible
+       * for somebody who holds the Drive folder but not the account.
+       */
+      set_backup_anchor: {
+        Args: { p_generation: number; p_manifest_hash: string };
+        Returns: number;
+      };
+      /** Ends the current backup lineage, for a disconnect that starts over. */
+      clear_backup_anchor: {
+        Args: Record<string, never>;
+        Returns: undefined;
       };
       /**
        * The mission screen in one call - the link, the count, the requirement

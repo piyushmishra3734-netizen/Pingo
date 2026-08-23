@@ -12,6 +12,7 @@
  */
 import { openRecord, sealRecord } from '../../crypto/session.js';
 import { STORE, localDelete, localGet, localSet } from '../../local/db.js';
+import type { AnchorStore } from '../anchor.js';
 import { DriveAuthError } from './auth.js';
 import { DriveError } from './client.js';
 import type { StoredPackage } from '../target.js';
@@ -178,6 +179,15 @@ export class DriveBackupController {
   constructor(
     private readonly target: GoogleDriveBackupTarget,
     private readonly store: DriveStateStore = sealedDriveStore,
+    /**
+     * The server-side record of which backup is current.
+     *
+     * Optional so the controller stays constructible without a session - the
+     * verification suites build one with nothing but a fake Drive. When it is
+     * absent nothing is anchored and nothing is checked, which is exactly the
+     * behaviour every backup had before `anchor.ts` existed.
+     */
+    private readonly anchor?: AnchorStore,
   ) {}
 
   get view(): DriveView {
@@ -278,6 +288,13 @@ export class DriveBackupController {
     }
     await this.target.disconnect();
     await this.store.clear();
+    /*
+     * The lineage ends here. The next connection may be a different Drive
+     * folder whose HEAD starts again at generation 1, which the monotonic
+     * anchor would refuse for ever. Swallowed for the same reason the Drive
+     * call above is: the user asked to disconnect.
+     */
+    await this.anchor?.clear().catch(() => undefined);
     this.#set({
       phase: 'disconnected',
       connected: false,
@@ -330,8 +347,11 @@ export class DriveBackupController {
     return this.#exclusive(async () => {
       this.#set({ phase: 'backing-up', message: undefined, needsReconnect: undefined, progress: undefined });
       try {
-        const result = await this.target.backupArchive(plaintext, recoveryPublicKey, (progress) =>
-          this.#set({ progress }),
+        const result = await this.target.backupArchive(
+          plaintext,
+          recoveryPublicKey,
+          (progress) => this.#set({ progress }),
+          this.anchor,
         );
         const saved = await this.store.read();
         const now = Date.now();
@@ -588,6 +608,7 @@ export class DriveBackupController {
           recoveryPrivateKey,
           saved?.generation ?? 0,
           (progress) => this.#set({ progress }),
+          this.anchor,
         );
 
         /*

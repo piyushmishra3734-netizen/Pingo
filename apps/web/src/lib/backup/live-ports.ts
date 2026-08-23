@@ -26,6 +26,7 @@ import {
   messageRowRange,
 } from '../local/db.js';
 import { getSupabaseClient } from '../supabase/client.js';
+import { liveAnchorStore } from './anchor.js';
 import type { BackfillCursor, BackfillRow, BackfillSink, BackfillSource, CursorStore } from './backfill.js';
 import type { CursorReader, LocalCounts, ProofSource } from './completeness.js';
 import type { LocalSample, PreflightSource } from './preflight.js';
@@ -550,6 +551,15 @@ export async function liveBackupPorts(options: {
           );
           return verification.status === 'verified';
         },
+        /*
+         * Recorded on our server between the manifest upload and the HEAD
+         * commit. Deliberately not optional here: this is the live path a real
+         * account backs up through, and a backup that is not anchored is one a
+         * restore has no way to tell from a forgery. If the anchor cannot be
+         * written the backup fails rather than committing a pointer nothing
+         * vouches for.
+         */
+        liveAnchorStore(client),
       );
 
       return {

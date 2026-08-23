@@ -144,6 +144,8 @@ integer, written on each successful backup. A fresh device reads it and passes
 it as the floor. The server cannot read the archive, so this costs no
 confidentiality and closes the replay.
 
+**Closed 2026-08-23**, together with Gap 3. See "What actually shipped" below.
+
 ### Gap 3 — HEAD is unauthenticated *(critical)*
 
 `drive-target.ts:114` parses HEAD with a bare `JSON.parse`. It is the commit
@@ -153,6 +155,54 @@ is current, and in Simple mode can forge the archive it points at.
 **Proposed fix:** the server-side generation from Gap 2 doubles as the check.
 Additionally, sign HEAD and the manifest with a key derived from the archive or
 recovery key, so a forged pair fails before any chunk is fetched.
+
+**Closed 2026-08-23**, but not by the second half of that proposal, which is
+wrong. See below.
+
+### What actually shipped for Gaps 2 and 3
+
+Building the proposed signature showed it could not work. In Simple mode the
+archive's private key lives in the Drive `appDataFolder` in the clear, beside
+the archive it opens — the deliberate trade `archive-key.ts` documents and the
+thing that makes restore automatic. An attacker with write access to that folder
+therefore holds that key, and can:
+
+* seal a complete, well-formed archive of their own that decrypts perfectly,
+  because the key that opens it is the key they took;
+* compute any MAC or signature derived from it, so signing HEAD proves nothing;
+* put HEAD back to an older genuine generation, which needs no key at all.
+
+Every proposed defence sat inside the blast radius of the attacker it was
+defending against. Signing HEAD with a key stored next to HEAD is decoration.
+
+What that attacker does not have is the account's PINGO session. So both gaps
+are closed by one thing outside the folder: `backup_anchor`, a row holding the
+current generation and the SHA-256 of its manifest
+(`supabase/migrations/20260937000000_backup_anchor.sql`,
+`apps/web/src/lib/backup/anchor.ts`).
+
+* **Rollback** — `set_backup_anchor` refuses a generation that is not strictly
+  greater than the one recorded. The number the attacker has to beat is not in
+  Drive.
+* **Forgery** — the manifest hash pins which archive that generation is. A
+  substitution is refused before a single chunk is downloaded.
+* **Ordering** — the anchor is written *between* the manifest upload and the
+  HEAD commit, so every generation a restore can reach was anchored first. A
+  HEAD ahead of the anchor is therefore evidence, not a race, and is refused.
+  Anchoring after the commit would leave a window indistinguishable from
+  forgery.
+
+The server still cannot read anything: it holds a counter and a hash of a
+manifest that is already plaintext in Drive and that we have never seen.
+
+Two limits, both deliberate. An account with no anchor — every backup made
+before this — restores as it always did; one backup ends that grace. And nothing
+here stops **deletion**: whoever can write the folder can empty it, which is why
+the backup exists rather than something the backup defends against.
+
+`pnpm verify:backup-anchor` plays the attacker. Its control case runs the same
+working forgery with no anchor supplied and asserts that it restores cleanly, so
+the suite fails if the check is ever removed rather than passing quietly.
 
 ### Gap 4 — password KDF is too weak for human passwords *(high)*
 
@@ -191,14 +241,15 @@ Four items must land before production code.
 | Rank | Change |
 | --- | --- |
 | **Critical** | Gap 1 — decide where the recovery key lives in Simple mode. Recommend option (1): no recovery wrap while Simple. |
-| **Critical** | Gap 2 — server-side generation floor, so a fresh device cannot be rolled back. |
-| **Critical** | Gap 3 — authenticate HEAD and the manifest. |
+| ~~**Critical**~~ | ~~Gap 2 — server-side generation floor.~~ Shipped 2026-08-23 as `backup_anchor`. |
+| ~~**Critical**~~ | ~~Gap 3 — authenticate HEAD and the manifest.~~ Shipped 2026-08-23; the signature half of the proposal was wrong and is not what landed. |
 | **High** | Gap 4 — Argon2id and a strength floor for backup passwords. |
 | **High** | Gap 5 — stop exposing `last_seen_at` to every authenticated user. |
 | **Medium** | Gap 6 — state the `everyoneReady` scope in the mode-choice copy. |
 | **Medium** | Tests for invariants 9 and 11. |
 | **Low** | Archive-key rotation after a Google account compromise. |
 
-Gaps 2 and 3 share one fix and should be implemented together. Gap 1 is the only
+Gaps 2 and 3 shared one fix and were implemented together, though not the one
+proposed here — see "What actually shipped". Gap 1 is the only
 one that changes the design rather than hardening it, and it blocks Simple mode
 specifically.

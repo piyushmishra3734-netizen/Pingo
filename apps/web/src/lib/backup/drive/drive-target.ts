@@ -22,8 +22,18 @@
  * HEAD, so it either sees the old generation or the new one and never a
  * half-written mixture. Steps 1-2 are idempotent by name, so a retry overwrites
  * its own partial work rather than someone else's finished work.
+ *
+ * ## HEAD is not trusted, it is only found
+ *
+ * Everything above assumes the only writer is us. Whoever can write this folder
+ * can also flip the pointer, and in Simple mode can read the key that would let
+ * them seal a whole archive of their own - see `anchor.ts`. So an `AnchorStore`
+ * is recorded on our server between steps 2 and 3, and a restore checks what it
+ * found in Drive against it. HEAD still says which generation to read; it no
+ * longer says whether to believe it.
  */
 import type { RecoveryPackage } from '../../crypto/recovery.js';
+import { anchorHash, checkAnchor, nextGeneration, type AnchorStore } from '../anchor.js';
 import type { BackupTarget, StoredPackage, TargetStatus } from '../target.js';
 import { openArchive, sealArchive, type ArchiveChunk, type ArchiveManifest } from './archive.js';
 import { DriveClient, DriveError, type Http } from './client.js';
@@ -141,9 +151,11 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     plaintext: Uint8Array,
     recoveryPublicKey: string,
     onProgress?: (progress: ArchiveProgress) => void,
+    anchor?: AnchorStore,
   ): Promise<{ generation: number; bytes: number }> {
     const current = await this.head();
-    const generation = (current?.generation ?? 0) + 1;
+    const recorded = await anchor?.read();
+    const generation = nextGeneration(current?.generation, recorded);
 
     onProgress?.({ phase: 'sealing' });
     const { manifest, chunks } = await sealArchive(plaintext, recoveryPublicKey, generation);
@@ -165,7 +177,13 @@ export class GoogleDriveBackupTarget implements BackupTarget {
      * The commit. Everything above is invisible to a restore until this lands,
      * so a failure before here leaves the previous backup intact and a failure
      * after here leaves only orphaned files, which the next clean removes.
+     *
+     * The anchor goes first and is allowed to throw. Anchoring after the commit
+     * would leave a window in which HEAD is legitimately ahead of the anchor,
+     * and a restore cannot tell that window from a forged pointer.
      */
+    await anchor?.write({ generation, manifestHash: await anchorHash(manifest) });
+
     onProgress?.({ phase: 'committing' });
     const previousHead = await this.drive.find(HEAD_FILE);
     await this.drive.upload(HEAD_FILE, encoder.encode(JSON.stringify({ generation, updatedAt: Date.now() })));
@@ -227,6 +245,7 @@ export class GoogleDriveBackupTarget implements BackupTarget {
      * caller that never checks has nothing to roll back to anyway.
      */
     verify?: (generation: number) => Promise<boolean>,
+    anchor?: AnchorStore,
   ): Promise<{
     generation: number;
     bytes: number;
@@ -236,7 +255,8 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     verified?: boolean;
   }> {
     const current = await this.head();
-    const generation = (current?.generation ?? 0) + 1;
+    const recorded = await anchor?.read();
+    const generation = nextGeneration(current?.generation, recorded);
 
     /*
      * Clear anything a previous failed attempt left at this generation before
@@ -259,6 +279,9 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     });
 
     await this.drive.upload(manifestName(generation), encoder.encode(JSON.stringify(manifest)));
+
+    // Recorded before the pointer moves - see `backupArchive` above.
+    await anchor?.write({ generation, manifestHash: await anchorHash(manifest) });
 
     onProgress?.({ phase: 'committing' });
     const previousHead = await this.drive.find(HEAD_FILE);
@@ -342,6 +365,7 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     recoveryPrivateKey: CryptoKey,
     seenGeneration = 0,
     onProgress?: (progress: ArchiveProgress) => void,
+    anchor?: AnchorStore,
   ): Promise<{ plaintext: Uint8Array; generation: number }> {
     const current = await this.head();
     if (!current) throw new DriveError('There is no backup in Drive to restore.', 'not-found');
@@ -355,6 +379,14 @@ export class GoogleDriveBackupTarget implements BackupTarget {
     const manifest = JSON.parse(
       decoder.decode(await this.drive.download(manifestFile.id)),
     ) as ArchiveManifest;
+
+    /*
+     * Before a single chunk is fetched, let alone decrypted. Downloading
+     * megabytes of something we are about to refuse is waste, and decrypting it
+     * first would mean the check ran on data that had already been through the
+     * cipher rather than on the claim itself.
+     */
+    checkAnchor(manifest, await anchor?.read(), await anchorHash(manifest));
 
     const chunks: ArchiveChunk[] = [];
     for (const entry of manifest.chunks) {

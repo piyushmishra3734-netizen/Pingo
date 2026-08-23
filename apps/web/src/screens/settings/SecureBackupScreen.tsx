@@ -16,7 +16,12 @@ import {
 import { useProfile } from '@pingo/core';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { Capacitor } from '@capacitor/core';
-import { DriveBackupController, type DriveView } from '../../lib/backup/drive/controller.js';
+import {
+  DriveBackupController,
+  sealedDriveStore,
+  type DriveView,
+} from '../../lib/backup/drive/controller.js';
+import { liveAnchorStore } from '../../lib/backup/anchor.js';
 import { GoogleDriveBackupTarget } from '../../lib/backup/drive/drive-target.js';
 import { NativeDriveAuth } from '../../lib/backup/drive/native-auth.js';
 import { WebDriveAuth } from '../../lib/backup/drive/web-auth.js';
@@ -122,7 +127,17 @@ export function SecureBackupScreen() {
    */
   const driveAuth = useMemo(() => (isNative ? new NativeDriveAuth() : new WebDriveAuth()), [isNative]);
   const driveTarget = useMemo(() => new GoogleDriveBackupTarget(driveAuth), [driveAuth]);
-  const driveCtl = useMemo(() => new DriveBackupController(driveTarget), [driveTarget]);
+  /*
+   * The server's record of which backup is current, and the only part of one
+   * that a Drive folder's owner cannot rewrite - see `anchor.ts`. It is handed
+   * to the controller rather than built inside it so the verification suites
+   * can still drive a controller with no session at all.
+   */
+  const driveAnchor = useMemo(() => liveAnchorStore(client), [client]);
+  const driveCtl = useMemo(
+    () => new DriveBackupController(driveTarget, sealedDriveStore, driveAnchor),
+    [driveTarget, driveAnchor],
+  );
 
   useEffect(() => {
     const stop = driveCtl.subscribe(setDrive);
