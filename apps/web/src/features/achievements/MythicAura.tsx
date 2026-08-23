@@ -65,7 +65,23 @@ export function MythicAura({
     <div
       aria-hidden
       className={cn(
-        'pointer-events-none absolute inset-x-0 top-0 h-72 overflow-hidden',
+        /*
+         * `-z-10` belongs to the component, not to each caller.
+         *
+         * The inner wash animates and is blurred, which promotes it to its own
+         * compositing layer - and a composited layer is free to paint above
+         * later, non-composited siblings. It did: on the mission screen the
+         * emblem was in the DOM, loaded, opacity 1 and top of the hit-test
+         * stack, with a soft glow on screen where it should have been. Nothing
+         * errored, and it came and went between loads.
+         *
+         * The profile had the fix from the start and passed `-z-10` in by hand;
+         * the two screens written later did not copy it, which is the argument
+         * for it living here. Callers still owe it a stacking context of their
+         * own - `isolate` on the screen root - or a negative index falls behind
+         * the page background instead of behind the content.
+         */
+        'pointer-events-none absolute -z-10 inset-x-0 top-0 h-72 overflow-hidden',
         className,
       )}
     >

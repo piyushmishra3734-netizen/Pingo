@@ -463,7 +463,8 @@ export function ProfileScreen() {
       className={cn('relative h-full overflow-y-auto', isMythic && 'isolate')}
       style={isMythic ? mythicAccentStyle(preferences.mythic.accent) : undefined}
     >
-      {isMythic && <MythicAura accent={preferences.mythic.accent} className="-z-10" />}
+      {/* `-z-10` moved into MythicAura itself, so a new caller cannot forget it. */}
+      {isMythic && <MythicAura accent={preferences.mythic.accent} />}
       {avatarEditorSrc && (
         <AvatarPhotoEditor
           src={avatarEditorSrc}

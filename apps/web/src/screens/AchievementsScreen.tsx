@@ -49,7 +49,8 @@ export function AchievementsScreen() {
   const { aura, accent } = preferences.mythic;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-page">
+    // `isolate`: see the note on the same line of MythicMissionScreen.
+    <div className="relative isolate flex h-full min-h-0 flex-col bg-page">
       {/*
         The same wash as the profile, so the two screens feel like one place.
         Only for an account that has the rare tier - an ordinary collection is

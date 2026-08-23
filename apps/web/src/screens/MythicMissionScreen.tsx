@@ -105,7 +105,9 @@ export function MythicMissionScreen() {
   };
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-page">
+    // `isolate`: the aura wash sits at -z-10, and without a stacking context of
+    // our own that puts it behind the page background rather than behind the page.
+    <div className="relative isolate flex h-full min-h-0 flex-col bg-page">
       {/*
         The same wash as the profile and the cabinet, so finishing the mission
         lands somewhere that already looks like the reward. Only once it is
