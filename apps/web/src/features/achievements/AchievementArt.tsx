@@ -104,12 +104,25 @@ export function AchievementArt({
     <span className="relative isolate inline-grid place-items-center">
       {/*
         Behind the artwork and wider than it, so the light appears to come off
-        the emblem rather than to be a shape sitting under it. Blurred rather
-        than drawn - an edge here would read as a second object.
+        the emblem rather than to be a shape sitting under it. No edge anywhere -
+        an edge here would read as a second object.
+
+        ## No blur, and that is the fix rather than a saving
+
+        This was `blur-2xl`, and the filter is what put it on its own
+        compositing layer - which then painted over the emblem it is supposed to
+        sit behind. Not always: it survived a first look and came back on the
+        next load, and `-z-10` inside an `isolate` wrapper did not stop it. What
+        stops it is not having a layer to reorder.
+
+        Nothing was lost. The gradient's stops already fade to transparent over
+        a third of its width, so the blur was smoothing something that was
+        smooth - checked side by side at 80px and at 224px before removing it -
+        and a filter on a phone is not free.
       */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -z-10 size-[150%] rounded-full opacity-45 blur-2xl"
+        className="pointer-events-none absolute -z-10 size-[150%] rounded-full opacity-45"
         style={{ background: AURA[aura] }}
       />
       {image}
