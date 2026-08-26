@@ -117,6 +117,19 @@ function hasMediaDraft(draft: OutgoingMessage): boolean {
   return Boolean(draft.photo ?? draft.ping ?? draft.voice ?? draft.document ?? draft.sticker);
 }
 
+/**
+ * One preview row, plus the emptiness answer the server reports alongside it.
+ *
+ * `has_messages` is whether any message row has *ever* existed in the thread -
+ * over the whole table, not the visible window, so a cleared chat still reads
+ * as real. Optional here so an older server that does not send it reads as
+ * "unknown" rather than "empty": unknown keeps every chat visible, which is
+ * what every build before this rule did.
+ */
+type ConversationPreviewRow = Database['public']['Functions']['conversation_previews']['Returns'][number] & {
+  has_messages?: boolean;
+};
+
 /** Until a settings table exists, these are what every session starts from. */
 const DEFAULT_SETTINGS: UserSettings = {
   appearance: 'system',
@@ -710,6 +723,22 @@ export class SupabaseChatService implements ChatService {
    */
   #known = new Map<ConversationId, Conversation>();
 
+  /**
+   * Direct conversations that exist but have never carried a message.
+   *
+   * The list does not show them - until somebody sends something, a thread is
+   * a fact about the database, not about anybody's chat list. This set is what
+   * keeps the *live* path honest: realtime announces a conversation the moment
+   * `start_direct_conversation` makes it (a referral signup is enough), and
+   * without this check the announcement would put a stranger's name straight
+   * into the list no rule had filtered.
+   *
+   * Refreshed by every hydrate, which reads the same preview the server just
+   * computed - so an announce that goes through `getConversation` decides on
+   * this moment's truth, not last load's.
+   */
+  #silentDirect = new Set<ConversationId>();
+
   /** The whole-list read in flight or just finished. See `listConversations`. */
   #conversationListRead: { at: number; work: Promise<Conversation[]> } | undefined;
 
@@ -1059,6 +1088,12 @@ export class SupabaseChatService implements ChatService {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const row = payload.new as MessageRow;
+          /*
+           * A message landing is the thread becoming real. Whatever the list
+           * rule thought of it before, there is something in it now - clear
+           * the mark first, so the announcements below are allowed through.
+           */
+          this.#silentDirect.delete(row.conversation_id);
           /*
            * A new message is the conversation's new preview, so the one this
            * session is holding for that thread is no longer the newest.
@@ -1548,7 +1583,11 @@ export class SupabaseChatService implements ChatService {
   #hiddenActivityIds = new Set<UserId>();
 
   /** Builds the view-model conversations for a set of rows the user belongs to. */
-  async #hydrate(rows: ConversationRow[], me: UserId): Promise<Conversation[]> {
+  async #hydrate(
+    rows: ConversationRow[],
+    me: UserId,
+    options?: { allowSilent?: boolean },
+  ): Promise<Conversation[]> {
     if (rows.length === 0) return [];
     const ids = rows.map((row) => row.id);
 
@@ -1578,7 +1617,7 @@ export class SupabaseChatService implements ChatService {
     );
 
     const previewByConversation = new Map(
-      (previews ?? []).map((row) => [row.conversation_id, row]),
+      ((previews ?? []) as ConversationPreviewRow[]).map((row) => [row.conversation_id, row]),
     );
 
     /*
@@ -1673,8 +1712,31 @@ export class SupabaseChatService implements ChatService {
        * A chat the member deleted is not in their list at all - not archived,
        * not empty, absent. It returns on its own when something newer arrives,
        * which is what `deleted` in the preview already accounts for.
+       *
+       * And a direct chat that has never carried a message is not in anybody's
+       * list either. The row exists - the referral opened it, or somebody
+       * tapped Message on a profile and backed out - but a list of threads
+       * nobody has talked in claims a contact that was never made. One message
+       * from either side makes it real; clearing does not unmake it, because
+       * `has_messages` reads the whole table rather than the visible window.
+       * Groups are exempt: they announce themselves the moment you are added,
+       * which has always been their behaviour. The silent ones are remembered
+       * so the live path can refuse to announce them back into the list.
        */
-      .filter((row) => !previewByConversation.get(row.id)?.deleted)
+      .filter((row) => {
+        const preview = previewByConversation.get(row.id);
+        const silent =
+          row.kind === 'direct' && preview?.has_messages === false;
+        if (silent) this.#silentDirect.add(row.id);
+        else this.#silentDirect.delete(row.id);
+        /*
+         * `allowSilent` is the point-read escape hatch. Opening the thread is
+         * how a silent one stops being silent - somebody is about to write
+         * into it - so resolving one by id must not refuse. The *list* keeps
+         * it hidden, which is what the default does.
+         */
+        return (!silent || options?.allowSilent === true) && !preview?.deleted;
+      })
       .map((row) => {
         const roster = (members ?? []).filter((m) => m.conversation_id === row.id);
         const mine = roster.find((m) => m.user_id === me);
@@ -2255,7 +2317,10 @@ export class SupabaseChatService implements ChatService {
         .eq('id', id)
         .maybeSingle();
       if (!data) return undefined;
-      const [conversation] = await this.#hydrate([data], me);
+      // Point read, not a list render: a thread created moments ago by
+      // `startDirectConversation` is still silent, and the navigation that
+      // follows needs it resolved. See `allowSilent` in `#hydrate`.
+      const [conversation] = await this.#hydrate([data], me, { allowSilent: true });
       return conversation;
     })();
 
@@ -4619,7 +4684,23 @@ export class SupabaseChatService implements ChatService {
   }
 
   async #announce(conversationId: ConversationId): Promise<void> {
+    /*
+     * Fetched first, checked second.
+     *
+     * `getConversation` hydrates, and hydrating reads `has_messages` fresh from
+     * the server - so by the time the check below runs it reflects this
+     * moment's truth rather than whatever the last full load believed. A
+     * referral creating a thread is announced to both members' sockets while
+     * the thread is still empty; this is where that announcement stops.
+     *
+     * Deliberately not the rule for every emit: `startDirectConversation` and
+     * `ensureAiConversation` announce their result themselves, unfiltered,
+     * because they answer a tap that is on its way into the thread. The list
+     * may hold such a chat until its next rebuild - which is the same session
+     * the user opened it in, and the first message makes it permanent.
+     */
     const conversation = await this.getConversation(conversationId);
+    if (this.#silentDirect.has(conversationId)) return;
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
   }
 
@@ -5295,6 +5376,11 @@ export class SupabaseChatService implements ChatService {
      *
      * Realtime does not cover this: it carries message inserts, not
      * conversation ones, and there is no message yet.
+     *
+     * Deliberately announced even though the thread is empty - this emit is
+     * what the navigation below resolves against, and the caller is one tap
+     * away from filling it. The list rule that hides untouched threads lives
+     * in `#announce`, which this bypasses on purpose.
      */
     const conversation = await this.getConversation(data);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
