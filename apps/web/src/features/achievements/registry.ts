@@ -41,7 +41,14 @@ export interface Achievement {
   art: {
     /** The full emblem, for a profile or a detail sheet. */
     emblem: string;
-    /** The crop that survives being small, for beside a name. */
+    /**
+     * The crop that survives being small, for beside a name.
+     *
+     * The 96px file, not the 48px one. This is drawn at the size of the text
+     * it follows - twenty in a chat row, thirty-two beside a profile name - so
+     * on any screen above 1x the 48 was already being asked to stretch. Ten
+     * kilobytes, fetched once for the whole app however many rows show it.
+     */
     crest: string;
   };
 }
@@ -61,7 +68,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     blurb: 'One of the two who started PINGO.',
     art: {
       emblem: '/badges/founder-512.png',
-      crest: '/badges/founder-crest-48.png',
+      crest: '/badges/founder-crest-96.png',
     },
   },
   {
@@ -71,7 +78,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     tier: 'mythic',
     art: {
       emblem: '/badges/mythic-pioneer-512.png',
-      crest: '/badges/mythic-crest-48.png',
+      crest: '/badges/mythic-crest-96.png',
     },
   },
 ];
