@@ -23,6 +23,7 @@ import {
 import { imagePrompt } from './image-intent.ts';
 import { reasoningDemand, type Demand } from './demand.ts';
 import { generateImage } from './generate-image.ts';
+import { windowIndices } from './history-window.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
@@ -408,7 +409,10 @@ async function runTurn(
     );
 
     // Longer window so the model can follow multi-turn threads.
-    const historyForModel = trimHistoryForModel(cleanHistory);
+    const historyForModel = trimHistoryForModel(
+      cleanHistory,
+      isGroup ? speakerNames.get(user.id) : undefined,
+    );
 
     const messages = [
       /*
@@ -1856,37 +1860,43 @@ function extractDefineTerm(message: string): string | null {
 
 /** Keep a deep enough window that multi-turn topics stay coherent. */
 function trimHistoryForModel(
-  history: { role: 'user' | 'assistant'; content: string }[],
+  history: { role: 'user' | 'assistant'; content: string; speaker?: string }[],
+  /**
+   * The name of the person who just asked, in a group.
+   *
+   * Without it the window is simply the last forty lines, and in a shared group
+   * that is whoever has been talking most - not whoever is waiting for an
+   * answer. Measured on the live nine-person group: of the forty most recent
+   * plaintext lines, nineteen were the assistant, eighteen were one member, and
+   * two were the person asking. It was not forgetting their thread; their
+   * thread was two lines of a forty-line memory that belonged to somebody else.
+   */
+  mine?: string,
 ): { role: 'user' | 'assistant'; content: string }[] {
   /*
-   * Sized for the window the models actually have, not for the 8B.
+   * Forty recent lines, plus the asker's own exchanges wherever they fell.
    *
-   * 28 turns was chosen against `llama-3.1-8b`, and even that has a 128K
-   * window - the number was cautious rather than measured. Sixty turns of chat
-   * is roughly 15K tokens with the system prompt and memories on top, which is
-   * a small fraction of any model in the chain and is the difference between
-   * an assistant that remembers this morning and one that remembers the last
-   * ten minutes.
+   * Forty was chosen against prefill cost: it is paid per token on every
+   * message, and measured live a two-word reply took seven seconds until the
+   * duplicated transcript came out of the directive. Forty is comfortably more
+   * than the twenty-eight this started at.
    *
-   * The assistant's own replies were cut at 500 characters, which is the more
-   * damaging half: it could read what you said in full and only a truncated
-   * version of what it had answered, so anything it had explained at length
-   * was gone from its own view of the conversation. Both sides get the same
-   * budget now.
+   * What forty could not fix is *which* forty. In a shared group the most
+   * recent forty belong to whoever is talking most, so the reach-back below
+   * guarantees the person waiting for an answer is in the room too.
+   *
+   * Both sides get the same 1200 characters. The assistant's replies used to be
+   * cut at 500, which is the more damaging half: it could read what you said in
+   * full and only a truncated version of what it had answered.
    */
-  return history
-    /*
-     * Forty, not sixty.
-     *
-     * Sixty was chosen against the window the models have, which is enormous -
-     * but prefill is paid per token on every message, and measured live a
-     * two-word reply took seven seconds. Cutting the duplicated transcript out
-     * of the directive took that to five; this is the other half of the same
-     * problem. Forty turns is still comfortably more than the twenty-eight this
-     * started at, and the difference between forty and sixty turns of chat is
-     * not something anybody has ever noticed in a reply.
-     */
-    .slice(-40)
+
+  const chosen = windowIndices(
+    history.map((m) => (m.speaker ? m.speaker : undefined)),
+    mine,
+  );
+
+  return chosen
+    .map((i) => history[i]!)
     .map((m) => ({
       role: m.role,
       content:

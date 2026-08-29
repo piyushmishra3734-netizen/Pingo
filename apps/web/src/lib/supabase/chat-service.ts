@@ -3996,6 +3996,43 @@ export class SupabaseChatService implements ChatService {
       this.#aiConversationIds.add(conversationId);
       return true;
     }
+
+    /*
+     * A one-to-one thread with the assistant in it, whatever its `kind` says.
+     *
+     * `kind = 'ai'` was the only test, and measured against the live database
+     * no conversation has ever had that kind - the assistant's threads are
+     * `direct`. So this answered "no" for every one of them, and both things it
+     * gates were wrong at once: the message was sealed, so the assistant could
+     * not read what was said to it, and it was never asked to reply.
+     *
+     * The thread that shows it is still there: seven plaintext messages up to
+     * 4 August, then fourteen encrypted ones, then it stops. That is somebody
+     * talking to something that had gone deaf.
+     *
+     * Membership is the honest test. Two people in a room and one of them is
+     * the assistant means the assistant is being talked to, and a `kind` column
+     * somebody forgot to set cannot make that untrue. Restricted to exactly two
+     * members: a group that happens to contain the assistant still answers only
+     * when it is mentioned, which is the privacy rule and stays.
+     */
+    if (data.kind === 'direct') {
+      const { data: members, error: memberError } = await this.#client
+        .from('conversation_members')
+        .select('user_id')
+        .eq('conversation_id', conversationId);
+
+      if (memberError || !members) return false;
+
+      const isPair = members.length === 2;
+      const withAi = members.some((m) => m.user_id === PINGO_AI_USER_ID);
+
+      if (isPair && withAi) {
+        this.#aiConversationIds.add(conversationId);
+        return true;
+      }
+    }
+
     this.#nonAiConversationIds.add(conversationId);
     return false;
   }
