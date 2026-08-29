@@ -20,11 +20,20 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
  * `refreshEarnedBadges`.
  */
 
-/** One earned badge: which, and when. */
+/** One earned badge: which, when, and whether it is the one on show. */
 export interface EarnedBadge {
   id: string;
   /** ISO, from `user_badges.unlocked_at`. */
   at: string;
+  /**
+   * The badge this account wears beside its name.
+   *
+   * Server-side and public, because the chat list draws *other people's*
+   * badges - a local preference could only ever be right on one device and for
+   * one viewer. At most one per account; all false means fall back to the
+   * registry order.
+   */
+  displayed: boolean;
 }
 
 /** user id → badges. Session-lived: unlocking is rare, revoking never happens. */
@@ -52,7 +61,7 @@ async function flush(): Promise<void> {
    */
   const { data } = await getSupabaseClient()
     .from('user_badges')
-    .select('user_id,badge_id,unlocked_at')
+    .select('user_id,badge_id,unlocked_at,displayed')
     .in('user_id', ids);
 
   // Everybody asked about gets an entry, including the empty ones - otherwise
@@ -62,10 +71,11 @@ async function flush(): Promise<void> {
     user_id: string;
     badge_id: string;
     unlocked_at: string;
+    displayed: boolean;
   }[]) {
     known.set(row.user_id, [
       ...(known.get(row.user_id) ?? []),
-      { id: row.badge_id, at: row.unlocked_at },
+      { id: row.badge_id, at: row.unlocked_at, displayed: row.displayed === true },
     ]);
   }
 

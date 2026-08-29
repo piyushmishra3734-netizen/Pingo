@@ -912,6 +912,12 @@ export type Database = {
           badge_id: string;
           mission_id: string | null;
           unlocked_at: string;
+          /**
+           * The badge this account wears beside its name. At most one per
+           * account; all false means fall back to the registry order. Moved
+           * only by `set_displayed_badge`.
+           */
+          displayed: boolean;
         };
         Insert: never;
         Update: never;
@@ -961,6 +967,15 @@ export type Database = {
       clear_backup_anchor: {
         Args: Record<string, never>;
         Returns: undefined;
+      };
+      /**
+       * Chooses which earned badge this account wears. Raises if the badge is
+       * not one of the caller's own; null clears the choice. Returns what was
+       * set, so a caller can confirm rather than assume.
+       */
+      set_displayed_badge: {
+        Args: { p_badge_id: string | null };
+        Returns: string | null;
       };
       /**
        * The mission screen in one call - the link, the count, the requirement

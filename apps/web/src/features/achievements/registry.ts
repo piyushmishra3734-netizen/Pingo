@@ -48,6 +48,23 @@ export interface Achievement {
 
 export const ACHIEVEMENTS: Achievement[] = [
   {
+    id: 'founder',
+    title: 'FOUNDER',
+    /*
+     * `tier` stays standard on purpose. The rare tier is not a ranking, it is
+     * the switch for the aura, the accent and the customisation - and FOUNDER
+     * is a badge, not a second experience layer. Both accounts that hold it
+     * also hold MYTHIC PIONEER, so they keep that layer through `hasTier`,
+     * which reads everything earned rather than whatever is on show.
+     */
+    tier: 'standard',
+    blurb: 'One of the two who started PINGO.',
+    art: {
+      emblem: '/badges/founder-512.png',
+      crest: '/badges/founder-crest-48.png',
+    },
+  },
+  {
     id: 'mythic_pioneer',
     title: 'MYTHIC PIONEER',
     blurb: 'A rare PINGO achievement.',
@@ -76,12 +93,28 @@ export function achievementById(id: string): Achievement | undefined {
 /**
  * The one an account leads with, when it has more than one.
  *
- * Rare first, then registry order. A person with three badges has one identity
- * beside their name, and it should be the one that took the most to get.
+ * ## The owner decides, and only then do we
+ *
+ * `displayedId` is the badge that account chose to wear - `user_badges.displayed`
+ * on the server, so everybody looking at them sees the same one. It wins over
+ * anything this function would work out, which is the point: with one badge
+ * "which do you own" and "which do you show" were the same question, and with
+ * two they are not.
+ *
+ * A choice is only honoured if it is also earned. That is belt and braces - the
+ * column lives on the earned row, so an unearned badge has nowhere to store the
+ * flag - but this function is handed loose ids and should not trust them.
+ *
+ * Falling back: rare first, then registry order. Unchanged, and what every
+ * account that has never chosen still gets.
  */
-export function leadAchievement(earnedIds: string[]): Achievement | undefined {
+export function leadAchievement(
+  earnedIds: string[],
+  displayedId?: string,
+): Achievement | undefined {
   const earned = ACHIEVEMENTS.filter((a) => earnedIds.includes(a.id));
-  return earned.find((a) => a.tier === 'mythic') ?? earned[0];
+  const chosen = displayedId ? earned.find((a) => a.id === displayedId) : undefined;
+  return chosen ?? earned.find((a) => a.tier === 'mythic') ?? earned[0];
 }
 
 /** Whether any of these earned ids belongs to the rare tier. */

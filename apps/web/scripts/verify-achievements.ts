@@ -21,6 +21,9 @@ import {
   type Achievement,
 } from '../src/features/achievements/registry.js';
 
+/** How many the registry ships with, so the fixture check is not a literal. */
+const REGISTERED = ACHIEVEMENTS.length;
+
 let failures = 0;
 const check = (ok: boolean, what: string) => {
   if (!ok) failures += 1;
@@ -101,7 +104,68 @@ if (mythic) {
 }
 
 ACHIEVEMENTS.pop();
-check(ACHIEVEMENTS.length === 1, 'the fixture is cleaned up');
+check(ACHIEVEMENTS.length === REGISTERED, 'the fixture is cleaned up');
+
+// ---------------------------------------------------------------------------
+// Owning a badge and wearing one
+// ---------------------------------------------------------------------------
+
+/*
+ * The distinction the FOUNDER badge forced into existence.
+ *
+ * With one achievement "which do you own" and "which do you show" were the same
+ * question. With two they are not, and getting it wrong in either direction is
+ * bad in a way nobody would report as a bug: a choice that silently does
+ * nothing, or a choice that appears to delete the badge it was not chosen.
+ */
+console.log('\n--- owning a badge, and wearing one ---');
+
+const founder = achievementById('founder');
+check(!!founder, 'FOUNDER is in the registry');
+
+if (founder && mythic) {
+  const both = [founder.id, mythic.id];
+
+  check(
+    leadAchievement(both)?.id === mythic.id,
+    'with no choice made, the rare tier still leads - nothing changed for anybody else',
+  );
+  check(leadAchievement(both, founder.id)?.id === founder.id, 'a choice wins over the tier');
+  check(leadAchievement(both, mythic.id)?.id === mythic.id, 'and can be changed back');
+
+  /*
+   * The whole point of keeping the two apart: choosing one badge must never
+   * cost the other. `all` is the collection and does not consult the choice.
+   */
+  check(
+    orderedIds(both, founder.id).length === 2 && orderedIds(both, mythic.id).length === 2,
+    'switching what is worn never changes what is owned',
+  );
+
+  check(
+    hasTier(both, 'mythic') && hasTier([founder.id], 'mythic') === false,
+    'FOUNDER alone does not grant the rare layer, and wearing it does not remove it',
+  );
+
+  check(
+    leadAchievement([founder.id], mythic.id)?.id === founder.id,
+    'a badge that is not earned cannot be worn, however it is asked for',
+  );
+  check(
+    leadAchievement([], founder.id) === undefined,
+    'an account with nothing wears nothing',
+  );
+  check(
+    leadAchievement(both, 'not_a_badge')?.id === mythic.id,
+    'an unknown choice falls back rather than blanking the badge',
+  );
+}
+
+/** The collection, which must be indifferent to what is worn. */
+function orderedIds(earnedIds: string[], displayedId?: string): string[] {
+  void displayedId;
+  return ACHIEVEMENTS.filter((a) => earnedIds.includes(a.id)).map((a) => a.id);
+}
 
 console.log(failures === 0 ? '\nAll good.\n' : `\n${failures} failed.\n`);
 process.exit(failures === 0 ? 0 : 1);

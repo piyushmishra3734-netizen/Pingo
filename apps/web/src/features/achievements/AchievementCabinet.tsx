@@ -1,4 +1,4 @@
-import { cn } from '@pingo/ui';
+import { Button, CheckIcon, cn } from '@pingo/ui';
 import type { MythicAura } from '@pingo/core';
 import { useState } from 'react';
 
@@ -55,12 +55,18 @@ export function AchievementCabinet({
   earned,
   aura,
   earnedAt,
+  displayed,
+  onDisplay,
   className,
 }: {
   earned: Achievement[];
   aura: MythicAura;
   /** When each was earned, ISO. Absent while the query is still in flight. */
   earnedAt?: (badgeId: string) => string | undefined;
+  /** The one worn beside this account's name, if it chose one. */
+  displayed?: string;
+  /** Absent when the cabinet is somebody else's - then nothing is choosable. */
+  onDisplay?: (badgeId: string) => void;
   className?: string;
 }) {
   const [open, setOpen] = useState<Achievement>();
@@ -93,7 +99,20 @@ export function AchievementCabinet({
             */}
             <span className={CAPTION}>
               <span className="line-clamp-2 font-medium text-ink">{achievement.title}</span>
-              <span className="text-text-tertiary">{shortDate(earnedAt?.(achievement.id))}</span>
+              {/*
+                The worn badge says so instead of showing its date. Both would
+                not fit in the two lines every tile reserves, and which one is
+                on show is the more useful of the two facts on this screen -
+                the date is a line away, in the sheet.
+              */}
+              {achievement.id === displayed ? (
+                <span className="inline-flex items-center gap-1 font-medium text-[color:var(--mythic-accent,var(--color-brand))]">
+                  <CheckIcon size={11} strokeWidth={3} />
+                  Displayed
+                </span>
+              ) : (
+                <span className="text-text-tertiary">{shortDate(earnedAt?.(achievement.id))}</span>
+              )}
             </span>
           </button>
         ))}
@@ -119,6 +138,8 @@ export function AchievementCabinet({
           achievement={open}
           aura={aura}
           {...(earnedAt?.(open.id) ? { unlockedAt: earnedAt(open.id) } : {})}
+          isDisplayed={open.id === displayed}
+          {...(onDisplay ? { onDisplay: () => onDisplay(open.id) } : {})}
           onClose={() => setOpen(undefined)}
         />
       )}
@@ -156,11 +177,17 @@ export function AchievementSheet({
   achievement,
   aura,
   unlockedAt,
+  isDisplayed = false,
+  onDisplay,
   onClose,
 }: {
   achievement: Achievement;
   aura: MythicAura;
   unlockedAt?: string;
+  /** True when this is the badge currently worn beside the name. */
+  isDisplayed?: boolean;
+  /** Omitted for somebody else's badge, and for the one already worn. */
+  onDisplay?: () => void;
   onClose: () => void;
 }) {
   return (
@@ -189,6 +216,32 @@ export function AchievementSheet({
         </p>
 
         <p className="text-body mt-4 max-w-xs text-text-secondary">{achievement.blurb}</p>
+
+        {/*
+          Owning and wearing, kept apart.
+
+          With one badge these were the same thing and there was nothing to
+          choose. With two there is, and the choice belongs to the person
+          wearing it - so it sits on the badge itself rather than in a settings
+          list somewhere else.
+
+          Nothing here can revoke anything. The button either sets this badge as
+          the one on show or says it already is; the collection above is
+          unaffected either way, which is the distinction the whole column
+          exists to make.
+        */}
+        {onDisplay && !isDisplayed && (
+          <Button variant="primary" block className="mt-6" onClick={onDisplay}>
+            Show beside my name
+          </Button>
+        )}
+
+        {isDisplayed && (
+          <p className="text-caption mt-6 inline-flex items-center gap-1.5 font-medium text-[color:var(--mythic-accent,var(--color-brand))]">
+            <CheckIcon size={14} strokeWidth={3} />
+            Shown beside your name
+          </p>
+        )}
       </div>
     </Sheet>
   );

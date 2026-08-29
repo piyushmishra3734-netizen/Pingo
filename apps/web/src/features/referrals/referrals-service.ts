@@ -108,3 +108,22 @@ export async function redeemHeldReferral(): Promise<'recorded' | 'refused' | 'no
   forgetReferralCode();
   return row.ok === true ? 'recorded' : 'refused';
 }
+
+/**
+ * Chooses which earned badge this account wears beside its name.
+ *
+ * Server-side because everybody else's client draws it too - the chat list, a
+ * group's message header, a user card. A choice kept on this device would be
+ * right on this device and nowhere else.
+ *
+ * The server refuses a badge the account has not earned, so a client cannot
+ * award itself anything by asking to display it. Returns false on refusal
+ * rather than throwing: the screen re-reads the truth either way, and a
+ * rejected tap is not an error worth a dialog.
+ */
+export async function setDisplayedBadge(badgeId: string | null): Promise<boolean> {
+  const { error } = await getSupabaseClient().rpc('set_displayed_badge', {
+    p_badge_id: badgeId,
+  });
+  return !error;
+}

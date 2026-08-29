@@ -29,12 +29,20 @@
  * point sampling would throw away 99.97% of the picture and keep whatever
  * happened to be under the sample.
  *
- * Usage: node apps/web/scripts/make-badge-art.mjs
+ * ## One script, every badge
+ *
+ * The sizes, the filter and the crest argument are the same problem for any
+ * emblem the registry gains, so the artwork is an argument rather than a
+ * constant. A second copy of this file per badge is how the premultiplied
+ * averaging above ends up fixed in one of them and not the other.
+ *
+ * Usage:
+ *   node apps/web/scripts/make-badge-art.mjs                  # every badge
+ *   node apps/web/scripts/make-badge-art.mjs mythic-pioneer   # just one
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
 
-const SOURCE = 'apps/web/assets/mythic-pioneer.png';
 const OUT_DIR = 'apps/web/public/badges';
 
 /**
@@ -59,13 +67,34 @@ const SIZES = [512, 128, 48];
  * or cropping" - and it is the difference between a mark somebody recognises
  * across a chat list and a gold dot.
  */
-const CREST = { x: 280, y: 0, size: 770 };
 const CREST_SIZES = [96, 48];
 
-const src = PNG.sync.read(readFileSync(SOURCE));
+/**
+ * Every badge in the registry, and where its artwork comes from.
+ *
+ * `crest` is the square of the source that survives being drawn at
+ * twenty-four pixels. For MYTHIC PIONEER that is the crowned ghost, without the
+ * wreath and banner that turn to smudges. For FOUNDER it is the crown and the
+ * P - the orbital ring is what widens the mark and thins the ink, and at this
+ * size the ring is the first thing that stops reading.
+ */
+const BADGES = [
+  {
+    name: 'mythic-pioneer',
+    crestName: 'mythic-crest',
+    source: 'apps/web/assets/mythic-pioneer.png',
+    crest: { x: 280, y: 0, size: 770 },
+  },
+  {
+    name: 'founder',
+    crestName: 'founder-crest',
+    source: 'apps/web/assets/founder.png',
+    crest: { x: 300, y: 80, size: 760 },
+  },
+];
 
 /** The crest region of the source, as its own image to scale down from. */
-function crestSource() {
+function crestSource(src, CREST) {
   const out = new PNG({ width: CREST.size, height: CREST.size });
   for (let y = 0; y < CREST.size; y += 1) {
     for (let x = 0; x < CREST.size; x += 1) {
@@ -161,7 +190,14 @@ function emit(image, size, name) {
   console.log(`${path}  ${size}x${size}`);
 }
 
-for (const size of SIZES) emit(src, size, 'mythic-pioneer');
+const only = process.argv[2];
 
-const crest = crestSource();
-for (const size of CREST_SIZES) emit(crest, size, 'mythic-crest');
+for (const badge of BADGES) {
+  if (only && badge.name !== only) continue;
+
+  const src = PNG.sync.read(readFileSync(badge.source));
+  for (const size of SIZES) emit(src, size, badge.name);
+
+  const crest = crestSource(src, badge.crest);
+  for (const size of CREST_SIZES) emit(crest, size, badge.crestName);
+}

@@ -7,6 +7,8 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { AchievementCabinet } from '../features/achievements/AchievementCabinet.js';
 import { mythicWashStyle } from '../features/achievements/MythicAura.js';
 import { useOwnAchievements } from '../features/achievements/useAchievements.js';
+import { setDisplayedBadge } from '../features/referrals/referrals-service.js';
+import { refreshEarnedBadges } from '../features/referrals/useEarnedBadges.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
 
 /**
@@ -69,6 +71,24 @@ export function AchievementsScreen() {
   const isMythic = mine.isMythic();
   const { aura, accent } = preferences.mythic;
 
+  /*
+   * Write, then forget what was remembered.
+   *
+   * `useEarnedBadges` caches for the session because a badge is earned once and
+   * never revoked - but which one is *worn* changes whenever somebody says so,
+   * and the cache would otherwise keep answering with the old choice until a
+   * reload. Dropping this account's entry makes the next render re-ask, in the
+   * same batched query every other row already uses.
+   *
+   * A refusal changes nothing on screen on purpose. The server rejects a badge
+   * the account has not earned, and the honest response to that is the tile
+   * staying where it was - not a dialog about a state the person cannot reach.
+   */
+  const chooseDisplayed = async (badgeId: string) => {
+    if (!(await setDisplayedBadge(badgeId))) return;
+    refreshEarnedBadges(profile?.id);
+  };
+
   return (
     /* The wash is the root's own background - see `mythicWashStyle`. */
     <div
@@ -104,7 +124,13 @@ export function AchievementsScreen() {
             */}
             <SectionLabel>Collection</SectionLabel>
             <Card>
-              <AchievementCabinet earned={earned} aura={aura} earnedAt={mine.earnedAt} />
+              <AchievementCabinet
+                earned={earned}
+                aura={aura}
+                earnedAt={mine.earnedAt}
+                {...(mine.displayed() ? { displayed: mine.displayed() } : {})}
+                onDisplay={(badgeId) => void chooseDisplayed(badgeId)}
+              />
             </Card>
           </>
         )}
