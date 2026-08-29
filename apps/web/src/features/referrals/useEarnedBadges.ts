@@ -105,11 +105,23 @@ function request(ids: string[]): void {
     });
 }
 
-/** Drops what is remembered about one account, so the next render re-asks. */
+/**
+ * Drops what is remembered about one account and asks again.
+ *
+ * The re-ask is not optional, and leaving it out is a bug that reads as the
+ * feature not working: the hook only calls `request` when its list of ids
+ * changes, so dropping an entry made the next render answer "no badges" and
+ * then sit there. Measured by switching the displayed badge on a live account -
+ * the write landed, the screen did not move until a reload.
+ *
+ * `request` skips anything already known or in flight, so calling it here costs
+ * nothing when the entry was never cached.
+ */
 export function refreshEarnedBadges(userId?: string): void {
   if (userId) known.delete(userId);
   else known.clear();
   announce();
+  if (userId) request([userId]);
 }
 
 /**
