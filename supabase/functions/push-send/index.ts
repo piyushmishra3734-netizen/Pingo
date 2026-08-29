@@ -236,6 +236,32 @@ function copyFor(request: PushRequest): { title: string; body: string } {
   }
 }
 
+/**
+ * One invocation, every recipient of one message.
+ *
+ * ## Why this is a batch now
+ *
+ * It used to be one invocation per recipient, and on 2026-08-29 that took the
+ * API down. A nine-person group received 226 messages in forty-five minutes;
+ * the trigger fired 1,573 invocations, each ~1.16 s and each opening with its
+ * own dedupe query and its own device lookup. Postgres crossed its statement
+ * timeout, message inserts started failing, and everything returned 503 for six
+ * minutes.
+ *
+ * The work was never large - it was just multiplied. A group message is one
+ * event with N recipients, so it is now one call: the FCM access token is
+ * minted once, the ledger is read once, every recipient's devices are read
+ * once, and the bookkeeping is written once per table instead of once per
+ * person. The number of round trips stops depending on the size of the group.
+ *
+ * ## Both shapes are accepted, on purpose
+ *
+ * `{ recipients: [...] }` is what the trigger sends now; a bare `PushRequest`
+ * is what the retry worker still sends, one row at a time, and what any
+ * trigger not yet migrated sends. They are the same code path - a single
+ * request is a batch of one - so there is no second implementation to keep in
+ * step, and no deploy ordering to get right.
+ */
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'POST only' }, 405);
 
@@ -258,15 +284,15 @@ Deno.serve(async (request) => {
     return json({ error: 'not allowed' }, 401);
   }
 
-  let sent = 0;
-  let pruned = 0;
-  let transient = 0;
-  let lastError: string | undefined;
-  let permanentError: string | undefined;
-
   try {
-    const payload = (await request.json()) as PushRequest;
-    if (!payload?.userId || !payload?.kind) return json({ error: 'bad request' }, 400);
+    const raw = (await request.json()) as PushRequest | { recipients?: PushRequest[] };
+    const batch: PushRequest[] = Array.isArray((raw as { recipients?: PushRequest[] }).recipients)
+      ? (raw as { recipients: PushRequest[] }).recipients
+      : [raw as PushRequest];
+
+    if (batch.length === 0 || batch.some((r) => !r?.userId || !r?.kind)) {
+      return json({ error: 'bad request' }, 400);
+    }
 
     const encoded = Deno.env.get('FCM_SERVICE_ACCOUNT_B64');
     if (!encoded) {
@@ -287,128 +313,178 @@ Deno.serve(async (request) => {
      *
      * The trigger and the retry worker both call this, and a slow first attempt
      * can still be in flight when a retry starts. Checking the ledger here -
-     * at the bottom, where both paths meet - is what makes that safe. Doing it
-     * in the callers would mean coordinating two of them, which is a race
-     * waiting for a bad week.
+     * where both paths meet - is what makes that safe. One query for the whole
+     * batch rather than one per recipient.
      */
-    if (payload.notificationId) {
-      const { data: already } = await admin
+    const notificationIds = batch
+      .map((r) => r.notificationId)
+      .filter((id): id is string => Boolean(id));
+
+    const delivered = new Set<string>();
+    if (notificationIds.length > 0) {
+      const { data } = await admin
         .from('push_deliveries')
         .select('notification_id')
-        .eq('notification_id', payload.notificationId)
-        .maybeSingle();
-
-      if (already) return json({ skipped: 'already-delivered' });
+        .in('notification_id', notificationIds);
+      for (const row of (data ?? []) as { notification_id: string }[]) {
+        delivered.add(row.notification_id);
+      }
     }
 
-    const { data: devices } = await admin
+    /* Every recipient's devices, in one read. */
+    const userIds = [...new Set(batch.map((r) => r.userId))];
+    const { data: tokenRows } = await admin
       .from('device_tokens')
-      .select('token')
-      .eq('user_id', payload.userId);
+      .select('token,user_id')
+      .in('user_id', userIds);
 
-    if (!devices || devices.length === 0) {
-      /*
-       * Nobody to send to is not a failure and must never be retried - the
-       * queue would hold it for 24 hours over a person who has not installed
-       * the app. The queue entry goes, if there was one.
-       */
-      if (payload.notificationId) {
-        await admin.from('push_failures').delete().eq('notification_id', payload.notificationId);
-      }
-      return json({ sent: 0, pruned: 0, reason: 'no devices' });
+    const devicesFor = new Map<string, string[]>();
+    for (const row of (tokenRows ?? []) as { token: string; user_id: string }[]) {
+      const list = devicesFor.get(row.user_id) ?? [];
+      list.push(row.token);
+      devicesFor.set(row.user_id, list);
+    }
+
+    /*
+     * Nobody to send to is not a failure and must never be retried - the queue
+     * would hold it for twenty-four hours over a person who has not installed
+     * the app. `on_notification_push` now skips these before they ever reach
+     * here; the check stays because the retry worker has no such guard.
+     */
+    const dropped: string[] = [];
+    const targets = batch.filter((r) => {
+      if (r.notificationId && delivered.has(r.notificationId)) return false;
+      if ((devicesFor.get(r.userId) ?? []).length > 0) return true;
+      if (r.notificationId) dropped.push(r.notificationId);
+      return false;
+    });
+
+    if (dropped.length > 0) {
+      await admin.from('push_failures').delete().in('notification_id', dropped);
+    }
+
+    if (targets.length === 0) {
+      return json({ sent: 0, pruned: 0, recipients: batch.length, skipped: batch.length });
     }
 
     const token = await accessToken(account);
-    const { title, body } = copyFor(payload);
     const endpoint = `https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`;
 
-    const dead: string[] = [];
+    /** Per recipient, what happened. Filled by the sends below. */
+    const outcome = new Map<
+      PushRequest,
+      { sent: number; transient: number; lastError?: string; permanentError?: string }
+    >();
+    for (const target of targets) outcome.set(target, { sent: 0, transient: 0 });
 
+    const alive: string[] = [];
+    const dead: { token: string; userId: string; reason: string }[] = [];
+
+    /*
+     * Every device of every recipient at once.
+     *
+     * Flattened rather than nested so the whole batch is one wave of requests
+     * instead of a wave per person - the point of batching is lost if the
+     * recipients are still walked in series.
+     */
     await Promise.all(
-      devices.map(async (device: { token: string }) => {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: {
-              token: device.token,
-              notification: { title, body },
-              /*
-               * Ids only. `data` reaches the app when it is opened, and the
-               * app already has every conversation - it needs to know *where*
-               * to go, not what is there.
-               */
-              data: {
-                kind: payload.kind,
-                ...(payload.subjectId ? { subjectId: payload.subjectId } : {}),
-              },
-              android: {
-                priority: 'HIGH',
+      targets.flatMap((target) =>
+        (devicesFor.get(target.userId) ?? []).map(async (deviceToken) => {
+          const result = outcome.get(target)!;
+          const { title, body } = copyFor(target);
+
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message: {
+                token: deviceToken,
+                notification: { title, body },
                 /*
-                 * One tray entry per conversation, updated in place.
-                 *
-                 * `tag` is what makes Android replace rather than append, and
-                 * keying it on the actor and kind means a rapid burst from one
-                 * person collapses while a message from somebody else still
-                 * arrives separately - which is the distinction that matters.
+                 * Ids only. `data` reaches the app when it is opened, and the
+                 * app already has every conversation - it needs to know *where*
+                 * to go, not what is there.
                  */
-                collapseKey: `${payload.kind}:${payload.actorId ?? 'system'}`,
-                notification: {
-                  channelId: 'pingo_messages',
-                  sound: 'default',
-                  tag: `${payload.kind}:${payload.actorId ?? 'system'}`,
-                  notificationCount: payload.count && payload.count > 1 ? payload.count : 1,
+                data: {
+                  kind: target.kind,
+                  ...(target.subjectId ? { subjectId: target.subjectId } : {}),
+                },
+                android: {
+                  priority: 'HIGH',
+                  /*
+                   * One tray entry per conversation, updated in place.
+                   *
+                   * `tag` is what makes Android replace rather than append, and
+                   * keying it on the actor and kind means a rapid burst from one
+                   * person collapses while a message from somebody else still
+                   * arrives separately - which is the distinction that matters.
+                   */
+                  collapseKey: `${target.kind}:${target.actorId ?? 'system'}`,
+                  notification: {
+                    channelId: 'pingo_messages',
+                    sound: 'default',
+                    tag: `${target.kind}:${target.actorId ?? 'system'}`,
+                    notificationCount: target.count && target.count > 1 ? target.count : 1,
+                  },
                 },
               },
-            },
-          }),
-        });
+            }),
+          });
 
-        if (response.ok) {
-          sent += 1;
-          await admin
-            .from('device_tokens')
-            .update({ last_seen_at: new Date().toISOString() })
-            .eq('token', device.token);
-          return;
-        }
+          if (response.ok) {
+            result.sent += 1;
+            alive.push(deviceToken);
+            return;
+          }
 
-        const text = await response.text();
+          const text = await response.text();
 
-        if (isPermanent(response.status, text)) {
-          dead.push(device.token);
-          /*
-           * Keep what FCM actually said.
-           *
-           * "fcm rejected token" was the whole reason recorded, which is enough
-           * to know a token went and useless for knowing why - and the two
-           * causes need different responses. UNREGISTERED is an uninstall and
-           * is entirely normal; INVALID_ARGUMENT usually means the payload is
-           * wrong, which would prune every healthy device on the product.
-           */
-          permanentError = `${response.status} ${text.slice(0, 180)}`;
-        } else {
-          // Transient: 429, 5xx, a timeout. The token survives and the
-          // notification goes back in the queue below.
-          transient += 1;
-          lastError = `${response.status} ${text.slice(0, 180)}`;
-          console.warn('[push-send] fcm transient', response.status, text.slice(0, 200));
-        }
-      }),
+          if (isPermanent(response.status, text)) {
+            /*
+             * Keep what FCM actually said.
+             *
+             * "fcm rejected token" was the whole reason recorded, which is
+             * enough to know a token went and useless for knowing why - and the
+             * two causes need different responses. UNREGISTERED is an uninstall
+             * and is entirely normal; INVALID_ARGUMENT usually means the payload
+             * is wrong, which would prune every healthy device on the product.
+             */
+            result.permanentError = `${response.status} ${text.slice(0, 180)}`;
+            dead.push({
+              token: deviceToken,
+              userId: target.userId,
+              reason: result.permanentError,
+            });
+          } else {
+            // Transient: 429, 5xx, a timeout. The token survives and the
+            // notification goes back in the queue below.
+            result.transient += 1;
+            result.lastError = `${response.status} ${text.slice(0, 180)}`;
+            console.warn('[push-send] fcm transient', response.status, text.slice(0, 200));
+          }
+        }),
+      ),
     );
 
+    /* One statement per table, whatever the size of the batch. */
+    if (alive.length > 0) {
+      await admin
+        .from('device_tokens')
+        .update({ last_seen_at: new Date().toISOString() })
+        .in('token', alive);
+    }
+
     if (dead.length > 0) {
-      await admin.from('device_tokens').delete().in('token', dead);
-      pruned = dead.length;
-      // Recorded so pruning is measurable. The token itself is not kept - it
-      // is gone, and storing dead tokens would only rebuild the table this
-      // just cleaned.
-      await admin.from('push_pruned_tokens').insert(
-        dead.map(() => ({ user_id: payload.userId, reason: permanentError ?? 'fcm rejected token' })),
-      );
+      await admin.from('device_tokens').delete().in('token', dead.map((d) => d.token));
+      // Recorded so pruning is measurable. The token itself is not kept - it is
+      // gone, and storing dead tokens would only rebuild the table this just
+      // cleaned.
+      await admin
+        .from('push_pruned_tokens')
+        .insert(dead.map((d) => ({ user_id: d.userId, reason: d.reason })));
     }
 
     /*
@@ -419,58 +495,81 @@ Deno.serve(async (request) => {
      * notification in a queue for the tablet would send them a second copy on
      * the phone a minute later.
      */
-    if (payload.notificationId) {
-      if (sent > 0) {
-        const { data: row } = await admin
-          .from('notifications')
-          .select('created_at')
-          .eq('id', payload.notificationId)
-          .maybeSingle();
+    const sentRows = targets.filter((t) => t.notificationId && outcome.get(t)!.sent > 0);
+    const retryRows = targets.filter(
+      (t) => t.notificationId && outcome.get(t)!.sent === 0 && outcome.get(t)!.transient > 0,
+    );
+    const exhausted = targets.filter(
+      (t) => t.notificationId && outcome.get(t)!.sent === 0 && outcome.get(t)!.transient === 0,
+    );
 
-        const latency = row?.created_at
-          ? Date.now() - new Date(row.created_at as string).getTime()
-          : null;
+    if (sentRows.length > 0) {
+      /* Created-at for every delivered notification, in one read, for latency. */
+      const { data: rows } = await admin
+        .from('notifications')
+        .select('id,created_at')
+        .in('id', sentRows.map((t) => t.notificationId!));
 
-        // Upsert, not insert: an overlapping attempt may have got here first,
-        // and the unique key is the whole point.
-        await admin.from('push_deliveries').upsert(
-          {
-            notification_id: payload.notificationId,
-            user_id: payload.userId,
-            device_count: sent,
+      const createdAt = new Map(
+        ((rows ?? []) as { id: string; created_at: string }[]).map((r) => [r.id, r.created_at]),
+      );
+
+      // Upsert, not insert: an overlapping attempt may have got here first, and
+      // the unique key is the whole point.
+      await admin.from('push_deliveries').upsert(
+        sentRows.map((t) => {
+          const at = createdAt.get(t.notificationId!);
+          const latency = at ? Date.now() - new Date(at).getTime() : null;
+          return {
+            notification_id: t.notificationId!,
+            user_id: t.userId,
+            device_count: outcome.get(t)!.sent,
             ...(latency !== null ? { latency_ms: latency } : {}),
-          },
-          { onConflict: 'notification_id' },
-        );
-
-        await admin.from('push_failures').delete().eq('notification_id', payload.notificationId);
-      } else if (transient > 0) {
-        /*
-         * Queued for the worker. `next_attempt_at` is left at its default of
-         * now() so the first retry happens on the next tick rather than a
-         * minute after this row was written - `push_backoff` owns the schedule
-         * from the second attempt onward.
-         */
-        await admin.from('push_failures').upsert(
-          {
-            notification_id: payload.notificationId,
-            user_id: payload.userId,
-            reason: 'fcm transient failure',
-            last_error: lastError,
-            kind: payload.kind,
-            actor_id: payload.actorId ?? null,
-            actor_name: payload.actorName ?? null,
-            subject_id: payload.subjectId ?? null,
-          },
-          { onConflict: 'notification_id', ignoreDuplicates: false },
-        );
-      } else {
-        // Every device was permanently dead. Nothing to retry to.
-        await admin.from('push_failures').delete().eq('notification_id', payload.notificationId);
-      }
+          };
+        }),
+        { onConflict: 'notification_id' },
+      );
     }
 
-    return json({ sent, pruned, transient, queued: sent === 0 && transient > 0 });
+    if (retryRows.length > 0) {
+      /*
+       * Queued for the worker. `next_attempt_at` is left at its default of
+       * now() so the first retry happens on the next tick rather than a minute
+       * after this row was written - `push_backoff` owns the schedule from the
+       * second attempt onward.
+       */
+      await admin.from('push_failures').upsert(
+        retryRows.map((t) => ({
+          notification_id: t.notificationId!,
+          user_id: t.userId,
+          reason: 'fcm transient failure',
+          last_error: outcome.get(t)!.lastError,
+          kind: t.kind,
+          actor_id: t.actorId ?? null,
+          actor_name: t.actorName ?? null,
+          subject_id: t.subjectId ?? null,
+        })),
+        { onConflict: 'notification_id', ignoreDuplicates: false },
+      );
+    }
+
+    /* Delivered, or every device permanently dead. Neither is worth retrying. */
+    const settled = [...sentRows, ...exhausted].map((t) => t.notificationId!);
+    if (settled.length > 0) {
+      await admin.from('push_failures').delete().in('notification_id', settled);
+    }
+
+    const sent = targets.reduce((n, t) => n + outcome.get(t)!.sent, 0);
+    const transient = targets.reduce((n, t) => n + outcome.get(t)!.transient, 0);
+
+    return json({
+      sent,
+      pruned: dead.length,
+      transient,
+      recipients: batch.length,
+      skipped: batch.length - targets.length,
+      queued: retryRows.length,
+    });
   } catch (cause) {
     console.error('[push-send]', cause);
     return json({ error: 'failed' }, 500);
