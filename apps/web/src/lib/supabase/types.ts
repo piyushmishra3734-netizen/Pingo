@@ -987,6 +987,8 @@ export type Database = {
             joinedAt: string;
           }>;
           unlocked?: boolean;
+          /** When the badge was awarded. Set exactly when `unlocked` is true. */
+          unlockedAt?: string | null;
         };
       };
       /**

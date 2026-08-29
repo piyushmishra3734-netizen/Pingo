@@ -1,4 +1,3 @@
-import { cn } from '@pingo/ui';
 import type { MythicAccent } from '@pingo/core';
 
 /**
@@ -17,27 +16,27 @@ import type { MythicAccent } from '@pingo/core';
  * fastest way to make a private messenger feel like a game, and it costs a
  * repainting layer on a phone for the whole time somebody is reading.
  *
- * ## The drift and the blur are gone, and the badge is why
+ * ## It is a background now, and it stopped eating the badge
  *
- * The wash used to drift over twenty-two seconds and sit under a `blur-2xl`.
- * Both are compositing promoters, and a promoted layer is not obliged to honour
- * the order it was given: on the mission screen, whose emblem sits inside this
- * wash's band, the emblem was in the DOM, loaded, at full opacity - and not on
- * screen. Intermittently, so it survived more than one look. `-z-10` on this
- * container and `isolate` on the screen root did not stop it, because the
- * promoted element was the child inside them.
+ * This was an absolutely-positioned element behind the content. It kept
+ * painting *over* the content instead - the MYTHIC emblem sits inside its
+ * 288-pixel band on two screens, and on both the emblem was in the DOM, loaded,
+ * at full opacity, and not on screen. Three fixes were tried and each looked
+ * right until the next reload: a negative z-index on the element, `isolate` on
+ * the screen root, then dropping the `blur` and the drift animation that were
+ * promoting it to its own compositing layer.
  *
- * What stops it is not making a layer at all. Verified rather than reasoned:
- * with the filter and the animation removed, the emblem still paints when this
- * element is *forced* onto its own layer with `will-change` - which is the test
- * that a lucky reload is not.
+ * The mistake was arguing about paint order at all. A stacking context is a
+ * thing a browser can be persuaded to reorder; a background is not. So the wash
+ * is now a `background-image` on the screen's own root, which CSS paints above
+ * the background colour and below every descendant, always, with nothing to
+ * promote and nothing to sort. `mythicWashStyle` is the whole component.
  *
- * Nothing was lost that this file had not already conceded. It argued that
- * under `prefers-reduced-motion` "what is left is the same gradient, which is a
- * complete design on its own rather than a degraded one", and that is now what
- * everybody gets. The blur was smoothing a radial gradient that already fades
- * to transparent, and a filter running behind a whole screen is not free on a
- * phone.
+ * The drift and the blur stayed gone. This file had already conceded them,
+ * arguing that under `prefers-reduced-motion` "what is left is the same
+ * gradient, which is a complete design on its own rather than a degraded one" -
+ * and the blur was smoothing a radial gradient that already fades to
+ * transparent.
  */
 
 /** Three accents, and each is a pair: the wash, and the tint UI details borrow. */
@@ -68,38 +67,22 @@ export function mythicAccentStyle(accent: MythicAccent): React.CSSProperties {
   return { ['--mythic-accent' as string]: ACCENT[accent]!.tint };
 }
 
-export function MythicAura({
-  accent,
-  className,
-}: {
-  accent: MythicAccent;
-  className?: string;
-}) {
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        /*
-         * One element, and `-z-10` on the element that draws.
-         *
-         * There used to be a wrapper here and a blurred, animated child inside
-         * it. That is what made this thing eat the badge: the negative index was
-         * on the wrapper and the layer was the child, so the ordering was being
-         * asked of something that was not the thing being reordered. With the
-         * filter and the animation gone there is nothing to nest, and the index
-         * lands where the paint happens.
-         *
-         * `-z-10` belongs to the component rather than to each caller. The
-         * profile passed it in by hand from the start; the two screens written
-         * afterwards did not copy it, which is the argument for it living here.
-         * Callers still owe it a stacking context of their own - `isolate` on
-         * the screen root - or a negative index falls behind the page
-         * background instead of behind the content.
-         */
-        'pointer-events-none absolute -z-10 inset-x-0 top-0 h-72 overflow-hidden',
-        className,
-      )}
-      style={{ background: ACCENT[accent]!.wash }}
-    />
-  );
+/**
+ * The wash, as the screen root's own background.
+ *
+ * Spread onto the element that already carries `bg-page`: a background image
+ * paints above the background colour and below every descendant, which is
+ * exactly where this belongs and is not negotiable by a compositor. See the
+ * header for the three attempts that came before it.
+ *
+ * 18rem is the 288 pixels the old element was tall, and `no-repeat` plus a top
+ * anchor keeps it a band at the head of the page rather than a tile.
+ */
+export function mythicWashStyle(accent: MythicAccent): React.CSSProperties {
+  return {
+    backgroundImage: ACCENT[accent]!.wash,
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: '100% 18rem',
+    backgroundPosition: 'top center',
+  };
 }

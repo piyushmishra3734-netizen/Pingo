@@ -87,7 +87,14 @@ export function PingBubble({
       <div
         className={cn(
           'flex w-[13.5rem] items-center gap-2.5 rounded-[1.125rem] px-3.5 py-3',
-          'border border-dashed border-line-strong/70 bg-surface/50',
+          /*
+            Recessed, not dashed. A spent ping is "this is not here any more",
+            and a dashed outline says that in wireframe grammar - the same
+            grammar that made the achievement grid read as a mock-up. A fill
+            one step below the page says it as a material: the bubble is still a
+            bubble, it has just sunk into the background.
+          */
+          'bg-hover',
           'text-text-tertiary animate-fade-in',
         )}
       >

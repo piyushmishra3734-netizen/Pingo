@@ -20,8 +20,15 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
  * `refreshEarnedBadges`.
  */
 
-/** user id → badge ids. Session-lived: unlocking is rare, revoking never happens. */
-const known = new Map<string, string[]>();
+/** One earned badge: which, and when. */
+export interface EarnedBadge {
+  id: string;
+  /** ISO, from `user_badges.unlocked_at`. */
+  at: string;
+}
+
+/** user id → badges. Session-lived: unlocking is rare, revoking never happens. */
+const known = new Map<string, EarnedBadge[]>();
 
 /** Ids asked for but not yet answered, so a burst of rows becomes one query. */
 let pending = new Set<string>();
@@ -37,16 +44,29 @@ async function flush(): Promise<void> {
   pending = new Set();
   if (ids.length === 0) return;
 
+  /*
+   * `unlocked_at` rides along in the same select. It costs one more column on a
+   * query that already runs, and it is what lets a badge say when it was earned
+   * rather than only that it was - which is the difference between a record and
+   * a flag.
+   */
   const { data } = await getSupabaseClient()
     .from('user_badges')
-    .select('user_id,badge_id')
+    .select('user_id,badge_id,unlocked_at')
     .in('user_id', ids);
 
   // Everybody asked about gets an entry, including the empty ones - otherwise
   // a user with no badges is asked about again on every render for ever.
   for (const id of ids) known.set(id, known.get(id) ?? []);
-  for (const row of (data ?? []) as { user_id: string; badge_id: string }[]) {
-    known.set(row.user_id, [...(known.get(row.user_id) ?? []), row.badge_id]);
+  for (const row of (data ?? []) as {
+    user_id: string;
+    badge_id: string;
+    unlocked_at: string;
+  }[]) {
+    known.set(row.user_id, [
+      ...(known.get(row.user_id) ?? []),
+      { id: row.badge_id, at: row.unlocked_at },
+    ]);
   }
 
   announce();
@@ -89,7 +109,7 @@ export function refreshEarnedBadges(userId?: string): void {
  * caring whether the answer has arrived - an unknown account reads as "no
  * badges", which is what should be drawn while the query is in flight anyway.
  */
-export function useEarnedBadges(userIds: (string | undefined)[]): (id?: string) => string[] {
+export function useEarnedBadges(userIds: (string | undefined)[]): (id?: string) => EarnedBadge[] {
   const key = userIds.filter(Boolean).sort().join(',');
   const [, bump] = useState(0);
 

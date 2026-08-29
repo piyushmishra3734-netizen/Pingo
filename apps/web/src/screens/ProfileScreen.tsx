@@ -34,7 +34,7 @@ import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
 import { AchievementArt, AchievementMark } from '../features/achievements/AchievementArt.js';
-import { MythicAura, mythicAccentStyle } from '../features/achievements/MythicAura.js';
+import { mythicAccentStyle, mythicWashStyle } from '../features/achievements/MythicAura.js';
 import { useAchievements } from '../features/achievements/useAchievements.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
 import { ProfileJourney } from '../features/journey/ProfileJourney.js';
@@ -460,11 +460,16 @@ export function ProfileScreen() {
       property for the few details that opt into it.
     */
     <div
-      className={cn('relative h-full overflow-y-auto', isMythic && 'isolate')}
-      style={isMythic ? mythicAccentStyle(preferences.mythic.accent) : undefined}
+      className="relative h-full overflow-y-auto bg-page"
+      style={
+        isMythic
+          ? {
+              ...mythicAccentStyle(preferences.mythic.accent),
+              ...mythicWashStyle(preferences.mythic.accent),
+            }
+          : undefined
+      }
     >
-      {/* `-z-10` moved into MythicAura itself, so a new caller cannot forget it. */}
-      {isMythic && <MythicAura accent={preferences.mythic.accent} />}
       {avatarEditorSrc && (
         <AvatarPhotoEditor
           src={avatarEditorSrc}

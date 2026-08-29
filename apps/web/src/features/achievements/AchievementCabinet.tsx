@@ -9,13 +9,32 @@ import { CABINET_SLOTS, type Achievement } from './registry.js';
 /**
  * The collection, earned and not.
  *
- * ## Why the empty slots carry no words
+ * ## The empty slots used to shout, and there is only one badge
  *
- * A locked slot that says "Send 100 messages" when no such achievement exists
- * is a rule somebody will go and try to satisfy, and nothing will happen. So
- * the empty ones say `???` and nothing else - they are honest about there being
- * more to come and silent about what, which is also the only version of this
- * that stays true as the registry grows.
+ * They were filled circles reading `???` with the word "Locked" under them, and
+ * with one achievement in the registry that made five sixths of the screen
+ * placeholder - louder than the only real thing on it, and the reason the page
+ * read as a mock-up.
+ *
+ * The words were the first problem. A locked slot that says "Send 100 messages"
+ * when no such achievement exists is a rule somebody will go and try to
+ * satisfy, and nothing will happen; `???` avoids inventing a rule but still
+ * promises a puzzle nobody wrote. Silence promises nothing and is true.
+ *
+ * ## Filled, not dashed
+ *
+ * The first attempt at silence was a dashed ring, and it was worse in a way
+ * that took a second look to name: a dashed stroke is wireframe grammar. It
+ * means "drop something here" or "this is not real yet", and a screen full of
+ * them reads as a mock-up of a screen rather than a screen. Apple's own
+ * interfaces essentially never use one in a finished product - an empty well in
+ * iOS is a *material*, a quiet filled shape, because a material is a thing and
+ * an outline is a note about a thing.
+ *
+ * So an empty slot is a filled disc in the same translucent ink the rest of the
+ * app uses for a resting fill. It is quieter than the dashes were, it is
+ * obviously deliberate, and it stops the grid looking like something waiting to
+ * be finished.
  *
  * ## Why a fixed number of slots
  *
@@ -23,15 +42,25 @@ import { CABINET_SLOTS, type Achievement } from './registry.js';
  * list - there is nowhere for the next one to go, so there is nothing to fill.
  * Six is enough to read as unfinished and few enough that it never looks like a
  * wall of failure.
+ *
+ * ## Big enough to see what you chose
+ *
+ * The emblem was 56 pixels, which is smaller than the aura around it, so the
+ * three-way aura picker below changed something nobody could see and the
+ * controls felt dead. At 88 the aura is the visible difference between the
+ * options, and the picker becomes a picker.
  */
 
 export function AchievementCabinet({
   earned,
   aura,
+  earnedAt,
   className,
 }: {
   earned: Achievement[];
   aura: MythicAura;
+  /** When each was earned, ISO. Absent while the query is still in flight. */
+  earnedAt?: (badgeId: string) => string | undefined;
   className?: string;
 }) {
   const [open, setOpen] = useState<Achievement>();
@@ -39,21 +68,32 @@ export function AchievementCabinet({
 
   return (
     <div className={className}>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         {earned.map((achievement) => (
           <button
             key={achievement.id}
             type="button"
             onClick={() => setOpen(achievement)}
             className={cn(
-              'focus-ring flex flex-col items-center gap-2 rounded-xl p-3',
+              'focus-ring flex flex-col items-center gap-2 rounded-2xl px-2 py-4',
               // The only motion in the cabinet, and it answers a finger.
               'transition-transform duration-instant active:scale-[0.97]',
             )}
           >
-            <AchievementArt achievement={achievement} size="small" aura={aura} className="size-14" />
-            <span className="text-caption text-center leading-tight font-medium text-ink">
-              {achievement.title}
+            <AchievementArt achievement={achievement} size="small" aura={aura} className="size-[5.5rem]" />
+            {/*
+              A caption block of fixed height, matched by the empty slots
+              below. Without it a two-line name makes its row taller than the
+              rest and the grid steps - the kind of half-pixel wrongness that
+              reads as unfinished long before anybody can say why.
+
+              The date is the one thing that makes a tile a record of something
+              rather than an icon, and it is why the query started fetching
+              `unlocked_at`.
+            */}
+            <span className={CAPTION}>
+              <span className="line-clamp-2 font-medium text-ink">{achievement.title}</span>
+              <span className="text-text-tertiary">{shortDate(earnedAt?.(achievement.id))}</span>
             </span>
           </button>
         ))}
@@ -61,34 +101,47 @@ export function AchievementCabinet({
         {Array.from({ length: empties }, (_, i) => (
           <div
             key={`empty-${i}`}
-            className="flex flex-col items-center gap-2 rounded-xl p-3"
+            className="flex flex-col items-center gap-2 rounded-2xl px-2 py-4"
             /*
               Not a button. There is nothing behind it, and a tappable slot that
               does nothing teaches people the grid is not worth touching.
             */
           >
-            <span
-              aria-hidden
-              className="grid size-14 place-items-center rounded-full bg-hover text-text-tertiary"
-            >
-              <span className="text-body font-semibold tracking-widest">???</span>
-            </span>
-            <span className="text-caption text-center leading-tight text-text-tertiary">
-              Locked
-            </span>
+            <span aria-hidden className="size-[5.5rem] rounded-full bg-hover" />
+            {/* No caption, and none coming - but the same reserved height. */}
+            <span aria-hidden className={CAPTION} />
           </div>
         ))}
       </div>
 
-      {empties > 0 && (
-        <p className="text-caption mt-3 text-center text-text-tertiary">
-          A hidden achievement awaits.
-        </p>
+      {open && (
+        <AchievementSheet
+          achievement={open}
+          aura={aura}
+          {...(earnedAt?.(open.id) ? { unlockedAt: earnedAt(open.id) } : {})}
+          onClose={() => setOpen(undefined)}
+        />
       )}
-
-      {open && <AchievementSheet achievement={open} aura={aura} onClose={() => setOpen(undefined)} />}
     </div>
   );
+}
+
+/**
+ * The block under every slot, filled or not.
+ *
+ * A fixed height rather than one driven by its contents: two lines for a name
+ * that may wrap, one for a date that may not have arrived yet. Every tile
+ * reserves it, so the six of them sit on two straight rows whatever is in them.
+ */
+const CAPTION =
+  'text-caption flex h-11 w-full flex-col items-center justify-start gap-0.5 text-center leading-tight';
+
+/** "22 Aug 2026", in the reader's own locale, or nothing at all. */
+function shortDate(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return undefined;
+  return at.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /**
@@ -126,8 +179,14 @@ export function AchievementSheet({
           {achievement.title}
         </h2>
 
-        <p className="text-caption mt-2 font-medium text-brand">Unlocked</p>
-        {unlockedAt && <p className="text-caption text-text-tertiary">{unlockedAt}</p>}
+        {/*
+          "Unlocked" on its own is a state; with a date it is something that
+          happened. When the date has not arrived yet the word stands alone
+          rather than the sheet reserving an empty line for it.
+        */}
+        <p className="text-caption mt-2 font-medium text-[color:var(--mythic-accent,var(--color-brand))]">
+          {shortDate(unlockedAt) ? `Earned ${shortDate(unlockedAt)}` : 'Unlocked'}
+        </p>
 
         <p className="text-body mt-4 max-w-xs text-text-secondary">{achievement.blurb}</p>
       </div>

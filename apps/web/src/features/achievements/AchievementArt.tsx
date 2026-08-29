@@ -91,40 +91,34 @@ export function AchievementArt({
 
   return (
     /*
-     * `isolate`, and the wash explicitly behind on `-z-10`.
+     * The aura is a background, not an element behind the emblem.
      *
-     * Not tidiness. `blur` promotes the wash to its own compositing layer, and
-     * with both children at `z-index: auto` the browser is free to raise that
-     * layer above the emblem - which it did, intermittently, leaving a screen
-     * with a soft glow where the badge should be and no error anywhere. Measured
-     * live on the mission screen. A stacking context of our own, with the wash
-     * given a negative index inside it, makes the order ours rather than the
-     * compositor's. Same fix, same reason, as the glow behind the profile QR.
+     * It was a sibling `span` and it kept painting *over* the artwork it is
+     * meant to sit behind - the emblem loaded, at full opacity, top of the
+     * hit-test stack, and not on screen. Three attempts failed here: `-z-10`,
+     * an `isolate` wrapper around both, and dropping the `blur` that was
+     * promoting it to its own compositing layer. Each looked right until the
+     * next reload, because each was still asking a compositor to honour an
+     * order rather than removing the question.
+     *
+     * A background image has no order to argue about: CSS paints it above the
+     * background colour and below every descendant, always. Same fix as the
+     * page-level wash in `MythicAura`, for the same reason.
+     *
+     * The cost is that the light is now bounded by the emblem's own box
+     * instead of spilling half a width past it. The artwork carries transparent
+     * margins, so the glow still reads as light coming off the badge rather
+     * than a disc behind it - checked at 88px and at 224px.
      */
-    <span className="relative isolate inline-grid place-items-center">
-      {/*
-        Behind the artwork and wider than it, so the light appears to come off
-        the emblem rather than to be a shape sitting under it. No edge anywhere -
-        an edge here would read as a second object.
-
-        ## No blur, and that is the fix rather than a saving
-
-        This was `blur-2xl`, and the filter is what put it on its own
-        compositing layer - which then painted over the emblem it is supposed to
-        sit behind. Not always: it survived a first look and came back on the
-        next load, and `-z-10` inside an `isolate` wrapper did not stop it. What
-        stops it is not having a layer to reorder.
-
-        Nothing was lost. The gradient's stops already fade to transparent over
-        a third of its width, so the blur was smoothing something that was
-        smooth - checked side by side at 80px and at 224px before removing it -
-        and a filter on a phone is not free.
-      */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -z-10 size-[150%] rounded-full opacity-45"
-        style={{ background: AURA[aura] }}
-      />
+    <span
+      className="relative inline-grid place-items-center"
+      style={{
+        backgroundImage: AURA[aura],
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+        backgroundSize: '100% 100%',
+      }}
+    >
       {image}
     </span>
   );

@@ -37,6 +37,11 @@ export interface ReferralProgress {
    */
   friends: ReferredFriend[];
   unlocked: boolean;
+  /**
+   * When the badge was awarded. Present exactly when `unlocked` is true - both
+   * are read off the same row, so they cannot disagree.
+   */
+  unlockedAt?: string;
 }
 
 /** Progress for the signed-in user, or undefined when there is nothing to show. */
@@ -55,6 +60,7 @@ export async function fetchReferralProgress(): Promise<ReferralProgress | undefi
     required: Number(row.required ?? 0),
     friends: Array.isArray(row.friends) ? (row.friends as unknown[]).map(toFriend) : [],
     unlocked: row.unlocked === true,
+    ...(row.unlockedAt ? { unlockedAt: String(row.unlockedAt) } : {}),
   };
 }
 

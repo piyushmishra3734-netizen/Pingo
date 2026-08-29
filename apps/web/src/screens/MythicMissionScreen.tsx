@@ -1,10 +1,19 @@
-import { Avatar, Button, CheckIcon, LinkIcon, ShareIcon, Skeleton, cn } from '@pingo/ui';
+import {
+  Avatar,
+  Button,
+  CheckIcon,
+  ChevronRightIcon,
+  LinkIcon,
+  ShareIcon,
+  Skeleton,
+  cn,
+} from '@pingo/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { AchievementArt } from '../features/achievements/AchievementArt.js';
-import { MythicAura as MythicAuraWash } from '../features/achievements/MythicAura.js';
+import { mythicWashStyle } from '../features/achievements/MythicAura.js';
 import { QrArt } from '../features/profile/QrArt.js';
 import { achievementById } from '../features/achievements/registry.js';
 import { referralLink } from '../features/referrals/referral-code.js';
@@ -105,17 +114,15 @@ export function MythicMissionScreen() {
   };
 
   return (
-    // `isolate`: the aura wash sits at -z-10, and without a stacking context of
-    // our own that puts it behind the page background rather than behind the page.
-    <div className="relative isolate flex h-full min-h-0 flex-col bg-page">
-      {/*
-        The same wash as the profile and the cabinet, so finishing the mission
-        lands somewhere that already looks like the reward. Only once it is
-        actually earned - putting it behind an unfinished mission would spend
-        the moment before it arrives.
-      */}
-      {unlocked && <MythicAuraWash accent={preferences.mythic.accent} />}
-
+    /*
+      The wash is the root's own background, not an element behind the content.
+      Only once it is actually earned - putting it behind an unfinished mission
+      would spend the moment before it arrives.
+    */
+    <div
+      className="relative flex h-full min-h-0 flex-col bg-page"
+      style={unlocked ? mythicWashStyle(preferences.mythic.accent) : undefined}
+    >
       <ScreenHeader title="Mission" showBack />
 
       <div className="relative min-h-0 flex-1 overflow-y-auto px-5 pb-28">
@@ -149,20 +156,29 @@ export function MythicMissionScreen() {
                 />
               )}
 
-              <h1 className="mt-5 text-xl font-semibold tracking-wide text-ink">
+              <h1
+                className={cn(
+                  'mt-5 font-semibold text-ink',
+                  /*
+                    Bigger and more tracked once it is real. The same words are
+                    a label while the mission is running and a name after it,
+                    and setting the finished one at the size of a section
+                    heading is a good part of why this page read as the
+                    unfinished page with a tick added to it.
+                  */
+                  unlocked ? 'text-2xl tracking-[0.12em]' : 'text-xl tracking-wide',
+                )}
+              >
                 {progress.title}
               </h1>
-              <p className="text-body mt-1.5 max-w-xs text-balance text-text-secondary">
-                {progress.description}
-              </p>
 
               {unlocked ? (
-                <p className="text-body mt-5 inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-4 py-1.5 font-medium text-brand">
-                  <CheckIcon size={16} strokeWidth={3} />
-                  Unlocked
-                </p>
+                <EarnedMark at={progress.unlockedAt} tier={achievement?.tier} />
               ) : (
                 <>
+                  <p className="text-body mt-1.5 max-w-xs text-balance text-text-secondary">
+                    {progress.description}
+                  </p>
                   <p className="mt-6 text-4xl font-semibold tracking-tight tabular-nums text-ink">
                     {progress.count}
                     <span className="text-2xl text-text-tertiary"> / {progress.required}</span>
@@ -174,51 +190,48 @@ export function MythicMissionScreen() {
                         ? '1 more friend to unlock'
                         : `${remaining} more to unlock`}
                   </p>
+
+                  {/*
+                    The same fraction, drawn. Nothing here knows the number is
+                    five.
+
+                    Gone once it is earned. A full bar underneath the word
+                    "Earned" is just the unfinished screen with its last segment
+                    coloured in - and the row of faces below says the same thing
+                    with people in it.
+                  */}
+                  <div
+                    className="mt-5 flex w-full max-w-[16rem] gap-1.5"
+                    role="progressbar"
+                    aria-valuenow={progress.count}
+                    aria-valuemin={0}
+                    aria-valuemax={progress.required}
+                    aria-label={`${progress.count} of ${progress.required} friends joined`}
+                  >
+                    {Array.from({ length: progress.required }, (_, i) => (
+                      <span
+                        key={i}
+                        className={cn(
+                          'h-1.5 flex-1 rounded-full transition-colors duration-slow',
+                          i < progress.count
+                            ? 'bg-[color:var(--mythic-accent,var(--color-brand))]'
+                            : 'bg-hover',
+                        )}
+                      />
+                    ))}
+                  </div>
                 </>
               )}
-
-              {/*
-                The same fraction, drawn, and kept after unlocking so a finished
-                mission still shows itself as finished. Nothing here knows the
-                number is five.
-
-                Unlocked fills it whatever the count says. The two can disagree -
-                a badge granted by hand sits on an account with no referrals at
-                all - and when they do, the badge is the fact: an "Unlocked" pill
-                above five empty segments reads as a screen that is broken rather
-                than as an account that is unusual.
-              */}
-              <div
-                className="mt-5 flex w-full max-w-[16rem] gap-1.5"
-                role="progressbar"
-                aria-valuenow={unlocked ? progress.required : progress.count}
-                aria-valuemin={0}
-                aria-valuemax={progress.required}
-                aria-label={
-                  unlocked
-                    ? 'Mission complete'
-                    : `${progress.count} of ${progress.required} friends joined`
-                }
-              >
-                {Array.from({ length: progress.required }, (_, i) => (
-                  <span
-                    key={i}
-                    className={cn(
-                      'h-1.5 flex-1 rounded-full transition-colors duration-slow',
-                      unlocked || i < progress.count
-                        ? 'bg-[color:var(--mythic-accent,var(--color-brand))]'
-                        : 'bg-hover',
-                    )}
-                  />
-                ))}
-              </div>
             </div>
 
             <Roster
               friends={progress.friends}
               required={progress.required}
               count={progress.count}
+              unlocked={unlocked}
             />
+
+            {unlocked && <WhereItShows />}
 
             <InviteCard
               link={link}
@@ -226,9 +239,10 @@ export function MythicMissionScreen() {
               copied={copied}
               onCopy={() => void copy()}
               onShare={() => void share()}
+              unlocked={unlocked}
             />
 
-            <HowItWorks required={progress.required} />
+            {!unlocked && <HowItWorks required={progress.required} />}
           </div>
         )}
       </div>
@@ -249,6 +263,102 @@ export function MythicMissionScreen() {
  * faces and the row must not read as though people went missing.
  */
 /**
+ * What replaced the "Unlocked" pill.
+ *
+ * A pill is how an app labels a state. This is meant to read as a record of
+ * something that happened, so it is set like one: the tier and the date, small,
+ * spaced, between two rules, with nothing coloured in. The restraint is the
+ * point - a finished mission does not need to shout, and the badge above it is
+ * already doing all the shouting there is room for.
+ *
+ * The date is the whole reason it works. "Unlocked" is a flag in a database;
+ * "Earned 23 August 2026" is a thing that happened to somebody on a day.
+ */
+function EarnedMark({ at, tier }: { at?: string; tier?: string }) {
+  /*
+   * The account's own locale and zone, which is where the day actually
+   * happened. Falling back to the raw string would print an ISO timestamp on a
+   * certificate; falling back to nothing is quieter and never wrong.
+   */
+  const earned = at ? new Date(at) : undefined;
+  const day =
+    earned && !Number.isNaN(earned.getTime())
+      ? earned.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+      : undefined;
+
+  return (
+    <div className="mt-4 flex w-full max-w-[15rem] flex-col items-center">
+      {/*
+        The rules flank one line, not a stack. Centring them against a two-line
+        block put them level with the tier and left the date hanging below,
+        which looked like a rule that had slipped rather than a rule.
+      */}
+      <div className="flex w-full items-center gap-3">
+        <span aria-hidden className="h-px flex-1 bg-line" />
+        <span className="text-caption font-medium tracking-[0.2em] text-[color:var(--mythic-accent,var(--color-brand))] uppercase">
+          {tier ?? 'Earned'}
+        </span>
+        <span aria-hidden className="h-px flex-1 bg-line" />
+      </div>
+      {day && <p className="text-caption mt-2 tracking-wide text-text-secondary">Earned {day}</p>}
+    </div>
+  );
+}
+
+/**
+ * Where the badge turns up, for somebody who has just got one.
+ *
+ * This is the section that used to be "How it works", and leaving that up after
+ * the mission is finished was the clearest sign nobody had looked at this state:
+ * step three said "do that five times and the badge is yours", in the past
+ * tense, to somebody holding it.
+ *
+ * What a finisher actually wants to know is where it shows - the reward is that
+ * other people see it, and none of those places is this screen. The last line
+ * goes to the cabinet, because that is the one place they can do something.
+ */
+function WhereItShows() {
+  const navigate = useNavigate();
+
+  return (
+    <section className="mt-10">
+      <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
+        Where it shows
+      </h2>
+      <ul className="mt-3 space-y-3">
+        {['Beside your name in every chat.', 'On your profile, for anyone who visits.'].map(
+          (line) => (
+            <li key={line} className="flex gap-3">
+              <span aria-hidden className="mt-1.5 text-[color:var(--mythic-accent,var(--color-brand))]">
+                <CheckIcon size={14} strokeWidth={3} />
+              </span>
+              <span className="text-body text-text-secondary">{line}</span>
+            </li>
+          ),
+        )}
+      </ul>
+
+      <button
+        type="button"
+        onClick={() => navigate('/profile/achievements')}
+        className={cn(
+          'focus-ring mt-4 flex w-full items-center gap-3 rounded-xl bg-surface px-4 py-3.5 text-left ring-1 ring-line',
+          'transition-colors duration-instant hover:bg-hover active:bg-pressed',
+        )}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="text-body block font-medium text-ink">Your achievements</span>
+          <span className="text-caption block text-text-secondary">
+            Choose how yours is drawn
+          </span>
+        </span>
+        <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
+      </button>
+    </section>
+  );
+}
+
+/**
  * The name under a face, in the width a face has.
  *
  * "Aarav Sharma" in a fifty-six pixel tile becomes "Aarav S...", which is a
@@ -264,19 +374,49 @@ function Roster({
   friends,
   required,
   count,
+  unlocked,
 }: {
   friends: ReferredFriend[];
   required: number;
   count: number;
+  unlocked: boolean;
 }) {
   const navigate = useNavigate();
-  const empty = Math.max(0, required - count);
+  /*
+   * No empty slots once it is earned. They are the shape of what is left to do,
+   * and there is nothing left to do - a finished mission showing three dashed
+   * circles is telling somebody they are not finished.
+   */
+  const empty = unlocked ? 0 : Math.max(0, required - count);
   const overflow = Math.max(0, count - friends.length);
+
+  /*
+   * Earned, and nobody to list.
+   *
+   * Not hypothetical: every account holding this badge today was granted it by
+   * hand, and has no referrals at all. With no faces and no empty slots there
+   * is nothing left but a heading, and "The people who joined" over an empty
+   * row is worse than no section. The unfinished screen keeps its version of
+   * this, because there the emptiness is the message.
+   */
+  if (unlocked && count === 0) return null;
 
   return (
     <section className="mt-10">
       <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
-        {count === 0 ? 'Who joins' : count === 1 ? '1 friend joined' : `${count} friends joined`}
+        {unlocked
+          ? /*
+              Not "N friends joined", which is a counter, and not "who got you
+              here", which reads as though they brought the account rather than
+              the other way round. This is a list of people, and saying so is
+              enough.
+            */
+            'The people who joined'
+          : count === 0
+            ? 'Who joins'
+            : count === 1
+              ? '1 friend joined'
+              : `${count} friends joined`}
       </h2>
 
       <div className="mt-3 flex flex-wrap items-start gap-x-3 gap-y-4">
@@ -315,10 +455,13 @@ function Roster({
 
         {Array.from({ length: empty }, (_, i) => (
           <div key={`empty-${i}`} className="flex w-14 flex-col items-center gap-1.5 py-1">
-            <span
-              aria-hidden
-              className="size-12 rounded-full border border-dashed border-line"
-            />
+            {/*
+              A filled disc, not a dashed ring. A dashed stroke is wireframe
+              grammar - it means "drop something here" - and a row of them makes
+              a finished screen look like a sketch of one. See the note in
+              `AchievementCabinet`.
+            */}
+            <span aria-hidden className="size-12 rounded-full bg-hover" />
             {/* No caption. An empty slot that says something becomes a to-do item. */}
             <span className="text-caption invisible">·</span>
           </div>
@@ -353,12 +496,14 @@ function InviteCard({
   copied,
   onCopy,
   onShare,
+  unlocked,
 }: {
   link: string | undefined;
   code: string;
   copied: boolean;
   onCopy: () => void;
   onShare: () => void;
+  unlocked: boolean;
 }) {
   const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
 
@@ -367,6 +512,17 @@ function InviteCard({
       <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
         Your invite
       </h2>
+      {/*
+        Said once, to the only person who would wonder. A finished mission that
+        still shows a share card looks like a screen that forgot to update, and
+        one line is cheaper than taking the card away from somebody who has no
+        reason to stop inviting people.
+      */}
+      {unlocked && (
+        <p className="text-caption mt-1 text-text-tertiary">
+          Still works. The badge is earned once; the link is not.
+        </p>
+      )}
 
       <div className="mt-3 rounded-2xl bg-surface p-5 ring-1 ring-line">
         {link ? (

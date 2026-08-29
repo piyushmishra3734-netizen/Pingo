@@ -36,19 +36,23 @@ export interface AchievementView {
   isMythic: (id?: string) => boolean;
   /** Raw ids, for anything that needs them. */
   ids: (id?: string) => string[];
+  /** When one badge was earned, ISO. Undefined if this account has not. */
+  earnedAt: (badgeId: string, id?: string) => string | undefined;
 }
 
 export function useAchievements(userIds: (string | undefined)[]): AchievementView {
   const badges = useEarnedBadges(userIds);
+  const idsOf = (id?: string) => badges(id).map((b) => b.id);
 
   return {
-    ids: (id) => badges(id),
+    ids: idsOf,
     all: (id) => {
-      const earned = badges(id);
+      const earned = idsOf(id);
       return earned.length === 0 ? [] : orderedFor(earned);
     },
-    lead: (id) => leadAchievement(badges(id)),
-    isMythic: (id) => hasTier(badges(id), 'mythic'),
+    lead: (id) => leadAchievement(idsOf(id)),
+    isMythic: (id) => hasTier(idsOf(id), 'mythic'),
+    earnedAt: (badgeId, id) => badges(id).find((b) => b.id === badgeId)?.at,
   };
 }
 
@@ -85,6 +89,15 @@ export function useOwnAchievements(userId: string | undefined): AchievementView 
 } {
   const view = useAchievements([userId]);
   const live = view.ids(userId);
+  /*
+   * Dates are not cached to disk, and deliberately.
+   *
+   * The cache exists so the first paint is already a rare account - a badge
+   * beside a name, an aura on a profile. A date appears on one screen, below
+   * the fold, after the query has answered anyway. Storing it would widen the
+   * cache's shape and its migration surface to buy nothing anybody sees.
+   */
+  const earnedAt = (badgeId: string) => view.earnedAt(badgeId, userId);
 
   /** What disk said last time, so the first paint is not an ordinary account. */
   const [cached, setCached] = useState<string[]>(() => readCache(userId));
@@ -111,6 +124,7 @@ export function useOwnAchievements(userId: string | undefined): AchievementView 
     all: () => orderedFor(ids),
     lead: () => leadAchievement(ids),
     isMythic: () => hasTier(ids, 'mythic'),
+    earnedAt,
   };
 }
 
