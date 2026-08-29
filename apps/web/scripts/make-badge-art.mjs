@@ -89,7 +89,19 @@ const BADGES = [
     name: 'founder',
     crestName: 'founder-crest',
     source: 'apps/web/assets/founder.png',
-    crest: { x: 300, y: 80, size: 760 },
+    /*
+     * Trimmed to its own ink, measured rather than guessed: the supplied file
+     * carries about a tenth of its width as empty margin, and `object-contain`
+     * honours that margin, so the badge drew noticeably smaller than MYTHIC
+     * PIONEER in the same box for no reason anybody could see.
+     */
+    trim: { x: 67, y: 38, size: 1144 },
+    /*
+     * No separate crest crop. MYTHIC PIONEER needs one because its wreath and
+     * banner become smudges at twenty-four pixels; this mark is a crown, a P
+     * and a ring, and all three survive - where a tighter crop did not, it cut
+     * the ring in half and read as damaged. Same framing, smaller file.
+     */
   },
 ];
 
@@ -195,9 +207,10 @@ const only = process.argv[2];
 for (const badge of BADGES) {
   if (only && badge.name !== only) continue;
 
-  const src = PNG.sync.read(readFileSync(badge.source));
+  const file = PNG.sync.read(readFileSync(badge.source));
+  const src = badge.trim ? crestSource(file, badge.trim) : file;
   for (const size of SIZES) emit(src, size, badge.name);
 
-  const crest = crestSource(src, badge.crest);
+  const crest = badge.crest ? crestSource(file, badge.crest) : src;
   for (const size of CREST_SIZES) emit(crest, size, badge.crestName);
 }

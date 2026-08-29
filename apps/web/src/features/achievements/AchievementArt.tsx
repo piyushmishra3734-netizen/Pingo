@@ -46,7 +46,15 @@ export interface AchievementArtProps {
 }
 
 const BOX = {
-  mark: 'size-4',
+  /*
+   * 20px, up from 16.
+   *
+   * At sixteen the mark sat below the cap height of the name it follows and
+   * read as a speck rather than as something earned - and a badge whose whole
+   * job is to be noticed beside a name should at least match the line it is on.
+   * Twenty is the line height of `text-body`, so nothing reflows.
+   */
+  mark: 'size-5',
   small: 'size-9',
   medium: 'size-20',
   large: 'size-40 sm:size-56',
