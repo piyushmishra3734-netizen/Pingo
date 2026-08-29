@@ -132,7 +132,32 @@ check(
   'a message that is only deliberation becomes empty',
 );
 
+console.log('\n--- reciting the brief, then drafting out loud ---');
+/*
+ * Reported live, and the reason for the two blocks added to DELIBERATION. It
+ * cleared every filter: no opener, nobody in the third person, and `maybe "`
+ * wanted the quote directly after the word. It also stops mid-clause, which is
+ * the model spending its whole token budget deciding what to send.
+ */
+leaks(
+  'Given the tone: genz, short chat lines, no extra fluff. So maybe respond with "sach?" or "kaunse baat ka?" but that adds',
+  'the brief recited, two drafts weighed, truncated',
+);
+leaks(
+  'Given that they wrote one word, the reply should be short. I\'ll respond with "haan bhai".',
+  'restating the brief and naming the draft',
+);
+check(
+  stripReasoning(
+    'Given the tone: short chat lines.\nSo maybe respond with "sach?"\nAre yaar sach mein, kal hi pata chala.',
+  ) === '',
+  'deliberation takes the whole generation, and the caller retries',
+);
+
 console.log('\n--- one signal alone is a coincidence, not a trace ---');
+survives('Given the traffic aaj late ho jaunga', 'one "given the" in ordinary prose');
+survives('Vibe: total chill tha kal ka plan', 'a colon-labelled line somebody might actually send');
+survives('Tu bol de usse, main respond with proof karunga', 'the words respond with, no second signal');
 survives('Actually we can meet tomorrow if you want', 'one "actually we can"');
 survives('Maybe "chal theek hai" bol dena usse', 'one quoted suggestion');
 survives('Tumhari message length thodi zyada thi', 'one measurement-sounding line');

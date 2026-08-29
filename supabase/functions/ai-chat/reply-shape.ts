@@ -322,11 +322,11 @@ export function trimEnvelopeDebris(text: string): string {
 
   // A run of two or more quotes is never prose. This is the `" ""` tail that
   // was arriving: the envelope's closing quote followed by an empty `ask`.
-  out = out.replace(/[s]*["'`]{2,}[s]*[,}]?[s]*$/g, '').trim();
+  out = out.replace(/\s*["'`]{2,}\s*[,}]?\s*$/g, '').trim();
 
   // Structural leftovers - a lone comma or brace - are never the end of a
   // sentence either.
-  out = out.replace(/[s]*[,{}]+[s]*$/g, '').trim();
+  out = out.replace(/\s*[,{}]+\s*$/g, '').trim();
 
   /*
    * A single trailing quote only goes if nothing opened it.
@@ -338,7 +338,7 @@ export function trimEnvelopeDebris(text: string): string {
    */
   if (/["`]$/.test(out)) {
     const quotes = (out.match(/["`]/g) ?? []).length;
-    if (quotes % 2 === 1) out = out.replace(/[s]*["`]$/, '').trim();
+    if (quotes % 2 === 1) out = out.replace(/\s*["`]$/, '').trim();
   }
 
   return out;
@@ -396,9 +396,15 @@ const TRACE_LINE = [
    * nothing. An obligation is the tell; a plain future tense is a sentence.
    */
   /^(we|i) (must|should|need to|have to)\b/i,
-  /^(note|important|remember|caveat)s*[:,]/i,
-  /^(first|second|third|next|then|finally)s*[,:]/i,
-  /^actually[,]?s+(after|the|it|we|i)\b/i,
+  /^(note|important|remember|caveat)s?\s*[:,]/i,
+  /^(first|second|third|next|then|finally)\s*[,:]/i,
+  /*
+   * `^actually, (we|i|…)` used to sit here as a certainty. It never once fired
+   * - it was written `s+` where it meant `\s+`, so it required a literal "s"
+   * after the comma - and repairing it would have started deleting "Actually i
+   * forgot", which is a sentence. It is a weighed signal in `DELIBERATION`
+   * already, where an opinion that common belongs.
+   */
   /^so (the|we|i)\b/i,
   /^(this|that) is the latest message/i,
   /^according to (the )?(rules|instructions|system)/i,
@@ -505,16 +511,47 @@ const DELIBERATION = [
   /\b(their|the user'?s|his|her) (message|reply|question) (length|is|was|seems)\b/i,
   /\b(must|should) be short and\b/i,
   /\bmatch (the )?size\b/i,
-  /\b(one|two|three|d+) lines?\b.{0,40}\b(separate|each|maybe|about)\b/i,
+  /\b(one|two|three|\d+) lines?\b.{0,40}\b(separate|each|maybe|about)\b/i,
   /\bseparate thought\b/i,
   // Weighing options aloud.
   /^(so )?maybe ["‘“]/im,
+  /*
+   * Drafting candidates instead of sending one.
+   *
+   * `maybe "` above needed the quote to follow the word immediately, so this
+   * went straight through it and into somebody's chat:
+   *
+   *   Given the tone: genz, short chat lines, no extra fluff. So maybe respond
+   *   with "sach?" or "kaunse baat ka?" but that adds
+   *
+   * Naming the act of replying is the tell. A person sends the message; only a
+   * model narrates choosing between two of them - and then, as here, runs out
+   * of tokens before choosing.
+   */
+  /\b(maybe|should|could|can|shall|let'?s|i'?ll|we'?ll) (respond|reply|answer|say|send) with\b/i,
+  /\b(that|it|this) (adds|feels|sounds|reads) (too|a bit|like|more|less)\b/i,
   /\bthat'?s (one|a) line\b/i,
   /^actually,? (we|i|it|that|the)\b/im,
   /^but (must|we|it should|that)\b/im,
   // Citing the instructions as a rule, which a reply to a person never does.
-  /^(but |and |also )?rules*[:—-]/im,
+  /^(but |and |also )?rules?\s*[:—-]/im,
   /\b(the )?(rule|instruction|system prompt) (says|said|is that)\b/i,
+  /*
+   * Restating the brief before answering it.
+   *
+   * "Given the tone: genz, short chat lines, no extra fluff." is the character
+   * prompt in summary - the model reciting what it was asked for, in the words
+   * it was asked in. `stripPromptEcho` cannot catch it: that matches whole
+   * copied lines, and a summary is not a copy of anything.
+   *
+   * These are the words this codebase uses to describe a reply, and PINGO has
+   * no reason to use any of them while talking to somebody. Weighed rather than
+   * matched, so "vibe:" in a genuine message needs a second signal to bite.
+   */
+  /^given (the|that|their|his|her|how|it'?s)\b/im,
+  /\b(tone|register|vibe|length|format|style)\s*:\s*\S/i,
+  /\bno extra (fluff|text|words|commentary)\b/i,
+  /\bchat lines?\b/i,
 ];
 
 /** Two independent signals. One is a coincidence; two is a habit. */
