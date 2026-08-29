@@ -47,14 +47,20 @@ export interface AchievementArtProps {
 
 const BOX = {
   /*
-   * 20px, up from 16.
+   * As tall as the name it follows, and never smaller than twenty.
    *
-   * At sixteen the mark sat below the cap height of the name it follows and
-   * read as a speck rather than as something earned - and a badge whose whole
-   * job is to be noticed beside a name should at least match the line it is on.
-   * Twenty is the line height of `text-body`, so nothing reflows.
+   * A fixed pixel size cannot be right in both places this appears. Beside a
+   * chat row's name - body text, sixteen pixels - twenty is right. Beside a
+   * profile's name, which is `text-h1` at thirty-two, the same twenty is a
+   * speck, and the screen carried a hand-written override to patch exactly
+   * that.
+   *
+   * `1em` is whatever the name beside it is, so the mark matches the text
+   * wherever it lands, including anywhere it is used next. The `max` is the
+   * floor that keeps a body-text row at the twenty it already had rather than
+   * dropping it to sixteen - and it means no caller needs an override again.
    */
-  mark: 'size-5',
+  mark: 'size-[max(1.25rem,1em)]',
   small: 'size-9',
   medium: 'size-20',
   large: 'size-40 sm:size-56',

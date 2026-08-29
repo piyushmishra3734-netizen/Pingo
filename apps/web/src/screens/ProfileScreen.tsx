@@ -554,17 +554,14 @@ export function ProfileScreen() {
           <h2 className="mt-1.5 flex items-center justify-center gap-1.5 text-h1 tracking-tight text-ink">
             {person.displayName}
             {/*
-              Twenty-four pixels: a status marker, not an emoji.
+              No size here any more.
 
-              At sixteen it read as a decoration somebody had put next to their
-              name. Larger than the cap height of the name it sits beside and
-              still well under its size, so it is the second thing read and
-              never the first.
-
-              Deliberately bigger here than in a chat list, where the name is
-              body text and the same twenty-four pixels would tower over it.
+              This carried `size-6` to undo a mark that was fixed at sixteen
+              pixels and therefore wrong beside a `text-h1` name. `AchievementMark`
+              now sizes itself from the text it follows, which is the same answer
+              in both places and one this screen does not have to know.
             */}
-            <AchievementMark achievement={achievements.lead(person.id)} className="size-6" />
+            <AchievementMark achievement={achievements.lead(person.id)} />
           </h2>
 
           {/* Handle + bio as one quiet identity group under the name. */}
