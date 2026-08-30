@@ -519,6 +519,38 @@ const charAt = source.indexOf('characterPrompt(),');
 const rulesAt = source.indexOf('## GENERAL REASONING');
 assert.ok(charAt !== -1 && charAt < rulesAt, 'who you are comes before how you operate');
 
+// -- A short right answer is not a wrong one -------------------------------
+
+/*
+ * The reply pipeline used to decide an answer had missed the question by
+ * looking for the question's own words inside it. The answer to "uss londi ka
+ * naam?" is a name - four letters, none of them in the question - so a correct
+ * reply was rejected, retried, rejected again, and replaced with "main clear
+ * answer dena chahta hoon, ek line me thoda specific kar do?". The person was
+ * asked to re-explain something that had already been answered twice.
+ *
+ * Asserted as an absence, because the failure was invisible: every layer did
+ * what it said, and the only symptom was an assistant that seemed to keep
+ * losing the thread.
+ */
+assert.ok(
+  !/function isLikelyOffTopic/.test(source),
+  'the word-overlap off-topic test is gone - a real answer does not repeat the question',
+);
+
+/*
+ * And when the pipeline genuinely has nothing, it says so rather than
+ * impersonating a reply. "Gotchu - aage kya?" reads as listening and costs the
+ * user the whole story; admitting the failure costs them one message.
+ */
+const fallback = source.slice(source.indexOf('function smartFallbackReply('));
+for (const filler of ['Gotchu', 'main sun raha hoon', 'thoda specific kar do']) {
+  assert.ok(
+    !fallback.includes(`'${filler}`) && !fallback.includes(`— ${filler}`),
+    `the last resort no longer ships "${filler}"`,
+  );
+}
+
 // -- The request outranks the persona --------------------------------------
 
 /*

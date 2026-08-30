@@ -2080,29 +2080,27 @@ function contentWords(text: string): string[] {
  * Soft off-topic detector — general, not trained on specific slang.
  * A clear request with a short vague reply and zero content overlap → retry.
  */
-function isLikelyOffTopic(reply: string, user: string): boolean {
-  if (!reply || isVagueFiller(reply)) return true;
-  if (!looksLikeClearRequest(user)) return false;
-  // Math / numeric answers
-  if (/\d/.test(reply) && /(\d|kitna|calculate|solve|\+|\-|hota)/i.test(user)) return false;
-  // Joke requests — punchlines rarely reuse the word "joke"
-  if (/\bjoke\b|hasao|funny\s*(suna|bata)|suna\s*joke/i.test(user) && meaningfulLen(reply) >= 16) {
-    return false;
-  }
-  const uw = contentWords(user);
-  const rw = contentWords(reply);
-  if (uw.length === 0) return false;
-  const hit = uw.some(
-    (w) =>
-      rw.includes(w) ||
-      rw.some((r) => r.includes(w) || w.includes(r)) ||
-      normalizeChat(reply).includes(w),
-  );
-  if (hit) return false;
-  // Substantive answer may use synonyms (still OK).
-  if (meaningfulLen(reply) >= 40 && !isVagueFiller(reply)) return false;
-  return true;
-}
+/*
+ * `isLikelyOffTopic` lived here and has been deleted.
+ *
+ * It decided a reply had missed the question by looking for the question's own
+ * words inside it, and treated anything under forty characters without a shared
+ * word as off-topic. That is backwards. The answer to "uss londi ka naam?" is a
+ * name - four letters, none of them in the question - and so is the answer to
+ * most questions worth asking, because a real answer is new information and new
+ * information does not repeat the words that asked for it.
+ *
+ * What it actually did, live: the model answered correctly, this called it
+ * off-topic, the pipeline retried, the second answer was rejected the same way,
+ * and `smartFallbackReply` shipped "main clear answer dena chahta hoon - ek line
+ * me thoda specific kar do?" to somebody whose question had been answered twice.
+ * The user re-explained context the assistant had never lost.
+ *
+ * `isVagueFiller` stays and does the honest half of this job: it is a list of
+ * actual filler phrases, so it cannot mistake a short right answer for a wrong
+ * one. It was already checked beside every call to this.
+ */
+
 
 function shouldRetryAnswer(
   reply: string,
@@ -2114,7 +2112,6 @@ function shouldRetryAnswer(
   if (containsBannedLoop(reply) || BANNED_REPLY_OPEN.test(reply)) return true;
   // Vague filler is never a good final answer — retry for any message shape.
   if (isVagueFiller(reply)) return true;
-  if (isLikelyOffTopic(reply, user)) return true;
   // Forgot thread: user pointed at prior context, model asked them to re-explain.
   if (
     refersToPriorContext(user) &&
@@ -2133,7 +2130,6 @@ function qualityScore(reply: string, user: string): number {
   let s = Math.min(40, meaningfulLen(reply));
   if (isVagueFiller(reply)) s -= 30;
   if (containsBannedLoop(reply)) s -= 40;
-  if (isLikelyOffTopic(reply, user)) s -= 20;
   const uw = contentWords(user);
   const rn = normalizeChat(reply);
   for (const w of uw) if (rn.includes(w)) s += 6;
@@ -2221,7 +2217,6 @@ function diversifyReply(
 /** Structural miss — clear request got filler / off-topic fluff. */
 function missesIntentCheck(reply: string, intent: ChatIntent, lastUser: string): boolean {
   if (isVagueFiller(reply)) return true;
-  if (looksLikeClearRequest(lastUser) && isLikelyOffTopic(reply, lastUser)) return true;
   if (intent === 'greeting' && /serious\s+ya\s+joke|koi\s+baat\s+hai/i.test(reply)) return true;
   return false;
 }
@@ -2303,15 +2298,32 @@ function smartFallbackReply(
       // Do not invent a fake definition dictionary — ask for context so any word works.
       return `"${term}" ka matlab usually context se clear hota hai — ek example sentence bhej, usi pe exact sense bataunga 😊`;
     }
-    const clipped = lastUser.trim().slice(0, 90);
-    return `Ispe seedha try: "${clipped}" — main clear answer dena chahta hoon. Ek line me thoda specific kar do?`;
+    /*
+     * Not "be more specific". Reaching here means two attempts produced
+     * nothing usable - which is this function's problem, not theirs - and
+     * asking them to rewrite a question they asked perfectly well is how
+     * somebody ends up explaining themselves to a thing that was supposed to
+     * be listening. Say it broke, and say it in a way they can just repeat.
+     */
+    return 'ek sec, mera jawab atak gaya 😵‍💫 wapas bhej de, is baar theek se dunga';
   }
 
+  /*
+   * The same honesty for the general case.
+   *
+   * These three used to be "Okay 👀 bol, main sun raha hoon", "Hmm, continue —
+   * kya scene hai uske baad?" and "Gotchu — aage kya?". Every one of them
+   * claims to be listening while carrying nothing, so the person halfway
+   * through telling you something has to start again - and they cannot tell it
+   * was a failure, because it reads like a reply. Something that admits it
+   * broke costs them one message; something that pretends costs them the whole
+   * story.
+   */
   return pickUnused(
     [
-      'Okay 👀 bol, main sun raha hoon.',
-      'Hmm, continue — kya scene hai uske baad?',
-      'Gotchu — aage kya?',
+      'ek sec, kuch gadbad ho gayi mere end pe — dobara bhej',
+      'arre mera reply hi nahi bana 😵‍💫 phir se bol',
+      'ye mujhse miss ho gaya, ek baar aur bhej de',
     ],
     recent,
     lastUser,
