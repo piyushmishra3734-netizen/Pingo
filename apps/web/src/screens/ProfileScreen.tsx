@@ -556,27 +556,30 @@ export function ProfileScreen() {
           face takes them back, or the middle of the cover - which is most of it
           - would stop answering the drag that repositions it.
         */}
-        <div className="relative">
-          <ProfileCover
+        <ProfileCover
             src={person.bannerUrl}
             offset={person.bannerOffset}
             editable={isSelf}
             onPick={() => coverFileRef.current?.click()}
             onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
-          />
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            {/*
-              `flex`, so the box is exactly the face.
+        />
 
-              The avatar is an `inline-flex` button, and an inline child of a
-              block sits on a text baseline with the line-height's descender
-              space under it - so this wrapper measured four pixels taller than
-              the face and the grid centred *that*, leaving the picture two
-              pixels high in the band. The same baseline problem the avatar's
-              own ring hit, one level up. Measured at 44 above and 49 below;
-              46 and 46 after this.
-            */}
-            <div className="pointer-events-auto flex">
+        {/*
+          Hanging off the bottom of the band, not centred inside it.
+
+          Centred, the cover had to be tall enough to hold a face with air
+          around it, and that made the top of the profile a picture of nothing:
+          a hundred and sixty pixels of sky to frame a circle. This is the
+          arrangement every profile uses, and the reason is that the cover only
+          has to be as tall as a cover.
+
+          `flex` on the wrapper, not `block`. The avatar is an `inline-flex`
+          button and an inline child of a block sits on a text baseline with the
+          line-height's descender space beneath it, which measured four pixels
+          taller than the face - enough to put it off centre.
+        */}
+        <div className="-mt-[68px] flex justify-center">
+            <div className="flex">
 
         <input
           ref={coverFileRef}
@@ -614,8 +617,7 @@ export function ProfileScreen() {
                 if (go) await updateMine({ avatarUrl: undefined });
               })();
             }}
-              />
-            </div>
+          />
           </div>
         </div>
 
@@ -671,84 +673,6 @@ export function ProfileScreen() {
           </div>
 
           {/*
-            One achievements section, not a badge and then a link to it.
-
-            The art used to stand alone under the bio and the row that names it
-            came *after* the stats - so the same fact appeared three times on one
-            screen: a mark beside the name, a large badge floating in whitespace,
-            and a line of text underneath saying "FOUNDER". Three appearances
-            read as three different things, and the big one read as pasted on,
-            because nothing around it explained what it was.
-
-            Here it is one block that says what it is and holds the thing it is
-            about. The mark beside the name stays - that one is identity, the way
-            a verified tick is - and this is the collection it comes from.
-
-            A rule above it, because this is where the page stops being about who
-            they are and starts being about what is on it. It is the only divider
-            on the profile and it is doing the work a card used to do badly.
-          */}
-          {achievements.lead(person.id) && (
-            <div className="mt-6 w-full max-w-xs border-t border-line/60 pt-5">
-              <SectionHead
-                label="Achievements"
-                {...(isSelf
-                  ? {
-                      to: achievements.isMythic(person.id)
-                        ? '/profile/achievements'
-                        : '/profile/mission',
-                    }
-                  : {})}
-              />
-
-              {/*
-                Hero and label side by side, at the size the art was drawn.
-
-                Centred and alone it was decoration. Beside its own name it is an
-                entry in a collection, which is what it always was.
-              */}
-              <div className="mt-3 flex items-center gap-4">
-                <AchievementArt
-                  achievement={achievements.lead(person.id)!}
-                  size="medium"
-                  aura={preferences.mythic.aura}
-                />
-                <div className="min-w-0">
-                  <p className="text-body font-semibold tracking-[0.12em] text-ink">
-                    {achievements.lead(person.id)!.title}
-                  </p>
-                  <p className="mt-0.5 text-caption text-text-secondary">
-                    {achievements.isMythic(person.id) ? 'Mythic' : 'Earned'} on PINGO
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/*
-            Nothing earned yet, and only your own profile says so.
-
-            Somebody else's empty case is a comment on them. Your own is the way
-            to the mission, which is the one place that explains how a badge is
-            earned.
-          */}
-          {isSelf && !achievements.lead(person.id) && (
-            <div className="mt-6 w-full max-w-xs border-t border-line/60 pt-5">
-              <SectionHead label="Achievements" to="/profile/mission" />
-              <p className="mt-2 text-caption text-text-secondary">Nothing earned yet</p>
-            </div>
-          )}
-
-          {/* Stats sit in the hero stack, not a separate band. */}
-          {/*
-            Two of the three open a list, and only on your own profile.
-
-            Who somebody is friends with and which groups they are in is a map
-            of their private life; a follower count on a public network is not
-            the same thing, and this product does not have followers. So the
-            numbers stay numbers on anybody else's page.
-          */}
-          {/*
             Same width as the sections above and below it, which is the whole
             reason the numbers stopped looking like they were floating: they
             were the only thing on the page not lining up with anything.
@@ -790,29 +714,6 @@ export function ProfileScreen() {
               >
                 Share profile
               </Button>
-            </div>
-          ) : null}
-
-          {/*
-            Journey, and only on your own profile.
-
-            A collection is something you keep, not something you show - putting
-            it on other people's profiles would turn badges into a rank visible
-            to strangers, which is a different product from the one the sheet was
-            drawn for.
-
-            A row rather than a card, matching Achievements exactly. It was the
-            only bordered panel on the page, and one card among plain sections
-            does not read as important - it reads as a dashboard widget that
-            wandered into a private messenger. Two sections in one visual system
-            say more than one of them shouting.
-          */}
-          {isSelf ? (
-            <div className="mt-6 w-full max-w-xs border-t border-line/60 pt-5">
-              <SectionHead label="Journey" to="/profile/journey" />
-              <p className="mt-1 text-caption text-text-secondary">
-                Badges you have earned, and what is next
-              </p>
             </div>
           ) : null}
 
@@ -889,17 +790,71 @@ export function ProfileScreen() {
         {!isSelf && shared && <SharedWithPanel history={shared} />}
 
         {/*
-          Their Journey, above the tabs and below what they share with you.
+          Achievements, at the foot, as a collection.
 
-          Only on other people's profiles: your own is one tap away in full, and
-          a summary of it here would be the same screen twice. It is absent
-          rather than empty when they have never published — a section that says
-          "nothing yet" about somebody else is a comment on them.
+          The badge used to be shown three times: a mark beside the name, a large
+          piece of art in the middle of the profile, and a row naming it. The
+          large one is gone. The mark beside the name is the identity - it is
+          doing the job a verified tick does - and this is the shelf it came off,
+          which is a different thing and belongs at the bottom with the other
+          things about the account rather than in the middle of who somebody is.
+
+          A profile in a messenger is mostly personality. Achievements are the
+          last five per cent of it and are placed accordingly.
         */}
+        {achievements.lead(person.id) || isSelf ? (
+          <section className="mt-7 border-t border-line/60 pt-5">
+            <SectionHead
+              label="Achievements"
+              {...(isSelf
+                ? {
+                    to: achievements.isMythic(person.id)
+                      ? '/profile/achievements'
+                      : '/profile/mission',
+                  }
+                : {})}
+            />
+            {achievements.lead(person.id) ? (
+              <div className="mt-3 flex items-center gap-3">
+                <AchievementArt
+                  achievement={achievements.lead(person.id)!}
+                  size="small"
+                  aura={preferences.mythic.aura}
+                  className="size-14"
+                />
+                <p className="text-body font-medium text-ink">
+                  {achievements.lead(person.id)!.title}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-caption text-text-secondary">Nothing earned yet</p>
+            )}
+          </section>
+        ) : null}
+
+        {/*
+          Journey, and only your own - a collection is something you keep, not
+          something you show, and putting it on other people's profiles would
+          turn badges into a rank visible to strangers.
+
+          Same grammar as everything else down here. It was the only bordered
+          card on the page, and one card among plain sections does not read as
+          important; it reads as a dashboard widget that wandered into a private
+          messenger.
+        */}
+        {isSelf ? (
+          <section className="mt-7 border-t border-line/60 pt-5">
+            <SectionHead label="Journey" to="/profile/journey" />
+            <p className="mt-1 text-caption text-text-secondary">
+              Badges you have earned, and what is next
+            </p>
+          </section>
+        ) : null}
+
         {!isSelf ? (
           <ProfileJourney
             {...(journey ? { badgeIds: journey.badgeIds } : {})}
-            className="mt-6"
+            className="mt-7"
           />
         ) : null}
 
@@ -1178,14 +1133,25 @@ function Stat({
   value,
   onOpen,
 }: {
+  /** Plural. The singular is this without its last letter - see below. */
   label: string;
   value: number | undefined;
   /** Present when this figure leads somewhere - see the stats block. */
   onOpen?: () => void;
 }) {
+  /*
+   * "1 Friend", not "1 Friends".
+   *
+   * Three labels, all regular plurals, so the rule is the whole grammar engine
+   * this needs: at exactly one, drop the s. Anything cleverer would be a
+   * pluralisation library for three words, and anything less is the small
+   * wrongness that makes an interface feel machine-written.
+   */
+  const shown = value === 1 ? label.replace(/s$/, '') : label;
+
   const inside = (
     <>
-      <dt className="sr-only">{label}</dt>
+      <dt className="sr-only">{shown}</dt>
       <dd className="text-h2 font-semibold tabular-nums leading-none text-ink">
         {value === undefined ? (
           <span className="text-text-tertiary"> - </span>
@@ -1195,7 +1161,7 @@ function Stat({
       </dd>
       {/* ~2–3px under the number; quieter so the figure stays primary. */}
       <p aria-hidden className="mt-1 text-caption leading-none text-text-tertiary">
-        {label}
+        {shown}
       </p>
     </>
   );

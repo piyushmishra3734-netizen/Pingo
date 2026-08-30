@@ -56,20 +56,25 @@ export function SharedWithPanel({ history }: { history: SharedHistory }) {
   if (rows.length === 0) return null;
 
   return (
+    /*
+      A section, not a card.
+
+      This was a raised panel with its own surface, shadow and ring, sitting
+      among plain sections that had none - so the one piece of genuinely private
+      information on the page was also the one that looked like a widget. The
+      grammar of everything below the bio is now the same: a hairline, a
+      heading, and rows. Nothing here needed to be raised; it needed to be
+      *quiet*, which a card cannot be.
+    */
     <section
       aria-label="Shared with you"
-      className={cn(
-        // Slightly closer to the hero (~10px less empty air than mt-5).
-        'mt-3.5 overflow-hidden rounded-xl bg-surface shadow-sm ring-1 ring-line/40',
-      )}
+      className={cn('mt-7 border-t border-line/60 pt-5')}
     >
-      <h2 className="px-4 pt-4 pb-1.5 text-caption font-medium tracking-wide text-text-tertiary uppercase">
-        Shared with you
-      </h2>
+      <h2 className="text-body font-medium text-ink">Shared with you</h2>
 
-      <dl className="divide-y divide-line/55">
+      <dl className="mt-2">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-center gap-3 px-4 py-3.5">
+          <div key={row.label} className="flex items-center gap-3 py-2">
             <span
               className="grid size-5 shrink-0 place-items-center text-text-tertiary"
               aria-hidden

@@ -97,15 +97,14 @@ export function ProfileCover({
       ref={band}
       className={cn(
         /*
-         * Tall enough to hold the face that now sits inside it.
+         * As tall as a cover needs to be, and no taller.
          *
-         * The avatar is 96 plus its ring, about 110. Centred in the old 128 it
-         * left nine pixels of cover above and below - a photograph reduced to a
-         * frame around a circle. 160 gives it room to still read as a picture,
-         * and the whole header is still shorter than it was when the face hung
-         * underneath.
+         * It went to 160 when the face sat inside it, which meant the band had
+         * to hold a circle *and* air around the circle - and the top of the
+         * profile became a picture of nothing. The face hangs off the bottom
+         * again, so this is back to being a strip of somebody's photograph.
          */
-        'relative -mx-5 h-40 overflow-hidden bg-brand-wash sm:h-48',
+        'relative -mx-5 h-28 overflow-hidden bg-brand-wash sm:h-36',
         canMove && (dragging ? 'cursor-grabbing' : 'cursor-grab'),
       )}
       onPointerDown={onPointerDown}
