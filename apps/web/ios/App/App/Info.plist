@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CAPACITOR_DEBUG</key>
+	<string>$(CAPACITOR_DEBUG)</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+        <string>PINGO</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!--
+	  The sentences iOS shows when it asks, and the reason the app would
+	  otherwise die.
+
+	  On Android a missing permission means the dialog never appears and the
+	  feature quietly does nothing. iOS is the opposite and much louder: calling
+	  an API whose usage string is absent terminates the process immediately, with
+	  a crash log naming the missing key. So an app that ships without these does
+	  not degrade - it closes the first time somebody taps the microphone.
+
+	  Written as what PINGO does with the thing, not as "PINGO needs access to
+	  your camera". App Review rejects the second kind, and it also tells the
+	  person nothing they could not see for themselves.
+	-->
+	<key>NSCameraUsageDescription</key>
+	<string>To take photos and video, and for video calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>To record voice notes and for calls.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>To send photos and videos from your library.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>To save photos and videos you receive.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>To unlock your encrypted backup.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>To find people you already know on PINGO.</string>
+
+	<!--
+	  Calls and downloads that outlive the foreground. Without `audio` a call
+	  goes silent the moment the screen locks, which reads as the call dropping.
+	-->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>remote-notification</string>
+		<string>voip</string>
+	</array>
+
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<!--
+	  `arm64`, not `armv7`. The template still names a 32-bit capability that no
+	  device supporting a modern iOS has had since the iPhone 5s - it is inherited
+	  boilerplate, and it narrows the install list for nothing.
+	-->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+</dict>
+</plist>
