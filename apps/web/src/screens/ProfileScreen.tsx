@@ -273,6 +273,21 @@ export function ProfileScreen() {
 
   const postFileRef = useRef<HTMLInputElement>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
+  /*
+   * Up here with the others, and that placement is the whole point.
+   *
+   * This sat next to the cover handlers three hundred lines down - which is
+   * *after* the early returns for a profile that has not loaded yet. So the
+   * hook ran on the render where the person existed and not on the render
+   * before it, the count changed between renders, and React refused to
+   * continue: "Rendered more hooks than during the previous render", which
+   * arrives as a blank screen.
+   *
+   * Only on somebody else's profile, because that is the only one that is
+   * briefly undefined - your own is already loaded by the time you get here,
+   * so both renders had the same hooks and nothing ever went wrong locally.
+   */
+  const coverFileRef = useRef<HTMLInputElement>(null);
   /** Object URL for the avatar crop editor; nothing uploads until Save. */
   const [avatarEditorSrc, setAvatarEditorSrc] = useState<string>();
   /** Set when the file picker was opened to replace one specific post. */
@@ -438,8 +453,6 @@ export function ProfileScreen() {
     if (avatarEditorSrc) URL.revokeObjectURL(avatarEditorSrc);
     setAvatarEditorSrc(undefined);
   };
-
-  const coverFileRef = useRef<HTMLInputElement>(null);
 
   /*
    * The cover goes into the same bucket as every other face, unshrunk.

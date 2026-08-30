@@ -107,6 +107,27 @@ export function AppShell() {
    */
   const wide = fullscreen || /^\/(chats|camera)(\/|$)/.test(location.pathname);
 
+  /*
+   * Which way the screen should travel.
+   *
+   * Every navigation used to animate identically, which is what made moving
+   * around feel like a page reloading rather than a stack being pushed. The
+   * direction is the whole point: going deeper should come from the right and
+   * coming back from the left, so the motion agrees with the gesture that
+   * caused it. When it does not, the app feels like it is guessing.
+   *
+   * `navigationType` is what the router already knows - POP is the back button
+   * or a swipe back, PUSH and REPLACE are going somewhere. No history stack of
+   * our own to keep in sync, which is the usual way this goes wrong.
+   *
+   * Read here, above the `!ready` return, and that placement is not tidiness.
+   * It sat below it, so it ran on every render where the shell was ready and on
+   * none of the renders before - the hook count changed the instant the app
+   * finished opening, and React answered with #310 and a blank screen. It was
+   * invisible locally because a warm load is ready on the first render.
+   */
+  const back = useNavigationType() === 'POP';
+
   if (!ready) {
     return (
       <div className="grid h-full place-items-center bg-page">
@@ -140,8 +161,6 @@ export function AppShell() {
    * or a swipe back, PUSH and REPLACE are going somewhere. No history stack of
    * our own to keep in sync, which is the usual way this goes wrong.
    */
-  const back = useNavigationType() === 'POP';
-
   return (
     <div className="flex h-full flex-col bg-page">
       {/*
