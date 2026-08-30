@@ -44,7 +44,15 @@ const apk = 'android/app/build/outputs/apk/release/app-release.apk';
  * the moment it matters, which looks like the download vanishing rather than
  * like a rename. The tag carries the version; the filename does not need to.
  */
-const asset = `.tools/release/PINGO.apk`;
+/*
+ * Under the repo root's `.tools`, not a second one beside this script.
+ *
+ * A relative path plus a cwd of `apps/web` quietly created `apps/web/.tools`
+ * next to the root `.tools` that holds the JDK, leaving two `release/PINGO.apk`
+ * files - a fresh one and a stale one - and no way to tell them apart from the
+ * path alone. One of them got uploaded to R2 by hand.
+ */
+const asset = `../../.tools/release/PINGO.apk`;
 
 /*
  * The env has to reach Gradle, and the JDK is the portable one in `.tools`
@@ -127,16 +135,41 @@ if (!existsSync(apk)) {
   process.exit(1);
 }
 
-mkdirSync('.tools/release', { recursive: true });
+mkdirSync('../../.tools/release', { recursive: true });
 copyFileSync(apk, asset);
 
 const size = (readFileSync(asset).length / 1048576).toFixed(2);
 console.log(`\n▸ publishing ${tag} (${size} MB)`);
 
 /*
- * `--latest` is what makes the website's link keep working. It points at
- * `/releases/latest/download/`, so publishing marks this build current and the
- * download page needs no edit.
+ * R2 is what the download button actually reads.
+ *
+ * The website points at the pingo-download Worker, which serves one object -
+ * `PINGO.apk` in the `pingo` bucket. GitHub keeps the history and the release
+ * notes; nobody downloads from it. A release that stops after `gh release
+ * create` looks completely successful and ships nothing: the tag is there, the
+ * asset is there, and the button still hands out the previous build.
+ *
+ * Uploaded before the tag is cut, so a failure here fails the release rather
+ * than leaving a published tag nobody is being served.
+ */
+run('npx', [
+  'wrangler',
+  'r2',
+  'object',
+  'put',
+  'pingo/PINGO.apk',
+  '--file',
+  asset,
+  '--content-type',
+  'application/vnd.android.package-archive',
+  '--remote',
+], { shell: true });
+
+/*
+ * GitHub keeps every version and the generated notes. `--latest` costs nothing
+ * and keeps `/releases/latest/download/PINGO.apk` pointing at this build for
+ * anything still linking there.
  */
 run(GH, [
   'release',
