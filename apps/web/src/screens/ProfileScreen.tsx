@@ -671,74 +671,72 @@ export function ProfileScreen() {
           </div>
 
           {/*
-            The achievement, at the size it was drawn.
+            One achievements section, not a badge and then a link to it.
 
-            Shown only to somebody who has it: an empty trophy case on every
-            profile in the product would make the badge look like a slot nobody
-            fills rather than something rare. The owner's own route into the
-            mission lives on their own profile below, which is where somebody
-            goes looking for "how do I get that".
+            The art used to stand alone under the bio and the row that names it
+            came *after* the stats - so the same fact appeared three times on one
+            screen: a mark beside the name, a large badge floating in whitespace,
+            and a line of text underneath saying "FOUNDER". Three appearances
+            read as three different things, and the big one read as pasted on,
+            because nothing around it explained what it was.
+
+            Here it is one block that says what it is and holds the thing it is
+            about. The mark beside the name stays - that one is identity, the way
+            a verified tick is - and this is the collection it comes from.
+
+            A rule above it, because this is where the page stops being about who
+            they are and starts being about what is on it. It is the only divider
+            on the profile and it is doing the work a card used to do badly.
           */}
           {achievements.lead(person.id) && (
-            /*
-              The achievement standing in the page on its own.
-
-              No plate, no border, no panel. A card around this turned it into a
-              product tile - the visual language of a landing page, on the
-              profile of a private messenger. What somebody earned belongs here
-              the way their bio does: part of who they are, not a section about
-              them.
-
-              Whichever achievement leads, not a named one. The day there is a
-              second rare badge this draws it without being touched.
-            */
-            <div className="mt-6 flex flex-col items-center gap-2">
-              <AchievementArt
-                achievement={achievements.lead(person.id)!}
-                size="medium"
-                aura={preferences.mythic.aura}
+            <div className="mt-6 w-full max-w-xs border-t border-line/60 pt-5">
+              <SectionHead
+                label="Achievements"
+                {...(isSelf
+                  ? {
+                      to: achievements.isMythic(person.id)
+                        ? '/profile/achievements'
+                        : '/profile/mission',
+                    }
+                  : {})}
               />
-              <p className="text-body font-semibold tracking-[0.14em] text-ink">
-                {achievements.lead(person.id)!.title}
-              </p>
+
+              {/*
+                Hero and label side by side, at the size the art was drawn.
+
+                Centred and alone it was decoration. Beside its own name it is an
+                entry in a collection, which is what it always was.
+              */}
+              <div className="mt-3 flex items-center gap-4">
+                <AchievementArt
+                  achievement={achievements.lead(person.id)!}
+                  size="medium"
+                  aura={preferences.mythic.aura}
+                />
+                <div className="min-w-0">
+                  <p className="text-body font-semibold tracking-[0.12em] text-ink">
+                    {achievements.lead(person.id)!.title}
+                  </p>
+                  <p className="mt-0.5 text-caption text-text-secondary">
+                    {achievements.isMythic(person.id) ? 'Mythic' : 'Earned'} on PINGO
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
           {/*
-            Your own collection, and your own way to the mission.
+            Nothing earned yet, and only your own profile says so.
 
-            One row, named and nothing else - no requirement, no count, no
-            invitation. Everything about how a badge is earned lives on the
-            mission screen. A profile is not where somebody is sold a thing to
-            go and do.
+            Somebody else's empty case is a comment on them. Your own is the way
+            to the mission, which is the one place that explains how a badge is
+            earned.
           */}
-          {isSelf && (
-            <Link
-              to={achievements.isMythic(person.id) ? '/profile/achievements' : '/profile/mission'}
-              className="focus-ring mt-6 flex w-full max-w-xs items-center gap-3 rounded-lg p-3 text-left"
-            >
-              {achievements.lead(person.id) ? (
-                <AchievementArt
-                  achievement={achievements.lead(person.id)!}
-                  size="small"
-                  className="size-9"
-                />
-              ) : (
-                <span
-                  aria-hidden
-                  className="grid size-9 place-items-center rounded-full bg-hover text-caption font-semibold tracking-widest text-text-tertiary"
-                >
-                  ???
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block text-body font-medium text-ink">Achievements</span>
-                <span className="block text-caption text-text-secondary">
-                  {achievements.lead(person.id)?.title ?? 'Nothing earned yet'}
-                </span>
-              </span>
-              <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
-            </Link>
+          {isSelf && !achievements.lead(person.id) && (
+            <div className="mt-6 w-full max-w-xs border-t border-line/60 pt-5">
+              <SectionHead label="Achievements" to="/profile/mission" />
+              <p className="mt-2 text-caption text-text-secondary">Nothing earned yet</p>
+            </div>
           )}
 
           {/* Stats sit in the hero stack, not a separate band. */}
@@ -750,7 +748,12 @@ export function ProfileScreen() {
             the same thing, and this product does not have followers. So the
             numbers stay numbers on anybody else's page.
           */}
-          <dl className="mt-4 grid w-full max-w-xs grid-cols-3">
+          {/*
+            Same width as the sections above and below it, which is the whole
+            reason the numbers stopped looking like they were floating: they
+            were the only thing on the page not lining up with anything.
+          */}
+          <dl className="mt-6 grid w-full max-w-xs grid-cols-3">
             <Stat label="Posts" value={stats?.posts} />
             <Stat
               label="Friends"
@@ -793,31 +796,24 @@ export function ProfileScreen() {
           {/*
             Journey, and only on your own profile.
 
-            A collection is something you keep, not something you show — putting
+            A collection is something you keep, not something you show - putting
             it on other people's profiles would turn badges into a rank visible
             to strangers, which is a different product from the one the sheet was
-            drawn for. It sits under the actions rather than beside them because
-            it is somewhere to go, not something to do.
+            drawn for.
+
+            A row rather than a card, matching Achievements exactly. It was the
+            only bordered panel on the page, and one card among plain sections
+            does not read as important - it reads as a dashboard widget that
+            wandered into a private messenger. Two sections in one visual system
+            say more than one of them shouting.
           */}
           {isSelf ? (
-            <button
-              type="button"
-              onClick={() => navigate('/profile/journey')}
-              className={cn(
-                'mt-3 flex w-full max-w-xs items-center justify-between gap-3',
-                'rounded-xl border border-line/60 bg-surface/90 px-4 py-3 text-left',
-                'transition-transform duration-instant ease-standard',
-                'active:scale-[0.98] motion-reduce:active:scale-100',
-              )}
-            >
-              <span className="min-w-0">
-                <span className="block text-body font-medium">Journey</span>
-                <span className="block truncate text-caption text-text-secondary">
-                  Badges you have earned
-                </span>
-              </span>
-              <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
-            </button>
+            <div className="mt-6 w-full max-w-xs border-t border-line/60 pt-5">
+              <SectionHead label="Journey" to="/profile/journey" />
+              <p className="mt-1 text-caption text-text-secondary">
+                Badges you have earned, and what is next
+              </p>
+            </div>
           ) : null}
 
           {!isSelf ? (
@@ -1143,6 +1139,40 @@ export function ProfileScreen() {
  * while the pair still reads as one definition - "Posts, 3" - to a screen
  * reader, which walks the list in document order within each group.
  */
+/**
+ * The one heading style the lower half of a profile uses.
+ *
+ * There were three before this: a badge with a caption under it, a bordered
+ * card with a chevron, and a row with an icon - three visual systems for three
+ * sections that are the same kind of thing. Nothing was wrong with any of them
+ * individually, and together they made the page look assembled rather than
+ * designed.
+ *
+ * A `Link` when there is somewhere to go, a plain heading when there is not -
+ * somebody else's achievements are a fact about them, not a door.
+ */
+function SectionHead({ label, to }: { label: string; to?: string }) {
+  const inside = (
+    <>
+      <span className="text-body font-medium text-ink">{label}</span>
+      {to ? <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" /> : null}
+    </>
+  );
+
+  if (!to) {
+    return <div className="flex items-center justify-between gap-3">{inside}</div>;
+  }
+
+  return (
+    <Link
+      to={to}
+      className="focus-ring -m-1 flex items-center justify-between gap-3 rounded-lg p-1"
+    >
+      {inside}
+    </Link>
+  );
+}
+
 function Stat({
   label,
   value,
