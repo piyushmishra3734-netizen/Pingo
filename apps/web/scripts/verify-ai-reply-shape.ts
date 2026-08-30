@@ -479,6 +479,30 @@ assert.match(
 );
 
 /*
+ * The empty acknowledgement, which is the one failure that costs the user real
+ * work. "Gotchu - aage kya?", "Hmm, continue", "bol main sun raha hoon" are
+ * short, well-mannered, correctly mirrored and carry nothing - so the person
+ * mid-way through explaining something has to say all of it again. Asserted
+ * because it is not a style preference: it is the reply shape that makes
+ * somebody stop using the thing.
+ */
+assert.match(
+  character,
+  /your reply must contain something of what they told you/i,
+  'a reply to something said has to hold some of it',
+);
+assert.match(
+  character,
+  /Never hand the turn back empty/i,
+  'and the filler shapes are named so they can be recognised',
+);
+assert.match(
+  character,
+  /Never ask for something they already said/i,
+  'context in the thread is not re-requested',
+);
+
+/*
  * The chaos has a ceiling, and the ceiling is the feature. "Be funny and a bit
  * chaotic" with no limit is how a character becomes a tax: every answer wrapped
  * in three jokes and a tangent until asking costs more than it returns.
