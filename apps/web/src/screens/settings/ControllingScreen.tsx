@@ -17,6 +17,13 @@ import {
   uploadAppSplash,
   uploadOnboardingSlide,
 } from '../../lib/supabase/onboarding-slides.js';
+import {
+  clearUpdateNotice,
+  loadUpdateNotice,
+  updateNoticeUrl,
+  uploadUpdateNotice,
+  type UpdateNoticeRow,
+} from '../../lib/supabase/update-notice.js';
 
 /**
  * Operator-only: upload original-quality splash + intro art (PC + mobile).
@@ -32,6 +39,8 @@ export function ControllingScreen() {
 
   const [rows, setRows] = useState<OnboardingSlideRow[]>([]);
   const [splashRows, setSplashRows] = useState<AppSplashRow[]>([]);
+  const [notice, setNotice] = useState<UpdateNoticeRow | null>(null);
+  const [minBuild, setMinBuild] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -50,12 +59,15 @@ export function ControllingScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      const [slides, splash] = await Promise.all([
+      const [slides, splash, update] = await Promise.all([
         listOnboardingSlideRows(),
         listAppSplashRows(),
+        loadUpdateNotice(),
       ]);
       setRows(slides);
       setSplashRows(splash);
+      setNotice(update);
+      setMinBuild(update ? String(update.min_build) : '');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load assets');
     }
@@ -104,6 +116,37 @@ export function ControllingScreen() {
     }
   };
 
+  const onPickNotice = async (file: File | null) => {
+    if (!file) return;
+    setBusy('notice');
+    setError(null);
+    setOk(null);
+    try {
+      await uploadUpdateNotice(file, Number.parseInt(minBuild, 10));
+      await refresh();
+      setOk('Update card published — anyone on an older build sees it next open.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onClearNotice = async () => {
+    setBusy('notice');
+    setError(null);
+    setOk(null);
+    try {
+      await clearUpdateNotice();
+      await refresh();
+      setOk('Update card taken down.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not take it down');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col bg-page">
       <ScreenHeader title="Controlling" showBack />
@@ -138,6 +181,80 @@ export function ControllingScreen() {
         ) : null}
 
         <MissionControl />
+
+        {/* Update card */}
+        <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
+          <h2 className="mb-1 text-body font-semibold text-ink">Update card</h2>
+          <p className="mb-3 text-caption text-text-secondary">
+            Shown on launch to installed apps below the build number you set, and
+            to nobody else. It has a cross, but closing it only lasts that launch —
+            it comes back every open until they install the new APK.
+          </p>
+
+          <label className="mb-3 block">
+            <span className="text-caption font-medium text-text-secondary">
+              Show to builds below
+            </span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={minBuild}
+              onChange={(e) => setMinBuild(e.target.value)}
+              placeholder="2603501"
+              className="mt-1 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+            />
+            <span className="mt-1 block text-[11px] text-text-tertiary">
+              versionCode of the build you just shipped — YYWWBB, so 2.26.35.1 is
+              2603501. Everyone under it is behind.
+            </span>
+          </label>
+
+          <div className="mb-2 overflow-hidden rounded bg-page">
+            {notice ? (
+              <img
+                src={updateNoticeUrl(notice)}
+                alt=""
+                className="max-h-56 w-full object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.opacity = '0.25';
+                }}
+              />
+            ) : (
+              <p className="px-3 py-6 text-center text-caption text-text-tertiary">
+                No card published
+              </p>
+            )}
+          </div>
+
+          <span className="mb-2 block text-[11px] text-text-tertiary">
+            {notice
+              ? `Live for builds under ${notice.min_build} · ${new Date(notice.updated_at).toLocaleString()}`
+              : 'Nobody is being shown anything'}
+          </span>
+
+          <input
+            type="file"
+            accept="image/*"
+            className="text-caption file:mr-2 file:rounded-md file:border-0 file:bg-brand/15 file:px-2 file:py-1 file:text-caption file:font-medium file:text-brand"
+            disabled={busy === 'notice' || !minBuild.trim()}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              e.target.value = '';
+              void onPickNotice(f);
+            }}
+          />
+          {notice ? (
+            <Button
+              variant="text"
+              size="sm"
+              className="mt-2"
+              disabled={busy === 'notice'}
+              onClick={() => void onClearNotice()}
+            >
+              Take it down
+            </Button>
+          ) : null}
+        </section>
 
         {/* Splash */}
         <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">

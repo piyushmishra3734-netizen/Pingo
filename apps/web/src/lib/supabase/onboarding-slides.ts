@@ -22,7 +22,7 @@ export interface OnboardingSlideRow {
   updated_at: string;
 }
 
-function publicObjectUrl(path: string, updatedAt?: string): string {
+export function publicObjectUrl(path: string, updatedAt?: string): string {
   const client = getSupabaseClient();
   const { data } = client.storage.from(ONBOARDING_BUCKET).getPublicUrl(path);
   const base = data.publicUrl;
@@ -119,7 +119,7 @@ export async function listOnboardingSlideRows(): Promise<OnboardingSlideRow[]> {
   return (data ?? []) as OnboardingSlideRow[];
 }
 
-function extensionFor(file: File): string {
+export function extensionFor(file: File): string {
   const fromName = file.name.split('.').pop()?.toLowerCase();
   if (fromName && /^[a-z0-9]{2,5}$/.test(fromName)) return fromName;
   const map: Record<string, string> = {

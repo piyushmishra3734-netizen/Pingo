@@ -16,6 +16,7 @@ import { NotificationProvider } from './features/notifications/NotificationConte
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
+import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
 import { StickerProvider } from './features/stickers/StickerContext.js';
 import { StoryProvider } from './features/stories/StoryContext.js';
@@ -275,6 +276,12 @@ export function App() {
       question.
     */}
     <ConfirmProvider>
+    {/*
+      Outside auth, because being behind on builds has nothing to do with being
+      signed in - and somebody logged out on an old APK is exactly who needs
+      telling.
+    */}
+    <UpdateNotice />
     <AuthProvider
       service={services.auth}
       /*

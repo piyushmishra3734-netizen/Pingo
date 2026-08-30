@@ -267,6 +267,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      update_notice: {
+        Row: {
+          // Always true - the primary key that keeps this table to one row.
+          id: boolean;
+          storage_path: string;
+          content_type: string | null;
+          min_build: number;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          storage_path: string;
+          content_type?: string | null;
+          min_build: number;
+          updated_at?: string;
+        };
+        Update: {
+          storage_path?: string;
+          content_type?: string | null;
+          min_build?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       app_splash: {
         Row: {
           variant: 'desktop' | 'mobile';
