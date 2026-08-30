@@ -91,13 +91,30 @@ const PLATFORMS: PlatformCard[] = [
     method: 'A real installable app: its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
     requirements: 'Android 7 or newer. Allow install from unknown sources once.',
   },
+  /*
+   * Available, and by a different road, because Apple does not have the one
+   * Android has.
+   *
+   * There is no iPhone equivalent of downloading an APK: no sideloading, no
+   * link that installs an app. The App Store is the only route to a normal
+   * user, and TestFlight the only route before that - both behind a developer
+   * account and a review.
+   *
+   * Add to Home Screen is not a consolation prize here. PINGO is already a
+   * progressive web app, so an installed icon opens full screen with no browser
+   * bar, keeps its own storage, and takes push notifications on iOS 16.4 and up
+   * - which only work once it *is* installed. Saying "in development" while
+   * that works today was the card lying to the only people it was for.
+   */
   {
     key: 'ios',
     name: 'iPhone & iPad',
     logo: 'ios',
-    status: 'soon',
-    method: 'A real App Store app, downloaded and installed like any other.',
-    requirements: 'iOS or iPadOS 15 or newer.',
+    status: 'available',
+    method:
+      'Open pingo.chat in Safari, then Share → Add to Home Screen. It opens full screen with its own icon, like any other app.',
+    requirements:
+      'iOS or iPadOS 16.4 or newer for notifications. Safari — Chrome on iPhone cannot install it.',
   },
   {
     key: 'windows',
