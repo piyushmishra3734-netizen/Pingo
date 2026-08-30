@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useT } from '../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
+import { ProfileCover } from '../features/profile/ProfileCover.js';
 
 /**
  * Editing your own profile: photo, name, username, bio.
@@ -65,6 +66,22 @@ export function EditProfileScreen() {
     setUsername(profile.username);
     setBio(profile.bio ?? '');
   }, [profile]);
+
+  /*
+   * The cover is staged like the photo: nothing is uploaded until Save. Backing
+   * out of this screen has to leave the profile exactly as it was, and a cover
+   * that uploaded on pick would already have changed it.
+   */
+  const coverRef = useRef<HTMLInputElement>(null);
+  const [cover, setCover] = useState<File>();
+  const [coverOffset, setCoverOffset] = useState<number>();
+
+  const coverPreview = cover ? URL.createObjectURL(cover) : undefined;
+  useEffect(() => {
+    return () => {
+      if (coverPreview) URL.revokeObjectURL(coverPreview);
+    };
+  }, [coverPreview]);
 
   const preview = photo ? URL.createObjectURL(photo) : undefined;
   useEffect(() => {
@@ -137,10 +154,15 @@ export function EditProfileScreen() {
       if (removePhoto) avatarUrl = null;
       else if (photo) avatarUrl = await service.uploadAvatar(photo);
 
+      let bannerUrl: string | undefined;
+      if (cover) bannerUrl = await service.uploadCover(cover);
+
       await update({
         displayName: displayName.trim(),
         username: handle,
         bio,
+        ...(bannerUrl ? { bannerUrl } : {}),
+        ...(coverOffset === undefined ? {} : { bannerOffset: coverOffset }),
         // Only sent when it actually changed, so an unrelated save cannot clear
         // a photo that was uploaded from another device in the meantime.
         ...(avatarUrl === undefined ? {} : { avatarUrl: avatarUrl ?? undefined }),
@@ -191,8 +213,33 @@ export function EditProfileScreen() {
       <ScreenHeader title={t('profile.editTitle')} showBack />
 
       <div className="mx-auto w-full max-w-md px-5 pb-12">
+        {/* ---- cover ---------------------------------------------------- */}
+        <ProfileCover
+          src={coverPreview ?? profile.bannerUrl}
+          offset={coverOffset ?? profile.bannerOffset}
+          editable
+          onPick={() => coverRef.current?.click()}
+          onOffsetChange={setCoverOffset}
+        />
+        <input
+          ref={coverRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) {
+              setCover(file);
+              // A new picture starts centred; the old number described the old
+              // photo and means nothing about this one.
+              setCoverOffset(50);
+            }
+          }}
+        />
+
         {/* ---- photo ---------------------------------------------------- */}
-        <div className="flex flex-col items-center pt-6">
+        <div className="-mt-10 flex flex-col items-center pt-6">
           <span className="rounded-full ring-[5px] ring-surface shadow-md">
             <Avatar
               name={displayName || profile.displayName}

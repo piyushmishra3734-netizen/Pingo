@@ -6,6 +6,9 @@ export type AiPublicIdentity = {
   displayName: string;
   avatarUrl?: string;
   bio?: string;
+  /** Cover behind the face, and where it sits vertically (0-100). */
+  bannerUrl?: string;
+  bannerOffset: number;
 };
 
 /** Shared face every user sees for PINGO AI (owner-set defaults). */
@@ -20,6 +23,8 @@ export async function fetchAiPublicIdentity(): Promise<AiPublicIdentity | undefi
     display_name: string;
     avatar_url: string | null;
     bio: string | null;
+    banner_url: string | null;
+    banner_offset: number | null;
   };
   return {
     id: r.id,
@@ -27,6 +32,8 @@ export async function fetchAiPublicIdentity(): Promise<AiPublicIdentity | undefi
     displayName: r.display_name || 'PINGO',
     ...(r.avatar_url ? { avatarUrl: r.avatar_url } : {}),
     ...(r.bio ? { bio: r.bio } : {}),
+    ...(r.banner_url ? { bannerUrl: r.banner_url } : {}),
+    bannerOffset: r.banner_offset ?? 50,
   };
 }
 

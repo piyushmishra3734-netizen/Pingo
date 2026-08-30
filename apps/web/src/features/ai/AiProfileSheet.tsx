@@ -87,7 +87,9 @@ export function AiProfileSheet({
 
   const faceName = prefs.display_name?.trim() || pub?.displayName || 'PINGO';
   const faceSrc = prefs.avatar_url || pub?.avatarUrl;
-  const bannerSrc = prefs.banner_url ?? undefined;
+  // Same fallback as the face: their own if they set one, the shared one if not.
+  const bannerSrc = prefs.banner_url ?? pub?.bannerUrl;
+  const bannerOffset = prefs.banner_url ? 50 : (pub?.bannerOffset ?? 50);
   const faceBio =
     prefs.bio?.trim() ||
     pub?.bio?.trim() ||
@@ -120,16 +122,27 @@ export function AiProfileSheet({
       const { data } = client.storage.from('avatars').getPublicUrl(path);
       const url = data.publicUrl;
 
-      if (kind === 'avatar' && owner) {
+      /*
+       * The operator is not editing their own copy - they are editing the one
+       * everybody gets. Writing the personal row as well is what made this look
+       * broken from the inside: the change landed globally *and* locally, the
+       * local one shadowed it, and the only account that could not tell the
+       * difference was the one making the change.
+       *
+       * So for the owner it is the shared face and nothing else. Every other
+       * account writes only its own row, which is the whole point of having one.
+       */
+      if (owner) {
         const { error: rpcError } = await client.rpc('update_ai_public_identity', {
-          new_avatar_url: url,
+          ...(kind === 'avatar' ? { new_avatar_url: url } : { new_banner_url: url }),
         });
         if (rpcError) throw rpcError;
-        setPub((p) => (p ? { ...p, avatarUrl: url } : p));
+        setPub((p) =>
+          p ? { ...p, ...(kind === 'avatar' ? { avatarUrl: url } : { bannerUrl: url }) } : p,
+        );
+      } else {
+        await savePrefs(kind === 'avatar' ? { avatar_url: url } : { banner_url: url });
       }
-
-      const patch = kind === 'avatar' ? { avatar_url: url } : { banner_url: url };
-      await savePrefs(patch);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -158,7 +171,13 @@ export function AiProfileSheet({
         .from('ai_profiles')
         .upsert({
           user_id: profile.id,
-          display_name: (next.display_name ?? faceName).trim() || 'PINGO',
+          /*
+           * `faceName` is the *resolved* name - their override or the shared
+           * one. Writing it back turned "I never chose a name" into "I chose
+           * exactly the name it had that day", one save at a time, and the AI
+           * could never be renamed for anybody again.
+           */
+          display_name: next.display_name?.trim() || null,
           bio: next.bio?.trim() ? next.bio.trim().slice(0, 160) : null,
           personality: next.personality ?? 'friendly',
           custom_personality:
@@ -306,7 +325,13 @@ export function AiProfileSheet({
               <img
                 src={bannerSrc}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center"
+                className="absolute inset-0 h-full w-full object-cover"
+                /*
+                 * Where the crop sits, not always the middle. A cover is a wide
+                 * band taken out of a photo that was almost never wide, and the
+                 * middle of a portrait is a chin.
+                 */
+                style={{ objectPosition: `50% ${bannerOffset}%` }}
                 draggable={false}
               />
             ) : (

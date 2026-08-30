@@ -68,6 +68,8 @@ function toProfile(row: ProfileRow): Profile {
     // Empty and null both mean "not set", and only one of them should reach the
     // UI - otherwise an empty string renders as a bio-shaped gap.
     bio: row.bio?.trim() ? row.bio : undefined,
+    ...(row.banner_url ? { bannerUrl: row.banner_url } : {}),
+    bannerOffset: row.banner_offset ?? 50,
     createdAt: Date.parse(row.created_at),
   };
 }
@@ -315,6 +317,12 @@ export class SupabaseProfileService implements ProfileService {
     }
     if ('avatarUrl' in changes) patch.avatar_url = changes.avatarUrl ?? null;
     if ('bio' in changes) patch.bio = changes.bio?.trim() || null;
+    if ('bannerUrl' in changes) patch.banner_url = changes.bannerUrl ?? null;
+    if ('bannerOffset' in changes && changes.bannerOffset !== undefined) {
+      // Clamped here as well as in the check constraint: a drag that overshoots
+      // should land at the edge, not come back as a failed save.
+      patch.banner_offset = Math.max(0, Math.min(100, Math.round(changes.bannerOffset)));
+    }
 
     const { data, error } = await this.client
       .from('profiles')
@@ -377,6 +385,39 @@ export class SupabaseProfileService implements ProfileService {
      * the user is actually waiting on.
      */
     void this.#deleteOwnStorageObject(previous.data?.avatar_url ?? undefined, userId);
+
+    const { data } = this.client.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  /**
+   * The cover, into the same bucket and under the same folder rule.
+   *
+   * Not `uploadAvatar` with a different name: that one exists to replace
+   * `avatar_url`, and the orphan sweep it does would delete the face when
+   * somebody changed their cover. The two are the same three calls otherwise,
+   * and they read the same, but they clean up different columns - which is the
+   * one thing that must not be shared between them.
+   */
+  async uploadCover(file: Blob): Promise<string> {
+    const userId = await this.requireUserId();
+
+    const previous = await this.client
+      .from('profiles')
+      .select('banner_url')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const path = `${userId}/cover-${Date.now()}`;
+
+    const { error } = await this.client.storage.from(AVATAR_BUCKET).upload(path, file, {
+      upsert: true,
+      contentType: file.type || 'image/jpeg',
+      cacheControl: IMMUTABLE_CACHE_SECONDS,
+    });
+    if (error) rethrow(error);
+
+    void this.#deleteOwnStorageObject(previous.data?.banner_url ?? undefined, userId);
 
     const { data } = this.client.storage.from(AVATAR_BUCKET).getPublicUrl(path);
     return data.publicUrl;

@@ -94,8 +94,21 @@ export function AiOnboardingSheet({
         custom_personality: personality === 'custom' ? custom.trim() || null : null,
         response_length: 'short',
         memory_enabled: true,
-        display_name: pub?.displayName ?? 'PINGO',
-        avatar_url: pub?.avatarUrl ?? null,
+        /*
+         * Deliberately not seeded from `pub`.
+         *
+         * These two columns mean "this user chose something other than the
+         * shared face". Copying the current shared values into them at signup
+         * made every account permanently disagree with the face it was copied
+         * from: the personal row wins, so the operator could change the AI's
+         * picture and nobody who had already onboarded would ever see it. Nine
+         * accounts were holding two URLs between them, which is what a copy
+         * looks like and not what a preference does.
+         *
+         * Left null. Null is how a row says "whatever the shared one is".
+         */
+        display_name: null,
+        avatar_url: null,
         onboarded_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

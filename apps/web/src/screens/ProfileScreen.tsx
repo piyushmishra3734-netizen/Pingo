@@ -54,6 +54,7 @@ import {
 import { PostViewer } from '../features/profile/PostViewer.js';
 import { MyProfileMenu, PersonMenu } from '../features/profile/ProfileMenus.js';
 import { ProfileAvatar } from '../features/profile/ProfileAvatar.js';
+import { ProfileCover } from '../features/profile/ProfileCover.js';
 import { ReplacePostSheet } from '../features/profile/ReplacePostSheet.js';
 import { ReportSheet } from '../features/profile/ReportSheet.js';
 import { Sheet, SheetCancel } from '../components/Sheet.js';
@@ -438,6 +439,25 @@ export function ProfileScreen() {
     setAvatarEditorSrc(undefined);
   };
 
+  const coverFileRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * The cover goes into the same bucket as every other face, unshrunk.
+   *
+   * `uploadAvatar` puts a square through `encodeAvatar` at avatar pixels, which
+   * is exactly wrong for a band four times wider than it is tall - it would
+   * arrive soft. `uploadCover` is the same bucket and the same public URL, with
+   * the picture left at the size they chose.
+   */
+  const pickCover = async (file: File) => {
+    try {
+      const url = await profiles.uploadCover(file);
+      await updateMine({ bannerUrl: url });
+    } catch {
+      // Nothing saved; the old cover is still there.
+    }
+  };
+
   const saveAvatarCrop = async (file: File) => {
     try {
       const url = await profiles.uploadAvatar(file);
@@ -510,7 +530,32 @@ export function ProfileScreen() {
           Hero as one composition: avatar → name → handle/bio → stats → actions.
           8pt rhythm (8 / 16 / 24 / 32) keeps the identity block unified.
         */}
-        <div className={cn('flex flex-col items-center', isSelf ? 'pt-6' : 'pt-5')}>
+        <ProfileCover
+          src={person.bannerUrl}
+          offset={person.bannerOffset}
+          editable={isSelf}
+          onPick={() => coverFileRef.current?.click()}
+          onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
+        />
+
+        <input
+          ref={coverFileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void pickCover(file);
+          }}
+        />
+
+        {/*
+          Pulled up over the band, the way every profile does it. The negative
+          margin is on the identity block rather than the avatar so the name and
+          everything under it rise with it and the 8pt rhythm survives.
+        */}
+        <div className={cn('-mt-12 flex flex-col items-center', isSelf ? 'pt-6' : 'pt-5')}>
           <ProfileAvatar
             name={person.displayName}
             id={person.id}

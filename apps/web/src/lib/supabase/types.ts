@@ -33,6 +33,10 @@ export type ProfileRow = {
   avatar_url: string | null;
   /** Free text, up to 200 characters. Null and empty both mean "not set". */
   bio: string | null;
+  /** Wide cover behind the face. Null means the gradient. */
+  banner_url: string | null;
+  /** Vertical percent of the cover to centre on. 50 unless they moved it. */
+  banner_offset: number;
   created_at: string;
   updated_at: string;
 };
@@ -222,7 +226,8 @@ export type RevokedDeviceRow = {
 /** Per-user prefs for the AI person in Chats. */
 export type AiProfileRow = {
   user_id: string;
-  display_name: string;
+  /** Their own name for it, or null to use the shared one. */
+  display_name: string | null;
   avatar_url: string | null;
   /** Full-bleed cover behind the face on the AI profile card. */
   banner_url: string | null;
@@ -653,6 +658,8 @@ export type Database = {
           display_name?: string;
           avatar_url?: string | null;
           bio?: string | null;
+          banner_url?: string | null;
+          banner_offset?: number;
         };
         Relationships: [];
       };
@@ -1093,6 +1100,8 @@ export type Database = {
           display_name: string;
           avatar_url: string | null;
           bio: string | null;
+          banner_url: string | null;
+          banner_offset: number | null;
         };
       };
       update_ai_public_identity: {
@@ -1100,6 +1109,8 @@ export type Database = {
           new_display_name?: string | null;
           new_bio?: string | null;
           new_avatar_url?: string | null;
+          new_banner_url?: string | null;
+          new_banner_offset?: number | null;
         };
         Returns: undefined;
       };

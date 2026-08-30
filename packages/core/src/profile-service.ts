@@ -30,6 +30,21 @@ export interface Profile {
    * screen that renders it decides what a link or a mention looks like.
    */
   bio?: string;
+  /**
+   * The wide band behind the face. Absent means the gradient, which is a real
+   * default and not a gap - the same way an absent avatar means the monogram.
+   */
+  bannerUrl?: string;
+  /**
+   * Which part of that band to show, as a vertical percent. 50 is centred.
+   *
+   * A cover is a wide crop of a photo that was almost never wide, so the part
+   * worth seeing is rarely in the middle - centre a portrait and you frame a
+   * chin. One number is enough, it is what `object-position` already takes, and
+   * it costs no second image: repositioning is a drag and a save, not a
+   * re-upload.
+   */
+  bannerOffset: number;
   createdAt: number;
 }
 
@@ -39,6 +54,8 @@ export interface ProfileDraft {
   displayName: string;
   avatarUrl?: string;
   bio?: string;
+  bannerUrl?: string;
+  bannerOffset?: number;
 }
 
 export type ProfileErrorCode =
@@ -255,6 +272,12 @@ export interface ProfileService {
 
   /** Stores the image and returns its URL. Does not attach it to the profile. */
   uploadAvatar(file: Blob): Promise<string>;
+
+  /**
+   * Stores a cover and returns its public URL. Setting it is a separate
+   * `update({ bannerUrl })`, the same way an avatar works.
+   */
+  uploadCover(file: Blob): Promise<string>;
 
   /*
    * `listRecentPeople` was here: everybody else on PINGO, newest first. It fed
