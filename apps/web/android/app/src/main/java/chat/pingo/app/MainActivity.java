@@ -12,6 +12,7 @@ import android.util.Base64;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
 import android.webkit.WebView;
 
 import androidx.core.app.ActivityCompat;
@@ -107,6 +108,7 @@ public class MainActivity extends BridgeActivity {
          * share control hides itself on the one platform that needs it.
          */
         registerPlugin(ScreenCapturePlugin.class);
+        registerPlugin(VideoTranscodePlugin.class);
 
         super.onCreate(savedInstanceState);
 
@@ -166,6 +168,31 @@ public class MainActivity extends BridgeActivity {
          * everything else defers to the class that already does it.
          */
         webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
+            /*
+             * Watched on the way past, not intercepted.
+             *
+             * Capacitor's implementation is what actually opens the chooser and
+             * answers the page; this only wraps the callback so the chosen URIs
+             * are recorded before the page is told about them. The page gets a
+             * `File` with a name and a size and no URI, and the native side
+             * needs the URI to transcode a video - see PickedFiles.
+             */
+            @Override
+            public boolean onShowFileChooser(
+                WebView view,
+                ValueCallback<Uri[]> callback,
+                FileChooserParams params
+            ) {
+                return super.onShowFileChooser(view, (Uri[] uris) -> {
+                    try {
+                        PickedFiles.remember(MainActivity.this, uris);
+                    } catch (Exception ignored) {
+                        // Recording is a convenience. Never fail a pick for it.
+                    }
+                    callback.onReceiveValue(uris);
+                }, params);
+            }
+
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {

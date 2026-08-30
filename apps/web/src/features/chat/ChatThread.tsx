@@ -5,6 +5,7 @@ import {
   formatTypingLabel,
   useChat,
   useMessages,
+  useProfile,
   type CallKind,
   type Conversation,
   type Message,
@@ -82,6 +83,7 @@ import { ThreadSearchBar } from './ThreadSearchBar.js';
 import { SharedMediaSheet } from './SharedMediaSheet.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
+import { toStandardVideo } from '../native/video-transcode.js';
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -260,7 +262,21 @@ export function ChatThread({
   /** Pictures chosen but not yet sent - the composer owns them until then. */
   const [pending, setPending] = useState<File[]>();
   /** One chosen video, held while the sender decides where it starts and ends. */
+  const { profile: mine } = useProfile();
   const [trimming, setTrimming] = useState<File>();
+
+  /*
+   * 480p unless this account has premium and asked for HD.
+   *
+   * The same rule the photo path follows, and the same default: HD is the
+   * exception somebody chooses, not the setting they have to remember to turn
+   * off. On the web this is always the original - there is no encoder in the
+   * DOM - which `toStandardVideo` reports by handing the file straight back.
+   */
+  const standardVideo = useCallback(
+    async (file: File) => (mine?.isPremium ? file : await toStandardVideo(file)),
+    [mine?.isPremium],
+  );
   const documentRef = useRef<HTMLInputElement>(null);
   /** Which of the three small attach sheets is open, if any. */
   const [sheet, setSheet] = useState<'location' | 'contact' | 'event'>();
@@ -1935,11 +1951,13 @@ export function ChatThread({
             if (videos.length === 1 && videos[0]) setTrimming(videos[0]);
             else {
               for (const file of videos) {
-                void service.sendMessage({
-                  conversationId: conversation.id,
-                  body: '',
-                  document: { file },
-                });
+                void (async () => {
+                  await service.sendMessage({
+                    conversationId: conversation.id,
+                    body: '',
+                    document: { file: await standardVideo(file) },
+                  });
+                })();
               }
             }
 
@@ -2021,12 +2039,21 @@ export function ChatThread({
           file={trimming}
           onClose={() => setTrimming(undefined)}
           onSend={(videoEdit) => {
-            void service.sendMessage({
-              conversationId: conversation.id,
-              body: '',
-              document: { file: trimming },
-              ...(videoEdit ? { videoEdit } : {}),
-            });
+            void (async () => {
+              /*
+               * Converted after the trim marks are chosen, not before. The
+               * marks are timestamps into the same footage either way, and
+               * shrinking first would have somebody scrubbing a 480p preview
+               * of their own clip.
+               */
+              const file = await standardVideo(trimming);
+              await service.sendMessage({
+                conversationId: conversation.id,
+                body: '',
+                document: { file },
+                ...(videoEdit ? { videoEdit } : {}),
+              });
+            })();
             setTrimming(undefined);
           }}
         />
