@@ -186,9 +186,10 @@ export function ControllingScreen() {
         <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
           <h2 className="mb-1 text-body font-semibold text-ink">Update card</h2>
           <p className="mb-3 text-caption text-text-secondary">
-            Shown on launch to installed apps below the build number you set, and
-            to nobody else. It has a cross, but closing it only lasts that launch —
-            it comes back every open until they install the new APK.
+            Everyone sees this on launch — web included. Anyone on an installed
+            build below the number you set gets it back every open until they
+            install the new APK; everyone else can close it once and it is gone.
+            Publishing a new card shows it to everybody again.
           </p>
 
           <label className="mb-3 block">
@@ -200,12 +201,13 @@ export function ControllingScreen() {
               inputMode="numeric"
               value={minBuild}
               onChange={(e) => setMinBuild(e.target.value)}
-              placeholder="2603501"
+              placeholder="2603503"
               className="mt-1 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
             />
             <span className="mt-1 block text-[11px] text-text-tertiary">
-              versionCode of the build you just shipped — YYWWBB, so 2.26.35.1 is
-              2603501. Everyone under it is behind.
+              versionCode of the build you just shipped — YYWWBB, so 2.26.35.3 is
+              2603503. Everyone under it keeps being asked; everyone at or above
+              it, and the whole web, is just being told.
             </span>
           </label>
 
@@ -228,7 +230,7 @@ export function ControllingScreen() {
 
           <span className="mb-2 block text-[11px] text-text-tertiary">
             {notice
-              ? `Live for builds under ${notice.min_build} · ${new Date(notice.updated_at).toLocaleString()}`
+              ? `Nagging builds under ${notice.min_build} · ${new Date(notice.updated_at).toLocaleString()}`
               : 'Nobody is being shown anything'}
           </span>
 

@@ -12,10 +12,10 @@
  *
  * Run with `pnpm verify:update-notice`.
  */
-import { isBehind } from '../src/features/updates/is-behind.js';
+import { isBehind, shouldShow } from '../src/features/updates/notice-rules.js';
 
-/** The build shipped as 2.26.35.2 - YYWWBB, the scheme in build.gradle. */
-const SHIPPED = 2603502;
+/** The build shipped as 2.26.35.3 - YYWWBB, the scheme in build.gradle. */
+const SHIPPED = 2603503;
 
 let failures = 0;
 function check(what: string, got: boolean, want: boolean): void {
@@ -25,7 +25,7 @@ function check(what: string, got: boolean, want: boolean): void {
 }
 
 // The whole point: older sees it.
-check('an older build is behind', isBehind('2603501', SHIPPED), true);
+check('the previous build is behind', isBehind(String(SHIPPED - 1), SHIPPED), true);
 check('a much older build is behind', isBehind('2603402', SHIPPED), true);
 
 /*
@@ -33,8 +33,8 @@ check('a much older build is behind', isBehind('2603402', SHIPPED), true);
  * is the one being shipped *to* - the people already on it are done, and an
  * off-by-one here nags everybody who did what they were asked.
  */
-check('the named build is not behind', isBehind('2603502', SHIPPED), false);
-check('a newer build is not behind', isBehind('2603503', SHIPPED), false);
+check('the named build is not behind', isBehind(String(SHIPPED), SHIPPED), false);
+check('a newer build is not behind', isBehind(String(SHIPPED + 1), SHIPPED), false);
 
 /*
  * A platform that cannot state a version says nothing useful, and nothing
@@ -47,8 +47,30 @@ check('a missing version is left alone', isBehind(undefined, SHIPPED), false);
 check('an empty version is left alone', isBehind('', SHIPPED), false);
 check('a non-numeric version is left alone', isBehind('unknown', SHIPPED), false);
 
+/*
+ * The half that decides how long it stays. Two people see the same card and
+ * must get different answers: the one who can act on it keeps being asked, the
+ * one who cannot is told once.
+ */
+const PUBLISHED = '2026-08-30T12:00:00.000Z';
+
+check('someone behind sees it again after closing', shouldShow(true, PUBLISHED, PUBLISHED), true);
+check('a closed card stays closed when current', shouldShow(false, PUBLISHED, PUBLISHED), false);
+check('an unseen card shows when current', shouldShow(false, null, PUBLISHED), true);
+
+/*
+ * The reason the key is the timestamp and not a boolean: a new card has to
+ * reach the people who dismissed the last one, and it has to do that without
+ * anybody remembering to clear a flag when they publish.
+ */
+check(
+  'a newly published card returns',
+  shouldShow(false, '2026-08-01T00:00:00.000Z', PUBLISHED),
+  true,
+);
+
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed`);
   process.exit(1);
 }
-console.log(`✓ update notice targets only builds below ${SHIPPED}`);
+console.log(`✓ nagged below ${SHIPPED}, shown once at or above it`);

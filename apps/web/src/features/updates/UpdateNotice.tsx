@@ -1,23 +1,18 @@
 /**
- * "There is a newer PINGO than the one you are holding."
+ * The operator's card: "here is what is new", and for some people "go get it".
  *
- * The operator publishes an image and the build number it applies to, from
- * Settings → Controlling. Every device running an older build sees the image
- * on launch; every device already on the new build never fetches it.
+ * One image and one build number, published from Settings → Controlling. Who
+ * sees it and for how long depends entirely on whether the person looking can
+ * do anything about it — see `shouldShow` in `notice-rules.ts`, which is where
+ * that decision lives and where it is tested.
  *
- * ## Why the cross does not remember
- *
- * The whole point of this card is that it keeps coming back. A sideloaded APK
- * has no store behind it — nothing will ever update it on the user's behalf, so
- * a notice they can dismiss permanently is a notice they will dismiss once and
- * then stay a year behind. Closing it clears it for this launch only; the next
- * cold start shows it again, and it stops appearing the moment the build number
- * on the device catches up. Nothing is written down, which is also why there is
- * no state to migrate when a notice is replaced.
+ * Everyone gets the card: the web, and every installed build. Only somebody on
+ * an APK older than the published number gets it back after closing it, because
+ * only they have something left to do.
  *
  * Deliberately not re-shown on resume. Switching to another app and back is not
  * "opening PINGO" in the sense that matters, and a card that reappears every
- * time somebody checks a message in another app is one people learn to hate.
+ * time somebody checks a message elsewhere is one people learn to hate.
  */
 
 import { App } from '@capacitor/app';
@@ -29,29 +24,32 @@ import {
   updateNoticeUrl,
   type UpdateNoticeRow,
 } from '../../lib/supabase/update-notice.js';
-import { isBehind } from './is-behind.js';
+import { isBehind, shouldShow } from './notice-rules.js';
 
 export function UpdateNotice() {
   const [row, setRow] = useState<UpdateNoticeRow | null>(null);
+  const [behind, setBehind] = useState(false);
   const [closed, setClosed] = useState(false);
 
   useEffect(() => {
-    /*
-     * Native only. The web app is whatever Cloudflare served a moment ago, so
-     * a browser is current by definition and has nothing to be told.
-     */
-    if (!Capacitor.isNativePlatform()) return;
-
     let cancelled = false;
     void (async () => {
+      /*
+       * `getInfo` only exists in the native shell. In a browser there is no
+       * build number to be behind — the page is whatever Cloudflare served a
+       * moment ago — so the web is current by definition.
+       */
+      const native = Capacitor.isNativePlatform();
       const [info, notice] = await Promise.all([
-        App.getInfo().catch(() => null),
+        native ? App.getInfo().catch(() => null) : Promise.resolve(null),
         loadUpdateNotice(),
       ]);
-      if (cancelled || !notice || !info) return;
+      if (cancelled || !notice) return;
 
-      if (!isBehind(info.build, notice.min_build)) return;
+      const isOld = isBehind(info?.build, notice.min_build);
+      if (!shouldShow(isOld, readSeen(), notice.updated_at)) return;
 
+      setBehind(isOld);
       setRow(notice);
     })();
 
@@ -59,6 +57,16 @@ export function UpdateNotice() {
       cancelled = true;
     };
   }, []);
+
+  const close = () => {
+    setClosed(true);
+    /*
+     * Only recorded for people with nothing to do about it. Writing this for
+     * somebody on an old build would turn the one card that has to keep asking
+     * into one they can silence in a tap.
+     */
+    if (!behind) writeSeen(row?.updated_at);
+  };
 
   if (!row || closed) return null;
 
@@ -83,7 +91,7 @@ export function UpdateNotice() {
         />
         <button
           type="button"
-          onClick={() => setClosed(true)}
+          onClick={close}
           aria-label="Close"
           className="absolute -right-2 -top-2 grid h-9 w-9 place-items-center rounded-full bg-surface text-ink shadow-md active:scale-95"
         >
@@ -99,4 +107,31 @@ export function UpdateNotice() {
       </div>
     </div>
   );
+}
+
+/**
+ * The last notice this browser dismissed, by its `updated_at`.
+ *
+ * localStorage rather than the profile: the card is shown before sign-in too,
+ * and "I already read this" is a fact about a device, not an account. It can
+ * come back empty — a private window, cleared data, a reinstall — and the worst
+ * that costs is seeing an announcement a second time.
+ */
+const SEEN_KEY = 'pingo:update_notice_seen';
+
+function readSeen(): string | null {
+  try {
+    return localStorage.getItem(SEEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeSeen(updatedAt: string | undefined): void {
+  if (!updatedAt) return;
+  try {
+    localStorage.setItem(SEEN_KEY, updatedAt);
+  } catch {
+    // Storage disabled. They will see it once more; nothing else breaks.
+  }
 }
