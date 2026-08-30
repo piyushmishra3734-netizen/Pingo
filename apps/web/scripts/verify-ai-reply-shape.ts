@@ -519,6 +519,29 @@ const charAt = source.indexOf('characterPrompt(),');
 const rulesAt = source.indexOf('## GENERAL REASONING');
 assert.ok(charAt !== -1 && charAt < rulesAt, 'who you are comes before how you operate');
 
+// -- A reply is never cut off mid-word ------------------------------------
+
+/*
+ * The token ceiling used to be the reply-length *preference*, so an account set
+ * to "short" got 400 tokens for every answer including the ones that cannot be
+ * given in 400. What shipped was "...blew up on TikTok with the tr" - a
+ * sentence that stops mid-word, which reads as the assistant losing its train
+ * of thought rather than as a limit.
+ *
+ * Length is the prompt's job and `shapeReply`'s job. This number only stops a
+ * runaway, so it must not be derived from a style setting.
+ */
+const ceiling = source.slice(source.indexOf('const preferred ='), source.indexOf('const preferred =') + 400);
+assert.match(
+  ceiling,
+  /const maxTokens = Math\.max\(preferred, 1200\)/,
+  'the token ceiling has an unconditional floor, not one that depends on demand',
+);
+assert.ok(
+  !/maxTokens = demand === 'heavy'/.test(source),
+  'and it is no longer only lifted for the one message shape somebody thought of',
+);
+
 // -- A short right answer is not a wrong one -------------------------------
 
 /*

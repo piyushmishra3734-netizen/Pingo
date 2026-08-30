@@ -487,8 +487,29 @@ async function runTurn(
      * Preference still decides how long a reply *should* be; this only stops it
      * being cut off in the middle of one.
      */
+    /*
+     * A ceiling, not a target - and never the thing that decides length.
+     *
+     * This was `preferred` alone: somebody whose reply-length setting is
+     * "short" got 400 tokens for every answer, including the ones that cannot
+     * be given in 400. It shipped `...blew up on TikTok with the tr` - a reply
+     * that stops mid-word, which reads as the assistant losing its train of
+     * thought rather than as a limit being hit.
+     *
+     * `demand === 'heavy'` was already lifting it to 1200, and that patched the
+     * class of message somebody thought of at the time (proofs, working out).
+     * It could not patch this one, because "who is PinkPantheress" is not heavy
+     * reasoning - it is just longer than four hundred tokens of Hinglish, which
+     * tokenises badly and reaches the ceiling sooner than the character count
+     * suggests.
+     *
+     * The floor is now unconditional. Brevity belongs to the prompt, which asks
+     * for it on every turn, and to `shapeReply`, which is the visible cap.
+     * Nothing is paid for room that is not used - the model stops when it is
+     * finished, and with these instructions it usually finishes early.
+     */
     const preferred = length === 'detailed' ? 1200 : length === 'balanced' ? 700 : 400;
-    const maxTokens = demand === 'heavy' ? Math.max(preferred, 1200) : preferred;
+    const maxTokens = Math.max(preferred, 1200);
 
     /*
      * The prompt minus the part the model is supposed to repeat.
