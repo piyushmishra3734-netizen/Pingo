@@ -75,7 +75,7 @@ run('pnpm', ['--filter', '@pingo/web', 'build'], { cwd: '../..', shell: true });
  * changed, and the one time it is not a no-op is the time it matters.
  */
 console.log(`\n▸ regenerating the launch splash`);
-run('node', ['scripts/make-splash.mjs'], { cwd: '../..', shell: true });
+run('node', ['apps/web/scripts/make-splash.mjs'], { cwd: '../..', shell: true });
 
 console.log(`\n▸ syncing into Android`);
 run('npx', ['cap', 'sync', 'android'], { shell: true });
