@@ -96,7 +96,16 @@ export function ProfileCover({
     <div
       ref={band}
       className={cn(
-        'relative -mx-5 h-32 overflow-hidden bg-brand-wash sm:h-40',
+        /*
+         * Tall enough to hold the face that now sits inside it.
+         *
+         * The avatar is 96 plus its ring, about 110. Centred in the old 128 it
+         * left nine pixels of cover above and below - a photograph reduced to a
+         * frame around a circle. 160 gives it room to still read as a picture,
+         * and the whole header is still shorter than it was when the face hung
+         * underneath.
+         */
+        'relative -mx-5 h-40 overflow-hidden bg-brand-wash sm:h-48',
         canMove && (dragging ? 'cursor-grabbing' : 'cursor-grab'),
       )}
       onPointerDown={onPointerDown}

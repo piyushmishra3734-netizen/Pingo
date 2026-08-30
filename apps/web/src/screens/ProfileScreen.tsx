@@ -530,13 +530,29 @@ export function ProfileScreen() {
           Hero as one composition: avatar → name → handle/bio → stats → actions.
           8pt rhythm (8 / 16 / 24 / 32) keeps the identity block unified.
         */}
-        <ProfileCover
-          src={person.bannerUrl}
-          offset={person.bannerOffset}
-          editable={isSelf}
-          onPick={() => coverFileRef.current?.click()}
-          onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
-        />
+        {/*
+          The face sits *in* the cover, not under it.
+
+          Stacked the obvious way first - band, then avatar pulled up by a
+          negative margin - and it cost about a hundred and ten pixels of
+          nothing: the cover ended, the face began, and the name was pushed so
+          far down that a phone showed the cover and a chin and no posts.
+
+          Absolutely centred inside the band instead, so the two occupy one
+          block rather than two. The overlay ignores pointer events and only the
+          face takes them back, or the middle of the cover - which is most of it
+          - would stop answering the drag that repositions it.
+        */}
+        <div className="relative">
+          <ProfileCover
+            src={person.bannerUrl}
+            offset={person.bannerOffset}
+            editable={isSelf}
+            onPick={() => coverFileRef.current?.click()}
+            onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
+          />
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <div className="pointer-events-auto">
 
         <input
           ref={coverFileRef}
@@ -555,8 +571,7 @@ export function ProfileScreen() {
           margin is on the identity block rather than the avatar so the name and
           everything under it rise with it and the 8pt rhythm survives.
         */}
-        <div className={cn('-mt-12 flex flex-col items-center', isSelf ? 'pt-6' : 'pt-5')}>
-          <ProfileAvatar
+              <ProfileAvatar
             name={person.displayName}
             id={person.id}
             src={person.avatarUrl}
@@ -575,20 +590,32 @@ export function ProfileScreen() {
                 if (go) await updateMine({ avatarUrl: undefined });
               })();
             }}
-          />
+              />
+            </div>
+          </div>
+        </div>
 
-          <input
-            ref={avatarFileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              // Cleared so choosing the same file twice still fires a change.
-              event.target.value = '';
-              if (file) openAvatarEditor(file);
-            }}
-          />
+        <input
+          ref={avatarFileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            // Cleared so choosing the same file twice still fires a change.
+            event.target.value = '';
+            if (file) openAvatarEditor(file);
+          }}
+        />
+
+        {/*
+          The name starts here, immediately under the band.
+
+          `pt-3` and not the old `pt-6`: the air that used to be above the face
+          is now inside the cover, so keeping it would put the gap back in a
+          different place.
+        */}
+        <div className="flex flex-col items-center pt-3">
 
           {/*
             `h2`, not `h1`. `ScreenHeader` already contributes the page's one
