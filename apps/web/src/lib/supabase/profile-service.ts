@@ -70,6 +70,7 @@ function toProfile(row: ProfileRow): Profile {
     bio: row.bio?.trim() ? row.bio : undefined,
     ...(row.banner_url ? { bannerUrl: row.banner_url } : {}),
     bannerOffset: row.banner_offset ?? 50,
+    isPremium: row.is_premium ?? false,
     createdAt: Date.parse(row.created_at),
   };
 }

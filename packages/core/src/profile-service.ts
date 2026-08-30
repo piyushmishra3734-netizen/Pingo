@@ -45,6 +45,15 @@ export interface Profile {
    * re-upload.
    */
   bannerOffset: number;
+  /**
+   * Whether this account has PINGO premium.
+   *
+   * Set by the operator and by nothing else - the column is not in the update
+   * grant a user holds over their own row, because a paywall a user can write
+   * to is not one. What it unlocks lives in the app; how it is granted is not
+   * decided yet.
+   */
+  isPremium: boolean;
   createdAt: number;
 }
 

@@ -1,3 +1,4 @@
+import { useProfile } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -6,6 +7,7 @@ import { useT } from '../i18n/useT.js';
 
 import { Overlay } from '../../components/Overlay.js';
 import { isAnimatedImage } from './animated-image.js';
+import { isStillImage, toStandardQuality } from './media-quality.js';
 
 /**
  * Reviewing pictures before they are sent.
@@ -42,6 +44,15 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
   /** Object URLs, made once per file and revoked together. */
   const sources = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
   useEffect(() => () => sources.forEach(URL.revokeObjectURL), [sources]);
+
+  const { profile } = useProfile();
+  const premium = profile?.isPremium === true;
+  /*
+   * Off by default, for everybody. HD is the exception a person asks for, not
+   * the setting they have to remember to turn off - which is the difference
+   * between a feature and a bill.
+   */
+  const [hd, setHd] = useState(false);
 
   const [index, setIndex] = useState(0);
   const [caption, setCaption] = useState('');
@@ -100,7 +111,32 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
        * went through it.
        */
       const blobs = sources.map((_, position) => all[position]).filter(Boolean) as Blob[];
-      await onSend(blobs, caption.trim(), once ? 1 : undefined);
+
+      /*
+       * The resize happens here, after every edit, not on the way in.
+       *
+       * Drawing, cropping and text all work on the picture the user is looking
+       * at, and shrinking first would have them editing a 480p preview of their
+       * own photo. It also means one pass rather than one per edit.
+       *
+       * HD sends what the editor produced. Anything that is not a still - a GIF
+       * or an animated sticker - is already untouched by the editor and stays
+       * untouched here; see the note in `media-quality.ts`.
+       */
+      const sent =
+        hd && premium
+          ? blobs
+          : await Promise.all(
+              blobs.map(async (blob, position) =>
+                isStillImage(blob)
+                  ? await toStandardQuality(
+                      new File([blob], files[position]?.name ?? 'photo', { type: blob.type }),
+                    )
+                  : blob,
+              ),
+            );
+
+      await onSend(sent, caption.trim(), once ? 1 : undefined);
     } catch {
       setError('Those did not send. Try again.');
       setBusy(false);
@@ -174,6 +210,47 @@ export function PhotoComposer({ files, onCancel, onSend }: PhotoComposerProps) {
                   'px-4 py-2.5 text-body text-white placeholder:text-white/50',
                 )}
               />
+
+              {/*
+                HD, and what it costs to say no.
+
+                Shown to everybody rather than hidden from free accounts: a
+                control that is not there teaches nothing, and the people most
+                likely to want premium are exactly the ones who just noticed
+                their photo got smaller. Tapping it without premium says so
+                instead of silently doing nothing.
+              */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hd && premium}
+                onClick={() => {
+                  if (!premium) {
+                    setError('HD is part of PINGO premium.');
+                    return;
+                  }
+                  setError(undefined);
+                  setHd((was) => !was);
+                }}
+                className={cn(
+                  'focus-ring flex w-full items-center justify-between rounded-full',
+                  'border border-white/20 px-4 py-2.5 text-left',
+                  'transition-colors duration-instant',
+                  hd && premium ? 'bg-white/20' : 'bg-transparent',
+                  !premium && 'opacity-70',
+                )}
+              >
+                <span className="text-body text-white">
+                  HD{premium ? '' : ' ✦'}
+                </span>
+                <span className="text-caption text-white/60">
+                  {!premium
+                    ? 'Premium'
+                    : hd
+                      ? 'Original quality'
+                      : 'Standard — smaller and faster'}
+                </span>
+              </button>
 
               <button
                 type="button"

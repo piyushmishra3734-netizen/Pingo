@@ -37,6 +37,8 @@ export type ProfileRow = {
   banner_url: string | null;
   /** Vertical percent of the cover to centre on. 50 unless they moved it. */
   banner_offset: number;
+  /** Operator-granted. Not in the column grant a user holds over their row. */
+  is_premium: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -1112,6 +1114,10 @@ export type Database = {
           new_banner_url?: string | null;
           new_banner_offset?: number | null;
         };
+        Returns: undefined;
+      };
+      set_premium: {
+        Args: { target: string; value: boolean };
         Returns: undefined;
       };
       is_ai_owner: {

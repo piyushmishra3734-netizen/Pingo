@@ -449,6 +449,7 @@ export class SupabaseStoryService implements StoryService {
         bio: null,
         banner_url: null,
         banner_offset: 50,
+        is_premium: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },

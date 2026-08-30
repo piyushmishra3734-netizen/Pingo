@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
+import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { MissionControl } from '../../features/referrals/MissionControl.js';
 import {
   listAppSplashRows,
@@ -39,6 +40,7 @@ export function ControllingScreen() {
 
   const [rows, setRows] = useState<OnboardingSlideRow[]>([]);
   const [splashRows, setSplashRows] = useState<AppSplashRow[]>([]);
+  const [premiumHandle, setPremiumHandle] = useState('');
   const [notice, setNotice] = useState<UpdateNoticeRow | null>(null);
   const [minBuild, setMinBuild] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -116,6 +118,43 @@ export function ControllingScreen() {
     }
   };
 
+  /*
+   * Granting premium by hand, which is the whole billing system for now.
+   *
+   * Deliberately a username rather than a picker: there is no list of accounts
+   * anywhere in the app, building one for this would be a screen, and the
+   * operator granting premium already knows who they are granting it to.
+   */
+  const onPremium = async (value: boolean) => {
+    const handle = premiumHandle.trim().replace(/^@/, '').toLowerCase();
+    if (!handle) return;
+    setBusy('premium');
+    setError(null);
+    setOk(null);
+    try {
+      const client = getSupabaseClient();
+      const { data: found, error: lookupError } = await client
+        .from('profiles')
+        .select('id, username')
+        .eq('username', handle)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (!found) throw new Error(`No account called @${handle}`);
+
+      const { error: rpcError } = await client.rpc('set_premium', {
+        target: found.id,
+        value,
+      });
+      if (rpcError) throw rpcError;
+      setOk(`@${found.username} ${value ? 'now has' : 'no longer has'} premium.`);
+      setPremiumHandle('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not change premium');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const onPickNotice = async (file: File | null) => {
     if (!file) return;
     setBusy('notice');
@@ -181,6 +220,41 @@ export function ControllingScreen() {
         ) : null}
 
         <MissionControl />
+
+        {/* Premium */}
+        <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
+          <h2 className="mb-1 text-body font-semibold text-ink">Premium</h2>
+          <p className="mb-3 text-caption text-text-secondary">
+            Unlocks HD — sending photos at original quality instead of 480p.
+            Granted by hand until there is something to buy it with.
+          </p>
+          <input
+            value={premiumHandle}
+            onChange={(e) => setPremiumHandle(e.target.value)}
+            placeholder="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            className="mb-2 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy === 'premium' || !premiumHandle.trim()}
+              onClick={() => void onPremium(true)}
+            >
+              Grant
+            </Button>
+            <Button
+              variant="text"
+              size="sm"
+              disabled={busy === 'premium' || !premiumHandle.trim()}
+              onClick={() => void onPremium(false)}
+            >
+              Remove
+            </Button>
+          </div>
+        </section>
 
         {/* Update card */}
         <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
