@@ -801,18 +801,21 @@ export function ProfileScreen() {
 
           A profile in a messenger is mostly personality. Achievements are the
           last five per cent of it and are placed accordingly.
+
+          Your own only. On somebody else's page a shelf of badges is a score
+          next to their name, and this product does not have scores - the mark
+          beside their name already says the one thing a visitor needs, the way
+          a verified tick does. The collection is for the person who keeps it.
         */}
-        {achievements.lead(person.id) || isSelf ? (
+        {isSelf ? (
           <section className="mt-7 border-t border-line/60 pt-5">
             <SectionHead
               label="Achievements"
-              {...(isSelf
-                ? {
-                    to: achievements.isMythic(person.id)
-                      ? '/profile/achievements'
-                      : '/profile/mission',
-                  }
-                : {})}
+              to={
+                achievements.isMythic(person.id)
+                  ? '/profile/achievements'
+                  : '/profile/mission'
+              }
             />
             {achievements.lead(person.id) ? (
               <div className="mt-3 flex items-center gap-3">
