@@ -44,7 +44,7 @@ const RECOVERY_KEY = 'pingo:chunk-reload';
  * Matched loosely on purpose: a false positive costs one reload, and a false
  * negative costs the white screen this exists to prevent.
  */
-function looksLikeMissingChunk(error: unknown): boolean {
+export function looksLikeMissingChunk(error: unknown): boolean {
   const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
   return /ChunkLoadError|dynamically imported module|Importing a module script failed|error loading dynamically|Failed to fetch|NetworkError when attempting to fetch resource/i.test(
     message,
