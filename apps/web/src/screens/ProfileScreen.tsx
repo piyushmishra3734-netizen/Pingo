@@ -565,7 +565,18 @@ export function ProfileScreen() {
             onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
           />
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className="pointer-events-auto">
+            {/*
+              `flex`, so the box is exactly the face.
+
+              The avatar is an `inline-flex` button, and an inline child of a
+              block sits on a text baseline with the line-height's descender
+              space under it - so this wrapper measured four pixels taller than
+              the face and the grid centred *that*, leaving the picture two
+              pixels high in the band. The same baseline problem the avatar's
+              own ring hit, one level up. Measured at 44 above and 49 below;
+              46 and 46 after this.
+            */}
+            <div className="pointer-events-auto flex">
 
         <input
           ref={coverFileRef}
