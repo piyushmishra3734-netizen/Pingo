@@ -151,6 +151,23 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <!--
+      The gallery, on the two eras of Android that disagree about it.
+
+      Android 13 split the old storage permission into per-type ones, and an app
+      that declares neither is never asked about either - which is what "gallery
+      ka permission aata hi nahi" was. The picker had nothing to fall back on
+      and no dialog to show, so choosing a photo simply did nothing.
+
+      `maxSdkVersion` on the legacy one because 33 and up ignore it, and a
+      permission an OS ignores is one the store still asks about.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!--
         Screen sharing in a call.
 
         Neither of these is a runtime prompt - the system's own capture dialog

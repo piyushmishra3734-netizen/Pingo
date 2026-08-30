@@ -12,7 +12,6 @@ import android.util.Base64;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.webkit.PermissionRequest;
-import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 
 import androidx.core.app.ActivityCompat;
@@ -22,6 +21,7 @@ import androidx.core.view.OnReceiveContentListener;
 import androidx.core.view.ViewCompat;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebChromeClient;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -146,7 +146,26 @@ public class MainActivity extends BridgeActivity {
          * Two gates, and both have to pass. Android must have granted RECORD_AUDIO
          * to the app, and the app must then grant it to the page.
          */
-        webView.setWebChromeClient(new WebChromeClient() {
+        /*
+         * Extends Capacitor's client. Emphatically not `WebChromeClient`.
+         *
+         * It was a bare `new WebChromeClient()`, which replaced
+         * `BridgeWebChromeClient` outright - and that class is not decoration.
+         * It carries `onShowFileChooser`, which is the only thing that makes
+         * `<input type="file">` do anything at all; `onJsAlert` / `onJsConfirm`
+         * / `onJsPrompt`, without which `confirm()` returns instantly and every
+         * button behind one is dead; `onShowCustomView`, which is how a WebView
+         * plays a video full-screen; and the geolocation prompt.
+         *
+         * So one line took out the gallery picker, a pile of buttons, and
+         * story playback, and none of it failed loudly - a file input that
+         * opens nothing looks exactly like a button that was never wired up,
+         * which is what it was reported as.
+         *
+         * The mic handling below is the only reason to subclass at all;
+         * everything else defers to the class that already does it.
+         */
+        webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {
@@ -159,12 +178,18 @@ public class MainActivity extends BridgeActivity {
 
                     if (!wantsAudio) {
                         /*
-                         * Only audio is granted here. Anything else - the camera,
-                         * a protected media id - is denied rather than waved
-                         * through, because a WebChromeClient is the wrong place
-                         * to be broadening what a page can reach.
+                         * Handed back rather than denied.
+                         *
+                         * This used to `deny()` everything that was not audio,
+                         * on the reasoning that a WebChromeClient should not
+                         * broaden what a page can reach. True - but denying is
+                         * not neutral either, and the thing being denied was
+                         * the camera, which Capacitor grants properly against
+                         * the manifest and the user's own answer. Refusing it
+                         * here meant `getUserMedia({ video: true })` failed on
+                         * a phone whose owner had already said yes.
                          */
-                        request.deny();
+                        super.onPermissionRequest(request);
                         return;
                     }
 
