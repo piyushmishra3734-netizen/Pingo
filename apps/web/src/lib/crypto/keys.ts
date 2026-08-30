@@ -45,22 +45,104 @@ export interface DeviceIdentity {
 }
 
 /**
+ * A note in a second place that this device has an identity.
+ *
+ * `localGet` cannot tell "there is no such key" from "the database would not
+ * open" - `withStore` resolves `undefined` for a missing record, a failed
+ * transaction, and a database that never opened at all. `deviceIdentity` read
+ * that `undefined` and minted a fresh keypair, which orphans every message ever
+ * wrapped for the old one. On screen that is "Sent before you added this
+ * device." appearing over a conversation somebody has been reading for weeks,
+ * with nothing having changed - which is exactly how it was reported.
+ *
+ * IndexedDB is also evicted wholesale under storage pressure, and an evicted
+ * database opens perfectly and is simply empty, so no amount of care inside
+ * IndexedDB can catch that case. This mirror lives in `localStorage` instead:
+ * different store, different eviction, one string. If it says an identity
+ * existed and IndexedDB has none, the keys are missing rather than absent, and
+ * minting would destroy history rather than begin it.
+ *
+ * Parked and restored by `switchAccount` alongside the keys themselves - a
+ * second account signing in on this device genuinely has no identity yet, and
+ * must still be allowed to make one.
+ */
+export const IDENTITY_MIRROR = 'pingo:identity-exists';
+
+function readMirror(): string | null {
+  try {
+    return localStorage.getItem(IDENTITY_MIRROR);
+  } catch {
+    return null;
+  }
+}
+
+function writeMirror(deviceId: string): void {
+  try {
+    localStorage.setItem(IDENTITY_MIRROR, deviceId);
+  } catch {
+    /*
+     * No mirror is the old behaviour, not a new failure: it only means this
+     * device cannot detect the eviction case. Refusing to work at all because
+     * the safety net is unavailable would be worse than the thing it catches.
+     */
+  }
+}
+
+/**
+ * Thrown instead of silently minting a second identity.
+ *
+ * Callers treat it the way they treat any decryption failure - the placeholder
+ * for this read, nothing cached, and a real message the next time the store
+ * comes back. The point is that it stays a bad minute rather than becoming a
+ * permanently unreadable history.
+ */
+export class IdentityUnavailableError extends Error {
+  constructor(detail: string) {
+    super(`Device keys are unavailable (${detail}). Not minting a new identity.`);
+    this.name = 'IdentityUnavailableError';
+  }
+}
+
+/**
  * The device's identity, created on first call and reused forever after.
  *
  * Generating a second one would orphan every message already wrapped for the
  * first, so this is deliberately load-then-create rather than create-then-store:
  * a race between two tabs on first run must not produce two identities.
+ *
+ * And "forever after" is now enforced rather than hoped for - see the mirror
+ * above. Minting happens only when this device can be shown never to have had
+ * an identity; every other shape of missing is a failure to read one.
  */
 export async function deviceIdentity(): Promise<DeviceIdentity> {
   const existing = await localGet<CryptoKeyPair>(STORE.keys, IDENTITY);
   const existingId = await localGet<string>(STORE.keys, DEVICE_ID);
 
   if (existing && existingId) {
+    // Cheap, and it repairs a mirror lost on its own - localStorage can be
+    // cleared without IndexedDB going with it.
+    if (readMirror() !== existingId) writeMirror(existingId);
     return {
       deviceId: existingId,
       keyPair: existing,
       publicKey: await exportPublicKey(existing.publicKey),
     };
+  }
+
+  /*
+   * Half an identity is a damaged device, never a new one.
+   *
+   * The two slots are written together and only together, so exactly one of
+   * them coming back means a read failed - and minting over the survivor would
+   * throw away a keypair that is still sitting there, readable, next time.
+   */
+  if (existing || existingId) {
+    throw new IdentityUnavailableError(existing ? 'device id missing' : 'keypair missing');
+  }
+
+  const mirrored = readMirror();
+  if (mirrored) {
+    throw new IdentityUnavailableError(`store empty but ${mirrored.slice(0, 8)}… was minted here`);
   }
 
   const keyPair = await crypto.subtle.generateKey(IDENTITY_ALGORITHM, false, [
@@ -72,6 +154,7 @@ export async function deviceIdentity(): Promise<DeviceIdentity> {
 
   await localSet(STORE.keys, IDENTITY, keyPair);
   await localSet(STORE.keys, DEVICE_ID, deviceId);
+  writeMirror(deviceId);
 
   return { deviceId, keyPair, publicKey: await exportPublicKey(keyPair.publicKey) };
 }

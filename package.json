@@ -18,7 +18,7 @@
     "verify:recovery": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery.ts",
     "bench": "node apps/web/scripts/benchmark.mjs",
     "functions:deploy": "supabase functions deploy turn-credentials ai-chat --project-ref lppzoqgvshhmxqsvggug",
-    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery && pnpm verify:local-first && pnpm verify:image-intent && pnpm verify:reply-envelope && pnpm verify:demand && pnpm verify:reasoning-leak && pnpm verify:speak-chunks && pnpm verify:speakable && pnpm verify:echo && pnpm verify:referral-code && pnpm verify:achievements && pnpm verify:update-notice && pnpm verify:backup-anchor && pnpm verify:ai-context",
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery && pnpm verify:local-first && pnpm verify:image-intent && pnpm verify:reply-envelope && pnpm verify:demand && pnpm verify:reasoning-leak && pnpm verify:speak-chunks && pnpm verify:speakable && pnpm verify:echo && pnpm verify:referral-code && pnpm verify:achievements && pnpm verify:update-notice && pnpm verify:device-identity && pnpm verify:backup-anchor && pnpm verify:ai-context",
     "verify:ai-context": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-ai-context.ts",
     "verify:backup-anchor": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-backup-anchor.ts",
     "verify:recovery-wrap": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery-wrap.ts",
@@ -77,7 +77,8 @@
     "verify:echo": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-echo.ts",
     "verify:referral-code": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-referral-code.ts",
     "verify:achievements": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-achievements.ts",
-    "verify:update-notice": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-update-notice.ts"
+    "verify:update-notice": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-update-notice.ts",
+    "verify:device-identity": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-device-identity.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

@@ -17,7 +17,13 @@ import { BUILD_ID } from '../build-id.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
-import { databaseKey, deviceIdentity, fromBase64, toBase64 } from './keys.js';
+import {
+  IDENTITY_MIRROR,
+  databaseKey,
+  deviceIdentity,
+  fromBase64,
+  toBase64,
+} from './keys.js';
 
 /**
  * Where the crypto meets the chat service.
@@ -90,10 +96,30 @@ async function switchAccount(previous: string, next: string): Promise<void> {
 
   // Bring back the incoming account's keys if this device has seen it before,
   // otherwise leave the slots empty so a fresh identity is generated.
+  let restoredId: string | undefined;
   for (const slot of LIVE_KEYS) {
     const parked = await localGet<unknown>(STORE.keys, `${slot}@${next}`);
     if (parked !== undefined) await localSet(STORE.keys, slot, parked);
     else await localDelete(STORE.keys, slot);
+    if (slot === 'device-id' && typeof parked === 'string') restoredId = parked;
+  }
+
+  /*
+   * The mirror moves with the keys, because it is part of the same claim.
+   *
+   * `deviceIdentity` refuses to mint when the mirror says an identity was made
+   * here - which is what stops an evicted IndexedDB from silently orphaning a
+   * history. Leaving the outgoing account's mirror in place would turn that
+   * guard on a second account signing in for the first time: no keys, a mirror
+   * that belongs to somebody else, and a refusal to make the identity it is
+   * entitled to make. So an account with no parked keys gets no mirror either.
+   */
+  try {
+    if (restoredId) localStorage.setItem(IDENTITY_MIRROR, restoredId);
+    else localStorage.removeItem(IDENTITY_MIRROR);
+  } catch {
+    // Same as everywhere else: without the mirror this device simply loses the
+    // eviction check, which is where it was before the check existed.
   }
 }
 
@@ -129,6 +155,21 @@ async function wipeRevokedDevice(userId: string): Promise<void> {
     await localDelete(STORE.keys, `${slot}@${userId}`);
   }
   await localDelete(STORE.keys, OWNER);
+
+  /*
+   * The mirror goes with them.
+   *
+   * A revoked device has genuinely had its identity taken away, so the next
+   * sign-in here must be allowed to mint a new one. Leaving the mirror behind
+   * would have `deviceIdentity` refuse for ever, on the reasonable-looking
+   * grounds that an identity was once made here - which is true and, after a
+   * revoke, no longer the point.
+   */
+  try {
+    localStorage.removeItem(IDENTITY_MIRROR);
+  } catch {
+    // Nothing to clean up if it was never written.
+  }
 }
 
 /**
