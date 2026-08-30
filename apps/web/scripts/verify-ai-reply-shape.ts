@@ -26,6 +26,7 @@ import {
   replyBudget,
   shapeReply,
   splitIntoBubbles,
+  trimEnvelopeDebris,
 } from '../../../supabase/functions/ai-chat/reply-shape.js';
 
 // -- A complete answer survives the default setting ------------------------
@@ -157,9 +158,17 @@ const stripSrc = source
   .slice(stripStart, source.indexOf('\n}', stripStart) + 2)
   .replace(/\(text: string\): string/, '(text)');
 
-const stripMarkers = new Function(`${stripSrc}; return stripMarkers;`)() as (
-  t: string,
-) => string;
+/*
+ * `stripMarkers` calls `trimEnvelopeDebris`, which lives in `reply-shape.ts`.
+ * Slicing one function out of a file leaves its imports behind, so the eval
+ * used to die on `trimEnvelopeDebris is not defined` - a red test that said
+ * nothing about the code, and stayed red long enough to stop being read. The
+ * real one is passed in.
+ */
+const stripMarkers = new Function(
+  'trimEnvelopeDebris',
+  `${stripSrc}; return stripMarkers;`,
+)(trimEnvelopeDebris) as (t: string) => string;
 
 assert.equal(stripMarkers('Reply\nChetan: 8 aam\nAsk').trim(), 'Chetan: 8 aam');
 assert.equal(stripMarkers('<<<REPLY>>>\nhi\n<<<ASK>>>').trim(), 'hi');
@@ -441,6 +450,44 @@ assert.ok(exampleTurns >= 8, `tone is shown, not described - found ${exampleTurn
 const multiTurn = (character.match(/from: 'them'[\s\S]{0,400}?from: 'you'[\s\S]{0,400}?from: 'them'/g) ?? [])
   .length;
 assert.ok(multiTurn >= 2, `some examples run past the first reply - found ${multiTurn}`);
+
+/*
+ * Being told to be somebody else, which people do constantly.
+ *
+ * A model asked to play a cat plays one for a reply and then answers the next
+ * question in its own voice, which reads as the bit being dropped the moment
+ * anything real is asked. So the instruction has to reach the prompt as its
+ * own section - and so does the part that says what a costume cannot change,
+ * because a recast model treats everything it was told as part of the old
+ * costume. A character that "can send photos" is a bug wearing a hat.
+ */
+assert.match(
+  character,
+  /## If they ask you to be someone else/,
+  'the recast rules reach the prompt text, not just the data',
+);
+assert.match(character, /Stay in it until they say otherwise/i, 'and it is held, not dropped');
+assert.match(
+  character,
+  /A costume changes how you sound, never what is true/i,
+  'a costume does not grant abilities it never had',
+);
+assert.match(
+  character,
+  /It never turns you on them/i,
+  'and it is not a way around the one hard line',
+);
+
+/*
+ * The chaos has a ceiling, and the ceiling is the feature. "Be funny and a bit
+ * chaotic" with no limit is how a character becomes a tax: every answer wrapped
+ * in three jokes and a tangent until asking costs more than it returns.
+ */
+assert.match(
+  character,
+  /One per reply, and never in place of the answer/i,
+  'the chaos is rationed',
+);
 
 // And it is actually in the prompt, before the mechanics.
 assert.match(source, /characterPrompt\(\)/, 'the character is folded into the system prompt');
