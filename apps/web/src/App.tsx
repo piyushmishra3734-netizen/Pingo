@@ -16,6 +16,7 @@ import { NotificationProvider } from './features/notifications/NotificationConte
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
+import { RouteBoundary } from './components/RouteBoundary.js';
 import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
 import { StickerProvider } from './features/stickers/StickerContext.js';
@@ -327,6 +328,13 @@ export function App() {
             would flash on every settings tap on a fast connection, which is a
             worse thing to have than a blank beat on a slow one.
           */}
+          {/*
+            Outside Suspense, because what it is here to catch is the lazy
+            import itself failing - and an unhandled one takes the whole
+            application down to a white page with no way back. See RouteBoundary
+            for what that looked like and why refreshing did not clear it.
+          */}
+          <RouteBoundary>
           <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<SplashScreen />} />
@@ -490,6 +498,7 @@ export function App() {
             <Route path="*" element={<Navigate to="/chats" replace />} />
           </Routes>
           </Suspense>
+          </RouteBoundary>
           </MessageToastProvider>
         </BrowserRouter>
         {/*
