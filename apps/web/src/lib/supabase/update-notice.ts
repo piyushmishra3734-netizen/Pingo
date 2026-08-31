@@ -47,8 +47,25 @@ export function updateNoticeUrl(row: UpdateNoticeRow): string {
  */
 export async function uploadUpdateNotice(file: File, minBuild: number): Promise<UpdateNoticeRow> {
   if (!file.type.startsWith('image/')) throw new Error('Only image files are allowed');
-  if (!Number.isInteger(minBuild) || minBuild <= 0) {
-    throw new Error('Build number must be a positive integer, e.g. 2603501');
+  /*
+   * A versionCode, not any number - and this check is the whole reason it
+   * exists.
+   *
+   * Someone typed 4664. Every phone in the world is above that, so every device
+   * was judged "already up to date", the card showed once and recorded itself
+   * as read, and it never came back. Nothing failed: the row was written, the
+   * image uploaded, the upload said it had worked. The notice was simply
+   * addressed to nobody, and there was no way to see that from the screen.
+   *
+   * The scheme is YYWWBB, so a real one is seven digits. Anything shorter is a
+   * typo, and refusing it here costs a sentence where accepting it costs a
+   * silent no-op nobody can diagnose.
+   */
+  if (!Number.isInteger(minBuild) || minBuild < 1_000_000) {
+    throw new Error(
+      `${minBuild || 'That'} is not a build number. They look like 2603508 — ` +
+        'year, ISO week, then the build within that week.',
+    );
   }
 
   const client = getSupabaseClient();

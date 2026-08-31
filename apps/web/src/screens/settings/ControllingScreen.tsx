@@ -279,10 +279,25 @@ export function ControllingScreen() {
               className="mt-1 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
             />
             <span className="mt-1 block text-[11px] text-text-tertiary">
-              versionCode of the build you just shipped — YYWWBB, so 2.26.35.3 is
-              2603503. Everyone under it keeps being asked; everyone at or above
-              it, and the whole web, is just being told.
+              versionCode of the build you just shipped — YYWWBB, so 2.26.35.8 is
+              2603508.
             </span>
+            {/*
+              What the number actually means, in a sentence.
+
+              A build number is seven digits and one wrong one changes who the
+              card reaches, silently. 4664 was typed once: every phone is above
+              it, so everybody counted as up to date, saw it once, and never saw
+              it again. Nothing errored. This says out loud what is about to
+              happen so the mistake is visible before it is published.
+            */}
+            {minBuild.trim() ? (
+              <span className="mt-1 block text-[11px] text-text-secondary">
+                {Number(minBuild) >= 1_000_000
+                  ? `Anyone on a build older than ${Number(minBuild)} keeps seeing this until they update. Everyone else sees it once.`
+                  : 'That is not a build number — they are seven digits. Every phone is above this, so nobody would be asked to update.'}
+              </span>
+            ) : null}
           </label>
 
           <div className="mb-2 overflow-hidden rounded bg-page">
@@ -320,14 +335,22 @@ export function ControllingScreen() {
             }}
           />
           {notice ? (
+            /*
+              A real button, not a text link under a file input.
+              
+              It was `variant="text"` at `sm`, tucked below the picker, and the
+              operator could not find it - which for the one control that stops
+              a card appearing on everybody's phone is the wrong place to be
+              subtle.
+            */
             <Button
-              variant="text"
+              variant="secondary"
               size="sm"
-              className="mt-2"
+              className="mt-3 w-full border-danger/40 text-danger"
               disabled={busy === 'notice'}
               onClick={() => void onClearNotice()}
             >
-              Take it down
+              Remove this card
             </Button>
           ) : null}
         </section>
