@@ -602,6 +602,32 @@ export function CallProvider({
     };
   }, [ringing, ringKind]);
 
+  /*
+   * The beep, while the call is still open and nothing is getting through.
+   *
+   * A dropped connection is the one call state with no visual: the picture
+   * freezes, the voice stops, and every phone in the world plays a tone at that
+   * moment because the person is looking at their own ear, not at a screen.
+   * Without it the two most different outcomes - "they went quiet" and "the
+   * network died" - are the same silence, and people keep talking into it.
+   *
+   * Its own ringer, not the dialling one. They can never overlap, because
+   * reconnecting is a state a call only reaches after it connected, but keeping
+   * them separate means the handle that stops one cannot be the one holding the
+   * other - which is how a ring gets left playing under a live call.
+   */
+  const reconnecting = call?.state === 'reconnecting';
+  const dropTone = useRef<Ringer | undefined>(undefined);
+
+  useEffect(() => {
+    if (!reconnecting) return;
+    dropTone.current = startRinging('weak');
+    return () => {
+      dropTone.current?.stop();
+      dropTone.current = undefined;
+    };
+  }, [reconnecting]);
+
   const dismissError = useCallback(() => setError(undefined), []);
 
   /**

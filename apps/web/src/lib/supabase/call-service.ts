@@ -256,12 +256,42 @@ export class SupabaseCallService implements CallService {
     );
 
     const live = samples.filter((sample): sample is CallQuality => sample !== undefined);
-    if (live.length === 0) return undefined;
 
-    return live.reduce((worst, sample) => (sample.loss > worst.loss ? sample : worst));
+    /*
+     * A LiveKit call has no peers here, and that is why the banner never showed.
+     *
+     * `#peers` holds the mesh's own `RTCPeerConnection`s. Calls go through a
+     * room now, so the map is empty, every sample is undefined, and this
+     * returned `undefined` - which the provider reads as "nothing to report".
+     * The weak-connection line has therefore been dead for the whole life of
+     * the room path, which is the entire reason it was asked for.
+     *
+     * The server's verdict is what there is, so it is what gets returned. The
+     * numbers are zeros rather than invented: nothing renders them, and a
+     * plausible-looking round trip that came from nowhere is worse than an
+     * obvious blank.
+     */
+    if (live.length === 0) {
+      if (!this.#room) return undefined;
+      return {
+        loss: 0,
+        jitter: 0,
+        rtt: 0,
+        codec: '',
+        audioBitrate: 0,
+        weak: this.#livekitWeak,
+      };
+    }
+
+    const worst = live.reduce((a, b) => (b.loss > a.loss ? b : a));
+    // Either source is enough to call it weak. See `onQuality`.
+    return this.#livekitWeak ? { ...worst, weak: true } : worst;
   }
 
   #quality = new Map<string, () => Promise<CallQuality | undefined>>();
+
+  /** The server's reading, folded into whatever the local poller returns. */
+  #livekitWeak = false;
 
   // -- signalling ----------------------------------------------------------
 
@@ -1131,6 +1161,21 @@ export class SupabaseCallService implements CallService {
           this.#update({ state: 'connected', connectedAt: this.#call.connectedAt ?? Date.now() });
         }
       },
+      /*
+       * LiveKit's own verdict, which was being computed and thrown away.
+       *
+       * `onQuality` existed on the room's handler type and nothing supplied it,
+       * so the only thing driving the weak-connection line was the local
+       * `getStats` poller on a two-second tick. That reader can only see this
+       * end of the link; the server watches both, and says Poor before a person
+       * would describe it that way. Two sources, and the banner shows if either
+       * is unhappy - a false "poor connection" costs a line of text, and missing
+       * one costs somebody repeating a sentence into a call that is not
+       * carrying it.
+       */
+      onQuality: (weak) => {
+        this.#livekitWeak = weak;
+      },
       onReconnecting: () => this.#update({ state: 'reconnecting' }),
       onReconnected: () => this.#update({ state: 'connected' }),
       onDisconnected: () => {
@@ -1967,6 +2012,11 @@ export class SupabaseCallService implements CallService {
     }
     this.#peers.clear();
     this.#quality.clear();
+    /*
+     * Or the next call opens already believing it is on a bad line, and shows
+     * the banner over a connection nobody has measured yet.
+     */
+    this.#livekitWeak = false;
 
     this.#facing = 'user';
     this.#hdAudio = true;

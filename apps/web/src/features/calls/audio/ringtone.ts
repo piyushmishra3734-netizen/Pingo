@@ -32,7 +32,7 @@
  * allowed.
  */
 
-export type RingKind = 'ringback' | 'ringtone' | 'busy';
+export type RingKind = 'ringback' | 'ringtone' | 'busy' | 'weak';
 
 /** The two tones every analogue telephone ring is built from. */
 interface Cadence {
@@ -65,6 +65,20 @@ const CADENCES: Record<RingKind, Cadence> = {
    * Twice the speed of a ring and unmistakably not one.
    */
   busy: { pattern: [0.25, 0.25], gain: 0.22 },
+  /*
+   * The connection has gone, and the call is still open.
+   *
+   * Short, low and quiet, on a long gap - this plays against somebody's ear
+   * while they are still trying to talk, so it has to be noticed without
+   * competing with the voice that may come back at any moment. A ring-volume
+   * tone here would be worse than silence: people would take the phone away
+   * from their ear, which is the one thing that guarantees they miss the
+   * reconnection.
+   *
+   * Two seconds between beeps rather than one. The point is "still trying",
+   * and something repeating every second reads as "over".
+   */
+  weak: { pattern: [0.12, 0.12, 0.12, 2], gain: 0.16 },
 };
 
 /**
@@ -82,6 +96,12 @@ const CADENCES: Record<RingKind, Cadence> = {
 const VOICES: Record<RingKind, number[][]> = {
   ringback: [[440, 480]],
   busy: [[480, 620]],
+  /*
+   * One low sine, deliberately plain. Every other tone here is two or three
+   * partials because they are imitating a telephone network or a ringtone; this
+   * one is a status light, and a status light does not need a chord.
+   */
+  weak: [[400]],
   /*
    * A short major-pentatonic phrase, played one note per beat and looping with
    * a rest - the shape almost every stock ringtone has, because a pentatonic
