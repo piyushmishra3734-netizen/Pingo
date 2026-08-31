@@ -34,36 +34,34 @@ const fn = source.slice(source.indexOf('export async function deviceIdentity('))
 assert.match(fn, /if \(existing && existingId\)/, 'a complete identity is reused');
 
 /*
- * Exactly one slot is a read that failed, not a device that is new. Minting
- * over the survivor throws away a keypair that is sitting right there and will
- * be readable again on the next call.
+ * A device that cannot read its keys mints new ones, and says so.
+ *
+ * This used to throw, and the throw is what took the product down. `openRow`
+ * catches everything and writes the "Sent before you added this device"
+ * placeholder, so a device that refused to mint could not read a single
+ * message - not the history the refusal was protecting, and not the one that
+ * arrived a second ago either. Every account except one went dark within hours
+ * and no device published a key for six of them.
+ *
+ * A wrong identity loses old messages. No identity loses all of them plus every
+ * future one. The mirror stays as evidence in a warning rather than as a gate.
  */
-assert.match(
-  fn,
-  /if \(existing \|\| existingId\) \{\s*throw new IdentityUnavailableError/,
-  'half an identity refuses rather than mints',
+assert.ok(
+  !/throw new IdentityUnavailableError/.test(fn),
+  'an unreadable key store never refuses - it mints, because refusing reads as total data loss',
 );
+assert.match(fn, /const mirrored = readMirror\(\);/, 'the second store is still consulted');
+assert.match(fn, /console\.warn\(/, 'and disagreement is reported rather than swallowed');
 
-/*
- * And the case no amount of care inside IndexedDB can catch: eviction. An
- * evicted database opens perfectly and is simply empty, so the evidence has to
- * live somewhere else - one string in localStorage, with different eviction.
- */
-assert.match(fn, /const mirrored = readMirror\(\);/, 'the second store is consulted');
-assert.match(
-  fn,
-  /if \(mirrored\) \{\s*throw new IdentityUnavailableError/,
-  'an emptied store with a mirror refuses to mint',
-);
-
-/*
- * Minting must come after all three refusals, or the guards are decoration.
- */
+/* Minting must still be the last thing, after both slots have been checked. */
 const mintAt = fn.indexOf('crypto.subtle.generateKey');
-const lastRefusal = fn.lastIndexOf('throw new IdentityUnavailableError');
-assert.ok(mintAt > lastRefusal, 'minting is the last resort, not the first branch');
+assert.ok(
+  mintAt > fn.indexOf('const existing = await localGet') &&
+    mintAt > fn.indexOf('if (existing && existingId)'),
+  'a complete identity is still reused rather than replaced',
+);
 
-/* The mirror is written when one is minted, or it protects nothing. */
+/* The mirror is written when one is minted, or it records nothing. */
 assert.match(fn, /writeMirror\(deviceId\);/, 'a minted identity records itself');
 
 /*

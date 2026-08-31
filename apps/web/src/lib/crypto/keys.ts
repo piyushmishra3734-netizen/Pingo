@@ -89,21 +89,6 @@ function writeMirror(deviceId: string): void {
 }
 
 /**
- * Thrown instead of silently minting a second identity.
- *
- * Callers treat it the way they treat any decryption failure - the placeholder
- * for this read, nothing cached, and a real message the next time the store
- * comes back. The point is that it stays a bad minute rather than becoming a
- * permanently unreadable history.
- */
-export class IdentityUnavailableError extends Error {
-  constructor(detail: string) {
-    super(`Device keys are unavailable (${detail}). Not minting a new identity.`);
-    this.name = 'IdentityUnavailableError';
-  }
-}
-
-/**
  * The device's identity, created on first call and reused forever after.
  *
  * Generating a second one would orphan every message already wrapped for the
@@ -130,19 +115,34 @@ export async function deviceIdentity(): Promise<DeviceIdentity> {
   }
 
   /*
-   * Half an identity is a damaged device, never a new one.
+   * Reported, and then repaired. It used to throw here, and that was worse than
+   * the bug it was guarding against.
    *
-   * The two slots are written together and only together, so exactly one of
-   * them coming back means a read failed - and minting over the survivor would
-   * throw away a keypair that is still sitting there, readable, next time.
+   * The reasoning was sound: a device that once had keys and now cannot read
+   * them has *lost* them, and minting a second identity orphans every message
+   * ever wrapped for the first. So it refused.
+   *
+   * What that missed is where the refusal lands. `openRow` catches everything
+   * and writes the "Sent before you added this device" placeholder, so a device
+   * that refused to mint could not read a single message - not the history it
+   * was protecting, and not the one that arrived a second ago either. Every
+   * account except the one machine that happened to have both slots went dark
+   * within hours, and no device published a key for six of them, which is what
+   * a refusal looks like from the database.
+   *
+   * A wrong identity loses old messages. No identity loses all of them, plus
+   * every future one. So it mints, says so loudly, and the mirror stays as the
+   * evidence rather than as a gate - the guard is worth having only if it can
+   * be made to fail in the direction that keeps the app usable.
    */
-  if (existing || existingId) {
-    throw new IdentityUnavailableError(existing ? 'device id missing' : 'keypair missing');
-  }
-
   const mirrored = readMirror();
-  if (mirrored) {
-    throw new IdentityUnavailableError(`store empty but ${mirrored.slice(0, 8)}… was minted here`);
+  if (existing || existingId || mirrored) {
+    console.warn(
+      'pingo: device keys were unreadable, minting a replacement.',
+      existing || existingId
+        ? 'Half the identity was missing.'
+        : `The store is empty but ${mirrored?.slice(0, 8)}… was minted here.`,
+    );
   }
 
   const keyPair = await crypto.subtle.generateKey(IDENTITY_ALGORITHM, false, [
