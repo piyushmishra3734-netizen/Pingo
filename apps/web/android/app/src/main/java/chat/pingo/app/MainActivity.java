@@ -109,6 +109,7 @@ public class MainActivity extends BridgeActivity {
          */
         registerPlugin(ScreenCapturePlugin.class);
         registerPlugin(VideoTranscodePlugin.class);
+        registerPlugin(CallAudioPlugin.class);
 
         super.onCreate(savedInstanceState);
 

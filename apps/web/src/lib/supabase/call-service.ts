@@ -36,6 +36,7 @@ import {
 import { qualityReader } from '../webrtc/quality.js';
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
+import { startCallAudio, stopCallAudio } from '../../features/native/call-audio.js';
 
 /**
  * Voice calls: `RTCPeerConnection` for media, Supabase Realtime for signalling.
@@ -1146,6 +1147,16 @@ export class SupabaseCallService implements CallService {
     });
 
     try {
+      /*
+       * The phone is told this is a call before the media starts flowing.
+       *
+       * Android plays a WebView's WebRTC audio on the music stream unless
+       * something says otherwise, so the volume keys moved the same slider as
+       * YouTube and people turned their media volume up to hear each other.
+       * No-op on the web. See `call-audio.ts`.
+       */
+      void startCallAudio();
+
       await room.join(callId, conversationId, this.#localStream);
       this.#room = room;
       return true;
@@ -1912,6 +1923,14 @@ export class SupabaseCallService implements CallService {
   #teardown(reason: CallEndReason): void {
     this.#clearRingTimeout();
     this.#closeOutbound();
+
+    /*
+     * First, and on every path that reaches here - including the ones that
+     * arrived by failing. A phone left in communication mode plays every later
+     * notification and voice note out of the earpiece at a whisper, and nothing
+     * in the app would explain why.
+     */
+    void stopCallAudio();
 
     /*
      * Leave the room before the tracks are stopped.

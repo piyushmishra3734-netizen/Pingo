@@ -221,9 +221,37 @@ export class CallRoom {
      */
     for (const track of local.getTracks()) {
       await room.localParticipant.publishTrack(track, {
-        // Speech, not music: mono at a bitrate that stays intelligible on a
-        // train.
-        ...(track.kind === 'audio' ? { audioBitrate: 32_000, dtx: true, red: true } : {}),
+        /*
+         * DTX off, and that is the fix for voice cutting out mid-sentence.
+         *
+         * Discontinuous transmission stops sending packets when the encoder
+         * decides nobody is talking. On a clean signal that is free bandwidth.
+         * On this one it is a third gate in a row: the browser's own
+         * noiseSuppression and AGC run first, then RNNoise - which attenuates
+         * anything it does not judge to be speech, hard - and only then does
+         * Opus look at what is left and ask whether it is silence. Soft speech
+         * survives the first two quietly enough to fail the third, so words
+         * disappear from the middle of sentences and what does arrive is
+         * quieter than it should be. Both complaints, one cause.
+         *
+         * What it saves is a few kbps of a 48 kbps mono stream during pauses.
+         * What it costs is words. `red` stays: that is redundancy against
+         * packet loss and it is the opposite trade - it spends bandwidth to
+         * keep speech intact.
+         */
+        ...(track.kind === 'audio'
+          ? {
+              /*
+               * 48k rather than 32k. Mono Opus is effectively transparent for
+               * speech here, and 32 was chosen to survive a train - a ceiling
+               * set by the worst connection anybody imagined rather than by
+               * what a voice needs.
+               */
+              audioBitrate: 48_000,
+              dtx: false,
+              red: true,
+            }
+          : {}),
         ...(track.kind === 'video' ? CAMERA_PUBLISH : {}),
       });
     }
