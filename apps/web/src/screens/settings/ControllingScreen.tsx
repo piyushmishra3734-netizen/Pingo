@@ -18,6 +18,7 @@ import {
   uploadAppSplash,
   uploadOnboardingSlide,
 } from '../../lib/supabase/onboarding-slides.js';
+import { NoticeCard } from '../../features/updates/UpdateNotice.js';
 import {
   clearUpdateNotice,
   loadUpdateNotice,
@@ -41,6 +42,7 @@ export function ControllingScreen() {
   const [rows, setRows] = useState<OnboardingSlideRow[]>([]);
   const [splashRows, setSplashRows] = useState<AppSplashRow[]>([]);
   const [premiumHandle, setPremiumHandle] = useState('');
+  const [previewing, setPreviewing] = useState(false);
   const [notice, setNotice] = useState<UpdateNoticeRow | null>(null);
   const [minBuild, setMinBuild] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -334,6 +336,33 @@ export function ControllingScreen() {
               void onPickNotice(f);
             }}
           />
+          {notice ? (
+            /*
+              The card, exactly as it will arrive.
+
+              `NoticeCard` is the same component the real notice renders - not a
+              copy of its markup. A preview drawn from its own JSX is a promise
+              the real thing does not have to keep: it drifts the first time
+              either is touched, and the moment it drifts it is worse than no
+              preview at all, because somebody trusts it.
+            */
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3 w-full"
+              onClick={() => setPreviewing(true)}
+            >
+              Preview
+            </Button>
+          ) : null}
+
+          {previewing && notice ? (
+            <NoticeCard
+              src={updateNoticeUrl(notice)}
+              onClose={() => setPreviewing(false)}
+            />
+          ) : null}
+
           {notice ? (
             /*
               A real button, not a text link under a file input.

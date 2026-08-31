@@ -70,6 +70,18 @@ export function UpdateNotice() {
 
   if (!row || closed) return null;
 
+  return <NoticeCard src={updateNoticeUrl(row)} onClose={close} />;
+}
+
+/**
+ * The card itself, with no idea whether anybody should be seeing it.
+ *
+ * Split out so Controlling can show exactly this rather than an impression of
+ * it. A preview drawn from its own markup is a promise the real thing does not
+ * have to keep: it drifts the first time one of them is touched, and the moment
+ * it drifts it is worse than having no preview, because somebody trusts it.
+ */
+export function NoticeCard({ src, onClose }: { src: string; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-5"
@@ -79,7 +91,7 @@ export function UpdateNotice() {
     >
       <div className="relative max-h-full w-full max-w-sm">
         <img
-          src={updateNoticeUrl(row)}
+          src={src}
           alt="What is new in this update"
           className="max-h-[80vh] w-full rounded-lg object-contain shadow-lg"
           /*
@@ -87,11 +99,11 @@ export function UpdateNotice() {
            * fails to load there is nothing left but a black screen with a
            * cross, so the card takes itself down instead.
            */
-          onError={() => setClosed(true)}
+          onError={onClose}
         />
         <button
           type="button"
-          onClick={close}
+          onClick={onClose}
           aria-label="Close"
           className="absolute -right-2 -top-2 grid h-9 w-9 place-items-center rounded-full bg-surface text-ink shadow-md active:scale-95"
         >
