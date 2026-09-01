@@ -1030,13 +1030,35 @@
        the faint bounce off whatever the panel is lying on. Which is what a
        slab under a ceiling light actually does, at any width.
     */
+    /*
+       Dispersion, on the rim, because this is the only place it survives.
+
+       A thick edge splits white light: blue bends further than red, so the lit
+       lip of a real slab runs faintly warm where the light enters and faintly
+       cool where it leaves. It is the detail that separates glass from frosted
+       plastic, and it is what the WebGL references are admired for.
+
+       It was built into the lens filter first - three displacement passes, red
+       pushed further than blue - and measured in Chrome it worked: a yellow
+       fringe one side of every edge, blue the other. Then it was measured
+       against the real filter list, `url(#lens) blur(16px) saturate(175%)`, and
+       it was gone. Blur is a low-pass and a one-pixel colour offset does not
+       survive sixteen pixels of it; to come through it would have had to be
+       wide enough to read as a rainbow.
+
+       Here it is painted *over* the blur, so it stays - and it costs one
+       gradient rather than tripling the work of every glass surface in the
+       product. The tint is deliberately below the threshold of being nameable:
+       at this strength people report that the edge looks like glass, not that
+       it looks yellow.
+    */
     background: linear-gradient(
       to bottom,
-      rgb(255 255 255 / var(--glass-rim, 0.6)) 0,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.55)) 18%,
+      rgb(255 250 240 / var(--glass-rim, 0.6)) 0,
+      rgb(255 252 246 / calc(var(--glass-rim, 0.6) * 0.55)) 18%,
       rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.1)) 52%,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.16)) 78%,
-      rgb(255 255 255 / calc(var(--glass-rim, 0.6) * 0.42)) 100%
+      rgb(244 248 255 / calc(var(--glass-rim, 0.6) * 0.16)) 78%,
+      rgb(236 243 255 / calc(var(--glass-rim, 0.6) * 0.42)) 100%
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,

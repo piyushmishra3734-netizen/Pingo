@@ -273,6 +273,26 @@ function filterFor(width: number, height: number): string | undefined {
    * region, which is the element, and `preserveAspectRatio="none"` stretches
    * the bucket's map across whatever the element actually measures.
    */
+  /*
+   * One pass, and the reason there is not one per colour.
+   *
+   * Chromatic aberration was built here first - red displaced further than
+   * blue, three passes recombined - because splitting light is what separates
+   * glass from a mirror, and it is the detail the WebGL references are known
+   * for. Measured in Chrome against hard black-and-white stripes it worked
+   * exactly as intended: a yellow fringe on one side of every edge and a blue
+   * one on the other.
+   *
+   * Then the same panel was measured with the real filter list, which is
+   * `url(#lens) blur(16px) saturate(175%)` - and the fringe was gone. Blur is a
+   * low-pass; a one-pixel colour offset does not survive sixteen pixels of it.
+   * To come through it would have to be spread far enough to be a rainbow.
+   *
+   * So the dispersion lives on the rim instead, which is painted over the blur
+   * rather than under it - see `glass-surface` in `tokens.css`. Three
+   * displacement passes for an effect the next function erases is the most
+   * expensive kind of nothing.
+   */
   filter.innerHTML =
     `<feImage href="${href}" x="0%" y="0%" width="100%" height="100%" ` +
     `preserveAspectRatio="none" result="m"/>` +
