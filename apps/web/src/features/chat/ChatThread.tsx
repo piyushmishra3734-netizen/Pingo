@@ -27,6 +27,7 @@ import {
 } from '@pingo/ui';
 import { CloseIcon } from '@pingo/ui';
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -1462,8 +1463,36 @@ export function ChatThread({
               )
             )}
 
-            {clustersWithDividers.map(({ cluster, divider }) => (
-              <div key={cluster[0]!.id} className="flex flex-col gap-0.5">
+            {clustersWithDividers.map(({ cluster, divider }, group) => (
+              <div
+                key={cluster[0]!.id}
+                className="flex flex-col gap-0.5"
+                /*
+                 * Opening a thread, one group after another.
+                 *
+                 * Every bubble already animated in, and all of them started on
+                 * the same frame - so a thread did not arrive, it appeared. The
+                 * motion was there and nobody could see it, because a hundred
+                 * things moving together read as one thing not moving.
+                 *
+                 * Counted from the newest backwards, because that is the end
+                 * somebody is looking at: the last thing said lands first and
+                 * the history settles in behind it. Per group rather than per
+                 * bubble, since a burst from one person was sent together and
+                 * should arrive together.
+                 *
+                 * Capped at eight steps. A long thread would otherwise spend
+                 * two seconds assembling itself, and a stagger that outlasts
+                 * the glance it decorates is just latency with a curve on it.
+                 */
+                style={
+                  {
+                    '--arrive-delay': `${
+                      Math.min(clustersWithDividers.length - 1 - group, 8) * 45
+                    }ms`,
+                  } as CSSProperties
+                }
+              >
                 {divider && (
                   <div className="py-3 text-center">
                     {/*

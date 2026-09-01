@@ -299,8 +299,27 @@
      from the composer on the right, theirs from their side on the left. One
      shared animation made every message rise from below, which reads as the
      list re-laying-out rather than as somebody speaking. */
-  --animate-bubble-in: bubble-in var(--duration-base) var(--ease-standard) backwards;
-  --animate-bubble-in-mine: bubble-in-mine var(--duration-base) var(--ease-standard) backwards;
+  /*
+     `--arrive-delay` is set per message group by the thread; unset everywhere
+     else, where `0ms` means a live message lands the instant it arrives rather
+     than waiting its turn in a queue that is not being watched.
+  */
+  --animate-bubble-in: bubble-in var(--duration-base) var(--ease-arrive)
+    var(--arrive-delay, 0ms) backwards;
+  --animate-bubble-in-mine: bubble-in-mine var(--duration-base) var(--ease-arrive)
+    var(--arrive-delay, 0ms) backwards;
+
+  /*
+     Overshoot, slightly, and this is what the motion was missing.
+     
+     `--ease-standard` decelerates into place, which is correct for something
+     being *moved* and wrong for something arriving under its own weight. A
+     bubble that settles a hair past its mark and comes back reads as a physical
+     object with mass - which is the whole difference between the reference
+     material and a rectangle that faded in. Small: 1.06 not 1.4. Past about
+     ten per cent it stops being weight and becomes a bounce.
+  */
+  --ease-arrive: cubic-bezier(0.22, 1.06, 0.36, 1);
 
   /* A reaction landing.
 
@@ -740,6 +759,30 @@
 @keyframes bubble-in {
   from {
     opacity: 0;
+    /*
+       The glass forms as the bubble lands.
+
+       A bubble used to slide in already finished: the material was at full
+       strength on the first frame and only the box moved, which is why the
+       motion read as a card and not as glass. Starting the backdrop soft and
+       letting it resolve means the thing arriving *is* the material - the
+       backdrop pulls into focus behind it as it settles.
+
+       No `to` value, deliberately. Omitting the property from the final
+       keyframe makes the browser interpolate to the element's *own* computed
+       value, which is the only correct answer here: a bubble is `glass-water`
+       at five pixels and a panel is `glass-surface` at sixteen. Naming sixteen
+       explicitly blurred every bubble well past where it belongs and snapped it
+       back the frame the animation ended.
+
+       `backdrop-filter` is animatable and composited, so this costs the frames
+       it is already paying for. Bubbles that carry the lens have their filter
+       set inline by `lens.ts`, which wins over this - they keep their
+       refraction and simply skip the focus-pull, which is the right trade: the
+       lens is the better effect of the two.
+    */
+    backdrop-filter: blur(2px) saturate(120%);
+    -webkit-backdrop-filter: blur(2px) saturate(120%);
     /* Sideways and slightly small, so it reads as arriving from their side
        rather than growing out of the floor. Small numbers on purpose: this
        fires on every message in a thread, and anything larger turns opening a
@@ -756,6 +799,9 @@
 @keyframes bubble-in-mine {
   from {
     opacity: 0;
+    /* The same focus-pull as `bubble-in`. See the note there. */
+    backdrop-filter: blur(2px) saturate(120%);
+    -webkit-backdrop-filter: blur(2px) saturate(120%);
     transform: translate(10px, 4px) scale(0.96);
   }
   to {
