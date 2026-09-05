@@ -38,7 +38,7 @@ export function PermissionsScreen() {
   const [asking, setAsking] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | undefined>();
 
-  const done = () => navigate('/setup/backup', { replace: true });
+  const done = () => navigate('/chats', { replace: true });
 
   const allow = async () => {
     if (!('Notification' in window)) {

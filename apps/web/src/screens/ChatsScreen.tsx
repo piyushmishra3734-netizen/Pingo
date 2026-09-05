@@ -4,8 +4,6 @@ import { Navigate, useParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
 import { InstallBanner } from '../features/install/InstallBanner.js';
-import { BackupFoundCard, BackupPrompt, BackupReminderCard } from '../features/backup/BackupSurfaces.js';
-import { useBackupUx } from '../features/backup/useBackupUx.js';
 import { ChatThread } from '../features/chat/ChatThread.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
 import { useT } from '../features/i18n/useT.js';
@@ -33,12 +31,6 @@ export function ChatsScreen() {
   const { profile } = useProfile();
   const { conversations, ready } = useChat();
   const isDesktop = useIsDesktop();
-  /*
-   * Called before the early returns below, because a hook that runs only on
-   * some renders is a hook that crashes on the others.
-   */
-  const backupUx = useBackupUx();
-
   const conversation = conversationId
     ? conversations.find((c) => c.id === conversationId)
     : undefined;
@@ -53,24 +45,7 @@ export function ChatsScreen() {
       <ChatThread conversation={conversation} showBack />
     ) : (
       <>
-        {/*
-          Above the list, because a backup that needs attention is about the
-          list rather than about any one conversation.
-        */}
-        {/*
-          Inside the list, not above it. As siblings these sat over the header —
-          on a phone that put them against the status bar, outside PINGO's own
-          chrome, which is what made them read as a browser notification nobody
-          could get rid of.
-        */}
-        <ConversationList
-          banner={
-            <>
-              <BackupFoundCard ux={backupUx} />
-              <BackupReminderCard ux={backupUx} />
-            </>
-          }
-        />
+        <ConversationList />
         {/*
           Home only, and only with no thread open. An offer to install has no
           business over a conversation somebody is reading.
@@ -85,7 +60,6 @@ export function ChatsScreen() {
         note={DUMMY_DAILY_NOTE}
         {...(profile?.displayName ? { name: profile.displayName.split(" ")[0] } : {})}
       />
-        <BackupPrompt ux={backupUx} />
       </>
     );
   }
@@ -93,7 +67,6 @@ export function ChatsScreen() {
   return (
     <div className="flex h-full min-h-0">
       <InstallBanner />
-      <BackupPrompt ux={backupUx} />
       <aside
         className={cn(
           'hidden h-full shrink-0 border-r border-line bg-page lg:block',
@@ -102,12 +75,6 @@ export function ChatsScreen() {
       >
         <ConversationList
           {...(conversation?.id ? { activeConversationId: conversation.id } : {})}
-          banner={
-            <>
-              <BackupFoundCard ux={backupUx} />
-              <BackupReminderCard ux={backupUx} />
-            </>
-          }
         />
       </aside>
 

@@ -194,11 +194,6 @@ export function SettingsScreen() {
                 label={t('settings.storage')}
                 to="/settings/storage"
               />
-              <SettingsRow
-                icon={<StorageIcon size={19} />}
-                label={t('settings.secureBackup')}
-                to="/settings/secure-backup"
-              />
             </section>
 
             <section className="rounded-lg bg-surface p-1 shadow-sm">

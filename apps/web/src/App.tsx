@@ -17,6 +17,7 @@ import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
 import { RouteBoundary } from './components/RouteBoundary.js';
+import { WebSlingLoader } from './features/loading/WebSlingLoader.js';
 import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
 import { StickerProvider } from './features/stickers/StickerContext.js';
@@ -95,7 +96,6 @@ const LanguageScreen = lazyScreen(() => import('./screens/settings/LanguageScree
 const NotificationsScreen = lazyScreen(() => import('./screens/settings/NotificationsScreen.js'), 'NotificationsScreen');
 const PrivacyScreen = lazyScreen(() => import('./screens/settings/PrivacyScreen.js'), 'PrivacyScreen');
 const PushDebugScreen = lazyScreen(() => import('./screens/settings/PushDebugScreen.js'), 'PushDebugScreen');
-const SecureBackupScreen = lazyScreen(() => import('./screens/settings/SecureBackupScreen.js'), 'SecureBackupScreen');
 const DevicesScreen = lazyScreen(() => import('./screens/settings/DevicesScreen.js'), 'DevicesScreen');
 const StorageScreen = lazyScreen(() => import('./screens/settings/StorageScreen.js'), 'StorageScreen');
 import { IntroSlidesScreen } from './screens/IntroSlidesScreen.js';
@@ -114,7 +114,6 @@ const SignUpEmailScreen = lazyScreen(() => import('./screens/auth/SignUpEmailScr
 const SignUpMethodScreen = lazyScreen(() => import('./screens/auth/SignUpMethodScreen.js'), 'SignUpMethodScreen');
 const SignUpPhoneScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneScreen.js'), 'SignUpPhoneScreen');
 const NameScreen = lazyScreen(() => import('./screens/setup/NameScreen.js'), 'NameScreen');
-const BackupScreen = lazyScreen(() => import('./screens/setup/BackupScreen.js'), 'BackupScreen');
 const PermissionsScreen = lazyScreen(() => import('./screens/setup/PermissionsScreen.js'), 'PermissionsScreen');
 const PhotoScreen = lazyScreen(() => import('./screens/setup/PhotoScreen.js'), 'PhotoScreen');
 const UsernameScreen = lazyScreen(() => import('./screens/setup/UsernameScreen.js'), 'UsernameScreen');
@@ -228,27 +227,6 @@ export function App() {
     target.__pingo = {
       delta: () => chat.deltaReport(),
       rowStore: () => chat.rowStoreReport(),
-      /*
-       * The archive builder against this device's real IndexedDB. Everything
-       * else about it is verified with an injected source and sink, which says
-       * nothing about the two functions that actually touch storage and the
-       * device key. Reads, writes back what it read, reports numbers.
-       */
-      /* Stage 2: capability measurement only. Creates no credential. */
-      passkeySupport: async () => {
-        const { measurePasskeySupport } = await import('./lib/backup/passkey-support.js');
-        return measurePasskeySupport();
-      },
-      archiveSelfTest: async (chunkSize?: number) => {
-        const [{ archiveSelfTest }] = await Promise.all([import('./lib/backup/self-test.js')]);
-        const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
-          'deriveKey',
-          'deriveBits',
-        ]);
-        const spki = await crypto.subtle.exportKey('spki', pair.publicKey);
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(spki)));
-        return archiveSelfTest(base64, pair.privateKey, chunkSize);
-      },
     };
     return () => {
       delete target.__pingo;
@@ -271,6 +249,24 @@ export function App() {
       splash and the sign-in screens too, which a signed-out user sees first.
     */
     <SettingsProvider>
+    {/*
+      `?loading` renders the opening loader on its own, and nothing else.
+
+      That screen only exists while the app is connecting, which on a good
+      connection is a frame or two - so the one state hardest to judge is the
+      one nobody can hold still long enough to look at.
+
+      Inside `SettingsProvider` and nowhere higher, because the web is drawn in
+      `--color-brand` and the accent setting is what rewrites it. Above this it
+      previewed in the default ink, which is a truthful picture of the shape and
+      a lie about the colour.
+    */}
+    {typeof window !== 'undefined' && window.location.search.includes('loading') ? (
+      <div className="grid h-full place-items-center bg-page">
+        <WebSlingLoader label="Loading" />
+      </div>
+    ) : (
+    <>
     {/*
       Outside auth, because logging out is one of the things it asks about - a
       confirmation that unmounts with the session could not survive its own
@@ -433,7 +429,6 @@ export function App() {
                 <Route path="username" element={<UsernameScreen />} />
                 <Route path="photo" element={<PhotoScreen />} />
                 <Route path="permissions" element={<PermissionsScreen />} />
-                <Route path="backup" element={<BackupScreen />} />
               </Route>
             </Route>
 
@@ -481,7 +476,6 @@ export function App() {
                   <Route path="/settings/muted-stories" element={<MutedStoriesScreen />} />
                   <Route path="/settings/devices" element={<DevicesScreen />} />
                   <Route path="/settings/storage" element={<StorageScreen />} />
-                  <Route path="/settings/secure-backup" element={<SecureBackupScreen />} />
                   <Route path="/settings/language" element={<LanguageScreen />} />
                   <Route path="/settings/advanced" element={<AdvancedScreen />} />
                   <Route path="/settings/controlling" element={<ControllingScreen />} />
@@ -520,6 +514,8 @@ export function App() {
       </ProfileProvider>
     </AuthProvider>
     </ConfirmProvider>
+    </>
+    )}
     </SettingsProvider>
   );
 }
