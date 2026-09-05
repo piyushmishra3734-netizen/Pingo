@@ -16,6 +16,7 @@ import { deviceLabel } from '../../features/settings/device-label.js';
 import { BUILD_ID } from '../build-id.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
+import { accountKey, forgetAccountKey } from './account-key.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
 import {
   IDENTITY_MIRROR,
@@ -264,9 +265,37 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
   return published;
 }
 
+/**
+ * This account's key, held for `openRow`.
+ *
+ * `openRow` takes a row and nothing else - it is called from the realtime
+ * handler, from cache reads and from three places in `chat-service` - so
+ * threading a client and a user id through all of them to decrypt one message
+ * would be a wide change for a value that is the same for the whole session.
+ * Resolved once, beside the device publication that already works this way.
+ */
+let account: { userId: string; key: CryptoKey } | undefined;
+
+/**
+ * Fetch or make this account's key, and keep it for the session.
+ *
+ * Never blocks and never throws: a device that has not got the key yet still
+ * reads everything wrapped for *it*, which is every message sent since it was
+ * added. The key only widens that to the history from before.
+ */
+export function adoptAccountKey(client: PingoSupabaseClient, userId: string): Promise<void> {
+  return accountKey(client)
+    .then((key) => {
+      if (key) account = { userId, key };
+    })
+    .catch(() => undefined);
+}
+
 /** Dropped on sign-out, so the next account publishes its own device. */
 export function forgetPublication(): void {
   published = undefined;
+  account = undefined;
+  forgetAccountKey();
 }
 
 /** What is known about a conversation's ability to carry encrypted messages. */
@@ -354,6 +383,26 @@ function keyingMemberIds(userIds: string[]): string[] {
  * enough to collapse the burst that made this noticeable.
  */
 const KEYING_COALESCE_MS = 1000;
+
+
+/**
+ * How long a send waits for a member's app to publish its key.
+ *
+ * Three tries a second and a bit apart, so roughly four seconds in the worst
+ * case and usually one. `publishDeviceKey` runs on the first thing that needs
+ * an identity, so a client that is starting up lands inside the first gap; the
+ * later attempts are there for a slow connection rather than a slow app.
+ *
+ * Longer would be worse, not better. Past a few seconds the honest reading is
+ * that this member is not coming back right now, and a composer that hangs for
+ * half a minute before saying so is harder to understand than one that says so
+ * quickly.
+ *
+ * Deliberately longer than `KEYING_COALESCE_MS`, or every retry would be
+ * handed the same cached answer that failed.
+ */
+const KEYING_ATTEMPTS = 3;
+const KEYING_RETRY_MS = 1200;
 const keyingReads = new Map<string, { at: number; work: Promise<Keying> }>();
 
 export async function conversationKeying(
@@ -406,6 +455,28 @@ async function readConversationKeying(
    */
   const [{ data: rows, error: devicesError }, { data: packages, error: recoveryError }] =
     await Promise.all([
+      /*
+       * Every device, still, and the filter that belongs here is deliberately
+       * not here yet.
+       *
+       * Wrapping for stale devices is what makes `envelope` 116 MB of a 217 MB
+       * database while the messages themselves are 1.9 MB: a two-member
+       * conversation wraps each message for 13.3 devices, a nine-member group
+       * for 28.9, and one in five of those ids points at a device row that no
+       * longer exists.
+       *
+       * Filtering on `last_seen_at` was written and then taken back out,
+       * because it was measured against the data first: four accounts have no
+       * device seen inside thirty days and no account key, so the filter would
+       * have dropped them out of `covered` and refused every send in any chat
+       * they are in - permanently, and for everyone else in that chat. That is
+       * the same failure this file just fixed, rebuilt on purpose.
+       *
+       * ponytail: unfiltered fan-out until the account key ships. Once every
+       * member has one, a stale device costs a fallback rather than a lost
+       * message, and this can drop to the account key alone - one wrap per
+       * member instead of five.
+       */
       client.from('device_keys').select('device_id,public_key,user_id').in('user_id', humans),
       client.from('recovery_packages').select('user_id,public_key').in('user_id', humans),
     ]);
@@ -422,7 +493,23 @@ async function readConversationKeying(
    * changes nothing about who can read it, so a message that would otherwise
    * send correctly still sends.
    */
-  const covered = new Set((rows ?? []).map((row) => row.user_id));
+  /*
+   * Reachable, which is no longer the same as "has a device we wrapped for".
+   *
+   * The device read above is filtered to recent devices, so a member whose only
+   * phone has been quiet for a month is absent from `rows`. Counting only those
+   * would make `everyoneReady` false and `sealBody` throw - a friend who has
+   * not opened PINGO in six weeks would make the chat unsendable, which is a
+   * worse bug than the one the filter fixes.
+   *
+   * An account key is a wrap they can open on any device they sign in on, so it
+   * counts. Members with neither are genuinely unreachable and still hold the
+   * send, exactly as before.
+   */
+  const covered = new Set([
+    ...(rows ?? []).map((row) => row.user_id),
+    ...(recoveryError ? [] : (packages ?? []).map((row) => row.user_id)),
+  ]);
 
   return {
     devices: (rows ?? []).map((row) => ({
@@ -507,16 +594,50 @@ export async function sealBody(
   conversationId: string,
   body: string,
 ): Promise<SealedBody> {
-  const { devices, everyoneReady, recovery } = await conversationKeying(client, conversationId);
+  let keying = await conversationKeying(client, conversationId);
 
-  if (!everyoneReady) {
+  if (!keying.everyoneReady) {
     if (await hasEncryptedHistory(client, conversationId)) {
-      throw new Error(
-        'This chat is end-to-end encrypted, but a key for everyone in it is not available right now. Your message has not been sent.',
-      );
+      /*
+       * Waited for, rather than refused, and this is a real incident rather
+       * than a precaution.
+       *
+       * A member of a ten-person group opened PINGO on a new machine. Their
+       * `device_keys` row is written by `publishDeviceKey`, which is
+       * deliberately fire-and-forget so that starting the app is not gated on
+       * a round trip - so for the few seconds between them appearing in the
+       * roster and that write landing, they had no key at all. `everyoneReady`
+       * was false for *everybody*, and every other member's send was refused
+       * with "a key for everyone in it is not available right now". It healed
+       * on its own once the write landed, which is exactly what made it look
+       * inexplicable from the outside.
+       *
+       * The distinction the old code could not draw: a member who has never
+       * published is not a member who cannot receive. Somebody whose app is
+       * starting up publishes within a second or two, so the honest answer to
+       * "are they ready" is "ask again in a moment", not "no".
+       *
+       * Bounded on purpose. A member who is genuinely absent - uninstalled,
+       * never opened the app - still fails, still refuses to fall back to
+       * plaintext, and still says so. This only buys the time a launching
+       * client needs; it cannot invent a key that is not coming.
+       */
+      for (let attempt = 0; attempt < KEYING_ATTEMPTS && !keying.everyoneReady; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, KEYING_RETRY_MS));
+        keying = await conversationKeying(client, conversationId);
+      }
+
+      if (!keying.everyoneReady) {
+        throw new Error(
+          'This chat is end-to-end encrypted, but a key for everyone in it is not available right now. Your message has not been sent.',
+        );
+      }
+    } else {
+      return { body, encryption: null, envelope: null };
     }
-    return { body, encryption: null, envelope: null };
   }
+
+  const { devices, recovery } = keying;
 
   /*
    * Devices first, then recovery keys, in one envelope.
@@ -558,12 +679,26 @@ export async function openRow(row: MessageRow): Promise<boolean> {
 
   try {
     const identity = await deviceIdentity();
-    const plaintext = await decryptMessage(
+    let plaintext = await decryptMessage(
       row.body,
       row.envelope,
       identity.deviceId,
       identity.keyPair,
     );
+
+    /*
+     * The device wrap first, the account wrap second, and that order is the
+     * cheap one: anything sent since this device was added has a wrap for it
+     * and never reaches the fallback. Only history from before this phone
+     * existed does - which is exactly the case that used to read "Sent before
+     * you added this device." from the top of the thread to the bottom.
+     */
+    if (plaintext === undefined && account) {
+      plaintext = await decryptMessage(row.body, row.envelope, recoveryWrapId(account.userId), {
+        privateKey: account.key,
+      });
+    }
+
     row.body = plaintext ?? UNREADABLE;
     return plaintext !== undefined;
   } catch {

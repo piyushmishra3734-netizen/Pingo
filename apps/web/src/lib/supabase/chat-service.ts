@@ -58,6 +58,7 @@ import type {
 } from '@pingo/core';
 
 import {
+  adoptAccountKey,
   openRecord,
   openRow,
   openRows,
@@ -1021,6 +1022,17 @@ export class SupabaseChatService implements ChatService {
     void publishDeviceKey(this.#client, id);
 
     /*
+     * And the key that outlives this device.
+     *
+     * Same shape as the line above and for the same reason: it rides along with
+     * the first thing that needs an identity rather than being a step sign-in
+     * has to remember, and it never blocks. Until it resolves, this device
+     * reads everything wrapped for itself; once it has, it reads the history
+     * from before this phone existed too.
+     */
+    void adoptAccountKey(this.#client, id);
+
+    /*
      * And then keep that row's timestamp honest.
      *
      * `publishDeviceKey` is memoised, so it writes `last_seen_at` once per page
@@ -1671,7 +1683,25 @@ export class SupabaseChatService implements ChatService {
         // The list's previews are ciphertext too. Without this the home screen
         // would show base64 under every name.
         await openRows(fetched);
-        for (const row of fetched) this.#previewRows.set(row.id, row);
+        for (const row of fetched) {
+          /*
+           * A row that would not open is not cached, and that is the whole of
+           * why "Sent before you added this device" used to sit under a
+           * conversation name and then correct itself.
+           *
+           * `openRow` writes the placeholder into `row.body` when a decrypt
+           * fails, and this cache is held for the life of the session - so one
+           * transient failure (keys still loading on a cold start, a device
+           * that has not finished publishing) was promoted to the preview text
+           * and stayed. The thread already refuses to cache a page that did not
+           * fully decrypt, for exactly this reason and in almost these words;
+           * previews were the one path that did not.
+           *
+           * Skipping the write costs a re-fetch on the next hydrate, which is
+           * when it will open.
+           */
+          if (row.body !== UNREADABLE) this.#previewRows.set(row.id, row);
+        }
       }
       for (const id of lastMessageIds) {
         const row = this.#previewRows.get(id);
@@ -1822,7 +1852,27 @@ export class SupabaseChatService implements ChatService {
           // Every kind of conversation, unlike the wallpaper: a timer is about
           // what is kept, and a direct chat is where that matters most.
           ...(row.disappear_seconds ? { disappearSeconds: row.disappear_seconds } : {}),
-          ...(last ? { lastMessage: toMessage(last, theirReadAt) } : {}),
+          /*
+           * A preview never goes backwards to nothing.
+           *
+           * `last` is undefined whenever the row behind `last_message_id` did
+           * not come back - the message was inserted a moment ago and this read
+           * has not caught up, it failed to decrypt and was deliberately not
+           * cached above, it is hidden on this device. Omitting the field then
+           * makes `messagePreview` fall through to "No messages yet", and the
+           * home screen said that about a conversation somebody had just sent a
+           * message to, for the fraction of a second until the next hydrate.
+           *
+           * What this device already knew is a better answer than nothing in
+           * every one of those cases, and it is replaced the moment a real one
+           * arrives - `#bumpConversation` patches it on the incoming message,
+           * ahead of any rebuild.
+           */
+          ...(last
+            ? { lastMessage: toMessage(last, theirReadAt) }
+            : this.#known.get(row.id)?.lastMessage
+              ? { lastMessage: this.#known.get(row.id)!.lastMessage! }
+              : {}),
           /*
            * Counted in SQL over the real rows, not over whatever this client
            * happened to have fetched - unless this device has read the thread
@@ -2937,7 +2987,28 @@ export class SupabaseChatService implements ChatService {
      */
     const reactions = await this.#reactionsFor(rows.map((row) => row.id));
     // The cache is filled here and mutated from then on. docs/13 § 8.1.
-    for (const row of rows) this.#reactions.set(row.id, reactions.get(row.id) ?? []);
+    for (const row of rows) {
+      this.#reactions.set(row.id, reactions.get(row.id) ?? []);
+
+      /*
+       * An outstanding toggle survives the page it lands in the middle of.
+       *
+       * This overwrote the cache with server truth for every row, which is
+       * right except for the one message whose reaction has been tapped and not
+       * yet confirmed. Any hydrate in that window - a reconnect, coming back to
+       * the tab, paging older messages - read the server's older answer and
+       * dropped the optimistic emoji. On screen it reacts, and then a moment
+       * later the emoji is simply gone; the echo that would have restored it
+       * had already been consumed as the confirmation of a value that was no
+       * longer in the map.
+       *
+       * `#pending` is the record of what this user asked for and has not been
+       * told about yet, so it is applied on top. Its own echo still clears it
+       * in `#onReactionChange`, and a failed toggle still rolls it back.
+       */
+      const pending = this.#pending.get(row.id);
+      if (pending && me) this.#applyLocal(row.id, me, pending.emoji);
+    }
 
     // Decrypted as a batch before anything reads a body. Concurrent, because
     // each row carries its own wrapped key and none depends on another.

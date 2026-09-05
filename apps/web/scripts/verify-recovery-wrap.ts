@@ -53,7 +53,7 @@ function stubClient(tables: Record<string, { data: unknown; error: unknown }>): 
     from(table: string) {
       const result = tables[table] ?? { data: [], error: null };
       const builder: Record<string, unknown> = {};
-      for (const method of ['select', 'eq', 'in', 'limit', 'order', 'maybeSingle']) {
+      for (const method of ['select', 'eq', 'in', 'gt', 'limit', 'order', 'maybeSingle']) {
         builder[method] = () => builder;
       }
       builder.then = (resolve: (value: unknown) => unknown) => resolve(result);
@@ -145,11 +145,23 @@ const plain = stubClient({
   messages: noHistory,
 });
 
-const plainKeying = await conversationKeying(plain, CONVERSATION);
+/*
+ * Its own conversation id, and that is the whole of why this block used to
+ * fail.
+ *
+ * `conversationKeying` coalesces reads by conversation id for a second, so
+ * asking about `CONVERSATION` again here returned the *enrolled* answer from
+ * thirty lines up - recovery recipients and all. Three assertions had been
+ * failing on the cached result of a different scenario rather than on anything
+ * this one does.
+ */
+const PLAIN_CONVERSATION = 'c0000000-0000-4000-8000-000000000007';
+
+const plainKeying = await conversationKeying(plain, PLAIN_CONVERSATION);
 check(plainKeying.recovery.length === 0, 'no recovery recipients');
 check(plainKeying.everyoneReady, 'everyoneReady unaffected');
 
-const plainSealed = await sealBody(plain, CONVERSATION, 'hello');
+const plainSealed = await sealBody(plain, PLAIN_CONVERSATION, 'hello');
 const plainWraps = Object.keys(plainSealed.envelope?.keys ?? {});
 check(plainSealed.encryption === 'v1', 'still encrypts');
 check(plainWraps.length === 2, 'exactly the two devices, as before');
@@ -161,9 +173,22 @@ check(
 console.log('\n— guarantees that must not have moved —');
 
 /*
- * A member with no device keeps the conversation unencrypted, whether or not
- * anybody has recovery. Recovery adds a reader; it must never be mistaken for
- * a member being ready.
+ * An account key makes a member reachable, and this is the assertion that
+ * changed when it stopped being a backup.
+ *
+ * The old rule was that only a published *device* counted, because a recovery
+ * key was something you enrolled in after the fact - it added a reader to
+ * messages you could already receive, and treating it as readiness would have
+ * meant encrypting to somebody who could not decrypt.
+ *
+ * The account key is not that. It is fetched on sign-in, on any device, and
+ * `openRow` falls back to it, so a member who holds one can read the message
+ * wherever they next sign in. Refusing to encrypt for them would send their
+ * chat in the clear on the grounds that they are unreachable, which is exactly
+ * backwards.
+ *
+ * A member with neither is still genuinely unreachable, and the block below
+ * checks that the door has not been left open.
  */
 const missingDevice = stubClient({
   conversation_members: members,
@@ -185,12 +210,37 @@ const missingDevice = stubClient({
  */
 const UNREADY_CONVERSATION = 'c0000000-0000-4000-8000-000000000004';
 
-const notReady = await conversationKeying(missingDevice, UNREADY_CONVERSATION);
-check(!notReady.everyoneReady, 'a member without a device is still not ready');
+const withAccountKey = await conversationKeying(missingDevice, UNREADY_CONVERSATION);
+check(withAccountKey.everyoneReady, 'an account key makes a member ready without a device');
 
-const legacy = await sealBody(missingDevice, UNREADY_CONVERSATION, 'hello');
-check(legacy.encryption === null, 'a recovery key does not make a chat encryptable');
-check(legacy.envelope === null, 'and writes no envelope');
+const sealedForAccount = await sealBody(missingDevice, UNREADY_CONVERSATION, 'hello');
+check(sealedForAccount.encryption === 'v1', 'and the chat encrypts rather than falling back');
+check(
+  Object.keys(sealedForAccount.envelope?.keys ?? {}).length === 2,
+  "one wrap for Alice's device and one for Bob's account key",
+);
+
+/*
+ * Neither a device nor an account key is still unreachable. Without this the
+ * change above would read as "readiness got easier" rather than "readiness
+ * follows the account", and a member nobody can encrypt to would go unnoticed.
+ */
+const noKeysAtAll = stubClient({
+  conversation_members: members,
+  device_keys: { data: [alice.row], error: null },
+  recovery_packages: { data: [], error: null },
+  messages: noHistory,
+});
+
+const stillUnready = await conversationKeying(
+  noKeysAtAll,
+  'c0000000-0000-4000-8000-000000000006',
+);
+check(!stillUnready.everyoneReady, 'a member with neither is still not ready');
+
+const stillPlain = await sealBody(noKeysAtAll, 'c0000000-0000-4000-8000-000000000006', 'hello');
+check(stillPlain.encryption === null, 'and that chat still declines to encrypt');
+check(stillPlain.envelope === null, 'and writes no envelope');
 
 /*
  * A recovery lookup that fails must cost recoverability and nothing else. The
@@ -209,6 +259,83 @@ check(
   Object.keys(degraded.envelope?.keys ?? {}).length === 2,
   'and falls back to devices only',
 );
+
+console.log('\n— a member whose app is still starting up —');
+
+/*
+ * The incident this reproduces.
+ *
+ * Somebody opened PINGO on a new machine. `publishDeviceKey` is fire-and-forget
+ * so their `device_keys` row lands a moment after they appear in the roster,
+ * and in that gap every *other* member's send was refused with "a key for
+ * everyone in it is not available right now". It fixed itself within a minute,
+ * which is the part that made it unexplainable from the outside.
+ *
+ * `late` starts with only Alice published and gains Bob on the second read,
+ * which is what a client finishing its startup looks like from here.
+ */
+const late = { data: [alice.row], error: null as unknown };
+let deviceReads = 0;
+
+const startingUp = {
+  from(table: string) {
+    const tables: Record<string, { data: unknown; error: unknown }> = {
+      conversation_members: members,
+      // Non-empty, so the conversation counts as already encrypted and the
+      // send must wait rather than quietly dropping back to plaintext.
+      messages: { data: [{ id: 'has-history' }], error: null },
+      recovery_packages: { data: [], error: null },
+      device_keys: late,
+    };
+
+    if (table === 'device_keys') {
+      deviceReads += 1;
+      if (deviceReads > 1) late.data = [alice.row, bob.row];
+    }
+
+    const result = tables[table] ?? { data: [], error: null };
+    const builder: Record<string, unknown> = {};
+    for (const method of ['select', 'eq', 'in', 'gt', 'limit', 'order', 'maybeSingle']) {
+      builder[method] = () => builder;
+    }
+    builder.then = (resolve: (value: unknown) => unknown) => resolve(result);
+    return builder;
+  },
+} as unknown as PingoSupabaseClient;
+
+const LATE_CONVERSATION = 'c0000000-0000-4000-8000-000000000008';
+
+let refusedLate = false;
+let lateSealed;
+try {
+  lateSealed = await sealBody(startingUp, LATE_CONVERSATION, 'hello');
+} catch {
+  refusedLate = true;
+}
+
+check(!refusedLate, 'a key that arrives a moment late does not refuse the send');
+check(lateSealed?.encryption === 'v1', 'and the message is still encrypted, not sent in the clear');
+check(deviceReads > 1, 'because the keying read was actually retried');
+
+/*
+ * And the other half: a member who is genuinely not coming back must still
+ * fail. Without this the retry above would read as "waits and then gives up
+ * safely" when it could just as easily be "waits and then sends plaintext".
+ */
+const neverPublishes = stubClient({
+  conversation_members: members,
+  messages: { data: [{ id: 'has-history' }], error: null },
+  recovery_packages: { data: [], error: null },
+  device_keys: { data: [alice.row], error: null },
+});
+
+let refusedAbsent = false;
+try {
+  await sealBody(neverPublishes, 'c0000000-0000-4000-8000-000000000009', 'hello');
+} catch {
+  refusedAbsent = true;
+}
+check(refusedAbsent, 'a member who never publishes still holds the send');
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

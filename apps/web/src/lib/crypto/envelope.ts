@@ -157,7 +157,14 @@ export async function decryptMessage(
   body: string,
   envelope: Envelope,
   deviceId: string,
-  identity: CryptoKeyPair,
+  /*
+   * The private half is all this needs, and saying so is what lets the account
+   * key be passed here. It is unwrapped from a stored package rather than
+   * generated as a pair, so there is no public half to hand over - and
+   * requiring one would have meant either re-deriving it or inventing a
+   * placeholder, both of which are worse than narrowing the type.
+   */
+  identity: Pick<CryptoKeyPair, 'privateKey'>,
 ): Promise<string | undefined> {
   const wrap = envelope.keys[deviceId];
   if (!wrap) return undefined;

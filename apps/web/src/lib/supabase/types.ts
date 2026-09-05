@@ -1190,6 +1190,36 @@ export type Database = {
         Returns: undefined;
       };
       delete_recovery_package: { Args: Record<string, never>; Returns: undefined };
+      /**
+       * The account key, and the secret it is wrapped under.
+       *
+       * `secret` is null for a package made before the key became automatic:
+       * those are wrapped under a twelve-word code and nothing on the client
+       * can open them. See `crypto/account-key.ts`.
+       */
+      claim_account_key: {
+        Args: Record<string, never>;
+        Returns: {
+          kdf: string;
+          salt: string;
+          iv: string;
+          package: string;
+          secret: string | null;
+          version: number;
+        }[];
+      };
+      upsert_account_key: {
+        Args: {
+          new_kdf: string;
+          new_salt: string;
+          new_iv: string;
+          new_package: string;
+          new_public_key: string;
+          new_secret: string;
+          new_version: number;
+        };
+        Returns: undefined;
+      };
       my_streaks: {
         Args: Record<string, never>;
         Returns: { conversation_id: string; streak: number }[];
