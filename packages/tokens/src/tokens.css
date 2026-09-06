@@ -448,6 +448,53 @@
 /* two entrance animations used for content.                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A placeholder waiting for its content: a light passing across it.
+ *
+ * Its own animation rather than `dot-pulse`, which the skeleton had borrowed.
+ * That one belongs to the presence dot - a slow breath meaning "this person is
+ * here" - and a placeholder is not a person. Sharing it meant the two could
+ * never be tuned apart.
+ *
+ * The sweep is also what the boot shell in `index.html` draws before React has
+ * mounted. They have to match: the shell hands over to this the instant the
+ * bundle parses, and a placeholder that changed its animation mid-wait would
+ * announce the handover it exists to hide.
+ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  animation: skeleton-sweep 1600ms var(--ease-ambient) infinite;
+}
+
+/*
+ * Dark needs a fraction of the light: the same white that reads as a sheen on
+ * #f8f9fd reads as a stripe on #1c1e25.
+ */
+:root[data-theme='dark'] .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+}
+
+@keyframes skeleton-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
+
 /** Online / live: a slow breath. Never a blink - blinking demands attention. */
 @keyframes dot-pulse {
   0%,
@@ -1852,4 +1899,103 @@
 :root[data-theme='dark'][data-glass='100'] {
   --glass-fill: rgba(22, 23, 29, 0.16);
   --glass-lift: rgb(255 255 255 / 0.08);
+}
+
+/* -------------------------------------------------------------------------- */
+/* The web-sling loader                                                       */
+/*                                                                            */
+/* Almost nothing here. The shape, the motion and the timing all live in       */
+/* `WebSlingLoader.tsx`, because they are the same equation and splitting an   */
+/* equation across two files is how the word and the web drifted apart four    */
+/* times. This is colour, weight, and the box they sit in.                     */
+/* -------------------------------------------------------------------------- */
+
+.web-sling {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 0;
+}
+
+.web-sling-stage {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  /* The thread leaves through the bottom rather than shrinking away. */
+  overflow: hidden;
+}
+
+/*
+   The word, and the box the web measures itself against.
+   
+   Absolutely placed so the SVG can read its offset and height directly - the
+   anchors are computed from this box every frame, which is what keeps the silk
+   attached to the letters in any language and at any width.
+*/
+.web-sling-textbox {
+  position: absolute;
+  top: 14%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  will-change: transform;
+}
+
+.web-sling-word {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/*
+   The ruler. Same font as the word, laid out so it has a width, and invisible.
+   
+   `visibility: hidden` rather than `display: none`, because something that is
+   not laid out has no width to read - which is the entire job.
+*/
+.web-sling-sizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.web-sling-web {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /*
+     Ink, not the brand colour.
+     
+     A web drawn in the accent is a logo - it matches the buttons and the dock,
+     and matching is exactly what gives it away, because nothing in nature is
+     the colour of the interface it is sitting on. `--color-ink` is the one
+     token that already flips with the theme: near-black on the light page,
+     near-white on the dark one. So the silk takes the light of the room it is
+     in, and it does not change when somebody changes their accent.
+  */
+  stroke: var(--color-ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* Thread, not cord. */
+  stroke-width: 1.5;
+  opacity: 0.62;
+  /*
+     A thread lying on a surface casts a shadow. Without one it is a line drawn
+     on the page; with one it is something resting on it.
+  */
+  filter: drop-shadow(0 1px 1.5px rgb(17 18 26 / 0.16));
+}
+
+/* The thread carries the weight, so it is drawn a little heavier than the silk. */
+.web-sling-line {
+  stroke-width: 2;
 }

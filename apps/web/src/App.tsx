@@ -1,4 +1,5 @@
 import { AuthProvider, ChatProvider, ProfileProvider } from '@pingo/core';
+import { ScreenSkeleton } from '@pingo/ui';
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { BrowserRouter } from 'react-router-dom';
@@ -331,7 +332,16 @@ export function App() {
             for what that looked like and why refreshing did not clear it.
           */}
           <RouteBoundary>
-          <Suspense fallback={null}>
+          {/*
+            Not `null`, which is what this was.
+
+            Fifty screens here are lazy, and this boundary wraps every one of
+            them - so while a chunk was in flight the route rendered nothing
+            and the dock went with it. On a fast connection that is a frame; on
+            2G it is the same blank page the app used to start on, arriving
+            when somebody taps Settings.
+          */}
+          <Suspense fallback={<ScreenSkeleton />}>
           <Routes>
             <Route path="/" element={<SplashScreen />} />
 

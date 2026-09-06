@@ -23,17 +23,24 @@ export interface SkeletonProps {
 }
 
 /**
- * A placeholder block.
+ * A placeholder block, with a light passing across it.
  *
- * Pulses opacity rather than sweeping a shimmer gradient across itself. A
- * shimmer draws the eye and implies progress it cannot know about; a slow fade
- * simply says "not yet".
+ * This used to pulse its opacity, on the reasoning that a shimmer draws the eye
+ * and implies progress it cannot know about. The reasoning still holds and the
+ * decision changed anyway, because a second thing outweighed it: the boot shell
+ * in `index.html` paints these same placeholders before React exists, and the
+ * handover between the two has to be invisible. One animation, in one place -
+ * see `.skeleton` in tokens.css - is what makes that true.
+ *
+ * It also stops borrowing `dot-pulse`, which belongs to the presence dot and
+ * means "this person is here". A placeholder is not a person, and sharing the
+ * animation meant neither could be tuned without moving the other.
  */
 export function Skeleton({ className, circle = false, style }: SkeletonProps) {
   return (
     <span
       className={cn(
-        'block animate-dot-pulse bg-sunken',
+        'block skeleton bg-sunken',
         circle ? 'rounded-full' : 'rounded-md',
         className,
       )}
@@ -57,6 +64,34 @@ export function ConversationSkeleton({ rows = 5 }: { rows?: number }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * What a lazily-loaded screen shows while its chunk is on the way.
+ *
+ * Fifty of the app's screens are `React.lazy`, and the Suspense boundary
+ * around them had `fallback={null}` - so opening settings, a profile or the
+ * camera on a slow connection showed nothing at all, and the dock went with it
+ * because the boundary wraps the whole route. It is the same blank the app used
+ * to start on, arriving later.
+ *
+ * A title and some rows, in the same language as the boot shell in
+ * `index.html` and the conversation list beside it: most lazy screens here are
+ * a heading over a list, so this is close enough to be a promise rather than a
+ * decoration. The rows fade out down the page, which stops it reading as a real
+ * list that has failed to fill in.
+ */
+export function ScreenSkeleton() {
+  return (
+    <div className="space-y-4 p-4" role="status" aria-label="Loading">
+      <Skeleton className="h-6 w-32" />
+      <div className="space-y-2">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-12 rounded-xl" style={{ opacity: 1 - i * 0.13 }} />
+        ))}
+      </div>
     </div>
   );
 }

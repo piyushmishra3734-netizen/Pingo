@@ -143,9 +143,183 @@
         ]
       }
     </script>
+    <!--
+      The theme, decided before the first pixel.
+
+      `data-theme` is set by SettingsContext, which cannot run until React has
+      mounted - so a reload painted the light palette and then turned dark once
+      the bundle was parsed. Every deploy reloads the fleet (`autoUpdate` with
+      `skipWaiting`), so this was fifteen flashes a day for anybody on dark.
+
+      Reads the same key and the same rule the app does: an explicit choice
+      wins, `auto` follows the system. Wrapped because a browser refusing
+      localStorage must cost the flash, not the app.
+    -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('pingo:preferences');
+          var theme = raw ? (JSON.parse(raw) || {}).theme : 'auto';
+          if (theme !== 'light' && theme !== 'dark') {
+            theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', theme);
+          if (theme === 'dark') {
+            var tint = document.querySelector('meta[name="theme-color"]');
+            if (tint) tint.setAttribute('content', '#0c0d11');
+          }
+        } catch (error) {
+          /* No preference readable. The stylesheet's own default stands. */
+        }
+
+        /*
+         * Whether the shell below is the right shape for where we are going.
+         *
+         * A chat-list skeleton over the sign-in screen would be a lie about
+         * what is coming. On every other route the shell is the background and
+         * nothing else, which is still better than white.
+         */
+        var path = location.pathname;
+        if (/^\/(chats|calls|communities|notifications|profile|settings)/.test(path)) {
+          document.documentElement.setAttribute('data-shell', 'list');
+        }
+      })();
+    </script>
+
+    <!--
+      What fills the screen until React has mounted.
+
+      `#root` was empty, so from the moment the HTML arrived to the moment a
+      1.2 MB bundle finished parsing there was nothing on screen at all - white
+      on a phone, for as long as that took. It is the most-seen screen in the
+      product precisely because nobody meant to design it.
+
+      Plain HTML and CSS, no script and no request: it is painted in the first
+      frame, before the bundle has been asked for. React clears `#root` on its
+      first render, so nothing removes this and there is no flash to time.
+    -->
+    <style>
+      #boot {
+        position: fixed;
+        inset: 0;
+        background: #f7f7f8;
+      }
+
+      /*
+       * A column, not the window.
+       *
+       * The list is the left pane on a desktop and the whole screen on a
+       * phone, so the shell is one column that stops where that pane stops.
+       * Stretched across 1500px it read as a broken table rather than as a
+       * conversation list about to arrive.
+       */
+      #boot .col {
+        width: 100%;
+        max-width: 25rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 1.25rem 1rem;
+        gap: 0.875rem;
+      }
+
+      :root[data-theme='dark'] #boot {
+        background: #0c0d11;
+      }
+
+      /* Only the background where a list is not what is coming. */
+      :root:not([data-shell='list']) #boot .col {
+        display: none;
+      }
+
+      #boot i {
+        display: block;
+        position: relative;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(17, 17, 19, 0.06);
+      }
+
+      /*
+       * The same sweep `.skeleton` draws in tokens.css, written out here
+       * because that stylesheet is inside the bundle this is waiting for.
+       * They have to match: React replaces these with its own placeholders the
+       * instant it mounts, and a placeholder that changed its animation
+       * mid-wait would announce the handover this exists to hide.
+       */
+      #boot i::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+        animation: boot-sweep 1.6s ease-in-out infinite;
+      }
+
+      :root[data-theme='dark'] #boot i::after {
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+      }
+
+      :root[data-theme='dark'] #boot i {
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      #boot .row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      #boot .row i:first-child {
+        width: 2.75rem;
+        height: 2.75rem;
+        flex: none;
+      }
+
+      #boot .lines {
+        flex: 1;
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      /*
+       * Staggered, because five bars lighting on the same frame read as one
+       * object rather than as a list of separate things.
+       */
+      #boot .row:nth-child(3) i::after { animation-delay: 0.05s; }
+      #boot .row:nth-child(4) i::after { animation-delay: 0.1s; }
+      #boot .row:nth-child(5) i::after { animation-delay: 0.15s; }
+      #boot .row:nth-child(6) i::after { animation-delay: 0.2s; }
+
+      /* The pane's own edge, where there is a pane beside it. */
+      @media (min-width: 64rem) {
+        #boot .col { border-right: 1px solid rgba(17, 17, 19, 0.07); }
+        :root[data-theme='dark'] #boot .col { border-right-color: rgba(255, 255, 255, 0.08); }
+      }
+
+      @keyframes boot-sweep {
+        to { transform: translateX(100%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #boot i::after { animation: none; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Replaced by React's first render. See the note in <head>. -->
+      <div id="boot" aria-hidden="true">
+        <div class="col">
+          <i style="width: 7rem; height: 1.5rem; border-radius: 0.5rem"></i>
+          <i style="width: 100%; height: 2.5rem; border-radius: 1.25rem"></i>
+          <div class="row"><i></i><div class="lines"><i style="width: 55%; height: 0.8rem"></i><i style="width: 80%; height: 0.7rem"></i></div></div>
+          <div class="row"><i></i><div class="lines"><i style="width: 45%; height: 0.8rem"></i><i style="width: 70%; height: 0.7rem"></i></div></div>
+          <div class="row"><i></i><div class="lines"><i style="width: 62%; height: 0.8rem"></i><i style="width: 60%; height: 0.7rem"></i></div></div>
+          <div class="row"><i></i><div class="lines"><i style="width: 48%; height: 0.8rem"></i><i style="width: 76%; height: 0.7rem"></i></div></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       /*
