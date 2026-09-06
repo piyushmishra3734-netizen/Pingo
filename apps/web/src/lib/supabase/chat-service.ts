@@ -2223,18 +2223,115 @@ export class SupabaseChatService implements ChatService {
   /** The read itself, so the coalescing above stays readable. */
   async #listConversationsOnce(key: string): Promise<Conversation[]> {
     try {
+      /*
+       * Ask what changed before reading everything.
+       *
+       * The list is nine queries and, on a cold start, the answer to all nine
+       * is usually the answer this device already has on disk. Every deploy
+       * reloads the fleet - `registerType: 'autoUpdate'` with `skipWaiting`,
+       * which is deliberate - so "a cold start where nothing changed" is not
+       * an edge case here, it is most of them.
+       *
+       * Three rows of about forty bytes decide it. If they match what was
+       * stored beside the cached list, the cache *is* the answer.
+       */
+      const fingerprint = await this.#listFingerprint();
+      if (fingerprint) {
+        const cached = await this.#cachedList(key);
+        if (cached && cached.fingerprint === fingerprint) {
+          /*
+           * Remembered, or nothing else works.
+           *
+           * `#bumpConversation` and `#publishRead` patch the list in place
+           * from `#known`, and both fall back to a whole-account read when it
+           * is empty. Returning the cache without filling it would save nine
+           * queries now and spend nine on the next message that arrives.
+           */
+          for (const conversation of cached.list) {
+            this.#known.set(conversation.id, conversation);
+          }
+          return cached.list;
+        }
+      }
+
       const live = await this.#listConversationsFromNetwork();
       // Sealed too. The list carries message previews, which is to say it
       // carries the first line of every conversation you have.
-      void sealRecord(live).then((sealed) => localSet(STORE.conversations, key, sealed));
+      void sealRecord({ fingerprint, list: live }).then((sealed) =>
+        localSet(STORE.conversations, key, sealed),
+      );
       return live;
     } catch (cause) {
-      const cached = await openRecord<Conversation[]>(
-        await localGet<unknown>(STORE.conversations, key),
-      );
-      if (cached) return cached;
+      const cached = await this.#cachedList(key);
+      if (cached) {
+        for (const conversation of cached.list) {
+          this.#known.set(conversation.id, conversation);
+        }
+        return cached.list;
+      }
       throw cause;
     }
+  }
+
+  /**
+   * The cached list, in either shape it has been written in.
+   *
+   * Records from before the fingerprint existed are the bare array. They are
+   * read back without one, which means they never match and are replaced by
+   * the first real read - which is the correct outcome, not a fallback.
+   */
+  async #cachedList(
+    key: string,
+  ): Promise<{ fingerprint?: string; list: Conversation[] } | undefined> {
+    const stored = await openRecord<Conversation[] | { fingerprint?: string; list: Conversation[] }>(
+      await localGet<unknown>(STORE.conversations, key),
+    );
+
+    if (!stored) return undefined;
+    if (Array.isArray(stored)) return { list: stored };
+    return Array.isArray(stored.list) ? stored : undefined;
+  }
+
+  /**
+   * Everything that can change this list, in three rows.
+   *
+   * - the newest `last_message_at`: a message arriving anywhere;
+   * - how many conversations there are: one started, left or archived away;
+   * - the newest `last_read_at`: a badge cleared on another device, and the
+   *   ticks on what this user sent, which move when somebody else reads.
+   *
+   * All three are scoped by RLS to what this account can see, so none of them
+   * needs a membership list to ask - which is the point, because fetching the
+   * memberships is already a third of what this is trying to avoid.
+   *
+   * Returns `undefined` when any of them fails, and an unknown answer must
+   * always mean "read it properly". A fingerprint that silently matched on a
+   * failed request would freeze the list for as long as the failure lasted.
+   */
+  async #listFingerprint(): Promise<string | undefined> {
+    const [newest, total, read] = await Promise.all([
+      this.#client
+        .from('conversations')
+        .select('last_message_at')
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
+      this.#client.from('conversations').select('id', { count: 'exact', head: true }),
+      this.#client
+        .from('conversation_members')
+        .select('last_read_at')
+        .order('last_read_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    if (newest.error || total.error || read.error) return undefined;
+
+    return [
+      newest.data?.last_message_at ?? '',
+      total.count ?? 0,
+      read.data?.last_read_at ?? '',
+    ].join('|');
   }
 
   async #listConversationsFromNetwork(): Promise<Conversation[]> {
