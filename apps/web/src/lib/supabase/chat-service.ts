@@ -209,6 +209,23 @@ function toUser(row: UserRow, lastSeenAt?: number): User {
 const PRESENCE_WINDOW_MS = 120_000;
 
 /**
+ * How long a last-seen read stands before it is asked again.
+ *
+ * The heartbeat behind the column writes once a minute, so a fresher answer
+ * than this does not exist to be fetched. See `#lastSeenFor`.
+ */
+const LAST_SEEN_TTL_MS = 60_000;
+
+/**
+ * How long the contacts list stands before it is read again.
+ *
+ * It answers "who else exists", which changes when somebody signs up. Five
+ * minutes of that being stale is invisible; a hundred rows on every resume is
+ * not. See `listContacts`.
+ */
+const CONTACTS_TTL_MS = 5 * 60_000;
+
+/**
  * Presence from a timestamp, for everyone Realtime has not spoken about.
  *
  * This used to be a flat `offline`, on the reasoning that a green dot which
@@ -690,6 +707,16 @@ export class SupabaseChatService implements ChatService {
    * can disagree.
    */
   #reactions = new Map<MessageId, Reaction[]>();
+  /**
+   * Last-seen times already read, and when they were read.
+   *
+   * `seen` is absent for somebody with no device row or with activity hidden -
+   * recorded all the same, so that "there is nothing here" is not re-asked on
+   * every roster load.
+   */
+  #lastSeenAt = new Map<UserId, { at: number; seen?: number }>();
+  /** The contacts read in flight or just finished. See `listContacts`. */
+  #contacts: { at: number; work: Promise<User[]> } | undefined;
 
   /**
    * Optimistic toggles awaiting their echo. docs/13 § 8.2.
@@ -1558,12 +1585,47 @@ export class SupabaseChatService implements ChatService {
     const newest = new Map<UserId, number>();
     if (ids.length === 0) return newest;
 
+    /*
+     * Answered from what this session already knows, for as long as the answer
+     * cannot have changed.
+     *
+     * `last_seen_at` is written by the presence heartbeat, which runs once a
+     * minute. Asking again inside that minute cannot learn anything the last
+     * answer did not already contain - and this read is the second largest
+     * thing the app fetches: 50 kB of a 199 kB session, up to a hundred ids at
+     * a time, once per `listContacts` and once per roster load.
+     *
+     * A live socket still overrides all of this the instant somebody appears
+     * or leaves, so the cache delays nothing anybody watches.
+     */
+    const now = Date.now();
+    const stale = ids.filter((id) => (this.#lastSeenAt.get(id)?.at ?? 0) < now - LAST_SEEN_TTL_MS);
+
+    if (stale.length === 0) {
+      for (const id of ids) {
+        const held = this.#lastSeenAt.get(id);
+        if (held?.seen !== undefined) newest.set(id, held.seen);
+      }
+      return newest;
+    }
+
     const [keys, hidden] = await Promise.all([
-      this.#client.from('device_keys').select('user_id,last_seen_at').in('user_id', ids),
-      this.#hiddenActivity(ids),
+      this.#client.from('device_keys').select('user_id,last_seen_at').in('user_id', stale),
+      this.#hiddenActivity(stale),
     ]);
 
-    if (keys.error || !keys.data) return newest;
+    // A failed read leaves what was already held rather than forgetting it.
+    if (keys.error || !keys.data) {
+      for (const id of ids) {
+        const held = this.#lastSeenAt.get(id);
+        if (held?.seen !== undefined) newest.set(id, held.seen);
+      }
+      return newest;
+    }
+
+    // Recorded as asked-about, so a user with no device row is not re-queried
+    // every time either.
+    for (const id of stale) this.#lastSeenAt.set(id, { at: now });
 
     for (const row of keys.data) {
       /*
@@ -1581,6 +1643,16 @@ export class SupabaseChatService implements ChatService {
       const seen = newest.get(row.user_id);
       if (seen === undefined || at > seen) newest.set(row.user_id, at);
     }
+
+    // The freshly read ones, and then everything held from before for the ids
+    // this call did not have to ask about.
+    for (const [id, seen] of newest) this.#lastSeenAt.set(id, { at: now, seen });
+    for (const id of ids) {
+      if (newest.has(id)) continue;
+      const held = this.#lastSeenAt.get(id);
+      if (held?.seen !== undefined) newest.set(id, held.seen);
+    }
+
     return newest;
   }
 
@@ -5181,6 +5253,33 @@ export class SupabaseChatService implements ChatService {
 
   /** Everyone else on PINGO. Contact matching needs a device, not a browser. */
   async listContacts(): Promise<User[]> {
+    /*
+     * The hundred newest accounts, and not once per resume.
+     *
+     * This is the widest read in the app and the least urgent: it answers "who
+     * else exists" for search, the people picker and name lookups, and the
+     * answer changes when somebody signs up. `load()` ran it on every resume
+     * alongside the conversation list, which is a hundred rows to learn that
+     * nobody had joined in the last forty seconds.
+     *
+     * People who matter to what is on screen do not come from here - the
+     * members of a conversation are loaded with it, by id, in `#loadPeople`.
+     * This is the long tail, and five minutes of it is not stale in any way
+     * anybody can see.
+     */
+    const cached = this.#contacts;
+    if (cached && Date.now() - cached.at < CONTACTS_TTL_MS) return cached.work;
+
+    const work = this.#listContactsOnce();
+    this.#contacts = { at: Date.now(), work };
+    void work.catch(() => {
+      // A failure must not be cached as the answer for the next five minutes.
+      if (this.#contacts?.work === work) this.#contacts = undefined;
+    });
+    return work;
+  }
+
+  async #listContactsOnce(): Promise<User[]> {
     const me = await this.#userId();
     const { data } = await this.#client
       .from('profiles')
