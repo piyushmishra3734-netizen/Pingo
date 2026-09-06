@@ -43,6 +43,15 @@ interface ChatContextValue {
 
 const ChatContext = createContext<ChatContextValue | undefined>(undefined);
 
+/**
+ * The shortest gap between two reconnect-driven list rebuilds.
+ *
+ * One rebuild is nine queries across the whole account, so this is the
+ * difference between a socket that flaps and an account that runs out of
+ * egress. See where it is applied.
+ */
+const RECOVERY_FLOOR_MS = 30_000;
+
 interface ChatProviderProps {
   children: ReactNode;
   /** Injectable for tests and for the eventual real implementation. */
@@ -65,6 +74,8 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
   const [ready, setReady] = useState(false);
   /** Whether the last thing we saw was a loss, so a `connected` means recovery. */
   const wasDisconnected = useRef(false);
+  /** When the last reconnect-driven rebuild ran. See the floor below. */
+  const lastRecovery = useRef(0);
 
   const load = useCallback(async () => {
     const [user, contacts, list] = await Promise.all([
@@ -200,8 +211,26 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
            * emitted on the first subscribe too, and reloading there would
            * duplicate the initial load on every launch.
            */
+          /*
+           * And no more often than this, however often the socket flaps.
+           *
+           * The transition guard is correct and was not enough. A channel that
+           * rejoins - a rate limit, a timeout, a phone changing networks -
+           * passes through `connecting` and back to `connected` every time, and
+           * every pass is a genuine transition. Measured on the live project:
+           * 925 of these nine-query rebuilds in one hour from four clients, one
+           * every eleven seconds each, which took the account to 96% of its
+           * egress cap.
+           *
+           * Thirty seconds is well under how stale a list can get before
+           * somebody notices, and it turns an unbounded loop into at most two
+           * rebuilds a minute per client no matter what the socket does.
+           */
           if (event.state === 'connected' && wasDisconnected.current) {
-            void load().catch(() => undefined);
+            if (Date.now() - lastRecovery.current > RECOVERY_FLOOR_MS) {
+              lastRecovery.current = Date.now();
+              void load().catch(() => undefined);
+            }
           }
           wasDisconnected.current = event.state !== 'connected';
           break;

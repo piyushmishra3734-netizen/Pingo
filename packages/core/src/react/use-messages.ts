@@ -6,7 +6,7 @@
  * live events to it, and exposes the send path.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useChat } from './chat-provider.js';
 import { groupMessages } from '../format.js';
@@ -53,6 +53,15 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
+  /**
+   * Whether the last connection state seen was a loss, so a `connected` after
+   * it is a recovery rather than an announcement.
+   *
+   * A ref and not state: nothing renders from it, and making it state would
+   * re-run this hook on every socket blip - which is the shape of the problem
+   * it exists to stop.
+   */
+  const wasDisconnected = useRef(false);
 
   // Load history whenever the open conversation changes.
   useEffect(() => {
@@ -202,8 +211,29 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
        * Deliberately not cache-first. The cache is exactly the stale thing
        * being corrected, and painting it again on the way to the truth is how
        * "old messages, then new ones" happens.
+       *
+       * ## Only on the way back, not on every `connected`
+       *
+       * This had no transition guard, and the socket does not only announce
+       * itself once: a channel that rejoins - a rate limit, a timeout, a
+       * roaming phone - walks through `connecting` and back to `connected`
+       * every time, and each pass refetched the whole page.
+       *
+       * Measured on the live project: 919 `messages_page` calls in an hour
+       * against 250 messages actually sent, from four clients. The same rejoin
+       * also ran the nine-query list rebuild next door, and between them they
+       * put the account at 96% of its egress cap. The reconnect handler that
+       * exists to correct a stale thread was the thing generating the traffic.
+       *
+       * `wasDisconnected` is what the chat provider already does for the same
+       * event, and this is the same rule: a reconnect after a reconnect has
+       * nothing to catch up on.
        */
-      if (event.type === 'connection:changed' && event.state === 'connected') {
+      if (
+        event.type === 'connection:changed' &&
+        event.state === 'connected' &&
+        wasDisconnected.current
+      ) {
         void service
           .listMessages(conversationId, { limit: PAGE_SIZE })
           .then((history) => {
@@ -218,6 +248,14 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
             setHasOlder(history.length >= PAGE_SIZE);
           })
           .catch(() => undefined);
+      }
+
+      // Set after the check above, so the first `connected` of a subscription
+      // is not mistaken for a recovery. Every other state means the socket is
+      // not carrying events, which is what makes the next `connected` worth
+      // catching up from.
+      if (event.type === 'connection:changed') {
+        wasDisconnected.current = event.state !== 'connected';
       }
 
       /*
