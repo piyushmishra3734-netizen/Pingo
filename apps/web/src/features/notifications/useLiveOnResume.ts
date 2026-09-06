@@ -2,6 +2,16 @@ import { useChat } from '@pingo/core';
 import { useEffect } from 'react';
 
 /**
+ * How long away counts as having missed something.
+ *
+ * Below this, the socket is still alive and nothing was queued for this device,
+ * so waking costs a torn-down connection and a nine-query rebuild to learn
+ * nothing. Above it, the app may well have been backgrounded and the socket
+ * closed underneath it, which is what this hook is for.
+ */
+const AWAY_MS = 10_000;
+
+/**
  * Coming back to the app makes it live again.
  *
  * ## What goes wrong without it
@@ -35,6 +45,12 @@ export function useLiveOnResume(): void {
 
   useEffect(() => {
     let last = 0;
+    /** When this app last stopped being watched, or undefined while it is. */
+    let awaySince: number | undefined;
+
+    const markAway = () => {
+      awaySince ??= Date.now();
+    };
 
     const wake = () => {
       /*
@@ -44,6 +60,27 @@ export function useLiveOnResume(): void {
        */
       const now = Date.now();
       if (now - last < 1_000) return;
+
+      /*
+       * How long we were gone decides whether any of this is worth doing, and
+       * this is the fix for the account reaching 96% of its egress cap.
+       *
+       * `focus` fires every time the window is clicked back into - alt-tabbing
+       * to a browser and back, moving between two windows, answering a
+       * notification. Each one tore down a healthy socket and ran the
+       * nine-query list rebuild. Traced from the live app: `offline` followed
+       * by `connected` 137 ms later, with `listConversations` behind it, on an
+       * account doing 925 of those rebuilds an hour from four clients.
+       *
+       * A glance away missed nothing. Ten seconds of quiet is far shorter than
+       * a locked phone or a backgrounded app - which is the case this hook
+       * exists for, and which is untouched - and far longer than clicking
+       * between windows.
+       */
+      const away = awaySince === undefined ? Infinity : now - awaySince;
+      awaySince = undefined;
+      if (away < AWAY_MS) return;
+
       last = now;
 
       service.reconnect();
@@ -52,10 +89,12 @@ export function useLiveOnResume(): void {
 
     const onVisibility = () => {
       if (document.visibilityState === 'visible') wake();
+      else markAway();
     };
 
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('focus', wake);
+    window.addEventListener('blur', markAway);
 
     /*
      * Loaded on demand so the browser build never pulls the plugin in. It
@@ -67,6 +106,7 @@ export function useLiveOnResume(): void {
       .then(({ App }) =>
         App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) wake();
+          else markAway();
         }),
       )
       .then((handle) => {
@@ -77,6 +117,7 @@ export function useLiveOnResume(): void {
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('focus', wake);
+      window.removeEventListener('blur', markAway);
       detach?.();
     };
   }, [service, refresh]);

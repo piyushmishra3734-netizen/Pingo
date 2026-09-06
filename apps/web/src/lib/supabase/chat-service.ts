@@ -1655,7 +1655,24 @@ export class SupabaseChatService implements ChatService {
      * query for the whole list, and bounded by the number of conversations
      * rather than by how much anyone has been talking.
      */
+    /*
+     * The previews of the conversations actually being hydrated, not of every
+     * conversation this account has.
+     *
+     * `conversation_previews` is an RPC with no arguments, so it answers for
+     * the whole account however few rows the caller asked about - and
+     * `getConversation` asks about exactly one. Deriving the ids from its full
+     * answer meant a single conversation refreshing considered all 78, and the
+     * `messages_page` fetch below was sized by the account rather than by the
+     * work.
+     *
+     * `ids` is what this call is for. `previewByConversation` still holds the
+     * whole answer because a Map lookup costs nothing; what is scoped here is
+     * the fetch.
+     */
+    const wantedConversations = new Set(ids);
     const lastMessageIds = (previews ?? [])
+      .filter((row) => wantedConversations.has(row.conversation_id))
       .map((row) => row.last_message_id)
       .filter((id): id is string => Boolean(id));
 
