@@ -98,8 +98,13 @@ async function load(client: PingoSupabaseClient): Promise<CryptoKey | undefined>
   const stored = await localGet<CryptoKey>(STORE.keys, ACCOUNT);
   if (stored) return stored;
 
+  if (unavailable) return undefined;
+
   const claimed = await claim(client);
-  if (claimed === UNAVAILABLE) return undefined;
+  if (claimed === UNAVAILABLE) {
+    unavailable = true;
+    return undefined;
+  }
   if (claimed) return claimed;
 
   return mint(client);
@@ -115,6 +120,16 @@ async function load(client: PingoSupabaseClient): Promise<CryptoKey | undefined>
  * per launch, and log both.
  */
 const UNAVAILABLE = Symbol('account key unavailable');
+
+/**
+ * Remembered, because the answer cannot change while this tab is open.
+ *
+ * A missing function is a migration that has not been applied, not a blip, and
+ * `adoptAccountKey` is called from the session-resolve path - so without this
+ * every load fired the same doomed claim again. Measured on a cold start: three
+ * of them, before anyone had done anything.
+ */
+let unavailable = false;
 
 /** The key this account already has, unwrapped and kept. */
 async function claim(
@@ -182,4 +197,6 @@ async function mint(client: PingoSupabaseClient): Promise<CryptoKey | undefined>
 /** Dropped on sign-out, with everything else this device knows. */
 export function forgetAccountKey(): void {
   pending = undefined;
+  // Not `unavailable`: whether the server has the function is a property of the
+  // deployment, not of who is signed in.
 }
