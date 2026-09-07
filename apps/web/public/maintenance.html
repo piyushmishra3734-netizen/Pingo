@@ -33,10 +33,19 @@
     --ink-faint: #8b8c95;
     --line: rgba(17, 17, 19, 0.08);
     --brand: #e0559b;
-    --metal: #dedfe4;
-    --metal-dark: #c9cad1;
-    --crate: #e6e7ec;
-    --crate-dark: #d6d7de;
+    /*
+     * Three values, not one grey.
+     *
+     * The first version drew the robot at #dedfe4 on a #f7f7f8 ground, which is
+     * four percent apart - on screen it read as a smudge rather than a
+     * character. The robot is cool and the crate is warm, so the two separate
+     * by hue as well as by value and neither needs an outline to be legible.
+     */
+    --metal: #cdd0d9;
+    --metal-dark: #aeb2be;
+    --crate: #e9e4da;
+    --crate-dark: #d3cdc0;
+    --shadow: rgba(17, 17, 19, 0.07);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -48,10 +57,11 @@
       --ink-faint: rgba(244, 245, 249, 0.45);
       --line: rgba(255, 255, 255, 0.09);
       --brand: #ff7ab8;
-      --metal: #2a2c35;
-      --metal-dark: #22242c;
-      --crate: #1d1f26;
-      --crate-dark: #171920;
+      --metal: #3a3d4a;
+      --metal-dark: #2b2e39;
+      --crate: #262229;
+      --crate-dark: #1c191f;
+      --shadow: rgba(0, 0, 0, 0.5);
     }
   }
 
@@ -61,7 +71,22 @@
 
   body {
     margin: 0;
-    background: var(--page);
+    /*
+     * A ground rather than a blank.
+     *
+     * The page was a flat fill with a small centred column on it, which is why
+     * it read as empty rather than as quiet. One very soft pool of the accent
+     * behind the scene gives the composition a centre and something for the
+     * robot to sit in - at four percent it is felt rather than seen, and it
+     * costs one gradient.
+     */
+    background:
+      radial-gradient(
+        58% 42% at 50% 38%,
+        color-mix(in srgb, var(--brand) 6%, transparent),
+        transparent 70%
+      ),
+      var(--page);
     color: var(--ink);
     font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -81,63 +106,70 @@
 
   .scene {
     width: 100%;
-    max-width: 15rem;
-    margin: 0 auto 2.25rem;
+    max-width: 19rem;
+    margin: 0 auto 1.5rem;
     display: block;
   }
 
   /*
-   * It ducks, waits, and pops back up to see whether anybody is there.
+   * Watching, rising, hiding, and back to watching.
    *
-   * The overshoot is the whole trick. A head that slides up and stops reads as
-   * a panel opening; one that goes slightly too far and settles reads as
-   * something alive that moved itself. Same four keyframes either way.
+   * The first version rested with the whole head below the rim, so for four of
+   * every seven seconds there was nothing on screen but a crate with an
+   * antenna over it. That is what made the page feel dead: most of the time
+   * nobody was there.
    *
-   * Then it looks left, looks right, and gives up again - which is what makes
-   * it read as bored rather than as a loading indicator. The pause at the
-   * bottom is deliberately the longest part: constant motion on a page nobody
-   * chose to be on is a page tugging at a sleeve.
+   * Now the resting state is a face already looking over the edge - eyes just
+   * clear of the rim - and the loop is three beats rather than one: it stretches
+   * up for a proper look, drops out of sight for a moment, and comes back to
+   * watching. Something is happening at every point in it, and the beat you
+   * land on when the page opens is a robot looking at you.
+   *
+   * The overshoot on the way up is the trick that makes it read as alive. A
+   * head that slides and stops is a panel opening; one that goes slightly too
+   * far and settles moved itself.
    */
   .peeker {
     transform-origin: 120px 176px;
-    animation: peek 7s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+    animation: peek 5.6s cubic-bezier(0.34, 1.32, 0.64, 1) infinite;
   }
 
   @keyframes peek {
-    0%, 6%    { transform: translateY(0) rotate(0deg); }
-    13%       { transform: translateY(-34px) rotate(-5deg); }
-    18%       { transform: translateY(-29px) rotate(-4deg); }
-    32%       { transform: translateY(-30px) rotate(5deg); }
-    46%       { transform: translateY(-30px) rotate(-4deg); }
-    56%       { transform: translateY(-29px) rotate(0deg); }
-    66%       { transform: translateY(3px) rotate(0deg); }
-    72%, 100% { transform: translateY(0) rotate(0deg); }
+    0%, 14%   { transform: translateY(0) rotate(0deg); }
+    22%       { transform: translateY(-30px) rotate(-4deg); }
+    27%       { transform: translateY(-25px) rotate(-3deg); }
+    40%       { transform: translateY(-26px) rotate(4deg); }
+    52%       { transform: translateY(-25px) rotate(-2deg); }
+    62%       { transform: translateY(-24px) rotate(0deg); }
+    72%       { transform: translateY(22px) rotate(0deg); }
+    84%       { transform: translateY(-3px) rotate(0deg); }
+    92%, 100% { transform: translateY(0) rotate(0deg); }
   }
 
   /*
-   * The hands hold on while the rest of it drops, which is the small joke.
-   * They tap once, out of time with each other, and stop.
+   * The hands hold the rim while the rest of it drops, which is the small joke.
+   * They tap out of time with each other so it never reads as a mechanism.
    */
-  .hand-l { transform-origin: 85px 145px; animation: tap-l 7s ease-in-out infinite; }
-  .hand-r { transform-origin: 155px 145px; animation: tap-r 7s ease-in-out infinite; }
+  .hand-l { transform-origin: 85px 145px; animation: tap-l 5.6s ease-in-out infinite; }
+  .hand-r { transform-origin: 155px 145px; animation: tap-r 5.6s ease-in-out infinite; }
 
   @keyframes tap-l {
-    0%, 20%, 34%, 100% { transform: translateY(0) rotate(0deg); }
-    26%                { transform: translateY(-3px) rotate(-6deg); }
+    0%, 30%, 44%, 100% { transform: translateY(0) rotate(0deg); }
+    36%                { transform: translateY(-4px) rotate(-7deg); }
   }
 
   @keyframes tap-r {
-    0%, 38%, 52%, 100% { transform: translateY(0) rotate(0deg); }
-    45%                { transform: translateY(-3px) rotate(6deg); }
+    0%, 46%, 60%, 100% { transform: translateY(0) rotate(0deg); }
+    53%                { transform: translateY(-4px) rotate(7deg); }
   }
 
-  /* Blinks only while it is up, because a blink nobody can see is wasted. */
-  .eye { animation: blink 7s infinite; transform-origin: center; }
+  /* Blinks while it is up, and once more while it is watching. */
+  .eye { animation: blink 5.6s infinite; transform-origin: center; }
   .eye-r { animation-delay: 0.05s; }
 
   @keyframes blink {
-    0%, 24%, 30%, 50%, 56%, 100% { transform: scaleY(1); }
-    27%, 53%                     { transform: scaleY(0.1); }
+    0%, 33%, 39%, 88%, 94%, 100% { transform: scaleY(1); }
+    36%, 91%                     { transform: scaleY(0.1); }
   }
 
   /* The antenna light stays above the rim the whole time, awake. */
@@ -145,11 +177,11 @@
 
   @keyframes beacon {
     0%, 100% { opacity: 1; }
-    50%      { opacity: 0.35; }
+    50%      { opacity: 0.3; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .peeker { animation: none; transform: translateY(-30px); }
+    .peeker { animation: none; transform: translateY(-25px); }
     .hand-l, .hand-r, .eye, .beacon { animation: none; }
   }
 
@@ -157,7 +189,7 @@
 
   h1 {
     margin: 0 0 0.75rem;
-    font-size: clamp(1.55rem, 6vw, 1.95rem);
+    font-size: clamp(1.8rem, 7vw, 2.4rem);
     font-weight: 700;
     letter-spacing: -0.03em;
     line-height: 1.15;
@@ -203,32 +235,38 @@
     it likes without anything having to agree about where the edge is.
   -->
   <svg class="scene" viewBox="0 0 240 250" role="img" aria-label="A small robot looking over the top of a packing crate.">
-    <!-- behind: the robot, resting with only the top of its head showing -->
+    <!-- Grounding. One soft ellipse, so the crates sit on something. -->
+    <ellipse cx="120" cy="240" rx="96" ry="7" fill="var(--shadow)" />
+
+    <!--
+      Behind: the robot. It rests with its eyes just clear of the rim, so the
+      page always has somebody in it - the first version hid the whole head and
+      spent most of its loop showing an empty crate.
+    -->
     <g class="peeker">
-      <rect x="82" y="118" width="76" height="58" rx="22" fill="var(--metal)" />
-      <rect x="93" y="132" width="54" height="28" rx="14" fill="var(--metal-dark)" />
-      <circle class="eye eye-l" cx="109" cy="146" r="6" fill="var(--brand)" />
-      <circle class="eye eye-r" cx="131" cy="146" r="6" fill="var(--ink-faint)" />
-      <path d="M120 118v-13" stroke="var(--metal-dark)" stroke-width="5" stroke-linecap="round" />
-      <circle class="beacon" cx="120" cy="100" r="5.5" fill="var(--brand)" />
+      <rect x="82" y="104" width="76" height="58" rx="22" fill="var(--metal)" />
+      <rect x="93" y="118" width="54" height="28" rx="14" fill="var(--metal-dark)" />
+      <circle class="eye eye-l" cx="109" cy="132" r="6" fill="var(--brand)" />
+      <circle class="eye eye-r" cx="131" cy="132" r="6" fill="var(--ink-faint)" />
+      <path d="M120 104v-14" stroke="var(--metal-dark)" stroke-width="5" stroke-linecap="round" />
+      <circle class="beacon" cx="120" cy="84" r="5.5" fill="var(--brand)" />
     </g>
 
-    <!-- in front: the crate it is hiding behind -->
+    <!-- In front: the crate it is hiding behind. -->
     <rect x="40" y="146" width="160" height="92" rx="18" fill="var(--crate)" />
     <rect x="40" y="146" width="160" height="92" rx="18" fill="none" stroke="var(--crate-dark)" stroke-width="2" />
     <path d="M40 186h160" stroke="var(--crate-dark)" stroke-width="2" />
-    <rect x="102" y="160" width="36" height="20" rx="6" fill="var(--crate-dark)" opacity="0.5" />
+    <!-- A strap across it, because a packed crate has one. -->
+    <rect x="104" y="146" width="32" height="92" fill="var(--crate-dark)" opacity="0.45" />
 
-    <!-- a smaller one, already sealed -->
-    <rect x="6" y="204" width="34" height="34" rx="9" fill="var(--crate)" />
-    <rect x="6" y="204" width="34" height="34" rx="9" fill="none" stroke="var(--crate-dark)" stroke-width="2" />
+    <!-- A smaller one, already sealed and set down. -->
+    <rect x="4" y="200" width="38" height="38" rx="10" fill="var(--crate)" />
+    <rect x="4" y="200" width="38" height="38" rx="10" fill="none" stroke="var(--crate-dark)" stroke-width="2" />
+    <path d="M4 219h38" stroke="var(--crate-dark)" stroke-width="2" />
 
-    <!-- the hands, which keep their grip on the rim the whole time -->
+    <!-- The hands, which keep their grip on the rim the whole time. -->
     <rect class="hand-l" x="72" y="138" width="26" height="14" rx="7" fill="var(--metal)" />
     <rect class="hand-r" x="142" y="138" width="26" height="14" rx="7" fill="var(--metal)" />
-
-    <!-- the ground, one soft line rather than a shadow -->
-    <path d="M14 240h212" stroke="var(--line)" stroke-width="2" stroke-linecap="round" />
   </svg>
 
   <span class="wordmark">PINGO</span>
