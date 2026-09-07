@@ -1,5 +1,5 @@
 import { CloseIcon, cn } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
 
@@ -44,9 +44,61 @@ export interface ImageViewerProps {
   onClose: () => void;
   /** Rendered along the bottom, above the safe area. Captions, actions. */
   footer?: React.ReactNode;
+  /**
+   * Where this picture is on the screen behind, so the viewer can grow out of
+   * it instead of cutting to full screen.
+   *
+   * A getter rather than a rect, because closing has to measure again: the
+   * thread underneath is still mounted and a rect captured on open is a
+   * promise about where the bubble *was*. Returning nothing at either moment
+   * is fine and simply means no morph.
+   */
+  originRect?: () => DOMRect | null | undefined;
 }
 
-export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
+
+/** How long the picture takes to travel between the bubble and full screen. */
+const MORPH_MS = 300;
+
+/**
+ * The transform that puts `box` exactly where `target` is.
+ *
+ * Written against `transform-origin: top left` so the maths is two translations
+ * and a scale rather than a correction for a centred origin. Scale is taken
+ * from width alone: a thumbnail is cropped and the full picture is not, so the
+ * two boxes rarely share an aspect ratio, and matching both axes would squash
+ * the image on the way out. Matching one and letting the other crop is what a
+ * photograph growing out of its own thumbnail actually looks like.
+ */
+function morphTo(box: DOMRect, target: DOMRect): string {
+  const scale = target.width / box.width;
+  const x = target.left - box.left + (target.width - box.width * scale) / 2;
+  const y = target.top - box.top + (target.height - box.height * scale) / 2;
+  return `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+}
+
+const stillness = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+export function ImageViewer({ src, alt, onClose, footer, originRect }: ImageViewerProps) {
+  /** The box the picture actually occupies, which is what gets morphed. */
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  /** The stage's untransformed box, measured once before anything moves it. */
+  const restRef = useRef<DOMRect | null>(null);
+  /** Guards, so neither half of the morph can run twice. */
+  const openedRef = useRef(false);
+  const closingRef = useRef(false);
+  /** Drives the scrim out while the picture travels home. */
+  const [closing, setClosing] = useState(false);
+  /*
+   * The current close behaviour, for the key handler.
+   *
+   * That effect is set up long before `requestClose` exists in this function
+   * body, and it must not be re-bound on every render just to see the newest
+   * one. A ref read at keypress time is both.
+   */
+  const latestClose = useRef<() => void>(() => undefined);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
   /** The picture itself, for the size the pan limits are measured against. */
@@ -128,7 +180,7 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        latestClose.current();
         return;
       }
 
@@ -385,22 +437,111 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
   };
 
   /** Fades the scrim as the picture is pulled away - the drag has to feel real. */
+
+  /*
+   * The picture grows out of the thing that was tapped.
+   *
+   * FLIP, and on the stage rather than on the `img`: the image already carries
+   * its own transform for pan, zoom and the drag-to-dismiss, and a second
+   * transform on the same element would fight it. The stage is the box the
+   * picture lives in, so moving that moves the picture and nothing else.
+   *
+   * `useLayoutEffect`, because the inverted transform has to be on the element
+   * before the browser paints. In an ordinary effect the viewer is full screen
+   * for one frame and the morph starts from the wrong place - which is the
+   * flash this exists to remove.
+   */
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (openedRef.current || !stage) return;
+    openedRef.current = true;
+
+    // Measured before anything is applied, and kept: closing needs to know
+    // where the stage sits at rest, and by then it is carrying a transform.
+    restRef.current = stage.getBoundingClientRect();
+
+    const target = originRect?.();
+    if (!target || target.width === 0 || stillness()) return;
+
+    stage.style.transformOrigin = 'top left';
+    stage.style.transition = 'none';
+    stage.style.transform = morphTo(restRef.current, target);
+    // Read, to make the start frame real rather than coalesced away.
+    void stage.offsetHeight;
+
+    requestAnimationFrame(() => {
+      stage.style.transition = `transform ${MORPH_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`;
+      stage.style.transform = 'translate3d(0, 0, 0) scale(1)';
+    });
+  }, [originRect]);
+
+  /*
+   * Closing is the same journey backwards, and it re-measures.
+   *
+   * The thread behind is still mounted and still scrollable, so the bubble may
+   * not be where it was when this opened. Asking again costs one layout read
+   * and is the difference between landing on the message and landing where the
+   * message used to be.
+   *
+   * Interruptible: whatever transform the stage is carrying at this instant is
+   * frozen first, so a close during the opening morph continues from where the
+   * picture actually is instead of snapping to full screen and starting again.
+   */
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+
+    const stage = stageRef.current;
+    const rest = restRef.current;
+    const target = originRect?.();
+
+    if (!stage || !rest || !target || target.width === 0 || stillness()) {
+      onClose();
+      return;
+    }
+
+    closingRef.current = true;
+    setClosing(true);
+
+    const current = getComputedStyle(stage).transform;
+    stage.style.transition = 'none';
+    if (current && current !== 'none') stage.style.transform = current;
+    void stage.offsetHeight;
+
+    stage.style.transition = `transform ${MORPH_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`;
+    stage.style.transform = morphTo(rest, target);
+
+    // A timer rather than `transitionend`, which does not fire for a transition
+    // the browser optimises away or one interrupted by an unmount.
+    window.setTimeout(onClose, MORPH_MS);
+  }, [onClose, originRect]);
+
+  latestClose.current = requestClose;
+
   const dragProgress = Math.min(1, dragY / (DISMISS_DISTANCE * 2));
 
   return (
-    <Overlay onDismiss={onClose}>
+    <Overlay onDismiss={requestClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={alt}
         className="fixed inset-0 z-1000 flex flex-col"
-        style={{ background: `rgba(11, 12, 16, ${0.94 - dragProgress * 0.5})` }}
+        style={{
+          background: `rgba(11, 12, 16, ${closing ? 0 : 0.94 - dragProgress * 0.5})`,
+          transition: closing ? `background ${MORPH_MS}ms ease-out` : undefined,
+        }}
       >
-        <div className="relative flex items-center justify-end p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div
+          className={cn(
+            'relative flex items-center justify-end p-3 pt-[max(0.75rem,env(safe-area-inset-top))]',
+            'transition-opacity duration-fast',
+            closing && 'pointer-events-none opacity-0',
+          )}
+        >
           <button
             ref={closeRef}
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             className={cn(
               'focus-ring grid size-11 place-items-center rounded-full',
@@ -413,6 +554,7 @@ export function ImageViewer({ src, alt, onClose, footer }: ImageViewerProps) {
         </div>
 
         <div
+          ref={stageRef}
           className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

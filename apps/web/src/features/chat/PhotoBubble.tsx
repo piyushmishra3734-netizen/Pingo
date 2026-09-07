@@ -1,7 +1,7 @@
 import { useChat, type Message, type PhotoRef } from '@pingo/core';
 import { EyeIcon, ImageIcon, PingoDot, cn } from '@pingo/ui';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
 import { secureScreen } from '../native/secure-screen.js';
@@ -83,6 +83,16 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
    * on the next render, while a genuinely collected object stays gone.
    */
   const [failedSrc, setFailedSrc] = useState<string>();
+
+  /*
+   * Whatever is on screen for this photo right now: the thumbnail once it has
+   * been opened, the cover before that. The viewer grows out of it.
+   *
+   * One ref for both, because they are never on screen at the same time and
+   * the viewer only ever wants the box the person actually tapped.
+   */
+  const sourceRef = useRef<HTMLElement | null>(null);
+  const sourceRect = useCallback(() => sourceRef.current?.getBoundingClientRect(), []);
 
   const caption = message.body.trim();
   const limited = photo.viewLimit !== undefined;
@@ -185,6 +195,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
            * is reachable by keyboard and announced as something you can open.
            */
           <button
+            ref={(node) => {
+              sourceRef.current = node;
+            }}
             type="button"
             onClick={() => setViewing(true)}
             aria-label={caption ? `Open photo: ${caption}` : 'Open photo'}
@@ -242,6 +255,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
           </div>
         ) : (
           <button
+            ref={(node) => {
+              sourceRef.current = node;
+            }}
             type="button"
             onClick={() => void open()}
             disabled={spent || opening}
@@ -296,6 +312,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
 
       {viewing && shown && (
         <ImageViewer
+          originRect={sourceRect}
           src={shown}
           alt={caption || 'Photo'}
           onClose={() => {
