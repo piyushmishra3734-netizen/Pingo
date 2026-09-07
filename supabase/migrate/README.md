@@ -62,7 +62,7 @@ history is how it got there.
 | Old project URL inside 3 functions | **`after-restore.sql`** |
 | Old project URL inside 28 rows | **`after-restore.sql`** |
 | 8 storage bucket definitions | `pg_dump --data-only` of `storage.buckets` |
-| 149 stored files, 89 MB | **neither — yours** |
+| 151 stored files, 89 MB | **`copy-storage.mjs`** |
 | 10 edge functions | **yours** — `supabase functions deploy` |
 | 24 edge-function secrets | **yours** — they are credentials |
 | App config, auth providers, redirect URLs | **yours** — dashboard and `.env` |
@@ -226,6 +226,30 @@ like a bug in the app.
 Keep the paths identical. The storage policies are path-based - they match on the
 owner's id being the first segment - so a file that lands at a different path is
 a file its owner can no longer read.
+
+`copy-storage.mjs` does all of it:
+
+```bash
+export SOURCE_URL="https://lppzoqgvshhmxqsvggug.supabase.co"
+export SOURCE_SERVICE_KEY="..."
+export TARGET_URL="https://NEWREF.supabase.co"
+export TARGET_SERVICE_KEY="..."
+
+node supabase/migrate/copy-storage.mjs --check   # compare, write nothing
+node supabase/migrate/copy-storage.mjs           # do it
+```
+
+Service role on both sides, because six of the eight buckets are private and
+uploading into somebody else's folder is what the policies exist to stop. The
+keys are read from the environment and are not written anywhere.
+
+Run `--check` first. It reports what it would copy and refuses if the two URLs
+are the same project, and it flags a bucket whose public flag differs between
+the two — getting that backwards on `photos` publishes every chat photo in the
+app, so it is checked rather than assumed.
+
+The copy is resumable: an object already on the target at the same size is
+skipped, so a run that dies at file 90 is finished by running it again.
 
 ### 6. Deploy the edge functions
 
