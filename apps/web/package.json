@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-provider-order.mjs && tsc -p tsconfig.json && vite build",
+    "build": "node scripts/check-provider-order.mjs && tsc -p tsconfig.json && vite build && node scripts/maintenance-mode.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
     "check:providers": "node scripts/check-provider-order.mjs"
