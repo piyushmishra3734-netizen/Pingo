@@ -97,6 +97,39 @@ skip this step:
 These digests will move if anything changes in the old project between now and
 the move, which is the point of re-running it rather than trusting the table.
 
+### 1b. The line the dump has to match
+
+Maintenance went on at **2026-09-07 16:38 UTC**, and the last message written
+before it landed at 16:36:30. These are the counts at that moment:
+
+| | |
+|---|---|
+| accounts | 43 |
+| messages | 47,329 |
+| conversations | 81 |
+| device keys | 74 |
+| storage objects | 151 |
+
+After the restore, run the same counts on the new project. They must be equal.
+
+```sql
+select (select count(*) from auth.users)           as accounts,
+       (select count(*) from public.messages)      as messages,
+       (select count(*) from public.conversations) as conversations,
+       (select count(*) from public.device_keys)   as device_keys,
+       (select count(*) from storage.objects)      as files;
+```
+
+**Higher on the old project afterwards means the window was not actually shut**
+- something reached it after the dump, and that something is not in the new
+database. Lower on the new one means the restore dropped rows, which `psql`
+reports and does not stop for.
+
+These are row counts and move with use; the digests in step 1 are schema and do
+not. Both have to match, and they fail differently: a wrong count is missing
+data, a wrong digest is a missing rule. A restore can pass one and fail the
+other.
+
 ### 2. Prepare the new project
 
 Create it, then run **`before-restore.sql`** in its SQL editor. It installs the
