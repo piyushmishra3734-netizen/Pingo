@@ -237,7 +237,20 @@ export function useJourneyProgress(): JourneyState {
             level: levelFor(merged.momentsEarned).level,
             badgeIds: merged.unlockedIds,
           })
-          .catch(() => undefined);
+          .catch(() => {
+            /*
+             * Forgotten again, so the next mount tries.
+             *
+             * The marker was set before the write was awaited, which turned a
+             * failure into a permanent one: the guard above then read "already
+             * published" for the rest of the session and the public level and
+             * badges stayed stale while the local ones moved on. Clearing it
+             * costs nothing and this already runs on every chats-list mount, so
+             * the retry is one somebody was going to make anyway. Still no
+             * message: publishing is a nicety, and now a nicety that recovers.
+             */
+            lastPublished.current = '';
+          });
       }
     })();
 

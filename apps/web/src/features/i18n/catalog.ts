@@ -590,6 +590,7 @@ const en = {
     'Each of these can read what you send from now on. Removing one takes it out of every future message and signs it out the next time it opens.',
   'devices.loading': 'Reading your devices',
   'devices.none': 'No devices are signed in.',
+  'devices.loadFailed': 'Your devices could not be read, so none are listed. Try again in a moment.',
   'devices.unnamed': 'Unnamed device',
   'devices.thisOne': 'This device',
   'devices.lastSeen': 'Last used {when}',

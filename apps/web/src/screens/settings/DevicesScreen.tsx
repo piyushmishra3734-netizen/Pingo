@@ -48,6 +48,7 @@ export function DevicesScreen() {
   const [mine, setMine] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     const client = getSupabaseClient();
@@ -57,13 +58,32 @@ export function DevicesScreen() {
       setRows([]);
       return;
     }
-    const { data } = await client
+    /*
+     * A failed read is not an empty list.
+     *
+     * `data ?? []` on its own rendered "No devices are signed in." whenever the
+     * select was refused or never arrived - on the one screen whose whole job is
+     * telling somebody what is signed into their account. Being wrong here is
+     * being wrong in the direction that reassures, which is the wrong direction
+     * for a security screen. `rows` stays undefined so nothing is claimed, and
+     * the failure is shown in the line `remove` already uses.
+     */
+    const { data, error: failed } = await client
       .from('device_keys')
       .select('device_id,label,created_at,last_seen_at')
       .eq('user_id', userId)
       .order('last_seen_at', { ascending: false });
+
+    if (failed) {
+      setLoadFailed(true);
+      setError(t('devices.loadFailed'));
+      return;
+    }
+
+    setLoadFailed(false);
+    setError(undefined);
     setRows((data ?? []) as DeviceRow[]);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -104,7 +124,7 @@ export function DevicesScreen() {
   return (
     <SettingsPage title={t('page.devices')}>
       <Group title={t('devices.signedIn')} note={t('devices.note')}>
-        {!rows ? (
+        {loadFailed ? null : !rows ? (
           <LoadingState label={t('devices.loading')} />
         ) : rows.length === 0 ? (
           <p className="px-3 py-6 text-center text-caption text-text-tertiary">
