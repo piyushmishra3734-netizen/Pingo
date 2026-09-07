@@ -1433,7 +1433,7 @@ export function ChatThread({
       )}
 
       {/* ---- Thread ------------------------------------------------------- */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="thread-fade min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <LoadingState label="Loading messages" />
         ) : (

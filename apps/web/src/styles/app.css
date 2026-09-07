@@ -418,3 +418,56 @@ video {
 .animate-ai-sweep {
   animation: ai-sweep 2200ms linear infinite;
 }
+
+/*
+ * The thread's own edges, softened.
+ *
+ * A message that is half past the top of the scroller is cut by a straight
+ * line, and a straight cut across a sentence is the one edge in this screen
+ * that reads as a clipping bug rather than as a list continuing. This fades
+ * those few pixels instead.
+ *
+ * ## Why the depth is exactly the padding
+ *
+ * The content inside the scroller carries `py-4`, which is 1rem. Matching the
+ * fade to it means the two ends of a conversation - scrolled fully up, scrolled
+ * fully down - fade nothing but that padding, so no message is ever dimmed at
+ * rest. The effect exists only while something is actually clipped, which is
+ * the only time there is anything to soften.
+ *
+ * Top and bottom are separate custom properties rather than one, because the
+ * bottom sits against the composer and the top against the header, and those
+ * are different distances that may want to move apart later.
+ *
+ * ## What this deliberately is not
+ *
+ * Not the scroll edge effect Apple describes. That one dissolves content as it
+ * passes *under* floating chrome, and nothing in this thread passes under
+ * anything: the header, the scroller and the composer are in-flow flex
+ * siblings that do not overlap. This is the smaller, honest version - the
+ * scroller's own clip, made soft.
+ *
+ * Static, and that is the whole cost model. One mask declared in CSS, no
+ * scroll listener, no sampling, no second backdrop pass, nothing recomputed per
+ * frame.
+ */
+.thread-fade {
+  --thread-fade-top: 1rem;
+  --thread-fade-bottom: 1rem;
+
+  /* Prefixed first, standard last - same reason as `glass-water` in tokens. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--thread-fade-top),
+    #000 calc(100% - var(--thread-fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--thread-fade-top),
+    #000 calc(100% - var(--thread-fade-bottom)),
+    transparent 100%
+  );
+}
