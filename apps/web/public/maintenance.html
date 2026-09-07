@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PINGO is moving house</title>
+<meta name="description" content="PINGO is moving to a new database. Back in two days." />
+<meta name="theme-color" content="#f7f7f8" />
+<link rel="icon" href="/pingo-favicon.png" />
+
+<!--
+  Standalone on purpose.
+
+  This is the page for the days when the database is gone, so it may not depend
+  on anything that needs one: no bundle, no API, no fetch. Its own markup, its
+  own styles, one font it shares with the app and does not wait for.
+-->
+
+<style>
+  @font-face {
+    font-family: 'Space Grotesk';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+  }
+
+  :root {
+    --page: #f7f7f8;
+    --surface: #ffffff;
+    --ink: #111113;
+    --ink-soft: #55565e;
+    --ink-faint: #8b8c95;
+    --line: rgba(17, 17, 19, 0.08);
+    --brand: #e0559b;
+    --metal: #dedfe4;
+    --metal-dark: #c9cad1;
+    --crate: #e6e7ec;
+    --crate-dark: #d6d7de;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0c0d11;
+      --surface: #16171d;
+      --ink: #f4f5f9;
+      --ink-soft: rgba(244, 245, 249, 0.72);
+      --ink-faint: rgba(244, 245, 249, 0.45);
+      --line: rgba(255, 255, 255, 0.09);
+      --brand: #ff7ab8;
+      --metal: #2a2c35;
+      --metal-dark: #22242c;
+      --crate: #1d1f26;
+      --crate-dark: #171920;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.25rem max(2rem, env(safe-area-inset-bottom));
+  }
+
+  main {
+    width: 100%;
+    max-width: 27rem;
+    text-align: center;
+  }
+
+  /* -- the robot ------------------------------------------------------- */
+
+  .scene {
+    width: 100%;
+    max-width: 15rem;
+    margin: 0 auto 2.25rem;
+    display: block;
+  }
+
+  /*
+   * It ducks, waits, and pops back up to see whether anybody is there.
+   *
+   * The overshoot is the whole trick. A head that slides up and stops reads as
+   * a panel opening; one that goes slightly too far and settles reads as
+   * something alive that moved itself. Same four keyframes either way.
+   *
+   * Then it looks left, looks right, and gives up again - which is what makes
+   * it read as bored rather than as a loading indicator. The pause at the
+   * bottom is deliberately the longest part: constant motion on a page nobody
+   * chose to be on is a page tugging at a sleeve.
+   */
+  .peeker {
+    transform-origin: 120px 176px;
+    animation: peek 7s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+  }
+
+  @keyframes peek {
+    0%, 6%    { transform: translateY(0) rotate(0deg); }
+    13%       { transform: translateY(-34px) rotate(-5deg); }
+    18%       { transform: translateY(-29px) rotate(-4deg); }
+    32%       { transform: translateY(-30px) rotate(5deg); }
+    46%       { transform: translateY(-30px) rotate(-4deg); }
+    56%       { transform: translateY(-29px) rotate(0deg); }
+    66%       { transform: translateY(3px) rotate(0deg); }
+    72%, 100% { transform: translateY(0) rotate(0deg); }
+  }
+
+  /*
+   * The hands hold on while the rest of it drops, which is the small joke.
+   * They tap once, out of time with each other, and stop.
+   */
+  .hand-l { transform-origin: 85px 145px; animation: tap-l 7s ease-in-out infinite; }
+  .hand-r { transform-origin: 155px 145px; animation: tap-r 7s ease-in-out infinite; }
+
+  @keyframes tap-l {
+    0%, 20%, 34%, 100% { transform: translateY(0) rotate(0deg); }
+    26%                { transform: translateY(-3px) rotate(-6deg); }
+  }
+
+  @keyframes tap-r {
+    0%, 38%, 52%, 100% { transform: translateY(0) rotate(0deg); }
+    45%                { transform: translateY(-3px) rotate(6deg); }
+  }
+
+  /* Blinks only while it is up, because a blink nobody can see is wasted. */
+  .eye { animation: blink 7s infinite; transform-origin: center; }
+  .eye-r { animation-delay: 0.05s; }
+
+  @keyframes blink {
+    0%, 24%, 30%, 50%, 56%, 100% { transform: scaleY(1); }
+    27%, 53%                     { transform: scaleY(0.1); }
+  }
+
+  /* The antenna light stays above the rim the whole time, awake. */
+  .beacon { animation: beacon 3.2s ease-in-out infinite; transform-origin: center; }
+
+  @keyframes beacon {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .peeker { animation: none; transform: translateY(-30px); }
+    .hand-l, .hand-r, .eye, .beacon { animation: none; }
+  }
+
+  /* -- the words ------------------------------------------------------- */
+
+  h1 {
+    margin: 0 0 0.75rem;
+    font-size: clamp(1.55rem, 6vw, 1.95rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+
+  .lede {
+    margin: 0 auto 1.75rem;
+    max-width: 20rem;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--ink-soft);
+  }
+
+  footer {
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--ink-faint);
+  }
+
+  .wordmark {
+    display: inline-block;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    padding-left: 0.3em;
+    color: var(--ink-faint);
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <!--
+    A robot behind a crate, looking over the top of it.
+
+    Nothing here is broken, so a wrench would be a lie. PINGO is moving and
+    everything is packed; this is somebody waiting by the boxes, checking every
+    so often whether it is time yet.
+
+    No clip path. The crate is painted after the head and is opaque, so the
+    crate itself is what hides it - which means the head can be moved as far as
+    it likes without anything having to agree about where the edge is.
+  -->
+  <svg class="scene" viewBox="0 0 240 250" role="img" aria-label="A small robot looking over the top of a packing crate.">
+    <!-- behind: the robot, resting with only the top of its head showing -->
+    <g class="peeker">
+      <rect x="82" y="118" width="76" height="58" rx="22" fill="var(--metal)" />
+      <rect x="93" y="132" width="54" height="28" rx="14" fill="var(--metal-dark)" />
+      <circle class="eye eye-l" cx="109" cy="146" r="6" fill="var(--brand)" />
+      <circle class="eye eye-r" cx="131" cy="146" r="6" fill="var(--ink-faint)" />
+      <path d="M120 118v-13" stroke="var(--metal-dark)" stroke-width="5" stroke-linecap="round" />
+      <circle class="beacon" cx="120" cy="100" r="5.5" fill="var(--brand)" />
+    </g>
+
+    <!-- in front: the crate it is hiding behind -->
+    <rect x="40" y="146" width="160" height="92" rx="18" fill="var(--crate)" />
+    <rect x="40" y="146" width="160" height="92" rx="18" fill="none" stroke="var(--crate-dark)" stroke-width="2" />
+    <path d="M40 186h160" stroke="var(--crate-dark)" stroke-width="2" />
+    <rect x="102" y="160" width="36" height="20" rx="6" fill="var(--crate-dark)" opacity="0.5" />
+
+    <!-- a smaller one, already sealed -->
+    <rect x="6" y="204" width="34" height="34" rx="9" fill="var(--crate)" />
+    <rect x="6" y="204" width="34" height="34" rx="9" fill="none" stroke="var(--crate-dark)" stroke-width="2" />
+
+    <!-- the hands, which keep their grip on the rim the whole time -->
+    <rect class="hand-l" x="72" y="138" width="26" height="14" rx="7" fill="var(--metal)" />
+    <rect class="hand-r" x="142" y="138" width="26" height="14" rx="7" fill="var(--metal)" />
+
+    <!-- the ground, one soft line rather than a shadow -->
+    <path d="M14 240h212" stroke="var(--line)" stroke-width="2" stroke-linecap="round" />
+  </svg>
+
+  <span class="wordmark">PINGO</span>
+
+  <h1>Back in two days.</h1>
+
+  <p class="lede">
+    We're moving PINGO to a new home. It's off while we carry it.
+  </p>
+
+  <footer>
+    Nothing is broken. This one was planned.
+  </footer>
+</main>
+
+</body>
+</html>
