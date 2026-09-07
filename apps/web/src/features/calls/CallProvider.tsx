@@ -271,12 +271,17 @@ export function CallProvider({
 
         case 'call:chat':
           /*
-           * Deduplicated by id, because a resend is a real possibility and a
-           * line appearing twice reads as the person having said it twice.
+           * One line per id, because a resend is a real possibility and a line
+           * appearing twice reads as the person having said it twice.
+           *
+           * A repeat replaces rather than being dropped: that is how a line
+           * learns it was never delivered, which the sender's own service emits
+           * a second time once every recipient has refused it. Position is kept,
+           * so nothing jumps.
            */
           setCallChat((previous) =>
             previous.some((line) => line.id === event.message.id)
-              ? previous
+              ? previous.map((line) => (line.id === event.message.id ? event.message : line))
               : [...previous, event.message],
           );
           break;

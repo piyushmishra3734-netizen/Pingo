@@ -3729,10 +3729,26 @@ export class SupabaseChatService implements ChatService {
     };
   }
 
+  /**
+   * Opens a Ping, or says it is spent - and those are now two different answers.
+   *
+   * `undefined` means the server has no bytes for this Ping: it was viewed out,
+   * it expired, or it was never there. That is the only case the bubble is
+   * entitled to draw as gone.
+   *
+   * Anything else throws. This used to fold a failed RPC and a failed signing
+   * into the same `undefined`, so a dropped request told somebody their one-shot
+   * Ping had been spent - and the bubble's `gone` state is terminal, so it took
+   * a Ping that was still sitting on the server and made it unreachable. Being
+   * wrong in that direction is worse than being unable to open it, because it
+   * cannot be undone by trying again.
+   */
   async openPing(messageId: MessageId): Promise<PingView | undefined> {
     const { data, error } = await this.#client.rpc('open_snap', { snap_id: messageId });
+    if (error) throw error;
+
     const row = data?.[0];
-    if (error || !row?.path) return undefined;
+    if (!row?.path) return undefined;
 
     /*
      * A minute. The URL only has to survive the fetch that follows it - anything
@@ -3743,7 +3759,10 @@ export class SupabaseChatService implements ChatService {
       .from(SNAP_BUCKET)
       .createSignedUrl(row.path, SNAP_URL_TTL_SECONDS);
 
-    if (signed.error || !signed.data) return undefined;
+    // The row exists, so this is a failure to reach it, not an absence.
+    if (signed.error) throw signed.error;
+    if (!signed.data) throw new Error('Could not sign the Ping.');
+
     return { url: signed.data.signedUrl, viewsLeft: row.views_left };
   }
 
@@ -3751,8 +3770,15 @@ export class SupabaseChatService implements ChatService {
     const opened = await this.openPing(messageId);
     if (!opened) return undefined;
 
+    /*
+     * A failed fetch throws rather than returning empty, for the same reason the
+     * `download_snap` call below is last: a dropped connection must not cost the
+     * receiver the Ping. `undefined` here means spent, and the caller draws it
+     * as gone - which for a download that simply did not arrive would destroy
+     * the thing this ordering exists to protect.
+     */
     const response = await fetch(opened.url);
-    if (!response.ok) return undefined;
+    if (!response.ok) throw new Error(`Could not download the Ping (${response.status}).`);
     const blob = await response.blob();
 
     /*
@@ -5487,15 +5513,31 @@ export class SupabaseChatService implements ChatService {
     messageId: string,
     entry: { outcome: CallOutcome; durationSeconds: number },
   ): Promise<void> {
-    const { data } = await this.#client
+    /*
+     * Both halves are checked, and that is the whole point of this function.
+     *
+     * PostgREST answers a refusal with `{ data: null, error }` rather than a
+     * rejection, so reading only `data` made every failure here look like a
+     * success. Nothing in the app sweeps a stale entry - not the client, not a
+     * cron - so a swallowed failure leaves `callId` on the row for good, and
+     * `isLiveCall` keeps offering everyone in the thread a way into a room that
+     * emptied. Failing loudly is what lets the caller try again.
+     *
+     * The read matters as much as the write: an unnoticed failure there turns
+     * `before` into `{}`, which quietly rewrites a video call as a voice one and
+     * drops `calleeId`.
+     */
+    const { data, error: readError } = await this.#client
       .from('messages')
       .select('meta')
       .eq('id', messageId)
       .maybeSingle();
 
+    if (readError) throw readError;
+
     const before = (data?.meta ?? {}) as Record<string, unknown>;
 
-    await this.#client
+    const { error } = await this.#client
       .from('messages')
       .update({
         meta: {
@@ -5506,6 +5548,8 @@ export class SupabaseChatService implements ChatService {
         },
       })
       .eq('id', messageId);
+
+    if (error) throw error;
   }
 
   /** No gallery table. */

@@ -375,6 +375,8 @@ const en = {
     'Screenshot detection is not possible on the web, no browser reports it. This stays off until PINGO has a native app that can.',
   'privacy.blockedUsers': 'Blocked users',
   'privacy.unblock': 'Unblock',
+  'privacy.saveFailed':
+    'That did not save, so it has been put back. Check your connection and try again.',
   'privacy.footer':
     'These are saved on this device. Apart from Read Receipts, none are enforced by the server yet — they take effect when the rules behind them are built.',
 
@@ -529,6 +531,7 @@ const en = {
   'call.chatSend': 'Send',
   'call.chatPlaceholder': 'Message the call',
   'call.chatEmpty': 'Messages here stay in this call.',
+  'call.chatUndelivered': 'Not delivered',
   'call.someone': 'Someone',
   'call.incomingVideo': 'Incoming video call from {name}',
   'call.incomingVoice': 'Incoming voice call from {name}',
@@ -1122,6 +1125,7 @@ const enGenz: Catalog = {
     'screenshot detection is not a thing on the web. stays off until native can do it.',
   'privacy.blockedUsers': 'blocked users',
   'privacy.unblock': 'unblock',
+  'privacy.saveFailed': "that didn't save so we put it back. check your connection?",
   'privacy.footer':
     'saved on this device. apart from read receipts, most rules wait for the server side — we don’t pretend otherwise.',
 

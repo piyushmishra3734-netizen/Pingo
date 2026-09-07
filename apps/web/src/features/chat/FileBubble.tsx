@@ -62,7 +62,13 @@ const swallow = {
 export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubbleProps) {
   const { service } = useChat();
   const [viewing, setViewing] = useState(false);
-  const [saved, setSaved] = useState(false);
+  /*
+   * Four states, not a boolean, for the reason `GallerySave` gives further down
+   * this file: a save that fails has to say so. It used to discard the failure
+   * and leave the label reading "Save", so an expired signed URL, an offline
+   * fetch or a refused permission all looked like a button that does nothing.
+   */
+  const [save, setSave] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   /** The local copy's object URL, once this device has the file. */
   const [localHref, setLocalHref] = useState<string>();
   /*
@@ -161,19 +167,21 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
             alt={name}
             onClose={() => {
               setViewing(false);
-              setSaved(false);
+              setSave('idle');
             }}
             footer={
               <div className="flex justify-center">
                 <button
                   type="button"
+                  disabled={save === 'saving'}
                   onClick={() => {
+                    setSave('saving');
                     void fetch(file.url)
                       .then((response) => response.blob())
                       .then(async (blob) => {
-                        if (await saveImage(blob, name)) setSaved(true);
+                        setSave((await saveImage(blob, name)) ? 'saved' : 'failed');
                       })
-                      .catch(() => undefined);
+                      .catch(() => setSave('failed'));
                   }}
                   className={cn(
                     'focus-ring rounded-full px-5 py-2.5',
@@ -181,7 +189,13 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
                     'transition-transform duration-instant active:scale-95',
                   )}
                 >
-                  {saved ? 'Saved to your photos' : 'Save'}
+                  {save === 'saved'
+                    ? 'Saved to your photos'
+                    : save === 'failed'
+                      ? "Couldn't save"
+                      : save === 'saving'
+                        ? 'Saving…'
+                        : 'Save'}
                 </button>
               </div>
             }
@@ -449,13 +463,15 @@ function GallerySave({
       disabled={state !== 'idle'}
       onClick={() => {
         setState('saving');
+        // A rejected read left this stuck on "Saving…" forever, which is the
+        // same silence in a slower disguise.
         void storedVideo(messageId).then(async (blob) => {
           // Gone from the vault between the badge appearing and this press -
           // evicted under storage pressure. Nothing to copy, and saying so
           // beats a button that silently does nothing.
           if (!blob) return setState('failed');
           setState((await saveVideoBlob(blob, name)) ? 'saved' : 'failed');
-        });
+        }, () => setState('failed'));
       }}
       className={cn(
         'focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium',

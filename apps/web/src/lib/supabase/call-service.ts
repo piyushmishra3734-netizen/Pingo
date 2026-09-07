@@ -1644,8 +1644,23 @@ export class SupabaseCallService implements CallService {
 
     this.#emit({ type: 'call:chat', message });
 
-    await Promise.all(
-      this.#audience().map((userId) =>
+    /*
+     * Told, when it reached nobody.
+     *
+     * The failures are still tolerated one at a time - one person's channel
+     * being down is not everybody's, and the line has genuinely been delivered
+     * to the rest. What was wrong was tolerating *all* of them: the echo above
+     * puts the line on screen unconditionally, so a sender with no working
+     * channel watched their message appear and assumed it had gone. This is the
+     * one shape the push bug taught - optimistic local state over a swallowed
+     * write - and the only cure is to say so.
+     *
+     * Re-emitted rather than mutated, because the line the UI is holding came
+     * through the event stream and that is the only way to reach it.
+     */
+    const audience = this.#audience();
+    const results = await Promise.all(
+      audience.map((userId) =>
         this.#send(userId, {
           kind: 'chat',
           callId,
@@ -1653,9 +1668,16 @@ export class SupabaseCallService implements CallService {
           messageId: message.id,
           body: message.body,
           sentAt: message.sentAt,
-        }).catch(() => {}),
+        }).then(
+          () => true,
+          () => false,
+        ),
       ),
     );
+
+    if (audience.length > 0 && !results.some(Boolean)) {
+      this.#emit({ type: 'call:chat', message: { ...message, undelivered: true } });
+    }
   }
 
   /** Everyone this call has to be told about, deduplicated. */

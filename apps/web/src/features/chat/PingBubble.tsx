@@ -68,21 +68,41 @@ export function PingBubble({
     if (state !== 'closed') return;
     setState('opening');
 
-    const view = await service.openPing(message.id).catch(() => undefined);
-    if (!view) {
-      setState('gone');
-      return;
-    }
+    /*
+     * `gone` is terminal - nothing below re-opens from it - so it is only ever
+     * reached from an answer that actually means the Ping is spent.
+     *
+     * A failure throws instead, and puts the bubble back to `closed` so it can
+     * be tapped again. Nothing has been lost by trying: the server owns the view
+     * count, so a retry that finds it spent gets `undefined` and lands on `gone`
+     * for the right reason.
+     */
+    try {
+      const view = await service.openPing(message.id);
+      if (!view) {
+        setState('gone');
+        return;
+      }
 
-    setUrl(view.url);
-    setViewsLeft(view.viewsLeft);
-    setState('open');
+      setUrl(view.url);
+      setViewsLeft(view.viewsLeft);
+      setState('open');
+    } catch (cause) {
+      console.warn('Could not open the Ping.', cause);
+      setState('closed');
+    }
   };
 
   const save = async () => {
     setSaving(true);
     try {
-      const blob = await service.savePing(message.id);
+      // Same split as `open`: no blob means spent, a throw means it did not
+      // arrive - and a download that did not arrive leaves the Ping on screen.
+      const blob = await service.savePing(message.id).catch((cause: unknown) => {
+        console.warn('Could not save the Ping.', cause);
+        return null;
+      });
+      if (blob === null) return;
       if (!blob) {
         setState('gone');
         return;

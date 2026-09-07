@@ -48,6 +48,7 @@ export function PrivacyScreen() {
    */
   const [rules, setRules] = useState<PrivacySettings>(OPEN_PRIVACY);
   const [blocked, setBlocked] = useState<Profile[]>();
+  const [saveFailed, setSaveFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -70,11 +71,36 @@ export function PrivacyScreen() {
     };
   }, [profiles]);
 
+  /*
+   * Optimistic, then written - and put back if the write does not land.
+   *
+   * The optimism is right: a switch that waits for a round trip before it moves
+   * feels broken on a slow connection. Discarding the failure was not. A switch
+   * left sitting on "nobody" while the server still holds "everyone" is the one
+   * kind of wrong a privacy screen cannot afford - it does not just fail to
+   * protect somebody, it tells them they are protected. The page already says
+   * plainly which of these are enforced; it has to be equally plain when one of
+   * them did not save.
+   *
+   * The rollback restores the previous values of exactly the keys that changed,
+   * rather than re-reading the server, so a second switch flipped meanwhile
+   * keeps its own state.
+   */
   const save = (changes: Partial<PrivacySettings>) => {
-    // Optimistic, then written. A switch that waits for a round trip before it
-    // moves feels broken on a slow connection.
-    setRules((current) => ({ ...current, ...changes }));
-    void profiles.updatePrivacySettings(changes).catch(() => undefined);
+    setSaveFailed(false);
+    let before: Partial<PrivacySettings> = {};
+    setRules((current) => {
+      before = Object.fromEntries(
+        Object.keys(changes).map((key) => [key, current[key as keyof PrivacySettings]]),
+      ) as Partial<PrivacySettings>;
+      return { ...current, ...changes };
+    });
+
+    void profiles.updatePrivacySettings(changes).catch((cause: unknown) => {
+      setRules((current) => ({ ...current, ...before }));
+      setSaveFailed(true);
+      console.warn('Privacy settings did not save.', cause);
+    });
   };
 
   return (
@@ -156,12 +182,26 @@ export function PrivacyScreen() {
             label={person.displayName}
             value={t('privacy.unblock')}
             onClick={() => {
+              // Same bargain as `save`: shown immediately, put back if it did
+              // not take. Somebody who is still blocked must not vanish from
+              // the only list that offers to unblock them.
+              setSaveFailed(false);
               setBlocked((list) => list?.filter((p) => p.id !== person.id));
-              void profiles.setBlocked(person.id, false).catch(() => undefined);
+              void profiles.setBlocked(person.id, false).catch((cause: unknown) => {
+                setBlocked((list) => (list ? [...list, person] : [person]));
+                setSaveFailed(true);
+                console.warn('Could not unblock.', cause);
+              });
             }}
           />
         ))}
       </Group>
+
+      {saveFailed && (
+        <p role="status" className="px-1 pb-2 text-caption text-danger">
+          {t('privacy.saveFailed')}
+        </p>
+      )}
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">{t('privacy.footer')}</p>
     </SettingsPage>

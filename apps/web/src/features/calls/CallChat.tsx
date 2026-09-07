@@ -157,6 +157,11 @@ function CallChatLog({
               >
                 {message.body}
               </p>
+              {message.undelivered && (
+                <span className="mt-0.5 block px-1 text-right text-caption text-danger">
+                  {t('call.chatUndelivered')}
+                </span>
+              )}
             </div>
           </li>
         );

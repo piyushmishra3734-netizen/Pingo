@@ -160,6 +160,16 @@ export interface CallChatMessage {
   body: string;
   /** Epoch ms, from the sender's clock. Only used for ordering and display. */
   sentAt: number;
+  /**
+   * Set only on your own line, and only once every recipient has refused it.
+   *
+   * The line is shown the moment it is typed, before anything is on the wire -
+   * which is right, and was also a lie whenever the wire was down: it sat there
+   * looking delivered while it had reached nobody. This is how the sender is
+   * told. It is never set on a line that arrived from somebody else, because a
+   * line you received is by definition delivered.
+   */
+  undelivered?: boolean;
 }
 
 /**

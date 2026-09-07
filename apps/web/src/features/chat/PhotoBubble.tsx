@@ -62,7 +62,13 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
    * a bubble.
    */
   const [viewing, setViewing] = useState(false);
-  const [saved, setSaved] = useState(false);
+  /*
+   * Four states, not a boolean, for the reason `GallerySave` gives further down
+   * this file: a save that fails has to say so. It used to discard the failure
+   * and leave the label reading "Save", so an expired signed URL, an offline
+   * fetch or a refused permission all looked like a button that does nothing.
+   */
+  const [save, setSave] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 
   /*
    * The source that would not load, if one has.
@@ -320,7 +326,7 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
             // The next open starts from "Save" again. A button still reading
             // "Saved" for a photo you came back to later is answering a
             // question nobody asked.
-            setSaved(false);
+            setSave('idle');
 
             /*
              * Looking at it full screen is what spending the view means.
@@ -365,7 +371,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
               {!limited && (
                 <button
                   type="button"
+                  disabled={save === 'saving'}
                   onClick={() => {
+                    setSave('saving');
                     // The local copy when there is one: saving must keep working
                     // after PINGO has let go of the server copy.
                     void fetch(shown ?? url)
@@ -379,9 +387,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
                           blob,
                           `pingo-${day}.${kind === 'jpeg' ? 'jpg' : kind}`,
                         );
-                        if (ok) setSaved(true);
+                        setSave(ok ? 'saved' : 'failed');
                       })
-                      .catch(() => undefined);
+                      .catch(() => setSave('failed'));
                   }}
                   className={cn(
                     'focus-ring flex items-center gap-2 rounded-full px-5 py-2.5',
@@ -391,7 +399,13 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
                 >
                   {/* Says what happened rather than resetting to "Save" - a
                       button that forgets is a button people press twice. */}
-                  {saved ? 'Saved to your photos' : 'Save'}
+                  {save === 'saved'
+                    ? 'Saved to your photos'
+                    : save === 'failed'
+                      ? "Couldn't save"
+                      : save === 'saving'
+                        ? 'Saving…'
+                        : 'Save'}
                 </button>
               )}
             </div>

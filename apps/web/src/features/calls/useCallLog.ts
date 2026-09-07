@@ -107,12 +107,38 @@ export function useCallLog(call: Call | undefined): void {
       if (!messageId || messageId === 'pending') return;
 
       const answered = ended.connectedAt !== undefined;
-      void service
-        .endCallLog(messageId, {
-          outcome: answered ? 'answered' : (OUTCOME[ended.endReason ?? ''] ?? 'unreachable'),
-          durationSeconds: connectedSeconds(ended),
-        })
-        .catch(() => undefined);
+      const closing = {
+        outcome: answered ? 'answered' : (OUTCOME[ended.endReason ?? ''] ?? 'unreachable'),
+        durationSeconds: connectedSeconds(ended),
+      } as const;
+
+      /*
+       * Tried twice, and said out loud if both fail.
+       *
+       * This used to be one call with its failure discarded, which was the worst
+       * shape available: `endCallLog` is what drops `callId`, nothing anywhere
+       * sweeps a row that keeps it, and `isLiveCall` reads a leftover `callId` as
+       * an open room. So a single dropped request left everyone in the
+       * conversation with a permanent invitation into a call that ended - and
+       * left no trace of why.
+       *
+       * One retry, because the failure this is most likely to see is the
+       * connection that just carried a call ending as the call ended. A refusal
+       * will fail the same way twice and there is nothing useful to do about it
+       * here except make it findable.
+       */
+      void (async () => {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            await service.endCallLog(messageId, closing);
+            return;
+          } catch (cause) {
+            if (attempt === 1) {
+              console.warn('Could not close the call log entry; it may still look live.', cause);
+            }
+          }
+        }
+      })();
       return;
     }
 
