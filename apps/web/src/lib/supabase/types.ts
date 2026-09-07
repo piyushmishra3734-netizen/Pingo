@@ -1191,6 +1191,16 @@ export type Database = {
       };
       delete_recovery_package: { Args: Record<string, never>; Returns: undefined };
       /**
+       * Registers or claims a push token for the calling account.
+       *
+       * No `user_id`: the owner is `auth.uid()` inside the function, so a
+       * client cannot register a token against somebody else's account.
+       */
+      register_device_token: {
+        Args: { p_token: string; p_platform: string };
+        Returns: undefined;
+      };
+      /**
        * The account key, and the secret it is wrapped under.
        *
        * `secret` is null for a package made before the key became automatic:

@@ -43,22 +43,48 @@ export function usePushRegistration(): void {
   const { session } = useAuth();
   const userId = session?.user.id;
 
-  /** One upsert, whichever platform produced the token. */
+  /**
+   * One call, whichever platform produced the token.
+   *
+   * ## Why this is an RPC and not an upsert
+   *
+   * It used to be `.upsert(..., { onConflict: 'token' })`, and that returned
+   * 403 for anybody whose browser or handset had ever been signed into a second
+   * account. `ON CONFLICT DO UPDATE` makes Postgres apply the SELECT policy as
+   * well as the UPDATE one to the row being claimed, and the row belongs to the
+   * previous owner by definition - so the one case the deliberately loose
+   * UPDATE policy existed to allow was the one case that could never happen.
+   *
+   * Reproduced against the live database before changing anything: `42501, new
+   * row violates row-level security policy (USING expression)`. It showed up as
+   * 43 accounts and 74 registered devices against 6 push tokens.
+   *
+   * `register_device_token` does the claim inside the database instead. See its
+   * migration for why the read policy was not simply loosened.
+   *
+   * The token's owner is `auth.uid()` on the server, so `userId` is no longer
+   * sent - it is only used to know whether there is a session at all.
+   */
   const remember = useCallback(
     (token: string) => {
       if (!userId) return;
       void getSupabaseClient()
-        .from('device_tokens')
-        .upsert(
-          {
-            token,
-            user_id: userId,
-            platform: currentPlatform(),
-            last_seen_at: new Date().toISOString(),
-          },
-          { onConflict: 'token' },
-        )
-        .then(undefined, () => undefined);
+        .rpc('register_device_token', { p_token: token, p_platform: currentPlatform() })
+        .then(({ error }) => {
+          /*
+           * Said out loud now, which it was not before.
+           *
+           * This used to end in `.then(undefined, () => undefined)`, and that
+           * silence is the whole reason a 403 on every registration went
+           * unnoticed: nothing reached the console, and `on_notification_push`
+           * treats a missing device row as an ordinary skip rather than a
+           * failure, so nothing reached `push_failures` either.
+           *
+           * Console only, matching the sibling failure paths below: there is
+           * nothing the person holding the phone can do about it.
+           */
+          if (error) console.warn('[pingo/push] could not register token', error);
+        });
     },
     [userId],
   );
