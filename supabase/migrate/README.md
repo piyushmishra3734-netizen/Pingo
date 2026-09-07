@@ -60,6 +60,7 @@ history is how it got there.
 | 2 vault secrets | **`after-restore.sql`** — values are yours |
 | Realtime publication (6 tables) | **`after-restore.sql`** |
 | Old project URL inside 3 functions | **`after-restore.sql`** |
+| Old project URL inside 28 rows | **`after-restore.sql`** |
 | 8 storage bucket definitions | `pg_dump --data-only` of `storage.buckets` |
 | 149 stored files, 89 MB | **neither — yours** |
 | 10 edge functions | **yours** — `supabase functions deploy` |
@@ -150,12 +151,33 @@ and `storage` objects. Those are normal. Read them anyway - an error on a
 
 Open **`after-restore.sql`**, fill in three values at the top of their sections
 (the new project ref, and the two shared secrets), and run it on the new project.
-It rewrites the three functions that still point at the old project, recreates
-the 8 cron jobs, sets the vault secrets, and asserts the realtime publication.
+It rewrites the three functions and the 28 rows that still point at the old
+project, recreates the 8 cron jobs, sets the vault secrets, and asserts the
+realtime publication.
 
-The function rewrite matters most and is the one that fails silently: without it
-the new database keeps calling the **old** project's edge functions, everything
-returns 200, and push belongs to a project nobody is using.
+The two rewrites matter most, because neither failure announces itself.
+
+Without the **function** rewrite the new database keeps calling the *old*
+project's edge functions. Everything returns 200. Push works, sweeps run, and all
+of it belongs to a project nobody is using.
+
+Without the **row** rewrite, 28 stored image URLs still name the old project:
+19 profile avatars, 5 banners, a group's avatar, cover and wallpaper, and one AI
+banner. These are full `https://<ref>.supabase.co/storage/...` URLs rather than
+paths. While the old project is still up they keep working, which is the worse
+outcome — the new app quietly serves pictures out of the old project until the
+day you delete it, and then 28 people lose their avatar at once.
+
+Check both afterwards:
+
+```sql
+-- functions: expect 0 rows
+select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.prosrc like '%lppzoqgvshhmxqsvggug%';
+
+-- rows: expect 0
+select count(*) from public.profiles where avatar_url like '%lppzoqgvshhmxqsvggug%';
+```
 
 ### 5. Move the files
 

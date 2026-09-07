@@ -3,15 +3,16 @@
  *
  * Run on the NEW project, after the schema and data are in. A dump moves tables,
  * functions, policies and grants. It does not move scheduled jobs, it does not
- * move secrets, and it has no idea that three function bodies contain the old
- * project's own address - which is the one on this page that fails silently, so
- * it is done first.
+ * move secrets, and it has no idea that the old project's own address is sitting
+ * both in three function bodies and in 28 rows - which is the failure on this
+ * page that never announces itself, so it is done first.
  *
  * Safe to run twice.
  *
  * ## Before you run it
  *
- * Set the two secret values in section 2. They are the only thing here that
+ * Set the two secret values in section 3, and the new project ref at the top
+ * of sections 1 and 2. They are the only thing here that
  * cannot be read out of the old project, by design: `vault.secrets` gives up
  * names, never values. Take them from wherever you keep them, or mint new ones -
  * they are shared secrets between the database and an edge function, so the only
@@ -76,7 +77,101 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 2. The two shared secrets
+-- 2. The old project's address, stored in rows
+-- ---------------------------------------------------------------------------
+/*
+ * The same trap as section 1, in data instead of code, and easier to miss
+ * because nothing in the schema hints at it.
+ *
+ * 28 rows in the live database hold a full
+ * `https://<ref>.supabase.co/storage/v1/object/...` URL rather than a path:
+ * 19 profile avatars, 5 profile banners, a group's avatar, cover and wallpaper,
+ * and one AI banner. Restored as-is they point at the old project's storage. If
+ * that project is still up they keep working, which is worse than breaking -
+ * the new app quietly serves pictures out of the old project until the day it
+ * is deleted, and then 28 people lose their avatar at once.
+ *
+ * Rewritten across every text and json column rather than the six that hold
+ * them today, so a column added later is covered without anybody remembering
+ * this script exists.
+ */
+do $$
+declare
+  new_ref text := 'PUT-THE-NEW-PROJECT-REF-HERE';
+  old_ref text;
+  c       record;
+  hits    bigint;
+  touched bigint;
+  total   bigint := 0;
+  targets text[][] := '{}';
+  i       int;
+begin
+  if new_ref !~ '^[a-z]{20}$' then
+    raise exception 'Set new_ref before running this section.';
+  end if;
+
+  /* Taken from the function bodies, so the old ref never has to be typed. */
+  select substring(p.prosrc from 'https://([a-z]{20})[.]supabase[.]co')
+    into old_ref
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prosrc ~ 'https://[a-z]{20}[.]supabase[.]co'
+   limit 1;
+
+  if old_ref is null or old_ref = new_ref then
+    raise notice 'No old ref to rewrite in rows.';
+    return;
+  end if;
+
+  /*
+   * Two passes, and the first one is the slow half.
+   *
+   * Every text and json column has to be looked at, because a URL can be
+   * anywhere and guessing by column name is how the seventh one gets missed -
+   * `messages.media_url` is a text column on 45,000 rows and holds paths today,
+   * which is exactly the column a name-based filter would have skipped for
+   * being obviously relevant, or included for being obviously large. So: count
+   * first, and write only where there is something to write. On this data the
+   * scan is the whole cost and the update touches 28 rows.
+   */
+  for c in
+    select table_name, column_name, data_type
+      from information_schema.columns
+     where table_schema = 'public'
+       and data_type in ('text', 'character varying', 'jsonb', 'json')
+     order by table_name, column_name
+  loop
+    execute format(
+      'select count(*) from public.%I where %I::text like %L',
+      c.table_name, c.column_name, '%' || old_ref || '%'
+    ) into hits;
+
+    if hits > 0 then
+      targets := targets || array[array[c.table_name, c.column_name, c.data_type]];
+      raise notice 'found %.% - % row(s)', c.table_name, c.column_name, hits;
+    end if;
+  end loop;
+
+  if array_length(targets, 1) is null then
+    raise notice 'No stored URL holds the old ref. Nothing to rewrite.';
+    return;
+  end if;
+
+  for i in 1 .. array_length(targets, 1) loop
+    execute format(
+      'update public.%I set %I = replace(%I::text, %L, %L)::%s where %I::text like %L',
+      targets[i][1], targets[i][2], targets[i][2],
+      old_ref, new_ref, targets[i][3],
+      targets[i][2], '%' || old_ref || '%'
+    );
+    get diagnostics touched = row_count;
+    total := total + touched;
+  end loop;
+
+  raise notice '% stored URL(s) moved from % to %', total, old_ref, new_ref;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 3. The two shared secrets
 -- ---------------------------------------------------------------------------
 /*
  * `push_trigger_secret` is what the notifications trigger presents to
@@ -109,7 +204,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 3. The scheduled work
+-- 4. The scheduled work
 -- ---------------------------------------------------------------------------
 /*
  * `cron.job` lives outside `public` and does not travel with a schema dump, so
@@ -144,7 +239,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 4. Realtime
+-- 5. Realtime
 -- ---------------------------------------------------------------------------
 /*
  * Six tables, and only six. The publication is what the client subscribes
@@ -189,7 +284,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 5. What is still left for a person
+-- 6. What is still left for a person
 -- ---------------------------------------------------------------------------
 do $$
 declare
