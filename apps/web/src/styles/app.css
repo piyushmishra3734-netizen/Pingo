@@ -389,12 +389,18 @@ video {
 /*
  * The light that crosses "drawing your picture" while it is being drawn.
  *
- * Everywhere else in PINGO a shimmer is refused - `Skeleton` says so in as many
- * words - because sweeping light across a placeholder implies progress nothing
- * is measuring. This is the exception the rule was written around: the work is
- * real, it has started, and it ends in a few seconds. Movement is the only
- * thing separating "still going" from "stuck", and a person watching a still
- * sentence for eight seconds concludes the second one.
+ * This used to read as the one exception to a rule that a shimmer is refused
+ * everywhere in PINGO, `Skeleton` included. Half of that is no longer true:
+ * `Skeleton` sweeps now, because the boot shell in `index.html` draws the same
+ * placeholders before React exists and the handover between them has to be
+ * invisible.
+ *
+ * What the rule was actually protecting still stands here, and is worth keeping
+ * separate from it: sweeping light across a placeholder implies progress
+ * nothing is measuring, and this is the one place where the work is real, has
+ * started, and ends in a few seconds. Movement is the only thing separating
+ * "still going" from "stuck", and a person watching a still sentence for eight
+ * seconds concludes the second one.
  *
  * Slow, because it sits under a picture that is worth waiting for and a fast
  * sweep reads as urgency. The gradient is 220% of the text so the highlight is

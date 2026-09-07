@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.AttributeSet;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
+import android.webkit.WebView;
 
 import androidx.core.view.inputmethod.EditorInfoCompat;
 import androidx.core.view.inputmethod.InputConnectionCompat;
@@ -53,6 +54,45 @@ public class PingoWebView extends CapacitorWebView {
 
     public PingoWebView(Context context, AttributeSet attrs) {
         super(context, attrs);
+        refuseImageLongPress();
+    }
+
+    /**
+     * No "Save image" sheet on a long press.
+     *
+     * <h2>What this is fixing</h2>
+     *
+     * A view-once photo is opened full screen, and holding it brought up
+     * Android's own menu with Save image on it. PINGO deliberately offers no
+     * save button for a view-limited photo - see {@code PhotoBubble} - so the
+     * platform was handing over the one thing the product had refused to.
+     *
+     * <h2>Why the web guard did not cover it</h2>
+     *
+     * {@code App.tsx} already cancels {@code contextmenu} for every image and
+     * video, which is what stops this in a browser. A WebView does not raise
+     * that event for its own long-press menu: it hit-tests the DOM natively and
+     * shows the menu itself, so there was nothing for the page to cancel.
+     *
+     * <h2>Images only</h2>
+     *
+     * Long-pressing text still selects it, because copying a message is
+     * something people do and this is not the place to take it away.
+     * {@code IMAGE_TYPE} covers a bare picture and
+     * {@code SRC_IMAGE_ANCHOR_TYPE} covers one wrapped in a link, which is what
+     * every photo in a thread is - the bubble is a button.
+     *
+     * A screenshot is still a screenshot. That is a phone, and nothing here
+     * pretends otherwise; this removes the one-tap copy that PINGO itself was
+     * offering by omission.
+     */
+    private void refuseImageLongPress() {
+        setOnLongClickListener(view -> {
+            WebView.HitTestResult hit = getHitTestResult();
+            int type = hit == null ? WebView.HitTestResult.UNKNOWN_TYPE : hit.getType();
+            return type == WebView.HitTestResult.IMAGE_TYPE
+                || type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE;
+        });
     }
 
     @Override

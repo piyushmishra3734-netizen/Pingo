@@ -110,7 +110,23 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
       // Undefined means the views are used up, which reads the same as never
       // having had any - the thread does not explain which.
       if (!view) setSpent(true);
-      else setOpened({ url: view.url, viewsLeft: view.viewsLeft });
+      else {
+        setOpened({ url: view.url, viewsLeft: view.viewsLeft });
+
+        /*
+         * Straight to full screen, for a photo that only opens once.
+         *
+         * The view is spent by this call, not by the tap that comes after it -
+         * so a reader who opened the cover and then never tapped the thumbnail
+         * had paid for a look they only got at bubble size, and the picture
+         * stayed in the thread until something unmounted it. One tap, one view,
+         * and it is gone when the viewer closes.
+         *
+         * An ordinary photo keeps the two steps: nothing is being spent, and
+         * the thumbnail in the thread is the point of it.
+         */
+        if (limited) setViewing(true);
+      }
     } finally {
       setOpening(false);
     }
@@ -261,6 +277,31 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
             // "Saved" for a photo you came back to later is answering a
             // question nobody asked.
             setSaved(false);
+
+            /*
+             * Looking at it full screen is what spending the view means.
+             *
+             * The picture used to stay in the bubble after the viewer closed,
+             * so a view-once photo sat in the thread until something happened
+             * to unmount it - and pressing back brought you straight to it
+             * again. The view had been counted; the photograph had not gone
+             * anywhere.
+             *
+             * The server ledger was always right about this. What was missing
+             * was the bubble agreeing with it, so the state that says "this
+             * reader has spent a view" is cleared here and the cover comes
+             * back.
+             *
+             * Whether it can be opened again is not decided here - `open_photo`
+             * decides, and it refuses once the views are used up. The sender is
+             * exempt there (their own photo never counts against the limit), so
+             * they are exempt from the spent state too and get their cover
+             * back rather than "Photo expired".
+             */
+            if (limited) {
+              setOpened(undefined);
+              if (!mine && (viewsLeft === undefined || viewsLeft <= 0)) setSpent(true);
+            }
           }}
           footer={
             <div className="flex flex-col items-center gap-3">
