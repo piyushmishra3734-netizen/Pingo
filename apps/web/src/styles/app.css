@@ -471,3 +471,129 @@ video {
     transparent 100%
   );
 }
+
+/*
+ * Light under the finger.
+ *
+ * A companion to `glass-press`, not a replacement for it. That one compresses
+ * and brightens the whole control; this adds the thing a material does that a
+ * button does not - it lights from the point of contact and the light spreads
+ * out through it.
+ *
+ * Deliberately a separate class. `glass-press` is on seven controls and only
+ * four of them were asked for, so overloading it would have lit three surfaces
+ * nobody chose.
+ *
+ * ## Why a gradient and not a scaling circle
+ *
+ * The obvious version is a small circle at the touch point scaled up with a
+ * transform, which composites beautifully and needs `overflow: hidden` on the
+ * surface to stop it escaping. The dock carries unread badges positioned
+ * against its own edges, and clipping the dock to hide a highlight would clip
+ * those too.
+ *
+ * A gradient inside a pseudo-element cannot escape in the first place: it is
+ * painted within that box and nowhere else, so containment is free and nothing
+ * needs to be clipped. The cost is a repaint rather than a composite, over an
+ * area the size of a dock or a send button, for a third of a second.
+ *
+ * `--lit-spread` is registered below so the radius itself can be animated;
+ * without `@property` a custom property jumps from one value to the next and
+ * the light would appear at full size.
+ *
+ * ## No blend mode
+ *
+ * `plus-lighter` would read more like light and less like paint, and it needs
+ * an isolated stacking context to behave. This codebase has twice had painting
+ * order go wrong on exactly these surfaces when something introduced a
+ * compositing context, so the effect is a plain soft radial at low alpha
+ * instead. It is the conservative half of the idea; the blend mode is the
+ * upgrade if it ever proves safe here.
+ */
+@property --lit-spread {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+.glass-lit {
+  position: relative;
+}
+
+.glass-lit::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /*
+   * Positioned by the two properties the pointer handler writes, and falling
+   * back to the middle so a keyboard activation still lights something
+   * sensible rather than the top-left corner.
+   */
+  /*
+   * The accent in light, plain white in dark, and the reason is physics rather
+   * than taste.
+   *
+   * White light on a near-white panel is invisible: the dock's glass already
+   * sits around #fff, so "brighter" has nowhere to go. Verified on the live
+   * app - a white bloom at full strength produced a dock indistinguishable
+   * from its resting state.
+   *
+   * Dark glass has the headroom, so there white is exactly right. Light glass
+   * does not, so the light carries the accent instead - which also means it
+   * follows whatever accent the person has chosen rather than introducing a
+   * colour of its own.
+   */
+  background: radial-gradient(
+    circle at var(--lit-x, 50%) var(--lit-y, 50%),
+    color-mix(in srgb, var(--color-brand) 24%, transparent),
+    color-mix(in srgb, var(--color-brand) 8%, transparent) calc(var(--lit-spread) * 0.5),
+    transparent var(--lit-spread)
+  );
+  opacity: 0;
+  transition:
+    opacity 360ms var(--ease-standard),
+    --lit-spread 360ms var(--ease-standard);
+}
+
+/*
+ * `:active` reaches ancestors, which is the whole reason the dock and the
+ * composer are marked rather than the buttons inside them: pressing a dock
+ * item lights the panel it sits on, at the point it was pressed, without a
+ * line of code per button.
+ *
+ * In fast, out slow. A light that arrives as slowly as it leaves reads as a
+ * fade; arriving in a tenth of a second and settling over a third is what
+ * makes it feel like a response rather than an animation.
+ */
+.glass-lit:active::after {
+  opacity: 1;
+  --lit-spread: 125%;
+  transition-duration: 90ms, 300ms;
+}
+
+/* Dark glass has room for light, and takes it as light. */
+:root[data-theme='dark'] .glass-lit::after {
+  background: radial-gradient(
+    circle at var(--lit-x, 50%) var(--lit-y, 50%),
+    rgb(255 255 255 / 0.2),
+    rgb(255 255 255 / 0.07) calc(var(--lit-spread) * 0.5),
+    transparent var(--lit-spread)
+  );
+}
+
+/*
+ * Off entirely, rather than slowed. The control still compresses, still
+ * brightens, still does everything it did before this existed - the light is
+ * the one part that is decoration, so it is the part that goes.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .glass-lit::after {
+    transition: none;
+  }
+
+  .glass-lit:active::after {
+    opacity: 0;
+  }
+}

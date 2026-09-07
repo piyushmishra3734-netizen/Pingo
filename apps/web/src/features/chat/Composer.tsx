@@ -560,7 +560,7 @@ export function Composer({
        */
       <div
         className={cn(
-          'glass-water flex min-w-0 flex-1 items-end gap-1 rounded-xl px-1.5 py-1.5',
+          'glass-lit glass-water flex min-w-0 flex-1 items-end gap-1 rounded-xl px-1.5 py-1.5',
           'transition-[box-shadow] duration-instant ease-standard',
           'focus-within:shadow-sm',
         )}
@@ -828,7 +828,7 @@ export function Composer({
             animate once and then sit still for the rest of the conversation.
           */
           key={sent}
-          className="glass-press motion-safe:animate-send-pop"
+          className="glass-lit glass-press motion-safe:animate-send-pop"
         >
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={21} className="-translate-x-px translate-y-px" />

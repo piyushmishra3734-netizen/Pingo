@@ -87,7 +87,7 @@ export function Dock() {
       */}
       <GlassPanel
         className={cn(
-          'pointer-events-auto flex items-center gap-1 p-2',
+          'glass-lit pointer-events-auto flex items-center gap-1 p-2',
           'shadow-[0_4px_12px_rgba(16,17,20,0.06),0_16px_40px_rgba(16,17,20,0.08)]',
         )}
       >

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useChat } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
+import { WebSlingLoader } from '../features/loading/WebSlingLoader.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
@@ -9,6 +10,7 @@ import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
 import { startLensing } from '../features/glass/lens.js';
+import { startPressLight } from '../features/glass/press-light.js';
 import { redeemHeldReferral } from '../features/referrals/referrals-service.js';
 import { doneAddingAccount } from '../features/auth/adding-account.js';
 import { useLiveOnResume } from '../features/notifications/useLiveOnResume.js';
@@ -53,6 +55,8 @@ export function AppShell() {
    * React knows which elements have it.
    */
   useEffect(() => startLensing(), []);
+  // One delegated listener, for every `.glass-lit` surface in the app.
+  useEffect(() => startPressLight(), []);
 
   /*
    * Whatever they were in the middle of, they are inside the app now.
@@ -131,7 +135,16 @@ export function AppShell() {
   if (!ready) {
     return (
       <div className="grid h-full place-items-center bg-page">
-        <LoadingState label={t('common.opening')} />
+        {/*
+          The one loader that is not `LoadingState`.
+
+          Every other wait in the app is a section of a screen that already
+          exists, and a small calm marker is right for those. This one is the
+          whole window with nothing else on it, straight after the splash - the
+          only moment PINGO has somebody's undivided attention and nothing to
+          show them. See `WebSlingLoader` for why none of it is downloaded.
+        */}
+        <WebSlingLoader label={t('common.opening')} />
       </div>
     );
   }
