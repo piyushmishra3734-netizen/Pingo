@@ -88,13 +88,21 @@ export function PrivacyScreen() {
    */
   const save = (changes: Partial<PrivacySettings>) => {
     setSaveFailed(false);
-    let before: Partial<PrivacySettings> = {};
-    setRules((current) => {
-      before = Object.fromEntries(
-        Object.keys(changes).map((key) => [key, current[key as keyof PrivacySettings]]),
-      ) as Partial<PrivacySettings>;
-      return { ...current, ...changes };
-    });
+
+    /*
+     * Read from `rules`, not from inside the updater.
+     *
+     * React calls a functional update during render rather than at the moment
+     * it is dispatched, so capturing the old values in there would be a bet on
+     * that happening before the request comes back. `rules` is the value this
+     * render drew, which is the one the person was looking at when they touched
+     * the switch - so it is both correct and the obvious thing to read.
+     */
+    const before = Object.fromEntries(
+      Object.keys(changes).map((key) => [key, rules[key as keyof PrivacySettings]]),
+    ) as Partial<PrivacySettings>;
+
+    setRules((current) => ({ ...current, ...changes }));
 
     void profiles.updatePrivacySettings(changes).catch((cause: unknown) => {
       setRules((current) => ({ ...current, ...before }));

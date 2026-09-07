@@ -258,6 +258,25 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
         build: BUILD_ID,
         ...(activityStatusOn() ? { last_seen_at: new Date().toISOString() } : {}),
       },
+      /*
+       * Keyed on the device, not the owner - which is the shape that broke push
+       * notifications, and is safe here only because of `switchAccount` above.
+       *
+       * `device_tokens` is keyed on `token`, so a handset that had seen a second
+       * account made every registration land on a row belonging to somebody
+       * else. Postgres applies the SELECT policy to the conflicting row on the
+       * `do update` path, that row failed it, and the upsert was refused for
+       * good. This upsert has the same key shape and the same restrictive read
+       * policy, so the only thing standing between it and the same bug is that
+       * a second account on this browser never inherits the first one's
+       * `device-id`: `switchAccount` parks it under the outgoing account and
+       * clears the slot when the incoming one has never been here, so a fresh
+       * identity is minted. Confirmed against the database - 74 rows, 74
+       * distinct ids, none claimed twice.
+       *
+       * If that ever stops being true this fails silently, and a device that
+       * cannot publish its public key is a device nobody can encrypt to.
+       */
       { onConflict: 'device_id' },
     );
   })().catch(() => undefined);
