@@ -1,9 +1,10 @@
 import { useChat, type Message, type PhotoRef } from '@pingo/core';
 import { EyeIcon, ImageIcon, PingoDot, cn } from '@pingo/ui';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
+import { secureScreen } from '../native/secure-screen.js';
 import { ImageViewer } from '../profile/ImageViewer.js';
 import { useOfflineMedia } from './useOfflineVideo.js';
 import { MessageText } from './MessageText.js';
@@ -101,6 +102,32 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
   const shown = limited ? url : offline.src;
   /** This exact source has already been tried and did not load. */
   const broken = failedSrc !== undefined && failedSrc === shown;
+
+  /*
+   * No screenshots while a view-once photo is open.
+   *
+   * Only while it is open, and only for a limited one: the flag belongs to the
+   * whole window, so leaving it on would take the screenshot of an ordinary
+   * conversation away from everybody and send black frames into a shared
+   * screen. See `secureScreen`.
+   *
+   * The cleanup is the half that matters. It runs when the viewer closes and
+   * also when this bubble goes away with it still open - a thread left, a
+   * conversation switched - and without that second case the app would refuse
+   * screenshots for the rest of the session.
+   *
+   * On the web both calls do nothing, because no browser offers this. A
+   * view-once photo is capturable there and the product should not imply
+   * otherwise.
+   */
+  useEffect(() => {
+    if (!limited || !viewing) return undefined;
+
+    void secureScreen(true);
+    return () => {
+      void secureScreen(false);
+    };
+  }, [limited, viewing]);
 
   const open = async () => {
     if (opening || url) return;

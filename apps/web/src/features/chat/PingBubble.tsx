@@ -3,6 +3,7 @@ import { CameraIcon, StorageIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { useT } from '../i18n/useT.js';
+import { secureScreen } from '../native/secure-screen.js';
 
 /**
  * A Ping in the thread: closed, open, or gone.
@@ -38,6 +39,30 @@ export function PingBubble({
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     };
   }, []);
+
+  /*
+   * No screenshots while a Ping is open.
+   *
+   * A Ping is view-once by definition, so this is the same rule the view-once
+   * photo follows and for the same reason - see `secureScreen`. It is on only
+   * while one is open, because the flag belongs to the whole window: left on it
+   * would take the screenshot of an ordinary conversation away from everybody
+   * and send black frames into a shared screen.
+   *
+   * Saving is untouched. `savePing` is a deliberate button that tells the
+   * sender it happened; this is about the copy the platform hands over without
+   * telling anybody.
+   *
+   * Nothing on the web, where no browser offers this at all.
+   */
+  useEffect(() => {
+    if (state !== 'open') return undefined;
+
+    void secureScreen(true);
+    return () => {
+      void secureScreen(false);
+    };
+  }, [state]);
 
   const open = async () => {
     if (state !== 'closed') return;
