@@ -112,6 +112,36 @@ function migrateAccent(appearance: AppearanceSettings): AppearanceSettings {
   }
 }
 
+/**
+ * The two system settings that mean "less material, please".
+ *
+ * `prefers-reduced-transparency` is the direct one. `prefers-contrast: more` is
+ * the one people reach for when translucency is making text hard to read, which
+ * asks for the same thing by a different name - so both switch the glass off
+ * rather than only the first, which would leave half the people who asked still
+ * looking through it.
+ */
+const PLAIN_QUERIES = ['(prefers-reduced-transparency: reduce)', '(prefers-contrast: more)'];
+
+/**
+ * True when either is on right now.
+ *
+ * A browser that has never heard of these queries returns `matches: false` for
+ * an unknown feature, so an older WebView simply behaves as it does today -
+ * which is the safe direction: it keeps the glass rather than removing it from
+ * somebody who never asked.
+ */
+function plainRequested(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return PLAIN_QUERIES.some((query) => {
+    try {
+      return window.matchMedia(query).matches;
+    } catch {
+      return false;
+    }
+  });
+}
+
 function read(): Preferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -161,6 +191,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
   );
+  /**
+   * Whether the operating system has been asked for less transparency, or for
+   * more contrast.
+   *
+   * Two queries, one answer, because both want the same thing from this
+   * product: the material out of the way. `prefers-contrast: more` is the one
+   * somebody sets when translucency is making text hard to read, which is
+   * exactly what turning the glass off fixes.
+   */
+  const [systemPlain, setSystemPlain] = useState(() => plainRequested());
 
   /*
    * There is deliberately no `useAuth()` here.
@@ -184,8 +224,41 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => query.removeEventListener('change', onChange);
   }, []);
 
+  /*
+   * The same live wiring the theme has. A setting toggled in the OS while PINGO
+   * is open has to land without a reload - that is when somebody is most likely
+   * to be trying it precisely *because* they are struggling to read something.
+   */
+  useEffect(() => {
+    const queries = PLAIN_QUERIES.map((q) => window.matchMedia?.(q)).filter(
+      (q): q is MediaQueryList => Boolean(q),
+    );
+    if (queries.length === 0) return;
+
+    const onChange = () => setSystemPlain(plainRequested());
+    for (const query of queries) query.addEventListener('change', onChange);
+    return () => {
+      for (const query of queries) query.removeEventListener('change', onChange);
+    };
+  }, []);
+
   const resolvedTheme: 'light' | 'dark' =
     appearance.theme === 'auto' ? (systemDark ? 'dark' : 'light') : appearance.theme;
+
+  /*
+   * The system's request wins over the slider, and that is deliberate.
+   *
+   * Everywhere else in this file an explicit choice beats the OS - a theme
+   * picked by hand is not overruled by the phone. This is the exception,
+   * because the two are not the same kind of statement. Choosing 75% glass is a
+   * taste; asking the OS for reduced transparency is somebody saying they
+   * cannot read this. Apple treats these settings as modifiers that apply
+   * across the board for the same reason.
+   *
+   * Nothing is written back, so the slider still shows what they picked and
+   * comes back untouched the moment the OS setting is turned off.
+   */
+  const resolvedGlass = systemPlain ? 0 : appearance.glass;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -203,7 +276,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
      */
     root.setAttribute('data-accent', appearance.accent || DEFAULT_APPEARANCE.accent);
     root.setAttribute('data-motion', appearance.motion);
-    root.setAttribute('data-glass', String(appearance.glass));
+    root.setAttribute('data-glass', String(resolvedGlass));
 
     if (appearance.accent === 'custom' && appearance.customAccent) {
       root.style.setProperty('--custom-accent', appearance.customAccent);
