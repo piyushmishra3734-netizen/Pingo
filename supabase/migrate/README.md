@@ -300,8 +300,29 @@ table-level `REVOKE` also drops the column-level grants, so each fix is a revoke
 
 ### 4. Everything the dump did not carry
 
-Open **`after-restore.sql`**, fill in three values at the top of their sections
-(the new project ref, and the two shared secrets), and run it on the new project.
+Open **`after-restore.sql`**, fill in the two shared secrets in section 3 (the
+new project ref is already filled in), and run it on the new project.
+
+On the two secrets: they do **not** have to match the old project's. Each is a
+shared secret between the database and one edge function, so the only
+requirement is that both sides agree - and the old values cannot be read
+anyway, by anyone, which is the point of the vault. The simplest thing is to let
+the database mint them and never type them at all:
+
+```sql
+select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'),
+                           'push_trigger_secret', 'presented to push-send');
+select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'),
+                           'media_sweeper_secret', 'presented to purge-media');
+```
+
+Then read them once, in the SQL editor, to set the matching environment variable
+on each function:
+
+```sql
+select name, decrypted_secret from vault.decrypted_secrets
+ where name in ('push_trigger_secret', 'media_sweeper_secret');
+```
 It rewrites the three functions and the 28 rows that still point at the old
 project, recreates the 8 cron jobs, sets the vault secrets, and asserts the
 realtime publication.
@@ -344,6 +365,25 @@ like a bug in the app.
 Keep the paths identical. The storage policies are path-based - they match on the
 owner's id being the first segment - so a file that lands at a different path is
 a file its owner can no longer read.
+
+**Done, and checked.** 152 objects, 94,848,439 bytes, across all eight buckets.
+Both projects return the same digest over every `bucket/path:size`:
+
+```
+1542690e74899749b8f7731117cab3ee
+```
+
+That is the check worth running rather than comparing counts: the storage
+policies match on the path, so two projects can hold the same number of files
+and still be wrong.
+
+```sql
+select count(*), sum((metadata->>'size')::bigint),
+       md5(string_agg(bucket_id||'/'||name||':'||(metadata->>'size'), E'
+'
+                      order by bucket_id, name))
+from storage.objects;
+```
 
 `copy-storage.mjs` does all of it:
 
