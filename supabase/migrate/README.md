@@ -99,8 +99,16 @@ the move, which is the point of re-running it rather than trusting the table.
 
 ### 1b. The line the dump has to match
 
-Maintenance went on at **2026-09-07 16:38 UTC**, and the last message written
-before it landed at 16:36:30. These are the counts at that moment:
+Maintenance went on at **2026-09-07 16:38 UTC**. These are the counts at that
+moment - as a reference point, **not** as the number to match. See below.
+
+Turning maintenance on does not stop everybody at once. Four more messages and
+one more file arrived after it went live, the last at 17:28, fifty minutes
+later: the service worker keeps serving the cached bundle to anyone who already
+had the app open, and an installed APK does not fetch `index.html` from
+Cloudflare at all. New arrivals see the maintenance page; sessions already
+running do not. It went quiet on its own after that - nothing has been written
+in the seventeen hours since.
 
 | | |
 |---|---|
@@ -110,20 +118,26 @@ before it landed at 16:36:30. These are the counts at that moment:
 | device keys | 74 |
 | storage objects | 151 |
 
-After the restore, run the same counts on the new project. They must be equal.
+So the number to match is not the one above. **Run this on the old project
+immediately before the dump, and again immediately after**, and use that pair:
 
 ```sql
-select (select count(*) from auth.users)           as accounts,
-       (select count(*) from public.messages)      as messages,
-       (select count(*) from public.conversations) as conversations,
-       (select count(*) from public.device_keys)   as device_keys,
-       (select count(*) from storage.objects)      as files;
+select (select count(*) from auth.users)            as accounts,
+       (select count(*) from public.messages)       as messages,
+       (select count(*) from public.conversations)  as conversations,
+       (select count(*) from public.device_keys)    as device_keys,
+       (select count(*) from storage.objects)       as files,
+       (select max(created_at) from public.messages) as newest_message;
 ```
 
-**Higher on the old project afterwards means the window was not actually shut**
-- something reached it after the dump, and that something is not in the new
-database. Lower on the new one means the restore dropped rows, which `psql`
-reports and does not stop for.
+`newest_message` is the one to read first. If it is hours old, every client has
+genuinely stopped and the dump is a clean line. If it is minutes old, somebody
+is still writing - wait, and take the dump when it stops moving.
+
+If the before and after counts differ, the dump was taken across a moving
+target: retake it. Then the same query on the **new** project must equal the
+*after* numbers. Lower on the new one means the restore dropped rows, which
+`psql` reports and does not stop for.
 
 These are row counts and move with use; the digests in step 1 are schema and do
 not. Both have to match, and they fail differently: a wrong count is missing
