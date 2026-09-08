@@ -198,8 +198,27 @@ echo "An error on a public object is not - read them."
 echo
 for f in public auth buckets; do
   echo "--- $f.sql"
+  log="$OUT/$f.restore.log"
+
   PGPASSWORD="$NEW_PASSWORD" "$PSQL" -h "$NEW_HOST" -p 5432 -U "$NEW_USER" -d postgres \
-    -v ON_ERROR_STOP=0 -f "$OUT/$f.sql" 2>&1 | grep -E '^(ERROR|FATAL)' | sort | uniq -c | sort -rn || true
+    -v ON_ERROR_STOP=0 -f "$OUT/$f.sql" >"$log" 2>&1 || true
+
+  #
+  # psql prefixes every error with the file and line it came from, so a real one
+  # reads `psql:public.sql:60103: ERROR: ...` and never begins at column zero.
+  # The first version of this grepped for `^ERROR`, matched nothing, and printed
+  # a clean restore over one where the largest table had failed entirely - the
+  # same swallowed-error shape this migration exists to avoid. The full output
+  # is now kept on disk either way.
+  #
+  errors=$(grep -cE '(ERROR|FATAL):' "$log" || true)
+  if [ "$errors" -gt 0 ]; then
+    echo "  $errors error line(s). Full output: $log"
+    grep -E '(ERROR|FATAL):' "$log" | head -15 | sed 's/^/    /'
+    [ "$errors" -gt 15 ] && echo "    ... and $((errors - 15)) more in the log"
+  else
+    echo "  no errors"
+  fi
 done
 
 echo
