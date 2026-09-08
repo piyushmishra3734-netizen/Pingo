@@ -160,16 +160,50 @@ six extensions and tells you if a version is older than the source.
 
 ### 3. Dump and restore
 
-Both connection strings come from *Settings → Database → Connection string* in
-each project. Use the **direct** connection, not the pooler — the pooler cannot
-run a restore.
+### The password, and which host to use
+
+**The database password is not viewable after creation.** If it was not written
+down, reset it — *Settings → Database → Reset database password*. The warning
+there says resetting breaks existing connections, and for this project it breaks
+nothing: PINGO never opens a direct Postgres connection. The app talks to
+PostgREST with the publishable key, the ten edge functions use the service role
+key, and `pg_cron` and `pg_net` run inside the database. Checked — nothing in the
+repository holds a `postgres://` connection string except this runbook and one
+test script.
+
+Now the host, and this is the part that stops people:
+
+| | Use it? |
+|---|---|
+| `db.<ref>.supabase.co:5432` — direct | Best, **but free projects are IPv6-only here.** On an IPv4-only network it will not resolve. |
+| `aws-1-<region>.pooler.supabase.com:5432` — **session** pooler | **Works for dump and restore.** Note the username is `postgres.<ref>`, not `postgres`. |
+| `...pooler.supabase.com:6543` — **transaction** pooler | **No.** It cannot hold the session state a dump or restore needs. |
+
+An earlier version of this page said "use the direct connection, not the
+pooler", which is wrong in both directions: direct may be unreachable, and the
+session pooler is fine. Only port 6543 is disqualified.
+
+This project's session pooler host is already recorded in
+`supabase/.temp/pooler-url`:
+
+```
+postgresql://postgres.lppzoqgvshhmxqsvggug@aws-1-ap-south-1.pooler.supabase.com:5432/postgres
+```
+
+Try direct first; if it does not resolve, use the session pooler.
 
 Three dumps, not one. `public` is yours and moves whole; `auth` and `storage` are
 Supabase's own and already exist in the new project, so only their *rows* move.
 
 ```bash
+# Direct - try these first
 OLD="postgresql://postgres:PASSWORD@db.lppzoqgvshhmxqsvggug.supabase.co:5432/postgres"
-NEW="postgresql://postgres:PASSWORD@db.NEWREF.supabase.co:5432/postgres"
+NEW="postgresql://postgres:PASSWORD@db.gpijpmepzowwhvgkriqu.supabase.co:5432/postgres"
+
+# Session pooler - the fallback when direct will not resolve. Different
+# username, same port. The new project's region is ap-south-1 as well.
+# OLD="postgresql://postgres.lppzoqgvshhmxqsvggug:PASSWORD@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+# NEW="postgresql://postgres.gpijpmepzowwhvgkriqu:PASSWORD@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
 
 # 1. The application schema, structure and data together.
 #    --no-owner because the roles differ. Privileges are deliberately NOT
