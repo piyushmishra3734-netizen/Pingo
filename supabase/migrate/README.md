@@ -160,6 +160,25 @@ six extensions and tells you if a version is older than the source.
 
 ### 3. Dump and restore
 
+`pg_dump` and `psql` are not installed on this machine and the Supabase CLI's
+own `db dump` needs Docker, which is not installed either. The PostgreSQL 17.6
+client binaries are unpacked at `.tools/pgsql` instead — same version as both
+servers, no install, and `.tools/` is already gitignored.
+
+**`dump-restore.sh` is the whole of this step:**
+
+```bash
+OLD_PASSWORD='...' NEW_PASSWORD='...' bash supabase/migrate/dump-restore.sh
+```
+
+It finds a working route to each project, counts the rows on the old one, takes
+the three dumps, refuses to continue if `public.sql` came back too small to
+contain data, counts again to prove nothing moved while it was reading,
+restores, and prints both sides to compare. Passwords go in `PGPASSWORD` rather
+than a connection URI, so one containing `@` or `/` needs no percent-encoding.
+
+The rest of this section is what it does, for when it has to be done by hand.
+
 ### The password, and which host to use
 
 **The database password is not viewable after creation.** If it was not written
