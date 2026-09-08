@@ -2128,11 +2128,17 @@ function shouldRetryAnswer(
   user: string,
   _intent: ChatIntent,
 ): boolean {
+  const say = (why: string) => {
+    // A retry is a second model call and a second wait, so it is worth knowing
+    // which rule bought it. Same eighty-character clip as the drop log.
+    console.warn(`ai-chat: retrying [${why}] ${JSON.stringify(reply.slice(0, 80))}`);
+    return true;
+  };
   const trimmed = reply.trim();
-  if (!trimmed || (meaningfulLen(trimmed) < 3 && !/\d/.test(trimmed))) return true;
-  if (containsBannedLoop(reply) || BANNED_REPLY_OPEN.test(reply)) return true;
+  if (!trimmed || (meaningfulLen(trimmed) < 3 && !/\d/.test(trimmed))) return say('too-short');
+  if (containsBannedLoop(reply) || BANNED_REPLY_OPEN.test(reply)) return say('banned-phrase');
   // Vague filler is never a good final answer — retry for any message shape.
-  if (isVagueFiller(reply)) return true;
+  if (isVagueFiller(reply)) return say('vague-filler');
   // Forgot thread: user pointed at prior context, model asked them to re-explain.
   if (
     refersToPriorContext(user) &&
@@ -2140,7 +2146,7 @@ function shouldRetryAnswer(
       reply,
     )
   ) {
-    return true;
+    return say('asked-to-re-explain');
   }
   return false;
 }
@@ -2212,6 +2218,23 @@ function diversifyReply(
   const exactDup = recent.some((x) => normalizeChat(x) === normalizeChat(r));
 
   if (spam || missesIntent || exactDup) {
+    /*
+     * Say which gate did it, and what it threw away.
+     *
+     * Throwing a model's answer away and shipping a canned line is the one
+     * thing here that is invisible from both ends: the user sees a reply, the
+     * logs see a 200, and nothing anywhere records that an answer existed and
+     * was rejected. Chasing "it keeps asking me to repeat myself" meant reading
+     * regexes and guessing which one had fired. One line ends that.
+     *
+     * The reply is clipped to eighty characters - enough to recognise, not
+     * enough to be a transcript of somebody's conversation in a log.
+     */
+    console.warn(
+      `ai-chat: dropped reply [${
+        spam ? 'spam' : missesIntent ? `misses:${intent}` : 'duplicate'
+      }] ${JSON.stringify(r.slice(0, 80))}`,
+    );
     r = smartFallbackReply(lastUser, recent, intent);
   }
 
@@ -2222,6 +2245,9 @@ function diversifyReply(
     containsBannedLoop(r) ||
     (isVagueFiller(r) && intent !== 'chat')
   ) {
+    console.warn(
+      `ai-chat: dropped reply [after-strip] ${JSON.stringify(r.slice(0, 80))}`,
+    );
     r = smartFallbackReply(lastUser, recent, intent);
   }
 

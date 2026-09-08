@@ -91,3 +91,23 @@ verify_jwt = false
 # call down with it. The repo is the record.
 [functions.stt-stream]
 verify_jwt = false
+
+# The same drift as `stt-stream`, found the same way and twice over.
+#
+# Both of these have had `verify_jwt = false` on the deployed project since they
+# were written, and neither was ever written down here. Migrating to a new
+# project made that visible: a plain `functions deploy` would have created them
+# with verification on, and the failure is not obvious from the outside - the
+# platform rejects the request before either function runs, so the logs that
+# would explain it are the logs of a function that was never entered.
+#
+# Neither is unauthenticated. Both read the `Authorization` header and establish
+# the user themselves - `ai-chat` builds a user-scoped client from it, and
+# `turn-credentials` asks the Auth API rather than decoding the token locally.
+# The platform check is off so that they can answer in their own shape; the
+# check itself still happens.
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.turn-credentials]
+verify_jwt = false
