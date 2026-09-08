@@ -36,7 +36,7 @@
  */
 do $$
 declare
-  new_ref  text := 'PUT-THE-NEW-PROJECT-REF-HERE';
+  new_ref  text := 'gpijpmepzowwhvgkriqu';
   old_ref  text;
   fn       record;
   rewritten text;
@@ -97,7 +97,7 @@ end $$;
  */
 do $$
 declare
-  new_ref text := 'PUT-THE-NEW-PROJECT-REF-HERE';
+  new_ref text := 'gpijpmepzowwhvgkriqu';
   old_ref text;
   c       record;
   hits    bigint;

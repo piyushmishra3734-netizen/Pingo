@@ -36,8 +36,9 @@ Two more differ only in shape: `missions_referrals_badges` is one file here and
 ran as three parts, and `premium_and_hd` is one file here and ran as
 `premium_flag` + `premium_not_self_grantable`. Same content, different rows.
 
-One is genuinely pending and is **not** in the live database:
-`20260949000000_account_key.sql`. See "Still yours to do".
+`20260949000000_account_key.sql` was the one file here that had never run. It
+was applied to the live project on 2026-09-08, so the dump carries it and the
+new project starts with it.
 
 The repo is now honest about what ran. It is still not the thing to rebuild
 from — **dump the live database instead.** The dump is the truth; the migration
@@ -79,12 +80,12 @@ skip this step:
 
 | category | items | digest |
 |---|---|---|
-| column grants | 4172 | `1eb05848b56dd6cbfcd9142bdc710d72` |
-| columns | 371 | `0e68c87c6f8c8dcd73491cfe23c94602` |
+| column grants | 4182 | `9f35155b4cb353664911114c34efee91` |
+| columns | 372 | `72b2889d21b636f919b24c281e655aa3` |
 | constraints | 202 | `fe2265647090c5d9826643b66709fe72` |
 | cron jobs | 8 | `60310a0cf885697bd8e2e3488a254fb3` |
 | extensions | 7 | `cca1b1c5ce9b500e654938c8884671af` |
-| functions | 118 | `1d406a32f9fde2cc978b03aa42342c13` |
+| functions | 120 | `509ceee562f6cda61264d8d6b743feff` |
 | indexes | 99 | `f38225913630437af2df97aac6e38da7` |
 | policies | 113 | `5678c569900abacbf26eaff1beaf0ca1` |
 | realtime tables | 6 | `e00bab20b9cc914065ebb59b24f18c5c` |
@@ -94,8 +95,16 @@ skip this step:
 | triggers | 19 | `775a4da127b359ba159eaf066afbed65` |
 | views | 3 | `8e22b7ef87893dff6c32e4fcae8d9363` |
 
-These digests will move if anything changes in the old project between now and
-the move, which is the point of re-running it rather than trusting the table.
+Retaken on 2026-09-08, after `account_key` was applied. That migration moved
+exactly three of the fourteen and nothing else: one column (`unlock_secret`),
+two functions (`upsert_account_key`, `claim_account_key`), and the ten column
+grants that come with a new column. The other eleven digests are unchanged from
+the day before, which is the check working - a schema fingerprint that does not
+move when only data moves, and moves precisely as far as the DDL did.
+
+These will move again if anything else changes in the old project between now
+and the move, which is the point of re-running it rather than trusting the
+table.
 
 ### 1b. The line the dump has to match
 
@@ -327,15 +336,7 @@ pass that proves nothing.
 
 These are blocked on you, not on the work:
 
-1. **`20260949000000_account_key.sql` is written and committed but never
-   applied.** It is the per-user key that ends the envelope fan-out — 3,261 bytes
-   stored per message row of which 47 are the message. Decide whether the new
-   project starts with it or without it. Applying it to the *old* project first
-   means the data you migrate already has it.
-2. **Two copy changes are held back, uncommitted** — `PrivacyPolicyScreen.tsx`
-   and `AccountScreen.tsx`. They describe the account key, so they only become
-   true once that migration is applied.
-3. **Database passwords.** Steps 3 and 5 need them; they are not something to
+1. **Database passwords.** Steps 3 and 5 need them; they are not something to
    hand over. The scripts here are built so nothing else does.
-4. **The 24 edge-function secrets.** Same reason.
-5. **An APK**, if the Android app should point at the new project.
+2. **The 24 edge-function secrets.** Same reason.
+3. **An APK**, if the Android app should point at the new project.
