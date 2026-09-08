@@ -2,11 +2,15 @@
 #
 # Step 3 of the runbook, as one command.
 #
-# Takes the two database passwords from the environment, dumps the old project,
-# restores into the new one, and counts the rows on both sides before and after
-# so the result is checked rather than assumed.
+# Asks for the two database passwords, dumps the old project, restores into the
+# new one, and counts the rows on both sides before and after so the result is
+# checked rather than assumed.
 #
-#   OLD_PASSWORD='...' NEW_PASSWORD='...' bash supabase/migrate/dump-restore.sh
+#   bash supabase/migrate/dump-restore.sh
+#
+# Nothing else to assemble: it prompts for each password without echoing it.
+# `OLD_PASSWORD` / `NEW_PASSWORD` in the environment still override the prompts
+# if it ever needs to run unattended.
 #
 # ## Why the passwords are not in a connection URI
 #
@@ -50,8 +54,29 @@ for tool in "$PG_DUMP" "$PSQL"; do
   fi
 done
 
-: "${OLD_PASSWORD:?Set OLD_PASSWORD to the old project's database password}"
-: "${NEW_PASSWORD:?Set NEW_PASSWORD to the new project's database password}"
+#
+# Asked for rather than required on the command line.
+#
+# A password passed as `OLD_PASSWORD=... bash script.sh` goes into the shell
+# history and sits there in plain text. `read -s` does not echo it, does not
+# store it, and means the whole of running this is typing one line and then a
+# password - which is one fewer thing to assemble correctly at the moment it
+# matters least.
+#
+if [ -z "${OLD_PASSWORD:-}" ]; then
+  read -rsp "Old project (${OLD_REF}) database password: " OLD_PASSWORD
+  echo
+fi
+if [ -z "${NEW_PASSWORD:-}" ]; then
+  read -rsp "New project (${NEW_REF}) database password: " NEW_PASSWORD
+  echo
+fi
+
+if [ -z "$OLD_PASSWORD" ] || [ -z "$NEW_PASSWORD" ]; then
+  echo "Both passwords are needed." >&2
+  exit 1
+fi
+echo
 
 mkdir -p "$OUT"
 
