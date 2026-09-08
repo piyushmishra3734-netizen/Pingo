@@ -19,14 +19,6 @@
 # `PGPASSWORD` takes the value verbatim, and the host, user and database are
 # separate flags - nothing to encode, nothing to get wrong.
 #
-# ## Which host
-#
-# Direct first. Free projects answer on IPv6 only at `db.<ref>.supabase.co`, so
-# on an IPv4-only network it does not resolve at all; the script tries one
-# trivial query and falls back to the session pooler, where the username is
-# `postgres.<ref>` rather than `postgres`. The transaction pooler on 6543 is
-# never used - it cannot hold the session state a dump or a restore needs.
-#
 # ## What it does not do
 #
 # It does not run `after-restore.sql`, copy storage, or deploy edge functions.
@@ -80,35 +72,65 @@ echo
 
 mkdir -p "$OUT"
 
+#
 # Resolved once for each project: "host user" for whichever route answers.
+#
+# Every candidate is tried and the reason each one refused is kept. The first
+# version of this said only "could not reach it, check the password", which is
+# one guess out of several: a wrong password, an unreachable host, and a pooler
+# on a different cluster all look identical from outside and have nothing to do
+# with one another. Errors are collected in a file rather than printed as they
+# happen, so a run that succeeds on a later candidate stays quiet.
+#
+# Direct comes first. Free projects answer on IPv6 only at
+# `db.<ref>.supabase.co`, so on an IPv4-only network it is unreachable however
+# right the password is. After that the session pooler, whose cluster number is
+# part of its hostname and is *not* the same for every project - so both are
+# tried rather than assuming this project sits wherever the last one did. The
+# transaction pooler on 6543 is never used: it cannot hold the session state a
+# dump or a restore needs.
+#
+ROUTE_ERRORS="$(mktemp)"
+trap 'rm -f "$ROUTE_ERRORS"' EXIT
+
 route() {
   local ref="$1" password="$2"
-  local direct_host="db.$ref.supabase.co"
-  local pooler_host="aws-1-$REGION.pooler.supabase.com"
+  local host user err candidate
 
-  if PGPASSWORD="$password" "$PSQL" -h "$direct_host" -p 5432 -U postgres \
-       -d postgres -Atc 'select 1' >/dev/null 2>&1; then
-    echo "$direct_host postgres"
-  elif PGPASSWORD="$password" "$PSQL" -h "$pooler_host" -p 5432 -U "postgres.$ref" \
-       -d postgres -Atc 'select 1' >/dev/null 2>&1; then
-    echo "$pooler_host postgres.$ref"
-  else
-    echo "" ""
-  fi
+  for candidate in "db.$ref.supabase.co postgres" \
+                   "aws-0-$REGION.pooler.supabase.com postgres.$ref" \
+                   "aws-1-$REGION.pooler.supabase.com postgres.$ref"; do
+    read -r host user <<<"$candidate"
+    if err=$(PGPASSWORD="$password" "$PSQL" -h "$host" -p 5432 -U "$user" \
+               -d postgres -Atc 'select 1' 2>&1); then
+      echo "$host $user"
+      return
+    fi
+    {
+      echo "  $host (as $user)"
+      echo "$err" | grep -v '^[[:space:]]*$' | head -2 | sed 's/^/    /'
+    } >>"$ROUTE_ERRORS"
+  done
+
+  echo "" ""
 }
 
 echo "Finding a route to each project..."
 read -r OLD_HOST OLD_USER <<<"$(route "$OLD_REF" "$OLD_PASSWORD")"
 read -r NEW_HOST NEW_USER <<<"$(route "$NEW_REF" "$NEW_PASSWORD")"
 
-if [ -z "$OLD_HOST" ]; then
-  echo "Could not reach the OLD project on either route. Check OLD_PASSWORD." >&2
+if [ -z "$OLD_HOST" ] || [ -z "$NEW_HOST" ]; then
+  [ -z "$OLD_HOST" ] && echo "Could not reach the OLD project ($OLD_REF)." >&2
+  [ -z "$NEW_HOST" ] && echo "Could not reach the NEW project ($NEW_REF)." >&2
+  echo >&2
+  echo "What each route said:" >&2
+  cat "$ROUTE_ERRORS" >&2
+  echo >&2
+  echo 'A line saying "password authentication failed" means the password is wrong.' >&2
+  echo "Anything about the host or the network means it is not reachable from here." >&2
   exit 1
 fi
-if [ -z "$NEW_HOST" ]; then
-  echo "Could not reach the NEW project on either route. Check NEW_PASSWORD." >&2
-  exit 1
-fi
+
 echo "  old: $OLD_USER@$OLD_HOST"
 echo "  new: $NEW_USER@$NEW_HOST"
 echo
@@ -141,7 +163,8 @@ echo
 ls -lh "$OUT"/public.sql "$OUT"/auth.sql "$OUT"/buckets.sql | awk '{print "  "$9"  "$5}'
 
 # A schema-only dump of this database is a few hundred KB; a real one is tens of
-# megabytes. Catching that here beats discovering it after the restore "worked".
+# megabytes, and it restores perfectly into an empty project either way. That is
+# the failure that looks like success, so it is caught here.
 size=$(wc -c <"$OUT/public.sql")
 if [ "$size" -lt 10000000 ]; then
   echo
