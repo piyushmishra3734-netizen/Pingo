@@ -160,7 +160,12 @@ PGPASSWORD="$OLD_PASSWORD" "$PG_DUMP" -h "$OLD_HOST" -p 5432 -U "$OLD_USER" -d p
   --data-only --no-owner --table=storage.buckets -f "$OUT/buckets.sql"
 
 echo
-ls -lh "$OUT"/public.sql "$OUT"/auth.sql "$OUT"/buckets.sql | awk '{print "  "$9"  "$5}'
+# Named explicitly rather than parsed out of `ls`: the path contains a space,
+# so awk's $9 printed "/e/Pingo" for all three and the sizes could not be told
+# apart. `ls` also sorts, so the order was not the order they were written in.
+for f in public auth buckets; do
+  printf '  %-12s %s\n' "$f.sql" "$(du -h "$OUT/$f.sql" | cut -f1)"
+done
 
 # A schema-only dump of this database is a few hundred KB; a real one is tens of
 # megabytes, and it restores perfectly into an empty project either way. That is
