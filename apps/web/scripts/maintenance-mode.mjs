@@ -36,7 +36,7 @@ import { copyFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const MAINTENANCE = true;
+const MAINTENANCE = false;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, '..', 'dist', 'index.html');
