@@ -36,7 +36,8 @@ const SECTIONS: Section[] = [
     title: 'The short version',
     body: [
       'PINGO is a private messaging product. There is no advertising, no data brokering, and no analytics SDK built to profile you.',
-      'Human chats (direct messages and groups between people) are designed so message bodies leave your device as ciphertext. We call that end-to-end encryption for human chat. The server stores ciphertext, delivery metadata, and media files needed to deliver the product.',
+      'Human chats (direct messages and groups between people) leave your device as ciphertext, and the server stores ciphertext, delivery metadata, and media files needed to deliver the product.',
+      'One thing we will not dress up: your chat history has to survive a lost phone, so the key that opens your messages belongs to your account and PINGO holds it. That means we could open message bodies. We do not, and nothing in the product does it - but we are not going to tell you we cannot.',
       'PINGO AI is different on purpose: the assistant must read what you type to reply. AI chats, AI memories you save, and the model provider that generates replies are not end-to-end encrypted.',
       'This page is the honest map. Privacy settings inside the app control who can find you and contact you; this document explains what exists on servers and devices.',
     ],
@@ -70,7 +71,8 @@ const SECTIONS: Section[] = [
     id: 'encryption',
     title: 'Encryption: human chat vs AI',
     body: [
-      'Human direct messages and human group messages are end-to-end encrypted for message bodies: your device encrypts before upload; other people\'s devices decrypt. PINGO operators and the database see ciphertext for those bodies, not readable chat text, under normal operation.',
+      'Human direct messages and human group messages are encrypted for message bodies: your device encrypts before upload; other people\'s devices decrypt. The database stores ciphertext, so a mistake in our access rules, or a copy of the message table on its own, does not hand anybody readable chat text.',
+      'Where that stops. Your messages are wrapped for a key that belongs to your account rather than to one phone, because the alternative was that changing devices lost every conversation you had ever had - which is what used to happen. That key is stored on our servers, so PINGO is technically able to open message bodies. Earlier versions of this page said operators could not; that was true then and is not true now, and we would rather correct it than leave it standing.',
       'Metadata still exists so the product works: who is in a conversation, timestamps, message kind, delivery and read markers, and pointers to media files. Metadata is not the same as reading the sealed body.',
       'Chat media (Pings, voice notes, photos, files) is stored so recipients can open it. It is protected by account and storage rules and HTTPS; it is not the same construction as sealing a text body with your device keys. Treat sensitive photos and voice as sensitive even inside a chat.',
       'PINGO AI cannot be end-to-end encrypted: the assistant must process your words. AI chat content and AI memories are processed on our systems and by the model provider. Do not put secrets in AI chat that you would not trust a server-side assistant with.',

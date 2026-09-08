@@ -232,14 +232,19 @@ export function AccountScreen() {
           onClick={() => {
             /*
              * The shared-device answer, now that logging out no longer wipes
-             * anything. Stated in full because it is the one action here that
-             * destroys something the server cannot give back.
+             * anything.
+             *
+             * It used to end "no backup exists yet", which was true and is not
+             * any more: the key belongs to the account rather than to this
+             * phone, so signing back in fetches it and the history opens again.
+             * Leaving the old sentence there would talk somebody out of an
+             * action that is now reversible.
              */
             void (async () => {
               const go = await confirm({
                 title: 'Clear local data?',
                 description:
-                  'Removes the chats saved on this device and the key that unlocks your end-to-end encrypted messages. Those messages will no longer be readable here, and no backup exists yet. Everything else is still on the server.',
+                  'Removes the chats saved on this device. Signing in again brings them back - your key belongs to your account, not to this phone.',
                 confirmLabel: 'Clear',
               });
               if (!go) return;
