@@ -84,14 +84,42 @@ views as (
    where n.nspname = 'public' and c.relkind in ('v', 'm')
 ),
 /*
- * Column grants, not just table grants. `device_keys` withholds `key_seen_at`
- * from `authenticated` at the column level - a restore that hands back a plain
- * table grant would pass every other check here and quietly widen a read.
+ * Table and column privileges together, read from the catalogue.
+ *
+ * This category earned its place twice over. Eight tables here are deliberately
+ * narrower than the rest - `recovery_packages` is not selectable at all,
+ * `device_keys` withholds `key_seen_at`, `profiles` allows UPDATE only through
+ * ten named columns - and none of that shows up in any other category. A
+ * restore that hands back a plain `GRANT ALL` passes every other check on this
+ * page while leaving the account key material readable by every signed-in user.
+ * That is not hypothetical: it is what happened, because `alter default
+ * privileges ... grant all` on the target schema was applied before the restore
+ * and a dump only ever GRANTs, it never revokes.
+ *
+ * It reads `pg_class.relacl` and `pg_attribute.attacl` rather than
+ * `information_schema.*_privileges`, which was the first attempt and was
+ * useless: those views only show grants involving roles the *reading* session
+ * belongs to, so the same query returned 4,182 rows on one project and 0 on the
+ * other. A category that silently reports nothing is worse than no category.
+ *
+ * The ACL entries are sorted before hashing because `relacl` is an array whose
+ * order records when each grant was made - two databases with identical
+ * privileges otherwise differ byte for byte.
  */
 grants as (
-  select table_name || ':' || grantee || ':' || column_name || ':' || privilege_type as line
-    from information_schema.column_privileges
-   where table_schema = 'public' and grantee in ('anon', 'authenticated', 'service_role')
+  select c.relname
+         || ' T[' || coalesce((select string_agg(x, ',' order by x)
+                                 from unnest(c.relacl::text[]) x), '-') || ']'
+         || ' C[' || coalesce((select string_agg(
+                                  a.attname || ':' || (select string_agg(y, ',' order by y)
+                                                         from unnest(a.attacl::text[]) y),
+                                  ';' order by a.attname)
+                                 from pg_attribute a
+                                where a.attrelid = c.oid and a.attnum > 0
+                                  and a.attacl is not null), '-') || ']' as line
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind = 'r'
 ),
 realtime as (
   select schemaname || '.' || tablename as line from pg_publication_tables
@@ -123,7 +151,7 @@ everything as (
   union all select 'functions',          line from functions
   union all select 'triggers',           line from triggers
   union all select 'views',              line from views
-  union all select 'column grants',      line from grants
+  union all select 'table+column acls',  line from grants
   union all select 'realtime tables',    line from realtime
   union all select 'storage buckets',    line from buckets
   union all select 'storage policies',   line from storage_policies
@@ -146,10 +174,12 @@ select category,
  *          ||':'||coalesce(qual,'-')||':'||coalesce(with_check,'-')
  *     from pg_policies where schemaname='public' order by 1;
  *
- *   select table_name||':'||grantee||':'||column_name||':'||privilege_type
- *     from information_schema.column_privileges
- *    where table_schema='public' and grantee in ('anon','authenticated','service_role')
- *    order by 1;
+ *   select c.relname, c.relacl,
+ *          (select array_agg(a.attname||'='||a.attacl::text)
+ *             from pg_attribute a
+ *            where a.attrelid=c.oid and a.attnum>0 and a.attacl is not null)
+ *     from pg_class c join pg_namespace n on n.oid=c.relnamespace
+ *    where n.nspname='public' and c.relkind='r' order by 1;
  *
  *   select p.proname, pg_get_functiondef(p.oid)
  *     from pg_proc p join pg_namespace n on n.oid=p.pronamespace

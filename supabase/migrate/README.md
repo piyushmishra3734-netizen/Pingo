@@ -62,6 +62,7 @@ history is how it got there.
 | Realtime publication (6 tables) | **`after-restore.sql`** |
 | Old project URL inside 3 functions | **`after-restore.sql`** |
 | Old project URL inside 28 rows | **`after-restore.sql`** |
+| 26 storage.objects policies | **neither — see below** |
 | 8 storage bucket definitions | `pg_dump --data-only` of `storage.buckets` |
 | 151 stored files, 89 MB | **`copy-storage.mjs`** |
 | 10 edge functions | **yours** — `supabase functions deploy` |
@@ -80,7 +81,7 @@ skip this step:
 
 | category | items | digest |
 |---|---|---|
-| column grants | 4182 | `9f35155b4cb353664911114c34efee91` |
+| table+column acls | 55 | `c2f8acfbbe83cecd503ae2e073e00f9e` |
 | columns | 372 | `72b2889d21b636f919b24c281e655aa3` |
 | constraints | 202 | `fe2265647090c5d9826643b66709fe72` |
 | cron jobs | 8 | `60310a0cf885697bd8e2e3488a254fb3` |
@@ -255,6 +256,47 @@ and their chats are still there.
 Expect errors on objects Supabase already created: roles, extensions, some `auth`
 and `storage` objects. Those are normal. Read them anyway - an error on a
 **`public`** object is not.
+
+### 3b. Two things a `--schema=public` dump cannot bring
+
+Both were found by the fingerprint after the restore "succeeded", and both would
+have been invisible until somebody used the app.
+
+**The 26 policies on `storage.objects`.** They live in the `storage` schema, so
+they were never in the dump. Bucket rows are configuration, not permission:
+without these, the six private buckets are unreadable to the people who own the
+files in them, and the chat-media buckets have no membership check at all.
+Generate them from the old project and apply them to the new one:
+
+```sql
+select string_agg(
+  format('create policy %I on storage.%I as %s for %s to %s%s%s;',
+    policyname, tablename, lower(permissive), lower(cmd), array_to_string(roles, ', '),
+    case when qual is not null then ' using (' || qual || ')' else '' end,
+    case when with_check is not null then ' with check (' || with_check || ')' else '' end),
+  E'
+' order by tablename, policyname)
+from pg_policies where schemaname = 'storage';
+```
+
+They reference `can_read_chat_media` and `profiles` unqualified, so run the
+result with `set local search_path to public, storage;` first.
+
+**Eight tables that are deliberately narrower than the rest.** This one is a
+trap of the target's own making. If the new project's schema was reset with
+`alter default privileges in schema public grant all on tables to anon,
+authenticated` — which is what a fresh Supabase project looks like — then every
+table the dump creates inherits full privileges *before* the dump's grants
+apply. And a dump only ever GRANTs; it never revokes. So `recovery_packages`,
+`device_keys`, `profiles`, `conversation_members`, `backup_anchor`,
+`recovery_requests`, `update_notice` and `user_badges` all come out wide open,
+with `recovery_packages` handing every signed-in user the key material for every
+account.
+
+Do not set those default privileges before restoring. If it has already
+happened, the `table+column acls` digest catches it — and note that a
+table-level `REVOKE` also drops the column-level grants, so each fix is a revoke
+*and* a re-grant, the way the original migrations wrote them.
 
 ### 4. Everything the dump did not carry
 
