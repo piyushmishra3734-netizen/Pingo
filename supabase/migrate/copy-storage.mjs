@@ -30,6 +30,9 @@
  *   node supabase/migrate/copy-storage.mjs            # copy
  *   node supabase/migrate/copy-storage.mjs --check    # compare only, no writes
  *
+ * It asks for the two service role keys and does not echo them. The two project
+ * URLs are defaulted, so in practice there is nothing to assemble.
+ *
  * Safe to run twice. An object already present at the same size is skipped, so
  * a run that dies halfway is resumed by running it again rather than by working
  * out where it stopped.
@@ -49,11 +52,61 @@ const PAGE = 100;
  */
 const ATTEMPTS = 3;
 
+/**
+ * Asked for rather than required in the environment.
+ *
+ * A service role key bypasses every row-level policy in the project, so the
+ * fewer places it is written down the better - not a shell history, not a
+ * screen, and not a transcript. `readline` with the echo suppressed keeps it in
+ * this process and nowhere else. The environment still wins if it is set, for
+ * the case where this has to run unattended.
+ *
+ * The two project URLs are not secret and are defaulted, so in practice this
+ * asks for two keys and nothing else.
+ */
+async function ask(prompt, secret) {
+  const { createInterface } = await import('node:readline');
+  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+
+  if (secret) {
+    // Echo off: the key is being typed into a terminal somebody may be sharing.
+    rl.output.write(prompt);
+    rl._writeToOutput = () => {};
+    const answer = await new Promise((resolve) => rl.question('', resolve));
+    rl.close();
+    process.stdout.write('\n');
+    return answer.trim();
+  }
+
+  const answer = await new Promise((resolve) => rl.question(prompt, resolve));
+  rl.close();
+  return answer.trim();
+}
+
+const DEFAULTS = {
+  SOURCE_URL: 'https://lppzoqgvshhmxqsvggug.supabase.co',
+  TARGET_URL: 'https://gpijpmepzowwhvgkriqu.supabase.co',
+};
+
+const answers = {};
+for (const name of ['SOURCE_URL', 'SOURCE_SERVICE_KEY', 'TARGET_URL', 'TARGET_SERVICE_KEY']) {
+  if (process.env[name]) {
+    answers[name] = process.env[name];
+    continue;
+  }
+  const isKey = name.endsWith('SERVICE_KEY');
+  const fallback = DEFAULTS[name];
+  const label = isKey
+    ? `${name.startsWith('SOURCE') ? 'Old' : 'New'} project service_role key: `
+    : `${name} [${fallback}]: `;
+  const value = await ask(label, isKey);
+  answers[name] = value || fallback;
+}
+
 function need(name) {
-  const value = process.env[name];
+  const value = answers[name];
   if (!value) {
-    console.error(`Missing ${name}. Four are needed:`);
-    console.error('  SOURCE_URL SOURCE_SERVICE_KEY TARGET_URL TARGET_SERVICE_KEY');
+    console.error(`Missing ${name}.`);
     process.exit(1);
   }
   return value;
