@@ -707,8 +707,16 @@ export function ProfileScreen() {
             would group the three correctly and then say "control" - a bordered,
             filled rectangle is the shape of something you press, and these are
             figures. Separators do the grouping and claim nothing.
+
+            `divide-line`, not `divide-line/60`. The token is already
+            `rgba(17,17,19,0.07)`; taking sixty per cent of it produced a
+            four-per-cent border, which compiled, shipped, and was invisible -
+            a change that verified green at every layer and looked to the person
+            using it like nothing had happened. An opacity modifier on a colour
+            that is already an alpha is a multiplication, and it is worth
+            remembering that before reaching for one.
           */}
-          <dl className="mt-7 grid w-full max-w-sm grid-cols-3 divide-x divide-line/60">
+          <dl className="mt-7 grid w-full max-w-sm grid-cols-3 divide-x divide-line">
             <Stat label="Posts" value={stats?.posts} />
             <Stat
               label="Friends"

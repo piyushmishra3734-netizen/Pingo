@@ -725,7 +725,7 @@ function LookE({ isSelf }: { isSelf: boolean }) {
               key={label as string}
               className={cn(
                 'flex-1 px-2 py-1 text-center',
-                i > 0 && 'border-l border-line/60',
+                i > 0 && 'border-l border-line',
               )}
             >
               <dd className="text-h2 tabular-nums text-ink">{value}</dd>
