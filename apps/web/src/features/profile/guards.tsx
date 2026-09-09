@@ -1,5 +1,5 @@
 import { useProfile } from '@pingo/core';
-import { PingoDot } from '@pingo/ui';
+import { ConversationSkeleton } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 
@@ -19,10 +19,37 @@ import { Navigate, Outlet } from 'react-router-dom';
  * question left is the profile.
  */
 
+/**
+ * What fills the screen while the profile is read.
+ *
+ * This was three pulsing dots centred on a brand wash, and it is the last thing
+ * standing between the splash and the chat list - so on a cold start it was
+ * what people actually watched, after a splash that had already said the app
+ * was here.
+ *
+ * It is a skeleton now, of the shape that is coming, sweeping the same way the
+ * boot shell in `index.html` sweeps before React has mounted at all. That is
+ * the point: `#boot` already painted this exact thing a moment earlier, so
+ * where it applies the handover is invisible rather than a cut from a list to
+ * a spinner and back to a list.
+ *
+ * The route test is copied from `#boot` deliberately, and the reasoning with
+ * it: a chat-list skeleton over Settings would be a lie about what is coming,
+ * and on those routes the ground alone is still better than a spinner.
+ */
+const LIST_ROUTES = /^\/(chats|calls|communities|notifications|profile|settings)/;
+
 function Resolving() {
+  const listIsComing =
+    typeof window !== 'undefined' && LIST_ROUTES.test(window.location.pathname);
+
   return (
-    <div className="grid h-full place-items-center bg-brand-wash">
-      <PingoDot state="loading" size={7} label="Loading" />
+    <div className="h-full overflow-hidden bg-page">
+      {listIsComing && (
+        <div className="mx-auto w-full max-w-2xl px-3 pt-3">
+          <ConversationSkeleton rows={7} />
+        </div>
+      )}
     </div>
   );
 }
