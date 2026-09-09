@@ -1,7 +1,8 @@
 import { useChat, type Message, type PingRef } from '@pingo/core';
 import { CameraIcon, StorageIcon, cn } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { ImageViewer } from '../profile/ImageViewer.js';
 import { useT } from '../i18n/useT.js';
 import { secureScreen } from '../native/secure-screen.js';
 
@@ -9,8 +10,24 @@ import { secureScreen } from '../native/secure-screen.js';
  * A Ping in the thread: closed, open, or gone.
  *
  * Visually a sealed card - not a photo bubble - so the limited-view promise
- * is obvious before anyone taps. Open state reveals the image with soft
- * radius and a frosted action row; gone state is a quiet capsule, not a hole.
+ * is obvious before anyone taps. Gone state is a quiet capsule, not a hole.
+ *
+ * ## Opening grows out of the capsule
+ *
+ * It used to reveal the image inline, in place of the bubble, with a plain
+ * `animate-fade-in`. That was the odd one out: the view-once *photo* - the
+ * sibling feature, same promise, same lifecycle - has always opened into
+ * `ImageViewer`, which morphs out of the exact rect the person tapped and
+ * collapses back into it, re-measuring on close in case the thread scrolled.
+ *
+ * So this does not build a morph, it stops declining to use the one already
+ * shipping. Save and the view counter move into the viewer's footer, which is
+ * what that prop is for.
+ *
+ * The inline reveal also had the bug `PhotoBubble` had already fixed: the
+ * picture stayed in the thread after the view was spent, so pressing back
+ * brought you straight to a photograph the ledger said was gone. Closing here
+ * either returns the sealed capsule - when a view remains - or the spent one.
  */
 export function PingBubble({
   message,
@@ -30,9 +47,15 @@ export function PingBubble({
     ping.gone ? 'gone' : 'closed',
   );
   const [saving, setSaving] = useState(false);
-  /** Whether the opened Ping has decoded, for the blur-up. */
-  const [pingReady, setPingReady] = useState(false);
   const objectUrl = useRef<string | undefined>(undefined);
+
+  /*
+   * The capsule the viewer grows out of, sealed or spent. One ref for both
+   * because they are never on screen together, and the viewer only wants the
+   * box the person actually tapped.
+   */
+  const sourceRef = useRef<HTMLElement | null>(null);
+  const sourceRect = useCallback(() => sourceRef.current?.getBoundingClientRect(), []);
 
   useEffect(() => {
     return () => {
@@ -130,6 +153,7 @@ export function PingBubble({
   if (state === 'gone') {
     return (
       <div
+        ref={(el) => { sourceRef.current = el; }}
         className={cn(
           'flex w-[13.5rem] items-center gap-2.5 rounded-[1.125rem] px-3.5 py-3',
           /*
@@ -159,69 +183,68 @@ export function PingBubble({
     );
   }
 
-  // ---- open ---------------------------------------------------------------
+  /*
+   * The viewer, rendered alongside whichever capsule is on screen.
+   *
+   * It is a portal, so the capsule underneath stays mounted - which is exactly
+   * what the morph needs: something to grow out of, and something to come back
+   * to when it closes.
+   */
+  const viewer =
+    state === 'open' && url ? (
+      <ImageViewer
+        originRect={sourceRect}
+        src={url}
+        alt="Ping"
+        onClose={() => {
+          /*
+           * A spent Ping does not stay on screen. `viewsLeft` is the server's
+           * answer from `open_ping`, so zero means this reader has used the
+           * last one and the capsule below should say so; anything above zero
+           * re-seals, and the next tap spends the next view.
+           */
+          setUrl(undefined);
+          setState(viewsLeft !== undefined && viewsLeft <= 0 ? 'gone' : 'closed');
+        }}
+        footer={
+          <div className="flex flex-col items-center gap-3">
+            <span
+              className={cn(
+                'text-caption tabular-nums',
+                viewsLeft === 0 ? 'text-danger' : 'text-white/70',
+              )}
+              aria-live="polite"
+            >
+              {viewsLeft === 0
+                ? 'Expired'
+                : `${viewsLeft} view${viewsLeft === 1 ? '' : 's'} left`}
+            </span>
 
-  if (state === 'open' && url) {
-    return (
-      <div className="animate-fade-in w-fit max-w-[min(70vw,18rem)]">
-        <div
-          className={cn(
-            'overflow-hidden rounded-[1.125rem]',
-            'bg-sunken shadow-[0_8px_28px_rgb(0_0_0/0.12)]',
-            'ring-1 ring-black/5',
-          )}
-        >
-          <img
-            src={url}
-            alt="Ping"
-            draggable={false}
-            onLoad={() => setPingReady(true)}
-            className={cn(
-              'max-h-80 w-full object-cover select-none',
-              'transition-[filter,opacity] duration-200 ease-standard',
-              pingReady ? 'opacity-100' : 'opacity-80 blur-[2px]',
-            )}
-          />
-        </div>
-        <div className="mt-2 flex items-center gap-2.5 px-0.5">
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={saving}
-            className={cn(
-              'focus-ring flex items-center gap-1.5 rounded-full',
-              'glass-water px-3.5 py-1.5 text-caption font-medium text-ink',
-              'shadow-[0_1px_3px_rgb(0_0_0/0.06)]',
-              'transition-transform duration-[160ms] ease-standard',
-              'active:scale-[0.97]',
-              'disabled:opacity-50',
-            )}
-          >
-            <StorageIcon size={14} />
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-
-          <span
-            className={cn(
-              'text-[0.6875rem] tabular-nums',
-              viewsLeft === 0 ? 'text-danger' : 'text-text-tertiary',
-            )}
-            aria-live="polite"
-          >
-            {viewsLeft === 0
-              ? 'Expired'
-              : `${viewsLeft} view${viewsLeft === 1 ? '' : 's'} left`}
-          </span>
-        </div>
-      </div>
-    );
-  }
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving}
+              className={cn(
+                'focus-ring flex items-center gap-1.5 rounded-full',
+                'bg-white/12 px-4 py-2 text-caption font-medium text-white',
+                'transition-transform duration-[160ms] ease-standard',
+                'active:scale-[0.97] disabled:opacity-50',
+              )}
+            >
+              <StorageIcon size={14} />
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        }
+      />
+    ) : null;
 
   // ---- closed (mine) ------------------------------------------------------
 
   if (mine) {
     return (
       <div
+        ref={(el) => { sourceRef.current = el; }}
         className={cn(
           'relative flex w-[13.5rem] items-center gap-3 overflow-hidden',
           'rounded-[1.125rem] px-3.5 py-3',
@@ -256,52 +279,57 @@ export function PingBubble({
   // ---- closed (theirs) ----------------------------------------------------
 
   return (
-    <button
-      type="button"
-      onClick={() => void open()}
-      disabled={state === 'opening'}
-      aria-label={`New Ping, ${
-        ping.views === 1 ? 'one view' : 'two views'
-      }. Opening it spends a view.`}
-      className={cn(
-        'focus-ring relative flex w-[13.5rem] items-center gap-3 overflow-hidden',
-        'rounded-[1.125rem] px-3.5 py-3 text-left',
-        'bg-brand-glass text-on-brand',
-        'shadow-[0_4px_14px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
-        'transition-transform duration-[160ms] ease-standard',
-        'active:scale-[0.97]',
-        'disabled:opacity-80',
-      )}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          background:
-            'radial-gradient(120% 90% at 0% 0%, rgb(255 255 255 / 0.22) 0%, transparent 55%)',
-        }}
-      />
-      <span
-        aria-hidden
+    <>
+      <button
+        ref={(el) => { sourceRef.current = el; }}
+        type="button"
+        onClick={() => void open()}
+        disabled={state === 'opening'}
+        aria-label={`New Ping, ${
+          ping.views === 1 ? 'one view' : 'two views'
+        }. Opening it spends a view.`}
         className={cn(
-          'relative grid size-9 shrink-0 place-items-center rounded-full',
-          'bg-white/18 ring-1 ring-white/25',
-          state === 'opening' && 'animate-pulse',
+          'focus-ring relative flex w-[13.5rem] items-center gap-3 overflow-hidden',
+          'rounded-[1.125rem] px-3.5 py-3 text-left',
+          'bg-brand-glass text-on-brand',
+          'shadow-[0_4px_14px_color-mix(in_srgb,var(--gradient-from,#111113)_28%,transparent)]',
+          'transition-transform duration-[160ms] ease-standard',
+          'active:scale-[0.97]',
+          'disabled:opacity-80',
         )}
       >
-        <CameraIcon size={16} />
-      </span>
-
-      <span className="relative min-w-0 flex-1">
-        <span className="block text-caption font-semibold tracking-[-0.01em]">
-          {state === 'opening' ? 'Opening…' : 'New Ping'}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 0% 0%, rgb(255 255 255 / 0.22) 0%, transparent 55%)',
+          }}
+        />
+        <span
+          aria-hidden
+          className={cn(
+            'relative grid size-9 shrink-0 place-items-center rounded-full',
+            'bg-white/18 ring-1 ring-white/25',
+            state === 'opening' && 'animate-pulse',
+          )}
+        >
+          <CameraIcon size={16} />
         </span>
-        {state !== 'opening' && (
-          <span className="mt-0.5 block text-[0.6875rem] text-white/75">
-            Tap to open · {viewsLabel}
+
+        <span className="relative min-w-0 flex-1">
+          <span className="block text-caption font-semibold tracking-[-0.01em]">
+            {state === 'opening' ? 'Opening…' : 'New Ping'}
           </span>
-        )}
-      </span>
-    </button>
+          {state !== 'opening' && (
+            <span className="mt-0.5 block text-[0.6875rem] text-white/75">
+              Tap to open · {viewsLabel}
+            </span>
+          )}
+        </span>
+      </button>
+
+      {viewer}
+    </>
   );
 }
