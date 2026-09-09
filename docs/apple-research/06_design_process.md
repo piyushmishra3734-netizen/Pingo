@@ -1,9 +1,11 @@
 # 06 · How the teams who did it actually worked
 
-**Source.** Meet with Apple → "Liquid Glass showcase: Slack"
+**Sources.** Meet with Apple → "Liquid Glass showcase: Slack"
 (`developer.apple.com/videos/play/meet-with-apple/255/`), full transcript, Jaime
-DeLanghe and Akshay Bakshi of Slack. Sibling showcases exist for LTK, CNN and
-Tide Guide, plus the parent panel session.
+DeLanghe and Akshay Bakshi of Slack. (`.../254/`, Jeseka Hahn, VP of Product Design at LTK) — read in full, §§8–11
+below. Sibling showcases for CNN and Tide Guide, plus the parent panel session,
+are not yet read: a news app and a tide utility are further from PINGO than
+these two, so they are the next pass rather than this one.
 
 Slack is the closest published analogue PINGO has: a messaging app, with
 threads, a composer, conversation headers, theming and heavy custom UI. This is
@@ -142,3 +144,104 @@ in this corpus: does this make PINGO better at the thing only PINGO does? A
 scroll-edge mask, an accessibility variant and a context-menu/swipe audit are
 cheap and pay for themselves. A hand-built receding dock is a commitment to
 maintain a system behaviour forever, on a screen where it cannot even help.
+
+---
+
+# LTK — the rebuild
+
+Second case study, and the useful contrast with Slack: LTK did not adopt a
+material, they rebuilt the whole app in four months and adopted the material on
+the way out. Every number they quote is a consequence of the rebuild, not of
+the glass.
+
+---
+
+## 8. It started with one button
+
+**What they said.** "To set ourselves up for success, we started small with a
+single humble button and it helped both our design and development move faster."
+That button "grew into patterns and screens and a shared language and into a
+design system we named runway."
+
+**The principle.** A design system is discovered by building one thing properly,
+not designed up front.
+
+**Implication for PINGO.** PINGO already has the button — `glass-water`,
+`glass-press` and `lens.ts` are that seed, and `packages/tokens` is the runway.
+The part LTK did that PINGO has not is the *next* step: using the system as the
+instrument to re-evaluate everything else.
+
+---
+
+## 9. The audit was the win, and what it found was duplication
+
+**What they said — the most directly applicable sentence in the corpus.** "We
+audited the information architecture. We questioned every flow, every pattern to
+see what truly added value. And what we found was we were solving the same
+problem in multiple ways, even for something as simple as a product card."
+
+Their remedy was cutting, and it was not comfortable: "the debates, they got
+lively … the prioritization, it got brutal." The payoff was not visual —
+"simplifying gave us the speed to move faster," and "teams had greater
+confidence because they weren't second guessing the details."
+
+**Implication for PINGO.** This is the published justification for the
+screen-by-screen experience audit now underway. The thing to look for is not
+ugliness, it is *the same problem solved more than once*: two row heights, two
+toggle behaviours, two ways to present a sheet, two names for one concept. That
+class of finding is worth more than any individual screen fix, because one
+correction retires a whole family of them.
+
+**What not to copy.** The four-month rewrite. LTK rebuilt because their
+framework was "too heavy, too slow, and too expensive to evolve." PINGO's is
+none of those, and a rebuild would be the most expensive way to obtain a lesson
+that is available for free by reading this paragraph.
+
+---
+
+## 10. Identity complements content; it does not compete with it
+
+**What they said.** "Our identity should not compete with creator content. It
+should complement it." And on the material specifically: before iOS 26 they were
+"spending weeks trying to fine tune the layout, working to make creator content
+shine," but with Liquid Glass "the controls blended in seamlessly and creators
+content finally took center stage."
+
+**Why it matters.** This is the same conclusion Slack reached from the opposite
+direction (`§2`): brand survives going quieter. Two independent teams, same
+finding. That is as close to evidence as this corpus gets.
+
+**Implication for PINGO.** In a chat app the content is the conversation. Any
+chrome competing with it — including a material applied to the bubbles
+themselves — is the failure mode both teams named. Reinforces `99 §1`.
+
+---
+
+## 11. Both case studies elevated search, independently
+
+**What they said.** LTK "simplified our navigation and brought new innovations
+to life, like a new dedicated search tab," and after the iOS 26 launch "search
+usage doubled overnight."
+
+**Why this is worth recording.** Slack moved search to the tab bar for a
+journey reason (`§5`); LTK made it a dedicated tab and measured the result. Two
+of two case studies independently raised search's prominence, and the one that
+published a number saw it double.
+
+**Implication for PINGO.** Search placement moves up the list. PINGO's search
+pill sits at the top of the chat list on every screen size, and finding an old
+message means leaving the thread you are writing in. Worth checking first
+whether the draft survives that trip — a lost draft is a bug, and it is a bigger
+finding than the placement.
+
+---
+
+## 12. A camera that finds things
+
+**What they said.** "We also adopted visual intelligence. Now, creators can snap
+a photo and instantly find creators content on LTK … our creators literally
+cheered for this."
+
+**Implication for PINGO.** The only *new feature* idea the corpus supplies, and
+it lands on a surface PINGO already has. Filed, not proposed: it belongs in a
+features pass after the experience audit, and it should not jump the queue.
