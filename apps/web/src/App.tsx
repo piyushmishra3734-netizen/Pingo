@@ -6,7 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 
 import { AppShell } from './app/AppShell.js';
 import { IdentityFlow } from './features/auth/IdentityFlow.js';
-import { RequireAuth, RequireGuest } from './features/auth/guards.js';
+import { PrivateAccessGate, RequireAuth, RequireGuest } from './features/auth/guards.js';
 import { markOnboarded } from './features/auth/onboarded.js';
 import { CallBoundary } from './features/calls/CallBoundary.js';
 import { CallOverlay } from './features/calls/CallOverlay.js';
@@ -342,6 +342,13 @@ export function App() {
             when somebody taps Settings.
           */}
           <Suspense fallback={<ScreenSkeleton />}>
+          {/*
+            Open to one address while the move is being checked over. Wraps the
+            whole router because the question is whether somebody may see the
+            app at all, and that answer cannot depend on which route they
+            arrived on. Off with one constant in `private-access.ts`.
+          */}
+          <PrivateAccessGate>
           <Routes>
             <Route path="/" element={<SplashScreen />} />
 
@@ -501,6 +508,7 @@ export function App() {
             */}
             <Route path="*" element={<Navigate to="/chats" replace />} />
           </Routes>
+          </PrivateAccessGate>
           </Suspense>
           </RouteBoundary>
           </MessageToastProvider>

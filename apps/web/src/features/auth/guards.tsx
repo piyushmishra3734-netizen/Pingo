@@ -3,8 +3,10 @@ import { PingoDot } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
+import { PrivateAccessScreen } from '../../screens/PrivateAccessScreen.js';
 import { isAddingAccount } from './adding-account.js';
 import { guestAuthPath, hasIntroSeen } from './intro-seen.js';
+import { PRIVATE_ACCESS, isAllowedAddress, isOpenPath } from './private-access.js';
 
 /**
  * Route guards.
@@ -104,4 +106,40 @@ export function RequireGuest({ children }: { children?: ReactNode }) {
   }
 
   return <>{children ?? <Outlet />}</>;
+}
+
+/**
+ * The door, while the app is open to one address.
+ *
+ * Wraps the whole router rather than sitting beside `RequireAuth`, because the
+ * question it answers is not "may this person see this screen" but "may this
+ * person see the app at all" - and the answer has to be the same on a deep
+ * link, a bookmark and a notification tap.
+ *
+ * ## What it deliberately does not do
+ *
+ * It does not hide the sign-in screens. An allow list of addresses cannot say
+ * anything about somebody until they have proved which address is theirs, and
+ * proving it *is* signing in. So the funnel stays open and the check runs after
+ * the session exists: reaching `/login` gains nobody anything, because signing
+ * in with any other address lands back here.
+ *
+ * It also does not redirect. A `Navigate` would put the notice in the address
+ * bar and the history, so the back button would walk somebody through it twice
+ * and a refresh would lose where they were. Rendering in place leaves the URL
+ * alone, so the moment the flag comes off, everything resumes where it was.
+ */
+export function PrivateAccessGate({ children }: { children?: ReactNode }) {
+  const { status, session } = useAuth();
+  const location = useLocation();
+
+  if (!PRIVATE_ACCESS) return <>{children ?? <Outlet />}</>;
+
+  // Same reason as the guards above: "not known yet" is not "not allowed".
+  if (status === 'loading') return <Resolving />;
+
+  if (isAllowedAddress(session?.user.email)) return <>{children ?? <Outlet />}</>;
+  if (isOpenPath(location.pathname)) return <>{children ?? <Outlet />}</>;
+
+  return <PrivateAccessScreen />;
 }
