@@ -87,6 +87,7 @@ skip this step:
 | cron jobs | 8 | `60310a0cf885697bd8e2e3488a254fb3` |
 | extensions | 7 | `cca1b1c5ce9b500e654938c8884671af` |
 | functions | 120 | `509ceee562f6cda61264d8d6b743feff` |
+| function acls | 120 | `c9f6059eb2296e87fa2eaeb360b00b1c` |
 | indexes | 99 | `f38225913630437af2df97aac6e38da7` |
 | policies | 113 | `5678c569900abacbf26eaff1beaf0ca1` |
 | realtime tables | 6 | `e00bab20b9cc914065ebb59b24f18c5c` |
@@ -106,6 +107,32 @@ move when only data moves, and moves precisely as far as the DDL did.
 These will move again if anything else changes in the old project between now
 and the move, which is the point of re-running it rather than trusting the
 table.
+
+### 1a. The category that was missing, and what it hid
+
+`fingerprint.sql` gained a fifteenth category after the move, because fourteen
+were not enough. `pg_get_functiondef` does not include grants, so every function
+compared byte-identical on both projects while sixteen of them were callable by
+`anon` on the new one — among them `upsert_account_key`, which writes the key
+that opens an account's message history, and `set_premium`, which has a whole
+migration named after not being self-grantable.
+
+Same cause as the table ACLs, in the half that was not undone: the schema reset
+ran `alter default privileges ... grant all` for both tables **and** functions,
+and the repair afterwards revoked only the tables. A dump only ever GRANTs.
+
+The lesson generalises past this migration: **a category that compares
+definitions is not comparing permissions.** If a check passes on everything and
+you have not compared who may call it, you have not checked the half that
+matters.
+
+Comparing function ACLs also found something older than the move. Two nightly
+sweeps end with `revoke all on function ... from anon, authenticated`, which
+does nothing at all: a function's default ACL grants EXECUTE to PUBLIC, and both
+roles inherit from PUBLIC. Two `security definer` functions that delete rows,
+callable over REST by anybody, on both projects, since the day they were
+written. Fixed on both — see
+`20260952000000_sweeps_are_not_callable_by_clients.sql`.
 
 ### 1b. The line the dump has to match
 

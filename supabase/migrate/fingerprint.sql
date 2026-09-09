@@ -65,8 +65,30 @@ rls as (
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public' and c.relkind = 'r'
 ),
+/*
+ * Function definitions, and separately who may call them.
+ *
+ * `pg_get_functiondef` does not include grants, so a function can be
+ * byte-identical on both projects and callable by strangers on one of them.
+ * That is not hypothetical either: sixteen functions came out of the restore
+ * with EXECUTE for `anon` - among them `upsert_account_key`, which writes the
+ * key that opens an account's history, and `set_premium`, which has a whole
+ * migration named after not being self-grantable. Every other category on this
+ * page passed while that was true.
+ *
+ * Same cause as the table ACLs: `alter default privileges ... grant all on
+ * functions` on the target schema, and a dump that only ever GRANTs.
+ */
 functions as (
   select replace(pg_get_functiondef(p.oid), (select ref from norm), '<project-ref>') as line
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prokind = 'f'
+),
+function_acls as (
+  select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
+         || ' secdef=' || p.prosecdef::text
+         || ' acl=[' || coalesce((select string_agg(x, ',' order by x)
+                                    from unnest(p.proacl::text[]) x), 'default') || ']' as line
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.prokind = 'f'
 ),
@@ -149,6 +171,7 @@ everything as (
   union all select 'policies',           line from policies
   union all select 'rls enabled',        line from rls
   union all select 'functions',          line from functions
+  union all select 'function acls',      line from function_acls
   union all select 'triggers',           line from triggers
   union all select 'views',              line from views
   union all select 'table+column acls',  line from grants
