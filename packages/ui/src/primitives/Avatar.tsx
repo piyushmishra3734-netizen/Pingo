@@ -150,8 +150,16 @@ export function Avatar({
         grid, not bare inline-flex alone: presence/ring wrappers that only
         use rounded-full without a square box still read as oval when this
         node sits on a text baseline. Fixed size + grid keeps a true circle.
+
+        `rounded-full` here as well as on the face plate inside, and that is not
+        redundant. This node is what a caller's `className` lands on, so a
+        `ring-*` or an `outline` passed in is drawn against *this* border
+        radius - and while it was square, every such ring came out as a box
+        around a circular face. Nothing in the app had hit it yet; the profile
+        lab did, immediately, the first time an avatar was asked to sit on a
+        cover.
       */
-      className={cn('relative inline-grid shrink-0 place-items-center', className)}
+      className={cn('relative inline-grid shrink-0 place-items-center rounded-full', className)}
       style={{ width: px, height: px }}
     >
       {/*

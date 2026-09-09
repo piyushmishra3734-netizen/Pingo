@@ -103,6 +103,7 @@ import { IntroSlidesScreen } from './screens/IntroSlidesScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
 import { SplashScreen } from './screens/SplashScreen.js';
 const ControllingScreen = lazyScreen(() => import('./screens/settings/ControllingScreen.js'), 'ControllingScreen');
+const ProfileLookLab = lazyScreen(() => import('./screens/dev/ProfileLookLab.js'), 'ProfileLookLab');
 const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');
 const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
 const GoogleConnectingScreen = lazyScreen(() => import('./screens/auth/GoogleConnectingScreen.js'), 'GoogleConnectingScreen');
@@ -386,6 +387,9 @@ export function App() {
             */}
             {import.meta.env.DEV && (
               <Route path="/dev/toast-lab" element={<ToastFeelLab />} />
+            )}
+            {import.meta.env.DEV && (
+              <Route path="/dev/profile-lab" element={<ProfileLookLab />} />
             )}
 
             {/* Pre-session. A signed-in visitor is sent to Home. */}

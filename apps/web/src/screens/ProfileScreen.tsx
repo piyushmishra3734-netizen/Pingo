@@ -663,7 +663,7 @@ export function ProfileScreen() {
             leaves a screen reader with no single answer to "what is this page".
             Styled as `text-h1` because it is still the largest thing here.
           */}
-          <h2 className="mt-1.5 flex items-center justify-center gap-1.5 text-h1 tracking-tight text-ink">
+          <h2 className="mt-2 flex items-center justify-center gap-1.5 text-h1 leading-tight tracking-tight text-ink">
             {person.displayName}
             {/*
               No size here any more.
@@ -676,11 +676,23 @@ export function ProfileScreen() {
             <AchievementMark achievement={achievements.lead(person.id)} />
           </h2>
 
-          {/* Handle + bio as one quiet identity group under the name. */}
-          <div className="mt-1 flex max-w-sm flex-col items-center gap-1.5">
-            <p className="text-caption text-text-tertiary">@{person.username}</p>
+          {/*
+            Handle + bio as one quiet identity group under the name.
+
+            The handle sits a hairline under the name rather than a full step:
+            they are one fact said twice, and the page's normal rhythm between
+            them read as two.
+
+            The bio stops at two lines. A profile is an identity, not an
+            information sheet, and a bio allowed to run pushes the stats and the
+            actions - the things people came for - below the fold. Clamped on a
+            line break rather than truncated mid-word, and on a narrower measure
+            than the group so it reads as a caption to the name.
+          */}
+          <div className="mt-0.5 flex max-w-sm flex-col items-center gap-2">
+            <p className="text-caption leading-tight text-text-tertiary">@{person.username}</p>
             {person.bio && (
-              <p className="text-center text-body text-text-secondary">
+              <p className="line-clamp-2 max-w-[17rem] text-center text-body leading-snug text-text-secondary">
                 <CaptionText text={person.bio} />
               </p>
             )}
@@ -690,8 +702,13 @@ export function ProfileScreen() {
             Same width as the sections above and below it, which is the whole
             reason the numbers stopped looking like they were floating: they
             were the only thing on the page not lining up with anything.
+
+            Hairlines between them, and no box around them. A ring and a fill
+            would group the three correctly and then say "control" - a bordered,
+            filled rectangle is the shape of something you press, and these are
+            figures. Separators do the grouping and claim nothing.
           */}
-          <dl className="mt-6 grid w-full max-w-xs grid-cols-3">
+          <dl className="mt-7 grid w-full max-w-sm grid-cols-3 divide-x divide-line/60">
             <Stat label="Posts" value={stats?.posts} />
             <Stat
               label="Friends"
@@ -754,8 +771,16 @@ export function ProfileScreen() {
                 </Button>
 
                 {/*
-                  Same height / radius family as Message, glass surface so they
-                  read as siblings of the primary rather than ghost chrome.
+                  Circular, filled, and quiet.
+
+                  They used to be rounded squares with a border and a shadow -
+                  the same shape family as Message - which made three buttons
+                  competing to be pressed where there is one action and two
+                  controls. A circle on a plain fill reads as hardware: tactile,
+                  clearly pressable, and obviously not the primary.
+
+                  Message keeps the accent and the width, because it is the
+                  reason anybody opens somebody's profile.
                 */}
                 <IconButton
                   label={
@@ -766,9 +791,9 @@ export function ProfileScreen() {
                   disabled={!canCall}
                   onClick={() => void startCall(person.id, person.displayName, 'voice')}
                   className={cn(
-                    'size-11 shrink-0 rounded-md',
-                    'border border-line/70 bg-surface/90 text-ink shadow-sm',
-                    'hover:bg-hover hover:border-line-strong',
+                    'size-11 shrink-0 rounded-full',
+                    'bg-sunken text-ink',
+                    'hover:bg-hover',
                   )}
                 >
                   <PhoneIcon size={18} />
@@ -783,9 +808,9 @@ export function ProfileScreen() {
                   disabled={!canCall}
                   onClick={() => void startCall(person.id, person.displayName, 'video')}
                   className={cn(
-                    'size-11 shrink-0 rounded-md',
-                    'border border-line/70 bg-surface/90 text-ink shadow-sm',
-                    'hover:bg-hover hover:border-line-strong',
+                    'size-11 shrink-0 rounded-full',
+                    'bg-sunken text-ink',
+                    'hover:bg-hover',
                   )}
                 >
                   <VideoIcon size={18} />
