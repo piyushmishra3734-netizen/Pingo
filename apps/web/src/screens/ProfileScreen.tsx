@@ -140,6 +140,9 @@ export function ProfileScreen() {
 
   const [stats, setStats] = useState<ProfileStats>();
   const [posts, setPosts] = useState<Post[]>();
+  const [postsFailed, setPostsFailed] = useState(false);
+  /** Bumped by Try again; the load effect keys on the person, not the failure. */
+  const [attempt, setAttempt] = useState(0);
   const [media, setMedia] = useState<ChatMediaItem[]>();
   const [shared, setShared] = useState<SharedHistory>();
   const [blocked, setBlocked] = useState(false);
@@ -163,16 +166,27 @@ export function ProfileScreen() {
   useEffect(() => {
     if (!personId) return;
     let active = true;
+    setPostsFailed(false);
 
     void profiles
       .stats(personId)
       .then((next) => { if (active) setStats(next); })
       .catch(() => undefined);
 
+    /*
+     * A dropped request is not an empty life.
+     *
+     * This used to catch to `[]`, which renders the same `PostsEmpty` a person
+     * with genuinely no posts gets - so a visitor on a bad connection was told
+     * a stranger had nothing, with no way to tell that from the truth and no
+     * way to ask again. The other reads on this screen degrade quietly on
+     * purpose: a missing Journey row or shared-history panel simply is not
+     * drawn, which says nothing false. The post grid is the one that does.
+     */
     void profiles
       .listPosts(personId)
       .then((next) => { if (active) setPosts(next); })
-      .catch(() => { if (active) setPosts([]); });
+      .catch(() => { if (active) setPostsFailed(true); });
 
     if (isSelf) {
       void profiles
@@ -256,7 +270,7 @@ export function ProfileScreen() {
       offFollows();
       offProfile();
     };
-  }, [personId, isSelf, handle, profiles, reload]);
+  }, [personId, isSelf, handle, profiles, reload, attempt]);
 
   // ---- surfaces -----------------------------------------------------------
 
@@ -884,7 +898,18 @@ export function ProfileScreen() {
           hidden={tab !== 'posts'}
           className="pt-4"
         >
-          {!posts ? (
+          {postsFailed ? (
+            <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+              <p className="text-body text-ink">Couldn&rsquo;t load posts</p>
+              <p className="max-w-xs text-caption text-text-secondary">
+                The connection dropped on the way. Nothing is missing from this
+                profile.
+              </p>
+              <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+                Try again
+              </Button>
+            </div>
+          ) : !posts ? (
             <PostGridSkeleton />
           ) : posts.length === 0 && !isSelf ? (
             <PostsEmpty name={person.displayName} />

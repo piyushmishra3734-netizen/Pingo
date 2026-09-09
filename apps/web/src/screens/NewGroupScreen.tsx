@@ -48,6 +48,7 @@ export function NewGroupScreen() {
   const mutuals = useMutuals();
 
   const [people, setPeople] = useState<User[] | undefined>();
+  const [contactsFailed, setContactsFailed] = useState(false);
   const [title, setTitle] = useState('');
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -64,7 +65,14 @@ export function NewGroupScreen() {
         if (active) setPeople(list);
       })
       .catch(() => {
-        if (active) setPeople([]);
+        /*
+         * Not an empty list. Catching to `[]` rendered "no friends to add" -
+         * or, on New chat, an empty result - for what was only a dropped
+         * request, and told somebody something about their own account that
+         * was not true. Undefined keeps it honest: the screen stays in its
+         * loading shape rather than asserting a conclusion it does not have.
+         */
+        if (active) setContactsFailed(true);
       });
     return () => {
       active = false;
@@ -197,7 +205,13 @@ export function NewGroupScreen() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        {matches === undefined ? (
+        {contactsFailed ? (
+          <EmptyState
+            icon={<UsersIcon size={28} />}
+            title="Couldn't load your friends"
+            description="The connection dropped. You can still make the group and share its invite link."
+          />
+        ) : matches === undefined ? (
           <LoadingState label="Loading friends" />
         ) : matches.length === 0 ? (
           <EmptyState

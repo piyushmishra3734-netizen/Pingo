@@ -57,6 +57,7 @@ export function NewChatScreen() {
   const { service: profiles } = useProfile();
 
   const [people, setPeople] = useState<User[] | undefined>();
+  const [contactsFailed, setContactsFailed] = useState(false);
   const [query, setQuery] = useState('');
   const [opening, setOpening] = useState<string>();
   const [error, setError] = useState<string>();
@@ -69,7 +70,14 @@ export function NewChatScreen() {
         if (active) setPeople(list);
       })
       .catch(() => {
-        if (active) setPeople([]);
+        /*
+         * Not an empty list. Catching to `[]` rendered "no friends to add" -
+         * or, on New chat, an empty result - for what was only a dropped
+         * request, and told somebody something about their own account that
+         * was not true. Undefined keeps it honest: the screen stays in its
+         * loading shape rather than asserting a conclusion it does not have.
+         */
+        if (active) setContactsFailed(true);
       });
     return () => {
       active = false;
@@ -218,6 +226,12 @@ export function NewChatScreen() {
           <EmptyState
             title="Who are you looking for?"
             description="Search by name, @username, or paste their ID."
+            icon={<UsersIcon size={26} />}
+          />
+        ) : contactsFailed ? (
+          <EmptyState
+            title="Couldn't load your contacts"
+            description="The connection dropped. Searching by @username or ID still works."
             icon={<UsersIcon size={26} />}
           />
         ) : !shown ? (
