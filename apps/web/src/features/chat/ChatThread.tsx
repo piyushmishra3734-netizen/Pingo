@@ -18,7 +18,7 @@ import {
   ChevronLeftIcon,
   IconButton,
   ImageIcon,
-  LoadingState,
+  ThreadSkeleton,
   MoreIcon,
   PhoneIcon,
   PingoDot,
@@ -1435,7 +1435,7 @@ export function ChatThread({
       {/* ---- Thread ------------------------------------------------------- */}
       <div ref={scrollRef} className="thread-fade min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <LoadingState label="Loading messages" />
+          <ThreadSkeleton />
         ) : (
           <div
             className={cn(

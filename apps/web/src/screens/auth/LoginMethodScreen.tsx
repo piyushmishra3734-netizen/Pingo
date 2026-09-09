@@ -1,5 +1,5 @@
 import { useAuth, type AuthMethodKind } from '@pingo/core';
-import { AtIcon, PhoneIcon, UserIcon, cn } from '@pingo/ui';
+import { PhoneIcon, UserIcon, cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,7 +7,7 @@ import { AppLogo } from '../../components/AppLogo.js';
 import { FunnelBackdrop } from '../../features/auth/FunnelBackdrop.js';
 import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
 import { GoogleMark } from '../../features/auth/GoogleMark.js';
-import { MethodCard } from '../../features/auth/MethodCard.js';
+import { MethodButton } from '../../features/auth/MethodButton.js';
 import { readLastMethod } from '../../features/auth/last-method.js';
 import { useT } from '../../features/i18n/useT.js';
 
@@ -18,6 +18,14 @@ interface MethodRow {
   path: string;
 }
 
+/**
+ * Coming back.
+ *
+ * Google is here as well as on Welcome, deliberately: a returning person looks
+ * for the way they got in, and finding it only on the screen for new arrivals
+ * would be a small cruelty. Email is not here at all - accounts are Google or
+ * phone now, and the addresses that already exist sign in by username.
+ */
 export function LoginMethodScreen() {
   const navigate = useNavigate();
   const { service } = useAuth();
@@ -38,12 +46,6 @@ export function LoginMethodScreen() {
       path: '/login/username',
     },
     {
-      kind: 'email',
-      label: t('login.email'),
-      icon: <AtIcon size={18} />,
-      path: '/login/email',
-    },
-    {
       kind: 'phone',
       label: t('login.phone'),
       icon: <PhoneIcon size={18} />,
@@ -61,8 +63,8 @@ export function LoginMethodScreen() {
     <FunnelBackdrop>
       <div
         className={cn(
-          'mx-auto flex w-full max-w-[22rem] flex-1 flex-col overflow-y-auto',
-          'px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))]',
+          'mx-auto flex w-full max-w-sm flex-1 flex-col overflow-y-auto',
+          'px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]',
           'pt-[max(1.75rem,env(safe-area-inset-top))]',
         )}
       >
@@ -71,26 +73,19 @@ export function LoginMethodScreen() {
             <div className="funnel-enter">
               <AppLogo size={48} alt="" />
             </div>
-            <h1
-              className="funnel-enter mt-5 text-[1.75rem] font-semibold leading-[1.12] tracking-[-0.03em] text-ink"
-              style={{ animationDelay: '25ms' }}
-            >
+            <h1 className="funnel-enter mt-5 text-h1 text-ink" style={{ animationDelay: '25ms' }}>
               {t('login.welcomeBack')}
             </h1>
           </div>
 
-          <div
-            className={cn(
-              'funnel-enter flex flex-col gap-2 rounded-2xl border border-line',
-              'bg-surface p-2 shadow-[0_8px_28px_rgba(0,0,0,0.04)]',
-            )}
-            style={{ animationDelay: '45ms' }}
-          >
+          {/* No card around them. They are buttons on a page, not a menu. */}
+          <div className="flex flex-col gap-2.5">
             {ordered.map((method, i) => (
-              <MethodCard
+              <MethodButton
                 key={method.kind}
                 icon={method.icon}
                 label={method.label}
+                variant={i === 0 ? 'primary' : 'outline'}
                 badge={method.kind === lastUsed ? t('login.lastUsed') : undefined}
                 delayMs={55 + i * 28}
                 onClick={() => navigate(method.path)}
@@ -102,8 +97,8 @@ export function LoginMethodScreen() {
             className="funnel-enter flex flex-col items-center gap-0.5"
             style={{ animationDelay: `${70 + ordered.length * 28}ms` }}
           >
-            <p className="text-[0.8125rem] text-text-tertiary">{t('login.newTo')}</p>
-            <FunnelTextLink onClick={() => navigate('/signup')}>
+            <p className="text-caption text-text-tertiary">{t('login.newTo')}</p>
+            <FunnelTextLink onClick={() => navigate('/welcome')}>
               {t('login.getStarted')}
             </FunnelTextLink>
           </div>

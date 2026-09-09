@@ -1,4 +1,4 @@
-import { useAuth } from '@pingo/core';
+import { useAuth, useChat } from '@pingo/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -91,6 +91,23 @@ async function liveSplashArt(variant: 'desktop' | 'mobile'): Promise<string | un
 
 export function SplashScreen() {
   const navigate = useNavigate();
+  /*
+   * Whether the app behind this screen has finished opening.
+   *
+   * The splash used to leave on its clocks alone, which meant it handed over to
+   * `AppShell` before the shell had anything to show - and `AppShell` answers
+   * that with a second full-window loader. So a cold start ran splash, then a
+   * spinner, back to back: two waits for one wait, and the second one arriving
+   * after the brand screen had already promised the app was here.
+   *
+   * `ChatProvider` wraps this route, so the flag is simply readable. It is one
+   * more condition on leaving, never a reason to stay: `HARD_MAX_MS` still
+   * fires regardless, so a chat service that never becomes ready costs the same
+   * seven seconds it always did rather than trapping anybody here.
+   */
+  const { ready: chatReady } = useChat();
+  const chatReadyRef = useRef(chatReady);
+  chatReadyRef.current = chatReady;
   const { status } = useAuth();
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -136,18 +153,28 @@ export function SplashScreen() {
       const routeReady = now - mountedAt >= MIN_ROUTE_MS;
       const paintReady =
         paintedAt != null && now - paintedAt >= AFTER_PAINT_MS;
+      /*
+       * Only the signed-in leg waits for it. An anonymous visitor is going to
+       * `/intro`, which needs nothing from the chat service, and holding them
+       * for a session that is never going to arrive would be the same defect
+       * pointed the other way.
+       */
+      const appReady = statusRef.current === 'anonymous' || chatReadyRef.current;
 
-      if (routeReady && paintReady) {
+      if (routeReady && paintReady && appReady) {
         leave();
         return;
       }
 
+      // Not ready yet: come back on the next frame budget rather than betting
+      // on a duration nobody can know.
+      const waitReady = appReady ? 0 : 120;
       const waitRoute = Math.max(0, MIN_ROUTE_MS - (now - mountedAt));
       const waitPaint =
         paintedAt == null
           ? AFTER_PAINT_MS
           : Math.max(0, AFTER_PAINT_MS - (now - paintedAt));
-      window.setTimeout(tick, Math.max(waitRoute, waitPaint, 32));
+      window.setTimeout(tick, Math.max(waitRoute, waitPaint, waitReady, 32));
     };
 
     tick();

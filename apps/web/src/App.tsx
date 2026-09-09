@@ -106,13 +106,10 @@ const ControllingScreen = lazyScreen(() => import('./screens/settings/Controllin
 const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');
 const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
 const GoogleConnectingScreen = lazyScreen(() => import('./screens/auth/GoogleConnectingScreen.js'), 'GoogleConnectingScreen');
-const LoginEmailScreen = lazyScreen(() => import('./screens/auth/LoginEmailScreen.js'), 'LoginEmailScreen');
 const LoginMethodScreen = lazyScreen(() => import('./screens/auth/LoginMethodScreen.js'), 'LoginMethodScreen');
 const LoginPasswordScreen = lazyScreen(() => import('./screens/auth/LoginPasswordScreen.js'), 'LoginPasswordScreen');
 const LoginPhoneScreen = lazyScreen(() => import('./screens/auth/LoginPhoneScreen.js'), 'LoginPhoneScreen');
 const LoginUsernameScreen = lazyScreen(() => import('./screens/auth/LoginUsernameScreen.js'), 'LoginUsernameScreen');
-const SignUpEmailScreen = lazyScreen(() => import('./screens/auth/SignUpEmailScreen.js'), 'SignUpEmailScreen');
-const SignUpMethodScreen = lazyScreen(() => import('./screens/auth/SignUpMethodScreen.js'), 'SignUpMethodScreen');
 const SignUpPhoneScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneScreen.js'), 'SignUpPhoneScreen');
 const SignUpPhoneCodeScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneCodeScreen.js'), 'SignUpPhoneCodeScreen');
 const NameScreen = lazyScreen(() => import('./screens/setup/NameScreen.js'), 'NameScreen');
@@ -400,19 +397,23 @@ export function App() {
               */}
               <Route path="/welcome" element={<OnboardingScreen />} />
 
-              <Route path="/signup" element={<SignUpMethodScreen />} />
+              {/*
+                No `/signup` chooser any more - Welcome is the chooser. Old
+                links and anything still in somebody's history land there
+                rather than on a dead route.
+              */}
+              <Route path="/signup" element={<Navigate to="/welcome" replace />} />
               <Route path="/login" element={<LoginMethodScreen />} />
 
               <Route
                 path="/signup"
                 element={
                   <IdentityFlow
-                    entryPaths={['/signup/email', '/signup/phone']}
-                    fallback="/signup"
+                    entryPaths={['/signup/phone']}
+                    fallback="/welcome"
                   />
                 }
               >
-                <Route path="email" element={<SignUpEmailScreen />} />
                 <Route path="phone" element={<SignUpPhoneScreen />} />
                 {/*
                   § 6.2's verification step. Not an entry path: reaching it
@@ -427,12 +428,11 @@ export function App() {
                 path="/login"
                 element={
                   <IdentityFlow
-                    entryPaths={['/login/email', '/login/phone', '/login/username']}
+                    entryPaths={['/login/phone', '/login/username']}
                     fallback="/login"
                   />
                 }
               >
-                <Route path="email" element={<LoginEmailScreen />} />
                 <Route path="phone" element={<LoginPhoneScreen />} />
                 <Route path="username" element={<LoginUsernameScreen />} />
                 <Route path="password" element={<LoginPasswordScreen />} />

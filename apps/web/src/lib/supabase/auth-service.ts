@@ -597,12 +597,20 @@ export class SupabaseAuthService implements AuthService {
    * that only matters when a row is tapped. A disabled provider surfaces as
    * `provider_disabled` at that point, with copy that says so.
    */
-  readonly supportedMethods: readonly AuthMethodKind[] = [
-    'email',
-    'phone',
-    'google',
-    'username',
-  ];
+  /*
+   * No `email`.
+   *
+   * Accounts are created with Google or a phone number, and nothing else. The
+   * sixteen accounts that were made with an address before this keep working -
+   * `this.email` is still here, `username-login` still resolves to it, and
+   * twelve of the sixteen have a username to sign in with. The other four have
+   * no profile, no messages and no return visit since the day they were made;
+   * one is the security audit's own `@example.invalid` and one is a mistyped
+   * `gmai.com` that never completed a sign-in.
+   *
+   * This list is what the funnel offers, not what the service can do.
+   */
+  readonly supportedMethods: readonly AuthMethodKind[] = ['phone', 'google', 'username'];
 
   readonly email: PasswordAuth;
   readonly phone: PasswordAuth;

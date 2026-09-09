@@ -22,28 +22,46 @@ function check(what: string, run: () => void): void {
 
 // --- the allow list ---------------------------------------------------------
 
-check('the operator is allowed', () => {
-  assert.equal(isAllowedAddress('piyushmishra3734@gmail.com'), true);
-});
+/*
+ * These only mean anything while the gate is on. With `PRIVATE_ACCESS` false
+ * every address is allowed, which is the entire point of the switch - so
+ * asserting that a stranger is refused would be asserting the gate is on, not
+ * that it works. The behaviour under each setting is checked, not one of them.
+ */
+if (PRIVATE_ACCESS) {
+  check('the operator is allowed', () => {
+    assert.equal(isAllowedAddress('piyushmishra3734@gmail.com'), true);
+  });
 
-check('capitalisation does not lock him out', () => {
-  // A phone keyboard capitalises the first letter, and an address that arrives
-  // as `Piyush...` is the same account.
-  assert.equal(isAllowedAddress('Piyushmishra3734@Gmail.com'), true);
-  assert.equal(isAllowedAddress('  piyushmishra3734@gmail.com  '), true);
-});
+  check('capitalisation does not lock him out', () => {
+    // A phone keyboard capitalises the first letter, and an address that
+    // arrives as `Piyush...` is the same account.
+    assert.equal(isAllowedAddress('Piyushmishra3734@Gmail.com'), true);
+    assert.equal(isAllowedAddress('  piyushmishra3734@gmail.com  '), true);
+  });
 
-check('nobody else is', () => {
-  assert.equal(isAllowedAddress('someone@gmail.com'), false);
-  assert.equal(isAllowedAddress(''), false);
-  assert.equal(isAllowedAddress(undefined), false);
-});
+  check('nobody else is', () => {
+    assert.equal(isAllowedAddress('someone@gmail.com'), false);
+    assert.equal(isAllowedAddress(''), false);
+    assert.equal(isAllowedAddress(undefined), false);
+  });
 
-check('a lookalike address is not a match', () => {
-  // Substring matching would let these through; the list compares whole values.
-  assert.equal(isAllowedAddress('xpiyushmishra3734@gmail.com'), false);
-  assert.equal(isAllowedAddress('piyushmishra3734@gmail.com.evil.test'), false);
-});
+  check('a lookalike address is not a match', () => {
+    // Substring matching would let these through; the list compares whole
+    // values.
+    assert.equal(isAllowedAddress('xpiyushmishra3734@gmail.com'), false);
+    assert.equal(isAllowedAddress('piyushmishra3734@gmail.com.evil.test'), false);
+  });
+} else {
+  check('the gate is off, so everybody is allowed', () => {
+    assert.equal(isAllowedAddress('piyushmishra3734@gmail.com'), true);
+    assert.equal(isAllowedAddress('someone@gmail.com'), true);
+    assert.equal(isAllowedAddress('xpiyushmishra3734@gmail.com'), true);
+    // Including before a session exists, so nothing bounces mid-restore.
+    assert.equal(isAllowedAddress(undefined), true);
+    assert.equal(isAllowedAddress(''), true);
+  });
+}
 
 // --- the paths that stay open ----------------------------------------------
 
@@ -79,15 +97,13 @@ check('a path that merely starts with an open name is not open', () => {
 
 // --- the switch -------------------------------------------------------------
 
-check('turning it off lets everybody through', () => {
-  // Cannot be exercised without editing the constant, so this asserts the shape
-  // of the escape hatch rather than its behaviour: when the flag is false,
-  // `isAllowedAddress` returns true before it ever looks at the address.
+check('the switch is a boolean, and the open paths do not depend on it', () => {
+  // `isOpenPath` is about the journey, not about who is allowed on it, so it
+  // must answer the same way whichever setting is live. Everything above this
+  // line already asserted that, under whichever setting is compiled in.
   assert.equal(typeof PRIVATE_ACCESS, 'boolean');
-  if (!PRIVATE_ACCESS) {
-    assert.equal(isAllowedAddress(undefined), true);
-    assert.equal(isAllowedAddress('anyone@example.test'), true);
-  }
+  assert.equal(isOpenPath('/auth/google'), true);
+  assert.equal(isOpenPath('/chats'), false);
 });
 
 for (const line of results) console.log(line);

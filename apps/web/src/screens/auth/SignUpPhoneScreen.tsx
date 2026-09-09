@@ -71,7 +71,7 @@ export function SignUpPhoneScreen() {
       progress={SIGNUP_PROGRESS.identifier}
       title={t('auth.phoneTitle')}
       subtitle={t('auth.phoneSubtitle')}
-      onBack={() => navigate('/signup')}
+      onBack={() => navigate('/welcome')}
       message={error && <AuthMessage>{error}</AuthMessage>}
       footer={
         <Button

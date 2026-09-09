@@ -1,11 +1,14 @@
 /**
- * Who is allowed in while the app is being checked over.
+ * Who is allowed in. Currently: everybody. PINGO is open.
  *
- * The move to the new project is done and everything is verified from the
- * outside - the database matches, the files match, the functions are deployed.
- * What has not happened is somebody opening a real account on a real phone and
- * finding their history where they left it. Until that has been done once, the
- * app is open to one address and shows everybody else a notice.
+ * This gate was built for the window after the move to the new Supabase
+ * project, when the database, the files and the functions all matched from the
+ * outside but nobody had yet opened a real account on a real phone and found
+ * their history where they left it. That has happened, so the gate is off.
+ *
+ * It is kept rather than deleted because the next time something needs
+ * checking over on production - a migration, a provider swap, an incident - the
+ * switch is one line and the reasoning below is already written down.
  *
  * ## Why the allow list is the gate, and not a secret URL
  *
@@ -28,7 +31,7 @@
  */
 
 /** The one switch. `false` opens the app to everybody. */
-export const PRIVATE_ACCESS = true;
+export const PRIVATE_ACCESS = false;
 
 /**
  * Addresses that may use the app while `PRIVATE_ACCESS` is on.

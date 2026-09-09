@@ -12,7 +12,7 @@ import { useT } from '../../features/i18n/useT.js';
 /**
  * Log In - the number.
  *
- * The phone twin of `LoginEmailScreen`, reusing § 6.2's field so the number is
+ * Reuses § 6.2's phone field so the number is
  * entered the same way whether the user is joining or returning. Same rule
  * about enumeration: this screen learns nothing and says nothing about whether
  * the number has an account.

@@ -104,17 +104,28 @@ From `auth.users` on the live project:
 | `phone` | 4 | real phone identities, from the OTP work |
 | none | 1 | |
 
-So there are **16 genuine email accounts**. This is the fact that splits the
-decision in two:
+So there are **16 genuine email accounts** — and the operator's call is that
+email goes from **both** sign-up and sign-in, with username login as the way
+back in for anyone who needs it. That only holds if those people *have* a
+username, so it was checked rather than assumed:
 
-- **Removing email sign-*up* is free.** Nobody is mid-flow.
-- **Removing email sign-*in* locks out 16 people.** It stays.
+| Kind | Accounts | With a username | With a password |
+| --- | --- | --- | --- |
+| Google only | 17 | 17 | 0 |
+| Real email account | 16 | **12** | 16 |
+| Phone (derived address) | 9 | 7 | 9 |
+| Phone identity only | 4 | 0 | 4 |
+| Google + email | 1 | 1 | 1 |
 
-The 9 derived-address accounts are phone users whose sign-in is
-`919…@phone.pingo.chat` plus a password. They keep working as long as phone
-login by password stays, which it does.
+**Four email accounts have no username**, which would have locked them out
+entirely. Looked at individually, all four are abandoned shells: none has a
+profile row, none has sent a single message, none has returned since the day it
+was made. One is the security audit's own test account on `@example.invalid`,
+and one is a mistyped `gmai.com` that never completed a sign-in at all.
 
----
+So removing email costs nothing real. The twelve with usernames keep username
+login; the nine derived-address accounts sign in by phone number, which is what
+they already do; Google accounts use Google.
 
 ## 4. The shape
 

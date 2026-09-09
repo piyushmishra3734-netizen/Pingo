@@ -51,6 +51,46 @@ export function Skeleton({ className, circle = false, style }: SkeletonProps) {
 }
 
 /** The conversation-list skeleton: avatar, title, preview - the real row's shape. */
+/**
+ * A thread, in the shape a thread is, while its messages arrive.
+ *
+ * The thread used to open on `LoadingState` - three dots and the word "Loading
+ * messages" - which is a spinner, and a spinner says "wait" where a placeholder
+ * says "this is what is coming, and it is nearly here". Apple's guidance is
+ * explicit: show placeholder text or graphics as content loads rather than
+ * making people wait in front of nothing, because an absence of content reads
+ * as a problem with the app.
+ *
+ * It matters most here because this is the most-opened screen in the product,
+ * and because the wait it covers is short - a spinner that flashes for 200ms is
+ * pure noise, while a shape that resolves into the real thing is not noticed at
+ * all, which is the point.
+ *
+ * Alternating sides and varied widths, so it reads as a conversation rather
+ * than as a loading bar wearing bubbles.
+ */
+export function ThreadSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div
+      className="flex flex-col gap-2 px-4 py-4"
+      role="status"
+      aria-label="Loading messages"
+    >
+      {Array.from({ length: rows }, (_, i) => {
+        const mine = i % 3 === 1;
+        return (
+          <div key={i} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
+            <Skeleton
+              className="h-10 rounded-2xl"
+              style={{ width: `${44 + ((i * 19) % 34)}%`, opacity: 1 - i * 0.11 }}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ConversationSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-1" role="status" aria-label="Loading conversations">

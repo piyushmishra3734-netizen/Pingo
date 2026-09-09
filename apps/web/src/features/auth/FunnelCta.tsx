@@ -2,8 +2,13 @@ import { cn } from '@pingo/ui';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * Primary funnel CTA — uses brand tokens so Appearance accent retints it.
- * Default product accent is ink (near-black); purple/green/pink still work.
+ * Primary funnel CTA - brand tokens, so the Appearance accent retints it. The
+ * default product accent is ink; purple, green and pink all still work.
+ *
+ * Sizes and curves come from `packages/tokens` rather than being typed out
+ * here. They used to be `text-[0.9375rem]`, `tracking-[-0.01em]` and a
+ * `cubic-bezier(0.23,1,0.32,1)` that is not the app's curve - see the note at
+ * the top of `AuthScreen`.
  */
 export function FunnelCta({
   children,
@@ -19,11 +24,10 @@ export function FunnelCta({
       type="button"
       aria-busy={loading || undefined}
       className={cn(
-        'relative flex h-12 w-full items-center justify-center rounded-xl',
-        'bg-brand-gradient text-on-brand text-[0.9375rem] font-medium tracking-[-0.01em]',
+        'relative flex h-12 w-full items-center justify-center rounded-lg',
+        'bg-brand-gradient text-on-brand text-body font-medium',
         'shadow-brand',
-        'transition-[transform,box-shadow,opacity] duration-100',
-        'ease-[cubic-bezier(0.23,1,0.32,1)]',
+        'transition-[transform,box-shadow,opacity] duration-instant ease-standard',
         'hover:shadow-lg',
         'active:scale-[0.97] active:shadow-sm',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
@@ -51,9 +55,9 @@ export function FunnelTextLink({
     <button
       type="button"
       className={cn(
-        'rounded-lg px-3 py-2 text-[0.9375rem] font-medium text-brand',
-        'underline-offset-4 transition-[opacity,transform,background-color] duration-100',
-        'ease-[cubic-bezier(0.23,1,0.32,1)]',
+        'rounded-md px-3 py-2 text-body font-medium text-brand',
+        'underline-offset-4 transition-[opacity,transform,background-color]',
+        'duration-instant ease-standard',
         'hover:bg-hover hover:underline active:scale-[0.97]',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]',
         className,

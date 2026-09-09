@@ -1,5 +1,4 @@
 import { useAuth } from '@pingo/core';
-import { PingoDot } from '@pingo/ui';
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
@@ -16,13 +15,25 @@ import { PRIVATE_ACCESS, isAllowedAddress, isOpenPath } from './private-access.j
  * common bug in this pattern.
  */
 
-/** Shown only during the session restore, which is normally imperceptible. */
+/**
+ * The session restore, which shows nothing.
+ *
+ * This used to be three pulsing dots on a brand wash, filling the window. It
+ * ran on every single load - restoring a persisted session is a round trip that
+ * happens before any route renders - so it was the first thing anybody saw,
+ * every time, in front of the splash that was about to say the same thing.
+ *
+ * The comment above it always said the wait was "normally imperceptible", which
+ * is the argument against marking it: a spinner for a wait nobody can perceive
+ * is not reassurance, it is a flash. And when the restore is slow, what follows
+ * is the splash - a screen built for exactly this - so the marker was never the
+ * thing carrying the news.
+ *
+ * The ground, and nothing on it. `#boot` has already painted this same colour
+ * before the bundle arrived, so on a cold start the handover is invisible.
+ */
 function Resolving() {
-  return (
-    <div className="grid h-full place-items-center bg-brand-wash">
-      <PingoDot state="loading" size={7} label="Loading" />
-    </div>
-  );
+  return <div className="h-full bg-page" />;
 }
 
 /** Pre-auth funnel: intro slides first, then Welcome or Log In. */
