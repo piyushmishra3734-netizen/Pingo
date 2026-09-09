@@ -193,10 +193,24 @@ in one theme is a bug in the other.
    does. **Medium**, and far cheaper than it looks — the morph is
    production-tested.
 
-4. **Give failed sends a way out.**
-   `MessageBubble.tsx:699-700` plus a new action in `MessageActions.tsx` wired to
-   the existing send pipeline. Today the only recourse is delete and retype.
-   **Medium.**
+4. ~~**Give failed sends a way out.**~~ **Corrected on reading the pipeline.**
+   The audit read this from the UI. `chat-service.ts:4131-4168` shows `failed`
+   is only reached in three cases, and the commonest is not one of them: a
+   dropped connection already goes into the offline queue under the id the
+   bubble is showing and **stays `sending`**, leaving on the next flush with
+   nobody doing anything. The file says why, in as many words - "a connection
+   that gave out is not a message that failed."
+
+   What actually reaches `failed` is (a) the server refusing with a Postgres
+   code, where the same request will be refused again and a retry button would
+   be a lie; (b) a draft carrying media, because a queued photo is a file handle
+   that does not survive a reload; and (c) a send that was already a retry.
+
+   So the real gap is narrower than reported and lives only in (b): a photo
+   whose send failed while the page is still alive, with the preview still in
+   the bubble. That one is retryable and worth building. It needs the draft to
+   stay reachable from the message id, and it needs a live test on a throttled
+   connection - which is why it is not being built blind.
 
 5. **Anchor sheets to what opened them — fix the shared primitive.**
    `components/Sheet.tsx:106-146` has no anchor concept and always renders

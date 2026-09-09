@@ -162,6 +162,76 @@ export function StoryViewer({
     );
   }, [origin]);
 
+  /*
+   * And the way back out.
+   *
+   * The open above was only half a morph: the viewer grew out of the story
+   * circle and then, on every close path, vanished - `Overlay` is a bare
+   * portal, so `onClose` unmounts the tree on the same tick. Growing from
+   * somewhere and then not going back there is the case Apple's motion
+   * guidance names directly: feedback should follow the gesture, and a view
+   * revealed one way is expected to leave the same way.
+   *
+   * No re-measure is needed on the way out, unlike `ImageViewer`, and for a
+   * pleasant reason: this element is `fixed inset-0`, so its untransformed box
+   * is exactly the viewport. Reading `getBoundingClientRect()` here would
+   * return the *dragged* box during a swipe dismiss and quietly compute the
+   * wrong delta.
+   *
+   * The first keyframe is the element's current inline transform, so a dismiss
+   * that began as a drag continues from wherever the finger left it instead of
+   * snapping back to centre before it leaves.
+   */
+  const closingRef = useRef(false);
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+
+    const element = rootRef.current;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!element || !origin || reduced) {
+      onClose();
+      return;
+    }
+
+    closingRef.current = true;
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const scaleX = origin.width / width;
+    const scaleY = origin.height / height;
+    const dx = origin.left + origin.width / 2 - width / 2;
+    const dy = origin.top + origin.height / 2 - height / 2;
+
+    const animation = element.animate(
+      [
+        {
+          transform: element.style.transform || 'none',
+          borderRadius: element.style.borderRadius || '0px',
+          opacity: 1,
+        },
+        {
+          transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
+          borderRadius: '9999px',
+          opacity: 0,
+        },
+      ],
+      // Shorter than the open: leaving should feel decided, arriving unhurried.
+      { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'both' },
+    );
+
+    // `finished` rejects if the animation is cancelled by an unmount from
+    // elsewhere; the viewer still has to close either way.
+    void animation.finished.catch(() => undefined).then(() => onClose());
+  }, [origin, onClose]);
+
+  /*
+   * Read at keypress time rather than bound into the effect below, which is set
+   * up long before this function exists and must not re-run to see the newest
+   * one - the same arrangement `ImageViewer` uses for its key handler.
+   */
+  const latestClose = useRef(requestClose);
+  latestClose.current = requestClose;
+
   // Focus lands on Close once, on open. Anything that re-ran this would take
   // focus off the reply box a beat after the user tapped into it.
   useEffect(() => {
@@ -198,7 +268,7 @@ export function StoryViewer({
         return;
       }
 
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') latestClose.current();
       else if (event.key === 'ArrowRight') player.next();
       else if (event.key === 'ArrowLeft') player.previous();
       else if (event.key === ' ') {
@@ -264,7 +334,7 @@ export function StoryViewer({
     setDragY(0);
 
     if (movedY > DISMISS_DISTANCE) {
-      onClose();
+      requestClose();
       return;
     }
     // A pause, or a drag that came back. Either way it was not a tap.
@@ -432,7 +502,7 @@ export function StoryViewer({
           <button
             ref={closeRef}
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
           >
