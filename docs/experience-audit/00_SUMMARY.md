@@ -158,9 +158,9 @@ By Slack's rule — frequency of use first, muscle-memory risk last
 | 6 | Camera error branching | B | **done** — `ae3945d`, four causes, retry for the two that can change |
 | 7 | Bubbles flat at rest, glass on press | D | **held for the operator** — see below |
 | 8 | Wire `PingBubble` to `ImageViewer` | G | **done** — `ab4974f`, and it took PhotoBubble's stale-photo fix with it |
-| 9 | Error versus empty, nine sites | B | **3 of 9** — `6004c97`: join, calls, notifications |
-| 10 | Retry for failed sends | — | open |
-| 11 | Reverse the StoryViewer FLIP on close | G | open |
+| 9 | Error versus empty, nine sites | B | **7 of 9** — `6004c97` join/calls/notifications, `0624bf1` profile posts + both contact pickers. Left: shared media, push diagnostics — both quiet, neither false. |
+| 10 | Retry for failed sends | — | **corrected, not built** — reading `chat-service.ts:4131-4168` shows a dropped connection already queues and stays `sending`. The real gap is media-only and needs a throttled-connection test. |
+| 11 | Reverse the StoryViewer FLIP on close | G | **done** — `ba79567`, the three dismiss paths only |
 | 12 | Increased-contrast token variant | — | open |
 
 Remaining in class B: the five profile reads, the two contact pickers, shared
