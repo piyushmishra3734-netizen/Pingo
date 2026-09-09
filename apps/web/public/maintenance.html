@@ -1,10 +1,28 @@
 <!doctype html>
+<!--
+  This page has two jobs, and the words below are written for the second one.
+
+  1. A real outage. `maintenance-mode.mjs` copies this over `dist/index.html`
+     at build time, so every address serves it and the app is genuinely off.
+  2. The private-access gate. The app is running and reachable; everybody who
+     is not on the allow list in `private-access.ts` is sent here instead.
+
+  Today it is doing (2), so it says the app is being checked rather than that
+  it is off - claiming to be down while answering requests is the kind of small
+  lie that costs the next honest notice its credibility. If this is ever used
+  for (1) again, the three sentences need changing back.
+
+  To sign in while the gate is on, go to /login directly. There is no link from
+  here on purpose: during a real outage it would lead nowhere, because
+  index.html *is* this page and every route serves it.
+-->
+
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>PINGO is moving house</title>
-<meta name="description" content="PINGO is moving to a new database. Back in two days." />
+<title>PINGO is not open yet</title>
+<meta name="description" content="PINGO is being checked over before it opens." />
 <meta name="theme-color" content="#f7f7f8" />
 <link rel="icon" href="/pingo-favicon.png" />
 
@@ -271,10 +289,11 @@
 
   <span class="wordmark">PINGO</span>
 
-  <h1>Back in two days.</h1>
+  <h1>Not open yet.</h1>
 
   <p class="lede">
-    We're moving PINGO to a new home. It's off while we carry it.
+    PINGO has just moved to a new home. It's running, and being checked over
+    before everyone comes back in.
   </p>
 
   <footer>

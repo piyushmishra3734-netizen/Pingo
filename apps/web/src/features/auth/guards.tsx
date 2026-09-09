@@ -1,9 +1,8 @@
 import { useAuth } from '@pingo/core';
 import { PingoDot } from '@pingo/ui';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
-import { PrivateAccessScreen } from '../../screens/PrivateAccessScreen.js';
 import { isAddingAccount } from './adding-account.js';
 import { guestAuthPath, hasIntroSeen } from './intro-seen.js';
 import { PRIVATE_ACCESS, isAllowedAddress, isOpenPath } from './private-access.js';
@@ -141,5 +140,29 @@ export function PrivateAccessGate({ children }: { children?: ReactNode }) {
   if (isAllowedAddress(session?.user.email)) return <>{children ?? <Outlet />}</>;
   if (isOpenPath(location.pathname)) return <>{children ?? <Outlet />}</>;
 
-  return <PrivateAccessScreen />;
+  return <SentToMaintenance />;
+}
+
+/**
+ * Everybody who is not on the list gets the maintenance page.
+ *
+ * The real one, in `public/maintenance.html`, rather than a React screen that
+ * looks like it: it is the page that was drawn for this, it is already deployed,
+ * and having one notice instead of two means there is one place to change the
+ * words. Cloudflare Pages serves it at `/maintenance` - it strips the `.html`
+ * and redirects, so asking for the file name costs a round trip.
+ *
+ * `replace`, not `assign`: the app must not be left in the history behind the
+ * notice, or Back walks into a screen the visitor is not allowed to see and the
+ * gate has to catch them again.
+ *
+ * Nothing is rendered in the meantime. The redirect is immediate, and a flash
+ * of a half-built screen on the way out is worse than a blank one.
+ */
+function SentToMaintenance() {
+  useEffect(() => {
+    window.location.replace('/maintenance');
+  }, []);
+
+  return null;
 }
