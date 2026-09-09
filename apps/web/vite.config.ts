@@ -151,6 +151,28 @@ export default defineConfig({
 
       workbox: {
         /*
+         * Throw away the cached shell whenever a new worker takes over.
+         *
+         * The navigation route below is NetworkFirst with a three-second
+         * timeout, and on a slow enough connection that timeout always wins -
+         * so the shell comes from `pingo-shell`, and that shell names the
+         * hashed assets of whatever build first cached it. A phone on 30 kB/s
+         * therefore runs one build forever: the worker updates, the assets
+         * update, and the HTML pointing at them does not.
+         *
+         * It is not a cache the user can clear by reloading either. Every
+         * navigation is rewritten to the single key `/index.html` by the plugin
+         * below, so a query string - the usual way to sidestep a stale page -
+         * lands on exactly the same entry.
+         *
+         * A new worker activating means a new build exists, which means the
+         * shell held here is by definition the previous one. Deleting it costs
+         * one navigation's worth of network on the next launch and is the
+         * difference between shipping a fix and shipping it to people with good
+         * signal.
+         */
+        importScripts: ['sw-shell-reset.js'],
+        /*
          * The app shell, precached, which is what makes a cold launch instant
          * and what makes "works offline" true rather than aspirational.
          */
