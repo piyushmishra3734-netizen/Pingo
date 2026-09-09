@@ -254,7 +254,17 @@ export function AccountScreen() {
           }}
           destructive
         />
-        <InfoRow label="Delete Account" destructive />
+        {/*
+          Not a button, and no longer dressed as one.
+
+          This row has never had an `onClick` - `InfoRow` renders a plain div
+          without one - but it kept `destructive`, so it sat in red beside two
+          rows that do work, indistinguishable from a live control until tapped.
+          The group's note already says why the feature is not offered; the row
+          now says the same thing in the place somebody looks for it, in the
+          same read-only shape as Phone and Email above.
+        */}
+        <InfoRow label="Delete Account" value="Not yet" />
       </Group>
     </SettingsPage>
   );

@@ -121,7 +121,7 @@ export function ListGroup({
   return (
     <section className={className}>
       {title && (
-        <h2 className="mb-2 px-3 text-caption font-medium uppercase tracking-wider text-text-tertiary">
+        <h2 className="mb-2 px-3 text-caption font-medium r text-text-tertiary">
           {title}
         </h2>
       )}

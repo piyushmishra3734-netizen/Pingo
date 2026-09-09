@@ -342,11 +342,6 @@
      squeeze completes exactly as the menu opens rather than guessing at it. */
   --animate-press-hold: press-hold 480ms var(--ease-standard) forwards;
 
-  /* The send button, acknowledging a press. Overshoots slightly on the way
-     back rather than easing to rest: a spring says the thing left, where a
-     linear return just says the button was pushed. */
-  --animate-send-pop: send-pop 360ms var(--ease-spring);
-
   /**
    * Refusal. The one thing the product had no motion for at all.
    *
@@ -584,21 +579,6 @@
   }
   83% {
     transform: translateX(-1px);
-  }
-}
-
-@keyframes send-pop {
-  0% {
-    transform: scale(1);
-  }
-  35% {
-    transform: scale(0.86);
-  }
-  70% {
-    transform: scale(1.06);
-  }
-  100% {
-    transform: scale(1);
   }
 }
 

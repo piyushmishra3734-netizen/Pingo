@@ -137,7 +137,7 @@ export function JoinGroupScreen() {
             />
           </span>
 
-          <p className="mb-1 text-[0.6875rem] font-semibold tracking-[0.08em] text-text-tertiary uppercase">
+          <p className="mb-1 text-[0.6875rem] font-semibold text-text-tertiary">
             Group invite
           </p>
           <h1 className="text-h1 tracking-[-0.02em] text-ink">{preview.title}</h1>

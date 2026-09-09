@@ -560,7 +560,7 @@ export function GroupInfoSheet({
       />
 
       {/* ---- Members ---------------------------------------------------- */}
-      <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+      <h3 className="mb-2 text-caption font-medium text-text-tertiary">
         Members
       </h3>
       <ul className="flex flex-col">
@@ -612,7 +612,7 @@ export function GroupInfoSheet({
 
       {iAmAdmin && (
         <section className="mt-5 border-t border-line pt-4">
-          <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+          <h3 className="mb-2 text-caption font-medium text-text-tertiary">
             PINGO AI
           </h3>
           {aiInGroup ? (
@@ -666,7 +666,7 @@ export function GroupInfoSheet({
 
       {iAmAdmin && (
         <section className="mt-5 border-t border-line pt-4">
-          <h3 className="mb-2 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+          <h3 className="mb-2 text-caption font-medium text-text-tertiary">
             Add people
           </h3>
 
@@ -780,7 +780,7 @@ export function GroupInfoSheet({
 
       {iAmAdmin && (
         <section className="mt-5 border-t border-line/60 pt-4">
-          <h3 className="mb-2.5 text-[0.6875rem] font-semibold tracking-[0.06em] text-text-tertiary uppercase">
+          <h3 className="mb-2.5 text-[0.6875rem] font-semibold text-text-tertiary">
             Invite link
           </h3>
 

@@ -122,7 +122,7 @@ export function DailyJourneyCard({
     >
       <p className="text-body font-medium">{greeting(new Date(), name)}</p>
 
-      <p className="pt-3 text-caption uppercase tracking-wide text-text-tertiary">Today’s journey</p>
+      <p className="pt-3 text-caption text-text-tertiary">Today’s journey</p>
 
       <ul className="space-y-1.5 pt-2">
         {missions.map((mission) => (

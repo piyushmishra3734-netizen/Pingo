@@ -79,9 +79,10 @@ export function SignUpPhoneScreen() {
           size="lg"
           block
           disabled={!valid || sending}
+          loading={sending}
           onClick={() => void submit()}
         >
-          {sending ? t('auth.codeSending') : t('common.continue')}
+          {t('common.continue')}
         </Button>
       }
     >

@@ -39,7 +39,7 @@ export function Group({
 }) {
   return (
     <section className="mb-7">
-      {title && <h2 className="mb-2 px-1 text-caption font-medium uppercase tracking-wider text-text-tertiary">{title}</h2>}
+      {title && <h2 className="mb-2 px-1 text-caption font-medium text-text-tertiary">{title}</h2>}
       <div
         className={cn(
           'rounded-lg bg-surface p-1 shadow-sm',

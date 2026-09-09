@@ -580,14 +580,17 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
         {/*
           Whose voice it is, above the words.
 
-          Small, uppercase, low contrast - a label rather than content. Without
-          it, a reply and a transcript of your own sentence look identical, and
-          on a call that is the one ambiguity that makes people repeat
-          themselves.
+          Small, low contrast - a label rather than content. Without it, a
+          reply and a transcript of your own sentence look identical, and on a
+          call that is the one ambiguity that makes people repeat themselves.
+
+          Set in sentence case, not caps: Apple moved section labels to
+          title-style capitalisation for legibility, and this one is read at a
+          glance on a moving screen, which is where caps cost the most.
         */}
         <p
           className={cn(
-            'text-caption mb-3 font-medium tracking-[0.18em] uppercase',
+            'text-caption mb-3 font-medium',
             'transition-colors duration-base',
             speakingNow ? 'text-white/45' : 'text-white/30',
           )}

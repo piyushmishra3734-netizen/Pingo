@@ -628,7 +628,7 @@ export function StoryComposer({
         </div>
 
         <fieldset className="mt-4">
-          <legend className="mb-2 px-0.5 text-[0.6875rem] font-semibold tracking-[0.04em] text-text-tertiary uppercase">
+          <legend className="mb-2 px-0.5 text-[0.6875rem] font-semibold text-text-tertiary">
             Who can see it
           </legend>
 

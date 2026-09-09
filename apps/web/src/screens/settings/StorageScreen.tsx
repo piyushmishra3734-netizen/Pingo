@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '../../features/i18n/useT.js';
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
 
 /**
@@ -23,6 +24,8 @@ export function StorageScreen() {
   const [usage, setUsage] = useState<{ used: number; quota: number } | undefined>();
   const [clearing, setClearing] = useState(false);
   const [cleared, setCleared] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const confirm = useConfirm();
 
   const measure = useCallback(async () => {
     if (!navigator.storage?.estimate) return;
@@ -35,12 +38,29 @@ export function StorageScreen() {
   }, [measure]);
 
   const clear = async () => {
+    const go = await confirm({
+      title: 'Clear cached files?',
+      description:
+        'Removes downloaded media held on this device. You stay signed in, nothing is deleted from your account, and anything you open again is fetched fresh.',
+      confirmLabel: 'Clear',
+    });
+    if (!go) return;
+
     setClearing(true);
+    setFailed(false);
     try {
       const keys = await caches.keys();
       await Promise.all(keys.map((key) => caches.delete(key)));
       setCleared(true);
       await measure();
+    } catch {
+      /*
+       * `caches.delete` rejects in private windows and wherever storage is
+       * blocked. It used to throw straight through this function, which left
+       * the row saying "Clearing…" for the rest of the session with no reason
+       * given - the spinner became the error message.
+       */
+      setFailed(true);
     } finally {
       setClearing(false);
     }
@@ -62,9 +82,11 @@ export function StorageScreen() {
       <Group
         title={t('page.storageCache')}
         note={
-          cleared
-            ? 'Cleared. Your account and messages are untouched, only cached files were removed.'
-            : 'Removes cached files only. You stay signed in and nothing is deleted from your account.'
+          failed
+            ? "Couldn't clear the cache. Some browsers block this in private windows - everything else is unaffected."
+            : cleared
+              ? 'Cleared. Your account and messages are untouched, only cached files were removed.'
+              : 'Removes cached files only. You stay signed in and nothing is deleted from your account.'
         }
       >
         <InfoRow

@@ -27,7 +27,7 @@ import { useT } from '../features/i18n/useT.js';
 import { Badge } from '../features/badges/Badge.js';
 import { BadgeDetailSheet } from '../features/badges/BadgeDetailSheet.js';
 import { buildChapters, onThisDay } from '../features/journey/chapters.js';
-import { DUMMY_MISSIONS, STATISTIC_PLACEHOLDERS } from '../features/journey/dummy-journey.js';
+import { STATISTIC_PLACEHOLDERS } from '../features/journey/dummy-journey.js';
 import { encouragementFor } from '../features/journey/language.js';
 import { LifeChapters, OnThisDay } from '../features/journey/LifeChapters.js';
 import { useJourneyProgress } from '../features/journey/useJourneyProgress.js';
@@ -37,7 +37,6 @@ import {
   RecentUnlocks,
   SectionHeading,
   StatisticsPlaceholder,
-  TodaysMissions,
 } from '../features/journey/sections.js';
 import {
   type BadgeCategory,
@@ -163,7 +162,20 @@ export function JourneyScreen() {
           notice={notice?.text}
         />
 
-        <TodaysMissions missions={DUMMY_MISSIONS} />
+        {/*
+          Today's missions is not rendered, because it was never real.
+
+          It drew `DUMMY_MISSIONS` - a fixed three-row list with frozen progress
+          - and sat directly above Pulse and the badge library, both of which
+          are live. Every person who opened this screen saw the same half-filled
+          bars, forever, with nothing marking them as a placeholder. A section
+          that never changes teaches people the screen is broken.
+
+          The component and the fixture stay where they are: the day missions
+          have a real source, this is one line again. Removing the render is not
+          a change to how Journey works, which is frozen at v1 - it is removing
+          something that was never part of it.
+        */}
 
         {pulse.length > 0 ? <Pulse entries={pulse} /> : null}
 
@@ -245,7 +257,7 @@ export function JourneyScreen() {
           sections.map((section) => (
             <section key={section.rarity} className="px-4 pt-7">
               <header className="flex items-baseline justify-between pb-4">
-                <h3 className="text-caption uppercase tracking-wide text-text-tertiary">
+                <h3 className="text-caption text-text-tertiary">
                   {RARITY_TITLE[section.rarity]}
                 </h3>
                 <span className="text-caption text-text-tertiary">

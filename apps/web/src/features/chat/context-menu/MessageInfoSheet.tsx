@@ -82,7 +82,7 @@ export function MessageInfoSheet({
         <div className="flex flex-col gap-5">
           {read.length > 0 && (
             <section>
-              <h3 className="mb-2 flex items-center gap-1.5 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+              <h3 className="mb-2 flex items-center gap-1.5 text-caption font-medium text-text-tertiary">
                 <CheckDoubleIcon size={14} className="text-brand" />
                 Read
               </h3>
@@ -112,7 +112,7 @@ export function MessageInfoSheet({
 
           {unread.length > 0 && (
             <section>
-              <h3 className="mb-2 flex items-center gap-1.5 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+              <h3 className="mb-2 flex items-center gap-1.5 text-caption font-medium text-text-tertiary">
                 <CheckIcon size={14} />
                 Delivered
               </h3>

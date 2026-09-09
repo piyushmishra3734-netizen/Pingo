@@ -188,7 +188,7 @@ function SectionLabel({ children, className }: { children: ReactNode; className?
   return (
     <h2
       className={cn(
-        'text-caption px-1 pb-2 font-medium tracking-wide text-text-secondary uppercase',
+        'text-caption px-1 pb-2 font-medium text-text-secondary',
         className,
       )}
     >

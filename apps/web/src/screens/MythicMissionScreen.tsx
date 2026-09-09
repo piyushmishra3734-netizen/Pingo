@@ -322,7 +322,7 @@ function WhereItShows() {
 
   return (
     <section className="mt-10">
-      <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
+      <h2 className="text-caption font-medium text-text-secondary">
         Where it shows
       </h2>
       <ul className="mt-3 space-y-3">
@@ -403,7 +403,7 @@ function Roster({
 
   return (
     <section className="mt-10">
-      <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
+      <h2 className="text-caption font-medium text-text-secondary">
         {unlocked
           ? /*
               Not "N friends joined", which is a counter, and not "who got you
@@ -509,7 +509,7 @@ function InviteCard({
 
   return (
     <section className="mt-10">
-      <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
+      <h2 className="text-caption font-medium text-text-secondary">
         Your invite
       </h2>
       {/*
@@ -592,7 +592,7 @@ function HowItWorks({ required }: { required: number }) {
 
   return (
     <section className="mt-10">
-      <h2 className="text-caption font-medium tracking-wide text-text-secondary uppercase">
+      <h2 className="text-caption font-medium text-text-secondary">
         How it works
       </h2>
       <ol className="mt-3 space-y-3">

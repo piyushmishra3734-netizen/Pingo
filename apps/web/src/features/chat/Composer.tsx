@@ -153,8 +153,6 @@ export function Composer({
    * everybody's memory of the app.
    */
   useBackStep(pickerOpen, () => setPickerOpen(false));
-  /** Bumped per send, purely to restart the send button's animation. */
-  const [sent, setSent] = useState(0);
   const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
@@ -591,7 +589,7 @@ export function Composer({
               )}
             >
               <div className="flex items-center justify-between border-b border-line/40 px-3 py-1.5">
-                <span className="text-[0.6875rem] font-semibold tracking-[0.06em] text-text-tertiary uppercase">
+                <span className="text-[0.6875rem] font-semibold text-text-tertiary">
                   Tag someone
                 </span>
                 <span className="text-[0.625rem] text-text-tertiary tabular-nums">
@@ -815,20 +813,28 @@ export function Composer({
           label="Send message"
           variant="gradient"
           size="lg"
-          onClick={() => {
-            setSent((n) => n + 1);
-            submit();
-          }}
+          onClick={submit}
           /*
-            The most repeated action in the product, and it acknowledged nothing.
+            No flourish here, deliberately.
 
-            `key` on the count is what makes the animation replay: re-running a
-            CSS animation needs a new element, and without it the second message
-            of a burst - the case where you most want to know it went - would
-            animate once and then sit still for the rest of the conversation.
+            This button used to bounce on every tap, remounted through a
+            counter so the animation would replay. The reasoning was that the
+            most repeated action in the product acknowledged nothing - but it
+            already does, one line lower and in the place attention is: the
+            message appears in the thread carrying a clock until it lands.
+
+            Apple's rule is the one that settles it. Motion goes to what is
+            infrequent and consequential; "generally avoid adding motion to UI
+            interactions that occur frequently", and nothing in this app happens
+            more often than sending. A bounce every time is a bounce nobody
+            reads by the fourth message, still costing a re-render and an
+            animation frame on the cheapest phone we run on.
+
+            `glass-press` stays. That is feedback at the point of contact while
+            the finger is down, which is a different thing from a performance
+            after the fact.
           */
-          key={sent}
-          className="glass-lit glass-press motion-safe:animate-send-pop"
+          className="glass-lit glass-press"
         >
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={21} className="-translate-x-px translate-y-px" />

@@ -343,7 +343,7 @@ export function NotificationsScreen() {
             <div className="space-y-6">
               {sections.map((section) => (
                 <section key={section.label}>
-                  <h2 className="mb-2.5 px-1 text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-text-tertiary">
+                  <h2 className="mb-2.5 px-1 text-[0.6875rem] font-medium text-text-tertiary">
                     {section.label}
                   </h2>
                   <ul className="glass-surface overflow-hidden rounded-2xl shadow-sm">

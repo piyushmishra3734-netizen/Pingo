@@ -61,7 +61,7 @@ export function StoriesRow({
 
   return (
     <div className="px-1 pb-0.5">
-      <h2 className="px-3 pb-1.5 text-[0.6875rem] font-semibold tracking-[0.04em] text-text-tertiary uppercase">
+      <h2 className="px-3 pb-1.5 text-[0.6875rem] font-semibold text-text-tertiary">
         Stories
       </h2>
 

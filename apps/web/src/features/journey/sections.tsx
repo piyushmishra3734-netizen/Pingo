@@ -25,7 +25,7 @@ import { moments } from './language.js';
 export function SectionHeading({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <header className="flex items-baseline justify-between px-4 pb-3 pt-7">
-      <h2 className="text-caption uppercase tracking-wide text-text-tertiary">{title}</h2>
+      <h2 className="text-caption text-text-tertiary">{title}</h2>
       {action}
     </header>
   );

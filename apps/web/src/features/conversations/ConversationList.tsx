@@ -656,7 +656,7 @@ export function ConversationList({
         */}
         {searching && people.length > 0 && (
           <section className="px-1 pt-2 pb-1">
-            <h2 className="px-3 pb-1 text-[0.6875rem] font-semibold tracking-[0.06em] text-text-tertiary uppercase">
+            <h2 className="px-3 pb-1 text-[0.6875rem] font-semibold text-text-tertiary">
               {people.length === 1 ? 'Person' : 'People'}
             </h2>
             <ul>

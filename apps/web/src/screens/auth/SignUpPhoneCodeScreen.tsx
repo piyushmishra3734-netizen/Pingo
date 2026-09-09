@@ -116,8 +116,15 @@ export function SignUpPhoneCodeScreen() {
       onBack={() => navigate('/signup/phone')}
       message={error && <AuthMessage>{error}</AuthMessage>}
       footer={
-        <Button variant="primary" size="lg" block disabled={!ready} onClick={() => void submit()}>
-          {checking ? t('common.checking') : t('common.continue')}
+        <Button
+          variant="primary"
+          size="lg"
+          block
+          disabled={!ready}
+          loading={checking}
+          onClick={() => void submit()}
+        >
+          {t('common.continue')}
         </Button>
       }
     >

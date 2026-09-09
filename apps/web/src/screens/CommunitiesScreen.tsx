@@ -230,7 +230,7 @@ export function CommunitiesScreen() {
           <>
             {groups.length > 0 && (
               <section className="mt-6">
-                <h2 className="mb-3 px-1 text-caption font-medium uppercase tracking-wider text-text-tertiary">
+                <h2 className="mb-3 px-1 text-caption font-medium r text-text-tertiary">
                   {t('communities.groups')}
                 </h2>
 
@@ -282,7 +282,7 @@ export function CommunitiesScreen() {
 
             {contacts.length > 0 && (
               <section className="mt-8">
-                <h2 className="mb-2 px-1 text-caption font-medium uppercase tracking-wider text-text-tertiary">
+                <h2 className="mb-2 px-1 text-caption font-medium r text-text-tertiary">
                   {t('communities.people')}
                 </h2>
 

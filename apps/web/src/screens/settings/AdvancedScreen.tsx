@@ -1,3 +1,4 @@
+import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useT } from '../../features/i18n/useT.js';
@@ -12,10 +13,16 @@ import { useT } from '../../features/i18n/useT.js';
  *
  * Reset is here rather than on the index: it is the most destructive thing in
  * Settings that is not account deletion, and it belongs behind one more tap.
+ *
+ * It also asks first. Every other destructive control in Settings - sign out,
+ * clear local data, remove a device, unmute an author - goes through
+ * `useConfirm`, and this one did not, which made the single most consequential
+ * row in the feature the one that acted on the first tap with nothing to undo.
  */
 export function AdvancedScreen() {
   const t = useT();
   const { preferences, update, reset } = usePreferences();
+  const confirm = useConfirm();
   const a = preferences.advanced;
 
   return (
@@ -54,7 +61,17 @@ export function AdvancedScreen() {
       >
         <InfoRow
           label="Reset all settings"
-          onClick={() => reset()}
+          onClick={() => {
+            void (async () => {
+              const go = await confirm({
+                title: 'Reset all settings?',
+                description:
+                  'Puts every setting on every page back to its default. Your account, messages and photos are not touched, and this cannot be undone.',
+                confirmLabel: 'Reset',
+              });
+              if (go) reset();
+            })();
+          }}
           destructive
         />
       </Group>
