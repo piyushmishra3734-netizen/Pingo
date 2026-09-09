@@ -494,6 +494,46 @@ pass that proves nothing.
 
 ---
 
+## The delta, after the cutover
+
+A dump is a line drawn at a moment, and the cutover came hours later. In
+between, devices still running the cached bundle kept writing to the old
+project. Five rows landed there and nowhere else:
+
+| | |
+|---|---|
+| messages | 2 |
+| notifications | 2 (theirs) |
+| journey_public | 1 row updated |
+
+Found by scanning **every** table on the old project for rows newer than the
+dump rather than by guessing which ones could have moved, and by comparing row
+counts for the twelve tables that carry no timestamp at all. Carried across with
+triggers disabled: the notifications already existed and were copied verbatim,
+so letting the insert trigger rebuild them would have duplicated them — and
+`on_notification_push` would have sent a push for a message eight hours old that
+had already been delivered. `conversations.last_message_at`, the one thing a
+trigger would have done that was still wanted, is set explicitly.
+
+Verified by digest rather than by eye, because a mistyped `envelope` is a
+message nobody can ever open:
+
+```sql
+-- run on both; the two strings must match
+select count(*), md5(string_agg(id::text, ',' order by id))
+  from public.messages where created_at <= '<the cutover moment>';
+```
+
+All 47,338 message ids present on the old project are present on the new one:
+`55c44abd2df697dbf0ce04476d82ea2a` on both. The copied rows hash identically
+too, envelope included.
+
+Everything the new project has *more* of is correct and stays: one message
+written after cutover, two `push_deliveries` from its own retries, one
+`device_key` from a fresh sign-in, and two `recovery_packages` — which are the
+`account_key` migration doing its job, minting a per-account key as people sign
+in.
+
 ## Still yours to do
 
 These are blocked on you, not on the work:
