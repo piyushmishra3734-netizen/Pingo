@@ -171,6 +171,14 @@ const en = {
   'camera.title': 'Camera',
   'camera.openAsk': 'Open the camera?',
   'camera.none': 'No camera here.',
+  'camera.denied': 'PINGO cannot use your camera.',
+  'camera.deniedHint':
+    'Camera access is turned off for this site. Turn it on in your browser settings, then try again.',
+  'camera.busy': 'Your camera is in use.',
+  'camera.busyHint': 'Another app or tab has it open. Close that, then try again.',
+  'camera.failed': "The camera didn't start.",
+  'camera.retry': 'Try again',
+  'camera.pickInstead': 'Pick a photo instead - filters and editing work exactly the same.',
 
   // profile / social
   'profile.edit': 'Edit profile',
@@ -940,6 +948,14 @@ const enGenz: Catalog = {
   'camera.title': 'Cam',
   'camera.openAsk': 'open the camera?',
   'camera.none': 'no camera on this device.',
+  'camera.denied': 'pingo can’t use your camera.',
+  'camera.deniedHint':
+    'camera access is off for this site. turn it on in browser settings, then try again.',
+  'camera.busy': 'your camera is busy.',
+  'camera.busyHint': 'another app or tab has it. close that and try again.',
+  'camera.failed': 'camera didn’t start.',
+  'camera.retry': 'try again',
+  'camera.pickInstead': 'pick a photo instead - filters and editing still work.',
   'profile.edit': 'Edit profile',
   'profile.journey': 'Journey',
   'profile.storyArchive': 'Story archive',

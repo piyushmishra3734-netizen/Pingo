@@ -601,16 +601,47 @@ export function CameraScreen() {
           </div>
         )}
 
+        {/*
+          Three different failures, said as three different things.
+
+          This used to be one screen for all of them, and for the commonest -
+          somebody tapped Block - it said "No camera here", which is false. A
+          person told their device has no camera has no reason to look in site
+          settings, so the only way out was to leave. Permission and a busy
+          device both change outside this tab, so both get Try again; a device
+          with no camera gets only the honest sentence and the gallery.
+        */}
         {camera.status === 'unavailable' && (
           <div className="absolute inset-0 grid place-items-center px-8 text-center">
             <div>
               <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-white/10 text-white">
                 <CameraIcon size={28} />
               </span>
-              <p className="mt-6 text-body text-white">{t('camera.none')}</p>
-              <p className="mt-2 text-caption text-white/60">
-                Pick a photo instead - filters and editing work exactly the same.
+              <p className="mt-6 text-body text-white">
+                {camera.blocked === 'permission'
+                  ? t('camera.denied')
+                  : camera.blocked === 'busy'
+                    ? t('camera.busy')
+                    : camera.blocked === 'missing'
+                      ? t('camera.none')
+                      : t('camera.failed')}
               </p>
+              <p className="mt-2 text-caption text-white/60">
+                {camera.blocked === 'permission'
+                  ? t('camera.deniedHint')
+                  : camera.blocked === 'busy'
+                    ? t('camera.busyHint')
+                    : t('camera.pickInstead')}
+              </p>
+              {camera.blocked !== 'missing' && (
+                <button
+                  type="button"
+                  onClick={camera.retry}
+                  className="focus-ring mt-5 rounded-full bg-white/12 px-5 py-2 text-caption text-white active:bg-white/20"
+                >
+                  {t('camera.retry')}
+                </button>
+              )}
             </div>
           </div>
         )}

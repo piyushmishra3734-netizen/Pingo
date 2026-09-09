@@ -35,10 +35,37 @@ import { getFilter } from './filters/registry.js';
 
 export type CameraStatus = 'starting' | 'ready' | 'unavailable';
 
+/**
+ * Why the camera is unavailable, which is three different situations.
+ *
+ * `getUserMedia` rejects with a `DOMException` whose `name` says which, and
+ * this hook used to throw all three away into one status. That made the screen
+ * tell somebody who had denied permission that their device has no camera -
+ * false, and with nothing to do about it.
+ *
+ * - `permission` - the person, or the site settings, said no. Recoverable.
+ * - `missing`    - there is genuinely no camera. Not recoverable here.
+ * - `busy`       - another app or tab holds the device. Recoverable.
+ * - `unknown`    - anything else, including a rejection with no name.
+ */
+export type CameraBlock = 'permission' | 'missing' | 'busy' | 'unknown';
+
+function classify(cause: unknown): CameraBlock {
+  const name = cause instanceof DOMException ? cause.name : '';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'permission';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'missing';
+  if (name === 'NotReadableError' || name === 'AbortError') return 'busy';
+  return 'unknown';
+}
+
 export interface UseCamera {
   /** Attach to the visible `<canvas>`. */
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   status: CameraStatus;
+  /** Set only while `status` is `'unavailable'`. Says which of three. */
+  blocked?: CameraBlock;
+  /** Ask the hardware again, for the two causes that can change. */
+  retry: () => void;
   facing: 'user' | 'environment';
   flip: () => Promise<void>;
   /** Resolves with the filtered frame, or undefined if the pipeline is not up. */
@@ -93,6 +120,13 @@ export function useCamera(
   chainRef.current = chain;
 
   const [status, setStatus] = useState<CameraStatus>('starting');
+  const [blocked, setBlocked] = useState<CameraBlock>();
+  /*
+   * Bumped by `retry()`. Permission and a busy device are both things that
+   * change outside this tab - somebody flips the site setting, or closes the
+   * other app - so the screen needs a way to ask again without a reload.
+   */
+  const [attempt, setAttempt] = useState(0);
   const [facing, setFacing] = useState<'user' | 'environment'>(preferred);
   const [capabilities, setCapabilities] = useState<CameraCapabilities>({
     torch: false,
@@ -191,8 +225,11 @@ export function useCamera(
         };
 
         frame = requestAnimationFrame(loop);
-      } catch {
-        if (!cancelled) setStatus('unavailable');
+      } catch (cause) {
+        if (!cancelled) {
+          setBlocked(classify(cause));
+          setStatus('unavailable');
+        }
       }
     })();
 
@@ -207,7 +244,7 @@ export function useCamera(
       for (const track of streamRef.current?.getTracks() ?? []) track.stop();
       streamRef.current = undefined;
     };
-  }, [open, enabled]);
+  }, [open, enabled, attempt]);
 
   const flip = useCallback(async () => {
     const next = facing === 'user' ? 'environment' : 'user';
@@ -229,6 +266,12 @@ export function useCamera(
   return {
     canvasRef,
     status,
+    blocked,
+    retry: () => {
+      setBlocked(undefined);
+      setStatus('starting');
+      setAttempt((n) => n + 1);
+    },
     facing,
     flip,
     capture,
