@@ -59,6 +59,21 @@ const TWOFACTOR_API_KEY = Deno.env.get('TWOFACTOR_API_KEY');
 const TWOFACTOR_TEMPLATE = Deno.env.get('TWOFACTOR_TEMPLATE_NAME');
 
 /**
+ * `SMS` or `VOICE`. 2Factor reads the code out loud on the voice route.
+ *
+ * This is a secret rather than something the caller picks, because Supabase's
+ * Send SMS hook payload has no channel field - it carries `user` and
+ * `sms.otp`, and nothing else - so there is no per-request choice to honour
+ * even if a screen offered one. Switching it here re-routes every send.
+ *
+ * The template is an SMS-only concept; the voice route takes the number and
+ * the code and nothing more.
+ */
+const CHANNEL = Deno.env.get('TWOFACTOR_CHANNEL')?.trim().toUpperCase() === 'VOICE'
+  ? 'VOICE'
+  : 'SMS';
+
+/**
  * Long enough for a slow gateway, short enough that Auth is not left hanging.
  *
  * Supabase Auth waits on this response before it answers the user, so a hook
@@ -153,8 +168,10 @@ Deno.serve(async (request) => {
    */
   const url =
     `https://2factor.in/API/V1/${encodeURIComponent(TWOFACTOR_API_KEY)}` +
-    `/SMS/${encodeURIComponent(number)}/${encodeURIComponent(otp)}` +
-    (TWOFACTOR_TEMPLATE ? `/${encodeURIComponent(TWOFACTOR_TEMPLATE)}` : '');
+    `/${CHANNEL}/${encodeURIComponent(number)}/${encodeURIComponent(otp)}` +
+    (CHANNEL === 'SMS' && TWOFACTOR_TEMPLATE
+      ? `/${encodeURIComponent(TWOFACTOR_TEMPLATE)}`
+      : '');
 
   let response: Response;
   try {
@@ -170,7 +187,7 @@ Deno.serve(async (request) => {
   }
 
   if (!response.ok) {
-    console.error(`[send-sms] provider refused with ${response.status}`);
+    console.error(`[send-sms] ${CHANNEL} refused with ${response.status}`);
     return failure(502, `SMS provider refused (${response.status}).`);
   }
 
@@ -186,7 +203,7 @@ Deno.serve(async (request) => {
   const body = (await response.json().catch(() => null)) as { Status?: string } | null;
 
   if (body?.Status !== 'Success') {
-    console.error('[send-sms] provider did not report success');
+    console.error(`[send-sms] ${CHANNEL} did not report success`);
     return failure(502, 'SMS provider did not accept the message.');
   }
 
