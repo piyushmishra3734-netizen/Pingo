@@ -588,6 +588,33 @@ video {
  * brightens, still does everything it did before this existed - the light is
  * the one part that is decoration, so it is the part that goes.
  */
+/*
+ * The opening loader: a short arc travelling around a faint track.
+ *
+ * The rotation is on the arc rather than the whole `svg` so the track stays
+ * still - a spinning track is invisible when it is a full circle and a bug when
+ * it is not. `dot-orbit` is reused from the tokens rather than adding a second
+ * keyframe that says `rotate(360deg)`.
+ *
+ * `transform-origin: center` is not optional on an SVG child: without it the
+ * arc rotates about the element's own top-left, which on a circle centred at
+ * 15,15 throws it out of the frame entirely.
+ */
+.app-loader-arc {
+  transform-origin: center;
+  animation: dot-orbit 0.85s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Still moving, because a frozen ring reads as a hung app - but breathing in
+   * place rather than travelling, which is the part that causes trouble.
+   */
+  .app-loader-arc {
+    animation: dot-pulse 1.4s ease-in-out infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glass-lit::after {
     transition: none;

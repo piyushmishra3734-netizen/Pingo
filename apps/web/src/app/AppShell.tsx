@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useChat } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
-import { WebSlingLoader } from '../features/loading/WebSlingLoader.js';
+import { AppLoader } from '../features/loading/AppLoader.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
@@ -142,9 +142,10 @@ export function AppShell() {
           exists, and a small calm marker is right for those. This one is the
           whole window with nothing else on it, straight after the splash - the
           only moment PINGO has somebody's undivided attention and nothing to
-          show them. See `WebSlingLoader` for why none of it is downloaded.
+          show them, which is exactly why it does as little as possible. See
+          `AppLoader`.
         */}
-        <WebSlingLoader label={t('common.opening')} />
+        <AppLoader label={t('common.opening')} />
       </div>
     );
   }

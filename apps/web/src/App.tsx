@@ -18,7 +18,7 @@ import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
 import { RouteBoundary } from './components/RouteBoundary.js';
-import { WebSlingLoader } from './features/loading/WebSlingLoader.js';
+import { AppLoader } from './features/loading/AppLoader.js';
 import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
 import { StickerProvider } from './features/stickers/StickerContext.js';
@@ -264,7 +264,7 @@ export function App() {
     */}
     {typeof window !== 'undefined' && window.location.search.includes('loading') ? (
       <div className="grid h-full place-items-center bg-page">
-        <WebSlingLoader label="Loading" />
+        <AppLoader label="Loading" />
       </div>
     ) : (
     <>
