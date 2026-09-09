@@ -44,6 +44,7 @@ import {
   type AuthUser,
   type OAuthAuth,
   type PasswordAuth,
+  type PhoneOtpAuth,
   type Unsubscribe,
   type UsernameAuth,
 } from '@pingo/core';
@@ -402,6 +403,81 @@ class SupabasePasswordAuth implements PasswordAuth {
  * wrong password come back identically, so the code below has nothing to
  * branch on and cannot leak the distinction even by accident.
  */
+/**
+ * The number, proved by SMS.
+ *
+ * Sits beside `SupabasePasswordAuth`, not inside it, because the two doors have
+ * genuinely different shapes: one takes a secret the user remembers, the other
+ * a code the server just sent. Folding them together would mean a class whose
+ * every method branches on which kind it is, which is the version of this that
+ * was already rejected once - see the `kind` field on the password door, which
+ * is exactly as much sharing as those two paths can honestly support.
+ *
+ * ## Digits, no plus
+ *
+ * GoTrue stores and looks up `auth.users.phone` as digits with no `+`,
+ * validated against `^[1-9][0-9]{1,14}$`. The number is normalised here rather
+ * than at the screen, because the stored form and the lookup form have to agree
+ * and only one place can be answerable for that. The nine accounts backfilled
+ * from the old derived addresses hold exactly this shape.
+ *
+ * ## Neither call says whether an account exists
+ *
+ * `start` resolves for a number nobody has registered, and `verify` reports a
+ * wrong code and an expired one identically. The alternative is an oracle:
+ * anybody could learn which numbers have PINGO accounts, one request at a time,
+ * and in a messaging product that is a list of who to target.
+ */
+class SupabasePhoneOtpAuth implements PhoneOtpAuth {
+  constructor(private readonly client: PingoSupabaseClient) {}
+
+  /** `+91 98765 43210` → `919876543210`. */
+  private normalise(phone: string): string {
+    const digits = phone.replace(/\D/g, '');
+
+    /*
+     * Refused here rather than sent. A malformed number costs an SMS to find
+     * out about, and the provider's rejection arrives as a 502 that says
+     * nothing useful to the person who mistyped their own number.
+     */
+    if (!/^[1-9][0-9]{1,14}$/.test(digits)) {
+      throw new AuthError('invalid_identifier', 'That does not look like a phone number.');
+    }
+
+    return digits;
+  }
+
+  async start(phone: string): Promise<void> {
+    const { error } = await this.client.auth.signInWithOtp({
+      phone: this.normalise(phone),
+    });
+
+    if (error) rethrow(error);
+  }
+
+  async verify(phone: string, code: string): Promise<AuthSession> {
+    const { data, error } = await this.client.auth.verifyOtp({
+      phone: this.normalise(phone),
+      token: code.trim(),
+      type: 'sms',
+    });
+
+    if (error) rethrow(error);
+
+    /*
+     * A verified code always yields a session, and if it somehow does not, that
+     * is a refusal rather than a half-signed-in state - every screen after this
+     * one assumes an account. Not `assertSession`: its `signUp` branch prints
+     * advice about "Confirm email", which is the wrong dashboard toggle and the
+     * wrong door.
+     */
+    const session = toSession(data.session);
+    if (!session) throw new AuthError('invalid_credentials', 'That code did not work.');
+
+    return session;
+  }
+}
+
 class SupabaseUsernameAuth implements UsernameAuth {
   constructor(private readonly client: PingoSupabaseClient) {}
 
@@ -504,6 +580,7 @@ export class SupabaseAuthService implements AuthService {
 
   readonly email: PasswordAuth;
   readonly phone: PasswordAuth;
+  readonly phoneOtp: PhoneOtpAuth;
   readonly google: OAuthAuth;
   readonly username: UsernameAuth;
 
@@ -513,6 +590,7 @@ export class SupabaseAuthService implements AuthService {
     this.client = client;
     this.email = new SupabasePasswordAuth(client, 'email');
     this.phone = new SupabasePasswordAuth(client, 'phone');
+    this.phoneOtp = new SupabasePhoneOtpAuth(client);
     this.username = new SupabaseUsernameAuth(client);
     /*
      * One door, two ways through it.

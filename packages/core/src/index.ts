@@ -34,6 +34,7 @@ export type {
   AuthMethodKind,
   AuthErrorCode,
   PasswordAuth,
+  PhoneOtpAuth,
   OAuthAuth,
   UsernameAuth,
 } from './auth-service.js';

@@ -141,6 +141,40 @@ export interface PasswordAuth {
 }
 
 /**
+ * The phone door, once a number is proved rather than asserted.
+ *
+ * Two calls, and deliberately no `signUp` / `signIn` split. With a code sent to
+ * the number, signing up and signing in are the same act: whoever answers the
+ * SMS owns the number, and whether an account already exists behind it is the
+ * server's business, not a branch the person has to pick. That removes the
+ * "have you been here before?" question that the password doors have to ask -
+ * and § 17's duplicate-account trap with it, because there is no second account
+ * to land in.
+ *
+ * The number is passed in the shape the user typed it. Normalising is this
+ * layer's job, not the screen's, because the stored form has to match what the
+ * lookup uses and only one place can be responsible for that.
+ */
+export interface PhoneOtpAuth {
+  /**
+   * Sends a code to the number.
+   *
+   * Resolves whether or not the number has an account. Saying "no account
+   * exists" here would let anybody test which numbers are registered, one
+   * request at a time.
+   */
+  start(phone: string): Promise<void>;
+
+  /**
+   * Exchanges the code for a session.
+   *
+   * @throws `AuthError` with `invalid_credentials` for a wrong or expired code.
+   * The two are not distinguished, for the same reason as above.
+   */
+  verify(phone: string, code: string): Promise<AuthSession>;
+}
+
+/**
  * The @username door. Sign in only.
  *
  * There is no `signUp` here and there cannot be one: a username belongs to a
@@ -192,7 +226,12 @@ export interface AuthService {
   readonly supportedMethods: readonly AuthMethodKind[];
 
   readonly email: PasswordAuth;
+  /** The original phone door: a derived address and a password. See the note on
+   *  `PHONE_IDENTITY_DOMAIN` in the Supabase implementation for why it exists. */
   readonly phone: PasswordAuth;
+  /** The same number, proved by SMS instead. Present only when the project has
+   *  an SMS sender configured; see `supportedMethods`. */
+  readonly phoneOtp: PhoneOtpAuth;
   readonly google: OAuthAuth;
   readonly username: UsernameAuth;
 
