@@ -31,11 +31,11 @@ look larger than it is.
 | --- | --- | --- |
 | `01_materials_and_glass.md` | HIG Materials, Liquid Glass variants, layer rules | done |
 | `02_motion.md` | HIG Motion, input-dependent motion, feedback | done |
-| `03_navigation_and_layout.md` | tab bars, search, toolbars, sheets, scroll edge | pending |
-| `04_interaction_patterns.md` | context menus, long press, gestures, presentation | pending |
-| `05_accessibility.md` | reduce transparency, increase contrast, reduce motion | pending |
-| `06_design_process.md` | WWDC sessions, adopter case studies | pending |
-| `99_pingo_translation.md` | the decisions, and what PINGO refuses | pending |
+| `03_navigation_and_layout.md` | tab bars, search, toolbars, sheets, scroll edge | done |
+| `04_interaction_patterns.md` | context menus, long press, gestures, presentation | done |
+| `05_accessibility.md` | reduce transparency, increase contrast, reduce motion | done |
+| `06_design_process.md` | Slack showcase transcript, adopter case studies | done |
+| `99_pingo_translation.md` | the decisions, and what PINGO refuses | done |
 
 ## Prior work this builds on
 
