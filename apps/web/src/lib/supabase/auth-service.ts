@@ -101,6 +101,23 @@ const PHONE_IDENTITY_DOMAIN = 'phone.pingo.chat';
 /** Where the number is kept for display. Never consulted to authenticate. */
 const PHONE_METADATA_KEY = 'pingo_phone';
 
+/**
+ * `+91 98765 43210` → `919876543210`, the shape GoTrue stores and looks up.
+ *
+ * One function, used by the OTP door and by phone sign-in, because the stored
+ * form and every lookup form have to agree and two copies of a normalisation
+ * rule is how they stop agreeing.
+ */
+function toPhoneDigits(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+
+  if (!/^[1-9][0-9]{1,14}$/.test(digits)) {
+    throw new AuthError('invalid_identifier', 'That does not look like a phone number.');
+  }
+
+  return digits;
+}
+
 /** `+91 98765 43210` → `919876543210@phone.pingo.chat`. */
 function phoneToAddress(e164: string): string {
   return `${e164.replace(/\D/g, '')}@${PHONE_IDENTITY_DOMAIN}`;
@@ -372,10 +389,24 @@ class SupabasePasswordAuth implements PasswordAuth {
   }
 
   async signIn(identifier: string, password: string): Promise<AuthSession> {
-    const { data, error } = await this.client.auth.signInWithPassword({
-      email: this.toAddress(identifier),
-      password,
-    });
+    /*
+     * The phone door signs in on `auth.users.phone`, not on the derived address.
+     *
+     * Accounts now arrive two ways. The old ones were created through the email
+     * provider on `919876543210@phone.pingo.chat`; the new ones are created by
+     * answering an SMS and have no email at all. Looking up the derived address
+     * would sign in the first kind and tell the second their password is wrong.
+     *
+     * The native column reaches both, because the nine older accounts had their
+     * number backfilled into it. The password is on the user row either way -
+     * it was never tied to which identifier found the row.
+     */
+    const credentials =
+      this.kind === 'phone'
+        ? { phone: toPhoneDigits(identifier), password }
+        : { email: this.toAddress(identifier), password };
+
+    const { data, error } = await this.client.auth.signInWithPassword(credentials);
 
     if (error) rethrow(error);
     return assertSession(data.session, 'signIn');
@@ -431,25 +462,15 @@ class SupabasePasswordAuth implements PasswordAuth {
 class SupabasePhoneOtpAuth implements PhoneOtpAuth {
   constructor(private readonly client: PingoSupabaseClient) {}
 
-  /** `+91 98765 43210` → `919876543210`. */
-  private normalise(phone: string): string {
-    const digits = phone.replace(/\D/g, '');
-
-    /*
-     * Refused here rather than sent. A malformed number costs an SMS to find
-     * out about, and the provider's rejection arrives as a 502 that says
-     * nothing useful to the person who mistyped their own number.
-     */
-    if (!/^[1-9][0-9]{1,14}$/.test(digits)) {
-      throw new AuthError('invalid_identifier', 'That does not look like a phone number.');
-    }
-
-    return digits;
-  }
+  /*
+   * `toPhoneDigits` refuses a malformed number before it is sent. Finding out
+   * from the provider costs an SMS, and its rejection arrives as a 502 that
+   * says nothing useful to the person who mistyped their own number.
+   */
 
   async start(phone: string): Promise<void> {
     const { error } = await this.client.auth.signInWithOtp({
-      phone: this.normalise(phone),
+      phone: toPhoneDigits(phone),
     });
 
     if (error) rethrow(error);
@@ -457,7 +478,7 @@ class SupabasePhoneOtpAuth implements PhoneOtpAuth {
 
   async verify(phone: string, code: string): Promise<AuthSession> {
     const { data, error } = await this.client.auth.verifyOtp({
-      phone: this.normalise(phone),
+      phone: toPhoneDigits(phone),
       token: code.trim(),
       type: 'sms',
     });
@@ -475,6 +496,11 @@ class SupabasePhoneOtpAuth implements PhoneOtpAuth {
     if (!session) throw new AuthError('invalid_credentials', 'That code did not work.');
 
     return session;
+  }
+
+  async setPassword(password: string): Promise<void> {
+    const { error } = await this.client.auth.updateUser({ password });
+    if (error) rethrow(error);
   }
 }
 

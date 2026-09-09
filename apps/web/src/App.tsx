@@ -114,6 +114,7 @@ const LoginUsernameScreen = lazyScreen(() => import('./screens/auth/LoginUsernam
 const SignUpEmailScreen = lazyScreen(() => import('./screens/auth/SignUpEmailScreen.js'), 'SignUpEmailScreen');
 const SignUpMethodScreen = lazyScreen(() => import('./screens/auth/SignUpMethodScreen.js'), 'SignUpMethodScreen');
 const SignUpPhoneScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneScreen.js'), 'SignUpPhoneScreen');
+const SignUpPhoneCodeScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneCodeScreen.js'), 'SignUpPhoneCodeScreen');
 const NameScreen = lazyScreen(() => import('./screens/setup/NameScreen.js'), 'NameScreen');
 const PermissionsScreen = lazyScreen(() => import('./screens/setup/PermissionsScreen.js'), 'PermissionsScreen');
 const PhotoScreen = lazyScreen(() => import('./screens/setup/PhotoScreen.js'), 'PhotoScreen');
@@ -413,6 +414,12 @@ export function App() {
               >
                 <Route path="email" element={<SignUpEmailScreen />} />
                 <Route path="phone" element={<SignUpPhoneScreen />} />
+                {/*
+                  § 6.2's verification step. Not an entry path: reaching it
+                  means a code has already been sent, and `IdentityFlow` sends
+                  anybody who arrives without an identity back to the start.
+                */}
+                <Route path="code" element={<SignUpPhoneCodeScreen />} />
                 <Route path="password" element={<CreatePasswordScreen />} />
               </Route>
 

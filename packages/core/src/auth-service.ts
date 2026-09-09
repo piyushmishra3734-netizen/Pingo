@@ -172,6 +172,21 @@ export interface PhoneOtpAuth {
    * The two are not distinguished, for the same reason as above.
    */
   verify(phone: string, code: string): Promise<AuthSession>;
+
+  /**
+   * Sets the password a returning visit will use, on the session `verify` just
+   * created.
+   *
+   * Not `changePassword`, which demands the current one - there isn't a current
+   * one. What stands in for it is the code that was just answered: this can only
+   * be reached by somebody holding the phone, which is a stronger proof than a
+   * password would have been anyway.
+   *
+   * Here rather than on `AuthService` because it is only meaningful inside this
+   * flow. A door that can set a password without knowing the old one is not a
+   * capability to leave lying around at the top level.
+   */
+  setPassword(password: string): Promise<void>;
 }
 
 /**

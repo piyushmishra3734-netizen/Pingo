@@ -60,6 +60,18 @@ export function CreatePasswordScreen() {
   // would not convince the compiler that `signUp` exists.
   const door = identity.kind === 'email' ? service.email : service.phone;
 
+  /*
+   * A phone signs up by answering a code, so by the time this screen renders the
+   * account already exists and this tab is signed in to it. Calling `signUp`
+   * would try to create it a second time and fail as `identity_exists`, which
+   * routes to Log In - somebody would be told to sign in to the account they
+   * are three seconds into making.
+   *
+   * Email is unchanged: there is no code, so this screen is still where the
+   * account is created.
+   */
+  const alreadySignedIn = identity.kind === 'phone';
+
   const submit = async () => {
     if (!assessment.valid || saving) return;
 
@@ -67,7 +79,9 @@ export function CreatePasswordScreen() {
     setError(undefined);
 
     try {
-      await door.signUp(identity.value, password);
+      if (alreadySignedIn) await service.phoneOtp.setPassword(password);
+      else await door.signUp(identity.value, password);
+
       writeLastMethod(identity.kind);
       // Phase 2 ends at Home. Profile Setup, Theme, Notifications and Contacts
       // (§ 9-12) slot in between here and `/chats` when they are built.
@@ -95,7 +109,7 @@ export function CreatePasswordScreen() {
       progress={SIGNUP_PROGRESS.password}
       title={t('auth.passwordCreate')}
       subtitle={t('auth.passwordCreateSub')}
-      onBack={() => navigate(identity.kind === 'email' ? '/signup/email' : '/signup/phone')}
+      onBack={() => navigate(identity.kind === 'email' ? '/signup/email' : '/signup/code')}
       message={error && <AuthMessage>{error}</AuthMessage>}
       footer={
         <Button

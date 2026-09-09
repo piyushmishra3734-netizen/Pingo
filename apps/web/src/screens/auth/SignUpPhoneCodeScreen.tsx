@@ -1,0 +1,153 @@
+import { AuthError, useAuth } from '@pingo/core';
+import { Button, TextField } from '@pingo/ui';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
+import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
+import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
+import { authErrorMessage } from '../../features/auth/messages.js';
+import { useT } from '../../features/i18n/useT.js';
+import { SIGNUP_PROGRESS } from './progress.js';
+
+/**
+ * Sign-up, step 2 (phone): the code.
+ *
+ * This is the step § 6.2 always specified and the product shipped without.
+ * `SignUpPhoneScreen` said what that cost in as many words - "a number on an
+ * account is a claim, not a fact", and contact discovery cannot be built on
+ * claims, because matching people by an unverified number lets anyone be found
+ * as anyone. This closes that.
+ *
+ * ## Six digits, and the keyboard fills them in
+ *
+ * `autoComplete="one-time-code"` is the whole reason this is one field rather
+ * than six boxes. iOS and Android both read the SMS and offer the code above
+ * the keyboard; six separate inputs break that, and they break paste, and they
+ * are worse with a screen reader. The design that looks more considered is the
+ * one that makes the person type something their phone already knew.
+ *
+ * ## Resending costs money, so it is on a timer
+ *
+ * Every send is an SMS somebody pays for, and a button with no cooldown gets
+ * pressed four times while the first message is still in flight. Thirty seconds
+ * is long enough that the first one has arrived or failed.
+ */
+
+/** Long enough for the first message to arrive or not. */
+const RESEND_SECONDS = 30;
+
+/** What 2Factor sends. Anything else is a typo, not a code. */
+const CODE_LENGTH = 6;
+
+export function SignUpPhoneCodeScreen() {
+  const navigate = useNavigate();
+  const t = useT();
+  const { service } = useAuth();
+  const { identity } = useIdentityFlow();
+
+  const [code, setCode] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const [waitFor, setWaitFor] = useState(RESEND_SECONDS);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (waitFor <= 0) return undefined;
+    const timer = window.setTimeout(() => setWaitFor((n) => n - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [waitFor]);
+
+  // `IdentityFlow` sends anybody without one back to the start; this is the
+  // type guard, and it would only ever fire if that redirect were removed.
+  if (!identity || identity.kind !== 'phone') return null;
+
+  const ready = code.length === CODE_LENGTH && !checking;
+
+  const submit = async () => {
+    if (!ready) return;
+
+    setChecking(true);
+    setError(undefined);
+
+    try {
+      await service.phoneOtp.verify(identity.value, code);
+      /*
+       * The account exists and this tab is signed in to it. The password screen
+       * next sets the password that returning visits will use - it does not
+       * create anything, which is why it must not call `signUp` from here.
+       */
+      navigate('/signup/password');
+    } catch (cause) {
+      setError(authErrorMessage(cause, 'signIn'));
+      /*
+       * Focus back with the code selected, so the next keystroke replaces it -
+       * the same treatment a rejected password gets. Retyping six digits around
+       * a wrong one is the kind of small friction people give up on.
+       */
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const resend = async () => {
+    setError(undefined);
+    setWaitFor(RESEND_SECONDS);
+    try {
+      await service.phoneOtp.start(identity.value);
+    } catch (cause) {
+      // The timer still runs: a failed send is not a reason to let somebody
+      // spend four more in the next ten seconds.
+      setError(
+        cause instanceof AuthError
+          ? authErrorMessage(cause, 'signIn')
+          : 'That did not send. Try again in a moment.',
+      );
+    }
+  };
+
+  return (
+    <AuthScreen
+      progress={SIGNUP_PROGRESS.code}
+      title={t('auth.codeTitle')}
+      subtitle={t('auth.codeSubtitle', { number: identity.value })}
+      onBack={() => navigate('/signup/phone')}
+      message={error && <AuthMessage>{error}</AuthMessage>}
+      footer={
+        <Button variant="primary" size="lg" block disabled={!ready} onClick={() => void submit()}>
+          {checking ? t('common.checking') : t('common.continue')}
+        </Button>
+      }
+    >
+      <TextField
+        inputRef={inputRef}
+        label={t('auth.codeLabel')}
+        value={code}
+        // Digits only: a pasted code often arrives with spaces around it.
+        onChange={(event) =>
+          setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
+        }
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') void submit();
+        }}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={CODE_LENGTH}
+        autoFocus
+        invalid={Boolean(error)}
+      />
+
+      <div className="mt-4 text-center">
+        {waitFor > 0 ? (
+          <span className="text-caption text-text-tertiary">
+            {t('auth.codeResendIn', { seconds: String(waitFor) })}
+          </span>
+        ) : (
+          <FunnelTextLink onClick={() => void resend()}>{t('auth.codeResend')}</FunnelTextLink>
+        )}
+      </div>
+    </AuthScreen>
+  );
+}
