@@ -148,19 +148,42 @@ Found by the audit, and recorded rather than quietly patched:
 By Slack's rule — frequency of use first, muscle-memory risk last
 (`06_design_process.md §6`) — not by cost.
 
-| # | Fix | Class | Size |
+| # | Fix | Class | Status |
 | --- | --- | --- | --- |
-| 1 | Stop the send-button bounce (`Composer.tsx:813-835`) | E | trivial |
-| 2 | `loading` prop on the two phone-auth buttons | E | trivial |
-| 3 | Drop `uppercase` from the three shared header components | A | small |
-| 4 | Confirm reset-all-settings and clear-cache; resolve dead Delete Account | F | small |
-| 5 | Hide the permanently fake "Today's missions" | — | small |
-| 6 | Camera error branching — the one place a user is stuck with a lie | B | medium |
-| 7 | Bubbles flat at rest, glass on press | D | medium |
-| 8 | Wire `PingBubble` to `ImageViewer` | G | medium |
-| 9 | Error-versus-empty across the nine sites, copying the two models | B | medium |
-| 10 | Retry for failed sends | — | medium |
-| 11 | Reverse the StoryViewer FLIP on close | G | medium |
-| 12 | Increased-contrast token variant | — | medium-large |
+| 1 | Stop the send-button bounce | E | **done** — `188bfdf`, keyframe and token deleted too |
+| 2 | `loading` on the two phone-auth buttons | E | **done** — `188bfdf` |
+| 3 | Drop `uppercase` from section headers | A | **done** — `188bfdf`, 25 headers across 17 files, far more than the audit found |
+| 4 | Confirm the destructive actions | F | **done** — `188bfdf`, plus the dead Delete Account row |
+| 5 | Hide the fake "Today's missions" | — | **done** — `188bfdf` |
+| 6 | Camera error branching | B | **done** — `ae3945d`, four causes, retry for the two that can change |
+| 7 | Bubbles flat at rest, glass on press | D | **held for the operator** — see below |
+| 8 | Wire `PingBubble` to `ImageViewer` | G | **done** — `ab4974f`, and it took PhotoBubble's stale-photo fix with it |
+| 9 | Error versus empty, nine sites | B | **3 of 9** — `6004c97`: join, calls, notifications |
+| 10 | Retry for failed sends | — | open |
+| 11 | Reverse the StoryViewer FLIP on close | G | open |
+| 12 | Increased-contrast token variant | — | open |
 
-Items 1–5 are safe, mechanical, and touch the most-used surfaces. They go first.
+Remaining in class B: the five profile reads, the two contact pickers, shared
+media, and push diagnostics. None of them states anything false — they read as
+empty, which is wrong but not a lie — so they rank below 10 and 11.
+
+---
+
+## Why 7 is held
+
+It is the corpus's own rule #1 and the audit confirms the violation: eight
+content-layer variants carry glass permanently, zero gated on activation. But
+it is also the one change that alters how every message in the app looks at
+rest, and `MessageBubble.tsx:465-478` carries an argued rationale for the
+current choice — that with a wallpaper behind it, an opaque bubble is the one
+surface in the conversation refusing to admit anything is behind it.
+
+The corpus's own strongest lesson applies here and nowhere else on this list:
+Slack prototyped four headers on device and rejected the one the published rule
+endorsed, because of how a single edge resolved (`06_design_process.md §3`). A
+rule from a document is a hypothesis; the device is the authority. Flipping the
+signature material of the main screen while nobody can look at it would be
+believing the document.
+
+The change itself is small — gate the class on the press state the long-press
+plumbing already tracks. It is ready to make on a word.
