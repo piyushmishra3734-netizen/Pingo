@@ -33,7 +33,17 @@ export function JoinGroupScreen() {
   const [preview, setPreview] = useState<
     { conversationId: string; title: string; avatarUrl?: string; memberCount: number } | undefined
   >();
-  const [state, setState] = useState<'loading' | 'ready' | 'gone'>('loading');
+  /*
+   * `gone` and `failed` are different answers and used to be the same one.
+   *
+   * A rejected preview meant the invite was reported invalid or expired, which
+   * is a statement about somebody else's group made on the strength of a
+   * dropped connection. It is the only place in the app that answers a network
+   * failure with a claim about the world rather than about itself.
+   */
+  const [state, setState] = useState<'loading' | 'ready' | 'gone' | 'failed'>('loading');
+  /** Bumped by Try again, because the effect keys on the code, not the state. */
+  const [attempt, setAttempt] = useState(0);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -53,13 +63,13 @@ export function JoinGroupScreen() {
         setState('ready');
       })
       .catch(() => {
-        if (active) setState('gone');
+        if (active) setState('failed');
       });
 
     return () => {
       active = false;
     };
-  }, [service, code]);
+  }, [service, code, attempt]);
 
   const join = async () => {
     if (!code || joining) return;
@@ -79,6 +89,32 @@ export function JoinGroupScreen() {
       <div className="relative flex h-full items-center justify-center bg-page">
         <BrandAir />
         <LoadingState label={t('join.checking')} />
+      </div>
+    );
+  }
+
+  if (state === 'failed') {
+    return (
+      <div className="relative flex h-full items-center justify-center bg-page px-6">
+        <BrandAir />
+        <div className="relative z-10 w-full max-w-sm">
+          <EmptyState
+            icon={<LinkIcon size={28} />}
+            title={t('join.failed')}
+            description={t('join.failedHint')}
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setState('loading');
+                  setAttempt((n) => n + 1);
+                }}
+              >
+                {t('join.retry')}
+              </Button>
+            }
+          />
+        </div>
       </div>
     );
   }

@@ -1,6 +1,7 @@
 import { formatConversationTimestamp, formatDuration, useChat, type CallRecord } from '@pingo/core';
 import {
   Avatar,
+  Button,
   EmptyState,
   IconButton,
   LoadingState,
@@ -30,23 +31,49 @@ export function CallsScreen() {
   const { service, users, conversations } = useChat();
   const { startCall } = useCall();
   const [calls, setCalls] = useState<CallRecord[] | undefined>();
+  /*
+   * Undefined `calls` means "still loading", and a rejected `listCalls` used to
+   * leave it undefined forever - so a dropped connection was indistinguishable
+   * from a slow one, and the spinner ran until the screen was left. The flag
+   * separates the two; `CommunitiesScreen` and `DevicesScreen` already do this
+   * and this is the same shape.
+   */
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
-    void service.listCalls().then((records) => {
-      if (active) setCalls(records);
-    });
+    setFailed(false);
+    void service
+      .listCalls()
+      .then((records) => {
+        if (active) setCalls(records);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [service, attempt]);
 
   return (
     <div className="h-full overflow-y-auto">
       <ScreenHeader title={t('calls.title')} />
 
       <div className="mx-auto w-full max-w-2xl px-3 py-3">
-        {!calls ? (
+        {failed ? (
+          <EmptyState
+            title={t('calls.failed')}
+            description={t('calls.failedHint')}
+            icon={<PhoneIcon size={26} />}
+            action={
+              <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+                {t('calls.retry')}
+              </Button>
+            }
+          />
+        ) : !calls ? (
           <LoadingState label={t('calls.loading')} />
         ) : calls.length === 0 ? (
           <EmptyState

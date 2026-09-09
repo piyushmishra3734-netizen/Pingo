@@ -8,6 +8,7 @@ import {
   AtIcon,
   Avatar,
   BellIcon,
+  Button,
   ChatIcon,
   HeartIcon,
   LoadingState,
@@ -129,6 +130,7 @@ export function NotificationsScreen() {
 
   const [items, setItems] = useState<AppNotification[]>();
   const [version, setVersion] = useState(0);
+  const [failed, setFailed] = useState(false);
 
   /**
    * Who is *still* waiting on an answer.
@@ -167,6 +169,7 @@ export function NotificationsScreen() {
 
   useEffect(() => {
     let active = true;
+    setFailed(false);
     void service
       .listNotifications()
       .then((list) => {
@@ -177,7 +180,13 @@ export function NotificationsScreen() {
         clear();
       })
       .catch(() => {
-        if (active) setItems([]);
+        /*
+         * An empty list used to be the answer to a failed fetch, so a dropped
+         * connection rendered "All quiet" - the app telling somebody nothing
+         * had happened when it had simply not looked. Same defect as the one
+         * `CallsScreen` had in mirror image, fixed the same way.
+         */
+        if (active) setFailed(true);
       });
     return () => {
       active = false;
@@ -335,7 +344,18 @@ export function NotificationsScreen() {
 
       <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">
         <div className="mx-auto w-full max-w-2xl">
-          {!items ? (
+          {failed ? (
+            <div className="flex flex-col items-center gap-4 px-6 pt-16 text-center">
+              <p className="text-body text-ink">Couldn&rsquo;t load your activity</p>
+              <p className="max-w-xs text-caption text-text-secondary">
+                The connection dropped. Nothing has been missed &mdash; it just
+                hasn&rsquo;t been fetched.
+              </p>
+              <Button variant="secondary" onClick={() => setVersion((n) => n + 1)}>
+                Try again
+              </Button>
+            </div>
+          ) : !items ? (
             <LoadingState label="Loading activity" />
           ) : items.length === 0 ? (
             <PremiumEmpty />
