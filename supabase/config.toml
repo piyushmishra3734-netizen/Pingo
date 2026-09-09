@@ -111,3 +111,16 @@ verify_jwt = false
 
 [functions.turn-credentials]
 verify_jwt = false
+
+# Called by Supabase Auth, which has no user session to verify - the same shape
+# as push-send. What replaces the JWT is a Standard Webhooks signature over the
+# raw body, checked before the payload is parsed, and without it the endpoint is
+# an open SMS sender pointed at a paid account.
+#
+# Written here rather than set on the dashboard, which is the mistake this file
+# has now recorded three times: a setting that lives only in the dashboard is
+# one `functions deploy` away from being silently reversed, and the failure is
+# unreadable - the platform rejects the request before the function runs, so the
+# logs that would explain it belong to a function that was never entered.
+[functions.send-sms]
+verify_jwt = false
