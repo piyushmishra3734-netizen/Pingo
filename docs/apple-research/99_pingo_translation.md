@@ -27,7 +27,7 @@ behalf, which makes novel patterns cost *more* here than at Slack.
 | **Apple** | "Don't use Liquid Glass in the content layer" — except transient interactive elements, which take it on *while activated* (`01 §1`, `04 §2`). |
 | **Problem** | A material on everything stops distinguishing anything. |
 | **Principle** | The material *is* the hierarchy; spend it at the moment of interaction. |
-| **PINGO** | Bubbles flat while scrolling, glass while long-pressed. Dock, composer, reaction bar and context menu keep it. |
+| **PINGO** | Bubbles flat while scrolling, glass while long-pressed. Dock, composer and reaction bar keep it. (The context menu's action list is already flat `bg-surface` — `MessageActions.tsx:72`, `MoreSheet.tsx:137` — so only the reaction-bar half is glass today. Whether to make them agree is an open decision.) |
 | **Not copied** | The variant API. PINGO has one material and its own lens. |
 
 The rare case where the Apple-correct answer and the WebView-affordable answer
@@ -46,17 +46,18 @@ lens.
 
 Cheapest item in the corpus, and nobody would have guessed it without the source.
 
-### 3. Context-menu order must match swipe actions
+### 3. Context-menu order must match swipe actions — **already correct**
 
 | | |
 | --- | --- |
 | **Apple** | "Make sure the actions you surface at the top of your contextual menu match the swipe actions you provide for the same item" (`04 §3`). |
 | **Problem** | Two surfaces on one object teaching two different things. |
 | **Principle** | Consistency between existing affordances is free correctness. |
-| **PINGO** | Audit message swipe vs the top of the message context menu; make them agree. |
+| **PINGO** | Audited: both are Reply, same icon, same handler (`useSwipeToReply.ts:151-165`, `MessageActions.tsx:74-81`). **Passes today.** |
 | **Not copied** | Nothing. |
 
-No rendering, no animation, no material. Pure audit.
+No rendering, no animation, no material — and the audit came back clean, so
+this item is closed rather than pending.
 
 ### 4. An increased-contrast variant for every colour
 
@@ -77,7 +78,7 @@ The largest genuine accessibility gap the corpus surfaced.
 | **Apple** | "An action sheet originates from the element that initiates the action, instead of from the bottom edge" (`04 §1`). |
 | **Problem** | A sheet from the screen edge answers "what are my options" but not "options for *what*." |
 | **Principle** | Source and destination are one object at two sizes. |
-| **PINGO** | A Ping or view-once grows out of its bubble and collapses back into a spent cover. Reaction bar from the pressed bubble; context menu from the message. |
+| **PINGO** | Already shipped for view-once *photos* — `ImageViewer.tsx:73-78,454-516` is an anchored, interruptible FLIP, used by `PhotoBubble.tsx:319-322`. `PingBubble.tsx:166` does a bare `animate-fade-in`. The work is rewiring, not building. |
 | **Not copied** | The "interact with the rest of the interface" behaviour, for a view-once viewer — that one *should* hold attention. Make it a decision, not an accident. |
 
 Three constraints ride along, all from the sources: it must collapse back into
