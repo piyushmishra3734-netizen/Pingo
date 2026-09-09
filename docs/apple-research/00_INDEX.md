@@ -35,6 +35,7 @@ look larger than it is.
 | `04_interaction_patterns.md` | context menus, long press, gestures, presentation | done |
 | `05_accessibility.md` | reduce transparency, increase contrast, reduce motion | done |
 | `06_design_process.md` | Slack showcase transcript, adopter case studies | done |
+| `07_first_run_and_waiting.md` | HIG Onboarding + Loading: setup gating, permissions, placeholders | done |
 | `99_pingo_translation.md` | the decisions, and what PINGO refuses | done |
 
 ## Prior work this builds on
