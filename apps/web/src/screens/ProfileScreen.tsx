@@ -716,7 +716,7 @@ export function ProfileScreen() {
             that is already an alpha is a multiplication, and it is worth
             remembering that before reaching for one.
           */}
-          <dl className="mt-7 grid w-full max-w-sm grid-cols-3 divide-x divide-line">
+          <dl className="mt-7 grid w-full max-w-sm grid-cols-3 divide-x divide-line py-1">
             <Stat label="Posts" value={stats?.posts} />
             <Stat
               label="Friends"
@@ -732,10 +732,17 @@ export function ProfileScreen() {
 
           {/* ---- actions ------------------------------------------------ */}
           {isSelf ? (
-            <div className="mt-4 flex w-full max-w-xs items-center gap-2">
+            <div className="mt-5 flex w-full max-w-sm items-center gap-2.5">
               {/*
-                Edit is the primary identity action. Share is available but
-                quieter so the row has a clear first answer.
+                One action, one control - the same grammar the other person's
+                profile uses one branch down.
+
+                These were two buttons of equal width and nearly equal weight,
+                which made the row ask a question instead of answering one.
+                Editing is what somebody opens their own profile to do; sharing
+                is a thing they occasionally reach for. So Edit takes the accent
+                and the width, and Share becomes a circular control: obviously
+                pressable, obviously not the point.
               */}
               <Button
                 variant="primary"
@@ -745,14 +752,17 @@ export function ProfileScreen() {
               >
                 Edit profile
               </Button>
-              <Button
-                variant="secondary"
-                className="h-11 flex-1 border-line/60 bg-surface/90 shadow-none"
-                leadingIcon={<QrIcon size={16} />}
+              <IconButton
+                label="Share profile"
                 onClick={() => setSharing(true)}
+                className={cn(
+                  'size-11 shrink-0 rounded-full',
+                  'bg-sunken text-ink',
+                  'hover:bg-hover',
+                )}
               >
-                Share profile
-              </Button>
+                <QrIcon size={18} />
+              </IconButton>
             </div>
           ) : null}
 
