@@ -283,8 +283,75 @@ function face(
 
   if (s <= 18) return;
 
-  const eyes = [hx - hr * 0.3, hx + hr * 0.45];
-  const eyeY = hy - hr * 0.06;
+  /*
+   * The muzzle: nose, then the mouth centred directly under it.
+   *
+   * Both used to sit further forward than the head is wide, so the mouth hung
+   * off the front of the face and read as being on the wrong side of the nose.
+   * A muzzle belongs inside the silhouette; `0.62` of the way out is the front
+   * of the face at this size, not the edge of the circle.
+   */
+  const mx = hx + hr * 0.62;
+  const my = hy + hr * 0.22;
+
+  ctx.fillStyle = css(PETAL);
+  if (happy) {
+    // Cheeks. The one thing that turns a neutral little face into a delighted
+    // one, and it is two dots.
+    ctx.globalAlpha = 0.72;
+    for (const cheek of [hx - hr * 0.58, hx + hr * 0.5]) {
+      ctx.beginPath();
+      ctx.ellipse(cheek, hy + hr * 0.34, hr * 0.19, hr * 0.13, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.beginPath();
+  ctx.ellipse(mx, my, hr * 0.15, hr * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = css(GROUND);
+  ctx.lineWidth = Math.max(0.6, s * 0.032);
+
+  /*
+   * Whiskers first, because everything else is drawn over them.
+   *
+   * Three of them, fanned forward from the muzzle and long enough to break the
+   * silhouette - they are what makes a dark round head read as a cat's head
+   * rather than a dark round head with ears stuck on. Forward only: this is a
+   * head seen from the side, and the set that fanned backwards as well was
+   * drawing white lines straight across the eyes.
+   */
+  for (let k = -1; k <= 1; k += 1) {
+    ctx.beginPath();
+    ctx.moveTo(mx - hr * 0.1, my + hr * 0.04);
+    ctx.lineTo(mx + hr * 1.15, my + k * hr * 0.46 - hr * 0.08);
+    ctx.stroke();
+  }
+
+  /*
+   * The mouth, as the two lobes everybody draws: down from the nose, out to
+   * each side, and flicking up at the ends. Canvas measures its angles with y
+   * running down, so a sweep through half a turn traces the underside of each
+   * circle - which is the lobe, curving the way a pleased cat's does.
+   */
+  ctx.lineWidth = Math.max(0.7, s * 0.036);
+  ctx.beginPath();
+  ctx.moveTo(mx, my + hr * 0.1);
+  ctx.lineTo(mx, my + hr * 0.24);
+  ctx.stroke();
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(mx + side * hr * 0.17, my + hr * 0.24, hr * 0.17, Math.PI * 0.08, Math.PI * 0.92);
+    ctx.stroke();
+  }
+
+  /*
+   * Eyes last, so nothing is drawn over them. They are the smallest thing on
+   * the face and the first one anybody looks at.
+   */
+  const eyes = [hx - hr * 0.3, hx + hr * 0.4];
+  const eyeY = hy - hr * 0.08;
   if (wide) {
     ctx.fillStyle = css(GROUND);
     for (const ex of eyes) {
@@ -301,38 +368,14 @@ function face(
     }
   } else {
     ctx.strokeStyle = css(GROUND);
-    ctx.lineWidth = Math.max(0.7, s * 0.038);
+    ctx.lineWidth = Math.max(0.9, s * 0.045);
     for (const ex of eyes) {
       ctx.beginPath();
-      ctx.arc(ex, eyeY, hr * 0.26, Math.PI * 0.12, Math.PI * 0.88);
+      ctx.arc(ex, eyeY, hr * 0.27, Math.PI * 0.12, Math.PI * 0.88);
       ctx.stroke();
     }
   }
 
-  ctx.fillStyle = css(PETAL);
-  if (happy) {
-    // Cheeks. The one thing that turns a neutral little face into a delighted
-    // one, and it is two dots.
-    for (const cxx of [hx - hr * 0.62, hx + hr * 0.72]) {
-      ctx.globalAlpha = 0.75;
-      ctx.beginPath();
-      ctx.ellipse(cxx, hy + hr * 0.3, hr * 0.2, hr * 0.13, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-  }
-  ctx.beginPath();
-  ctx.ellipse(hx + hr * 0.9, hy + hr * 0.24, hr * 0.14, hr * 0.11, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // The mouth: two small arcs, the cat mouth everybody draws.
-  ctx.strokeStyle = css(GROUND);
-  ctx.lineWidth = Math.max(0.6, s * 0.03);
-  for (const mx of [hr * 0.74, hr * 1.04]) {
-    ctx.beginPath();
-    ctx.arc(hx + mx, hy + hr * 0.4, hr * 0.16, Math.PI * 0.05, Math.PI * 0.95);
-    ctx.stroke();
-  }
   ctx.fillStyle = css(COAT);
   ctx.strokeStyle = css(COAT);
 }
@@ -387,12 +430,17 @@ const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
   const bob = 0;
 
   /*
-   * Legs push down as it lands and tuck under it in the air. Still on the
-   * two-beat diagonal a walk uses - a front leg with the opposite back leg -
-   * so it reads as walking rather than as pouncing over and over.
+   * Legs that fold rather than shorten.
+   *
+   * They used to be drawn to a point that rose into the body as it jumped, so
+   * by the top of the arc they had gone entirely and the cat was a floating
+   * blob - which is the awkward part of a jump, not the height. Each leg is a
+   * fixed length now and only its angle changes: straight down with the foot
+   * planted, swung up under the belly in the air. A leg that keeps its length
+   * keeps being a leg.
    */
+  const reach = s * 0.2;
   ctx.lineWidth = s * 0.15;
-  const tuck = hop * s * 0.3;
   const legs: [number, number][] = [
     [w * 0.3, 0],
     [w * 0.16, Math.PI],
@@ -401,24 +449,43 @@ const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
   ];
   for (const [lx, phase] of legs) {
     const swing = Math.sin(stride * 2 + phase) * squash;
+    // 0 is straight down. The fold is the jump; the swing is the walk.
+    const fold = hop * 1.15 + swing * 0.3;
+    const px2 = lx + Math.sin(fold) * reach;
+    const py2 = floor + Math.cos(fold) * reach;
     ctx.beginPath();
-    ctx.moveTo(lx, floor - tuck * 0.6);
-    ctx.lineTo(lx + swing * s * 0.12, -Math.max(0, swing) * s * 0.06 - tuck);
+    ctx.moveTo(lx, floor);
+    ctx.lineTo(px2, py2);
     ctx.stroke();
+    // A paw on the end, which is what stops a folded leg reading as a stump.
+    ctx.beginPath();
+    ctx.ellipse(px2, py2, s * 0.075, s * 0.06, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  // Tail: up, and curled over at the tip. It swings against the walk.
+  /*
+   * Tail: up, curled over at the tip, and it whips as the body leaves the
+   * ground. Its length comes from `s` and not from the squashed body height -
+   * measured off `h` it grew with the stretch and nearly doubled at the top of
+   * the arc, which read as a separate animal.
+   */
+  const tail = s * 1.05;
+  const whip = hop * s * 0.1;
   ctx.lineWidth = s * 0.13;
   ctx.beginPath();
-  ctx.moveTo(-w * 0.42, floor - h * 0.5 - bob);
+  ctx.moveTo(-w * 0.42, floor - h * 0.45);
   ctx.quadraticCurveTo(
-    -w * (0.62 + hop * 0.18),
-    floor - h * (1.25 + hop * 0.18) - bob,
-    -w * 0.34,
-    floor - h * (1.6 + hop * 0.3) - bob,
+    -w * 0.62 - whip,
+    floor - h * 0.45 - tail * 0.62,
+    -w * 0.34 - whip * 0.4,
+    floor - h * 0.45 - tail,
   );
-  const tip = h * (1.76 + hop * 0.34);
-  ctx.quadraticCurveTo(-w * 0.2, floor - tip - bob, -w * 0.1, floor - tip + h * 0.2 - bob);
+  ctx.quadraticCurveTo(
+    -w * 0.18 + whip * 0.6,
+    floor - h * 0.45 - tail * 1.16,
+    -w * 0.08,
+    floor - h * 0.45 - tail * 0.96,
+  );
   ctx.stroke();
 
   /*
@@ -914,8 +981,22 @@ export function VoxelQr({
       // stroll rather than a bounce.
       const hop = Math.max(0, Math.sin(lap * kitty.hops)) ** 0.7;
       const here = px(cx, cz);
-      // Facing along the path: the sign of how the screen x is changing.
-      const ahead = px(Math.cos(lap + 0.05) * ring, Math.sin(lap + 0.05) * ring);
+
+      /*
+       * Which way it is facing, as a squash rather than a flip.
+       *
+       * The path's own tangent, in screen x: differentiate `px` along the lap
+       * and everything but `-sin(lap + spin)` cancels. It runs smoothly through
+       * zero at the two ends of the ring, which is exactly where the cat turns
+       * around - so scaling the whole sprite by it turns the cat instead of
+       * mirroring it, and the foreshortening on the way through is what a
+       * side-on sprite rounding a corner actually looks like.
+       *
+       * A floor of a third, because a sprite scaled to nothing is a sprite that
+       * blinks out for a frame in the middle of the turn.
+       */
+      const tangent = -Math.sin(lap + spin);
+      const facing = (tangent >= 0 ? 1 : -1) * (0.34 + 0.66 * Math.abs(tangent));
 
       const paintCat = () => {
         if (alive <= 0.01) return;
@@ -923,7 +1004,7 @@ export function VoxelQr({
         ctx.save();
         ctx.globalAlpha = alive;
         ctx.translate(here, py(cx, 0, cz) - hop * unit * kitty.lift);
-        ctx.scale(ahead >= here ? 1 : -1, 1);
+        ctx.scale(facing, 1);
         kitty.paint(ctx, s, hop, lap * kitty.hops);
         ctx.restore();
       };
