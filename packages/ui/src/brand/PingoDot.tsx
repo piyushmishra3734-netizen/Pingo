@@ -17,7 +17,11 @@ export type DotState =
   /** A steady pulse with a soft halo, for live recording. */
   | 'recording'
   /** Three dots cycling, used while waiting. */
-  | 'loading';
+  | 'loading'
+  /** A crescent moon: here, and choosing not to say so. Shown only to its owner. */
+  | 'invisible'
+  /** A small red Mars: do not disturb. Shown only to its owner. */
+  | 'dnd';
 
 export interface PingoDotProps {
   state?: DotState;
@@ -85,6 +89,42 @@ export function PingoDot({
           style={{ width: size, height: size }}
         />
       </span>
+    );
+  }
+
+  /*
+   * The two statuses that are not "here". Drawn a little larger than the dot
+   * because a shape needs more pixels than a disc to be recognised: at the
+   * dot's own nine pixels a crescent is a smudge.
+   */
+  if (state === 'invisible') {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        width={size * 1.35}
+        height={size * 1.35}
+        className={cn('block text-text-tertiary', className)}
+        {...a11y}
+      >
+        <path fill="currentColor" d="M20.6 14.4A8.6 8.6 0 0 1 9.6 3.4a8.6 8.6 0 1 0 11 11Z" />
+      </svg>
+    );
+  }
+
+  if (state === 'dnd') {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        width={size * 1.35}
+        height={size * 1.35}
+        className={cn('block', className)}
+        {...a11y}
+      >
+        <circle cx="12" cy="12" r="10" fill="#E0533D" />
+        <ellipse cx="8.4" cy="9" rx="2.6" ry="1.8" fill="#A8321F" />
+        <ellipse cx="15.2" cy="15.6" rx="3.1" ry="2" fill="#A8321F" />
+        <circle cx="16.2" cy="7.4" r="1.2" fill="#A8321F" />
+      </svg>
     );
   }
 

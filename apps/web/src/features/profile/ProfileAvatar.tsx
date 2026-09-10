@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 
 import { ImageViewer } from './ImageViewer.js';
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
+import type { PresenceStatus } from '../settings/privacy-flags.js';
 
 /**
  * The profile photo.
@@ -36,6 +37,7 @@ export function ProfileAvatar({
   id,
   src,
   online,
+  status,
   isSelf,
   onChangePhoto,
   onRemovePhoto,
@@ -44,6 +46,8 @@ export function ProfileAvatar({
   id: string;
   src: string | undefined;
   online: boolean;
+  /** The owner's own status. Given only on their own profile - see `PresenceStatus`. */
+  status?: PresenceStatus;
   isSelf: boolean;
   onChangePhoto: () => void;
   onRemovePhoto: () => void;
@@ -159,7 +163,7 @@ export function ProfileAvatar({
           id={id}
           src={src}
           size="xl"
-          presence={online ? 'online' : undefined}
+          presence={status ?? (online ? 'online' : undefined)}
         />
       </button>
 

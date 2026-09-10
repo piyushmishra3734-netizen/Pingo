@@ -32,6 +32,7 @@ import {
   playMessageSound,
   type ThrottleState,
 } from '../../lib/audio/message-sounds.js';
+import { dndOn } from '../settings/privacy-flags.js';
 
 /**
  * Floating in-app message banner for PINGO.
@@ -400,7 +401,8 @@ function shouldShowMessageToast(args: {
 }): boolean {
   const { message, conversation, prefs, pathname, inCall } = args;
 
-  if (prefs.muteAll) return false;
+  // Do not disturb silences everything mute all does, here as on the server.
+  if (prefs.muteAll || dndOn()) return false;
   if (isQuietHoursActive(prefs)) return false;
 
   if (conversation.kind === 'direct' || conversation.kind === 'group') {

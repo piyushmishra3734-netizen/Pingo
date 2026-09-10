@@ -65,6 +65,7 @@ import { useMutuals } from '../features/profile/useMutuals.js';
 
 import { useConfirm } from '../components/ConfirmProvider.js';
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { usePresenceStatus } from '../features/presence/status.js';
 
 /**
  * Profile - yours at `/profile`, anyone else's at `/profile/:handle`.
@@ -109,6 +110,7 @@ export function ProfileScreen() {
   const navigate = useNavigate();
 
   const isSelf = !handle || handle === mine?.username || handle === mine?.id;
+  const myStatus = usePresenceStatus();
 
   // ---- who ----------------------------------------------------------------
 
@@ -617,6 +619,7 @@ export function ProfileScreen() {
             id={person.id}
             src={person.avatarUrl}
             online={online}
+            {...(isSelf ? { status: myStatus } : {})}
             isSelf={isSelf}
             onChangePhoto={() => avatarFileRef.current?.click()}
             onRemovePhoto={() => {

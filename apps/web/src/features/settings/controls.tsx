@@ -105,7 +105,7 @@ export function ChoiceRow<T extends string>({
   label: string;
   description?: string;
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; icon?: ReactNode }[];
   onChange: (next: T) => void;
 }) {
   return (
@@ -130,7 +130,10 @@ export function ChoiceRow<T extends string>({
                 : 'bg-sunken text-text-secondary hover:bg-hover hover:text-ink',
             )}
           >
-            {option.label}
+            <span className="inline-flex items-center justify-center gap-1.5">
+              {option.icon}
+              {option.label}
+            </span>
           </button>
         ))}
       </div>

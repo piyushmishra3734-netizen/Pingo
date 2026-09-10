@@ -78,3 +78,50 @@ export function readReceiptsOn(): boolean {
     return privacy?.readReceipts;
   });
 }
+
+/**
+ * Online, invisible or do not disturb - the choice behind activity status.
+ *
+ * Kept on the server as two columns, each where its enforcement already lives.
+ * `privacy_settings.online_status` is on only for online; it is world-readable,
+ * and it is what every client and the database already honour for "is this
+ * person shown as here". `notification_prefs.dnd` is on only for do not
+ * disturb; only its owner can read it, and the push gate reads it beside
+ * `muted`. So invisible and do not disturb look identical to everybody else -
+ * both are simply offline - and nobody can tell which one somebody picked.
+ *
+ * Cached here as one value for the things on this device that need it outside
+ * React: the toast gate and the owner's own avatar.
+ */
+export type PresenceStatus = 'online' | 'invisible' | 'dnd';
+
+const STATUS_CACHE_KEY = 'pingo:presence_status';
+
+export function presenceStatus(): PresenceStatus {
+  try {
+    const raw = localStorage.getItem(STATUS_CACHE_KEY);
+    if (raw === 'online' || raw === 'invisible' || raw === 'dnd') return raw;
+  } catch {
+    // Unreadable store: fall back to what the activity switch alone implies.
+  }
+  return activityStatusOn() ? 'online' : 'invisible';
+}
+
+/** Whether this account has asked not to be disturbed. Off unless it has. */
+export function dndOn(): boolean {
+  return presenceStatus() === 'dnd';
+}
+
+/** Stores the status and announces it, like `cachePrivacyRules`. */
+export function cachePresenceStatus(status: PresenceStatus): void {
+  try {
+    localStorage.setItem(STATUS_CACHE_KEY, status);
+  } catch {
+    // Private mode. The server has it; this device reads it again next launch.
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('pingo:presence-status'));
+  } catch {
+    // No window, nobody listening.
+  }
+}

@@ -89,6 +89,7 @@ import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/cha
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
+import { refreshPresenceStatus } from '../../features/presence/status.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
@@ -1093,6 +1094,7 @@ export class SupabaseChatService implements ChatService {
      * asks. Idempotent, so calling it on every session resolve is safe.
      */
     startHeartbeat();
+    void refreshPresenceStatus();
 
     /*
      * And the collector, which is the other half of storage being a buffer.
@@ -1482,6 +1484,10 @@ export class SupabaseChatService implements ChatService {
           void this.#userId().then((me) => {
             if (row.user_id === me) {
               cachePrivacyRules({ onlineStatus: row.online_status !== false });
+              // Which of invisible and do not disturb it is lives on a table
+              // only this account can read, so the change is news to go and
+              // ask about. Every status save touches this row for that reason.
+              void refreshPresenceStatus();
             }
           });
 

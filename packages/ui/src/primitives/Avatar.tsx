@@ -264,7 +264,13 @@ export function Avatar({
              * indicator never changes the avatar's silhouette.
              */
             size={presence === 'typing' || presence === 'loading' ? dot.size * 0.4 : dot.size}
-            label={presence === 'typing' ? `${name} is typing` : `${name} is ${presence}`}
+            label={
+              presence === 'typing'
+                ? `${name} is typing`
+                : presence === 'dnd'
+                  ? `${name} is on do not disturb`
+                  : `${name} is ${presence}`
+            }
           />
         </span>
       )}

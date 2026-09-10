@@ -791,6 +791,7 @@ export type Database = {
           quiet_end_minute: number;
           utc_offset_minutes: number;
           updated_at: string;
+          dnd: boolean;
         };
         Insert: {
           user_id: string;
@@ -808,6 +809,7 @@ export type Database = {
           quiet_start_minute?: number;
           quiet_end_minute?: number;
           utc_offset_minutes?: number;
+          dnd?: boolean;
         };
         Update: {
           muted?: boolean;
@@ -824,6 +826,7 @@ export type Database = {
           quiet_start_minute?: number;
           quiet_end_minute?: number;
           utc_offset_minutes?: number;
+          dnd?: boolean;
         };
         Relationships: [];
       };

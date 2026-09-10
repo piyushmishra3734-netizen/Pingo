@@ -1,4 +1,5 @@
 import { OPEN_PRIVACY, useProfile, type PrivacySettings, type Profile } from '@pingo/core';
+import { PingoDot } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
 import {
@@ -10,6 +11,8 @@ import {
 } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useT } from '../../features/i18n/useT.js';
+import { refreshPresenceStatus, savePresenceStatus } from '../../features/presence/status.js';
+import { presenceStatus, type PresenceStatus } from '../../features/settings/privacy-flags.js';
 
 /**
  * Privacy.
@@ -20,10 +23,12 @@ import { useT } from '../../features/i18n/useT.js';
  * than where it is displayed, which is the only place a privacy switch can be
  * honoured without trusting everybody else's copy of the app:
  *
- *   · **Show activity status** stops the presence channel from saying "here"
+ *   · **Status** - online, invisible or do not disturb. Anything but online
+ *     stops the presence channel from saying "here"
  *     and stops the heartbeat writing `last_seen_at`. Between them those are
  *     the only two things that report somebody as present, so with both quiet
- *     there is nothing for another client to be asked not to draw.
+ *     there is nothing for another client to be asked not to draw. Do not
+ *     disturb also silences every notification, pushed or in the app.
  *   · **Read receipts** holds the read cursor on the device and publishes it
  *     when a reply is sent - see `read-cursor.ts` - and hides other people's
  *     read state in return, which the hint has always promised.
@@ -49,6 +54,7 @@ export function PrivacyScreen() {
   const [rules, setRules] = useState<PrivacySettings>(OPEN_PRIVACY);
   const [blocked, setBlocked] = useState<Profile[]>();
   const [saveFailed, setSaveFailed] = useState(false);
+  const [status, setStatus] = useState<PresenceStatus>(presenceStatus);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +76,16 @@ export function PrivacyScreen() {
       active = false;
     };
   }, [profiles]);
+
+  useEffect(() => {
+    let active = true;
+    void refreshPresenceStatus().then((found) => {
+      if (active && found) setStatus(found);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   /*
    * Optimistic, then written - and put back if the write does not land.
@@ -111,6 +127,22 @@ export function PrivacyScreen() {
     });
   };
 
+  /*
+   * The same bargain as `save`: moved at once, put back if it did not land. A
+   * status reading "invisible" while the server still says online is the one
+   * kind of wrong this row cannot afford.
+   */
+  const chooseStatus = (next: PresenceStatus) => {
+    const before = status;
+    setSaveFailed(false);
+    setStatus(next);
+    void savePresenceStatus(next).catch((cause: unknown) => {
+      setStatus(before);
+      setSaveFailed(true);
+      console.warn('Status did not save.', cause);
+    });
+  };
+
   return (
     <SettingsPage title={t('page.privacy')}>
       <Group title={t('privacy.groupReach')}>
@@ -148,11 +180,20 @@ export function PrivacyScreen() {
       </Group>
 
       <Group title={t('privacy.groupSee')}>
-        <ToggleRow
-          label={t('privacy.onlineStatus')}
-          description={t('privacy.onlineStatusHint')}
-          checked={rules.onlineStatus}
-          onChange={(onlineStatus) => save({ onlineStatus })}
+        <ChoiceRow
+          label={t('privacy.status')}
+          description={t(STATUS_HINT[status])}
+          value={status}
+          options={[
+            { value: 'online', label: t('privacy.statusOnline'), icon: <StatusIcon state="online" /> },
+            {
+              value: 'invisible',
+              label: t('privacy.statusInvisible'),
+              icon: <StatusIcon state="invisible" />,
+            },
+            { value: 'dnd', label: t('privacy.statusDnd'), icon: <StatusIcon state="dnd" /> },
+          ]}
+          onChange={chooseStatus}
         />
         <ToggleRow
           label={t('privacy.readReceipts')}
@@ -213,5 +254,24 @@ export function PrivacyScreen() {
 
       <p className="px-1 pb-4 text-caption text-text-tertiary">{t('privacy.footer')}</p>
     </SettingsPage>
+  );
+}
+
+const STATUS_HINT = {
+  online: 'privacy.statusOnlineHint',
+  invisible: 'privacy.statusInvisibleHint',
+  dnd: 'privacy.statusDndHint',
+} as const;
+
+/**
+ * The mark each status wears, on the same page-coloured disc the avatar puts
+ * it on - so the online dot does not vanish into the selected button, which is
+ * drawn in the brand colour the dot is also drawn in.
+ */
+function StatusIcon({ state }: { state: PresenceStatus }) {
+  return (
+    <span className="grid place-items-center rounded-full bg-page p-[2px]">
+      <PingoDot state={state} size={10} />
+    </span>
   );
 }
