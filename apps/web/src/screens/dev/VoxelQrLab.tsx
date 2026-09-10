@@ -12,7 +12,9 @@ import { VoxelQr } from '../../features/profile/VoxelQr.js';
 export function VoxelQrLab() {
   const [value, setValue] = useState('https://pingochat.pages.dev/profile/anaya');
   const [size, setSize] = useState(300);
-  const [canopy, setCanopy] = useState(0.3);
+  const [canopy, setCanopy] = useState(1.25);
+  // Remounting is the replay: the hold-then-open runs from the top again.
+  const [take, setTake] = useState(0);
 
   return (
     <div className="h-full overflow-y-auto bg-sunken">
@@ -23,15 +25,23 @@ export function VoxelQrLab() {
         </p>
 
         <div className="mt-5 grid place-items-center rounded-lg bg-page p-5 shadow-sm">
-          <VoxelQr value={value} size={size} canopy={canopy} />
+          <VoxelQr key={take} value={value} size={size} canopy={canopy} autoPlay />
         </div>
 
+        <button
+          type="button"
+          onClick={() => setTake((n) => n + 1)}
+          className="mt-4 w-full rounded-md bg-brand px-3 py-2 text-body font-medium text-on-brand"
+        >
+          Replay
+        </button>
+
         <label className="mt-5 block text-caption text-text-secondary">
-          Canopy {canopy.toFixed(2)} &mdash; smaller is denser
+          Canopy {canopy.toFixed(2)} &mdash; 1 is lawn-width
           <input
             type="range"
-            min={0.18}
-            max={0.42}
+            min={1}
+            max={2.4}
             step={0.01}
             value={canopy}
             onChange={(event) => setCanopy(Number(event.target.value))}

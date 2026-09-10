@@ -26,6 +26,8 @@
  * comes back.
  */
 
+import { publicAppOrigin } from '../../lib/public-origin.js';
+
 const KEY = 'pingo:referral';
 
 /**
@@ -82,7 +84,19 @@ export function forgetReferralCode(): void {
   }
 }
 
-/** The link a user shares. Built from the running origin so it is right on every deploy. */
+/**
+ * The link a user shares.
+ *
+ * Through `publicAppOrigin`, not `location.origin`. Reading the running origin
+ * was right when there was one public domain and wrong the moment there were
+ * two: a referral copied from `pingochat.pages.dev` would hand out a
+ * `pages.dev` link, while every other share in the app - invites, profiles,
+ * stories - had already moved to the branded domain. One helper decides this
+ * for all of them now.
+ *
+ * Links already in the wild are unaffected: `/r/:code` answers on both domains
+ * and neither is going away.
+ */
 export function referralLink(code: string): string {
-  return `${globalThis.location?.origin ?? 'https://pingochat.pages.dev'}/r/${code}`;
+  return `${publicAppOrigin()}/r/${code}`;
 }

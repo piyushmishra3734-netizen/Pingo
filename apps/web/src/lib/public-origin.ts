@@ -6,13 +6,22 @@
  * Capacitor (`capacitor://` / `https://localhost`) and LAN preview hosts,
  * `window.location.origin` is useless to the recipient.
  *
- * Prefer `VITE_PUBLIC_APP_URL` when set (e.g. a future custom domain).
- * Otherwise fall back to production Pages when the current origin is not a
- * real public web host; keep the live origin on pingochat.pages.dev so
- * preview deploys still share their own URL when that is intentional.
+ * Prefer `VITE_PUBLIC_APP_URL` when set - it is set on the Production branch in
+ * Cloudflare Pages and deliberately *not* on Preview, so preview deploys still
+ * share their own URL while production always speaks in the branded domain.
+ *
+ * Otherwise fall back to the canonical origin when the current one is not a
+ * real public web host, and keep the live origin when it is.
+ *
+ * ## Both domains stay live
+ *
+ * `pingochat.pages.dev` is not being retired and is not redirected. It serves
+ * the same app, it is in Supabase's redirect allow-list, and every link ever
+ * shared from it keeps working. This constant only decides which domain *new*
+ * links are written with.
  */
 
-const PRODUCTION_ORIGIN = 'https://pingochat.pages.dev';
+const PRODUCTION_ORIGIN = 'https://pingochat.xyz';
 
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
@@ -42,7 +51,16 @@ function isNonPublicOrigin(origin: string): boolean {
  * Safe to call from the browser only (uses `window`).
  */
 export function publicAppOrigin(): string {
-  const fromEnv = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
+  /*
+   * `import.meta.env` itself can be missing, not just the key.
+   *
+   * Vite defines it at build time, and the verification scripts run this module
+   * through plain Node where it does not exist - reading a property off it
+   * threw, which is how this was found rather than shipped. A share helper that
+   * cannot be imported outside the bundle is a helper nothing can test.
+   */
+  const env = typeof import.meta.env === 'undefined' ? undefined : import.meta.env;
+  const fromEnv = env?.VITE_PUBLIC_APP_URL?.trim();
   if (fromEnv) {
     try {
       return stripTrailingSlash(new URL(fromEnv).origin);

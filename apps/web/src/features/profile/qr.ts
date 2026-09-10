@@ -542,3 +542,80 @@ export function encodeQr(text: string, level: QrLevel = 'M'): boolean[][] {
   return best!;
 }
 
+
+/* -------------------------------------------------------------------------- */
+
+export type Rgb = [number, number, number];
+
+/**
+ * The garden palette: what a settled `VoxelQr` paints its modules.
+ *
+ * Here rather than in `VoxelQr` because `verify-qr` has to rasterise these
+ * exact values and decode them, and this module is the only one on that path
+ * with no React in it. A code that is pink and green instead of near-black is
+ * the whole risk of that component, so the palette and the check share one
+ * definition and cannot drift apart.
+ */
+export const GARDEN = {
+  /**
+   * The lawn. Light modules, and the quiet zone, are this.
+   *
+   * Pure white, not the warm off-white the scene would prefer: it sits inside
+   * `QrCodeSheet`'s white plate, and a cream square on a white plate reads as a
+   * dirty mark. The slab's cut edge is what gives the lawn its thickness while
+   * the camera is tilted; the top face never needs to be anything but paper.
+   */
+  ground: [255, 255, 255] as Rgb,
+  /**
+   * Blossom: cherry in the air, deep rose once it has landed.
+   *
+   * It stays pink. The landed colour used to be a crimson, which read as the
+   * blossom turning to rust on the way down; this is the same hue as the
+   * canopy, only deep enough to clear the contrast floor below. That floor is
+   * the only reason it darkens at all.
+   */
+  blossomAir: [245, 145, 159] as Rgb,
+  blossomInk: [204, 48, 112] as Rgb,
+  /** Grass, which never leaves the ground. */
+  grassAir: [132, 207, 70] as Rgb,
+  grassInk: [58, 124, 27] as Rgb,
+  /**
+   * How far a module may stray from its ink colour toward its airborne one.
+   *
+   * The canopy is not one flat pink and the lawn is not one flat green, but a
+   * module that strays light is a module a scanner may read as paper. This is
+   * how far it may stray, and `verify:qr` holds the palest result to `FLOOR`.
+   */
+  jitter: 0.14,
+  /**
+   * The contrast a settled module must keep against the lawn.
+   *
+   * A pink code and a green code are both far lighter than the near-black
+   * `QrArt` uses, so "does jsQR read it" stopped being the question - a clean
+   * synthetic raster decodes at contrasts a phone at an angle, in a room with
+   * one lamp, will not. 4:1 is the floor those colours are chosen against, and
+   * it is what makes the palette a measurement rather than a preference.
+   */
+  floor: 4,
+};
+
+/** Relative luminance, WCAG. Used to hold the palette to `GARDEN.floor`. */
+export function luminance([r, g, b]: Rgb): number {
+  const channel = (v: number) => {
+    const n = v / 255;
+    return n <= 0.03928 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** Contrast ratio between two colours, WCAG. Always at least 1. */
+export function contrast(a: Rgb, b: Rgb): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+export const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];

@@ -2,8 +2,8 @@ import { Avatar, CheckIcon, LinkIcon, ShareIcon, StorageIcon, cn } from '@pingo/
 import { useRef, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
-import { QrArt } from './QrArt.js';
 import { profileLink } from './ShareProfileSheet.js';
+import { VoxelQr } from './VoxelQr.js';
 
 /**
  * The profile QR, as something you would want to hold up.
@@ -24,6 +24,14 @@ import { profileLink } from './ShareProfileSheet.js';
  * gives a rolling-shutter camera a moving target, and a code that has to be
  * held steady for a second longer is a worse code however good it looks.
  * The entrance - fade and scale, once - is over before anyone points a camera.
+ *
+ * ## The code arrives as a tree
+ *
+ * The plate holds `VoxelQr`, which opens on a cherry tree standing on the code
+ * and takes a second and a half to come apart into it. The motion is over
+ * before a camera is up, and it buys the one thing a QR never gets, which is
+ * somebody looking at it. Everything after it has settled is the same flat,
+ * overhead, full-contrast scan target the plate always held.
  *
  * ## Three actions, because they are three situations
  *
@@ -73,42 +81,29 @@ export function QrCodeSheet({
   };
 
   /**
-   * Saves the card as a PNG.
+   * Saves the code as a PNG.
    *
-   * The SVG is serialised and drawn to a canvas rather than screenshotting the
-   * DOM, which keeps it dependency-free and gives a crisp result at any size  - 
-   * vectors rasterise at whatever scale we ask for, so this exports at 3× and
-   * stays sharp when somebody prints it.
+   * Copied off the live canvas rather than re-rendered, so what lands in the
+   * camera roll is the settled frame the person was looking at. It is copied
+   * rather than exported directly because the canvas is transparent outside the
+   * lawn, and a transparent QR saved to a camera roll shows on whatever the
+   * viewer's app uses - which can be black, the one thing that must never
+   * happen to a code.
    */
   const save = async () => {
-    const svg = cardRef.current?.querySelector('svg');
-    if (!svg) return;
+    const source = cardRef.current?.querySelector('canvas');
+    if (!source) return;
 
     try {
-      const source = new XMLSerializer().serializeToString(svg);
-      const url = URL.createObjectURL(new Blob([source], { type: 'image/svg+xml' }));
-
-      const image = new Image();
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve();
-        image.onerror = () => reject(new Error('render failed'));
-        image.src = url;
-      });
-
-      const scale = 3;
       const canvas = document.createElement('canvas');
-      canvas.width = 320 * scale;
-      canvas.height = 320 * scale;
+      canvas.width = source.width;
+      canvas.height = source.height;
       const context = canvas.getContext('2d');
       if (!context) throw new Error('no 2d context');
 
-      // White under everything: a PNG with a transparent background saved to a
-      // camera roll shows on whatever the viewer's app uses, which for a QR can
-      // be black - and that is the one thing that must never happen to it.
       context.fillStyle = '#FFFFFF';
       context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
+      context.drawImage(source, 0, 0);
 
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/png'),
@@ -175,7 +170,13 @@ export function QrCodeSheet({
               because the token follows the theme and this must not.
             */}
             <div className="rounded-2xl bg-white p-3 shadow-sm">
-              <QrArt value={link} size={216} title={`QR code for ${displayName} on PINGO`} />
+              <VoxelQr
+                value={link}
+                size={232}
+                autoPlay
+                caption=""
+                label={`QR code for ${displayName} on PINGO`}
+              />
             </div>
 
             <p className="text-caption text-text-secondary">Scan to connect on PINGO</p>

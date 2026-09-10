@@ -24,7 +24,7 @@ interface ImportMetaEnv {
   /**
    * Canonical public site origin for shareable links (group invites, profiles).
    * When unset, non-public hosts (localhost / Capacitor) fall back to
-   * https://pingochat.pages.dev.
+   * https://pingochat.xyz.
    */
   readonly VITE_PUBLIC_APP_URL?: string;
 }

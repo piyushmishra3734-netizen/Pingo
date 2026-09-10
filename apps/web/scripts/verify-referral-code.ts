@@ -68,9 +68,20 @@ check(heldReferralCode() === undefined, 'an invalid code is never stored');
 
 console.log('\n--- the link a user shares ---');
 
+/*
+ * This used to assert `pages.dev` and call it "the running origin", which was
+ * two things at once and neither quite true: there is no `location` in Node, so
+ * what it actually pinned was the fallback constant.
+ *
+ * `referralLink` now goes through `publicAppOrigin`, the same helper invites,
+ * profiles and stories use - so a referral copied from `pingochat.pages.dev`
+ * hands out a branded link like everything else rather than propagating
+ * whichever host happened to be open. Both domains still answer `/r/:code`, so
+ * every link already sent keeps working.
+ */
 check(
-  referralLink('PY7K2QXZ') === 'https://pingochat.pages.dev/r/PY7K2QXZ',
-  `the link is built from the running origin: ${referralLink('PY7K2QXZ')}`,
+  referralLink('PY7K2QXZ') === 'https://pingochat.xyz/r/PY7K2QXZ',
+  `the link is built from the canonical origin: ${referralLink('PY7K2QXZ')}`,
 );
 check(
   referralLink('PY7K2QXZ') !== referralLink('R8M4XAKT'),

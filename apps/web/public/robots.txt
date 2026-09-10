@@ -22,4 +22,4 @@ Disallow: /requests
 Disallow: /stories/
 Disallow: /join/
 
-Sitemap: https://pingochat.pages.dev/sitemap.xml
+Sitemap: https://pingochat.xyz/sitemap.xml
