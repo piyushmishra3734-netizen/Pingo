@@ -1265,7 +1265,7 @@ export type Database = {
        */
       attach_account_wraps: {
         Args: { wraps: { id: string; iv: string; key: string; epk: string }[] };
-        Returns: { message_id: string; status: string }[];
+        Returns: { id: string; status: string }[];
       };
       my_streaks: {
         Args: Record<string, never>;

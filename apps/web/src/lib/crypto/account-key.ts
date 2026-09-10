@@ -42,9 +42,10 @@
  * makes the client deployable ahead of the migration rather than after it.
  */
 
-import { STORE, localGet, localSet } from '../local/db.js';
+import { STORE, localDelete, localGet, localSet } from '../local/db.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 
+import { keysArePair } from './envelope.js';
 import { createRecoveryKey, restoreRecoveryKey } from './recovery.js';
 
 /** Named like its neighbours in `keys.ts`, so a v2 can sit beside it. */
@@ -96,7 +97,14 @@ export function accountKey(client: PingoSupabaseClient): Promise<CryptoKey | und
 
 async function load(client: PingoSupabaseClient): Promise<CryptoKey | undefined> {
   const stored = await localGet<CryptoKey>(STORE.keys, ACCOUNT);
-  if (stored) return stored;
+  if (stored && (await stillTheAccountKey(client, stored))) return stored;
+
+  /*
+   * A stored key that no longer matches is worse than no key: every wrap made
+   * to it would be unopenable, and `openRow` would keep trying it against
+   * messages sealed to its replacement. Forget it and claim again.
+   */
+  if (stored) await localDelete(STORE.keys, ACCOUNT);
 
   if (unavailable) return undefined;
 
@@ -108,6 +116,44 @@ async function load(client: PingoSupabaseClient): Promise<CryptoKey | undefined>
   if (claimed) return claimed;
 
   return mint(client);
+}
+
+/**
+ * The key on this disk is still the key senders wrap to.
+ *
+ * Checked because it can stop being true without anything here going wrong.
+ * A device claims the account key once and keeps it forever; if the package is
+ * then replaced - as it was for two accounts on 2026-09-09, when a first-run
+ * mint overwrote a pre-feature package - this device carries the old private
+ * half and nothing tells it. It keeps working, because its *device* wraps still
+ * open everything, so the mismatch stays invisible until a new device needs the
+ * account key and finds every wrap made to the wrong one.
+ *
+ * One small read per cold start, deduplicated by `pending`, against a wrong
+ * answer that is silent and permanent. Treated as still-ours when the check
+ * cannot be made at all: a network blip must not throw away a key that is
+ * almost certainly fine.
+ */
+async function stillTheAccountKey(
+  client: PingoSupabaseClient,
+  stored: CryptoKey,
+): Promise<boolean> {
+  try {
+    const { data: session } = await client.auth.getSession();
+    const userId = session.session?.user.id;
+    if (!userId) return true;
+
+    const { data, error } = await client
+      .from('recovery_packages')
+      .select('public_key')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error || !data?.public_key) return true;
+    return keysArePair(stored, data.public_key);
+  } catch {
+    return true;
+  }
 }
 
 /**
