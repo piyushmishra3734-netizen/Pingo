@@ -728,8 +728,8 @@ export function VoxelQr({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** 0 is the tree, 1 is the code. A ref: it changes every frame. */
   const progress = useRef(0);
-  /** Which way the cat is pointing. Kept across frames so it can turn in mid-air. */
-  const facing = useRef(1);
+  /** Which way the cat is pointing, or 0 before the first frame has decided. */
+  const facing = useRef(0);
   const target = useRef(0);
   const [open, setOpen] = useState(false);
 
@@ -1031,20 +1031,41 @@ export function VoxelQr({
        * paper being turned edge-on - the cat is a flat drawing and squashing it
        * horizontally says so out loud.
        *
-       * So it flips, but only off the ground: the new direction is taken at the
-       * top of a hop, which is where a cat turns anyway. The change is hidden
-       * inside a jump it was going to make regardless, and nothing about the
-       * drawing has to pretend to be three-dimensional.
+       * So it flips, and it jumps to do it.
+       *
+       * The tangent runs through zero exactly where a turn is needed, so
+       * `turning` is one near the two ends of the ring and nothing anywhere
+       * else. It buys height: the cat takes a noticeably bigger hop right
+       * there, and the new direction is taken at the top of that hop - where
+       * every leg is tucked under the belly and the mirroring has nothing to
+       * catch on. A cat turning around jumps to do it, so the move explains the
+       * flip rather than hiding it.
+       *
+       * Taking it anywhere else in the arc was the awkward part: the flip
+       * landed wherever the hop happened to be, sometimes a foot off the ground
+       * with all four legs mid-bound, and mirrored them across the body.
+       *
+       * The window has to be wide enough to contain an apex, and the first one
+       * was not. Simulating a lap said so: of the two turns, one flipped on a
+       * hop with no height behind it at all, because the nearest apex fell
+       * before the tangent changed sign and the next one came after the window
+       * had closed - so the cat turned on an ordinary step, which is exactly
+       * the thing this was meant to stop. `1.8` spans a good two hops either
+       * side, and both turns now land on a hop with most of its boost.
        */
       const tangent = -Math.sin(lap + spin);
-      if (hop > 0.55) facing.current = tangent >= 0 ? 1 : -1;
+      const turning = Math.max(0, 1 - Math.abs(tangent) * 1.8);
+      // Zero means it has not decided yet: the first frame takes its bearing
+      // without hopping for it.
+      const want = tangent >= 0 ? 1 : -1;
+      if (facing.current === 0 || hop > 0.75) facing.current = want;
 
       const paintCat = () => {
         if (alive <= 0.01) return;
         const s = unit * kitty.size;
         ctx.save();
         ctx.globalAlpha = alive;
-        ctx.translate(here, py(cx, 0, cz) - hop * unit * kitty.lift);
+        ctx.translate(here, py(cx, 0, cz) - hop * unit * kitty.lift * (1 + 1.3 * turning));
         ctx.scale(facing.current, 1);
         kitty.paint(ctx, s, hop, lap * kitty.hops);
         ctx.restore();
