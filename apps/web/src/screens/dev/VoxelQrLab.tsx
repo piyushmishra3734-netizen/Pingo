@@ -11,7 +11,8 @@ import { VoxelQr } from '../../features/profile/VoxelQr.js';
  *
  * It showed four crowns side by side while the silhouette was being chosen.
  * That is settled - `SAKURA` is the one - so the other three are gone rather
- * than left behind as options nothing picks between.
+ * than left behind as options nothing picks between. Four cats went up and
+ * three came down the same way.
  */
 export function VoxelQrLab() {
   const [value, setValue] = useState('https://pingochat.pages.dev/profile/anaya');

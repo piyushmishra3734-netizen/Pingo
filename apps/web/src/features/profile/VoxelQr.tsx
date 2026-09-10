@@ -72,17 +72,22 @@ const FLIGHT_MS = 1500;
 /**
  * Wind, in modules of travel at the top of the crown.
  *
- * A standing tree that does not move is a photograph of a tree. This is small
- * on purpose - a third of a module, over about five seconds - because the point
- * is that you cannot quite catch it happening.
+ * A standing tree that does not move is a photograph of a tree. This was a
+ * third of a module and too polite to notice; it is closer to a whole one now,
+ * over about four seconds, which is a breeze you can see rather than one you
+ * have to be told about.
  *
  * It runs out entirely as the code lands, and that is not a taste: a settled QR
  * has to be dead still. A rolling-shutter camera reading a moving target needs
  * to be held steadier for longer, so anything alive on top of a code makes it a
  * worse code however good it looks. Everything here happens before that.
  */
-const GUST = 0.34;
-const GUST_MS = 5200;
+const GUST = 0.85;
+const GUST_MS = 3800;
+
+/** How many petals are falling at once, and how long each takes to come down. */
+const FALLING = 14;
+const FALL_MS = 4600;
 
 /** The tree gets a beat to be a tree before an autoplaying scene opens it. */
 const HOLD_MS = 900;
@@ -214,6 +219,242 @@ export const SAKURA: Crown = {
   fill: 0.6,
   leaf: 3.9,
 };
+
+/** One unhurried lap of the lawn. */
+const PROWL_MS = 15000;
+
+/**
+ * A cat: how it travels, and how it is drawn.
+ *
+ * `paint` rather than a pile of proportions. Four cats built by scaling one
+ * drawing are one cat four times - the silhouette is the whole of what reads at
+ * this size, so a different cat has to be a different outline, and a different
+ * gait besides. A loafing cat and a leaping cat share nothing but their ears.
+ *
+ * `paint` draws in its own space: feet on y = 0, facing +x, one unit of height
+ * given as `s`. `hop` is 0 with its feet down and 1 at the top of its arc;
+ * `stride` runs on regardless, for gaits that never leave the ground.
+ */
+export interface Cat {
+  /** Height standing, in modules. */
+  size: number;
+  /** How high it gets off the ground, in modules. */
+  lift: number;
+  /** Beats per lap of the lawn. */
+  hops: number;
+  paint: (ctx: CanvasRenderingContext2D, s: number, hop: number, stride: number) => void;
+}
+
+/** Not pure black: a hole reads as a hole, a very dark grey reads as a cat. */
+const COAT: Rgb = [32, 29, 40];
+
+/**
+ * The head every one of them has: ears, then the skull, then a face.
+ *
+ * Ears before the skull, so its curve cuts their bases off cleanly. The face
+ * only when there are pixels for one - below about eighteen px of cat, eyes and
+ * a mouth turn into smudges and read worse than a clean silhouette does.
+ */
+function face(
+  ctx: CanvasRenderingContext2D,
+  hx: number,
+  hy: number,
+  hr: number,
+  /** Ear height, as a multiple of head radius. */
+  ear: number,
+  /** Round open eyes rather than happily shut ones. */
+  wide: boolean,
+  s: number,
+  /** Cheeks, for a face that has to look pleased rather than merely awake. */
+  happy = false,
+) {
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 0.85, hy - hr * 0.4);
+  ctx.lineTo(hx - hr * 0.6, hy - hr * 0.4 - hr * ear);
+  ctx.lineTo(hx - hr * 0.02, hy - hr * 0.66);
+  ctx.moveTo(hx + hr * 0.28, hy - hr * 0.68);
+  ctx.lineTo(hx + hr * 0.76, hy - hr * 0.3 - hr * ear);
+  ctx.lineTo(hx + hr * 0.92, hy - hr * 0.26);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.ellipse(hx, hy, hr, hr * 0.92, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (s <= 18) return;
+
+  const eyes = [hx - hr * 0.3, hx + hr * 0.45];
+  const eyeY = hy - hr * 0.06;
+  if (wide) {
+    ctx.fillStyle = css(GROUND);
+    for (const ex of eyes) {
+      ctx.beginPath();
+      ctx.ellipse(ex, eyeY, hr * 0.26, hr * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // A catchlight in each, which is the difference between awake and blank.
+    ctx.fillStyle = css(COAT);
+    for (const ex of eyes) {
+      ctx.beginPath();
+      ctx.ellipse(ex + hr * 0.05, eyeY + hr * 0.04, hr * 0.12, hr * 0.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    ctx.strokeStyle = css(GROUND);
+    ctx.lineWidth = Math.max(0.7, s * 0.038);
+    for (const ex of eyes) {
+      ctx.beginPath();
+      ctx.arc(ex, eyeY, hr * 0.26, Math.PI * 0.12, Math.PI * 0.88);
+      ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle = css(PETAL);
+  if (happy) {
+    // Cheeks. The one thing that turns a neutral little face into a delighted
+    // one, and it is two dots.
+    for (const cxx of [hx - hr * 0.62, hx + hr * 0.72]) {
+      ctx.globalAlpha = 0.75;
+      ctx.beginPath();
+      ctx.ellipse(cxx, hy + hr * 0.3, hr * 0.2, hr * 0.13, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.beginPath();
+  ctx.ellipse(hx + hr * 0.9, hy + hr * 0.24, hr * 0.14, hr * 0.11, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // The mouth: two small arcs, the cat mouth everybody draws.
+  ctx.strokeStyle = css(GROUND);
+  ctx.lineWidth = Math.max(0.6, s * 0.03);
+  for (const mx of [hr * 0.74, hr * 1.04]) {
+    ctx.beginPath();
+    ctx.arc(hx + mx, hy + hr * 0.4, hr * 0.16, Math.PI * 0.05, Math.PI * 0.95);
+    ctx.stroke();
+  }
+  ctx.fillStyle = css(COAT);
+  ctx.strokeStyle = css(COAT);
+}
+
+/** The coat colour and stroke style every cat starts from. */
+function coat(ctx: CanvasRenderingContext2D) {
+  ctx.fillStyle = css(COAT);
+  ctx.strokeStyle = css(COAT);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+}
+
+/**
+ * A round little cat, walking.
+ *
+ * It started as a loaf - the brick shape a cat folds into with its paws put
+ * away - and that was the shape worth keeping: plump, low, no visible neck,
+ * more circle than animal. The roundness is untouched; what it needed was to
+ * be going somewhere, so the loaf is up on four short legs and bouncing along
+ * on them.
+ *
+ * ## Squash and stretch, and not much else
+ *
+ * A hopping walk is one trick done properly. On the ground it goes wide and
+ * flat, in the air it goes tall and narrow, and the two exaggerate past what a
+ * real cat does because that overshoot is the whole of why a cartoon reads as
+ * springy rather than as a picture being moved upward. Legs push down as it
+ * lands and tuck up under it at the top of the arc, which is the other half:
+ * feet that stay put through a jump look pinned on.
+ *
+ * ## Everything else is doing one cheerful thing
+ *
+ * The tail is up with a curl in the tip, and it whips as the body leaves the
+ * ground - a cat's mood is entirely legible from behind. The eyes are shut and
+ * curved the happy way up, with two pink cheeks. The head follows a beat late,
+ * because a heavy head always does, and that lag is most of why it reads as
+ * pleased rather than merely animated.
+ */
+const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
+  coat(ctx);
+
+  /*
+   * Wide and flat with its feet down, tall and narrow at the top of the arc.
+   * The numbers overshoot a real cat on purpose - a hop drawn to scale looks
+   * like a sprite being lifted, and this is the exaggeration that makes it
+   * bounce.
+   */
+  const squash = 1 - hop;
+  const w = s * (1.16 + 0.2 * squash) * (1 + 0.03 * Math.sin(stride * 2));
+  const h = s * 0.66 * (1 + 0.26 * hop - 0.12 * squash);
+  const floor = -s * 0.2;
+  const bob = 0;
+
+  /*
+   * Legs push down as it lands and tuck under it in the air. Still on the
+   * two-beat diagonal a walk uses - a front leg with the opposite back leg -
+   * so it reads as walking rather than as pouncing over and over.
+   */
+  ctx.lineWidth = s * 0.15;
+  const tuck = hop * s * 0.3;
+  const legs: [number, number][] = [
+    [w * 0.3, 0],
+    [w * 0.16, Math.PI],
+    [-w * 0.24, Math.PI],
+    [-w * 0.36, 0],
+  ];
+  for (const [lx, phase] of legs) {
+    const swing = Math.sin(stride * 2 + phase) * squash;
+    ctx.beginPath();
+    ctx.moveTo(lx, floor - tuck * 0.6);
+    ctx.lineTo(lx + swing * s * 0.12, -Math.max(0, swing) * s * 0.06 - tuck);
+    ctx.stroke();
+  }
+
+  // Tail: up, and curled over at the tip. It swings against the walk.
+  ctx.lineWidth = s * 0.13;
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.42, floor - h * 0.5 - bob);
+  ctx.quadraticCurveTo(
+    -w * (0.62 + hop * 0.18),
+    floor - h * (1.25 + hop * 0.18) - bob,
+    -w * 0.34,
+    floor - h * (1.6 + hop * 0.3) - bob,
+  );
+  const tip = h * (1.76 + hop * 0.34);
+  ctx.quadraticCurveTo(-w * 0.2, floor - tip - bob, -w * 0.1, floor - tip + h * 0.2 - bob);
+  ctx.stroke();
+
+  /*
+   * The body: one plump curve, wider than it is tall, and lowest at the belly.
+   * Drawn as a path rather than an ellipse so the back can sit higher at the
+   * shoulder than at the hip, which is the difference between a cat and a bun.
+   */
+  const by = floor - bob;
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.48, by - h * 0.34);
+  ctx.quadraticCurveTo(-w * 0.5, by - h * 1.02, w * 0.02, by - h * 1.06);
+  ctx.quadraticCurveTo(w * 0.5, by - h * 1.02, w * 0.48, by - h * 0.3);
+  ctx.quadraticCurveTo(w * 0.44, by + h * 0.16, w * 0.02, by + h * 0.14);
+  ctx.quadraticCurveTo(-w * 0.44, by + h * 0.16, -w * 0.48, by - h * 0.34);
+  ctx.closePath();
+  ctx.fill();
+
+  // The head, a beat behind the body - a heavy head always lags, and that lag
+  // is most of the charm.
+  const lag = Math.sin(stride * 2 - 0.8) * s * 0.03;
+  face(ctx, w * 0.42, by - h * 0.94 + lag, s * 0.3, 1.2, false, s, true);
+};
+
+/**
+ * The cat that ships.
+ *
+ * `lift` is a whole module and a half: it hops along rather than padding
+ * along, and a hop you cannot see is not worth the arithmetic. Seventeen of
+ * them to a lap, which at fifteen seconds is about one a second - the pace of
+ * something pleased with the garden rather than crossing it.
+ *
+ * Three others were up beside it - a prowler on long legs, a leaper stretched
+ * flat in the air, a kitten sitting upright - and they are gone rather than
+ * left behind as options nothing picks between.
+ */
+export const LOAF: Cat = { size: 5.2, lift: 1.5, hops: 17, paint: paintLoaf };
 
 interface Cell {
   /** Where it lands: module coordinates, with the quiet zone already added. */
@@ -362,6 +603,7 @@ export function VoxelQr({
   level = 'M',
   size = 300,
   crown = SAKURA,
+  kitty = LOAF,
   autoPlay = false,
   className,
   label = 'Profile QR code',
@@ -372,6 +614,8 @@ export function VoxelQr({
   size?: number;
   /** What kind of tree. See `Crown`; `SAKURA` is the shipped shape. */
   crown?: Crown;
+  /** Which cat is doing laps of the lawn. See `Cat`. */
+  kitty?: Cat;
   /** Open on its own after a beat, which is what the share sheet wants. */
   autoPlay?: boolean;
   className?: string;
@@ -557,7 +801,7 @@ export function VoxelQr({
       /* ---- the trunk ----------------------------------------------------- */
 
       const trunkH = count * crown.trunk * (1 - e);
-      if (trunkH > 0.05) {
+      const drawTrunk = () => {
         const top = at(0, 0, trunkH);
         const foot = at(0, 0, 0);
         const height = Math.max(0, foot[1] - top[1]);
@@ -626,7 +870,63 @@ export function VoxelQr({
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
-      }
+      };
+
+      /*
+       * Before every block, and not in their depth order.
+       *
+       * A trunk is one tall thing at the middle of the lawn, so it has no one
+       * depth: its foot belongs at zero and its crown belongs behind the whole
+       * canopy. Sorting it in at either read wrong - at zero, the canopy is
+       * drawn first and the branches paint over the blossom, which is a bare
+       * branch sticking out of the top of the tree. Painting it first is exact
+       * for the only overlap that exists, which is blossom in front of bark.
+       */
+      drawTrunk();
+
+      /* ---- the cat ------------------------------------------------------- */
+
+      /*
+       * One cat, hopping a slow lap of the lawn.
+       *
+       * It goes the way the wind goes: entirely, by the time the code lands.
+       * Everything alive in this scene lives in the second before the QR
+       * exists, because a settled code has to be a still target - and a cat
+       * sitting on a module is a module a scanner cannot read at all.
+       *
+       * The path is a circle on the lawn rather than a wander, because a wander
+       * needs somewhere to go and a lap does not, and because at this size the
+       * only thing that reads is the hop.
+       */
+      const alive = Math.min(1, (1 - e) * 2.4);
+      const lap = ((now % PROWL_MS) / PROWL_MS) * Math.PI * 2;
+      /*
+       * Inside the grass, not on it. The rim of the lawn is where the grass
+       * grows, and a cat walking through the middle of a tuft was the one thing
+       * about it that looked wrong - it was standing in the grass rather than
+       * behind or in front of it.
+       */
+      const ring = edge * 0.6;
+      const cx = Math.cos(lap) * ring;
+      const cz = Math.sin(lap) * ring;
+
+      // Half of each hop is spent on the ground, which is what makes it a
+      // stroll rather than a bounce.
+      const hop = Math.max(0, Math.sin(lap * kitty.hops)) ** 0.7;
+      const here = px(cx, cz);
+      // Facing along the path: the sign of how the screen x is changing.
+      const ahead = px(Math.cos(lap + 0.05) * ring, Math.sin(lap + 0.05) * ring);
+
+      const paintCat = () => {
+        if (alive <= 0.01) return;
+        const s = unit * kitty.size;
+        ctx.save();
+        ctx.globalAlpha = alive;
+        ctx.translate(here, py(cx, 0, cz) - hop * unit * kitty.lift);
+        ctx.scale(ahead >= here ? 1 : -1, 1);
+        kitty.paint(ctx, s, hop, lap * kitty.hops);
+        ctx.restore();
+      };
 
       /* ---- the blocks ---------------------------------------------------- */
 
@@ -694,10 +994,29 @@ export function VoxelQr({
       const flat = p > 0.995;
       if (!flat) drawn.sort((a, b) => a.d - b.d);
 
+      /*
+       * The cat is not a block, but "is this in front of that" is a question
+       * the block sort already answers - so it goes into the same order rather
+       * than being painted before the blocks and hoping.
+       *
+       * That hope is exactly what put it under the grass: painted ahead of
+       * every block, every tuft on the lawn covered it, including the ones on
+       * the far side it should have been walking in front of.
+       */
+      const sprites = flat ? [] : [{ d: cx * sinS + cz * cosS, paint: paintCat }];
+      let placed = 0;
+      const paintUpTo = (depth: number) => {
+        while (placed < sprites.length && sprites[placed]!.d <= depth) {
+          sprites[placed]!.paint();
+          placed += 1;
+        }
+      };
+
 
       const blade = unit * (0.45 + 1.0 * (1 - e));
 
       for (const v of drawn) {
+        paintUpTo(v.d);
         if (flat) {
           // Landed. Flat, full contrast, no seams - this is the scan target.
           ctx.fillStyle = css(v.colour);
@@ -775,7 +1094,7 @@ export function VoxelQr({
            * root of a blade does not - which is what makes it bend rather than
            * slide.
            */
-          const lean = gust(v.sx * 0.04) * (1 - e) * 0.5;
+          const lean = gust(v.sx * 0.04) * (1 - e) * 0.95;
           for (let k = -2; k <= 2; k += 1) {
             const bx = v.sx + k * unit * 0.22;
             const len = blade * (1 - Math.abs(k) * 0.16);
@@ -800,6 +1119,46 @@ export function VoxelQr({
         }
       }
 
+      paintUpTo(Infinity);
+
+      /* ---- petals still coming down -------------------------------------- */
+
+      /*
+       * A cherry in blossom is always dropping some of it, and a tree that has
+       * a wind in it but nothing falling out of it reads as a tree being
+       * wobbled rather than a tree in a garden.
+       *
+       * Fourteen of them, each a fixed fraction of the way through the same
+       * fall, so there is always one leaving the canopy and one arriving. They
+       * spin as they go, because a falling leaf turns over - and they fade out
+       * in the last of it, arriving among the ones already lying there.
+       */
+      if (restAlpha > 0.01) {
+        ctx.fillStyle = css(PETAL);
+        /*
+         * They leave from the underside of the crown, not from inside it.
+         * Started at the top they spent the whole fall behind the blossom and
+         * never appeared at all - the only air in this scene is between the
+         * skirt of the canopy and the lawn, so that is where a petal falls.
+         */
+        const top = count * crown.base;
+        for (let i = 0; i < FALLING; i += 1) {
+          const seed = i * 2.39996;
+          const k = ((now / FALL_MS + i / FALLING) % 1 + 1) % 1;
+          const r = edge * 0.62 * (0.35 + ((i * 29) % 100) / 100);
+          // Sideways as it comes down, and further with the same gust that is
+          // moving the canopy it fell out of.
+          const drift = Math.sin(k * 5 + seed) * 1.8 + gust(seed) * k * 0.8;
+          const fx = Math.cos(seed) * r + drift;
+          const fz = Math.sin(seed) * r + Math.cos(k * 4 + seed) * 1.2;
+          const fy = top * (1 - k);
+
+          ctx.globalAlpha = restAlpha * Math.min(1, (1 - k) * 4) * 0.95;
+          blossom(ctx, px(fx, fz), py(fx, fy, fz), unit * 0.72, 0, k * 7 + seed);
+        }
+        ctx.globalAlpha = 1;
+      }
+
       frame = requestAnimationFrame(draw);
     };
 
@@ -808,7 +1167,7 @@ export function VoxelQr({
       cancelAnimationFrame(frame);
       if (hold !== undefined) window.clearTimeout(hold);
     };
-  }, [value, level, size, crown, autoPlay]);
+  }, [value, level, size, crown, kitty, autoPlay]);
 
   const hint = caption ?? (open ? 'Tap to see the tree' : 'Tap the tree to see the QR code');
 
