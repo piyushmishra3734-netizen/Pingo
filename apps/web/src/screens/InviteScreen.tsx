@@ -1,9 +1,7 @@
-import { Button, CheckIcon, ChevronRightIcon, CloseIcon, LinkIcon, ShareIcon, cn } from '@pingo/ui';
+import { Button, CheckIcon, CloseIcon, LinkIcon, ShareIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
-import { AchievementArt } from '../features/achievements/AchievementArt.js';
-import { achievementById } from '../features/achievements/registry.js';
 import { VoxelQr } from '../features/profile/VoxelQr.js';
 import { referralLink } from '../features/referrals/referral-code.js';
 import {
@@ -12,33 +10,31 @@ import {
 } from '../features/referrals/referrals-service.js';
 
 /**
- * The invitation: the tree growing the person's own referral link, share and
- * copy, and how far along the badge is. Whoever scans it arrives at `/r/:code`
- * and the invite is credited.
+ * The invitation, between signing in and the chat list: the tree growing the
+ * person's own referral link, and a way to share it. Whoever scans it arrives
+ * at `/r/:code` and the invite is credited.
  *
- * ## Not on the way in
+ * Every way into the product - a new password, a returning one, the Google
+ * round trip, the last step of profile setup, and the guest guard - comes
+ * through here before `/chats`.
  *
- * It was briefly placed between signing in and the chat list, in front of
- * every login and signup. That came out again: a page in front of the chats at
- * the moment somebody has just arrived is a toll, whatever is on it. Nothing
- * routes here on sign-in now; it is a page to open on purpose.
+ * ## Closed from the corner
+ *
+ * A close button top right, which is the whole of how it is left. It replaced
+ * a "Continue to chats" link at the bottom, which read as the next step of a
+ * flow rather than a way out of a page.
+ *
+ * ## No badge on it
+ *
+ * It carried the MYTHIC PIONEER row with a friends-joined count, and on the way
+ * in that turned an invitation into a task list. The mission is still one tap
+ * away under Achievements, which is where the count belongs.
  *
  * ## It steps aside when it has nothing to offer
  *
- * With no mission running, or the badge already earned, there is nothing left
- * to invite toward, and it goes straight to the chats without drawing a frame.
- *
- * ## Closing it
- *
- * A close button in the corner. It replaced a "Continue to chats" link at the
- * bottom, which read as the next step of a flow rather than a way out of a
- * page.
- *
- * ## Every number is the server's
- *
- * Count, requirement, badge and title all come from `referral_progress`, as on
- * the mission screen - a screen that knew the target was five would be a
- * second place that number lives.
+ * With no mission running, or the badge already earned, it goes straight to
+ * the chats without drawing a frame - a page in front of every sign-in is a
+ * toll, and it should stop charging once there is nothing left to invite for.
  */
 export function InviteScreen() {
   const [progress, setProgress] = useState<ReferralProgress | null>();
@@ -84,8 +80,6 @@ export function InviteView({ progress }: { progress: ReferralProgress }) {
   }, [copied]);
 
   const link = referralLink(progress.referralCode);
-  const achievement = achievementById(progress.badgeId);
-  const done = Math.min(progress.count, progress.required);
   const leave = () => navigate('/chats', { replace: true });
 
   const copy = async () => {
@@ -153,37 +147,6 @@ export function InviteView({ progress }: { progress: ReferralProgress }) {
               {copied ? 'Copied' : 'Copy'}
             </Button>
           </div>
-
-          {/*
-            The badge, and how far along it is. A row that opens the mission
-            screen rather than the whole of it - this is the invitation, and
-            the mission is one tap away for anybody who wants the detail.
-          */}
-          <button
-            type="button"
-            onClick={() => navigate('/profile/mission')}
-            className={cn(
-              'focus-ring mt-6 flex w-full items-center gap-3 rounded-2xl bg-surface p-3 text-left',
-              'ring-1 ring-line transition-transform duration-instant active:scale-[0.99]',
-            )}
-          >
-            {achievement && <AchievementArt achievement={achievement} size="medium" locked />}
-            <div className="min-w-0 flex-1">
-              <p className="text-body truncate font-medium text-ink">{progress.title}</p>
-              <p className="text-caption mt-0.5 tabular-nums text-text-secondary">
-                {done} / {progress.required} friends joined
-              </p>
-              <div className="mt-2 flex gap-1" aria-hidden>
-                {Array.from({ length: progress.required }, (_, i) => (
-                  <span
-                    key={i}
-                    className={cn('h-1.5 flex-1 rounded-full', i < done ? 'bg-brand' : 'bg-line')}
-                  />
-                ))}
-              </div>
-            </div>
-            <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
-          </button>
         </div>
       </div>
     </div>

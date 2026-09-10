@@ -103,7 +103,15 @@ export function RequireGuest({ children }: { children?: ReactNode }) {
     new URLSearchParams(location.search).get('add') === '1' || isAddingAccount();
 
   if (status === 'loading') return <Resolving />;
-  if (status === 'authenticated' && !addingAccount) return <Navigate to="/chats" replace />;
+  /*
+   * To the invitation rather than straight to the chats. This guard is one of
+   * the ways in - it is what fires when a sign-in resolves while its own screen
+   * is still mounted - and sending it to /chats raced the screen's navigate to
+   * /invite, so whether somebody saw the invitation depended on which of two
+   * renders landed first. `InviteScreen` passes straight through to /chats
+   * when it has nothing to offer, so this costs a returning user one frame.
+   */
+  if (status === 'authenticated' && !addingAccount) return <Navigate to="/invite" replace />;
 
   // Anonymous guests must finish (or have finished) the five intro slides
   // before Welcome / Log In, so deep links cannot flash auth under the intro.

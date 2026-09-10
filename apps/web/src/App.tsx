@@ -474,9 +474,9 @@ export function App() {
             <Route element={<RequireAuth />}>
               <Route element={<RequireProfile />}>
                 {/*
-                  The invitation, opened on purpose - nothing sends a sign-in
-                  here. Outside the shell: a page with its own close button
-                  does not want a tab bar under it.
+                  Between signing in and the chat list. Outside the shell: it
+                  is closed from its own corner button, and a tab bar under it
+                  would make it read as a page you wandered onto.
                 */}
                 <Route path="/invite" element={<InviteScreen />} />
                 <Route element={<AppShell />}>

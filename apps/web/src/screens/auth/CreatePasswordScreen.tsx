@@ -83,9 +83,9 @@ export function CreatePasswordScreen() {
       else await door.signUp(identity.value, password);
 
       writeLastMethod(identity.kind);
-      // Phase 2 ends at Home. Profile Setup, Theme, Notifications and Contacts
-      // (§ 9-12) slot in between here and `/chats` when they are built.
-      navigate('/chats', { replace: true });
+      // Through the invitation, which RequireProfile sends on to setup while
+      // there is no profile yet - the same bounce /chats used to take.
+      navigate('/invite', { replace: true });
     } catch (cause) {
       /*
        * § 17: an identifier that already has an account never creates a second
