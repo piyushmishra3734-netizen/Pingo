@@ -39,6 +39,9 @@ export type ProfileRow = {
   banner_offset: number;
   /** Operator-granted. Not in the column grant a user holds over their row. */
   is_premium: boolean;
+  /** Display-only offsets added inside profile_stats. Operator-set. */
+  friends_display_seed: number;
+  groups_display_seed: number;
   created_at: string;
   updated_at: string;
 };

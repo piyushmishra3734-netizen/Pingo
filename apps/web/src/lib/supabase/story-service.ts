@@ -450,6 +450,8 @@ export class SupabaseStoryService implements StoryService {
         banner_url: null,
         banner_offset: 50,
         is_premium: false,
+        friends_display_seed: 0,
+        groups_display_seed: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },

@@ -1,5 +1,5 @@
-import { useProfile } from '@pingo/core';
-import { Button, cn } from '@pingo/ui';
+import { useProfile, type Profile } from '@pingo/core';
+import { Avatar, Button, cn } from '@pingo/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
@@ -34,15 +34,25 @@ import {
 
 const OPERATOR_USERNAME = 'piuxxh';
 
+type SeedPick = {
+  profile: Profile;
+  friendsSeed: number;
+  groupsSeed: number;
+  realFriends: number;
+  realGroups: number;
+};
+
 export function ControllingScreen() {
-  const { profile } = useProfile();
+  const { profile, service } = useProfile();
   const navigate = useNavigate();
   const allowed = profile?.username === OPERATOR_USERNAME;
 
   const [rows, setRows] = useState<OnboardingSlideRow[]>([]);
   const [splashRows, setSplashRows] = useState<AppSplashRow[]>([]);
   const [premiumHandle, setPremiumHandle] = useState('');
-  const [seedHandle, setSeedHandle] = useState('');
+  const [seedQuery, setSeedQuery] = useState('');
+  const [seedResults, setSeedResults] = useState<Profile[]>([]);
+  const [seedPick, setSeedPick] = useState<SeedPick | null>(null);
   const [seedFriends, setSeedFriends] = useState('');
   const [seedGroups, setSeedGroups] = useState('');
   const [previewing, setPreviewing] = useState(false);
@@ -84,6 +94,28 @@ export function ControllingScreen() {
     if (!allowed) return;
     void refresh();
   }, [allowed, refresh]);
+
+  /* Seed search, the same search the rest of the app uses. */
+  useEffect(() => {
+    const term = seedQuery.trim().replace(/^@/, '');
+    if (term.length < 2) {
+      setSeedResults([]);
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      service
+        .search(term, 8)
+        .then((found) => {
+          if (live) setSeedResults(found);
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [seedQuery, service]);
 
   if (!allowed) {
     return <Navigate to="/settings" replace />;
@@ -160,34 +192,65 @@ export function ControllingScreen() {
     }
   };
 
-  /* Display-only Friends / Groups offsets. A blank box keeps what is there. */
+  /*
+   * Display-only Friends / Groups offsets. A profile shows real + seed, so real
+   * friends and groups keep adding on top without anybody touching this.
+   * profile_stats returns that sum, so real = shown - seed.
+   */
+  const loadSeedPick = async (person: Profile) => {
+    const [seedRow, shown] = await Promise.all([
+      getSupabaseClient()
+        .from('profiles')
+        .select('friends_display_seed, groups_display_seed')
+        .eq('id', person.id)
+        .single(),
+      service.stats(person.id),
+    ]);
+    if (seedRow.error) throw seedRow.error;
+    const friendsSeed = seedRow.data.friends_display_seed;
+    const groupsSeed = seedRow.data.groups_display_seed;
+    setSeedPick({
+      profile: person,
+      friendsSeed,
+      groupsSeed,
+      realFriends: Math.max(0, shown.friends - friendsSeed),
+      realGroups: Math.max(0, shown.groups - groupsSeed),
+    });
+    setSeedFriends(String(friendsSeed));
+    setSeedGroups(String(groupsSeed));
+  };
+
+  const onPickSeedPerson = async (person: Profile) => {
+    setSeedQuery('');
+    setSeedResults([]);
+    setBusy('seeds');
+    setError(null);
+    setOk(null);
+    try {
+      await loadSeedPick(person);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load seeds');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /* A blank box keeps what is there. */
   const onSeeds = async () => {
-    const handle = seedHandle.trim().replace(/^@/, '').toLowerCase();
-    if (!handle) return;
+    if (!seedPick) return;
     const num = (v: string) => (v.trim() === '' ? null : Math.max(0, Number.parseInt(v, 10) || 0));
     setBusy('seeds');
     setError(null);
     setOk(null);
     try {
-      const client = getSupabaseClient();
-      const { data: found, error: lookupError } = await client
-        .from('profiles')
-        .select('id, username')
-        .eq('username', handle)
-        .maybeSingle();
-      if (lookupError) throw lookupError;
-      if (!found) throw new Error(`No account called @${handle}`);
-
-      const { data, error: rpcError } = await client.rpc('set_display_seeds', {
-        target: found.id,
+      const { error: rpcError } = await getSupabaseClient().rpc('set_display_seeds', {
+        target: seedPick.profile.id,
         new_friends: num(seedFriends),
         new_groups: num(seedGroups),
       });
       if (rpcError) throw rpcError;
-      const now = data?.[0];
-      setOk(`@${found.username}: friends +${now?.friends ?? 0}, groups +${now?.groups ?? 0}.`);
-      setSeedFriends('');
-      setSeedGroups('');
+      await loadSeedPick(seedPick.profile);
+      setOk(`@${seedPick.profile.username} seed saved.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not set seeds');
     } finally {
@@ -300,46 +363,108 @@ export function ControllingScreen() {
         <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
           <h2 className="mb-1 text-body font-semibold text-ink">Friends / Groups seed</h2>
           <p className="mb-3 text-caption text-text-secondary">
-            Added on top of the real counts on a profile. Numbers only — the
-            friends and groups lists still show just the real ones. Leave a box
-            blank to keep it.
+            Search, tap, set. A profile shows real + seed, so real friends and
+            groups keep adding on top by themselves. The lists still show only
+            the real ones.
           </p>
           <input
-            value={seedHandle}
-            onChange={(e) => setSeedHandle(e.target.value)}
-            placeholder="username"
+            value={seedQuery}
+            onChange={(e) => setSeedQuery(e.target.value)}
+            placeholder="Search name or username"
             autoCapitalize="none"
             autoCorrect="off"
             className="mb-2 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
           />
-          <div className="mb-2 flex gap-2">
-            <input
-              value={seedFriends}
-              onChange={(e) => setSeedFriends(e.target.value)}
-              placeholder="friends +"
-              type="number"
-              min={0}
-              inputMode="numeric"
-              className="min-w-0 flex-1 rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
-            />
-            <input
-              value={seedGroups}
-              onChange={(e) => setSeedGroups(e.target.value)}
-              placeholder="groups +"
-              type="number"
-              min={0}
-              inputMode="numeric"
-              className="min-w-0 flex-1 rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
-            />
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={busy === 'seeds' || !seedHandle.trim()}
-            onClick={() => void onSeeds()}
-          >
-            Set
-          </Button>
+          {seedResults.length > 0 ? (
+            <ul className="mb-2">
+              {seedResults.map((person) => (
+                <li key={person.id}>
+                  <button
+                    type="button"
+                    onClick={() => void onPickSeedPerson(person)}
+                    className={cn(
+                      'focus-ring flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left',
+                      'transition-colors duration-instant hover:bg-hover active:bg-pressed',
+                    )}
+                  >
+                    <Avatar
+                      name={person.displayName}
+                      id={person.id}
+                      {...(person.avatarUrl ? { src: person.avatarUrl } : {})}
+                      size="md"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-body font-medium text-ink">
+                        {person.displayName}
+                      </span>
+                      <span className="block truncate text-caption text-text-secondary">
+                        @{person.username}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {seedPick ? (
+            <div className="rounded-md border border-border/60 p-3">
+              <div className="mb-2 flex items-center gap-3">
+                <Avatar
+                  name={seedPick.profile.displayName}
+                  id={seedPick.profile.id}
+                  {...(seedPick.profile.avatarUrl ? { src: seedPick.profile.avatarUrl } : {})}
+                  size="md"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-body font-medium text-ink">
+                    {seedPick.profile.displayName}
+                  </span>
+                  <span className="block truncate text-caption text-text-secondary">
+                    @{seedPick.profile.username}
+                  </span>
+                </span>
+              </div>
+              <p className="mb-2 text-caption text-text-secondary">
+                Friends: {seedPick.realFriends} real + {seedPick.friendsSeed} seed ={' '}
+                {seedPick.realFriends + seedPick.friendsSeed}
+                <br />
+                Groups: {seedPick.realGroups} real + {seedPick.groupsSeed} seed ={' '}
+                {seedPick.realGroups + seedPick.groupsSeed}
+              </p>
+              <div className="mb-2 flex gap-2">
+                <label className="min-w-0 flex-1 text-caption text-text-secondary">
+                  Friends seed
+                  <input
+                    value={seedFriends}
+                    onChange={(e) => setSeedFriends(e.target.value)}
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+                  />
+                </label>
+                <label className="min-w-0 flex-1 text-caption text-text-secondary">
+                  Groups seed
+                  <input
+                    value={seedGroups}
+                    onChange={(e) => setSeedGroups(e.target.value)}
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+                  />
+                </label>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy === 'seeds'}
+                onClick={() => void onSeeds()}
+              >
+                Set
+              </Button>
+            </div>
+          ) : null}
         </section>
 
         {/* Update card */}
