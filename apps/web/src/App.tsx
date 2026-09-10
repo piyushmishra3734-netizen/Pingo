@@ -76,6 +76,7 @@ const AchievementsScreen = lazyScreen(
   () => import('./screens/AchievementsScreen.js'),
   'AchievementsScreen',
 );
+const InviteScreen = lazyScreen(() => import('./screens/InviteScreen.js'), 'InviteScreen');
 const MythicMissionScreen = lazyScreen(
   () => import('./screens/MythicMissionScreen.js'),
   'MythicMissionScreen',
@@ -106,6 +107,7 @@ import { SplashScreen } from './screens/SplashScreen.js';
 const ControllingScreen = lazyScreen(() => import('./screens/settings/ControllingScreen.js'), 'ControllingScreen');
 const ProfileLookLab = lazyScreen(() => import('./screens/dev/ProfileLookLab.js'), 'ProfileLookLab');
 const VoxelQrLab = lazyScreen(() => import('./screens/dev/VoxelQrLab.js'), 'VoxelQrLab');
+const InviteLab = lazyScreen(() => import('./screens/dev/InviteLab.js'), 'InviteLab');
 const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');
 const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
 const GoogleConnectingScreen = lazyScreen(() => import('./screens/auth/GoogleConnectingScreen.js'), 'GoogleConnectingScreen');
@@ -396,6 +398,9 @@ export function App() {
             {import.meta.env.DEV && (
               <Route path="/dev/qr-lab" element={<VoxelQrLab />} />
             )}
+            {import.meta.env.DEV && (
+              <Route path="/dev/invite-lab" element={<InviteLab />} />
+            )}
 
             {/* Pre-session. A signed-in visitor is sent to Home. */}
             <Route element={<RequireGuest />}>
@@ -468,6 +473,13 @@ export function App() {
             {/* The product. Needs a session *and* a finished profile. */}
             <Route element={<RequireAuth />}>
               <Route element={<RequireProfile />}>
+                {/*
+                  Between signing in and the chat list, outside the shell on
+                  purpose: an invitation with a tab bar under it reads as a
+                  page you wandered onto rather than a step on the way in.
+                  It sends itself on to /chats when it has nothing to offer.
+                */}
+                <Route path="/invite" element={<InviteScreen />} />
                 <Route element={<AppShell />}>
                   <Route path="/chats" element={<ChatsScreen />} />
                   {/*

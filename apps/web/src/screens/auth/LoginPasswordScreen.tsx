@@ -112,7 +112,7 @@ export function LoginPasswordScreen() {
     try {
       await service[identity.kind].signIn(identity.value, password);
       writeLastMethod(identity.kind);
-      navigate('/chats', { replace: true });
+      navigate('/invite', { replace: true });
     } catch (cause) {
       const next = attempts + 1;
       setAttempts(next);

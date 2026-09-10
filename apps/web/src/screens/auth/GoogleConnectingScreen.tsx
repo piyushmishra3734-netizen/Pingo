@@ -43,7 +43,7 @@ export function GoogleConnectingScreen() {
   useEffect(() => {
     if (signedIn) {
       writeLastMethod('google');
-      navigate('/chats', { replace: true });
+      navigate('/invite', { replace: true });
     }
   }, [signedIn, navigate]);
 
