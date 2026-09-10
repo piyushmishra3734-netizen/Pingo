@@ -28,8 +28,19 @@ export interface Envelope {
   epk: string;
   /** Nonce for the body's own AES-GCM. */
   iv: string;
-  /** One wrapped content key per recipient device, keyed by device id. */
-  keys: Record<string, { iv: string; key: string }>;
+  /**
+   * One wrapped content key per recipient device, keyed by device id.
+   *
+   * `epk` is per-wrap and almost always absent. A wrap written at send time
+   * shares the envelope's single ephemeral, because one ephemeral wrapped for
+   * every recipient at once. A wrap *added later* cannot: the ephemeral
+   * private half was discarded the moment the message was sealed, so a
+   * late-added wrap brings its own ephemeral and says so here.
+   *
+   * Absent therefore means "use the envelope's", which is what every wrap
+   * written before this field existed meant, and still means.
+   */
+  keys: Record<string, { iv: string; key: string; epk?: string }>;
 }
 
 export interface Encrypted {
@@ -44,27 +55,23 @@ export interface RecipientDevice {
   publicKey: string;
 }
 
-async function wrapKeyFor(
-  ephemeral: CryptoKeyPair,
-  device: RecipientDevice,
-  contentKey: CryptoKey,
-): Promise<{ iv: string; key: string }> {
-  const theirs = await importPublicKey(device.publicKey);
-
-  /*
-   * ECDH gives shared bits; HKDF turns them into a key. `deriveBits` then a
-   * separate import is deliberate - `deriveKey` straight to AES-GCM would skip
-   * the HKDF step and derive the wrapping key directly from the curve output.
-   */
-  const shared = await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: theirs },
-    ephemeral.privateKey,
-    256,
-  );
-
+/**
+ * One ECDH, one HKDF, one wrapping key - the only place either is done.
+ *
+ * `deriveBits` then a separate import is deliberate: `deriveKey` straight to
+ * AES-GCM would skip the HKDF step and derive the wrapping key directly from
+ * the curve output, which is the classic hand-rolled-protocol mistake.
+ */
+async function wrappingKey(
+  ours: CryptoKey,
+  theirPublicKey: string,
+  usage: 'encrypt' | 'decrypt',
+): Promise<CryptoKey> {
+  const theirs = await importPublicKey(theirPublicKey);
+  const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: theirs }, ours, 256);
   const hkdfKey = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
 
-  const wrappingKey = await crypto.subtle.deriveKey(
+  return crypto.subtle.deriveKey(
     {
       name: 'HKDF',
       hash: 'SHA-256',
@@ -76,21 +83,121 @@ async function wrapKeyFor(
     hkdfKey,
     { name: 'AES-GCM', length: 256 },
     false,
-    ['encrypt'],
+    [usage],
   );
+}
 
+/** The content key's raw bytes, from whichever ephemeral this wrap was made to. */
+async function unwrapContentKey(
+  wrap: Envelope['keys'][string],
+  envelopeEpk: string,
+  ours: CryptoKey,
+): Promise<ArrayBuffer> {
+  // A wrap added after the fact carries its own ephemeral; one written at send
+  // time shares the envelope's. See the `keys` doc above.
+  const kek = await wrappingKey(ours, wrap.epk ?? envelopeEpk, 'decrypt');
+
+  return crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: fromBase64(wrap.iv) },
+    kek,
+    fromBase64(wrap.key),
+  );
+}
+
+/** Wrap raw content-key bytes to one public key, under a fresh ephemeral. */
+async function wrapRawFor(
+  raw: ArrayBuffer,
+  ephemeral: CryptoKeyPair,
+  publicKey: string,
+): Promise<{ iv: string; key: string }> {
+  const kek = await wrappingKey(ephemeral.privateKey, publicKey, 'encrypt');
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const wrapped = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, raw);
+
+  return { iv: toBase64(iv), key: toBase64(new Uint8Array(wrapped)) };
+}
+
+async function wrapKeyFor(
+  ephemeral: CryptoKeyPair,
+  device: RecipientDevice,
+  contentKey: CryptoKey,
+): Promise<{ iv: string; key: string }> {
   /*
    * The content key has to be extractable to be wrapped - its bytes are what
    * gets encrypted. That is safe because those bytes only ever exist inside
    * this function and end up encrypted before they leave it. The *identity* and
    * *database* keys, which are long-lived, are not extractable.
    */
-  const raw = await crypto.subtle.exportKey('raw', contentKey);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  return wrapRawFor(await crypto.subtle.exportKey('raw', contentKey), ephemeral, device.publicKey);
+}
 
-  const wrapped = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, raw);
+/**
+ * A wrap this envelope does not have yet, made from one it does.
+ *
+ * The point of the whole backfill, and the reason it can be done at all: a
+ * message is readable by anyone holding *a* wrap, and a new wrap for the same
+ * content key opens the same ciphertext. So history reaches a key it was never
+ * sent to without the body being touched, re-encrypted, or even decrypted -
+ * this never sees the plaintext, only the content key that would open it.
+ *
+ * The content key's bytes do not leave this function. What comes back is
+ * already encrypted to `toPublicKey`, and is the only thing the caller can
+ * send anywhere.
+ *
+ * Takes the one wrap rather than the whole envelope, because the whole
+ * envelope is 3.7 kB of other people's wraps that this has no use for - and a
+ * backfill that fetched them would move 131 MB to do 10 MB of work.
+ */
+/**
+ * True when this private key is the other half of this public key.
+ *
+ * Cheap insurance for a backfill. Wrapping to the wrong public key is silent -
+ * every wrap succeeds, and the failure only shows up on the device that later
+ * cannot open any of them. So the pair is tested once, on a throwaway value,
+ * before thirty-six thousand wraps are made on the strength of it.
+ *
+ * A round trip is the only honest test here: ECDH gives no way to derive the
+ * public half from a non-extractable private key and compare.
+ */
+export async function keysArePair(ours: CryptoKey, publicKey: string): Promise<boolean> {
+  try {
+    const probe = crypto.getRandomValues(new Uint8Array(32));
 
-  return { iv: toBase64(iv), key: toBase64(new Uint8Array(wrapped)) };
+    const ephemeral = await crypto.subtle.generateKey(
+      { name: 'ECDH', namedCurve: 'P-256' },
+      false,
+      ['deriveBits'],
+    );
+
+    const wrap = await wrapRawFor(probe.buffer, ephemeral, publicKey);
+    const epk = toBase64(new Uint8Array(await crypto.subtle.exportKey('spki', ephemeral.publicKey)));
+
+    const back = new Uint8Array(await unwrapContentKey(wrap, epk, ours));
+    return back.length === probe.length && back.every((byte, i) => byte === probe[i]);
+  } catch {
+    return false;
+  }
+}
+
+export async function rewrapContentKey(
+  wrap: Envelope['keys'][string],
+  envelopeEpk: string,
+  ours: CryptoKey,
+  toPublicKey: string,
+): Promise<{ iv: string; key: string; epk: string }> {
+  const raw = await unwrapContentKey(wrap, envelopeEpk, ours);
+
+  // Fresh, as at send time. Reusing one across a backfill would repeat the
+  // same ECDH secret for every message, which is exactly what the ephemeral
+  // exists to prevent.
+  const ephemeral = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, [
+    'deriveBits',
+  ]);
+
+  return {
+    ...(await wrapRawFor(raw, ephemeral, toPublicKey)),
+    epk: toBase64(new Uint8Array(await crypto.subtle.exportKey('spki', ephemeral.publicKey))),
+  };
 }
 
 export async function encryptMessage(
@@ -169,29 +276,7 @@ export async function decryptMessage(
   const wrap = envelope.keys[deviceId];
   if (!wrap) return undefined;
 
-  const ephemeralPublic = await importPublicKey(envelope.epk);
-
-  const shared = await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: ephemeralPublic },
-    identity.privateKey,
-    256,
-  );
-
-  const hkdfKey = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
-
-  const wrappingKey = await crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: KDF_INFO },
-    hkdfKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['decrypt'],
-  );
-
-  const rawContentKey = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: fromBase64(wrap.iv) },
-    wrappingKey,
-    fromBase64(wrap.key),
-  );
+  const rawContentKey = await unwrapContentKey(wrap, envelope.epk, identity.privateKey);
 
   const contentKey = await crypto.subtle.importKey(
     'raw',

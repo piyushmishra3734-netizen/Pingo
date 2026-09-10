@@ -98,6 +98,7 @@ const NotificationsScreen = lazyScreen(() => import('./screens/settings/Notifica
 const PrivacyScreen = lazyScreen(() => import('./screens/settings/PrivacyScreen.js'), 'PrivacyScreen');
 const PushDebugScreen = lazyScreen(() => import('./screens/settings/PushDebugScreen.js'), 'PushDebugScreen');
 const DevicesScreen = lazyScreen(() => import('./screens/settings/DevicesScreen.js'), 'DevicesScreen');
+const RestoreHistoryScreen = lazyScreen(() => import('./screens/settings/RestoreHistoryScreen.js'), 'RestoreHistoryScreen');
 const StorageScreen = lazyScreen(() => import('./screens/settings/StorageScreen.js'), 'StorageScreen');
 import { IntroSlidesScreen } from './screens/IntroSlidesScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
@@ -507,6 +508,11 @@ export function App() {
                   <Route path="/settings/calls" element={<CallsSettingsScreen />} />
                   <Route path="/settings/muted-stories" element={<MutedStoriesScreen />} />
                   <Route path="/settings/devices" element={<DevicesScreen />} />
+                  {/*
+                    Deliberately unlinked. Handed to the two accounts whose
+                    account key was replaced on 2026-09-09; see the screen.
+                  */}
+                  <Route path="/settings/restore-history" element={<RestoreHistoryScreen />} />
                   <Route path="/settings/storage" element={<StorageScreen />} />
                   <Route path="/settings/language" element={<LanguageScreen />} />
                   <Route path="/settings/advanced" element={<AdvancedScreen />} />

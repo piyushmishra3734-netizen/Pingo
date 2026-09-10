@@ -293,7 +293,24 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
  * would be a wide change for a value that is the same for the whole session.
  * Resolved once, beside the device publication that already works this way.
  */
-let account: { userId: string; key: CryptoKey } | undefined;
+let account:
+  | { userId: string; key: CryptoKey; client: PingoSupabaseClient }
+  | undefined;
+
+/**
+ * Account wraps that live beside the message rather than inside it.
+ *
+ * `null` means asked-for and genuinely absent, which is worth remembering: a
+ * thread of messages from before this device existed would otherwise ask the
+ * server for the same missing wraps on every scroll.
+ *
+ * Keyed by message id, primed by `openRows`, and dropped on sign-out with
+ * everything else this device knows.
+ */
+const sideWraps = new Map<string, { iv: string; key: string; epk: string } | null>();
+
+/** Not a device id, and never colliding with one - same reasoning as `recovery:`. */
+const SIDE_WRAP = 'account-wrap';
 
 /**
  * Fetch or make this account's key, and keep it for the session.
@@ -305,7 +322,7 @@ let account: { userId: string; key: CryptoKey } | undefined;
 export function adoptAccountKey(client: PingoSupabaseClient, userId: string): Promise<void> {
   return accountKey(client)
     .then((key) => {
-      if (key) account = { userId, key };
+      if (key) account = { userId, key, client };
     })
     .catch(() => undefined);
 }
@@ -314,6 +331,7 @@ export function adoptAccountKey(client: PingoSupabaseClient, userId: string): Pr
 export function forgetPublication(): void {
   published = undefined;
   account = undefined;
+  sideWraps.clear();
   forgetAccountKey();
 }
 
@@ -718,6 +736,30 @@ export async function openRow(row: MessageRow): Promise<boolean> {
       });
     }
 
+    /*
+     * Last, and only for history that predates the account key itself.
+     *
+     * Messages sent before 2026-09-09 were wrapped to an account key that a
+     * first-run mint replaced, so their `recovery:` wrap opens nothing. The
+     * repair adds a wrap for the *current* key beside the message instead of
+     * inside it, because rewriting 36,753 envelopes would have marked them all
+     * as changed and made eighteen people re-download them. `message_account_wraps`
+     * records why.
+     *
+     * A side wrap always carries its own ephemeral - it was made long after the
+     * message was sealed - so the envelope handed to `decryptMessage` is the
+     * body's own iv and that wrap, and nothing else.
+     */
+    const side = sideWraps.get(row.id);
+    if (plaintext === undefined && account && side) {
+      plaintext = await decryptMessage(
+        row.body,
+        { epk: side.epk, iv: row.envelope.iv, keys: { [SIDE_WRAP]: side } },
+        SIDE_WRAP,
+        { privateKey: account.key },
+      );
+    }
+
     row.body = plaintext ?? UNREADABLE;
     return plaintext !== undefined;
   } catch {
@@ -747,8 +789,59 @@ export async function openRow(row: MessageRow): Promise<boolean> {
  * So the caller is told, and declines to cache a page it could not fully read.
  */
 export async function openRows(rows: MessageRow[]): Promise<boolean> {
-  const results = await Promise.all(rows.map(openRow));
-  return results.every(Boolean);
+  /*
+   * Kept because `openRow` writes the placeholder into `row.body` on the way
+   * out, which destroys the ciphertext a retry would need. One array of string
+   * references, and only the rows that actually failed are ever restored.
+   */
+  const sealed = rows.map((row) => row.body);
+
+  const first = await Promise.all(rows.map(openRow));
+  if (first.every(Boolean) || !account) return first.every(Boolean);
+
+  /*
+   * One query for the whole page, and only for rows that failed and have not
+   * been asked about before. A thread this device cannot read is the common
+   * case for old history, so asking per row - or asking again on every scroll -
+   * would be the expensive shape.
+   */
+  const wanted = rows.filter(
+    (row, index) =>
+      !first[index] &&
+      row.encryption === 'v1' &&
+      row.envelope &&
+      !sideWraps.has(row.id),
+  );
+  if (wanted.length === 0) return false;
+
+  const { data, error } = await account.client
+    .from('message_account_wraps')
+    .select('message_id,iv,key,epk')
+    .in(
+      'message_id',
+      wanted.map((row) => row.id),
+    );
+
+  // A blip is not an answer. Nothing is remembered, so the next page asks again.
+  if (error) return false;
+
+  for (const row of data ?? []) {
+    sideWraps.set(row.message_id, { iv: row.iv, key: row.key, epk: row.epk });
+  }
+  for (const row of wanted) {
+    if (!sideWraps.has(row.id)) sideWraps.set(row.id, null);
+  }
+
+  const retried = await Promise.all(
+    rows.map(async (row, index) => {
+      if (first[index]) return true;
+      if (!sideWraps.get(row.id)) return false;
+      row.body = sealed[index] ?? row.body;
+      return openRow(row);
+    }),
+  );
+
+  return retried.every(Boolean);
 }
 
 // -- row-per-message --------------------------------------------------------

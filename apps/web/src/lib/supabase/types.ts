@@ -974,6 +974,23 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      /**
+       * Read-only to clients by design - there is no insert or update policy,
+       * because `attach_account_wraps` is the only way a row gets here.
+       */
+      message_account_wraps: {
+        Row: {
+          message_id: string;
+          user_id: string;
+          iv: string;
+          key: string;
+          epk: string;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     /* Empty groups, in the shape the generator emits. */
     Views: { [_ in never]: never };
@@ -1229,6 +1246,26 @@ export type Database = {
           new_version: number;
         };
         Returns: undefined;
+      };
+      /**
+       * Messages this device can open that this account has no wrap for yet.
+       * `wrap` is the caller's own envelope wrap, not the whole envelope.
+       */
+      account_wrap_candidates: {
+        Args: { my_device: string; after_id?: string | null; batch?: number };
+        Returns: {
+          id: string;
+          epk: string;
+          wrap: { iv: string; key: string; epk?: string } | null;
+        }[];
+      };
+      /**
+       * Stores wraps for the caller, in the caller's own conversations.
+       * `status` is 'added', 'skipped' (already had one) or 'denied'.
+       */
+      attach_account_wraps: {
+        Args: { wraps: { id: string; iv: string; key: string; epk: string }[] };
+        Returns: { message_id: string; status: string }[];
       };
       my_streaks: {
         Args: Record<string, never>;
