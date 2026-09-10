@@ -314,35 +314,50 @@ function face(
   ctx.lineWidth = Math.max(0.6, s * 0.032);
 
   /*
-   * Whiskers first, because everything else is drawn over them.
+   * Whiskers: six, three above the muzzle line and three below it, and the
+   * same near-black as the coat.
    *
-   * Three of them, fanned forward from the muzzle and long enough to break the
-   * silhouette - they are what makes a dark round head read as a cat's head
-   * rather than a dark round head with ears stuck on. Forward only: this is a
-   * head seen from the side, and the set that fanned backwards as well was
-   * drawing white lines straight across the eyes.
+   * Drawing them in the light colour was wrong twice over. It put white lines
+   * across the eyes, and it made them a marking on the face rather than hair
+   * coming off it. In the coat colour they are invisible against the head -
+   * which is correct, a whisker against a cat is not a thing you see - and the
+   * part that reaches past the outline reads as six dark hairs against the
+   * page, which is the whole of what a cartoon cat's whiskers are.
    */
-  for (let k = -1; k <= 1; k += 1) {
-    ctx.beginPath();
-    ctx.moveTo(mx - hr * 0.1, my + hr * 0.04);
-    ctx.lineTo(mx + hr * 1.15, my + k * hr * 0.46 - hr * 0.08);
-    ctx.stroke();
+  ctx.strokeStyle = css(COAT);
+  ctx.lineWidth = Math.max(0.7, s * 0.026);
+  for (const up of [-1, 1]) {
+    for (let k = 0; k < 3; k += 1) {
+      const spread = (0.12 + k * 0.2) * up;
+      ctx.beginPath();
+      ctx.moveTo(mx - hr * 0.1, my);
+      ctx.lineTo(mx + hr * (0.98 - k * 0.14), my + hr * spread * 1.5);
+      ctx.stroke();
+    }
   }
 
   /*
-   * The mouth, as the two lobes everybody draws: down from the nose, out to
-   * each side, and flicking up at the ends. Canvas measures its angles with y
-   * running down, so a sweep through half a turn traces the underside of each
-   * circle - which is the lobe, curving the way a pleased cat's does.
+   * The mouth: a line straight down from the nose, then a lobe either side of
+   * it. Each lobe is exactly half a circle whose radius is the offset of its
+   * own centre, so both of them start on the foot of that line and neither
+   * overshoots it - the pair meet at a point rather than nearly meeting, which
+   * is the difference between an aligned mouth and a wonky one.
+   *
+   * Canvas measures its angles with y running down, so a sweep from 0 to pi
+   * traces the underside of each circle, which is the lobe curving the way a
+   * pleased cat's does.
    */
-  ctx.lineWidth = Math.max(0.7, s * 0.036);
+  ctx.strokeStyle = css(GROUND);
+  ctx.lineWidth = Math.max(0.8, s * 0.036);
+  const chin = my + hr * 0.26;
+  const lobe = hr * 0.19;
   ctx.beginPath();
-  ctx.moveTo(mx, my + hr * 0.1);
-  ctx.lineTo(mx, my + hr * 0.24);
+  ctx.moveTo(mx, my + hr * 0.11);
+  ctx.lineTo(mx, chin);
   ctx.stroke();
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.arc(mx + side * hr * 0.17, my + hr * 0.24, hr * 0.17, Math.PI * 0.08, Math.PI * 0.92);
+    ctx.arc(mx + side * lobe, chin, lobe, 0, Math.PI);
     ctx.stroke();
   }
 
@@ -693,6 +708,8 @@ export function VoxelQr({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** 0 is the tree, 1 is the code. A ref: it changes every frame. */
   const progress = useRef(0);
+  /** Which way the cat is pointing. Kept across frames so it can turn in mid-air. */
+  const facing = useRef(1);
   const target = useRef(0);
   const [open, setOpen] = useState(false);
 
@@ -983,20 +1000,24 @@ export function VoxelQr({
       const here = px(cx, cz);
 
       /*
-       * Which way it is facing, as a squash rather than a flip.
+       * Which way it is facing, and when it is allowed to change its mind.
        *
-       * The path's own tangent, in screen x: differentiate `px` along the lap
-       * and everything but `-sin(lap + spin)` cancels. It runs smoothly through
-       * zero at the two ends of the ring, which is exactly where the cat turns
-       * around - so scaling the whole sprite by it turns the cat instead of
-       * mirroring it, and the foreshortening on the way through is what a
-       * side-on sprite rounding a corner actually looks like.
+       * The path's own tangent in screen x says which way it is going:
+       * differentiate the projection along the lap and everything but
+       * `-sin(lap + spin)` cancels.
        *
-       * A floor of a third, because a sprite scaled to nothing is a sprite that
-       * blinks out for a frame in the middle of the turn.
+       * Turning by scaling through that value foreshortened the sprite as it
+       * came round, which is geometrically right and looked like a sheet of
+       * paper being turned edge-on - the cat is a flat drawing and squashing it
+       * horizontally says so out loud.
+       *
+       * So it flips, but only off the ground: the new direction is taken at the
+       * top of a hop, which is where a cat turns anyway. The change is hidden
+       * inside a jump it was going to make regardless, and nothing about the
+       * drawing has to pretend to be three-dimensional.
        */
       const tangent = -Math.sin(lap + spin);
-      const facing = (tangent >= 0 ? 1 : -1) * (0.34 + 0.66 * Math.abs(tangent));
+      if (hop > 0.55) facing.current = tangent >= 0 ? 1 : -1;
 
       const paintCat = () => {
         if (alive <= 0.01) return;
@@ -1004,7 +1025,7 @@ export function VoxelQr({
         ctx.save();
         ctx.globalAlpha = alive;
         ctx.translate(here, py(cx, 0, cz) - hop * unit * kitty.lift);
-        ctx.scale(facing, 1);
+        ctx.scale(facing.current, 1);
         kitty.paint(ctx, s, hop, lap * kitty.hops);
         ctx.restore();
       };
