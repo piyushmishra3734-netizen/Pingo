@@ -1,5 +1,3 @@
-import { useId } from 'react';
-
 import { cn } from '../utils/cn.js';
 
 /**
@@ -22,7 +20,7 @@ export type DotState =
   | 'loading'
   /** A crescent moon: here, and choosing not to say so. Shown only to its owner. */
   | 'invisible'
-  /** A small red Mars: do not disturb. Shown only to its owner. */
+  /** A red disc with a bar: do not disturb. Shown only to its owner. */
   | 'dnd';
 
 export interface PingoDotProps {
@@ -47,8 +45,6 @@ export function PingoDot({
   className,
   label,
 }: PingoDotProps) {
-  // For the Mars gradient. Colons stripped: they break `url(#...)` references.
-  const gid = useId().replace(/:/g, '');
   const a11y = label
     ? { role: 'status' as const, 'aria-label': label }
     : { 'aria-hidden': true as const };
@@ -132,28 +128,12 @@ export function PingoDot({
         {...a11y}
       >
         {/*
-          Lit from the top left, so it reads as a ball rather than a red disc -
-          the flat version looked like a warning light. One dust band and two
-          craters are all the surface there is room for.
+          A red disc with a bar through it - the do-not-disturb mark people
+          already know. It was a small Mars first; at thirteen pixels a planet
+          is a red smudge, and this is the one shape that still reads there.
         */}
-        <defs>
-          <radialGradient id={`${gid}-mars`} cx="34%" cy="30%" r="78%">
-            <stop offset="0%" stopColor="#FF9A6B" />
-            <stop offset="55%" stopColor="#E0583F" />
-            <stop offset="100%" stopColor="#9B2B1D" />
-          </radialGradient>
-        </defs>
-        <circle cx="12" cy="12" r="10" fill={`url(#${gid}-mars)`} />
-        <path
-          d="M3.6 11c2.6-1.1 5.3-.7 7.7.4 2.6 1.2 5.3 1.4 8.4.2"
-          stroke="#B53A22"
-          strokeWidth={1.7}
-          strokeLinecap="round"
-          fill="none"
-          opacity={0.75}
-        />
-        <circle cx="15.6" cy="15.8" r="1.7" fill="#B53A22" opacity={0.8} />
-        <circle cx="8.2" cy="15.4" r="1.1" fill="#B53A22" opacity={0.7} />
+        <circle cx="12" cy="12" r="10" fill="#E0533D" />
+        <rect x="6" y="10.2" width="12" height="3.6" rx="1.8" fill="#FFFFFF" />
       </svg>
     );
   }
