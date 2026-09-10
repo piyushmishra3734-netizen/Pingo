@@ -14,8 +14,8 @@ import { useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { AchievementArt } from '../features/achievements/AchievementArt.js';
 import { mythicWashStyle } from '../features/achievements/MythicAura.js';
-import { QrArt } from '../features/profile/QrArt.js';
 import { achievementById } from '../features/achievements/registry.js';
+import { VoxelQr } from '../features/profile/VoxelQr.js';
 import { referralLink } from '../features/referrals/referral-code.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
 import {
@@ -532,7 +532,11 @@ function InviteCard({
               the theme and this must not.
             */}
             <div className="rounded-2xl bg-white p-3 shadow-sm">
-              <QrArt value={link} size={232} title="QR code for your PINGO invite" />
+              {/*
+                The same tree as the invitation after sign-in and the share
+                sheet, so the code looks like one thing wherever it is shown.
+              */}
+              <VoxelQr value={link} size={232} autoPlay caption="" label="QR code for your PINGO invite" />
             </div>
             {/*
               Read aloud more often than it is tapped, so it is set as something to
