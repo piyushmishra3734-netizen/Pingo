@@ -569,16 +569,22 @@ export const GARDEN = {
   /**
    * Blossom: cherry in the air, deep rose once it has landed.
    *
-   * It stays pink. The landed colour used to be a crimson, which read as the
-   * blossom turning to rust on the way down; this is the same hue as the
-   * canopy, only deep enough to clear the contrast floor below. That floor is
-   * the only reason it darkens at all.
+   * Both are as close to the reference as `floor` allows, which is not very
+   * close for the grass: the reference green measures 2.6:1 on white, and a
+   * code at that contrast is one a phone reads in good light and refuses in a
+   * dim room. The green here is the same hue at 73% of its brightness, which is
+   * the darkest it can be and still read as grass, and the palest it can be and
+   * still be read as ink.
+   *
+   * The blossom keeps more of its reference: 4.19:1 at its palest, bright rose
+   * rather than the crimson this used to land on. That crimson read as the
+   * flowers turning to rust on the way down.
    */
-  blossomAir: [245, 145, 159] as Rgb,
-  blossomInk: [204, 48, 112] as Rgb,
+  blossomAir: [242, 133, 138] as Rgb,
+  blossomInk: [222, 50, 76] as Rgb,
   /** Grass, which never leaves the ground. */
-  grassAir: [132, 207, 70] as Rgb,
-  grassInk: [58, 124, 27] as Rgb,
+  grassAir: [110, 196, 62] as Rgb,
+  grassInk: [70, 131, 39] as Rgb,
   /**
    * How far a module may stray from its ink colour toward its airborne one.
    *

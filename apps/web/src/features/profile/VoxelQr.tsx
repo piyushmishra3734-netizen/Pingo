@@ -69,6 +69,21 @@ const PITCH = (54 * Math.PI) / 180;
 /** Long enough to read as a transformation, short enough not to be a wait. */
 const FLIGHT_MS = 1500;
 
+/**
+ * Wind, in modules of travel at the top of the crown.
+ *
+ * A standing tree that does not move is a photograph of a tree. This is small
+ * on purpose - a third of a module, over about five seconds - because the point
+ * is that you cannot quite catch it happening.
+ *
+ * It runs out entirely as the code lands, and that is not a taste: a settled QR
+ * has to be dead still. A rolling-shutter camera reading a moving target needs
+ * to be held steadier for longer, so anything alive on top of a code makes it a
+ * worse code however good it looks. Everything here happens before that.
+ */
+const GUST = 0.34;
+const GUST_MS = 5200;
+
 /** The tree gets a beat to be a tree before an autoplaying scene opens it. */
 const HOLD_MS = 900;
 
@@ -85,13 +100,100 @@ const { grassAir: GRASS_AIR, grassInk: GRASS_INK } = GARDEN;
 /** The cut edge of the slab, so the lawn has a thickness while it is tilted. */
 const SLAB_SIDE: Rgb = [222, 215, 226];
 /** Where a dark module will land. Pale enough to still be a light module. */
-const REST: Rgb = [233, 229, 234];
+const REST: Rgb = [226, 222, 215];
 const TRUNK: Rgb = [138, 98, 68];
-const PETAL: Rgb = [246, 168, 182];
+const PETAL: Rgb = [244, 150, 152];
 
 const css = (c: Rgb) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
 
+/** A highlight tone, so the canopy is lit rather than one flat pink. */
+const BLOSSOM_LIT: Rgb = [252, 172, 174];
+
+/**
+ * A leaf, as an outline sampled at fixed bearings.
+ *
+ * Lobed, because that is what a canopy of overlapping leaves needs in order to
+ * scallop at its edge instead of reading as a cloud - the silhouette is the
+ * only part of a leaf anyone sees when there are three hundred of them.
+ *
+ * The bearings are the fixed thing. `blossom` moves each point's radius toward
+ * the square its module needs and leaves its bearing alone, which is what lets
+ * one shape be a leaf at one end of the flight and a module at the other. The
+ * step is 22.5 degrees, so four of the sixteen land exactly on the square's
+ * corners and four on its edge midpoints, and the landed outline is the square
+ * rather than a polygon inscribed in it.
+ */
+const LEAF = Array.from({ length: 16 }, (_, i) => {
+  const a = (i / 16) * Math.PI * 2;
+  return { a, r: 0.58 + 0.5 * Math.abs(Math.cos(2 * a + 0.4)) };
+});
+
+/**
+ * One blossom, part leaf and part module.
+ *
+ * `t` runs 0 - a leaf hanging on the tree - to 1, the square module it lands
+ * on. Only radii and the leaf's own tilt move; every point keeps its bearing,
+ * so a leaf becomes its own module rather than being swapped for one.
+ */
+function blossom(
+  ctx: CanvasRenderingContext2D,
+  sx: number,
+  sy: number,
+  hw: number,
+  t: number,
+  turn: number,
+) {
+  ctx.beginPath();
+  for (let i = 0; i < LEAF.length; i += 1) {
+    const { a, r } = LEAF[i]!;
+    const square = 1 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+    const rad = (r + (square - r) * t) * hw;
+    const ang = a + turn * (1 - t);
+    const x = sx + Math.cos(ang) * rad;
+    const y = sy + Math.sin(ang) * rad;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
 const shadeOf = (ink: Rgb, air: Rgb, jitter: number) => mix(ink, air, jitter * GARDEN.jitter);
+
+/**
+ * The crown, as the six numbers that decide what kind of tree this is.
+ *
+ * A prop rather than constants because the shape is a thing to look at rather
+ * than reason about - the same reason the radius always was - and because the
+ * lab shows several at once to choose between. `SAKURA` is what ships.
+ */
+export interface Crown {
+  /** Height of the dome, as a fraction of the code's width. */
+  dome: number;
+  /** How far the rim hangs below the flat of the crown. */
+  droop: number;
+  /** Where the crown starts, above the lawn. */
+  base: number;
+  /** How far the crown splays past each block's own module. 1 is lawn-width. */
+  spread: number;
+  /** Trunk height, as a fraction of the code's width. */
+  trunk: number;
+  /** The lowest a block may hang in the crown. Below 1 gives it a thickness. */
+  fill: number;
+  /** How fat a leaf is drawn while airborne. Wider crowns need more. */
+  leaf: number;
+}
+
+/** A round puff of blossom on a clear trunk, a little wider than it is tall. */
+export const SAKURA: Crown = {
+  dome: 0.72,
+  droop: 0,
+  base: 0.52,
+  spread: 1.2,
+  trunk: 0.6,
+  fill: 0.6,
+  leaf: 3,
+};
 
 interface Cell {
   /** Where it lands: module coordinates, with the quiet zone already added. */
@@ -105,6 +207,10 @@ interface Cell {
   grass: boolean;
   /** Staggers the flight so the tree comes apart rather than teleporting. */
   delay: number;
+  /** How far this leaf hangs off square. Runs out as it lands. */
+  turn: number;
+  /** Where in the gust this leaf is, so the canopy moves as a wave. */
+  phase: number;
   air: Rgb;
   ink: Rgb;
 }
@@ -115,14 +221,9 @@ interface Cell {
  * Every lit module gets a place on a trunk-and-canopy silhouette, chosen from
  * its own coordinates so the same profile always grows the same tree.
  *
- * `canopy` is how far the dome splays past the module each block belongs to:
- * 1 is a canopy exactly the width of the lawn, and above that it overhangs. It
- * is the only thing worth turning, and it is a prop rather than a constant
- * because the right value is a thing to look at, not a thing to reason about -
- * guessing at it from a description cost several rewrites that should have been
- * one slider.
+ * The silhouette comes from `crown` - see `Crown` for what each number does.
  */
-function plant(modules: boolean[][], size: number, canopy: number): Cell[] {
+function plant(modules: boolean[][], size: number, crown: Crown): Cell[] {
   const cells: Cell[] = [];
   const mid = (size - 1) / 2;
 
@@ -183,18 +284,31 @@ function plant(modules: boolean[][], size: number, canopy: number): Cell[] {
         // rather than curling under.
         const r = Math.min(1, away / 1.35);
         /*
-         * How far out along its own bearing this block sits, as a fraction of
-         * the dome's surface. A block at 0.6 is on an inner shell of the same
-         * dome, which is what turns a moulded cap - solid on top, hollow and
-         * visibly thin underneath - into a canopy with a volume. It costs a
-         * little travel, and it costs none of the bearing.
+         * How high in the crown this block hangs, as a fraction of the dome.
+         *
+         * Only the height varies - the radius does not. Scaling the radius too
+         * put every low block near the axis, and a few hundred of those stacked
+         * into a funnel running down to the trunk. Varying height alone gives
+         * the crown a thickness without moving a single block off its bearing.
          */
-        const fill = 0.6 + 0.4 * Math.abs(r3);
-        const dome = size * 0.85 * Math.sqrt(1 - r * r);
+        const fill = crown.fill + (1 - crown.fill) * Math.abs(r3);
+        // The rim hangs below the flat of the canopy, so the skirt droops
+        // around the trunk instead of ending in a straight cut.
+        // Wide and low, the way a sakura is: the crown is half again as
+        // broad as it is tall, and its rim droops rather than ending in a
+        // straight cut. A taller dome here read as an oak.
+        const dome = size * (crown.dome * Math.sqrt(1 - r * r) - crown.droop * r * r);
 
-        tx = (x - mid) * canopy * fill;
-        tz = (y - mid) * canopy * fill;
-        ty = size * 0.46 + dome * fill;
+        /*
+         * A twelfth of a module of slop on the radius. Without it the crown is
+         * the code's own pattern blown up, holes and all - the white runs in a
+         * QR are wide enough to show as gaps in a canopy. Small enough that a
+         * block still lands where it hung.
+         */
+        const slop = 1 + r2 * 0.16;
+        tx = (x - mid) * crown.spread * slop;
+        tz = (y - mid) * crown.spread * slop;
+        ty = size * crown.base + dome * fill;
       }
 
       const jitter = Math.abs(r2);
@@ -207,7 +321,11 @@ function plant(modules: boolean[][], size: number, canopy: number): Cell[] {
         grass,
         // Outer modules leave first, so the tree opens from the edges inward.
         delay: Math.min(0.45, (Math.hypot(x - mid, y - mid) / mid) * 0.4),
-        air: grass ? GRASS_AIR : BLOSSOM_AIR,
+        turn: r3 * 0.8,
+        phase: (seed % 628) / 100,
+        // Two close pinks rather than one, which is the difference between a
+        // canopy with light in it and a pink shape.
+        air: grass ? GRASS_AIR : mix(BLOSSOM_AIR, BLOSSOM_LIT, jitter),
         ink: shadeOf(grass ? GRASS_INK : BLOSSOM_INK, grass ? GRASS_AIR : BLOSSOM_AIR, jitter),
       });
     }
@@ -223,7 +341,7 @@ export function VoxelQr({
   value,
   level = 'M',
   size = 300,
-  canopy = 1.25,
+  crown = SAKURA,
   autoPlay = false,
   className,
   label = 'Profile QR code',
@@ -232,8 +350,8 @@ export function VoxelQr({
   value: string;
   level?: QrLevel;
   size?: number;
-  /** How far the dome splays past each block's own module. 1 is lawn-width. */
-  canopy?: number;
+  /** What kind of tree. See `Crown`; `SAKURA` is the shipped shape. */
+  crown?: Crown;
   /** Open on its own after a beat, which is what the share sheet wants. */
   autoPlay?: boolean;
   className?: string;
@@ -256,7 +374,7 @@ export function VoxelQr({
     const modules = encodeQr(value, level);
     const count = modules.length;
     const grid = count + QUIET * 2;
-    const cells = plant(modules, count, canopy);
+    const cells = plant(modules, count, crown);
 
     /*
      * Reduced motion starts on the code.
@@ -312,7 +430,12 @@ export function VoxelQr({
       const cosP = Math.cos(pitch);
       const sinP = Math.sin(pitch);
 
-      const unit = size / (grid * (1 + 0.72 * (1 - e)));
+      /*
+       * Zoomed out far enough to hold whatever crown it was given, and back in
+       * to exactly the code by the time it lands. Derived from the spread
+       * rather than set beside it, so widening a tree cannot crop it.
+       */
+      const unit = size / (grid * (1 + 0.45 * crown.spread * (1 - e)));
       const half = unit / 2;
       // Pushed down while tilted, so the canopy has somewhere to be.
       const lift = (1 - e) * size * 0.3;
@@ -388,43 +511,112 @@ export function VoxelQr({
       /* ---- fallen petals ------------------------------------------------- */
 
       if (restAlpha > 0.01) {
-        ctx.globalAlpha = restAlpha * 0.8;
+        ctx.globalAlpha = restAlpha * 0.85;
         ctx.fillStyle = css(PETAL);
-        for (let i = 0; i < 26; i += 1) {
-          // The golden angle, so a couple of dozen of them spread evenly
-          // without a random number generator or a table of positions.
+        for (let i = 0; i < 34; i += 1) {
+          // The golden angle, so three dozen of them spread evenly without a
+          // random number generator or a table of positions.
           const a = (i * 2.39996) % 6.283;
-          const r = edge * 0.6 * Math.sqrt(((i * 37) % 100) / 100);
+          const r = edge * 0.66 * Math.sqrt(((i * 37) % 100) / 100);
           const fx = Math.cos(a) * r;
           const fz = Math.sin(a) * r;
-          ctx.fillRect(
-            px(fx, fz) - unit * 0.3,
-            py(fx, 0.02, fz) - unit * 0.18,
-            unit * 0.6,
-            unit * 0.36,
-          );
+          /*
+           * The same leaf as the canopy, lying down: squashed by the camera's
+           * own pitch, so a petal on the ground foreshortens exactly as much as
+           * the lawn it is lying on.
+           */
+          ctx.save();
+          ctx.translate(px(fx, fz), py(fx, 0.02, fz));
+          ctx.scale(1, Math.max(0.08, cosP));
+          blossom(ctx, 0, 0, unit * 0.6, 0, i * 1.7);
+          ctx.restore();
         }
         ctx.globalAlpha = 1;
       }
 
       /* ---- the trunk ----------------------------------------------------- */
 
-      const trunkH = count * 0.66 * (1 - e);
+      const trunkH = count * crown.trunk * (1 - e);
       if (trunkH > 0.05) {
-        const w = Math.max(1.5, count * 0.075) * unit;
         const top = at(0, 0, trunkH);
         const foot = at(0, 0, 0);
         const height = Math.max(0, foot[1] - top[1]);
+        /*
+         * Wider at the top than at the ground. That is the wrong way round for
+         * a post and the right way round for a cherry, which flares where the
+         * branches leave it; a parallel column read as a pole with a cloud
+         * balanced on it.
+         */
+        const wTop = Math.max(1.7, count * 0.085) * unit;
+        const wFoot = wTop * 0.62;
+        const x = top[0];
         ctx.globalAlpha = Math.min(1, (1 - e) * 2.2);
+
+        /*
+         * Branches first, so the flare of the trunk covers where they leave it.
+         * Five is enough to read as a crown from any angle and few enough that
+         * the canopy still hides most of each one, which is what they are for -
+         * a canopy with nothing going into it hangs in the air.
+         */
+        ctx.strokeStyle = css(mix(TRUNK, [0, 0, 0], 0.1));
+        ctx.lineCap = 'round';
+        for (let b = -2; b <= 2; b += 1) {
+          ctx.lineWidth = wTop * (0.4 - Math.abs(b) * 0.07);
+          ctx.beginPath();
+          ctx.moveTo(x, top[1] + height * 0.08);
+          ctx.quadraticCurveTo(
+            x + b * wTop * 1.1,
+            top[1] - height * 0.1,
+            x + b * wTop * 2.1,
+            top[1] - height * 0.34,
+          );
+          ctx.stroke();
+        }
+
         ctx.fillStyle = css(TRUNK);
-        ctx.fillRect(top[0] - w * 0.5, top[1], w, height);
+        ctx.beginPath();
+        ctx.moveTo(x - wTop / 2, top[1]);
+        ctx.lineTo(x + wTop / 2, top[1]);
+        ctx.lineTo(x + wFoot / 2, foot[1]);
+        ctx.lineTo(x - wFoot / 2, foot[1]);
+        ctx.closePath();
+        ctx.fill();
+
         // One shaded half, which is the whole lighting model a column needs.
-        ctx.fillStyle = css(mix(TRUNK, [0, 0, 0], 0.22));
-        ctx.fillRect(top[0], top[1], w * 0.5, height);
+        ctx.fillStyle = css(mix(TRUNK, [0, 0, 0], 0.24));
+        ctx.beginPath();
+        ctx.moveTo(x, top[1]);
+        ctx.lineTo(x + wTop / 2, top[1]);
+        ctx.lineTo(x + wFoot / 2, foot[1]);
+        ctx.lineTo(x, foot[1]);
+        ctx.closePath();
+        ctx.fill();
+
+        // Bark, as rings. A stack of them is what says the trunk is a solid
+        // round thing and not a painted stripe.
+        ctx.strokeStyle = css(mix(TRUNK, [0, 0, 0], 0.36));
+        ctx.lineWidth = Math.max(0.8, unit * 0.07);
+        for (let k = 1; k < 8; k += 1) {
+          const f = k / 8;
+          const y = top[1] + height * f;
+          const w = (wTop + (wFoot - wTop) * f) / 2;
+          ctx.beginPath();
+          ctx.moveTo(x - w, y);
+          ctx.lineTo(x + w, y);
+          ctx.stroke();
+        }
         ctx.globalAlpha = 1;
       }
 
       /* ---- the blocks ---------------------------------------------------- */
+
+      /*
+       * One gust for the whole scene, sampled per block by its own phase, so
+       * the canopy moves as a wave passing through it rather than as one solid
+       * object sliding sideways.
+       */
+      const gust = (phase: number) =>
+        Math.sin((now / GUST_MS) * Math.PI * 2 + phase) * GUST * unit;
 
       type Drawn = {
         sx: number;
@@ -434,6 +626,9 @@ export function VoxelQr({
         grass: boolean;
         /** Block width in px. Blossom is fat in the air, exact on the ground. */
         w: number;
+        /** 0 is a leaf on the tree, 1 is the module. Drives shape, not place. */
+        t: number;
+        turn: number;
       };
       const drawn: Drawn[] = [];
 
@@ -450,9 +645,15 @@ export function VoxelQr({
         const wz = cell.tz + (my - cell.tz) * le;
         const wy = cell.ty * (1 - le);
 
+        /*
+         * Higher in the crown means more travel, and a block on its way down
+         * has less and less of it. By the time it is a module it has none.
+         */
+        const bend = (1 - le) * (1 - e) * Math.min(1, wy / (count * 0.5));
+
         drawn.push({
-          sx: px(wx, wz),
-          sy: py(wx, wy, wz),
+          sx: px(wx, wz) + gust(cell.phase) * bend,
+          sy: py(wx, wy, wz) + gust(cell.phase + 1.6) * bend * 0.35,
           // Painter's order: further back and lower down is drawn first.
           d: wx * sinS + wz * cosS - wy,
           colour: mix(cell.air, cell.ink, le),
@@ -464,14 +665,17 @@ export function VoxelQr({
            * to exactly one module as it lands, which is the only size that
            * matters.
            */
-          w: unit * (cell.grass ? 1 : 1 + 1.55 * (1 - le)),
+          w: unit * (cell.grass ? 1 : 1 + crown.leaf * (1 - le)),
+          t: le,
+          turn: cell.turn,
         });
       }
 
       const flat = p > 0.995;
       if (!flat) drawn.sort((a, b) => a.d - b.d);
 
-      const blade = unit * (0.45 + 0.6 * (1 - e));
+
+      const blade = unit * (0.45 + 1.0 * (1 - e));
 
       for (const v of drawn) {
         if (flat) {
@@ -481,28 +685,41 @@ export function VoxelQr({
           continue;
         }
 
-        /*
-         * A box as its top face and the two sides the camera can see. The
-         * sides collapse on their own as the pitch reaches zero, so nothing
-         * has to decide when to stop drawing them.
-         */
         const hw = v.w / 2;
         const ax = hw * cosS;
         const az = hw * sinS;
         const tx = hw * sinS * cosP;
         const tz = hw * cosS * cosP;
         const fall = v.w * sinP;
-        quad(
-          [
-            [v.sx - ax - az, v.sy - tz + tx],
-            [v.sx + ax - az, v.sy - tz - tx],
-            [v.sx + ax + az, v.sy + tz - tx],
-            [v.sx - ax + az, v.sy + tz + tx],
-          ],
-          v.colour,
-        );
 
-        if (fall > 0.5) {
+        if (!v.grass) {
+          /*
+           * Blossom is a leaf, and only becomes a box on the way down. Cubes
+           * hanging in a canopy read as gravel; the scalloped edge of a few
+           * hundred overlapping leaves is the whole look of the tree.
+           */
+          ctx.fillStyle = css(v.colour);
+          blossom(ctx, v.sx, v.sy, hw, v.t, v.turn);
+        } else {
+          quad(
+            [
+              [v.sx - ax - az, v.sy - tz + tx],
+              [v.sx + ax - az, v.sy - tz - tx],
+              [v.sx + ax + az, v.sy + tz - tx],
+              [v.sx - ax + az, v.sy + tz + tx],
+            ],
+            v.colour,
+          );
+        }
+
+        /*
+         * The two sides the camera can see. They collapse on their own as the
+         * pitch reaches zero, so nothing has to decide when to stop drawing
+         * them - and on blossom they fade in as the leaf squares up, which is
+         * the moment it stops being a leaf and starts being a block.
+         */
+        const solid = v.grass ? 1 : Math.max(0, (v.t - 0.35) / 0.65);
+        if (fall > 0.5 && solid > 0.01) {
           // Shaded by alpha rather than a second colour, so the palette stays
           // at two values however the accent changes.
           quad(
@@ -513,7 +730,7 @@ export function VoxelQr({
               [v.sx - ax + az, v.sy + tz + tx + fall],
             ],
             v.colour,
-            0.76,
+            0.76 * solid,
           );
           quad(
             [
@@ -523,7 +740,7 @@ export function VoxelQr({
               [v.sx + ax - az, v.sy - tz - tx + fall],
             ],
             v.colour,
-            0.56,
+            0.56 * solid,
           );
         }
 
@@ -533,13 +750,30 @@ export function VoxelQr({
          * texture in it, which is what keeps the lawn from turning into paint.
          */
         if (v.grass && blade > 1.2) {
-          ctx.fillStyle = css(mix(v.colour, GRASS_AIR, 0.35));
-          for (let k = -1; k <= 1; k += 1) {
-            const bx = v.sx + k * unit * 0.28;
+          /*
+           * The same gust, at the height grass has. Only the tip moves - the
+           * root of a blade does not - which is what makes it bend rather than
+           * slide.
+           */
+          const lean = gust(v.sx * 0.04) * (1 - e) * 0.5;
+          for (let k = -2; k <= 2; k += 1) {
+            const bx = v.sx + k * unit * 0.22;
+            const len = blade * (1 - Math.abs(k) * 0.16);
+            const tip = v.sy - len;
+            ctx.fillStyle = css(mix(v.colour, GRASS_AIR, 0.3));
             ctx.beginPath();
-            ctx.moveTo(bx - unit * 0.1, v.sy);
-            ctx.lineTo(bx + unit * 0.1, v.sy);
-            ctx.lineTo(bx + k * unit * 0.2, v.sy - blade);
+            ctx.moveTo(bx - unit * 0.09, v.sy);
+            ctx.lineTo(bx + unit * 0.09, v.sy);
+            ctx.lineTo(bx + k * unit * 0.26 + lean, tip);
+            ctx.closePath();
+            ctx.fill();
+            // A lit tip, which is the whole reason grass reads as grass and
+            // not as a green spike.
+            ctx.fillStyle = css(mix(v.colour, [225, 245, 150], 0.55));
+            ctx.beginPath();
+            ctx.moveTo(bx + (k * unit * 0.26 - unit * 0.05) * 0.85 + lean * 0.66, tip + len * 0.34);
+            ctx.lineTo(bx + (k * unit * 0.26 + unit * 0.05) * 0.85 + lean * 0.66, tip + len * 0.34);
+            ctx.lineTo(bx + k * unit * 0.26 + lean, tip);
             ctx.closePath();
             ctx.fill();
           }
@@ -554,7 +788,7 @@ export function VoxelQr({
       cancelAnimationFrame(frame);
       if (hold !== undefined) window.clearTimeout(hold);
     };
-  }, [value, level, size, canopy, autoPlay]);
+  }, [value, level, size, crown, autoPlay]);
 
   const hint = caption ?? (open ? 'Tap to see the tree' : 'Tap the tree to see the QR code');
 
