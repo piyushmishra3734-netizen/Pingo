@@ -1,4 +1,4 @@
-import { Button, CheckIcon, ChevronRightIcon, LinkIcon, ShareIcon, cn } from '@pingo/ui';
+import { Button, CheckIcon, ChevronRightIcon, CloseIcon, LinkIcon, ShareIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
@@ -12,26 +12,27 @@ import {
 } from '../features/referrals/referrals-service.js';
 
 /**
- * The invitation, between signing in and the chat list.
+ * The invitation: the tree growing the person's own referral link, share and
+ * copy, and how far along the badge is. Whoever scans it arrives at `/r/:code`
+ * and the invite is credited.
  *
- * Every way into the product - a new password, a returning one, the Google
- * round trip, the last step of profile setup - lands here before `/chats`. The
- * tree grows the person's own referral link rather than their profile link, so
- * whoever scans it arrives at `/r/:code` and the invite is credited.
+ * ## Not on the way in
  *
- * ## It retires itself
+ * It was briefly placed between signing in and the chat list, in front of
+ * every login and signup. That came out again: a page in front of the chats at
+ * the moment somebody has just arrived is a toll, whatever is on it. Nothing
+ * routes here on sign-in now; it is a page to open on purpose.
  *
- * A screen in front of the chat list on every sign-in is a toll, so it only
- * exists while it has something to offer. With no mission running, or the
- * badge already earned, there is nothing left to invite toward, and it steps
- * straight through to the chats without drawing a frame. The first sign-in
- * after the fifth friend joins is the last one that sees it.
+ * ## It steps aside when it has nothing to offer
  *
- * ## One way out, always visible
+ * With no mission running, or the badge already earned, there is nothing left
+ * to invite toward, and it goes straight to the chats without drawing a frame.
  *
- * "Continue to chats" is pinned to the bottom rather than at the end of the
- * content, so nobody has to scroll past the pitch to leave it. The invitation
- * is worth showing; it is not worth trapping somebody behind.
+ * ## Closing it
+ *
+ * A close button in the corner. It replaced a "Continue to chats" link at the
+ * bottom, which read as the next step of a flow rather than a way out of a
+ * page.
  *
  * ## Every number is the server's
  *
@@ -111,8 +112,21 @@ export function InviteView({ progress }: { progress: ReferralProgress }) {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-page">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-10">
+    <div className="relative flex h-full min-h-0 flex-col bg-page">
+      <button
+        type="button"
+        onClick={leave}
+        aria-label="Close"
+        className={cn(
+          'focus-ring absolute right-3 top-[max(env(safe-area-inset-top),0.75rem)] z-10',
+          'grid size-10 place-items-center rounded-full text-text-secondary',
+          'transition-transform duration-instant hover:bg-surface-hover active:scale-90',
+        )}
+      >
+        <CloseIcon size={22} />
+      </button>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-10 pt-14">
         <div className="mx-auto flex w-full max-w-sm flex-col items-center text-center motion-safe:animate-fade-in">
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Invite your friends</h1>
           <p className="text-body mt-1.5 max-w-xs text-balance text-text-secondary">
@@ -171,12 +185,6 @@ export function InviteView({ progress }: { progress: ReferralProgress }) {
             <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
           </button>
         </div>
-      </div>
-
-      <div className="px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-3">
-        <Button variant="text" block onClick={leave}>
-          Continue to chats
-        </Button>
       </div>
     </div>
   );
