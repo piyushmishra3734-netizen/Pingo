@@ -89,8 +89,16 @@ const GUST_MS = 3800;
 const FALLING = 14;
 const FALL_MS = 4600;
 
-/** The tree gets a beat to be a tree before an autoplaying scene opens it. */
-const HOLD_MS = 900;
+/**
+ * How long the tree gets to be a tree before an autoplaying scene opens it.
+ *
+ * Two seconds, which is long by the standards of anything else that moves in
+ * this app and is the point. The tree is what somebody looks at; the code is
+ * what they point a camera at afterwards. A beat short enough to feel like a
+ * loading state would spend the whole idea - and the reason for a tree at all
+ * is that nobody looks at a QR.
+ */
+const HOLD_MS = 2000;
 
 /** The quiet zone, in modules. Non-negotiable - see `QrArt`. */
 const QUIET = 4;
