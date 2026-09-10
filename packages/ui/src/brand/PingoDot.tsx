@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 import { cn } from '../utils/cn.js';
 
 /**
@@ -45,6 +47,8 @@ export function PingoDot({
   className,
   label,
 }: PingoDotProps) {
+  // For the Mars gradient. Colons stripped: they break `url(#...)` references.
+  const gid = useId().replace(/:/g, '');
   const a11y = label
     ? { role: 'status' as const, 'aria-label': label }
     : { 'aria-hidden': true as const };
@@ -103,10 +107,17 @@ export function PingoDot({
         viewBox="0 0 24 24"
         width={size * 1.35}
         height={size * 1.35}
-        className={cn('block text-text-tertiary', className)}
+        className={cn('block', className)}
         {...a11y}
       >
-        <path fill="currentColor" d="M20.6 14.4A8.6 8.6 0 0 1 9.6 3.4a8.6 8.6 0 1 0 11 11Z" />
+        {/* Moon yellow, with a darker rim so it holds its edge on a white page. */}
+        <path
+          fill="#F6C544"
+          stroke="#D9981C"
+          strokeWidth={1}
+          strokeLinejoin="round"
+          d="M20.6 14.4A8.6 8.6 0 0 1 9.6 3.4a8.6 8.6 0 1 0 11 11Z"
+        />
       </svg>
     );
   }
@@ -120,10 +131,29 @@ export function PingoDot({
         className={cn('block', className)}
         {...a11y}
       >
-        <circle cx="12" cy="12" r="10" fill="#E0533D" />
-        <ellipse cx="8.4" cy="9" rx="2.6" ry="1.8" fill="#A8321F" />
-        <ellipse cx="15.2" cy="15.6" rx="3.1" ry="2" fill="#A8321F" />
-        <circle cx="16.2" cy="7.4" r="1.2" fill="#A8321F" />
+        {/*
+          Lit from the top left, so it reads as a ball rather than a red disc -
+          the flat version looked like a warning light. One dust band and two
+          craters are all the surface there is room for.
+        */}
+        <defs>
+          <radialGradient id={`${gid}-mars`} cx="34%" cy="30%" r="78%">
+            <stop offset="0%" stopColor="#FF9A6B" />
+            <stop offset="55%" stopColor="#E0583F" />
+            <stop offset="100%" stopColor="#9B2B1D" />
+          </radialGradient>
+        </defs>
+        <circle cx="12" cy="12" r="10" fill={`url(#${gid}-mars)`} />
+        <path
+          d="M3.6 11c2.6-1.1 5.3-.7 7.7.4 2.6 1.2 5.3 1.4 8.4.2"
+          stroke="#B53A22"
+          strokeWidth={1.7}
+          strokeLinecap="round"
+          fill="none"
+          opacity={0.75}
+        />
+        <circle cx="15.6" cy="15.8" r="1.7" fill="#B53A22" opacity={0.8} />
+        <circle cx="8.2" cy="15.4" r="1.1" fill="#B53A22" opacity={0.7} />
       </svg>
     );
   }
