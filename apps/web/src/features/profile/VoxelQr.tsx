@@ -110,22 +110,39 @@ const css = (c: Rgb) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
 const BLOSSOM_LIT: Rgb = [252, 172, 174];
 
 /**
- * A leaf, as an outline sampled at fixed bearings.
+ * Where a maple leaf's five points face, as bearings from its middle.
  *
- * Lobed, because that is what a canopy of overlapping leaves needs in order to
- * scallop at its edge instead of reading as a cloud - the silhouette is the
- * only part of a leaf anyone sees when there are three hundred of them.
+ * A tip at the top, a pair out to the sides and a pair swept back, and nothing
+ * at all pointing down - which is what leaves the narrow base a leaf has where
+ * its stem joins. Read off the reference: at the edge of that canopy, and lying
+ * on the ground under it, the leaves are unmistakably maple, and rounding them
+ * into blobs was the last thing making this read as gravel rather than blossom.
+ */
+const TIPS = [90, 26, 154, -34, 214].map((d) => (d * Math.PI) / 180);
+
+/**
+ * The leaf, as an outline sampled at fixed bearings.
+ *
+ * Each point takes the nearest tip's reach, falling away sharply between them -
+ * `cos` to the fifth is what cuts the deep notches a maple has, where a gentler
+ * curve gives the scallops of a blob.
  *
  * The bearings are the fixed thing. `blossom` moves each point's radius toward
  * the square its module needs and leaves its bearing alone, which is what lets
  * one shape be a leaf at one end of the flight and a module at the other. The
- * step is 22.5 degrees, so four of the sixteen land exactly on the square's
- * corners and four on its edge midpoints, and the landed outline is the square
- * rather than a polygon inscribed in it.
+ * step is 15 degrees, so four of the twenty-four land on the square's corners
+ * and four on its edge midpoints; every other point lands on an edge between
+ * two of those, and a chord between two points of a straight edge is that edge.
+ * The landed outline is the square, not a polygon inscribed in it.
  */
-const LEAF = Array.from({ length: 16 }, (_, i) => {
-  const a = (i / 16) * Math.PI * 2;
-  return { a, r: 0.58 + 0.5 * Math.abs(Math.cos(2 * a + 0.4)) };
+const LEAF = Array.from({ length: 24 }, (_, i) => {
+  const a = (i / 24) * Math.PI * 2;
+  let lobe = 0;
+  for (const tip of TIPS) {
+    const c = Math.cos(a - tip);
+    if (c > 0) lobe = Math.max(lobe, c ** 5);
+  }
+  return { a, r: 0.28 + 0.76 * lobe };
 });
 
 /**
@@ -143,6 +160,9 @@ function blossom(
   t: number,
   turn: number,
 ) {
+  // Taller than it is wide while it is a leaf, and square by the time it is a
+  // module - so the stretch has to run out exactly as the shape does.
+  const tall = 1 + 0.16 * (1 - t);
   ctx.beginPath();
   for (let i = 0; i < LEAF.length; i += 1) {
     const { a, r } = LEAF[i]!;
@@ -150,7 +170,7 @@ function blossom(
     const rad = (r + (square - r) * t) * hw;
     const ang = a + turn * (1 - t);
     const x = sx + Math.cos(ang) * rad;
-    const y = sy + Math.sin(ang) * rad;
+    const y = sy + Math.sin(ang) * rad * tall;
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
@@ -192,7 +212,7 @@ export const SAKURA: Crown = {
   spread: 1.2,
   trunk: 0.6,
   fill: 0.6,
-  leaf: 3,
+  leaf: 3.9,
 };
 
 interface Cell {
