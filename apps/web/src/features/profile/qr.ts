@@ -569,22 +569,17 @@ export const GARDEN = {
   /**
    * Blossom: cherry in the air, deep rose once it has landed.
    *
-   * Both are as close to the reference as `floor` allows, which is not very
-   * close for the grass: the reference green measures 2.6:1 on white, and a
-   * code at that contrast is one a phone reads in good light and refuses in a
-   * dim room. The green here is the same hue at 73% of its brightness, which is
-   * the darkest it can be and still read as grass, and the palest it can be and
-   * still be read as ink.
-   *
-   * The blossom keeps more of its reference: 4.19:1 at its palest, bright rose
-   * rather than the crimson this used to land on. That crimson read as the
-   * flowers turning to rust on the way down.
+   * Both are as light as `measure-qr-contrast.mjs` says they can be: halfway
+   * from the ink they landed on toward the canopy itself for the blossom, and a
+   * fifth of the way toward the reference green for the grass. Both, and the
+   * pair together, decode through every trial in that sweep. One step lighter
+   * than either and a trial starts failing.
    */
   blossomAir: [242, 133, 138] as Rgb,
-  blossomInk: [222, 50, 76] as Rgb,
+  blossomInk: [232, 92, 107] as Rgb,
   /** Grass, which never leaves the ground. */
   grassAir: [110, 196, 62] as Rgb,
-  grassInk: [70, 131, 39] as Rgb,
+  grassInk: [75, 141, 42] as Rgb,
   /**
    * How far a module may stray from its ink colour toward its airborne one.
    *
@@ -597,12 +592,21 @@ export const GARDEN = {
    * The contrast a settled module must keep against the lawn.
    *
    * A pink code and a green code are both far lighter than the near-black
-   * `QrArt` uses, so "does jsQR read it" stopped being the question - a clean
-   * synthetic raster decodes at contrasts a phone at an angle, in a room with
-   * one lamp, will not. 4:1 is the floor those colours are chosen against, and
-   * it is what makes the palette a measurement rather than a preference.
+   * `QrArt` uses, so "does jsQR read it" stopped being the question: a clean
+   * synthetic raster decodes at contrasts a phone at an angle in a room with
+   * one lamp will not.
+   *
+   * So this number is measured rather than picked. `measure-qr-contrast.mjs`
+   * rasterises the real code at a range of inks and decodes each through five
+   * degradations - soft focus, grain and low light, small on screen, and
+   * rotated - and reports where each starts failing. 3.2:1 is just under the
+   * palest pair that survives all five. Below it a trial drops out.
+   *
+   * The sweep is also why the trials are calibrated against black on white:
+   * the first set of degradations was harsh enough that black failed two of
+   * them, which measured the filter settings rather than the palette.
    */
-  floor: 4,
+  floor: 3.2,
 };
 
 /** Relative luminance, WCAG. Used to hold the palette to `GARDEN.floor`. */

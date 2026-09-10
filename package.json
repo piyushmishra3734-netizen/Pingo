@@ -63,7 +63,8 @@
     "verify:device-identity": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-device-identity.ts",
     "verify:media-quality": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-media-quality.ts",
     "verify:route-boundary": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-route-boundary.ts",
-    "verify:hook-order": "node apps/web/scripts/verify-hook-order.mjs"
+    "verify:hook-order": "node apps/web/scripts/verify-hook-order.mjs",
+    "measure:qr": "node --experimental-strip-types apps/web/scripts/measure-qr-contrast.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
