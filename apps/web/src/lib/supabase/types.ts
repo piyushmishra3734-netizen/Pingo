@@ -1137,6 +1137,10 @@ export type Database = {
         Args: { target: string; value: boolean };
         Returns: undefined;
       };
+      set_display_seeds: {
+        Args: { target: string; new_friends: number | null; new_groups: number | null };
+        Returns: { friends: number; groups: number }[];
+      };
       is_ai_owner: {
         Args: Record<string, never>;
         Returns: boolean;

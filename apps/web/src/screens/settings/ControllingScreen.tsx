@@ -42,6 +42,9 @@ export function ControllingScreen() {
   const [rows, setRows] = useState<OnboardingSlideRow[]>([]);
   const [splashRows, setSplashRows] = useState<AppSplashRow[]>([]);
   const [premiumHandle, setPremiumHandle] = useState('');
+  const [seedHandle, setSeedHandle] = useState('');
+  const [seedFriends, setSeedFriends] = useState('');
+  const [seedGroups, setSeedGroups] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [notice, setNotice] = useState<UpdateNoticeRow | null>(null);
   const [minBuild, setMinBuild] = useState('');
@@ -157,6 +160,41 @@ export function ControllingScreen() {
     }
   };
 
+  /* Display-only Friends / Groups offsets. A blank box keeps what is there. */
+  const onSeeds = async () => {
+    const handle = seedHandle.trim().replace(/^@/, '').toLowerCase();
+    if (!handle) return;
+    const num = (v: string) => (v.trim() === '' ? null : Math.max(0, Number.parseInt(v, 10) || 0));
+    setBusy('seeds');
+    setError(null);
+    setOk(null);
+    try {
+      const client = getSupabaseClient();
+      const { data: found, error: lookupError } = await client
+        .from('profiles')
+        .select('id, username')
+        .eq('username', handle)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (!found) throw new Error(`No account called @${handle}`);
+
+      const { data, error: rpcError } = await client.rpc('set_display_seeds', {
+        target: found.id,
+        new_friends: num(seedFriends),
+        new_groups: num(seedGroups),
+      });
+      if (rpcError) throw rpcError;
+      const now = data?.[0];
+      setOk(`@${found.username}: friends +${now?.friends ?? 0}, groups +${now?.groups ?? 0}.`);
+      setSeedFriends('');
+      setSeedGroups('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not set seeds');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const onPickNotice = async (file: File | null) => {
     if (!file) return;
     setBusy('notice');
@@ -256,6 +294,52 @@ export function ControllingScreen() {
               Remove
             </Button>
           </div>
+        </section>
+
+        {/* Display seeds */}
+        <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
+          <h2 className="mb-1 text-body font-semibold text-ink">Friends / Groups seed</h2>
+          <p className="mb-3 text-caption text-text-secondary">
+            Added on top of the real counts on a profile. Numbers only — the
+            friends and groups lists still show just the real ones. Leave a box
+            blank to keep it.
+          </p>
+          <input
+            value={seedHandle}
+            onChange={(e) => setSeedHandle(e.target.value)}
+            placeholder="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            className="mb-2 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+          />
+          <div className="mb-2 flex gap-2">
+            <input
+              value={seedFriends}
+              onChange={(e) => setSeedFriends(e.target.value)}
+              placeholder="friends +"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              className="min-w-0 flex-1 rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+            />
+            <input
+              value={seedGroups}
+              onChange={(e) => setSeedGroups(e.target.value)}
+              placeholder="groups +"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              className="min-w-0 flex-1 rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+            />
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busy === 'seeds' || !seedHandle.trim()}
+            onClick={() => void onSeeds()}
+          >
+            Set
+          </Button>
         </section>
 
         {/* Update card */}
