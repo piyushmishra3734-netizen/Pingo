@@ -284,75 +284,73 @@ function face(
   if (s <= 18) return;
 
   /*
-   * The muzzle: nose, then the mouth centred directly under it.
+   * The muzzle sits under the middle of the two eyes, and everything about it
+   * is measured from there.
    *
-   * Both used to sit further forward than the head is wide, so the mouth hung
-   * off the front of the face and read as being on the wrong side of the nose.
-   * A muzzle belongs inside the silhouette; `0.62` of the way out is the front
-   * of the face at this size, not the edge of the circle.
+   * That is the alignment this kept missing. The eyes are a pair - the face
+   * reads front-on even though the body is side-on - so their midpoint is the
+   * centre line of the face, and a nose anywhere else is a nose on the side of
+   * a head. It had been pushed out toward the front of the skull, which put
+   * the mouth past the cheek and half of it outside the silhouette.
    */
-  const mx = hx + hr * 0.62;
-  const my = hy + hr * 0.22;
+  const eyeL = hx - hr * 0.3;
+  const eyeR = hx + hr * 0.4;
+  const mx = (eyeL + eyeR) / 2;
+  const my = hy + hr * 0.34;
 
   ctx.fillStyle = css(PETAL);
   if (happy) {
-    // Cheeks. The one thing that turns a neutral little face into a delighted
-    // one, and it is two dots.
+    // Cheeks, outboard of both eyes. The one thing that turns a neutral little
+    // face into a delighted one, and it is two dots.
     ctx.globalAlpha = 0.72;
-    for (const cheek of [hx - hr * 0.58, hx + hr * 0.5]) {
+    for (const cheek of [eyeL - hr * 0.34, eyeR + hr * 0.3]) {
       ctx.beginPath();
-      ctx.ellipse(cheek, hy + hr * 0.34, hr * 0.19, hr * 0.13, 0, 0, Math.PI * 2);
+      ctx.ellipse(cheek, hy + hr * 0.24, hr * 0.17, hr * 0.12, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
+
+  // The nose: the rounded triangle a cat has, point down, so the line below it
+  // leaves from somewhere rather than from the middle of a dot.
+  const nose = hr * 0.15;
   ctx.beginPath();
-  ctx.ellipse(mx, my, hr * 0.15, hr * 0.12, 0, 0, Math.PI * 2);
+  ctx.moveTo(mx - nose, my - nose * 0.6);
+  ctx.lineTo(mx + nose, my - nose * 0.6);
+  ctx.lineTo(mx, my + nose * 0.8);
+  ctx.closePath();
   ctx.fill();
 
   ctx.strokeStyle = css(GROUND);
   ctx.lineWidth = Math.max(0.6, s * 0.032);
 
   /*
-   * Whiskers: six, three above the muzzle line and three below it, and the
-   * same near-black as the coat.
-   *
-   * Drawing them in the light colour was wrong twice over. It put white lines
-   * across the eyes, and it made them a marking on the face rather than hair
-   * coming off it. In the coat colour they are invisible against the head -
-   * which is correct, a whisker against a cat is not a thing you see - and the
-   * part that reaches past the outline reads as six dark hairs against the
-   * page, which is the whole of what a cartoon cat's whiskers are.
+   * No whiskers. They were drawn light and crossed the eyes, then drawn dark
+   * and only existed outside the silhouette, and either way six hairs off a
+   * head twenty-five pixels tall is more detail than the face can hold. The
+   * ears carry the whole of "cat" here; the whiskers were paying nothing.
    */
-  ctx.strokeStyle = css(COAT);
-  ctx.lineWidth = Math.max(0.7, s * 0.026);
-  for (const up of [-1, 1]) {
-    for (let k = 0; k < 3; k += 1) {
-      const spread = (0.12 + k * 0.2) * up;
-      ctx.beginPath();
-      ctx.moveTo(mx - hr * 0.1, my);
-      ctx.lineTo(mx + hr * (0.98 - k * 0.14), my + hr * spread * 1.5);
-      ctx.stroke();
-    }
-  }
 
   /*
-   * The mouth: a line straight down from the nose, then a lobe either side of
-   * it. Each lobe is exactly half a circle whose radius is the offset of its
-   * own centre, so both of them start on the foot of that line and neither
-   * overshoots it - the pair meet at a point rather than nearly meeting, which
-   * is the difference between an aligned mouth and a wonky one.
+   * The mouth: a short line down from the point of the nose, then a lobe either
+   * side of it.
    *
-   * Canvas measures its angles with y running down, so a sweep from 0 to pi
-   * traces the underside of each circle, which is the lobe curving the way a
+   * Each lobe is half a circle whose radius equals the offset of its own
+   * centre, so both start exactly on the foot of that line and neither
+   * overshoots it. Canvas measures angles with y running down, so a sweep from
+   * 0 to pi traces the underside of each circle - the lobe curving the way a
    * pleased cat's does.
+   *
+   * Small: the pair together is a third of the head wide. It was nearly twice
+   * that, which put the far lobe outside the face entirely, and the line down
+   * from the nose was thick enough to read as a bar rather than a crease.
    */
   ctx.strokeStyle = css(GROUND);
-  ctx.lineWidth = Math.max(0.8, s * 0.036);
-  const chin = my + hr * 0.26;
-  const lobe = hr * 0.19;
+  ctx.lineWidth = Math.max(0.7, s * 0.022);
+  const lobe = hr * 0.115;
+  const chin = my + nose * 0.8 + lobe * 0.5;
   ctx.beginPath();
-  ctx.moveTo(mx, my + hr * 0.11);
+  ctx.moveTo(mx, my + nose * 0.7);
   ctx.lineTo(mx, chin);
   ctx.stroke();
   for (const side of [-1, 1]) {
@@ -365,8 +363,8 @@ function face(
    * Eyes last, so nothing is drawn over them. They are the smallest thing on
    * the face and the first one anybody looks at.
    */
-  const eyes = [hx - hr * 0.3, hx + hr * 0.4];
-  const eyeY = hy - hr * 0.08;
+  const eyes = [eyeL, eyeR];
+  const eyeY = hy - hr * 0.12;
   if (wide) {
     ctx.fillStyle = css(GROUND);
     for (const ex of eyes) {
@@ -439,33 +437,47 @@ const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
    * bounce.
    */
   const squash = 1 - hop;
-  const w = s * (1.16 + 0.2 * squash) * (1 + 0.03 * Math.sin(stride * 2));
+  const w = s * (1.16 + 0.2 * squash);
   const h = s * 0.66 * (1 + 0.26 * hop - 0.12 * squash);
   const floor = -s * 0.2;
   const bob = 0;
 
   /*
-   * Legs that fold rather than shorten.
+   * Legs that bound, rather than walking through a jump.
    *
-   * They used to be drawn to a point that rose into the body as it jumped, so
-   * by the top of the arc they had gone entirely and the cat was a floating
-   * blob - which is the awkward part of a jump, not the height. Each leg is a
-   * fixed length now and only its angle changes: straight down with the foot
-   * planted, swung up under the belly in the air. A leg that keeps its length
-   * keeps being a leg.
+   * They were doing a four-beat diagonal walk with a fold laid over the top of
+   * it, and a walk cycle and a hop are two different animals: the legs said
+   * "strolling" while the body said "airborne", and no jump height reconciles
+   * that. The height and the distance were never the problem.
+   *
+   * So they do what legs do in a bound, in three moments. The back pair drives
+   * backwards off the ground at take-off. Everything folds up under the belly
+   * at the top of the arc. The front pair reaches forward to receive the
+   * landing while the back pair gathers underneath. `Math.cos(stride)` is the
+   * sign of the arc - rising or falling - which is what tells one moment from
+   * the next.
+   *
+   * Each leg stays a fixed length and only its angle changes. Zero is straight
+   * down, positive is forward.
    */
+  const rise = Math.cos(stride);
+  const drive = Math.max(0, rise) * squash;
+  const land = Math.max(0, -rise) * squash;
   const reach = s * 0.2;
+
   ctx.lineWidth = s * 0.15;
-  const legs: [number, number][] = [
-    [w * 0.3, 0],
-    [w * 0.16, Math.PI],
-    [-w * 0.24, Math.PI],
-    [-w * 0.36, 0],
+  const legs: [number, number, boolean][] = [
+    [w * 0.3, 0.06, true],
+    [w * 0.16, -0.05, true],
+    [-w * 0.24, 0.05, false],
+    [-w * 0.36, -0.06, false],
   ];
-  for (const [lx, phase] of legs) {
-    const swing = Math.sin(stride * 2 + phase) * squash;
-    // 0 is straight down. The fold is the jump; the swing is the walk.
-    const fold = hop * 1.15 + swing * 0.3;
+  for (const [lx, offset, front] of legs) {
+    const fold =
+      hop * 1.25 +
+      (front ? -0.2 : -0.95) * drive +
+      (front ? 0.8 : -0.15) * land +
+      offset;
     const px2 = lx + Math.sin(fold) * reach;
     const py2 = floor + Math.cos(fold) * reach;
     ctx.beginPath();
@@ -520,7 +532,7 @@ const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
 
   // The head, a beat behind the body - a heavy head always lags, and that lag
   // is most of the charm.
-  const lag = Math.sin(stride * 2 - 0.8) * s * 0.03;
+  const lag = Math.sin(stride - 0.8) * s * 0.035;
   face(ctx, w * 0.42, by - h * 0.94 + lag, s * 0.3, 1.2, false, s, true);
 };
 
@@ -528,15 +540,15 @@ const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
  * The cat that ships.
  *
  * `lift` is a whole module and a half: it hops along rather than padding
- * along, and a hop you cannot see is not worth the arithmetic. Seventeen of
- * them to a lap, which at fifteen seconds is about one a second - the pace of
- * something pleased with the garden rather than crossing it.
+ * along, and a hop you cannot see is not worth the arithmetic. Thirteen of
+ * them to a lap, so a little over a second apiece - the pace of something
+ * pleased with the garden rather than crossing it.
  *
  * Three others were up beside it - a prowler on long legs, a leaper stretched
  * flat in the air, a kitten sitting upright - and they are gone rather than
  * left behind as options nothing picks between.
  */
-export const LOAF: Cat = { size: 5.2, lift: 1.5, hops: 17, paint: paintLoaf };
+export const LOAF: Cat = { size: 5.2, lift: 1.5, hops: 13, paint: paintLoaf };
 
 interface Cell {
   /** Where it lands: module coordinates, with the quiet zone already added. */
