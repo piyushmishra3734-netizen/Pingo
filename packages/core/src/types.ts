@@ -22,7 +22,11 @@ export type MessageId = string;
  * Presence drives the purple dot. Every state on the branding board maps to one
  * of these, which is why the dot component can be a pure function of presence.
  */
-export type PresenceState = 'online' | 'away' | 'offline';
+/**
+ * `invisible` and `dnd` are a choice the person made, shown to everyone all the
+ * time; they carry no last-seen, because showing one was the point of hiding.
+ */
+export type PresenceState = 'online' | 'away' | 'offline' | 'invisible' | 'dnd';
 
 export interface Presence {
   state: PresenceState;

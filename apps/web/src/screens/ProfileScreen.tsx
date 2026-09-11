@@ -65,7 +65,7 @@ import { useMutuals } from '../features/profile/useMutuals.js';
 
 import { useConfirm } from '../components/ConfirmProvider.js';
 import { ScreenHeader } from '../components/ScreenHeader.js';
-import { usePresenceStatus } from '../features/presence/status.js';
+import { presenceMark, usePresenceStatus } from '../features/presence/status.js';
 
 /**
  * Profile - yours at `/profile`, anyone else's at `/profile/:handle`.
@@ -348,7 +348,7 @@ export function ProfileScreen() {
   );
   const canCall = !isSelf && Boolean(mutuals?.has(person.id));
   const roster = users.find((u) => u.id === person.id);
-  const online = roster?.presence.state === 'online';
+  const othersMark = presenceMark(roster?.presence.state);
   const showMediaTab = isSelf;
 
   // ---- actions ------------------------------------------------------------
@@ -618,8 +618,7 @@ export function ProfileScreen() {
             name={person.displayName}
             id={person.id}
             src={person.avatarUrl}
-            online={online}
-            {...(isSelf ? { status: myStatus } : {})}
+            presence={isSelf ? myStatus : othersMark}
             isSelf={isSelf}
             onChangePhoto={() => avatarFileRef.current?.click()}
             onRemovePhoto={() => {

@@ -29,9 +29,10 @@ import { presenceStatus, type PresenceStatus } from '../../features/settings/pri
  *     the only two things that report somebody as present, so with both quiet
  *     there is nothing for another client to be asked not to draw. Do not
  *     disturb also silences every notification, pushed or in the app.
- *   · **Read receipts** holds the read cursor on the device and publishes it
- *     when a reply is sent - see `read-cursor.ts` - and hides other people's
- *     read state in return, which the hint has always promised.
+ *   · **Read receipts** are not a switch any more: on while online, off while
+ *     invisible or on do not disturb, and changed only by changing status. Off
+ *     holds the read cursor on the device until a reply is sent - see
+ *     `read-cursor.ts` - and hides other people's read state in return.
  *
  * The rest still save a preference that nothing reads: no server code refuses
  * a call or hides a profile yet. A privacy screen that implies protection it
@@ -194,12 +195,6 @@ export function PrivacyScreen() {
             { value: 'dnd', label: t('privacy.statusDnd'), icon: <StatusIcon state="dnd" /> },
           ]}
           onChange={chooseStatus}
-        />
-        <ToggleRow
-          label={t('privacy.readReceipts')}
-          description={t('privacy.readReceiptsHint')}
-          checked={p.readReceipts}
-          onChange={(readReceipts) => update('privacy', { readReceipts })}
         />
         <ToggleRow
           label={t('privacy.screenshotAlerts')}

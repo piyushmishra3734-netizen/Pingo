@@ -114,6 +114,9 @@ export function formatFileSize(bytes: number): string {
 export function formatPresence(user: User, now = Date.now()): string {
   if (user.presence.state === 'online') return 'online';
   if (user.presence.state === 'away') return 'away';
+  // A chosen status, and no date with it: last seen is exactly what it hides.
+  if (user.presence.state === 'invisible') return 'invisible';
+  if (user.presence.state === 'dnd') return 'do not disturb';
 
   const elapsed = now - user.presence.lastSeenAt;
   if (elapsed < MINUTE) return 'last seen just now';

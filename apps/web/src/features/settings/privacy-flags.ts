@@ -13,8 +13,6 @@
  * anything.
  */
 
-const PREFERENCES_KEY = 'pingo:preferences';
-
 /** Written by the profile service whenever the account's rules are seen. */
 const RULES_CACHE_KEY = 'pingo:privacy_rules_cache';
 
@@ -67,31 +65,31 @@ export function cachePrivacyRules(rules: { onlineStatus: boolean }): void {
 }
 
 /**
- * Whether this device reports messages as read.
+ * Whether this account reports messages as read.
  *
- * Off does not mean the reader loses their own place - it means nobody else is
- * told about it until they answer. See `read-cursor.ts`.
+ * Not a choice any more: it follows the status. On while online; off while
+ * invisible or on do not disturb, and nobody can change it except by changing
+ * their status. Off does not mean the reader loses their own place - it means
+ * nobody else is told about it until they answer. See `read-cursor.ts`.
  */
 export function readReceiptsOn(): boolean {
-  return readFlag(PREFERENCES_KEY, (parsed) => {
-    const privacy = parsed.privacy as Record<string, unknown> | undefined;
-    return privacy?.readReceipts;
-  });
+  return presenceStatus() === 'online';
 }
 
 /**
- * Online, invisible or do not disturb - the choice behind activity status.
+ * Online, invisible or do not disturb.
  *
- * Kept on the server as two columns, each where its enforcement already lives.
- * `privacy_settings.online_status` is on only for online; it is world-readable,
- * and it is what every client and the database already honour for "is this
- * person shown as here". `notification_prefs.dnd` is on only for do not
- * disturb; only its owner can read it, and the push gate reads it beside
- * `muted`. So invisible and do not disturb look identical to everybody else -
- * both are simply offline - and nobody can tell which one somebody picked.
+ * Shown to everybody: `privacy_settings.presence_status` is world-readable and
+ * live, so a moon or a bar sits on this person's avatar for everyone, all the
+ * time. Only online comes and goes with whether they are actually here.
  *
- * Cached here as one value for the things on this device that need it outside
- * React: the toast gate and the owner's own avatar.
+ * Two more columns follow it, each for enforcement that already read them:
+ * `privacy_settings.online_status` (on only for online) for the presence
+ * channel, heartbeat and last-seen freeze, and `notification_prefs.dnd` for the
+ * push gate. `savePresenceStatus` writes all three.
+ *
+ * Cached here as one value for what needs it outside React: the toast gate,
+ * read receipts, and the owner's own avatar.
  */
 export type PresenceStatus = 'online' | 'invisible' | 'dnd';
 

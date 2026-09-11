@@ -176,7 +176,26 @@ const USER_COLUMNS = 'id,display_name,username,avatar_url,created_at';
  */
 type UserRow = Pick<ProfileRow, 'id' | 'display_name' | 'username' | 'avatar_url' | 'created_at'>;
 
-function toUser(row: UserRow, lastSeenAt?: number): User {
+/**
+ * The status somebody shows everyone, if it is one of the two that are not
+ * "here".
+ *
+ * `online_status` decides whether there is one at all, and `presence_status`
+ * only which. Every build of the app writes the first; only current builds
+ * write the second - so a person who went back to online from an older build
+ * has a stale `dnd` sitting beside `online_status = true`, and reading the
+ * status first would put a bar on somebody who is right there. With activity
+ * off and no usable status, it reads as invisible, which is what it meant.
+ */
+function shownStatus(row: {
+  online_status?: boolean | null;
+  presence_status?: string | null;
+}): 'invisible' | 'dnd' | undefined {
+  if (row.online_status !== false) return undefined;
+  return row.presence_status === 'dnd' ? 'dnd' : 'invisible';
+}
+
+function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd'): User {
   return {
     id: row.id,
     name: row.display_name,
@@ -194,7 +213,14 @@ function toUser(row: UserRow, lastSeenAt?: number): User {
      * for someone who has not signed in since devices were recorded, and it is
      * at least a real moment they existed.
      */
-    presence: presenceFrom(lastSeenAt ?? Date.parse(row.created_at)),
+    /*
+     * A chosen status wins over any timestamp, and carries none: the account's
+     * creation date was being shown as "last seen" for everybody who had turned
+     * activity off, which is the one thing hiding it was supposed to prevent.
+     */
+    presence: status
+      ? { state: status, lastSeenAt: 0 }
+      : presenceFrom(lastSeenAt ?? Date.parse(row.created_at)),
   };
 }
 
@@ -845,7 +871,7 @@ export class SupabaseChatService implements ChatService {
          * writing offline here would fight the roster's own answer for
          * everybody else who genuinely is away.
          */
-        if (this.#hiddenActivityIds.has(userId)) return;
+        if (this.#statusById.has(userId)) return;
 
         const presence = { state, lastSeenAt: Date.now() };
 
@@ -1477,7 +1503,7 @@ export class SupabaseChatService implements ChatService {
         { event: '*', schema: 'public', table: 'privacy_settings' },
         (payload) => {
           const row = (payload.new ?? payload.old) as
-            | { user_id?: string; online_status?: boolean }
+            | { user_id?: string; online_status?: boolean; presence_status?: string }
             | null;
           if (!row?.user_id) return;
 
@@ -1499,15 +1525,30 @@ export class SupabaseChatService implements ChatService {
            * not only from their own screen - and turning it back on has to
            * bring it back without waiting for a reload.
            */
-          if (row.online_status === false) this.#hiddenActivityIds.add(row.user_id);
-          else this.#hiddenActivityIds.delete(row.user_id);
+          const status = shownStatus(row);
+          const had = this.#statusById.has(row.user_id);
+          if (status) {
+            this.#statusById.set(row.user_id, status);
+            // Their socket's last word is not theirs to show any more.
+            this.#livePresence.delete(row.user_id);
+          } else {
+            this.#statusById.delete(row.user_id);
+          }
 
           const cached = this.#people.get(row.user_id);
-          if (cached) {
-            const presence =
-              row.online_status === false
-                ? ({ state: 'offline', lastSeenAt: cached.presence.lastSeenAt } as const)
-                : cached.presence;
+          if (cached && (status || had)) {
+            /*
+             * Chosen: the mark, no date. Unchosen: whatever the socket says,
+             * or "just now" until it says it - they changed a setting a moment
+             * ago, so they were here. A row update that changes neither leaves
+             * the drawn presence alone.
+             */
+            const presence = status
+              ? { state: status, lastSeenAt: 0 }
+              : (this.#livePresence.get(row.user_id) ?? {
+                  state: 'offline' as const,
+                  lastSeenAt: Date.now(),
+                });
             this.#people.set(row.user_id, { ...cached, presence });
             this.#emit({ type: 'presence:changed', userId: row.user_id, presence });
           }
@@ -1559,7 +1600,7 @@ export class SupabaseChatService implements ChatService {
       this.#lastSeenFor(missing),
     ]);
     for (const row of data ?? []) {
-      const user = toUser(row, lastSeen.get(row.id));
+      const user = toUser(row, lastSeen.get(row.id), this.#statusById.get(row.id));
       /*
        * Whatever the socket already told us wins over the row.
        *
@@ -1569,7 +1610,7 @@ export class SupabaseChatService implements ChatService {
        * person grey until their next presence event - which for somebody just
        * sitting in a chat could be minutes.
        */
-      const live = this.#livePresence.get(row.id);
+      const live = this.#statusById.has(row.id) ? undefined : this.#livePresence.get(row.id);
       this.#people.set(row.id, live ? { ...user, presence: live } : user);
     }
   }
@@ -1669,32 +1710,40 @@ export class SupabaseChatService implements ChatService {
    * possible: a rule about what may be shown has to be knowable by whoever is
    * doing the showing. Absent rows mean the default, which is on.
    */
-  async #hiddenActivity(ids: UserId[]): Promise<Set<UserId>> {
-    const hidden = new Set<UserId>();
-    if (ids.length === 0) return hidden;
+  async #hiddenActivity(ids: UserId[]): Promise<Map<UserId, 'invisible' | 'dnd'>> {
+    const found = new Map<UserId, 'invisible' | 'dnd'>();
+    if (ids.length === 0) return found;
 
     const { data, error } = await this.#client
       .from('privacy_settings')
-      .select('user_id,online_status')
+      .select('user_id,online_status,presence_status')
       .in('user_id', ids);
 
-    if (error || !data) return hidden;
+    if (error || !data) return found;
 
     for (const row of data) {
-      if (row.online_status === false) hidden.add(row.user_id);
+      const status = shownStatus(row);
+      if (status) found.set(row.user_id, status);
     }
-    this.#hiddenActivityIds = hidden;
-    return hidden;
+    // Merged, not replaced: this is asked about a few people at a time, and
+    // replacing the map forgot everybody else's status until they were asked
+    // about again.
+    for (const id of ids) {
+      const status = found.get(id);
+      if (status) this.#statusById.set(id, status);
+      else this.#statusById.delete(id);
+    }
+    return found;
   }
 
   /**
-   * The last answer, for the presence stream to consult.
+   * The last answer, for the presence stream and the roster to consult.
    *
    * The channel fires per person and cannot wait on a query each time; the
    * roster load that already asked is close enough, and a stale entry only
    * costs one refresh.
    */
-  #hiddenActivityIds = new Set<UserId>();
+  #statusById = new Map<UserId, 'invisible' | 'dnd'>();
 
   /** Builds the view-model conversations for a set of rows the user belongs to. */
   async #hydrate(
@@ -5375,7 +5424,7 @@ export class SupabaseChatService implements ChatService {
     ]);
     if (!data) return undefined;
 
-    const user = toUser(data, lastSeen.get(id));
+    const user = toUser(data, lastSeen.get(id), this.#statusById.get(id));
     this.#people.set(id, user);
     return user;
   }
@@ -5440,8 +5489,8 @@ export class SupabaseChatService implements ChatService {
      * from the database; neither may claim to know who is connected.
      */
     const users = rows.map((row) => {
-      const user = toUser(row, lastSeen.get(row.id));
-      const live = this.#livePresence.get(row.id);
+      const user = toUser(row, lastSeen.get(row.id), this.#statusById.get(row.id));
+      const live = this.#statusById.has(row.id) ? undefined : this.#livePresence.get(row.id);
       return live ? { ...user, presence: live } : user;
     });
     for (const user of users) this.#people.set(user.id, user);

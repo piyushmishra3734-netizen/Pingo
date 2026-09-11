@@ -16,6 +16,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useT } from '../features/i18n/useT.js';
 import { canAccessCommunities } from '../lib/community-access.js';
+import { presenceMark } from '../features/presence/status.js';
 
 /**
  * Communities and contacts.
@@ -304,7 +305,7 @@ export function CommunitiesScreen() {
                           id={user.id}
                           src={user.avatarUrl}
                           size="md"
-                          presence={user.presence.state === 'online' ? 'online' : undefined}
+                          presence={presenceMark(user.presence.state)}
                         />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-body text-ink">{user.name}</p>

@@ -36,8 +36,7 @@ export function ProfileAvatar({
   name,
   id,
   src,
-  online,
-  status,
+  presence,
   isSelf,
   onChangePhoto,
   onRemovePhoto,
@@ -45,9 +44,8 @@ export function ProfileAvatar({
   name: string;
   id: string;
   src: string | undefined;
-  online: boolean;
-  /** The owner's own status. Given only on their own profile - see `PresenceStatus`. */
-  status?: PresenceStatus;
+  /** Their own status on their own profile; the mark others see on anyone else's. */
+  presence: PresenceStatus | undefined;
   isSelf: boolean;
   onChangePhoto: () => void;
   onRemovePhoto: () => void;
@@ -163,7 +161,7 @@ export function ProfileAvatar({
           id={id}
           src={src}
           size="xl"
-          presence={status ?? (online ? 'online' : undefined)}
+          presence={presence}
         />
       </button>
 

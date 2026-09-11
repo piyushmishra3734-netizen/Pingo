@@ -85,6 +85,7 @@ import { SharedMediaSheet } from './SharedMediaSheet.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
+import { presenceMark } from '../presence/status.js';
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -1316,9 +1317,7 @@ export function ChatThread({
                 presence={
                   isAi
                     ? 'online'
-                    : partner?.presence.state === 'online'
-                      ? 'online'
-                      : undefined
+                    : presenceMark(partner?.presence.state)
                 }
               />
             </span>

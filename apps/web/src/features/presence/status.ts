@@ -1,3 +1,4 @@
+import type { PresenceState } from '@pingo/core';
 import { useEffect, useState } from 'react';
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
@@ -11,8 +12,8 @@ import {
 /**
  * Reading and writing online / invisible / do not disturb.
  *
- * Two columns on the server, each where its enforcement already lives - see
- * `PresenceStatus` for why they are not one.
+ * One status everybody sees, and two columns that follow it for enforcement -
+ * see `PresenceStatus`.
  */
 
 async function signedInUserId(): Promise<string | undefined> {
@@ -30,18 +31,21 @@ export async function refreshPresenceStatus(): Promise<PresenceStatus | undefine
   const userId = await signedInUserId();
   if (!userId) return undefined;
 
-  const client = getSupabaseClient();
-  const [privacy, prefs] = await Promise.all([
-    client.from('privacy_settings').select('online_status').eq('user_id', userId).maybeSingle(),
-    client.from('notification_prefs').select('dnd').eq('user_id', userId).maybeSingle(),
-  ]);
-  if (privacy.error || prefs.error) return undefined;
+  const { data, error } = await getSupabaseClient()
+    .from('privacy_settings')
+    .select('online_status,presence_status')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) return undefined;
 
-  // No rows means the defaults: shown as online, and not in do not disturb.
-  const status: PresenceStatus = prefs.data?.dnd
-    ? 'dnd'
-    : privacy.data?.online_status === false
-      ? 'invisible'
+  // No row means the default, online. `online_status` decides whether there is
+  // a status at all and `presence_status` only which - see `shownStatus` in the
+  // chat service for why that order.
+  const status: PresenceStatus =
+    data?.online_status === false
+      ? data.presence_status === 'dnd'
+        ? 'dnd'
+        : 'invisible'
       : 'online';
   cachePresenceStatus(status);
   return status;
@@ -69,7 +73,10 @@ export async function savePresenceStatus(status: PresenceStatus): Promise<void> 
 
   const privacy = await client
     .from('privacy_settings')
-    .upsert({ user_id: userId, online_status: status === 'online' }, { onConflict: 'user_id' });
+    .upsert(
+      { user_id: userId, online_status: status === 'online', presence_status: status },
+      { onConflict: 'user_id' },
+    );
   if (privacy.error) throw privacy.error;
 
   // Presence channel and heartbeat stop or start on this, within the tap.
@@ -88,4 +95,12 @@ export function usePresenceStatus(): PresenceStatus {
   }, []);
 
   return status;
+}
+
+/**
+ * The mark to draw on somebody's avatar. The breathing dot only while they are
+ * actually here; the moon and the bar whenever they have chosen them.
+ */
+export function presenceMark(state: PresenceState | undefined): PresenceStatus | undefined {
+  return state === 'online' || state === 'invisible' || state === 'dnd' ? state : undefined;
 }

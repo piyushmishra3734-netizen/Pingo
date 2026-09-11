@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useCall } from '../features/calls/CallProvider.js';
 import { useT } from '../features/i18n/useT.js';
+import { presenceMark } from '../features/presence/status.js';
 
 /**
  * Call history.
@@ -120,7 +121,7 @@ export function CallsScreen() {
                     id={other?.id ?? call.conversationId ?? call.id}
                     src={other?.avatarUrl ?? room?.avatarUrl}
                     size="md"
-                    presence={other?.presence.state === 'online' ? 'online' : undefined}
+                    presence={presenceMark(other?.presence.state)}
                   />
 
                   <div className="min-w-0 flex-1">

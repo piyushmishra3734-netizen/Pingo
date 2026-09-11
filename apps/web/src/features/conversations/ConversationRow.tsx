@@ -25,6 +25,7 @@ import { useAchievements } from '../achievements/useAchievements.js';
 import { rememberSharedElement } from '../../hooks/useSharedElement.js';
 import { useLongPress } from '../chat/context-menu/useLongPress.js';
 import { StreakFlame } from './StreakFlame.js';
+import { presenceMark } from '../presence/status.js';
 
 /**
  * One row in the conversation list.
@@ -135,8 +136,8 @@ export function ConversationRow({
         presence={
           conversation.kind === 'ai'
             ? 'online'
-            : conversation.kind === 'direct' && partner?.presence.state === 'online'
-              ? 'online'
+            : conversation.kind === 'direct'
+              ? presenceMark(partner?.presence.state)
               : undefined
         }
       />

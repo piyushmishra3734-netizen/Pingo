@@ -732,6 +732,7 @@ export type Database = {
           who_can_add: string;
           profile_visibility: string;
           online_status: boolean;
+          presence_status: 'online' | 'invisible' | 'dnd';
           updated_at: string;
         };
         Insert: {
@@ -740,12 +741,14 @@ export type Database = {
           who_can_add?: string;
           profile_visibility?: string;
           online_status?: boolean;
+          presence_status?: 'online' | 'invisible' | 'dnd';
         };
         Update: {
           who_can_call?: string;
           who_can_add?: string;
           profile_visibility?: string;
           online_status?: boolean;
+          presence_status?: 'online' | 'invisible' | 'dnd';
         };
         Relationships: [];
       };
