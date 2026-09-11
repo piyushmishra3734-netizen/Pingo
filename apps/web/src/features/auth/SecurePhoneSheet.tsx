@@ -1,9 +1,9 @@
-import { Button, CheckIcon, LockIcon, PhoneIcon, ShieldIcon, cn } from '@pingo/ui';
+import { Button, CheckIcon, CloseIcon, LockIcon, PhoneIcon, ShieldIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Sheet } from '../../components/Sheet.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
-import { SettingsRow } from '../settings/SettingsRow.js';
 import { CodeBoxes } from './CodeBoxes.js';
 import { defaultCountry } from './countries.js';
 import { PasswordField } from './PasswordField.js';
@@ -26,12 +26,13 @@ import {
  * second one, because forgot-password is a call with a code. Somebody who
  * signed up with their number already has it, and is never asked for Google.
  *
- * ## A row, not a banner
+ * ## A card, not a page
  *
- * The ask is one yellow-highlighted row at the top of Settings
- * (`SecurePhoneRow`) - the "finish setting up" pattern: always findable,
- * never in the way of a chat, the camera or a story. The row opens this
- * sheet at the number.
+ * The ask is one small yellow card floating above the dock
+ * (`SecurePhoneBanner`) - never a page or a popup, and never inside a chat,
+ * the camera or a story, where it would be in the way of the thing being done.
+ * "Add" opens this sheet straight at the number; "later" puts it away for a
+ * few days rather than for good, and rather than never.
  *
  * ## Three steps in one sheet
  *
@@ -360,50 +361,120 @@ function Problem({ message }: { message: string | undefined }) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Whether the signed-in account has no number yet. Fires at once with the
- * current session, and again when a number lands on it.
+ * The caution card: a shield in a yellow disc, one title, one line, one
+ * button, and a way to say "later". Exported on its own for `/dev/secure-lab`.
+ *
+ * Shaped like a Material banner - icon, one or two short lines, a single action
+ * and a dismiss - because that is the pattern people already read as "worth a
+ * look, not an emergency". The line is a situation rather than a threat: a
+ * concrete "lose Google access?" moves people where a generic warning does not.
  */
-export function useNeedsPhone(): boolean {
-  const [needs, setNeeds] = useState(false);
+export function CautionCard({ onAdd, onLater }: { onAdd: () => void; onLater: () => void }) {
+  return (
+    <div
+      role="status"
+      className={cn(
+        'fixed inset-x-4 z-190 mx-auto flex max-w-md items-center gap-3 rounded-2xl p-3 pr-1.5',
+        // Just above the dock, which reserves 8rem including its own inset.
+        'bottom-[calc(8.5rem_+_max(0rem,env(safe-area-inset-bottom)_-_1.25rem))]',
+        'border border-[rgb(234_179_8/0.4)] bg-[color-mix(in_srgb,var(--color-surface)_88%,#FACC15)] shadow-lg',
+        'motion-safe:animate-rise',
+      )}
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#FACC15] text-[#422006]">
+        <ShieldIcon size={20} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-body font-medium text-ink">Secure your account</p>
+        <p className="text-caption text-text-secondary">
+          Lose Google access? Your number gets you back in.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="focus-ring shrink-0 rounded-full bg-[#FACC15] px-4 py-2 text-caption font-semibold text-[#422006] transition-transform duration-quick active:scale-95"
+      >
+        Add
+      </button>
+      <button
+        type="button"
+        onClick={onLater}
+        aria-label="Remind me later"
+        className="focus-ring grid size-8 shrink-0 place-items-center rounded-full text-text-tertiary"
+      >
+        <CloseIcon size={16} />
+      </button>
+    </div>
+  );
+}
 
+/** "Later" puts it away for this long, then it comes back. */
+const LATER_MS = 3 * 24 * 60 * 60 * 1000;
+
+function laterKey(userId: string): string {
+  return `pingo:secure-phone-later:${userId}`;
+}
+
+function putAwayRecently(userId: string): boolean {
+  try {
+    return Date.now() - Number(localStorage.getItem(laterKey(userId))) < LATER_MS;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The card, for an account with no number - everywhere but inside a chat, the
+ * camera and stories. It stays until a number is added, except for three days
+ * after "later". Mounted in the shell.
+ */
+export function SecurePhoneBanner() {
+  const { pathname } = useLocation();
+  /** Set only while the signed-in account has no number. */
+  const [userId, setUserId] = useState<string>();
+  const [later, setLater] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  // Fires at once with the current session, and again when a number lands on it.
   useEffect(() => {
     const { data } = getSupabaseClient().auth.onAuthStateChange((_event, session) => {
-      setNeeds(Boolean(session?.user && !session.user.phone));
+      const user = session?.user;
+      setUserId(user && !user.phone ? user.id : undefined);
     });
     return () => data.subscription.unsubscribe();
   }, []);
 
-  return needs;
-}
+  const inChat =
+    /^\/chats\/[^/]+$/.test(pathname) && pathname !== '/chats/new' && pathname !== '/chats/new-group';
+  const away = inChat || pathname === '/camera' || pathname.startsWith('/stories');
+  const visible = Boolean(userId) && !later && !open && !away && !putAwayRecently(userId ?? '');
 
-/** The row itself, yellow-highlighted. Exported bare for `/dev/secure-lab`. */
-export function PhoneRowCard({ onClick }: { onClick: () => void }) {
-  return (
-    <section className="rounded-lg bg-[rgb(250_204_21/0.14)] p-1 ring-1 ring-inset ring-[rgb(234_179_8/0.35)]">
-      <SettingsRow
-        icon={<PhoneIcon size={19} />}
-        label="Add a phone number"
-        value="Recommended"
-        onClick={onClick}
-      />
-      <p className="px-3 pb-2.5 text-caption text-text-secondary">
-        Your way back in if you ever lose Google.
-      </p>
-    </section>
-  );
-}
-
-/**
- * The ask, at the top of Settings, for an account with no number. Opens the
- * sheet straight at the number.
- */
-export function SecurePhoneRow() {
-  const needsPhone = useNeedsPhone();
-  const [open, setOpen] = useState(false);
+  // Room under the page while it shows, so the last row never ends up behind it.
+  useEffect(() => {
+    if (!visible) return undefined;
+    const root = document.documentElement.style;
+    root.setProperty('--caution-space', '5.5rem');
+    return () => {
+      root.removeProperty('--caution-space');
+    };
+  }, [visible]);
 
   return (
     <>
-      {needsPhone && <PhoneRowCard onClick={() => setOpen(true)} />}
+      {visible && (
+        <CautionCard
+          onAdd={() => setOpen(true)}
+          onLater={() => {
+            try {
+              if (userId) localStorage.setItem(laterKey(userId), String(Date.now()));
+            } catch {
+              // Private mode: it goes for this visit only.
+            }
+            setLater(true);
+          }}
+        />
+      )}
       {/* Kept open past the code: the number lands before the password step. */}
       {open && <SecurePhoneSheet onClose={() => setOpen(false)} />}
     </>
