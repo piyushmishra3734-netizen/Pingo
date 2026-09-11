@@ -94,6 +94,41 @@ export type PostCommentRow = {
   created_at: string;
 };
 
+/** One row of `public.live_streams`. Ships in 20260965000000. */
+export type LiveStreamRow = {
+  id: string;
+  host_id: string;
+  status: string;
+  title: string;
+  viewer_count: number;
+  peak_viewers: number;
+  total_joins: number;
+  likes_count: number;
+  goal_target: number | null;
+  goal_title: string;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+};
+
+/** One row of `public.live_comments`. Ships in 20260965000000. */
+export type LiveCommentRow = {
+  id: string;
+  live_id: string;
+  user_id: string;
+  body: string;
+  created_at: string;
+};
+
+/** One row of `public.live_guests`. Ships in 20260966000000. */
+export type LiveGuestRow = {
+  live_id: string;
+  user_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
 /** One row of `public.conversations`. */
 export type ConversationRow = {
   id: string;
@@ -645,6 +680,40 @@ export type Database = {
       story_muted_authors: {
         Row: { muter_id: string; author_id: string; created_at: string };
         Insert: { muter_id: string; author_id: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      live_streams: {
+        Row: LiveStreamRow;
+        Insert: {
+          host_id: string;
+          status?: string;
+          title?: string;
+          livekit_room?: string;
+        };
+        Update: {
+          status?: string;
+          title?: string;
+          viewer_count?: number;
+          peak_viewers?: number;
+          total_joins?: number;
+          likes_count?: number;
+          ended_at?: string | null;
+          pinned_comment?: Record<string, unknown> | null;
+          goal_target?: number | null;
+          goal_title?: string;
+        };
+        Relationships: [];
+      };
+      live_guests: {
+        Row: LiveGuestRow;
+        Insert: { live_id: string; user_id: string; status?: string };
+        Update: { status?: string };
+        Relationships: [];
+      };
+      live_comments: {
+        Row: LiveCommentRow;
+        Insert: { live_id: string; user_id: string; body: string };
         Update: Record<string, never>;
         Relationships: [];
       };

@@ -15,7 +15,11 @@ project_id = "pingo"
 [auth]
 # Where the app runs in development. OAuth redirects are resolved against this.
 site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173", "http://localhost:5173/auth/google"]
+# Both schemes: plain `vite preview` serves http, `vite dev` serves https
+# (basicSsl) - and Supabase drops a redirect target whose scheme is not
+# allowlisted, bouncing the user to the production Site URL instead. That
+# bounce is what "login on localhost lands on real Pingo" was.
+additional_redirect_urls = ["http://localhost:5173", "http://localhost:5173/auth/google", "https://localhost:5173", "https://localhost:5173/auth/google"]
 
 # Sessions persist indefinitely while the device is trusted (docs/01 § 18).
 jwt_expiry = 3600
@@ -115,6 +119,12 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.turn-credentials]
+verify_jwt = false
+
+# Live streaming. Same shape as `livekit-token`: the browser cannot join a room
+# without a signed grant, and the grant is authorised against `live_streams`
+# with the caller's own JWT in code - host publishes, mutual viewers subscribe.
+[functions.live-token]
 verify_jwt = false
 
 # Called by Supabase Auth, which has no user session to verify - the same shape

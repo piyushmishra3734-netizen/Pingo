@@ -19,6 +19,7 @@ import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
 import { RouteBoundary } from './components/RouteBoundary.js';
 import { AppLoader } from './features/loading/AppLoader.js';
+import { LiveProvider } from './features/live/LiveContext.js';
 import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
 import { StickerProvider } from './features/stickers/StickerContext.js';
@@ -120,6 +121,10 @@ const LoginPhoneScreen = lazyScreen(() => import('./screens/auth/LoginPhoneScree
 const LoginUsernameScreen = lazyScreen(() => import('./screens/auth/LoginUsernameScreen.js'), 'LoginUsernameScreen');
 const SignUpPhoneScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneScreen.js'), 'SignUpPhoneScreen');
 const SignUpPhoneCodeScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneCodeScreen.js'), 'SignUpPhoneCodeScreen');
+const LiveSetupScreen = lazyScreen(() => import('./features/live/LiveSetupScreen.js'), 'LiveSetupScreen');
+const LiveHostScreen = lazyScreen(() => import('./features/live/LiveHostScreen.js'), 'LiveHostScreen');
+const LiveGuestScreen = lazyScreen(() => import('./features/live/LiveGuestScreen.js'), 'LiveGuestScreen');
+const LiveViewerScreen = lazyScreen(() => import('./features/live/LiveViewerScreen.js'), 'LiveViewerScreen');
 const NameScreen = lazyScreen(() => import('./screens/setup/NameScreen.js'), 'NameScreen');
 const PermissionsScreen = lazyScreen(() => import('./screens/setup/PermissionsScreen.js'), 'PermissionsScreen');
 const PhotoScreen = lazyScreen(() => import('./screens/setup/PhotoScreen.js'), 'PhotoScreen');
@@ -308,6 +313,7 @@ export function App() {
         */}
         <StickerProvider>
         <StoryProvider service={services.story}>
+        <LiveProvider>
         <ChatProvider service={services.chat}>
         {/*
           Calls sit above the router, not inside it: a call is not a place you
@@ -496,6 +502,15 @@ export function App() {
                   would make it read as a page you wandered onto.
                 */}
                 <Route path="/invite" element={<InviteScreen />} />
+                {/*
+                  Live: fullscreen, outside the shell like the camera's gate.
+                  `/live/setup` and `/live/host/:liveId` sit before the dynamic
+                  viewer segment so "setup" is never read as a live id.
+                */}
+                <Route path="/live/setup" element={<LiveSetupScreen />} />
+                <Route path="/live/host/:liveId" element={<LiveHostScreen />} />
+                <Route path="/live/guest/:liveId" element={<LiveGuestScreen />} />
+                <Route path="/live/:liveId" element={<LiveViewerScreen />} />
                 <Route element={<AppShell />}>
                   <Route path="/chats" element={<ChatsScreen />} />
                   {/*
@@ -576,6 +591,7 @@ export function App() {
         </CallProvider>
         </NotificationProvider>
         </ChatProvider>
+        </LiveProvider>
         </StoryProvider>
         </StickerProvider>
       </ProfileProvider>

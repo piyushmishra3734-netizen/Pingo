@@ -227,6 +227,8 @@ function copyFor(request: PushRequest): { title: string; body: string } {
       return { title: 'PINGO AI', body: 'Replied to you' };
     case 'story':
       return { title: who, body: 'Added to their story' };
+    case 'live':
+      return { title: who, body: 'Started a live video. Tap to watch.' };
     case 'follow_request':
       return { title: 'PINGO', body: `${who} wants to follow you` };
     case 'follow_accepted':

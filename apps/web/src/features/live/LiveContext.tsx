@@ -1,0 +1,317 @@
+/**
+ * Live state, shared by the rail, the setup, the host and the viewers.
+ *
+ * ## One channel per live, plus the tables
+ *
+ * Comments persist in `live_comments` (history for late joiners); hearts and
+ * typing-feel do not - they travel over the `live:<id>` broadcast channel and
+ * vanish, like Instagram. Presence on the same channel is the viewer count:
+ * whoever is tracked is watching right now.
+ *
+ * ## The list refreshes from Postgres changes
+ *
+ * A dedicated channel watches `live_streams` inserts/updates so the rail grows
+ * a LIVE circle the moment someone goes live, without touching the shared
+ * realtime hub (whose table list is fixed at startup).
+ */
+
+import { useAuth, useProfile } from '@pingo/core';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+
+import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { LiveUnavailableError, SupabaseLiveService } from '../../lib/supabase/live-service.js';
+import type { LiveComment, LiveHeart, LivePresenceEvent, LiveStream } from './types.js';
+
+export interface LiveRoomEvent {
+  comment?: LiveComment;
+  heart?: LiveHeart;
+  /** A pinned comment (or null for unpin). */
+  pin?: LiveComment | null;
+  /** Someone walked in. */
+  join?: LivePresenceEvent;
+  /** The host waved at one viewer. */
+  wave?: { toUserId: string; fromName: string };
+}
+
+interface LiveContextValue {
+  service: SupabaseLiveService;
+  lives: LiveStream[];
+  /** The signed-in user's own live, if they have one. */
+  mine: LiveStream | undefined;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  startLive: (title: string) => Promise<LiveStream>;
+  endLive: (liveId: string) => Promise<void>;
+}
+
+const LiveContext = createContext<LiveContextValue | undefined>(undefined);
+
+export function LiveProvider({ children }: { children: ReactNode }) {
+  const { signedIn, session } = useAuth();
+  const { profile } = useProfile();
+  const meId = session?.user.id;
+  const [service] = useState(() => new SupabaseLiveService());
+  const [lives, setLives] = useState<LiveStream[]>([]);
+  const [loading, setLoading] = useState(true);
+  /**
+   * A live with no server row behind it.
+   *
+   * Localhost runs before the migration lands: the tables do not exist yet, so
+   * `startLive` would throw and the whole flow would be untappable. The preview
+   * live lets the setup → countdown → host → end tour run end to end on camera
+   * + broadcast only, and it dissolves the moment the real tables arrive.
+   */
+  const [preview, setPreview] = useState<LiveStream | undefined>();
+
+  const refresh = useCallback(async () => {
+    if (!signedIn) {
+      setLives([]);
+      setPreview(undefined);
+      setLoading(false);
+      return;
+    }
+    try {
+      setLives(await service.listLive());
+    } catch {
+      setLives([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [service, signedIn]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // Someone goes live or ends while this screen is open: re-read the rail.
+  useEffect(() => {
+    if (!signedIn) return;
+    const channel = getSupabaseClient()
+      .channel('pingo:live-list')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'live_streams' },
+        () => {
+          void refresh();
+        },
+      )
+      .subscribe();
+    return () => {
+      void getSupabaseClient().removeChannel(channel);
+    };
+  }, [signedIn, refresh]);
+
+  const startLive = useCallback(
+    async (title: string) => {
+      try {
+        const live = await service.startLive(title);
+        await refresh();
+        return live;
+      } catch (cause) {
+        if (!(cause instanceof LiveUnavailableError) || !meId) throw cause;
+        const local: LiveStream = {
+          id: crypto.randomUUID(),
+          hostId: meId,
+          hostName: profile?.displayName ?? 'You',
+          hostUsername: profile?.username ?? '',
+          ...(profile?.avatarUrl ? { hostAvatarUrl: profile.avatarUrl } : {}),
+          status: 'live',
+          title: title.trim().slice(0, 80),
+          viewerCount: 0,
+          peakViewers: 0,
+          totalJoins: 0,
+          likesCount: 0,
+          startedAt: Date.now(),
+        };
+        setPreview(local);
+        return local;
+      }
+    },
+    [service, refresh, meId, profile?.displayName, profile?.username, profile?.avatarUrl],
+  );
+
+  const endLive = useCallback(
+    async (liveId: string) => {
+      setPreview((previous) => (previous?.id === liveId ? undefined : previous));
+      try {
+        await service.endLive(liveId);
+      } catch {
+        // Preview lives have no row to end; dropping them is the whole job.
+      }
+      await refresh();
+    },
+    [service, refresh],
+  );
+
+  const allLives = useMemo(
+    () => (preview ? [preview, ...lives.filter((live) => live.id !== preview.id)] : lives),
+    [preview, lives],
+  );
+  const mine = useMemo(() => allLives.find((live) => live.hostId === meId), [allLives, meId]);
+
+  const value = useMemo<LiveContextValue>(
+    () => ({ service, lives: allLives, mine, loading, refresh, startLive, endLive }),
+    [service, allLives, mine, loading, refresh, startLive, endLive],
+  );
+
+  return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
+}
+
+export function useLive(): LiveContextValue {
+  const context = useContext(LiveContext);
+  if (!context) throw new Error('useLive must be used inside a <LiveProvider>');
+  return context;
+}
+
+/**
+ * The room channel for one live: comments, hearts and presence.
+ *
+ * Broadcast is fire-and-forget; the tables are the source of truth a late
+ * joiner reads. Both are wired here so host and viewer share one hook.
+ */
+export function useLiveRoom(
+  liveId: string | undefined,
+  selfId: string | undefined,
+  onEvent: (event: LiveRoomEvent) => void,
+): {
+  broadcastComment: (comment: LiveComment) => void;
+  broadcastHeart: (heart: LiveHeart) => void;
+  broadcastPin: (comment: LiveComment | null) => void;
+  broadcastJoin: (userId: string, userName: string) => void;
+  broadcastWave: (toUserId: string, fromName: string) => void;
+  viewers: { userId: string; userName: string }[];
+} {
+  const [viewers, setViewers] = useState<{ userId: string; userName: string }[]>([]);
+  const handler = useRef(onEvent);
+  handler.current = onEvent;
+  const selfIdRef = useRef(selfId);
+  selfIdRef.current = selfId;
+
+  useEffect(() => {
+    if (!liveId) return;
+    const client = getSupabaseClient();
+    const channel = client.channel(`live:${liveId}`, {
+      config: { broadcast: { self: false }, presence: { key: '' } },
+    });
+
+    channel
+      .on('broadcast', { event: 'comment' }, ({ payload }) => {
+        handler.current({ comment: payload as LiveComment });
+      })
+      .on('broadcast', { event: 'heart' }, ({ payload }) => {
+        handler.current({ heart: payload as LiveHeart });
+      })
+      .on('broadcast', { event: 'pin' }, ({ payload }) => {
+        handler.current({ pin: (payload ?? null) as LiveComment | null });
+      })
+      .on('broadcast', { event: 'join' }, ({ payload }) => {
+        const peer = payload as { userId: string; userName: string };
+        if (peer.userId === selfIdRef.current) return;
+        handler.current({
+          join: { id: `${peer.userId}-${Date.now()}`, userName: peer.userName, at: Date.now() },
+        });
+      })
+      .on('broadcast', { event: 'wave' }, ({ payload }) => {
+        handler.current({ wave: payload as { toUserId: string; fromName: string } });
+      })
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ userId: string; userName: string }>();
+        const seen = new Map<string, { userId: string; userName: string }>();
+        for (const metas of Object.values(state)) {
+          for (const meta of metas) {
+            if (meta.userId && !seen.has(meta.userId)) {
+              seen.set(meta.userId, { userId: meta.userId, userName: meta.userName });
+            }
+          }
+        }
+        setViewers([...seen.values()]);
+      })
+      .subscribe();
+
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, [liveId]);
+
+  const broadcastComment = useCallback(
+    (comment: LiveComment) => {
+      if (!liveId) return;
+      void getSupabaseClient()
+        .channel(`live:${liveId}`)
+        .send({ type: 'broadcast', event: 'comment', payload: comment });
+    },
+    [liveId],
+  );
+
+  const broadcastHeart = useCallback(
+    (heart: LiveHeart) => {
+      if (!liveId) return;
+      void getSupabaseClient()
+        .channel(`live:${liveId}`)
+        .send({ type: 'broadcast', event: 'heart', payload: heart });
+    },
+    [liveId],
+  );
+
+  const broadcastPin = useCallback(
+    (comment: LiveComment | null) => {
+      if (!liveId) return;
+      void getSupabaseClient()
+        .channel(`live:${liveId}`)
+        .send({ type: 'broadcast', event: 'pin', payload: comment });
+    },
+    [liveId],
+  );
+
+  const broadcastJoin = useCallback(
+    (userId: string, userName: string) => {
+      if (!liveId) return;
+      void getSupabaseClient()
+        .channel(`live:${liveId}`)
+        .send({ type: 'broadcast', event: 'join', payload: { userId, userName } });
+    },
+    [liveId],
+  );
+
+  const broadcastWave = useCallback(
+    (toUserId: string, fromName: string) => {
+      if (!liveId) return;
+      void getSupabaseClient()
+        .channel(`live:${liveId}`)
+        .send({ type: 'broadcast', event: 'wave', payload: { toUserId, fromName } });
+    },
+    [liveId],
+  );
+
+  return { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, viewers };
+}
+
+/** Tracks the signed-in viewer on the room channel so the host can count. */
+export function useLivePresence(
+  liveId: string | undefined,
+  user: { userId: string; userName: string } | undefined,
+): void {
+  useEffect(() => {
+    if (!liveId || !user) return;
+    const client = getSupabaseClient();
+    const channel = client.channel(`live:${liveId}`, {
+      config: { presence: { key: user.userId } },
+    });
+    channel.subscribe(() => {
+      void channel.track(user);
+    });
+    return () => {
+      void channel.untrack();
+      void client.removeChannel(channel);
+    };
+  }, [liveId, user?.userId, user?.userName]);
+}

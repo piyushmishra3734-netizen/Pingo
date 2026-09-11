@@ -29,6 +29,7 @@ import { AppWordmark } from '../../components/AppWordmark.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { canAccessCommunities } from '../../lib/community-access.js';
 import { useT } from '../i18n/useT.js';
+import { PhoneDot } from '../auth/SecurePhoneSheet.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
@@ -38,6 +39,10 @@ import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { useBackStep } from '../navigation/useBackStep.js';
 import { StoryComposer } from '../stories/StoryComposer.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
+import { LiveCreateSheet } from '../live/LiveCreateSheet.js';
+import { LiveBanner } from '../live/LiveBanner.js';
+import { LiveRail } from '../live/LiveRail.js';
+import { useLive } from '../live/LiveContext.js';
 import { useStories } from '../stories/StoryContext.js';
 import { ChatListBody, ChatListEmpty } from './ChatListBody.js';
 import { ChatListsSheet } from './ChatListsSheet.js';
@@ -109,6 +114,9 @@ export function ConversationList({
 
   const [openStory, setOpenStory] = useState<{ index: number; origin: DOMRect } | undefined>();
   const [creating, setCreating] = useState(false);
+  /** The `+` asks Story or Live first - Instagram's mode switch. */
+  const [choosingCreate, setChoosingCreate] = useState(false);
+  const { lives, mine: myLive } = useLive();
   /** What the plus opens: a chat, or a group. */
   const [starting, setStarting] = useState(false);
   const [managingStory, setManagingStory] = useState(false);
@@ -472,13 +480,17 @@ export function ConversationList({
                   <PlusIcon size={21} />
                 </IconButton>
 
-                <IconButton
-                  label={t('settings.title')}
-                  variant="ghost"
-                  onClick={() => navigate('/settings')}
-                >
-                  <SettingsIcon size={21} />
-                </IconButton>
+                {/* The dot: this account has no number yet. See `PhoneDot`. */}
+                <span className="relative inline-flex">
+                  <IconButton
+                    label={t('settings.title')}
+                    variant="ghost"
+                    onClick={() => navigate('/settings')}
+                  >
+                    <SettingsIcon size={21} />
+                  </IconButton>
+                  <PhoneDot />
+                </span>
               </div>
             </div>
 
@@ -591,6 +603,23 @@ export function ConversationList({
             !searching && filter === 'all' && !activeList && !selectionMode ? (
               <div className="pb-0.5">
                 {banner}
+                {/*
+                  A mutual on air outranks everything below: first the banner
+                  that says who, then the rail that shows them.
+                */}
+                <LiveBanner
+                  lives={lives}
+                  currentUserId={profile?.id}
+                  onWatch={(live) => navigate(`/live/${live.id}`)}
+                />
+                <LiveRail
+                  lives={lives}
+                  currentUserId={profile?.id}
+                  onWatch={(live) => navigate(`/live/${live.id}`)}
+                  onOpenMine={() => {
+                    if (myLive) navigate(`/live/host/${myLive.id}`);
+                  }}
+                />
                 <StoriesRow
                   groups={storyGroups}
                   currentUserId={profile?.id}
@@ -606,7 +635,7 @@ export function ConversationList({
                       origin,
                     })
                   }
-                  onCreate={() => setCreating(true)}
+                  onCreate={() => setChoosingCreate(true)}
                   onManageMine={() => setManagingStory(true)}
                 />
 
@@ -713,6 +742,20 @@ export function ConversationList({
 
       {creating && (
         <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} />
+      )}
+
+      {choosingCreate && (
+        <LiveCreateSheet
+          onPickStory={() => {
+            setChoosingCreate(false);
+            setCreating(true);
+          }}
+          onPickLive={() => {
+            setChoosingCreate(false);
+            navigate('/live/setup');
+          }}
+          onClose={() => setChoosingCreate(false)}
+        />
       )}
 
       {managingStory && (
