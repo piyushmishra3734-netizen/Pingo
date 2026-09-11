@@ -7,6 +7,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useT } from '../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { ProfileCover } from '../features/profile/ProfileCover.js';
+import { prepareCover } from '../features/profile/cover-gif.js';
 
 /**
  * Editing your own profile: photo, name, username, bio.
@@ -75,6 +76,8 @@ export function EditProfileScreen() {
   const coverRef = useRef<HTMLInputElement>(null);
   const [cover, setCover] = useState<File>();
   const [coverOffset, setCoverOffset] = useState<number>();
+  // A GIF is checked and, over 480p, re-encoded before it can be staged.
+  const [preparingCover, setPreparingCover] = useState(false);
 
   const coverPreview = cover ? URL.createObjectURL(cover) : undefined;
   useEffect(() => {
@@ -142,7 +145,11 @@ export function EditProfileScreen() {
 
   const nameValid = displayName.trim().length > 0 && displayName.trim().length <= 50;
   const canSave =
-    nameValid && handleValid && (unchangedHandle || available !== false) && !saving;
+    nameValid &&
+    handleValid &&
+    (unchangedHandle || available !== false) &&
+    !saving &&
+    !preparingCover;
 
   const save = async () => {
     if (!canSave) return;
@@ -229,12 +236,20 @@ export function EditProfileScreen() {
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
-            if (file) {
-              setCover(file);
+            if (!file) return;
+            setError(undefined);
+            setPreparingCover(true);
+            void prepareCover(file, profile?.isPremium === true).then((result) => {
+              setPreparingCover(false);
+              if (!result.ok) {
+                setError(result.reason);
+                return;
+              }
+              setCover(result.file);
               // A new picture starts centred; the old number described the old
               // photo and means nothing about this one.
               setCoverOffset(50);
-            }
+            });
           }}
         />
 

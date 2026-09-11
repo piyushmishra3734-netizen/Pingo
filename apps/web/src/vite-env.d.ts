@@ -32,3 +32,29 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** `gifenc` ships no types. Only the three calls `cover-gif.ts` makes. */
+declare module 'gifenc' {
+  export type Palette = number[][];
+  export function quantize(
+    rgba: Uint8Array | Uint8ClampedArray,
+    maxColors: number,
+    options?: Record<string, unknown>,
+  ): Palette;
+  export function applyPalette(
+    rgba: Uint8Array | Uint8ClampedArray,
+    palette: Palette,
+    format?: string,
+  ): Uint8Array;
+  export interface Encoder {
+    writeFrame(
+      index: Uint8Array,
+      width: number,
+      height: number,
+      options?: { palette?: Palette; delay?: number; repeat?: number },
+    ): void;
+    finish(): void;
+    bytes(): Uint8Array;
+  }
+  export function GIFEncoder(options?: { auto?: boolean; initialCapacity?: number }): Encoder;
+}
