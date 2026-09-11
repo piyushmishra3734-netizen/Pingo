@@ -15,7 +15,7 @@ import { useProfile, type FollowState } from '@pingo/core';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
 import type { LiveViewerRoom } from '../../lib/livekit/live-room.js';
-import { useLive, useLivePresence } from './LiveContext.js';
+import { useLive } from './LiveContext.js';
 import {
   FanRow,
   LiveComments,
@@ -67,8 +67,6 @@ export function LiveViewerScreen() {
   const [fansTab, setFansTab] = useState(false);
   /** Consecutive lives of this host watched. The streak that brings you back. */
   const [streak, setStreak] = useState(1);
-
-  useLivePresence(live?.id, meId ? { userId: meId, userName: meName } : undefined);
 
   // Counted once per mount: walking in extends the streak.
   useEffect(() => {

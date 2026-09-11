@@ -230,7 +230,7 @@ export function useLiveSession(liveId: string | undefined) {
 
   const { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, viewers } = useLiveRoom(
     live ? live.id : undefined,
-    meId,
+    meId ? { userId: meId, userName: meName } : undefined,
     onEvent,
   );
 

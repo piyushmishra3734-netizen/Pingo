@@ -16,6 +16,7 @@
  */
 
 import { useAuth, useProfile } from '@pingo/core';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   createContext,
   useCallback,
@@ -196,14 +197,18 @@ export function useLive(): LiveContextValue {
 }
 
 /**
- * The room channel for one live: comments, hearts and presence.
+ * The room channel for one live: comments, hearts, pins, waves and presence.
  *
- * Broadcast is fire-and-forget; the tables are the source of truth a late
- * joiner reads. Both are wired here so host and viewer share one hook.
+ * ONE joined channel per screen does everything: it listens, it announces
+ * presence, and every send goes through it. The previous shape split those
+ * across two channels and fired each message down a fresh unjoined one -
+ * which is why the eye-count sat at zero and cross-device messages could
+ * vanish without an error anywhere. Broadcast is fire-and-forget; the tables
+ * stay the source of truth a late joiner reads.
  */
 export function useLiveRoom(
   liveId: string | undefined,
-  selfId: string | undefined,
+  self: { userId: string; userName: string } | undefined,
   onEvent: (event: LiveRoomEvent) => void,
 ): {
   broadcastComment: (comment: LiveComment) => void;
@@ -216,15 +221,35 @@ export function useLiveRoom(
   const [viewers, setViewers] = useState<{ userId: string; userName: string }[]>([]);
   const handler = useRef(onEvent);
   handler.current = onEvent;
-  const selfIdRef = useRef(selfId);
-  selfIdRef.current = selfId;
+  const selfRef = useRef(self);
+  selfRef.current = self;
+  const channelRef = useRef<RealtimeChannel | undefined>(undefined);
+  const joinedRef = useRef(false);
 
   useEffect(() => {
     if (!liveId) return;
     const client = getSupabaseClient();
+    const me = selfRef.current;
     const channel = client.channel(`live:${liveId}`, {
-      config: { broadcast: { self: false }, presence: { key: '' } },
+      config: {
+        broadcast: { self: false },
+        presence: { key: me?.userId ?? `anon-${Math.random().toString(36).slice(2)}` },
+      },
     });
+    channelRef.current = channel;
+
+    const readViewers = () => {
+      const state = channel.presenceState<{ userId: string; userName: string }>();
+      const seen = new Map<string, { userId: string; userName: string }>();
+      for (const metas of Object.values(state)) {
+        for (const meta of metas) {
+          if (meta.userId && !seen.has(meta.userId)) {
+            seen.set(meta.userId, { userId: meta.userId, userName: meta.userName });
+          }
+        }
+      }
+      setViewers([...seen.values()]);
+    };
 
     channel
       .on('broadcast', { event: 'comment' }, ({ payload }) => {
@@ -238,7 +263,7 @@ export function useLiveRoom(
       })
       .on('broadcast', { event: 'join' }, ({ payload }) => {
         const peer = payload as { userId: string; userName: string };
-        if (peer.userId === selfIdRef.current) return;
+        if (peer.userId === selfRef.current?.userId) return;
         handler.current({
           join: { id: `${peer.userId}-${Date.now()}`, userName: peer.userName, at: Date.now() },
         });
@@ -246,95 +271,64 @@ export function useLiveRoom(
       .on('broadcast', { event: 'wave' }, ({ payload }) => {
         handler.current({ wave: payload as { toUserId: string; fromName: string } });
       })
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ userId: string; userName: string }>();
-        const seen = new Map<string, { userId: string; userName: string }>();
-        for (const metas of Object.values(state)) {
-          for (const meta of metas) {
-            if (meta.userId && !seen.has(meta.userId)) {
-              seen.set(meta.userId, { userId: meta.userId, userName: meta.userName });
-            }
-          }
-        }
-        setViewers([...seen.values()]);
-      })
-      .subscribe();
+      .on('presence', { event: 'sync' }, readViewers)
+      .on('presence', { event: 'join' }, readViewers)
+      .on('presence', { event: 'leave' }, readViewers)
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return;
+        joinedRef.current = true;
+        const tracked = selfRef.current;
+        if (tracked) void channel.track(tracked).catch(() => undefined);
+        readViewers();
+      });
 
     return () => {
+      joinedRef.current = false;
+      channelRef.current = undefined;
+      void channel.untrack().catch(() => undefined);
       void client.removeChannel(channel);
     };
-  }, [liveId]);
+  }, [liveId, self?.userId, self?.userName]);
+
+  /*
+   * Through the joined channel, with a short retry tail. A tap in the first
+   * half-second must not be the one that goes missing.
+   */
+  const send = useCallback((event: string, payload: unknown, attempt = 0): void => {
+    const channel = channelRef.current;
+    if (channel && joinedRef.current) {
+      void channel.send({ type: 'broadcast', event, payload }).catch(() => undefined);
+      return;
+    }
+    if (attempt < 3) {
+      window.setTimeout(() => send(event, payload, attempt + 1), 500);
+    }
+  }, []);
 
   const broadcastComment = useCallback(
-    (comment: LiveComment) => {
-      if (!liveId) return;
-      void getSupabaseClient()
-        .channel(`live:${liveId}`)
-        .send({ type: 'broadcast', event: 'comment', payload: comment });
-    },
-    [liveId],
+    (comment: LiveComment) => send('comment', comment),
+    [send],
   );
 
   const broadcastHeart = useCallback(
-    (heart: LiveHeart) => {
-      if (!liveId) return;
-      void getSupabaseClient()
-        .channel(`live:${liveId}`)
-        .send({ type: 'broadcast', event: 'heart', payload: heart });
-    },
-    [liveId],
+    (heart: LiveHeart) => send('heart', heart),
+    [send],
   );
 
   const broadcastPin = useCallback(
-    (comment: LiveComment | null) => {
-      if (!liveId) return;
-      void getSupabaseClient()
-        .channel(`live:${liveId}`)
-        .send({ type: 'broadcast', event: 'pin', payload: comment });
-    },
-    [liveId],
+    (comment: LiveComment | null) => send('pin', comment),
+    [send],
   );
 
   const broadcastJoin = useCallback(
-    (userId: string, userName: string) => {
-      if (!liveId) return;
-      void getSupabaseClient()
-        .channel(`live:${liveId}`)
-        .send({ type: 'broadcast', event: 'join', payload: { userId, userName } });
-    },
-    [liveId],
+    (userId: string, userName: string) => send('join', { userId, userName }),
+    [send],
   );
 
   const broadcastWave = useCallback(
-    (toUserId: string, fromName: string) => {
-      if (!liveId) return;
-      void getSupabaseClient()
-        .channel(`live:${liveId}`)
-        .send({ type: 'broadcast', event: 'wave', payload: { toUserId, fromName } });
-    },
-    [liveId],
+    (toUserId: string, fromName: string) => send('wave', { toUserId, fromName }),
+    [send],
   );
 
   return { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, viewers };
-}
-
-/** Tracks the signed-in viewer on the room channel so the host can count. */
-export function useLivePresence(
-  liveId: string | undefined,
-  user: { userId: string; userName: string } | undefined,
-): void {
-  useEffect(() => {
-    if (!liveId || !user) return;
-    const client = getSupabaseClient();
-    const channel = client.channel(`live:${liveId}`, {
-      config: { presence: { key: user.userId } },
-    });
-    channel.subscribe(() => {
-      void channel.track(user);
-    });
-    return () => {
-      void channel.untrack();
-      void client.removeChannel(channel);
-    };
-  }, [liveId, user?.userId, user?.userName]);
 }

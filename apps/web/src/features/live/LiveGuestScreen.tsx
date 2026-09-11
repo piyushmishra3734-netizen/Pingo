@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import type { LiveGuestRoom } from '../../lib/livekit/live-room.js';
-import { useLive, useLivePresence } from './LiveContext.js';
+import { useLive } from './LiveContext.js';
 import {
   LiveComments,
   LiveComposer,
@@ -55,8 +55,6 @@ export function LiveGuestScreen() {
   const [previewMode, setPreviewMode] = useState(false);
   const [chrome, setChrome] = useState(true);
   const [leaving, setLeaving] = useState(false);
-
-  useLivePresence(live?.id, meId ? { userId: meId, userName: meName } : undefined);
 
   const mySeat = guests.find((guest) => guest.userId === meId);
 

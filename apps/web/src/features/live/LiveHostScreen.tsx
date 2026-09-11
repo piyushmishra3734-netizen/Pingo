@@ -27,7 +27,7 @@ import { useChat } from '@pingo/core';
 
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import type { LiveHostRoom } from '../../lib/livekit/live-room.js';
-import { useLive, useLivePresence } from './LiveContext.js';
+import { useLive } from './LiveContext.js';
 import {
   LiveComments,
   LiveComposer,
@@ -98,8 +98,6 @@ export function LiveHostScreen() {
   const endedAtRef = useRef<number | undefined>(undefined);
   /** New requests since the sheet was last opened: the badge + the buzz. */
   const seenRequests = useRef<Set<string>>(new Set());
-
-  useLivePresence(live?.id, meId ? { userId: meId, userName: meName } : undefined);
 
   const watchers = viewers.filter((viewer) => viewer.userId !== meId);
   const requests = guests.filter((guest) => guest.status === 'requested');
