@@ -109,7 +109,10 @@ const ProfileLookLab = lazyScreen(() => import('./screens/dev/ProfileLookLab.js'
 const VoxelQrLab = lazyScreen(() => import('./screens/dev/VoxelQrLab.js'), 'VoxelQrLab');
 const InviteLab = lazyScreen(() => import('./screens/dev/InviteLab.js'), 'InviteLab');
 const StatusLab = lazyScreen(() => import('./screens/dev/StatusLab.js'), 'StatusLab');
-const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
+const SecurePhoneLab = lazyScreen(() => import('./screens/dev/SecurePhoneLab.js'), 'SecurePhoneLab');
+const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');const RecoverCodeScreen = lazyScreen(() => import('./screens/auth/RecoverScreens.js'), 'RecoverCodeScreen');
+const ResetPasswordScreen = lazyScreen(() => import('./screens/auth/RecoverScreens.js'), 'ResetPasswordScreen');
+const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
 const GoogleConnectingScreen = lazyScreen(() => import('./screens/auth/GoogleConnectingScreen.js'), 'GoogleConnectingScreen');
 const LoginMethodScreen = lazyScreen(() => import('./screens/auth/LoginMethodScreen.js'), 'LoginMethodScreen');
 const LoginPasswordScreen = lazyScreen(() => import('./screens/auth/LoginPasswordScreen.js'), 'LoginPasswordScreen');
@@ -404,6 +407,9 @@ export function App() {
             {import.meta.env.DEV && (
               <Route path="/dev/status-lab" element={<StatusLab />} />
             )}
+            {import.meta.env.DEV && (
+              <Route path="/dev/secure-lab" element={<SecurePhoneLab />} />
+            )}
 
             {/* Pre-session. A signed-in visitor is sent to Home. */}
             <Route element={<RequireGuest />}>
@@ -460,11 +466,19 @@ export function App() {
             <Route path="/auth/google" element={<GoogleConnectingScreen />} />
 
             {/*
+              Forgot password. Outside RequireGuest because the right code signs
+              the tab in, and the guest guard would send it away from its own
+              next step - see RecoverScreens.
+            */}
+            <Route path="/recover" element={<RecoverCodeScreen />} />
+
+            {/*
               Profile setup. Signed in, but deliberately *not* behind
               `RequireProfile` - these are the screens that create the profile,
               so requiring one would be a loop.
             */}
             <Route element={<RequireAuth />}>
+              <Route path="/recover/password" element={<ResetPasswordScreen />} />
               <Route path="/setup" element={<ProfileSetupFlow />}>
                 <Route path="name" element={<NameScreen />} />
                 <Route path="username" element={<UsernameScreen />} />

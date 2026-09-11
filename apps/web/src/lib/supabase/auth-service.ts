@@ -108,7 +108,7 @@ const PHONE_METADATA_KEY = 'pingo_phone';
  * form and every lookup form have to agree and two copies of a normalisation
  * rule is how they stop agreeing.
  */
-function toPhoneDigits(phone: string): string {
+export function toPhoneDigits(phone: string): string {
   const digits = phone.replace(/\D/g, '');
 
   if (!/^[1-9][0-9]{1,14}$/.test(digits)) {

@@ -69,6 +69,11 @@ redirect_uri = "http://localhost:5173/auth/google"
 [functions.username-login]
 verify_jwt = false
 
+# Recovery by @username: the caller is locked out, so there is no session to
+# verify. See the function header.
+[functions.password-recovery]
+verify_jwt = false
+
 # Called by Postgres, which has no user session to verify. The check is the
 # service-role key in the Authorization header, compared in constant time -
 # see the header of `functions/push-send/index.ts`.

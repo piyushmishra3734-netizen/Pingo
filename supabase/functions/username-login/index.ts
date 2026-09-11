@@ -117,8 +117,16 @@ Deno.serve(async (request) => {
     if (!profile?.id) return refuse(request);
 
     const { data: found, error: lookupError } = await admin.auth.admin.getUserById(profile.id);
-    const address = found?.user?.email;
-    if (lookupError || !address) return refuse(request);
+    /*
+     * The address, or failing that the number.
+     *
+     * This read the email alone, and an account made by answering a call has
+     * no email at all - so every one of them was told its password was wrong,
+     * by the one door that exists so people do not have to remember a number.
+     */
+    const address = found?.user?.email || undefined;
+    const phone = found?.user?.phone || undefined;
+    if (lookupError || (!address && !phone)) return refuse(request);
 
     /*
      * The actual authentication. An anonymous client, so this is the identical
@@ -129,10 +137,9 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: signIn, error } = await anon.auth.signInWithPassword({
-      email: address,
-      password,
-    });
+    const { data: signIn, error } = await anon.auth.signInWithPassword(
+      address ? { email: address, password } : { phone: phone!, password },
+    );
 
     if (error || !signIn.session) {
       /*

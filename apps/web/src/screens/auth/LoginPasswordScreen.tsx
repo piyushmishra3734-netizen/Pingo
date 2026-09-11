@@ -53,13 +53,12 @@ import { useT } from '../../features/i18n/useT.js';
  * *"Looks like you're already with us."* rather than an empty field and no
  * explanation of why the sign-up did not go through.
  *
- * ## Missing, and why
+ * ## Forgot password?
  *
- * § 13.2 puts **Forgot password?** above the primary action. It is not here: the
- * triage it opens (§ 14) offers an email reset link, the Emergency Password
- * (§ 15) and Contact Support (§ 16), and none of those exist yet. A link to a
- * screen that cannot help is worse than its absence - it spends the user's trust
- * at the exact moment they are already stuck.
+ * Under the field, for the number and @username doors: both lead to a phone,
+ * and a call with a code is the whole of recovery - see `RecoverScreens`. It
+ * was missing while there was nothing behind it to send somebody to; a link to
+ * a screen that cannot help spends trust at the moment somebody is stuck.
  */
 
 const MAX_ATTEMPTS = 5;
@@ -190,6 +189,22 @@ export function LoginPasswordScreen() {
         onSubmit={submit}
         inputRef={inputRef}
       />
+
+      {(identity.kind === 'phone' || identity.kind === 'username') && (
+        <div className="mt-3 flex justify-end">
+          <Button
+            variant="text"
+            size="sm"
+            onClick={() =>
+              navigate('/recover', {
+                state: { identity: { kind: identity.kind, value: identity.value } },
+              })
+            }
+          >
+            Forgot password?
+          </Button>
+        </div>
+      )}
     </AuthScreen>
   );
 }
