@@ -26,6 +26,7 @@ import { rememberSharedElement } from '../../hooks/useSharedElement.js';
 import { useLongPress } from '../chat/context-menu/useLongPress.js';
 import { StreakFlame } from './StreakFlame.js';
 import { presenceMark } from '../presence/status.js';
+import { readReceiptsOn } from '../settings/privacy-flags.js';
 
 /**
  * One row in the conversation list.
@@ -233,12 +234,18 @@ export function ConversationRow({
                 Delivery state for our own last message. Read is brand-coloured;
                 everything earlier stays grey, so "they've seen it" is the only
                 state that draws the eye.
+
+                Read only while this account's own receipts are on - the same
+                trade the bubble honours. This row skipped it, so somebody
+                invisible or on do not disturb could still see here whether
+                their message had been read, from the chat list, without
+                opening the thread. Read falls back to delivered, which is true.
               */}
               {lastMessageIsMine &&
                 lastMessage &&
-                (lastMessage.status === 'read' ? (
+                (lastMessage.status === 'read' && readReceiptsOn() ? (
                   <CheckDoubleIcon size={14} className="shrink-0 text-brand" title="Read" />
-                ) : lastMessage.status === 'delivered' ? (
+                ) : lastMessage.status === 'delivered' || lastMessage.status === 'read' ? (
                   <CheckDoubleIcon
                     size={14}
                     className="shrink-0 text-text-tertiary"

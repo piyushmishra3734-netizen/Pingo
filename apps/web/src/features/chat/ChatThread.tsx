@@ -86,6 +86,7 @@ import { DisappearingSheet } from './DisappearingSheet.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
 import { presenceMark } from '../presence/status.js';
+import { readReceiptsOn } from '../settings/privacy-flags.js';
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -811,6 +812,10 @@ export function ChatThread({
    * when you want the history rather than the latest word.
    */
   const seen = useMemo(() => {
+    // The same trade as the ticks: with this account's receipts off - which is
+    // every moment it is invisible or on do not disturb - nobody else's are
+    // shown here either.
+    if (!readReceiptsOn()) return undefined;
     const last = messages[messages.length - 1];
     if (!last || last.authorId !== currentUser?.id || last.status !== 'read') return undefined;
 

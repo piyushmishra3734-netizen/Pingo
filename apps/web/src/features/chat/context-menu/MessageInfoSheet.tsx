@@ -3,6 +3,7 @@ import { Avatar, CheckDoubleIcon, CheckIcon, LoadingState } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
 import { Sheet } from '../../../components/Sheet.js';
+import { readReceiptsOn } from '../../settings/privacy-flags.js';
 
 /**
  * Who has read this message, and when.
@@ -55,10 +56,18 @@ export function MessageInfoSheet({
     };
   }, [service, message.id]);
 
-  const read = (receipts ?? [])
-    .filter((r): r is Required<MessageReceipt> => r.readAt !== undefined)
-    .sort((a, b) => b.readAt - a.readAt);
-  const unread = (receipts ?? []).filter((r) => r.readAt === undefined);
+  /*
+   * Nobody's read time while this account's own receipts are off - invisible
+   * and do not disturb always are. Everyone is listed as delivered instead,
+   * which is true of all of them, and is the same trade the ticks honour.
+   */
+  const receiptsOn = readReceiptsOn();
+  const read = receiptsOn
+    ? (receipts ?? [])
+        .filter((r): r is Required<MessageReceipt> => r.readAt !== undefined)
+        .sort((a, b) => b.readAt - a.readAt)
+    : [];
+  const unread = receiptsOn ? (receipts ?? []).filter((r) => r.readAt === undefined) : (receipts ?? []);
 
   const nameOf = (userId: string) => users.find((u) => u.id === userId)?.name ?? 'Someone';
   const avatarOf = (userId: string) => users.find((u) => u.id === userId)?.avatarUrl;
