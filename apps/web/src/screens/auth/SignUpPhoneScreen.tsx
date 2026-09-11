@@ -9,6 +9,7 @@ import { PhoneField, toE164 } from '../../features/auth/PhoneField.js';
 import { defaultCountry } from '../../features/auth/countries.js';
 import { authErrorMessage } from '../../features/auth/messages.js';
 import { useT } from '../../features/i18n/useT.js';
+import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { SIGNUP_PROGRESS } from './progress.js';
 
 /**
@@ -52,14 +53,32 @@ export function SignUpPhoneScreen() {
     setError(undefined);
 
     try {
+      /*
+       * § 17, asked before the call rather than after it. A number that already
+       * has an account would otherwise get a code that signs into that account,
+       * and the password screen next would replace its password. It goes to
+       * Log In instead, with "Looks like you're already with us". If the check
+       * itself fails, sign-up carries on as before.
+       */
+      const { data: registered } = await getSupabaseClient().rpc('phone_registered', {
+        p_phone: e164,
+      });
+      if (registered === true) {
+        const identity = { kind: 'phone', value: e164 } as const;
+        /*
+         * Set here as well as handed over: sign-up and log-in are sibling routes
+         * with the same `IdentityFlow` element, so React keeps this instance and
+         * its state across the move, and the router-state seed never runs.
+         */
+        setIdentity(identity);
+        navigate('/login/password', { state: { identity, collision: true } });
+        return;
+      }
+
       await service.phoneOtp.start(e164);
       setIdentity({ kind: 'phone', value: e164 });
       navigate('/signup/code');
     } catch (cause) {
-      /*
-       * Still nothing about whether the number has an account - `start`
-       * resolves either way, so anything caught here is the send failing.
-       */
       setError(authErrorMessage(cause, 'signUp'));
     } finally {
       setSending(false);

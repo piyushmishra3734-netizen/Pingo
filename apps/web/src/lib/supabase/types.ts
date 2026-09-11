@@ -1480,6 +1480,10 @@ export type Database = {
         Args: { invite_code: string };
         Returns: string;
       };
+      phone_registered: {
+        Args: { p_phone: string };
+        Returns: boolean;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

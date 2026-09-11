@@ -127,6 +127,39 @@
   animation: settings-ripple 560ms var(--ease-standard) forwards;
 }
 
+/**
+ * The code boxes (`CodeBoxes`): the caret in the box waiting for the next
+ * digit, and the wave across all of them once the code is complete.
+ */
+@keyframes code-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility animate-code-caret {
+  animation: code-caret 1s ease-in-out infinite;
+}
+
+@keyframes code-wave {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-6px) scale(1.05);
+  }
+}
+
+@utility animate-code-wave {
+  animation: code-wave 420ms var(--ease-standard) both;
+}
+
 @utility scrollbar-none {
   scrollbar-width: none;
 

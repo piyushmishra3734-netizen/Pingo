@@ -1,9 +1,10 @@
 import { AuthError, useAuth } from '@pingo/core';
-import { Button, TextField } from '@pingo/ui';
+import { Button } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
+import { CodeBoxes } from '../../features/auth/CodeBoxes.js';
 import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
 import { authErrorMessage } from '../../features/auth/messages.js';
@@ -19,13 +20,11 @@ import { SIGNUP_PROGRESS } from './progress.js';
  * claims, because matching people by an unverified number lets anyone be found
  * as anyone. This closes that.
  *
- * ## Six digits, and the keyboard fills them in
+ * ## Six boxes, one field
  *
- * `autoComplete="one-time-code"` is the whole reason this is one field rather
- * than six boxes. iOS and Android both read the SMS and offer the code above
- * the keyboard; six separate inputs break that, and they break paste, and they
- * are worse with a screen reader. The design that looks more considered is the
- * one that makes the person type something their phone already knew.
+ * The boxes are drawn over a single input (`CodeBoxes`), because
+ * `autoComplete="one-time-code"`, paste and a screen reader all need one field
+ * and six separate inputs break every one of them. A full code sends itself.
  *
  * ## Resending costs money, so it is on a timer
  *
@@ -64,14 +63,14 @@ export function SignUpPhoneCodeScreen() {
 
   const ready = code.length === CODE_LENGTH && !checking;
 
-  const submit = async () => {
-    if (!ready) return;
+  const submit = async (entered = code) => {
+    if (entered.length !== CODE_LENGTH || checking) return;
 
     setChecking(true);
     setError(undefined);
 
     try {
-      await service.phoneOtp.verify(identity.value, code);
+      await service.phoneOtp.verify(identity.value, entered);
       /*
        * The account exists and this tab is signed in to it. The password screen
        * next sets the password that returning visits will use - it does not
@@ -128,20 +127,16 @@ export function SignUpPhoneCodeScreen() {
         </Button>
       }
     >
-      <TextField
+      <CodeBoxes
         inputRef={inputRef}
         label={t('auth.codeLabel')}
         value={code}
-        // Digits only: a pasted code often arrives with spaces around it.
-        onChange={(event) =>
-          setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
-        }
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') void submit();
+        onChange={(next) => {
+          setCode(next);
+          setError(undefined);
         }}
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={CODE_LENGTH}
+        onComplete={(full) => void submit(full)}
+        length={CODE_LENGTH}
         autoFocus
         invalid={Boolean(error)}
       />

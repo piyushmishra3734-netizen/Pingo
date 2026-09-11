@@ -1,9 +1,10 @@
-import { Button, CheckIcon, LockIcon, PhoneIcon, ShieldIcon, TextField, cn } from '@pingo/ui';
+import { Button, CheckIcon, LockIcon, PhoneIcon, ShieldIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { Sheet } from '../../components/Sheet.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { CodeBoxes } from './CodeBoxes.js';
 import { defaultCountry } from './countries.js';
 import { PasswordField } from './PasswordField.js';
 import { PhoneField, toE164 } from './PhoneField.js';
@@ -124,12 +125,12 @@ export function SecurePhoneSheet({
     }
   };
 
-  const checkCode = async () => {
-    if (busy || code.length !== CODE_LENGTH) return;
+  const checkCode = async (entered = code) => {
+    if (busy || entered.length !== CODE_LENGTH) return;
     setBusy(true);
     setError(undefined);
     try {
-      await api.verify(e164, code);
+      await api.verify(e164, entered);
       setAdded(true);
       go('password');
     } catch (cause) {
@@ -251,20 +252,15 @@ export function SecurePhoneSheet({
               {ending ? `Calling the number ending in ${ending}.` : 'Calling your number.'} Pick up
               and type the code you hear.
             </p>
-            <div className="mt-5 w-full text-left">
-              <TextField
-                label="Code"
+            <div className="mt-5 w-full">
+              <CodeBoxes
                 value={code}
-                onChange={(event) => {
-                  setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH));
+                onChange={(next) => {
+                  setCode(next);
                   setError(undefined);
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') void checkCode();
-                }}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={CODE_LENGTH}
+                onComplete={(full) => void checkCode(full)}
+                length={CODE_LENGTH}
                 autoFocus
                 invalid={Boolean(error)}
               />

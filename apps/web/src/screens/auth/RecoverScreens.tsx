@@ -1,8 +1,9 @@
-import { Button, TextField } from '@pingo/ui';
+import { Button } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
+import { CodeBoxes } from '../../features/auth/CodeBoxes.js';
 import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
 import { PasswordField } from '../../features/auth/PasswordField.js';
 import {
@@ -108,12 +109,12 @@ export function RecoverCodeScreen() {
 
   const ready = code.length === CODE_LENGTH && !checking;
 
-  const submit = async () => {
-    if (!ready) return;
+  const submit = async (entered = code) => {
+    if (entered.length !== CODE_LENGTH || checking) return;
     setChecking(true);
     setError(undefined);
     try {
-      await verifyRecovery(identity, code);
+      await verifyRecovery(identity, entered);
       navigate('/recover/password', { replace: true });
     } catch (cause) {
       setError(recoveryErrorMessage(cause));
@@ -147,17 +148,15 @@ export function RecoverCodeScreen() {
         </Button>
       }
     >
-      <TextField
+      <CodeBoxes
         inputRef={inputRef}
-        label="Code"
         value={code}
-        onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') void submit();
+        onChange={(next) => {
+          setCode(next);
+          setError(undefined);
         }}
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={CODE_LENGTH}
+        onComplete={(full) => void submit(full)}
+        length={CODE_LENGTH}
         autoFocus
         disabled={phase === 'sending'}
         invalid={Boolean(error)}
