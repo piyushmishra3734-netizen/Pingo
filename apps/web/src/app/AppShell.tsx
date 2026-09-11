@@ -184,15 +184,16 @@ export function AppShell() {
       */}
       <ConnectionBanner />
 
-      {/* Asks an account with no number for one, in a line. See the component. */}
+      {/* Asks an account with no number for one, in a card above the dock. */}
       <SecurePhoneBanner />
 
       <main
         className={cn(
           'min-h-0 flex-1',
           // Clears the floating dock: its height, the assistant's line under
-          // it, and the gap they leave below.
-          !fullscreen && 'pb-[8rem]',
+          // it, and the gap they leave below - plus the caution card above it
+          // while that shows (see SecurePhoneBanner).
+          !fullscreen && 'pb-[calc(8rem+var(--caution-space,0rem))]',
         )}
       >
         {/*

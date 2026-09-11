@@ -2,20 +2,20 @@ import { AuthError } from '@pingo/core';
 import { useState } from 'react';
 
 import {
-  CautionLine,
+  CautionCard,
   SecurePhoneSheet,
   type SecurePhoneApi,
   type SecureStep,
 } from '../../features/auth/SecurePhoneSheet.js';
 
 /**
- * The caution line and the add-your-number sheet, at `/dev/secure-lab`, with a
+ * The caution card and the add-your-number sheet, at `/dev/secure-lab`, with a
  * pretend backend.
  *
  * The real one needs a session with no number and places a real call, so this
  * hands the sheet an API that answers after a moment instead: any number
  * ending 0000 is "taken", the code is 123456, and passwords always save. The
- * line opens the sheet the way the app does; the buttons open it at each step.
+ * card opens the sheet the way the app does; the buttons open it at each step.
  */
 const STEPS: SecureStep[] = ['phone', 'code', 'password', 'done'];
 
@@ -48,7 +48,7 @@ export function SecurePhoneLab() {
 
   return (
     <div className="h-full bg-page">
-      <CautionLine onClick={() => openAt('phone')} />
+      {!open && <CautionCard onAdd={() => openAt('phone')} onLater={() => undefined} />}
       <div className="flex flex-wrap gap-2 p-4">
         {STEPS.map((s) => (
           <button
