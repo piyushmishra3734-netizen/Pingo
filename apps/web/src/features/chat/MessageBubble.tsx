@@ -669,17 +669,17 @@ function DeliveryIndicator({ status }: { status: Message['status'] }) {
   const t = useT();
 
   /*
-   * Receipts are a trade, and the settings screen has always said so: turning
-   * yours off hides theirs from you. It was a sentence with nothing behind it -
-   * the blue double tick still arrived - so it is honoured here, at the one
-   * place that draws it. `read` falls back to `delivered`, which is true
-   * regardless and is what somebody who has opted out of this exchange should
-   * be told.
+   * Receipts are a trade: turning yours off hides theirs from you - and
+   * invisible and do not disturb always have them off.
+   *
+   * It is one tick for everything past sending, not a grey double tick for
+   * read. Falling back to "delivered" still leaked: a message often goes from
+   * sent straight to read without a delivered step in between, so the single
+   * tick becoming a double one was the read receipt, only in grey. One tick
+   * says it left, which is all that is true to tell somebody out of the trade.
    */
-  if (status === 'read' && !readReceiptsOn()) {
-    return (
-      <CheckDoubleIcon size={14} className="text-text-tertiary" title={t('thread.delivered')} />
-    );
+  if ((status === 'read' || status === 'delivered') && !readReceiptsOn()) {
+    return <CheckIcon size={14} className="text-text-tertiary" title={t('thread.sent')} />;
   }
 
   /*

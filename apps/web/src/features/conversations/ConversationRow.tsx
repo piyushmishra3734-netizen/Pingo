@@ -239,13 +239,15 @@ export function ConversationRow({
                 trade the bubble honours. This row skipped it, so somebody
                 invisible or on do not disturb could still see here whether
                 their message had been read, from the chat list, without
-                opening the thread. Read falls back to delivered, which is true.
+                opening the thread. With receipts off it is one tick for
+                anything past sending, for the reason given in the bubble:
+                a grey double tick appearing was the read receipt too.
               */}
               {lastMessageIsMine &&
                 lastMessage &&
                 (lastMessage.status === 'read' && readReceiptsOn() ? (
                   <CheckDoubleIcon size={14} className="shrink-0 text-brand" title="Read" />
-                ) : lastMessage.status === 'delivered' || lastMessage.status === 'read' ? (
+                ) : lastMessage.status === 'delivered' && readReceiptsOn() ? (
                   <CheckDoubleIcon
                     size={14}
                     className="shrink-0 text-text-tertiary"
