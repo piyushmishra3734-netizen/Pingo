@@ -71,6 +71,11 @@ create index if not exists live_comments_live_idx
 alter table public.live_streams enable row level security;
 alter table public.live_comments enable row level security;
 
+-- Coarse gate; the policies above are the fine one. Without these the API
+-- role cannot touch the tables at all (42501 before RLS is even consulted).
+grant select, insert, update, delete on public.live_streams to anon, authenticated;
+grant select, insert, update, delete on public.live_comments to anon, authenticated;
+
 -- A live is visible to mutuals and to its host (who also needs their own
 -- ended rows for the end-of-live summary).
 drop policy if exists "live streams are visible to mutuals" on public.live_streams;

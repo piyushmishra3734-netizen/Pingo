@@ -31,6 +31,9 @@ alter table public.live_streams
 
 alter table public.live_guests enable row level security;
 
+-- Same coarse gate as the streams tables (see 20260965000000).
+grant select, insert, update, delete on public.live_guests to anon, authenticated;
+
 -- Anyone who can see the live can see who is on it.
 drop policy if exists "guests visible with the live" on public.live_guests;
 create policy "guests visible with the live"
