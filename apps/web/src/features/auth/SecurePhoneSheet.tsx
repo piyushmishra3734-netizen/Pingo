@@ -26,20 +26,18 @@ import {
  * second one, because forgot-password is a call with a code. Somebody who
  * signed up with their number already has it, and is never asked for Google.
  *
- * ## Not annoying, on purpose
+ * ## A line, not a page
  *
- * A security prompt that nags gets dismissed without being read, which is worse
- * than not asking. So it waits until the chat list has settled, appears only
- * there - never over a conversation - and "Not now" is as prominent as a text
- * button can be and keeps it away for a week. Nothing is locked behind it.
+ * The ask is one yellow-highlighted line at the top of the app
+ * (`SecurePhoneBanner`) - never a page or a popup, and never inside a chat,
+ * the camera or a story, where it would be in the way of the thing being done.
+ * Tapping it opens this sheet straight at the number.
  *
- * ## Four steps in one sheet
+ * ## Three steps in one sheet
  *
- * The pitch, the number, the code that proves the phone is theirs, and a
- * password so the number can sign in on its own. The password step can be
- * skipped - the number already rescues them through forgot-password - and the
- * whole thing stays in one sheet rather than leaving for a flow of screens,
- * because it is an aside from the chat list, not somewhere to go.
+ * The number, the code that proves the phone is theirs, and a password so the
+ * number can sign in on its own. The password step can be skipped - the number
+ * already rescues them through forgot-password.
  */
 
 export interface SecurePhoneApi {
@@ -54,7 +52,7 @@ const REAL_API: SecurePhoneApi = {
   setPassword: setNewPassword,
 };
 
-export type SecureStep = 'intro' | 'phone' | 'code' | 'password' | 'done';
+export type SecureStep = 'phone' | 'code' | 'password' | 'done';
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 60;
@@ -63,7 +61,6 @@ const MIN_PASSWORD = 8;
 const FLOW: SecureStep[] = ['phone', 'code', 'password'];
 
 const TITLES: Record<SecureStep, string> = {
-  intro: 'Keep your account yours',
   phone: 'Your phone number',
   code: 'Enter the code',
   password: 'Create a password',
@@ -73,7 +70,7 @@ const TITLES: Record<SecureStep, string> = {
 export function SecurePhoneSheet({
   onClose,
   api = REAL_API,
-  initialStep = 'intro',
+  initialStep = 'phone',
 }: {
   /** `completed` is true only when a number was actually added. */
   onClose: (completed: boolean) => void;
@@ -177,41 +174,11 @@ export function SecurePhoneSheet({
 
         <h2 className="mt-5 text-h2 text-ink">{TITLES[step]}</h2>
 
-        {step === 'intro' && (
-          <>
-            <p className="mt-2 max-w-xs text-balance text-body text-text-secondary">
-              Add your phone number. If you ever lose Google or forget your password,
-              we&apos;ll call you with a code and you&apos;re back in.
-            </p>
-            <ul className="mt-5 w-full max-w-xs space-y-3 text-left">
-              {[
-                'Only used to get you back in',
-                'Never shown on your profile',
-                'Google or your number - one account',
-              ].map((line) => (
-                <li key={line} className="flex items-center gap-3 text-body text-ink">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-sunken text-brand">
-                    <CheckIcon size={14} />
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ul>
-            <Actions>
-              <Button variant="primary" size="lg" block onClick={() => go('phone')}>
-                Add phone number
-              </Button>
-              <Button variant="text" block onClick={close}>
-                Not now
-              </Button>
-            </Actions>
-          </>
-        )}
-
         {step === 'phone' && (
           <>
             <p className="mt-2 max-w-xs text-balance text-body text-text-secondary">
-              We&apos;ll call it once with a 6-digit code to check it&apos;s yours.
+              So you can always get back in, even without Google. We&apos;ll call once
+              with a 6-digit code to check it&apos;s yours.
             </p>
             <div className="mt-5 w-full text-left">
               <PhoneField
@@ -239,8 +206,8 @@ export function SecurePhoneSheet({
               >
                 Call me with a code
               </Button>
-              <Button variant="text" block onClick={() => go('intro')}>
-                Back
+              <Button variant="text" block onClick={close}>
+                Not now
               </Button>
             </Actions>
           </>
@@ -359,9 +326,8 @@ export function SecurePhoneSheet({
 }
 
 /**
- * The mark at the top: a shield on a brand disc, breathing once a cycle, with
- * the phone tucked into its corner on the pitch - "your number, guarding this".
- * The icon follows the step so the sheet always says what it is doing.
+ * The mark at the top: the step's icon on a brand disc, breathing once a
+ * cycle, so the sheet always says what it is doing.
  */
 function Hero({ step }: { step: SecureStep }) {
   const Icon =
@@ -374,13 +340,6 @@ function Hero({ step }: { step: SecureStep }) {
       <span className="relative grid size-16 place-items-center rounded-full bg-brand text-on-brand shadow-lg">
         <Icon size={30} />
       </span>
-      {step === 'intro' && (
-        <span className="absolute bottom-1 right-1 grid size-9 place-items-center rounded-full bg-page">
-          <span className="grid size-7 place-items-center rounded-full bg-[#22C55E] text-white">
-            <PhoneIcon size={14} />
-          </span>
-        </span>
-      )}
     </div>
   );
 }
@@ -400,68 +359,54 @@ function Problem({ message }: { message: string | undefined }) {
 
 /* -------------------------------------------------------------------------- */
 
-const QUIET_MS = 7 * 24 * 60 * 60 * 1000;
-const WAIT_MS = 3500;
-
-/** Asked at most once per app load, whatever the answer. */
-let askedThisLoad = false;
-
-function dismissedRecently(userId: string): boolean {
-  try {
-    const at = Number(localStorage.getItem(`pingo:secure-phone:${userId}`));
-    return Number.isFinite(at) && Date.now() - at < QUIET_MS;
-  } catch {
-    return false;
-  }
-}
-
-function rememberDismissal(userId: string): void {
-  try {
-    localStorage.setItem(`pingo:secure-phone:${userId}`, String(Date.now()));
-  } catch {
-    // Private mode: they may be asked again next load, which is the lesser harm.
-  }
+/**
+ * The caution line: one sentence, its first half under a yellow highlighter,
+ * the whole line a button. Exported on its own for `/dev/secure-lab`.
+ *
+ * ponytail: it pads for the top safe-area inset and so does the screen header
+ * under it, which doubles the gap on a notched phone with the app edge to edge.
+ */
+export function CautionLine({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="focus-ring block w-full shrink-0 px-4 pb-1.5 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-caption leading-relaxed text-text-secondary"
+    >
+      <mark className="box-decoration-clone rounded-[0.3em] bg-[#FDE047] px-1 py-0.5 font-medium text-[#1C1917]">
+        ⚠ No phone number on your account
+      </mark>{' '}
+      - add one so you never lose it. <span className="font-semibold text-brand">Add number</span>
+    </button>
+  );
 }
 
 /**
- * Decides whether to show the sheet, and shows it. Mounted in the app shell.
- *
- * Only on the chat list, only after it has had a few seconds to settle, only
- * for an account with no number, and not again for a week after "Not now".
+ * The line, for an account with no number - everywhere but inside a chat, the
+ * camera and stories. It stays until a number is added. Mounted in the shell.
  */
-export function SecurePhonePrompt() {
-  const location = useLocation();
-  const [userId, setUserId] = useState<string>();
-  const onChats = location.pathname === '/chats';
+export function SecurePhoneBanner() {
+  const { pathname } = useLocation();
+  const [needsPhone, setNeedsPhone] = useState(false);
+  const [open, setOpen] = useState(false);
 
+  // Fires at once with the current session, and again when a number lands on it.
   useEffect(() => {
-    if (!onChats || askedThisLoad) return undefined;
-    let live = true;
-    const timer = window.setTimeout(() => {
-      void getSupabaseClient()
-        .auth.getSession()
-        .then(({ data }) => {
-          const user = data.session?.user;
-          if (!live || !user || user.phone || askedThisLoad) return;
-          if (dismissedRecently(user.id)) return;
-          askedThisLoad = true;
-          setUserId(user.id);
-        });
-    }, WAIT_MS);
-    return () => {
-      live = false;
-      window.clearTimeout(timer);
-    };
-  }, [onChats]);
+    const { data } = getSupabaseClient().auth.onAuthStateChange((_event, session) => {
+      setNeedsPhone(Boolean(session?.user && !session.user.phone));
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
 
-  if (!userId) return null;
+  const inChat =
+    /^\/chats\/[^/]+$/.test(pathname) && pathname !== '/chats/new' && pathname !== '/chats/new-group';
+  const away = inChat || pathname === '/camera' || pathname.startsWith('/stories');
 
   return (
-    <SecurePhoneSheet
-      onClose={(completed) => {
-        if (!completed) rememberDismissal(userId);
-        setUserId(undefined);
-      }}
-    />
+    <>
+      {needsPhone && !away && <CautionLine onClick={() => setOpen(true)} />}
+      {/* Kept open past the code: the number lands before the password step. */}
+      {open && <SecurePhoneSheet onClose={() => setOpen(false)} />}
+    </>
   );
 }

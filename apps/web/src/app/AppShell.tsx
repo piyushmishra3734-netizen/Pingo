@@ -15,7 +15,7 @@ import { redeemHeldReferral } from '../features/referrals/referrals-service.js';
 import { doneAddingAccount } from '../features/auth/adding-account.js';
 import { useLiveOnResume } from '../features/notifications/useLiveOnResume.js';
 import { usePushTapRouting } from '../features/notifications/usePushTapRouting.js';
-import { SecurePhonePrompt } from '../features/auth/SecurePhoneSheet.js';
+import { SecurePhoneBanner } from '../features/auth/SecurePhoneSheet.js';
 
 /**
  * The shell every signed-in screen renders inside.
@@ -184,6 +184,9 @@ export function AppShell() {
       */}
       <ConnectionBanner />
 
+      {/* Asks an account with no number for one, in a line. See the component. */}
+      <SecurePhoneBanner />
+
       <main
         className={cn(
           'min-h-0 flex-1',
@@ -222,9 +225,6 @@ export function AppShell() {
       </main>
 
       {!fullscreen && <Dock />}
-
-      {/* Asks a Google account for a number, gently. See the component. */}
-      <SecurePhonePrompt />
     </div>
   );
 }
