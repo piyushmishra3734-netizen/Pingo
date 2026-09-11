@@ -29,7 +29,6 @@ import { AppWordmark } from '../../components/AppWordmark.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { canAccessCommunities } from '../../lib/community-access.js';
 import { useT } from '../i18n/useT.js';
-import { PhoneDot } from '../auth/SecurePhoneSheet.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
@@ -480,17 +479,13 @@ export function ConversationList({
                   <PlusIcon size={21} />
                 </IconButton>
 
-                {/* The dot: this account has no number yet. See `PhoneDot`. */}
-                <span className="relative inline-flex">
-                  <IconButton
-                    label={t('settings.title')}
-                    variant="ghost"
-                    onClick={() => navigate('/settings')}
-                  >
-                    <SettingsIcon size={21} />
-                  </IconButton>
-                  <PhoneDot />
-                </span>
+                <IconButton
+                  label={t('settings.title')}
+                  variant="ghost"
+                  onClick={() => navigate('/settings')}
+                >
+                  <SettingsIcon size={21} />
+                </IconButton>
               </div>
             </div>
 
