@@ -170,6 +170,20 @@ export function RecoverCodeScreen() {
           <FunnelTextLink onClick={() => void send()}>Call me again</FunnelTextLink>
         )}
       </div>
+
+      {/*
+        Shown every time, whether or not a call is on its way - which is the only
+        way it can be said at all. A number with no account gets no call and the
+        same screen, so that nobody can learn which numbers have PINGO; the
+        person it most often happens to is somebody who signed up with Google
+        and never added their number, and they deserve to know where to go.
+      */}
+      {identity.kind === 'phone' && phase === 'sent' && (
+        <p className="mt-6 text-center text-caption text-text-tertiary">
+          No call after a minute? This number may not be on a PINGO account. If you
+          signed up with Google, go back and continue with Google.
+        </p>
+      )}
     </AuthScreen>
   );
 }
