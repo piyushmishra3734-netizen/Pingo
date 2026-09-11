@@ -20,6 +20,7 @@ import {
   LivePin,
   LiveGoal,
   LiveTimer,
+  RemoteVideo,
   useTapGestures,
 } from './LiveWidgets.js';
 import { fetchLiveGrant, useLiveSession, useMountedRef } from './useLiveSession.js';
@@ -50,7 +51,6 @@ export function LiveGuestScreen() {
   const mounted = useMountedRef();
 
   const roomRef = useRef<LiveGuestRoom | undefined>(undefined);
-  const hostVideoRef = useRef<HTMLVideoElement | null>(null);
   const [hostStream, setHostStream] = useState<MediaStream | undefined>();
   const [previewMode, setPreviewMode] = useState(false);
   const [chrome, setChrome] = useState(true);
@@ -91,7 +91,7 @@ export function LiveGuestScreen() {
           const room = await joinLiveAsViewer(
             grant,
             (stream) => {
-              if (mounted.current) setHostStream(stream);
+              if (mounted.current) setHostStream(new MediaStream(stream.getTracks()));
             },
             () => {
               if (mounted.current) setHostStream(undefined);
@@ -122,7 +122,7 @@ export function LiveGuestScreen() {
         if (cancelled) return;
         const room = await joinLiveAsGuest(grant, preview.stream!, {
           onCoStream: (_userId, stream) => {
-            if (mounted.current) setHostStream(stream);
+            if (mounted.current) setHostStream(new MediaStream(stream.getTracks()));
           },
           onCoGone: () => {
             if (mounted.current) setHostStream(undefined);
@@ -155,13 +155,6 @@ export function LiveGuestScreen() {
       if (room) void room.leave().catch(() => undefined);
     };
   }, []);
-
-  useEffect(() => {
-    const element = hostVideoRef.current;
-    if (!element || !hostStream) return;
-    element.srcObject = hostStream;
-    void element.play().catch(() => undefined);
-  }, [hostStream]);
 
   const leaveSeat = async () => {
     if (!live || !meId || leaving) return;
@@ -209,7 +202,7 @@ export function LiveGuestScreen() {
       <div className="absolute inset-0 flex flex-col">
         <div className="relative h-1/2 overflow-hidden">
           {hostStream ? (
-            <video ref={hostVideoRef} playsInline className="absolute inset-0 size-full object-cover" />
+            <RemoteVideo stream={hostStream} label={`${live.hostName}'s video`} />
           ) : (
             <div className="absolute inset-0 grid place-items-center px-8 text-center">
               <p className="flex items-center gap-2 text-caption text-white/70">

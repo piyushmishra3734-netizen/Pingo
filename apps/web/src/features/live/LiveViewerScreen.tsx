@@ -24,6 +24,7 @@ import {
   LiveHostCluster,
   LivePin,
   LiveGoal,
+  RemoteVideo,
   buzz,
   readBumpStreak,
   useTapGestures,
@@ -56,8 +57,8 @@ export function LiveViewerScreen() {
   } = session;
   const mounted = useMountedRef();
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const roomRef = useRef<LiveViewerRoom | undefined>(undefined);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | undefined>();
   const [joined, setJoined] = useState(false);
   const [chrome, setChrome] = useState(true);
   const [shared, setShared] = useState(false);
@@ -113,11 +114,12 @@ export function LiveViewerScreen() {
         const room = await joinLiveAsViewer(
           grant,
           (stream) => {
-            const element = videoRef.current;
-            if (!element) return;
-            element.srcObject = stream;
-            void element.play().catch(() => undefined);
-            if (mounted.current) setJoined(true);
+            // A fresh object per arrival: the room grows one shared stream in
+            // place, and React only paints what changes identity.
+            if (mounted.current) {
+              setRemoteStream(new MediaStream(stream.getTracks()));
+              setJoined(true);
+            }
           },
           () => {
             if (mounted.current) setJoined(false);
@@ -244,7 +246,9 @@ export function LiveViewerScreen() {
     <div ref={gestures} className="relative flex h-full touch-none flex-col overflow-hidden bg-backdrop select-none">
       {/* ---- picture ------------------------------------------------------ */}
       <div className="absolute inset-0">
-        <video ref={videoRef} playsInline className="absolute inset-0 size-full object-cover" />
+        {remoteStream && (
+          <RemoteVideo stream={remoteStream} label={`${live.hostName}'s live video`} />
+        )}
         {!joined && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
             <Avatar name={live.hostName} id={live.hostId} {...(live.hostAvatarUrl ? { src: live.hostAvatarUrl } : {})} size="lg" />

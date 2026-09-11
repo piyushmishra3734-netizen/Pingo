@@ -32,11 +32,29 @@ export function useLivePreview(active: boolean) {
     let cancelled = false;
     let current: MediaStream | undefined;
 
+    /*
+     * Capture at the screen's own shape.
+     *
+     * A fixed 720x1280 request on a wider sensor means `object-cover` slices
+     * the sides off to fill a tall screen - every face arrives zoomed in.
+     * Asking for the viewport's aspect instead leaves almost nothing to crop,
+     * so what you framed is what they get.
+     */
+    const viewportAspect =
+      window.innerWidth > 0 && window.innerHeight > 0
+        ? Math.min(0.75, Math.max(0.46, window.innerWidth / window.innerHeight))
+        : 0.5625;
+
     setStatus('starting');
     navigator.mediaDevices
       .getUserMedia({
         audio: true,
-        video: { facingMode: facing, width: { ideal: 720 }, height: { ideal: 1280 } },
+        video: {
+          facingMode: facing,
+          width: { ideal: 720 },
+          aspectRatio: { ideal: viewportAspect },
+          frameRate: { ideal: 30 },
+        },
       })
       .then((got) => {
         if (cancelled) {

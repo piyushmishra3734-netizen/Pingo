@@ -37,6 +37,7 @@ import {
   LiveGoal,
   LiveTimer,
   FanRow,
+  RemoteVideo,
   buzz,
   useTapGestures,
 } from './LiveWidgets.js';
@@ -91,7 +92,6 @@ export function LiveHostScreen() {
   const [inviteSent, setInviteSent] = useState(0);
 
   const roomRef = useRef<LiveHostRoom | undefined>(undefined);
-  const guestVideoRef = useRef<HTMLVideoElement | null>(null);
   const [guestStream, setGuestStream] = useState<MediaStream | undefined>();
   const likesRef = useRef(0);
   const joinsRef = useRef<Set<string>>(new Set());
@@ -143,7 +143,7 @@ export function LiveHostScreen() {
         if (cancelled) return;
         const room = await joinLiveAsHost(grant, preview.stream!, {
           onCoStream: (_userId, stream) => {
-            if (mounted.current) setGuestStream(stream);
+            if (mounted.current) setGuestStream(new MediaStream(stream.getTracks()));
           },
           onCoGone: () => {
             if (mounted.current) setGuestStream(undefined);
@@ -175,14 +175,6 @@ export function LiveHostScreen() {
       if (room) void room.leave().catch(() => undefined);
     };
   }, []);
-
-  // The guest's picture lands on its element whenever either arrives first.
-  useEffect(() => {
-    const element = guestVideoRef.current;
-    if (!element || !guestStream) return;
-    element.srcObject = guestStream;
-    void element.play().catch(() => undefined);
-  }, [guestStream, onAir?.userId]);
 
   // ---- counters ------------------------------------------------------------
   useEffect(() => {
@@ -416,7 +408,7 @@ export function LiveHostScreen() {
         </div>
         {split && (
           <div className="relative h-1/2 overflow-hidden border-t-2 border-backdrop">
-            <video ref={guestVideoRef} playsInline className="absolute inset-0 size-full object-cover" />
+            {guestStream && <RemoteVideo stream={guestStream} label={`${onAir?.userName}'s video`} />}
             <span className="absolute bottom-2 left-3 rounded-full bg-black/45 px-2.5 py-1 text-[0.6875rem] font-semibold text-white backdrop-blur-glass">
               {onAir?.userName}
             </span>

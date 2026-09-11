@@ -554,8 +554,67 @@ export function FanRow({
   );
 }
 
-/** Ticks `mm:ss` (or `h:mm:ss`) from a start instant. */
-export function useLiveTimer(startedAt: number | undefined): string {  const [now, setNow] = useState(() => Date.now());
+/**
+ * Somebody else's picture.
+ *
+ * Browsers refuse to autoplay a stream WITH sound until the viewer has tapped
+ * - and a refused `play()` leaves a black box with no error on screen, which
+ * reads as "their camera is broken". So sound is attempted first; when the
+ * browser says no, the picture plays muted and one explicit tap brings the
+ * sound (a tap always counts as a gesture). Never a black box, either way.
+ */
+export function RemoteVideo({
+  stream,
+  className,
+  label,
+}: {
+  stream: MediaStream | undefined;
+  className?: string;
+  label: string;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const [needsTap, setNeedsTap] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || !stream) return;
+    element.srcObject = stream;
+    element.muted = false;
+    setNeedsTap(false);
+    void element.play().catch(() => {
+      element.muted = true;
+      void element.play().catch(() => undefined);
+      setNeedsTap(true);
+    });
+  }, [stream]);
+
+  const unmute = () => {
+    const element = ref.current;
+    if (!element) return;
+    element.muted = false;
+    void element
+      .play()
+      .then(() => setNeedsTap(false))
+      .catch(() => undefined);
+  };
+
+  return (
+    <span className={cn('relative block size-full', className)}>
+      <video ref={ref} playsInline aria-label={label} className="absolute inset-0 size-full object-cover" />
+      {needsTap && (
+        <button
+          type="button"
+          onClick={unmute}
+          className="focus-ring absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/55 px-4 py-2 text-caption font-semibold whitespace-nowrap text-white backdrop-blur-glass transition-opacity duration-100 active:opacity-60"
+        >
+          <span aria-hidden>🔇</span> Tap for sound
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** Ticks `mm:ss` (or `h:mm:ss`) from a start instant. */export function useLiveTimer(startedAt: number | undefined): string {  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
