@@ -38,6 +38,7 @@ export function LiveViewerScreen() {
   const session = useLiveSession(liveId);
   const {
     live,
+    stats,
     loading,
     comments,
     hearts,
@@ -346,7 +347,7 @@ export function LiveViewerScreen() {
         {pin && <LivePin comment={pin} />}
 
         {live.goalTarget && (
-          <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={live.likesCount} />
+          <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={stats.likesCount} />
         )}
 
         <LiveComments comments={comments} joins={joins} />

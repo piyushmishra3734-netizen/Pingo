@@ -19,8 +19,8 @@ import {
   LiveHearts,
   LivePin,
   LiveGoal,
+  LiveTimer,
   useTapGestures,
-  useLiveTimer,
 } from './LiveWidgets.js';
 import { fetchLiveGrant, useLiveSession, useMountedRef } from './useLiveSession.js';
 import { useLivePreview } from './useLivePreview.js';
@@ -32,6 +32,7 @@ export function LiveGuestScreen() {
   const session = useLiveSession(liveId);
   const {
     live,
+    stats,
     loading,
     comments,
     hearts,
@@ -57,7 +58,6 @@ export function LiveGuestScreen() {
 
   useLivePresence(live?.id, meId ? { userId: meId, userName: meName } : undefined);
 
-  const timer = useLiveTimer(live?.startedAt);
   const mySeat = guests.find((guest) => guest.userId === meId);
 
   const gestures = useTapGestures({
@@ -252,9 +252,9 @@ export function LiveGuestScreen() {
               <PingoDot state="loading" size={6} label="Starting camera" />
             </div>
           )}
-          <span className="absolute bottom-2 left-3 rounded-full bg-danger px-2.5 py-1 text-[0.6875rem] font-bold text-white">
-            YOU · {timer}
-          </span>
+            <span className="absolute bottom-2 left-3 rounded-full bg-danger px-2.5 py-1 text-[0.6875rem] font-bold text-white">
+              YOU · <LiveTimer startedAt={live.startedAt} />
+            </span>
           {previewMode && (
             <span className="absolute top-2 left-3 rounded-lg bg-black/45 px-2 py-1 text-[0.6875rem] text-white/85 backdrop-blur-glass">
               Preview mode
@@ -302,7 +302,7 @@ export function LiveGuestScreen() {
       >
         {pin && <LivePin comment={pin} />}
         {live.goalTarget && (
-          <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={live.likesCount} />
+          <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={stats.likesCount} />
         )}
         <LiveComments comments={comments} joins={joins} />
         <LiveComposer onSend={(body) => void sendComment(body)} onHeart={() => sendHeart()} />

@@ -40,7 +40,6 @@ import { StoryComposer } from '../stories/StoryComposer.js';
 import { StoryViewer } from '../stories/StoryViewer.js';
 import { LiveCreateSheet } from '../live/LiveCreateSheet.js';
 import { LiveBanner } from '../live/LiveBanner.js';
-import { LiveRail } from '../live/LiveRail.js';
 import { useLive } from '../live/LiveContext.js';
 import { useStories } from '../stories/StoryContext.js';
 import { ChatListBody, ChatListEmpty } from './ChatListBody.js';
@@ -599,21 +598,14 @@ export function ConversationList({
               <div className="pb-0.5">
                 {banner}
                 {/*
-                  A mutual on air outranks everything below: first the banner
-                  that says who, then the rail that shows them.
+                  A mutual on air gets a banner that says who, and the front
+                  seats of the story tray itself - one row, like Instagram,
+                  never a strip above it.
                 */}
                 <LiveBanner
                   lives={lives}
                   currentUserId={profile?.id}
                   onWatch={(live) => navigate(`/live/${live.id}`)}
-                />
-                <LiveRail
-                  lives={lives}
-                  currentUserId={profile?.id}
-                  onWatch={(live) => navigate(`/live/${live.id}`)}
-                  onOpenMine={() => {
-                    if (myLive) navigate(`/live/host/${myLive.id}`);
-                  }}
                 />
                 <StoriesRow
                   groups={storyGroups}
@@ -622,6 +614,11 @@ export function ConversationList({
                   {...(profile?.avatarUrl
                     ? { currentUserAvatarUrl: profile.avatarUrl }
                     : {})}
+                  lives={lives}
+                  onWatchLive={(live) => navigate(`/live/${live.id}`)}
+                  onOpenMyLive={() => {
+                    if (myLive) navigate(`/live/host/${myLive.id}`);
+                  }}
                   onOpen={(group, origin) =>
                     setOpenStory({
                       // The index, not the group: the viewer runs the whole

@@ -2,6 +2,8 @@ import type { StoryGroup } from '@pingo/core';
 import { Avatar, PlusIcon, cn } from '@pingo/ui';
 import { useRef, useState } from 'react';
 
+import type { LiveStream } from '../live/types.js';
+
 /**
  * The story rail at the top of the chat list.
  *
@@ -39,6 +41,12 @@ export interface StoriesRowProps {
   currentUserId: string | undefined;
   currentUserName: string;
   currentUserAvatarUrl?: string;
+  /** Live broadcasts lead the same tray, Instagram's order. Empty hides. */
+  lives?: LiveStream[];
+  /** Tapping a live circle. */
+  onWatchLive?: (live: LiveStream) => void;
+  /** Tapping your own live circle. */
+  onOpenMyLive?: () => void;
   /** The second argument is where the circle was, so the viewer can grow from it. */
   onOpen: (group: StoryGroup, origin: DOMRect) => void;
   /** Tapping `+` with no story of your own. */
@@ -52,12 +60,17 @@ export function StoriesRow({
   currentUserId,
   currentUserName,
   currentUserAvatarUrl,
+  lives = [],
+  onWatchLive,
+  onOpenMyLive,
   onOpen,
   onCreate,
   onManageMine,
 }: StoriesRowProps) {
   const mine = groups.find((group) => group.authorId === currentUserId);
   const others = groups.filter((group) => group.authorId !== currentUserId);
+  const myLive = lives.find((live) => live.hostId === currentUserId);
+  const liveOthers = lives.filter((live) => live.hostId !== currentUserId);
 
   return (
     <div className="px-1 pb-0.5">
@@ -75,6 +88,36 @@ export function StoriesRow({
         className="scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 pb-1"
         aria-label="Stories"
       >
+        {(myLive || liveOthers.length > 0) && <LiveHaloStyle />}
+        {myLive && (
+          <li key={`live-${myLive.id}`}>
+            <button
+              type="button"
+              onClick={onOpenMyLive}
+              aria-label="Your live video, tap to open"
+              className="focus-ring block rounded-full transition-transform duration-[160ms] ease-standard active:scale-[0.96]"
+            >
+              <LiveCircle name="You" id={myLive.hostId} avatarUrl={myLive.hostAvatarUrl} label="You" />
+            </button>
+          </li>
+        )}
+        {liveOthers.map((live) => (
+          <li key={`live-${live.id}`}>
+            <button
+              type="button"
+              onClick={() => onWatchLive?.(live)}
+              aria-label={`${live.hostName} is live, tap to watch`}
+              className="focus-ring block rounded-full transition-transform duration-[160ms] ease-standard active:scale-[0.96]"
+            >
+              <LiveCircle
+                name={live.hostName}
+                id={live.hostId}
+                avatarUrl={live.hostAvatarUrl}
+                label={live.hostName.split(' ')[0] ?? live.hostName}
+              />
+            </button>
+          </li>
+        ))}
         <li>
           <MyCircle
             group={mine}
@@ -281,6 +324,58 @@ function MyCircle({
         You
       </span>
     </span>
+  );
+}
+
+/**
+ * A live circle inside the story tray.
+ *
+ * Instagram's exact seat: first in the tray, red band, breathing halo,
+ * LIVE pill pinning the bottom. Same 68px column as every story circle, so
+ * the tray reads as one row that happens to start with someone on air.
+ */
+function LiveCircle({
+  name,
+  id,
+  avatarUrl,
+  label,
+}: {
+  name: string;
+  id: string | undefined;
+  avatarUrl?: string;
+  label: string;
+}) {
+  return (
+    <span className="flex w-[68px] shrink-0 flex-col items-center gap-1.5">
+      <span className="relative">
+        <span
+          aria-hidden
+          className="live-halo absolute -inset-[3px] rounded-full bg-danger/60"
+          style={{ animation: 'live-halo 2.2s ease-in-out infinite' }}
+        />
+        <span className="relative grid shrink-0 place-items-center rounded-full bg-danger p-[2.5px] shadow-[0_0_12px_rgba(220,38,38,0.45)]">
+          <span className="grid rounded-full bg-page p-[2px]">
+            <Avatar name={name} id={id} {...(avatarUrl ? { src: avatarUrl } : {})} size="lg" />
+          </span>
+        </span>
+        <span
+          aria-hidden
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md bg-danger px-1.5 py-px text-[0.5625rem] font-bold tracking-wide text-white shadow-sm"
+        >
+          LIVE
+        </span>
+      </span>
+      <span className="w-full truncate text-center text-[0.6875rem] leading-tight font-medium text-text-secondary">
+        {label}
+      </span>
+    </span>
+  );
+}
+
+/** The breathing halo: swells, fades, squeezes back. Silent under reduced motion. */
+function LiveHaloStyle() {
+  return (
+    <style>{`@keyframes live-halo { 0% { opacity: 0.85; transform: scale(1); } 45% { opacity: 0; transform: scale(1.28); } 55% { opacity: 0; transform: scale(0.96); } 100% { opacity: 0.85; transform: scale(1); } } @media (prefers-reduced-motion: reduce) { .live-halo { animation: none !important; opacity: 0.5 !important; } }`}</style>
   );
 }
 

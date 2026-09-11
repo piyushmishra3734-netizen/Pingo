@@ -88,11 +88,34 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     }
   }, [service, signedIn]);
 
+  /*
+   * Counter flushes land as row updates every few seconds while anyone is
+   * live. Re-reading the whole rail on each one is what made live screens
+   * feel like they reloaded under your thumb - so rapid events coalesce
+   * into one trailing refresh, and a hidden tab refreshes on return.
+   */
+  const refreshTimer = useRef<number | undefined>(undefined);
+  const refreshSoon = useCallback(() => {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    if (refreshTimer.current) return;
+    refreshTimer.current = window.setTimeout(() => {
+      refreshTimer.current = undefined;
+      void refresh();
+    }, 800);
+  }, [refresh]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+    };
+  }, []);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   // Someone goes live or ends while this screen is open: re-read the rail.
+  // Coalesced (see refreshSoon): counter flushes arrive every few seconds.
   useEffect(() => {
     if (!signedIn) return;
     const channel = getSupabaseClient()
@@ -101,14 +124,14 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_streams' },
         () => {
-          void refresh();
+          refreshSoon();
         },
       )
       .subscribe();
     return () => {
       void getSupabaseClient().removeChannel(channel);
     };
-  }, [signedIn, refresh]);
+  }, [signedIn, refreshSoon]);
 
   const startLive = useCallback(
     async (title: string) => {

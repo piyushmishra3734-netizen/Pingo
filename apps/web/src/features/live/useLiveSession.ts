@@ -28,6 +28,14 @@ export function useLiveSession(liveId: string | undefined) {
 
   const [live, setLive] = useState<LiveStream | undefined>();
   const [loading, setLoading] = useState(true);
+  /**
+   * Counters ride apart from identity.
+   *
+   * Flushes land every few seconds; folding them into `live` replaced the
+   * object - and re-rendered three screens - on every flush. Counters update
+   * here, everything else stays referentially still.
+   */
+  const [stats, setStats] = useState({ viewerCount: 0, likesCount: 0, peakViewers: 0, totalJoins: 0 });
   const [comments, setComments] = useState<LiveComment[]>([]);
   const [hearts, setHearts] = useState<LiveHeart[]>([]);
   const [joins, setJoins] = useState<LivePresenceEvent[]>([]);
@@ -53,6 +61,11 @@ export function useLiveSession(liveId: string | undefined) {
   }, []);
 
   // ---- row ---------------------------------------------------------------
+  // `lives` arrives by ref: the list re-reads on its own rhythm and must not
+  // re-fire this fetch (each run is a network round trip mid-broadcast).
+  const livesRef = useRef(lives);
+  livesRef.current = lives;
+
   useEffect(() => {
     if (!liveId) {
       setLoading(false);
@@ -65,10 +78,21 @@ export function useLiveSession(liveId: string | undefined) {
       .then((row) => {
         // Preview lives have no server row: fall back to the context list,
         // which holds the local one until the migration lands.
-        if (active) setLive(row ?? lives.find((live) => live.id === liveId));
+        const found = row ?? livesRef.current.find((live) => live.id === liveId);
+        if (active) {
+          setLive(found);
+          if (found) {
+            setStats({
+              viewerCount: found.viewerCount,
+              likesCount: found.likesCount,
+              peakViewers: found.peakViewers,
+              totalJoins: found.totalJoins,
+            });
+          }
+        }
       })
       .catch(() => {
-        if (active) setLive(lives.find((live) => live.id === liveId));
+        if (active) setLive(livesRef.current.find((live) => live.id === liveId));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -76,7 +100,7 @@ export function useLiveSession(liveId: string | undefined) {
     return () => {
       active = false;
     };
-  }, [service, liveId, lives]);
+  }, [service, liveId]);
 
   // The host ending the live, or pinning, reaches every screen on realtime.
   useEffect(() => {
@@ -92,9 +116,38 @@ export function useLiveSession(liveId: string | undefined) {
             pinned_comment?: unknown;
             goal_target?: number | null;
             goal_title?: string;
+            viewer_count?: number;
+            likes_count?: number;
+            peak_viewers?: number;
+            total_joins?: number;
           };
+          // Counters flow to `stats` alone - never a new `live` object.
+          if (
+            typeof row.viewer_count === 'number' ||
+            typeof row.likes_count === 'number' ||
+            typeof row.peak_viewers === 'number' ||
+            typeof row.total_joins === 'number'
+          ) {
+            setStats((previous) => {
+              const next = {
+                viewerCount: row.viewer_count ?? previous.viewerCount,
+                likesCount: row.likes_count ?? previous.likesCount,
+                peakViewers: row.peak_viewers ?? previous.peakViewers,
+                totalJoins: row.total_joins ?? previous.totalJoins,
+              };
+              return next.viewerCount === previous.viewerCount &&
+                next.likesCount === previous.likesCount &&
+                next.peakViewers === previous.peakViewers &&
+                next.totalJoins === previous.totalJoins
+                ? previous
+                : next;
+            });
+          }
           if (row.status === 'ended') {
-            setLive((previous) => (previous ? { ...previous, status: 'ended' } : previous));
+            setLive((previous) => {
+              if (!previous || previous.status === 'ended') return previous;
+              return { ...previous, status: 'ended' };
+            });
             void refresh();
           }
           if ('pinned_comment' in row) {
@@ -106,19 +159,15 @@ export function useLiveSession(liveId: string | undefined) {
             );
           }
           if ('goal_target' in row || 'goal_title' in row) {
-            setLive((previous) =>
-              previous
-                ? {
-                    ...previous,
-                    ...(typeof row.goal_target === 'number' && row.goal_target > 0
-                      ? { goalTarget: row.goal_target }
-                      : { goalTarget: undefined }),
-                    ...(typeof row.goal_title === 'string' && row.goal_title
-                      ? { goalTitle: row.goal_title }
-                      : { goalTitle: undefined }),
-                  }
-                : previous,
-            );
+            setLive((previous) => {
+              if (!previous) return previous;
+              const goalTarget =
+                typeof row.goal_target === 'number' && row.goal_target > 0 ? row.goal_target : undefined;
+              const goalTitle = typeof row.goal_title === 'string' && row.goal_title ? row.goal_title : undefined;
+              return previous.goalTarget === goalTarget && previous.goalTitle === goalTitle
+                ? previous
+                : { ...previous, goalTarget, goalTitle };
+            });
           }
         },
       )
@@ -285,6 +334,7 @@ export function useLiveSession(liveId: string | undefined) {
 
   return {
     live,
+    stats,
     loading,
     comments,
     hearts,

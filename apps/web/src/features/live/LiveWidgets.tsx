@@ -96,12 +96,22 @@ export function LiveComments({
    */
   onPin?: (comment: LiveComment) => void;
 }) {
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-  const holdTimer = useRef<number | undefined>(undefined);
+  const boxRef = useRef<HTMLDivElement | null>(null);
 
+  /*
+   * Stays pinned to the bottom while you watch the latest - inside this box
+   * only, and instantly. The old version called `scrollIntoView({ smooth })`,
+   * which scrolled the whole page on every line and read as the live itself
+   * reloading. If you scrolled up to read, it stays where you put it.
+   */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const box = boxRef.current;
+    if (!box) return;
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    if (nearBottom) box.scrollTop = box.scrollHeight;
   }, [comments.length, joins.length]);
+
+  const holdTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     return () => {
@@ -169,8 +179,9 @@ export function LiveComments({
 
   return (
     <div
+      ref={boxRef}
       className={cn(
-        'flex max-h-52 min-h-0 flex-col justify-end gap-1 overflow-hidden',
+        'flex max-h-52 min-h-0 flex-col justify-end gap-1 overflow-y-auto',
         onPin ? 'pointer-events-auto' : 'pointer-events-none',
       )}
       aria-live="polite"
@@ -179,7 +190,6 @@ export function LiveComments({
       {rows.map((row) => (
         <div key={row.id}>{row.node}</div>
       ))}
-      <div ref={bottomRef} />
     </div>
   );
 }
@@ -342,8 +352,7 @@ export function LiveComposer({
         onPointerDown={(event) => event.stopPropagation()}
         className={cn(
           'focus-ring grid size-11 shrink-0 place-items-center rounded-full text-white',
-          'transition-transform duration-instant active:scale-90',
-          combo >= 3 && 'scale-110',
+          'transition-opacity duration-100 active:opacity-60',
         )}
       >
         <HeartIcon size={combo >= 25 ? 30 : 26} />
@@ -546,8 +555,7 @@ export function FanRow({
 }
 
 /** Ticks `mm:ss` (or `h:mm:ss`) from a start instant. */
-export function useLiveTimer(startedAt: number | undefined): string {
-  const [now, setNow] = useState(() => Date.now());
+export function useLiveTimer(startedAt: number | undefined): string {  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -559,4 +567,20 @@ export function useLiveTimer(startedAt: number | undefined): string {
   const rest = seconds % 60;
   const two = (n: number) => String(n).padStart(2, '0');
   return hours > 0 ? `${hours}:${two(minutes)}:${two(rest)}` : `${minutes}:${two(rest)}`;
+}
+
+/**
+ * The on-air clock as its own component.
+ *
+ * The tick re-renders only this line. When the hook lived in the screen, the
+ * whole broadcast tree re-rendered every second - cheap for React, but it is
+ * exactly the kind of churn that reads as flicker next to video.
+ */
+export function LiveTimer({ startedAt, className }: { startedAt: number | undefined; className?: string }) {
+  const text = useLiveTimer(startedAt);
+  return (
+    <span className={className} role="timer">
+      {text}
+    </span>
+  );
 }

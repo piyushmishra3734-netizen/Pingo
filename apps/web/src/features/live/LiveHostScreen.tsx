@@ -35,10 +35,10 @@ import {
   LiveHostCluster,
   LivePin,
   LiveGoal,
+  LiveTimer,
   FanRow,
   buzz,
   useTapGestures,
-  useLiveTimer,
 } from './LiveWidgets.js';
 import { fetchLiveGrant, useLiveSession, useMountedRef } from './useLiveSession.js';
 import { useLivePreview } from './useLivePreview.js';
@@ -52,6 +52,7 @@ export function LiveHostScreen() {
   const session = useLiveSession(liveId);
   const {
     live,
+    stats,
     loading,
     comments,
     hearts,
@@ -100,7 +101,6 @@ export function LiveHostScreen() {
 
   useLivePresence(live?.id, meId ? { userId: meId, userName: meName } : undefined);
 
-  const timer = useLiveTimer(live?.startedAt);
   const watchers = viewers.filter((viewer) => viewer.userId !== meId);
   const requests = guests.filter((guest) => guest.status === 'requested');
   const onAir = guests.find((guest) => guest.status === 'joined');
@@ -293,9 +293,9 @@ export function LiveHostScreen() {
     const two = (n: number) => String(n).padStart(2, '0');
     setSummary({
       duration: `${Math.floor(seconds / 60)}:${two(seconds % 60)}`,
-      peak: Math.max(live.peakViewers, watchers.length),
-      joins: Math.max(live.totalJoins, joinsRef.current.size),
-      likes: Math.max(live.likesCount, likesRef.current),
+      peak: Math.max(stats.peakViewers, live.peakViewers, watchers.length),
+      joins: Math.max(stats.totalJoins, live.totalJoins, joinsRef.current.size),
+      likes: Math.max(stats.likesCount, live.likesCount, likesRef.current),
     });
     setEnding(false);
   };
@@ -456,19 +456,13 @@ export function LiveHostScreen() {
             viewerCount={watchers.length}
           />
           <p className="mt-1 pl-13 text-caption font-medium text-white/85 tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-            {timer}
+            <LiveTimer
+              startedAt={live.startedAt}
+              className="tabular-nums"
+            />
             {previewMode && (headless ? ' · camera off' : ' · preview')}
           </p>
         </div>
-        <button
-          type="button"
-          aria-label="End live"
-          disabled={ending}
-          onClick={() => setConfirmingEnd(true)}
-          className="focus-ring grid size-10 shrink-0 place-items-center rounded-full bg-black/45 text-white backdrop-blur-glass transition-transform duration-instant active:scale-95 disabled:opacity-50"
-        >
-          {ending ? <PingoDot state="loading" size={4} /> : <CloseIcon size={19} />}
-        </button>
       </div>
 
       {/* ---- bottom ----------------------------------------------------------- */}
@@ -482,14 +476,14 @@ export function LiveHostScreen() {
         {!commentsHidden && (
           <>
             {live.goalTarget && (
-              <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={live.likesCount} />
+              <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={Math.max(stats.likesCount, likesRef.current)} />
             )}
             {pin && <LivePin comment={pin} canUnpin onUnpin={() => void pinComment(null)} />}
             <LiveComments comments={comments} joins={joins} onPin={(comment) => void pinComment(comment)} />
           </>
         )}
         {commentsHidden && live.goalTarget && (
-          <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={live.likesCount} />
+          <LiveGoal title={live.goalTitle ?? ''} target={live.goalTarget} current={Math.max(stats.likesCount, likesRef.current)} />
         )}
 
         <div className="flex items-center gap-2">
@@ -505,6 +499,9 @@ export function LiveHostScreen() {
           </LiveToolButton>
           <LiveToolButton label="More options" onClick={() => setShowMore(true)}>
             <MoreIcon size={20} />
+          </LiveToolButton>
+          <LiveToolButton label="End live" danger onClick={() => setConfirmingEnd(true)}>
+            <CloseIcon size={20} />
           </LiveToolButton>
           <div className="min-w-0 flex-1">
             <LiveComposer
@@ -621,7 +618,7 @@ export function LiveHostScreen() {
               label={live.goalTarget ? 'Edit hearts goal' : 'Set hearts goal'}
               hint={
                 live.goalTarget
-                  ? `${live.likesCount} of ${live.goalTarget} hearts`
+                  ? `${Math.max(stats.likesCount, likesRef.current)} of ${live.goalTarget} hearts`
                   : 'A target with a promise attached'
               }
               onClick={() => {
@@ -882,11 +879,14 @@ export function LiveHostScreen() {
 function LiveToolButton({
   label,
   alert,
+  danger,
   onClick,
   children,
 }: {
   label: string;
   alert?: boolean;
+  /** FaceTime's red ender: the one destructive control in the row. */
+  danger?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -897,8 +897,9 @@ function LiveToolButton({
       onClick={onClick}
       onPointerDown={(event) => event.stopPropagation()}
       className={cn(
-        'focus-ring relative grid size-11 shrink-0 place-items-center rounded-full bg-black/35 text-white backdrop-blur-glass',
-        'transition-transform duration-instant active:scale-95',
+        'focus-ring relative grid size-11 shrink-0 place-items-center rounded-full backdrop-blur-glass',
+        'transition-opacity duration-100 active:opacity-60',
+        danger ? 'bg-danger text-white' : 'bg-black/35 text-white',
       )}
     >
       {children}
