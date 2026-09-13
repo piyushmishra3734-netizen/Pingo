@@ -29,6 +29,7 @@ import type {
 } from '@pingo/core';
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
+import { recordMetric } from '../net-metrics.js';
 import type { ProfileRow, StoryRow } from './types.js';
 
 const STORY_BUCKET = 'stories';
@@ -134,7 +135,24 @@ export class SupabaseStoryService implements StoryService {
    *
    * Rows written before the bucket went private carry only a public URL, which
    * still works; they are passed through untouched rather than being signed.
+   *
+   * Remembered until near expiry, like the chat thread's signing cache: the
+   * rail sits on screen while somebody reads their chats, and every re-list
+   * used to re-sign every story on it for URLs that live an hour. Entries are
+   * keyed on the stable storage path (never on a URL) and reused until five
+   * minutes before expiry. Memory-only, deliberately - same lifetime reasoning
+   * as the chat cache.
    */
+  #signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+  /**
+   * Signings in flight, so two rail reads landing together sign once.
+   *
+   * React mounts twice on purpose in StrictMode, and a realtime event can land
+   * mid-list - without this the same missing set would be signed twice. Same
+   * pattern as the chat thread's cache.
+   */
+  #signingInFlight = new Map<string, Promise<Map<string, string>>>();
+
   async #signMedia(rows: StoryRow[]): Promise<Map<string, string>> {
     const paths = [
       ...rows.map((row) => row.media_path),
@@ -145,15 +163,59 @@ export class SupabaseStoryService implements StoryService {
     ].filter((path): path is string => !!path);
     if (paths.length === 0) return new Map();
 
+    const urls = new Map<string, string>();
+    const now = Date.now();
+    const SKEW_MS = 5 * 60 * 1000;
+    const missing = paths.filter((path) => {
+      const hit = this.#signedUrlCache.get(path);
+      if (hit && hit.expiresAt - now > SKEW_MS) {
+        urls.set(path, hit.url);
+        recordMetric('signedUrlCacheHits');
+        return false;
+      }
+      return true;
+    });
+
+    // Everything remembered: no request at all. The common case for a rail
+    // re-listed within the hour.
+    if (missing.length === 0) return urls;
+
+    const flightKey = [...missing].sort().join(',');
+    let flight = this.#signingInFlight.get(flightKey);
+    if (!flight) {
+      recordMetric('signedUrlRequests');
+      flight = this.#signMissingPaths(missing);
+      this.#signingInFlight.set(flightKey, flight);
+      void flight.finally(() => {
+        if (this.#signingInFlight.get(flightKey) === flight) {
+          this.#signingInFlight.delete(flightKey);
+        }
+      });
+    }
+
+    const fresh = await flight;
+    for (const [path, url] of fresh) urls.set(path, url);
+    return urls;
+  }
+
+  /**
+   * The actual signing request, split out so concurrent rail reads can share
+   * it. Writes every fresh URL back into `#signedUrlCache` with its expiry.
+   */
+  async #signMissingPaths(missing: string[]): Promise<Map<string, string>> {
+    const fresh = new Map<string, string>();
     const { data } = await this.#client.storage
       .from(STORY_BUCKET)
-      .createSignedUrls(paths, MEDIA_TTL_SECONDS);
+      .createSignedUrls(missing, MEDIA_TTL_SECONDS);
 
-    const urls = new Map<string, string>();
+    const expiresAt = Date.now() + MEDIA_TTL_SECONDS * 1000;
     for (const entry of data ?? []) {
-      if (entry.path && entry.signedUrl) urls.set(entry.path, entry.signedUrl);
+      if (entry.path && entry.signedUrl) {
+        fresh.set(entry.path, entry.signedUrl);
+        this.#signedUrlCache.set(entry.path, { url: entry.signedUrl, expiresAt });
+      }
     }
-    return urls;
+    return fresh;
   }
 
   #toStory(

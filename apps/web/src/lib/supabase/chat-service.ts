@@ -89,6 +89,7 @@ import {
   type RowRun,
 } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
+import { recordMetric } from '../net-metrics.js';
 import { rememberOwnText } from '../local/sent-text.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
@@ -3691,6 +3692,7 @@ export class SupabaseChatService implements ChatService {
       const hit = this.#signedUrlCache.get(this.#signedUrlCacheKey(bucket, path));
       if (hit && hit.expiresAt - now > SKEW_MS) {
         urlByPath.set(path, hit.url);
+        recordMetric('signedUrlCacheHits');
         return false;
       }
       return true;
@@ -3705,6 +3707,7 @@ export class SupabaseChatService implements ChatService {
     const flightKey = `${bucket}:${[...missing].sort().join(',')}`;
     let flight = this.#signingInFlight.get(flightKey);
     if (!flight) {
+      recordMetric('signedUrlRequests');
       flight = this.#signMissingStoragePaths(bucket, missing);
       this.#signingInFlight.set(flightKey, flight);
       void flight.finally(() => {
@@ -5101,6 +5104,7 @@ export class SupabaseChatService implements ChatService {
     const since = now - (this.#lastMarkAt.get(conversationId) ?? 0);
     if (since >= READ_MARK_MIN_GAP_MS) {
       this.#lastMarkAt.set(conversationId, now);
+      recordMetric('readMarksSent');
       const pending = this.#markPending.get(conversationId);
       if (pending) {
         clearTimeout(pending);
@@ -5108,6 +5112,7 @@ export class SupabaseChatService implements ChatService {
       }
       await this.#client.rpc('mark_conversation_read', { conv: conversationId });
     } else if (!this.#markPending.has(conversationId)) {
+      recordMetric('readMarksCoalesced');
       this.#markPending.set(
         conversationId,
         setTimeout(

@@ -30,6 +30,7 @@
  */
 
 import { localDelete, localGet, localSet, requestPersistentStorage, STORE } from '../../lib/local/db.js';
+import { recordMetric } from '../../lib/net-metrics.js';
 
 /**
  * One namespace inside the shared media store, alongside the wallpaper.
@@ -98,7 +99,11 @@ export function storedVideo(messageId: string): Promise<Blob | undefined> {
  */
 export async function keepVideo(messageId: string, url: string): Promise<Blob | undefined> {
   const existing = await storedVideo(messageId);
-  if (existing) return existing;
+  if (existing) {
+    // Served without touching the network: the bytes this call did not spend.
+    recordMetric('vaultBytesSaved', existing.size);
+    return existing;
+  }
 
   const running = inFlight.get(messageId);
   if (running) return running;
@@ -121,10 +126,12 @@ export async function keepVideo(messageId: string, url: string): Promise<Blob | 
       if (blob.size === 0) return undefined;
 
       await localSet(STORE.media, key(messageId), blob);
+      recordMetric('vaultBytesFetched', blob.size);
       return blob;
     } catch {
       // Out of quota, offline, or the object is already gone. Either way this
       // device does not have it, and must not say that it does.
+      recordMetric('vaultMisses');
       return undefined;
     } finally {
       inFlight.delete(messageId);
