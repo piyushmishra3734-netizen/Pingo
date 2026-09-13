@@ -412,6 +412,14 @@ export interface ChatService {
   sendMessage(draft: OutgoingMessage): Promise<Message>;
 
   /**
+   * Warms whatever the next send will need - recipient keys, AI-thread
+   * answers, anything fetched lazily today. Called when a thread opens, so
+   * the first send pays no cold-start round trips. Best-effort and silent:
+   * a warm that fails changes nothing, the send simply reads fresh.
+   */
+  warmThread?(conversationId: ConversationId): Promise<void>;
+
+  /**
    * Spends one view and returns a short-lived URL for the image.
    *
    * Calling this **is** the view - there is no separate "confirm" step, because

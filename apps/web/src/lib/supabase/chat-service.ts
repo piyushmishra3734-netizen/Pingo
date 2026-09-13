@@ -59,6 +59,7 @@ import type {
 
 import {
   adoptAccountKey,
+  conversationKeying,
   openRecord,
   openRow,
   openRows,
@@ -66,12 +67,15 @@ import {
   publishDeviceKey,
   purgeUnsealedCache,
   readMessageRowsBefore,
+  takeUnhealedAll,
+  takeUnhealedFor,
   verifyRowStore,
   writeMessageRows,
   type RowStoreIntegrity,
   sealBody,
   sealRecord,
 } from '../crypto/session.js';
+import { backfillAccountWraps } from '../crypto/account-backfill.js';
 import { deviceIdentity } from '../crypto/keys.js';
 import { shouldTrustCache } from '../egress-rules.js';
 import { callRecordFrom } from '../../features/calls/call-log-rules.js';
@@ -85,6 +89,7 @@ import {
   type RowRun,
 } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
+import { rememberOwnText } from '../local/sent-text.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
@@ -1107,8 +1112,23 @@ export class SupabaseChatService implements ChatService {
      * has to remember, and it never blocks. Until it resolves, this device
      * reads everything wrapped for itself; once it has, it reads the history
      * from before this phone existed too.
+     *
+     * Adopting can heal: a claimed account key opens history no device wrap
+     * covers, so every noted failure gets one retry the moment the key lands.
      */
-    void adoptAccountKey(this.#client, id);
+    void adoptAccountKey(this.#client, id).then(() => this.#healNoted().catch(() => undefined));
+
+    /*
+     * And the backfill that keeps old history readable on new devices.
+     *
+     * The Sept-9 repair screen does this by hand for two known accounts, but
+     * any key replacement strands the same way - silently, until a new device
+     * meets old messages. So every device donates one small bounded pass a
+     * day: messages it can open get a wrap for the current account key, which
+     * is exactly what a future device will need. Idempotent, resumable, and
+     * capped at two batches - the manual screen is untouched for big jobs.
+     */
+    void this.#maybeBackfillAccountWraps(id);
 
     /*
      * And then keep that row's timestamp honest.
@@ -3843,6 +3863,104 @@ export class SupabaseChatService implements ChatService {
     await this.#client.rpc('download_snap', { snap_id: messageId });
     return blob;
   }
+  /*
+   * Warms the keying a send will need (see `ChatService.warmThread`).
+   *
+   * `conversationKeying` coalesces identical reads, so calling it here and
+   * again at seal time costs one round of queries, not two - the send reads
+   * warm. Failures are swallowed: a warm that fails changes nothing, the
+   * send simply reads fresh exactly as before.
+   *
+   * And heals what the registry remembers for this thread. Opening a
+   * conversation is the moment a healed message matters most - it is on
+   * screen - and the attempt is local crypto plus one fetch for exactly
+   * the ids that failed before, never a full re-read.
+   */
+  async warmThread(conversationId: string): Promise<void> {
+    await conversationKeying(this.#client, conversationId).catch(() => undefined);
+    const ids = takeUnhealedFor(conversationId);
+    if (ids.length > 0) await this.#healConversation(conversationId, ids).catch(() => undefined);
+  }
+
+  /**
+   * Retries exactly the messages that failed to open, then writes the wins
+   * back everywhere the placeholder went: the sealed page, the row store,
+   * the live bubbles, and the list previews (dropped so they re-read).
+   *
+   * Rows that still fail re-register themselves through `openRows`, so a
+   * heal attempt can never lose track of anything - it either fixes ids or
+   * hands them back to the registry for the next key-state change.
+   */
+  async #healConversation(conversationId: string, messageIds: string[]): Promise<void> {
+    if (messageIds.length === 0) return;
+    const rows = await this.#fetchMessagesById(messageIds).catch(() => undefined);
+    if (!rows || rows.length === 0) return;
+    await openRows(rows);
+    const fixed = rows.filter((row) => row.body !== UNREADABLE);
+    if (fixed.length === 0) return;
+
+    const signed = await this.#signPhotos(
+      fixed,
+      fixed.map((row) => ({
+        ...toMessage(row, undefined),
+        reactions: this.#reactions.get(row.id) ?? [],
+      })),
+    );
+
+    try {
+      const cached = await openRecord<Message[]>(
+        await localGet<unknown>(STORE.messages, conversationId),
+      );
+      if (cached) {
+        const byId = new Map(signed.map((message) => [message.id, message]));
+        const next = cached.map((message) => byId.get(message.id) ?? message);
+        await localSet(STORE.messages, conversationId, await sealRecord(next));
+      }
+    } catch {
+      // The live bubbles below still heal; the disk catches up next load.
+    }
+    void writeMessageRows(conversationId, signed);
+    for (const message of signed) this.#emit({ type: 'message:updated', message });
+    for (const row of fixed) this.#forgetPreview(row.id);
+  }
+
+  /** Heals everything the registry holds, after the key state moved. */
+  async #healNoted(): Promise<void> {
+    const pending = takeUnhealedAll();
+    for (const { conversationId, messageIds } of pending) {
+      await this.#healConversation(conversationId, messageIds).catch(() => undefined);
+    }
+  }
+
+  /*
+   * One small donated pass a day, per account on this device.
+   *
+   * Runs after adopt (it needs the account key to rewrap to), never on the
+   * send or read path, and stamps the day only when a pass actually ran - a
+   * device with no key to claim retries tomorrow instead of going quiet.
+   * Wraps added here heal future devices; `#healNoted` then heals this one.
+   */
+  async #maybeBackfillAccountWraps(userId: string): Promise<void> {
+    const stampKey = `pingo:account-backfill-day:${userId}`;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem(stampKey) === today) return;
+    } catch {
+      return;
+    }
+    try {
+      const report = await backfillAccountWraps(this.#client, { maxBatches: 2 });
+      if (report.batches === 0) return;
+      try {
+        localStorage.setItem(stampKey, today);
+      } catch {
+        // A stamp that cannot persist just means trying again next launch.
+      }
+      if (report.added > 0) await this.#healNoted().catch(() => undefined);
+    } catch {
+      // Tomorrow, or the manual screen. Never the send path.
+    }
+  }
 
   async sendMessage(draft: OutgoingMessage): Promise<Message> {
     /*
@@ -4263,6 +4381,16 @@ export class SupabaseChatService implements ChatService {
      */
     this.#emit({ type: 'message:updated', message });
     releasePreviews();
+
+    /*
+     * Remembered in your own words, so no future read has to decrypt this
+     * row to show what you typed. A message sealed before this device
+     * published carries no wrap for it; the live bubble above already shows
+     * the plaintext, and this is what keeps that true across reloads,
+     * revisits, previews and search. Presence here proves authorship - only
+     * sends write it - so reads need no key and cannot fail this way.
+     */
+    void rememberOwnText(id, draft.body).catch(() => undefined);
 
     /*
      * Replying is the receipt.
@@ -5291,6 +5419,11 @@ export class SupabaseChatService implements ChatService {
         throw new Error(legacyError.message || 'Could not save the edit.');
       }
     }
+
+    // Your new words, remembered like a send - the re-read below decrypts,
+    // and an edit sealed before this device published would otherwise show
+    // the placeholder over text you just wrote.
+    void rememberOwnText(messageId, trimmed).catch(() => undefined);
 
     /*
      * Prefer a fresh row, but never fail the whole edit because the re-read

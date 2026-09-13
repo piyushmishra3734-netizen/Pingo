@@ -58,6 +58,20 @@ export const STORE = {
   /** Unsent text per conversation, saved as you type. */
   drafts: 'drafts',
   /**
+   * Your own sent text, keyed by message id.
+   *
+   * The sender typed it, so decrypting the server row to re-read it is a
+   * round trip through the one failure that matters here: a message sealed
+   * before this device published has no wrap for it, and the thread would
+   * show the "sent before you added this device" placeholder over your own
+   * words. Presence in this store proves authorship - only sends write it -
+   * so a hit skips decryption entirely and can never fail that way.
+   *
+   * Sealed under the database key with everything else on disk. Forgetting it
+   * on sign-out with the rest of the account's content.
+   */
+  sentText: 'sent-text',
+  /**
    * This device's keys - identity and database - as non-extractable handles.
    *
    * Cleared on sign-out with everything else, which is correct: the identity

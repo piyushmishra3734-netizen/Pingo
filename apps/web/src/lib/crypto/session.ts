@@ -16,6 +16,7 @@ import { deviceLabel } from '../../features/settings/device-label.js';
 import { BUILD_ID } from '../build-id.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
+import { forgetOwnTexts, ownText } from '../local/sent-text.js';
 import { accountKey, forgetAccountKey } from './account-key.js';
 import { decryptMessage, encryptMessage, type RecipientDevice } from './envelope.js';
 import {
@@ -88,6 +89,7 @@ async function switchAccount(previous: string, next: string): Promise<void> {
     STORE.conversations,
     STORE.messages,
     STORE.messageRows,
+    STORE.sentText,
     STORE.outbox,
     STORE.drafts,
     STORE.meta,
@@ -97,6 +99,9 @@ async function switchAccount(previous: string, next: string): Promise<void> {
 
   // Bring back the incoming account's keys if this device has seen it before,
   // otherwise leave the slots empty so a fresh identity is generated.
+  // Your remembered sends restart too: the memory copy belongs to whoever
+  // was just parked, and the disk copy went with the loop above.
+  forgetOwnTexts();
   let restoredId: string | undefined;
   for (const slot of LIVE_KEYS) {
     const parked = await localGet<unknown>(STORE.keys, `${slot}@${next}`);
@@ -142,6 +147,7 @@ async function wipeRevokedDevice(userId: string): Promise<void> {
     STORE.conversations,
     STORE.messages,
     STORE.messageRows,
+    STORE.sentText,
     STORE.outbox,
     STORE.drafts,
     STORE.meta,
@@ -156,6 +162,7 @@ async function wipeRevokedDevice(userId: string): Promise<void> {
     await localDelete(STORE.keys, `${slot}@${userId}`);
   }
   await localDelete(STORE.keys, OWNER);
+  forgetOwnTexts();
 
   /*
    * The mirror goes with them.
@@ -183,8 +190,77 @@ async function wipeRevokedDevice(userId: string): Promise<void> {
  * would turn a sync hiccup into a login failure.
  */
 export function publishDeviceKey(client: PingoSupabaseClient, userId: string): Promise<void> {
-  published ??= (async () => {
+  if (!published) {
+    publishState = 'pending';
+    published = attemptPublish(client, userId)
+      .then(() => {
+        publishState = 'done';
+      })
+      .catch(() => {
+        /*
+         * Reset, so a failure is retried instead of remembered. The old shape
+         * memoised the failed attempt itself: one hiccup at launch meant this
+         * device published nothing for the whole tab, and every message sealed
+         * afterwards carried no wrap for it - including its own sends.
+         */
+        publishState = 'idle';
+        published = undefined;
+      });
+  } else {
     /*
+     * An identity minted after the publish needs its own row. Checked lazily
+     * so the common path stays one memo lookup; the reset takes effect on the
+     * next call, which is at most one send away.
+     */
+    void deviceIdentity()
+      .then(({ deviceId }) => {
+        if (deviceId !== publishedFor) published = undefined;
+      })
+      .catch(() => undefined);
+  }
+  return published;
+}
+
+/** Which device the last successful publish covered. */
+let publishedFor: string | undefined;
+
+/**
+ * Where the publish stands, for diagnostics and honest UI.
+ *
+ * `idle` means retryable (never tried, or failed and reset) - never "broken
+ * for this tab". The composer and the verify scripts read this instead of
+ * guessing from silence.
+ */
+let publishState: 'idle' | 'pending' | 'done' = 'idle';
+
+export function keyHealth(): {
+  publish: 'idle' | 'pending' | 'done';
+  publishedDeviceId: string | undefined;
+  accountAdopted: boolean;
+} {
+  return { publish: publishState, publishedDeviceId: publishedFor, accountAdopted: account !== undefined };
+}
+
+/** Backoff between publish attempts. A launch hiccup, not a verdict. */
+const PUBLISH_RETRY_MS = [0, 800, 2000];
+
+async function attemptPublish(client: PingoSupabaseClient, userId: string): Promise<void> {
+  let lastError: unknown;
+  for (const wait of PUBLISH_RETRY_MS) {
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    try {
+      publishedFor = await publishOnce(client, userId);
+      return;
+    } catch (cause) {
+      lastError = cause;
+      if ((cause as { revoked?: boolean } | null)?.revoked) break;
+    }
+  }
+  throw lastError;
+}
+
+async function publishOnce(client: PingoSupabaseClient, userId: string): Promise<string> {
+  /*
      * Whose device is this?
      *
      * Now that signing out leaves the keys in place, the same browser can see
@@ -228,7 +304,14 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
     if (revoked) {
       await wipeRevokedDevice(userId).catch(() => undefined);
       await client.auth.signOut().catch(() => undefined);
-      return;
+      // Thrown, not returned: a revoked device must not look published, and
+      // retrying a revocation is pointless - marked so the loop below skips
+      // straight to giving up instead of waiting out the backoff.
+      const gone = new Error('This device was removed from the account.') as Error & {
+        revoked?: boolean;
+      };
+      gone.revoked = true;
+      throw gone;
     }
 
     await localSet(STORE.keys, OWNER, userId);
@@ -279,9 +362,7 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
        */
       { onConflict: 'device_id' },
     );
-  })().catch(() => undefined);
-
-  return published;
+    return identity.deviceId;
 }
 
 /**
@@ -421,6 +502,28 @@ function keyingMemberIds(userIds: string[]): string[] {
  */
 const KEYING_COALESCE_MS = 1000;
 
+/**
+ * How long a keying answer may be reused after a cheap freshness check.
+ *
+ * The steady-state cost of a send is not the seal (local crypto) but the
+ * keying reads, so `warmThread` prefetches on thread open and sends reuse
+ * below. Reuse is gated on revalidation, never on time alone: two tiny
+ * indexed id-list queries re-run, and only an exactly-unchanged roster AND
+ * device set lets the cached answer stand. A longer window without the check
+ * would be faster and wrong - a device published inside it would miss its
+ * wrap, permanently, which is the placeholder bug wearing a speed costume.
+ */
+const KEYING_TTL_MS = 60_000;
+
+interface KeyingCacheEntry {
+  fetchedAt: number;
+  keying: Keying;
+  members: Set<string>;
+  deviceIds: Set<string>;
+}
+
+const keyingCache = new Map<string, KeyingCacheEntry>();
+
 
 /**
  * How long a send waits for a member's app to publish its key.
@@ -449,7 +552,44 @@ export async function conversationKeying(
   const pending = keyingReads.get(conversationId);
   if (pending && Date.now() - pending.at < KEYING_COALESCE_MS) return pending.work;
 
-  const work = readConversationKeying(client, conversationId);
+  /*
+   * A fresh-enough answer may be reused after proving nothing changed. Two
+   * small id-list reads (no key blobs) decide; the full read runs only when
+   * the roster or the device set moved. Steady-state sends drop from three
+   * round trips of keying to one small one, with zero added staleness - an
+   * exact set comparison cannot miss a join the way a blind TTL would.
+   */
+  const cached = keyingCache.get(conversationId);
+  const work = (async () => {
+    if (cached && Date.now() - cached.fetchedAt < KEYING_TTL_MS) {
+      try {
+        const [members, devices] = await Promise.all([
+          client.from('conversation_members').select('user_id').eq('conversation_id', conversationId),
+          client.from('device_keys').select('device_id').in('user_id', [...cached.members]),
+        ]);
+        if (!members.error && !devices.error) {
+          const memberIds = new Set((members.data ?? []).map((m) => m.user_id));
+          const deviceIds = new Set((devices.data ?? []).map((d) => d.device_id));
+          if (setsEqual(memberIds, cached.members) && setsEqual(deviceIds, cached.deviceIds)) {
+            cached.fetchedAt = Date.now();
+            return cached.keying;
+          }
+          // A member left: their cached wraps must go too, not just new ones
+          // added. Fall through to a full read either way.
+        }
+      } catch {
+        // Revalidation is an optimisation; any failure degrades to a full read.
+      }
+    }
+    const fresh = await readConversationKeying(client, conversationId);
+    keyingCache.set(conversationId, {
+      fetchedAt: Date.now(),
+      keying: fresh.keying,
+      members: new Set(fresh.memberIds),
+      deviceIds: new Set(fresh.keying.devices.map((d) => d.deviceId)),
+    });
+    return fresh.keying;
+  })();
   keyingReads.set(conversationId, { at: Date.now(), work });
 
   // Dropped when the window is up, and a failed read is never left behind as
@@ -470,7 +610,7 @@ export async function conversationKeying(
 async function readConversationKeying(
   client: PingoSupabaseClient,
   conversationId: string,
-): Promise<Keying> {
+): Promise<{ keying: Keying; memberIds: string[] }> {
   const { data: members, error: membersError } = await client
     .from('conversation_members')
     .select('user_id')
@@ -481,7 +621,8 @@ async function readConversationKeying(
   const userIds = (members ?? []).map((m) => m.user_id);
   // AI is listed on the roster for @mentions, but has no keys to publish.
   const humans = keyingMemberIds(userIds);
-  if (humans.length === 0) return { devices: [], everyoneReady: false, recovery: [] };
+  if (humans.length === 0)
+    return { keying: { devices: [], everyoneReady: false, recovery: [] }, memberIds: humans };
 
   /*
    * Both lookups together, because they answer one question.
@@ -549,18 +690,27 @@ async function readConversationKeying(
   ]);
 
   return {
-    devices: (rows ?? []).map((row) => ({
-      deviceId: row.device_id,
-      publicKey: row.public_key,
-    })),
-    everyoneReady: humans.every((id) => covered.has(id)),
-    recovery: recoveryError
-      ? []
-      : (packages ?? []).map((row) => ({
-          deviceId: recoveryWrapId(row.user_id),
-          publicKey: row.public_key,
-        })),
+    keying: {
+      devices: (rows ?? []).map((row) => ({
+        deviceId: row.device_id,
+        publicKey: row.public_key,
+      })),
+      everyoneReady: humans.every((id) => covered.has(id)),
+      recovery: recoveryError
+        ? []
+        : (packages ?? []).map((row) => ({
+            deviceId: recoveryWrapId(row.user_id),
+            publicKey: row.public_key,
+          })),
+    },
+    memberIds: humans,
   };
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const value of a) if (!b.has(value)) return false;
+  return true;
 }
 
 /** What `sendMessage` merges into the row it inserts. */
@@ -631,6 +781,23 @@ export async function sealBody(
   conversationId: string,
   body: string,
 ): Promise<SealedBody> {
+  /*
+   * Your own wrap must exist before sealing, not after. A message sealed
+   * while this device's key is still unpublished carries no wrap for it, and
+   * no later publish can add one - the envelope is immutable. So the publish
+   * is awaited here rather than left to the fire-and-forget at session start.
+   * After the first success this is a memo lookup plus a local session read:
+   * unmeasurable next to the keying queries below.
+   */
+  try {
+    const { data } = await client.auth.getSession();
+    const self = data.session?.user.id;
+    if (self) await publishDeviceKey(client, self);
+  } catch {
+    // Publish retries on its own schedule; the keying below decides whether
+    // sealing can proceed, exactly as it always has.
+  }
+
   let keying = await conversationKeying(client, conversationId);
 
   if (!keying.everyoneReady) {
@@ -697,6 +864,53 @@ export async function sealBody(
 /** Shown in place of a message this device was never given a key for. */
 export const UNREADABLE = 'Sent before you added this device.';
 
+/*
+ * Messages this device could not open, by conversation.
+ *
+ * A placeholder is a verdict about *now*, not about the message: a publish
+ * landing later, an account key claimed, a backfill adding side wraps - any
+ * of them can turn a stored failure into readable text. So every failure is
+ * registered here, and the heal pass (`healConversation` in chat-service)
+ * retries exactly these ids when the key state moves. Without the registry a
+ * healed message would sit behind its cached placeholder for ever, because
+ * nothing would know to look at it again.
+ */
+const unhealed = new Map<string, Set<string>>();
+
+export function noteUnhealed(conversationId: string, messageId: string): void {
+  let set = unhealed.get(conversationId);
+  if (!set) {
+    set = new Set();
+    unhealed.set(conversationId, set);
+  }
+  set.add(messageId);
+}
+
+/** Drains one conversation's list for a heal attempt. */
+export function takeUnhealedFor(conversationId: string): string[] {
+  const set = unhealed.get(conversationId);
+  if (!set || set.size === 0) return [];
+  unhealed.delete(conversationId);
+  return [...set];
+}
+
+/** Drains everything noted, for heal triggers that are not per-thread. */
+export function takeUnhealedAll(): Array<{ conversationId: string; messageIds: string[] }> {
+  const out = [...unhealed].map(([conversationId, ids]) => ({
+    conversationId,
+    messageIds: [...ids],
+  }));
+  unhealed.clear();
+  return out;
+}
+
+function clearHealed(conversationId: string, messageId: string): void {
+  const set = unhealed.get(conversationId);
+  if (!set) return;
+  set.delete(messageId);
+  if (set.size === 0) unhealed.delete(conversationId);
+}
+
 /**
  * Decrypt a row in place, if it needs it.
  *
@@ -706,6 +920,20 @@ export const UNREADABLE = 'Sent before you added this device.';
  */
 export async function openRow(row: MessageRow): Promise<boolean> {
   if (row.encryption !== 'v1' || !row.envelope) return true;
+
+  /*
+   * Your own words need no cryptography. This device wrote them, so a store
+   * hit proves authorship without consulting a key - and skips the entire
+   * class of failures where a message sealed before this device published
+   * carries no wrap for it. The live bubble already shows the plaintext;
+   * this is what keeps it true across reloads, revisits and previews.
+   */
+  const mine = await ownText(row.id);
+  if (mine !== undefined) {
+    row.body = mine;
+    clearHealed(row.conversation_id, row.id);
+    return true;
+  }
 
   /*
    * Receiving one is proof too, and cheaper proof than asking. A tab that has
@@ -761,6 +989,8 @@ export async function openRow(row: MessageRow): Promise<boolean> {
     }
 
     row.body = plaintext ?? UNREADABLE;
+    if (plaintext !== undefined) clearHealed(row.conversation_id, row.id);
+    else noteUnhealed(row.conversation_id, row.id);
     return plaintext !== undefined;
   } catch {
     /*
@@ -768,6 +998,7 @@ export async function openRow(row: MessageRow): Promise<boolean> {
      * bubble is a bug report; a sentence is information.
      */
     row.body = UNREADABLE;
+    noteUnhealed(row.conversation_id, row.id);
     return false;
   }
 }

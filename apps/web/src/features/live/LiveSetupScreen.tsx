@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { useLive } from './LiveContext.js';
+import { LiveGrade } from './LiveWidgets.js';
 import { buzz } from './LiveWidgets.js';
 import { useLivePreview } from './useLivePreview.js';
 
@@ -86,7 +87,7 @@ export function LiveSetupScreen() {
   return (
     <div className="relative flex h-full flex-col bg-backdrop">
       {/* ---- preview ---------------------------------------------------- */}
-      <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden">
         {headless ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
             <span className="grid size-18 place-items-center rounded-3xl bg-white/10 text-white">
@@ -166,44 +167,48 @@ export function LiveSetupScreen() {
             </div>
           </div>
         )}
+        <LiveGrade />
       </div>
 
-      {/* ---- title + audience + go -------------------------------------- */}
-      <div className="shrink-0 space-y-3 bg-page px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        {error && (
-          <p role="alert" className="text-center text-caption text-danger">
-            {error}
-          </p>
-        )}
-        <input
-          value={title}
-          onChange={(event) => setTitle(event.target.value.slice(0, 80))}
-          placeholder="Add a title…"
-          aria-label="Live title"
-          className="focus-ring w-full rounded-2xl border border-line/60 bg-surface px-4 py-3 text-body text-ink outline-none placeholder:text-text-tertiary"
-        />
-        <div className="flex items-center gap-2.5 rounded-2xl bg-sunken/60 px-4 py-3">
-          <UsersIcon size={17} className="shrink-0 text-text-secondary" />
-          <p className="min-w-0 flex-1 text-caption text-text-secondary">
-            <span className="font-medium text-ink">Friends</span>{' '}
-            {notifyCount === undefined || notifyCount === 0
-              ? 'will be notified the moment you go live'
-              : `${notifyCount} ${notifyCount === 1 ? 'friend' : 'friends'} will be notified the moment you go live`}
-          </p>
-        </div>
-        <button
-          type="button"
-          disabled={!ready || starting}
-          onClick={() => void goLive()}
-          className={cn(
-            'focus-ring w-full rounded-full bg-danger px-5 py-3.5 text-body font-semibold text-white',
-            'shadow-[0_4px_16px_rgba(220,38,38,0.35)]',
-            'transition-transform duration-[160ms] ease-standard active:scale-[0.97]',
-            (!ready || starting) && 'opacity-50',
+      {/* ---- title + audience + go: glass floating over the preview ------ */}
+      <div className="relative z-10 mt-auto shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="space-y-3 rounded-[1.75rem] border border-white/20 bg-black/45 p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-glass">
+          {error && (
+            <p role="alert" className="text-center text-caption text-danger">
+              {error}
+            </p>
           )}
-        >
-          Go Live
-        </button>
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value.slice(0, 80))}
+            placeholder="Add a title…"
+            aria-label="Live title"
+            className="focus-ring w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-body text-white outline-none placeholder:text-white/50"
+          />
+          <div className="flex items-center gap-2.5 px-1">
+            <UsersIcon size={16} className="shrink-0 text-white/70" />
+            <p className="min-w-0 flex-1 text-caption text-white/70">
+              <span className="font-semibold text-white">Friends</span>{' '}
+              {notifyCount === undefined || notifyCount === 0
+                ? 'will be notified the moment you go live'
+                : `${notifyCount} ${notifyCount === 1 ? 'friend' : 'friends'} will be notified the moment you go live`}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!ready || starting}
+            onClick={() => void goLive()}
+            className={cn(
+              'focus-ring w-full rounded-full bg-danger px-5 py-3.5 text-body font-semibold text-white',
+              'shadow-[0_0_24px_rgba(220,38,38,0.5)]',
+              'transition-opacity duration-100 active:opacity-70',
+              (!ready || starting) && 'opacity-50',
+            )}
+            style={{ animation: ready && !starting ? 'live-glow 2.4s ease-in-out infinite' : undefined }}
+          >
+            Go Live
+          </button>
+        </div>
       </div>
     </div>
   );

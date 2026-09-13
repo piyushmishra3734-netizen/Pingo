@@ -465,6 +465,16 @@ export function ChatThread({
   useEffect(() => setReplyTo(undefined), [conversation.id]);
 
   /*
+   * Warms the next send while the reader reads. Recipient keys are the slow
+   * half of sealing, and fetching them the moment the thread opens - beside
+   * the history load, not after it - means the first message usually seals
+   * against a warm cache instead of paying three round trips mid-send.
+   */
+  useEffect(() => {
+    void service.warmThread?.(conversation.id).catch(() => undefined);
+  }, [service, conversation.id]);
+
+  /*
    * Open the audio path on the first touch anywhere in the thread.
    *
    * A browser starts an `AudioContext` suspended until a gesture, and the first

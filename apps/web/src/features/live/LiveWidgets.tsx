@@ -18,6 +18,90 @@ import { useEffect, useRef, useState } from 'react';
 import type { LiveComment, LiveHeart, LivePresenceEvent } from './types.js';
 
 /**
+ * The motion vocabulary, in one place.
+ *
+ * Apple's grammar, adapted to the repo's laws (no springs, nothing over
+ * 320ms): entries rise a few pixels and fade in fast; docks pop (small,
+ * overshoot-free, 220ms); celebrations rain. One style block per screen root
+ * renders it; everything below only names keyframes. Reduced motion silences
+ * all of it - the information never rides on movement alone.
+ */
+export function LiveMotion() {
+  return (
+    <style>{`@keyframes live-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } } @keyframes live-pop { 0% { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } } @keyframes live-glow { 0%, 100% { box-shadow: 0 0 10px rgba(220,38,38,0.55), 0 0 2px rgba(220,38,38,0.9); } 50% { box-shadow: 0 0 18px rgba(220,38,38,0.8), 0 0 4px rgba(220,38,38,1); } } @media (prefers-reduced-motion: reduce) { .live-rise, .live-pop { animation: none !important; } }`}</style>
+  );
+}
+
+/**
+ * The broadcast grade: vignette, warmth, grain.
+ *
+ * Sterile video on flat gray is what reads as slop. A broadcast has light:
+ * edges fall off into darkness, skin picks up warmth, and film carries a
+ * whisper of grain. All three sit in one pointer-transparent layer over the
+ * picture, under every control. Subtle on purpose - 5% grain, not a filter.
+ */
+export function LiveGrade() {
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden>
+      <div
+        className="absolute inset-0"
+        style={{ background: 'radial-gradient(120% 90% at 50% 42%, transparent 52%, rgba(0,0,0,0.42) 100%)' }}
+      />
+      <div
+        className="absolute inset-0 opacity-[0.05] mix-blend-overlay"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * One frosted control, everywhere.
+ *
+ * Apple's glass buttons carry a hairline light-border - without it frosted
+ * circles are flat gray blobs. Ring, blur, opacity-highlight, 100ms. Every
+ * icon control on every live screen is this component, so the chrome reads
+ * as one family instead of assembled parts.
+ */
+export function LiveIconButton({
+  label,
+  onClick,
+  danger,
+  alert,
+  children,
+  className,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  alert?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      onPointerDown={(event) => event.stopPropagation()}
+      className={cn(
+        'focus-ring relative grid size-11 shrink-0 place-items-center rounded-full backdrop-blur-glass',
+        'border transition-opacity duration-100 active:opacity-60',
+        danger ? 'border-danger/60 bg-danger text-white' : 'border-white/25 bg-black/35 text-white',
+        className,
+      )}
+    >
+      {children}
+      {alert && (
+        <span className="absolute top-1 right-1 size-2.5 rounded-full border-2 border-backdrop bg-danger" />
+      )}
+    </button>
+  );
+}
+
+/**
  * Haptics for the beats that matter, phones only.
  *
  * Apple pairs every meaningful visual with a tap you feel; the web equivalent
@@ -54,14 +138,17 @@ export function LiveHostCluster({
       <Avatar name={hostName} id={hostId} {...(hostAvatarUrl ? { src: hostAvatarUrl } : {})} size="md" />
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-body font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+          <span className="truncate text-[0.9375rem] font-semibold tracking-[-0.01em] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
             {hostName}
           </span>
-          <span className="shrink-0 rounded-md bg-danger px-1.5 py-px text-[0.625rem] font-bold tracking-wide text-white">
+          <span
+            className="shrink-0 rounded-md bg-danger px-1.5 py-px text-[0.625rem] font-bold tracking-widest text-white"
+            style={{ animation: 'live-glow 2.4s ease-in-out infinite' }}
+          >
             LIVE
           </span>
         </span>
-        <span className="mt-0.5 flex items-center gap-1 text-[0.6875rem] font-medium text-white/85 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+        <span className="mt-0.5 flex items-center gap-1 text-[0.75rem] font-semibold text-white tabular-nums drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
           <EyeIcon size={13} />
           <span className="tabular-nums">{viewerCount} watching</span>
         </span>
@@ -86,10 +173,13 @@ export function LiveHostCluster({
 export function LiveComments({
   comments,
   joins,
+  shouts = [],
   onPin,
 }: {
   comments: LiveComment[];
   joins: LivePresenceEvent[];
+  /** Room-wide moments: gold, centered, gone in seconds. */
+  shouts?: { id: string; text: string }[];
   /**
    * Host-only: hold a comment to pin it. Interactive rows opt out of the
    * gesture layer below them so a hold never toggles the chrome.
@@ -109,7 +199,7 @@ export function LiveComments({
     if (!box) return;
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
     if (nearBottom) box.scrollTop = box.scrollHeight;
-  }, [comments.length, joins.length]);
+  }, [comments.length, joins.length, shouts.length]);
 
   const holdTimer = useRef<number | undefined>(undefined);
 
@@ -134,11 +224,26 @@ export function LiveComments({
     | { kind: 'join'; id: string; at: number; node: React.ReactNode };
 
   const rows: Row[] = [
-    ...comments.slice(-14).map(
-      (comment): Row => ({
+    ...shouts.slice(-2).map(
+      (shout): Row => ({
+        kind: 'join',
+        id: shout.id,
+        at: Date.now(),
+        node: (
+          <p className="live-pop mx-auto w-fit rounded-full border border-online/40 bg-online/25 px-3 py-1 text-center text-[0.6875rem] font-bold text-white backdrop-blur-glass" style={{ animation: 'live-pop 220ms ease-out' }}>
+            {shout.text}
+          </p>
+        ),
+      }),
+    ),    ...comments.slice(-14).map(
+      (comment, index, list): Row => ({
         kind: 'comment',
         id: comment.id,
         at: comment.createdAt,
+        /*
+         * Depth by age: the newest lines burn full white, older ones sink.
+         * A flat stack of equal lines is a log; a fading one is a room.
+         */
         node: onPin ? (
           <button
             type="button"
@@ -148,15 +253,24 @@ export function LiveComments({
             onPointerCancel={endHold}
             onPointerLeave={endHold}
             onContextMenu={(event) => event.preventDefault()}
-            className="focus-ring block w-fit max-w-full rounded-lg text-left"
+            className={cn(
+              'focus-ring block w-fit max-w-full rounded-lg text-left transition-opacity duration-500',
+              index < list.length - 4 && 'opacity-60',
+            )}
           >
-            <span className="animate-fade-in block text-[0.8125rem] leading-snug text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
+            <span className="live-rise block text-[0.8125rem] leading-snug text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]" style={{ animation: 'live-rise 180ms ease-out' }}>
               <span className="mr-1.5 font-semibold text-white/90">{comment.userName}</span>
               {comment.body}
             </span>
           </button>
         ) : (
-          <p className="animate-fade-in w-fit max-w-full text-[0.8125rem] leading-snug text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
+          <p
+            className={cn(
+              'live-rise w-fit max-w-full text-[0.8125rem] leading-snug text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] transition-opacity duration-500',
+              index < list.length - 4 && 'opacity-60',
+            )}
+            style={{ animation: 'live-rise 180ms ease-out' }}
+          >
             <span className="mr-1.5 font-semibold text-white/90">{comment.userName}</span>
             {comment.body}
           </p>
@@ -169,7 +283,7 @@ export function LiveComments({
         id: join.id,
         at: join.at,
         node: (
-          <p className="animate-fade-in w-fit text-[0.6875rem] text-white/60 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
+          <p className="live-rise w-fit text-[0.6875rem] text-white/60 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]" style={{ animation: 'live-rise 180ms ease-out' }}>
             {join.userName} joined
           </p>
         ),
@@ -205,7 +319,7 @@ export function LivePin({
   onUnpin?: () => void;
 }) {
   return (
-    <div className="animate-fade-in flex w-fit max-w-full items-center gap-2 rounded-full border border-white/25 bg-black/40 py-1 pr-1.5 pl-3 backdrop-blur-glass">
+    <div className="live-pop flex w-fit max-w-full items-center gap-2 rounded-full border border-white/25 bg-black/40 py-1 pr-1.5 pl-3 backdrop-blur-glass" style={{ animation: 'live-pop 220ms ease-out' }}>
       <p className="min-w-0 truncate text-caption text-white">
         <span className="mr-1.5 font-semibold">📌 {comment.userName}</span>
         {comment.body}
@@ -268,10 +382,13 @@ function hashId(id: string): number {
 export function LiveComposer({
   onSend,
   onHeart,
+  onMilestone,
   placeholder = 'Add a comment…',
 }: {
   onSend: (body: string) => void;
   onHeart: () => void;
+  /** Fires at ×10/25/50 and every ×100: the room should hear about it. */
+  onMilestone?: (combo: number) => void;
   placeholder?: string;
 }) {
   const [draft, setDraft] = useState('');
@@ -305,6 +422,7 @@ export function LiveComposer({
   const submit = () => {
     const text = draft.trim();
     if (!text) return;
+    buzz(10);
     onSend(text);
     setDraft('');
   };
@@ -315,7 +433,8 @@ export function LiveComposer({
         <span
           key={combo}
           aria-hidden
-          className="animate-fade-in absolute -top-7 right-1 rounded-full bg-danger px-2 py-0.5 text-[0.6875rem] font-bold text-white tabular-nums shadow-sm"
+          className="live-pop absolute -top-7 right-1 rounded-full bg-danger px-2 py-0.5 text-[0.6875rem] font-bold text-white tabular-nums shadow-sm"
+          style={{ animation: 'live-pop 200ms ease-out' }}
         >
           ×{combo}
         </span>
@@ -339,7 +458,8 @@ export function LiveComposer({
             aria-label="Send comment"
             onClick={submit}
             onPointerDown={(event) => event.stopPropagation()}
-            className="focus-ring mr-1 grid size-9 shrink-0 place-items-center rounded-full bg-white text-ink transition-transform duration-instant active:scale-95"
+            className="live-pop focus-ring mr-1 grid size-9 shrink-0 place-items-center rounded-full bg-white text-ink transition-opacity duration-100 active:opacity-60"
+            style={{ animation: 'live-pop 200ms ease-out' }}
           >
             <SendIcon size={17} />
           </button>
@@ -391,6 +511,24 @@ export function LiveGoal({
   }, [done]);
 
   return (
+    <div className="relative">
+      {done && (
+        <div className="pointer-events-none absolute -top-24 right-0 left-0 h-24 overflow-visible" aria-hidden>
+          {Array.from({ length: 12 }, (_, i) => (
+            <span
+              key={i}
+              className="absolute top-full text-danger drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
+              style={{
+                left: `${8 + ((i * 37) % 84)}%`,
+                animation: 'live-heart-rise 1.8s ease-out forwards',
+                animationDelay: `${(i % 4) * 120}ms`,
+              }}
+            >
+              <HeartIcon size={16 + ((i * 13) % 12)} fill="currentColor" />
+            </span>
+          ))}
+        </div>
+      )}
     <div
       className={cn(
         'rounded-2xl border px-3 py-2 backdrop-blur-glass',
@@ -416,6 +554,7 @@ export function LiveGoal({
           style={{ width: `${Math.round(ratio * 100)}%` }}
         />
       </div>
+    </div>
     </div>
   );
 }

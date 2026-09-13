@@ -41,6 +41,8 @@ export interface LiveRoomEvent {
   join?: LivePresenceEvent;
   /** The host waved at one viewer. */
   wave?: { toUserId: string; fromName: string };
+  /** A moment for the whole room: combos, goals, guest arrivals. */
+  shout?: { id: string; text: string };
 }
 
 interface LiveContextValue {
@@ -216,6 +218,7 @@ export function useLiveRoom(
   broadcastPin: (comment: LiveComment | null) => void;
   broadcastJoin: (userId: string, userName: string) => void;
   broadcastWave: (toUserId: string, fromName: string) => void;
+  broadcastShout: (text: string) => void;
   viewers: { userId: string; userName: string }[];
 } {
   const [viewers, setViewers] = useState<{ userId: string; userName: string }[]>([]);
@@ -270,6 +273,12 @@ export function useLiveRoom(
       })
       .on('broadcast', { event: 'wave' }, ({ payload }) => {
         handler.current({ wave: payload as { toUserId: string; fromName: string } });
+      })
+      .on('broadcast', { event: 'shout' }, ({ payload }) => {
+        const peer = payload as { text: string };
+        if (typeof peer.text === 'string' && peer.text.length > 0) {
+          handler.current({ shout: { id: `${Date.now()}-${peer.text.length}`, text: peer.text.slice(0, 80) } });
+        }
       })
       .on('presence', { event: 'sync' }, readViewers)
       .on('presence', { event: 'join' }, readViewers)
@@ -330,5 +339,12 @@ export function useLiveRoom(
     [send],
   );
 
-  return { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, viewers };
+  const broadcastShout = useCallback(
+    (text: string) => {
+      if (text.trim()) send('shout', { text: text.slice(0, 80) });
+    },
+    [send],
+  );
+
+  return { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, broadcastShout, viewers };
 }

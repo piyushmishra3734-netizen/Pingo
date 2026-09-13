@@ -20,6 +20,9 @@ import {
   LivePin,
   LiveGoal,
   LiveTimer,
+  LiveMotion,
+  LiveGrade,
+  LiveIconButton,
   RemoteVideo,
   useTapGestures,
 } from './LiveWidgets.js';
@@ -198,6 +201,7 @@ export function LiveGuestScreen() {
 
   return (
     <div ref={gestures} className="relative flex h-full touch-none flex-col overflow-hidden bg-backdrop select-none">
+      <LiveMotion />
       {/* ---- split: host above, you below ---------------------------------- */}
       <div className="absolute inset-0 flex flex-col">
         <div className="relative h-1/2 overflow-hidden">
@@ -252,13 +256,14 @@ export function LiveGuestScreen() {
             </span>
           )}
         </div>
+        <LiveGrade />
       </div>
 
       <LiveHearts hearts={hearts} />
 
       {wave && (
-        <div className="animate-fade-in pointer-events-none absolute inset-x-0 top-24 z-20 flex justify-center">
-          <p className="rounded-full bg-white px-4 py-2 text-body font-semibold text-ink shadow-lg">
+        <div className="pointer-events-none absolute inset-x-0 top-24 z-20 flex justify-center">
+          <p className="live-pop rounded-full bg-white px-4 py-2 text-body font-semibold text-ink shadow-lg" style={{ animation: 'live-pop 220ms ease-out' }}>
             👋 {wave.fromName} waved at you
           </p>
         </div>
@@ -272,15 +277,9 @@ export function LiveGuestScreen() {
           !chrome && 'pointer-events-none opacity-0',
         )}
       >
-        <button
-          type="button"
-          aria-label="Leave the broadcast"
-          disabled={leaving}
-          onClick={() => void leaveSeat()}
-          className="focus-ring grid size-10 place-items-center rounded-full bg-black/45 text-white backdrop-blur-glass transition-transform duration-instant active:scale-95 disabled:opacity-50"
-        >
+        <LiveIconButton label="Leave the broadcast" onClick={() => void leaveSeat()}>
           <CloseIcon size={19} />
-        </button>
+        </LiveIconButton>
       </div>
 
       {/* ---- bottom ----------------------------------------------------------- */}

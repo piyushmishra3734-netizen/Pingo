@@ -132,6 +132,12 @@ export function Sheet({
             className,
           )}
         >
+          {/*
+            The grabber: iOS sheets wear one, and its absence is one of those
+            details people feel without naming. Visual only - the scrim,
+            Escape and Back already close.
+          */}
+          <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-line-strong/50 sm:hidden" />
           <h2 id={titleId} className={cn('text-h2 text-ink', hideTitle && 'sr-only')}>
             {title}
           </h2>

@@ -11,6 +11,7 @@ import { useAuth, useProfile } from '@pingo/core';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { soundGoal, soundGuest, soundHeart, soundJoin, soundWave } from './LiveSound.js';
 import type {
   LiveComment,
   LiveGuest,
@@ -43,6 +44,8 @@ export function useLiveSession(liveId: string | undefined) {
   const [guests, setGuests] = useState<LiveGuest[]>([]);
   /** Hearts per viewer this session: the Top fans board, no backend needed. */
   const [topFans, setTopFans] = useState<{ userId: string; userName: string; count: number }[]>([]);
+  /** Room-wide moments: combos, goals, arrivals. Gold lines, gone in seconds. */
+  const [shouts, setShouts] = useState<{ id: string; text: string }[]>([]);
   /** A wave landing on me. */
   const [wave, setWave] = useState<{ fromName: string; at: number } | undefined>();
 
@@ -195,6 +198,18 @@ export function useLiveSession(liveId: string | undefined) {
     }, 2300);
   }, []);
 
+  const pushShout = useCallback((text: string) => {
+    const shout = { id: `${Date.now()}-${text.length}`, text };
+    setShouts((previous) => [...previous.slice(-2), shout]);
+    window.setTimeout(() => {
+      setShouts((previous) => previous.filter((entry) => entry.id !== shout.id));
+    }, 5000);
+  }, []);
+
+  /** Rising tick ladder for incoming hearts; joins never spam. */
+  const heartStreak = useRef({ n: 0, at: 0 });
+  const lastJoinSound = useRef(0);
+
   const onEvent = useCallback(
     (event: LiveRoomEvent) => {
       if (event.comment) {
@@ -206,29 +221,44 @@ export function useLiveSession(liveId: string | undefined) {
       if (event.heart) {
         pushHeart(event.heart);
         countFan(event.heart.userId, event.heart.userName);
+        const now = Date.now();
+        heartStreak.current =
+          now - heartStreak.current.at < 900
+            ? { n: heartStreak.current.n + 1, at: now }
+            : { n: 0, at: now };
+        soundHeart(heartStreak.current.n);
       }
       if (event.pin !== undefined) setPin(event.pin);
       if (event.join) {
         const join = event.join;
         setJoins((previous) => [...previous.slice(-9), join]);
+        if (Date.now() - lastJoinSound.current > 4000) {
+          lastJoinSound.current = Date.now();
+          soundJoin();
+        }
         window.setTimeout(() => {
           setJoins((previous) => previous.filter((entry) => entry.id !== join.id));
         }, 6000);
+      }
+      if (event.shout) {
+        pushShout(event.shout.text);
+        soundGoal();
       }
       if (event.wave) {
         if (event.wave.toUserId === meIdRef.current) {
           const stamp = { fromName: event.wave.fromName, at: Date.now() };
           setWave(stamp);
+          soundWave();
           window.setTimeout(() => {
             setWave((previous) => (previous?.at === stamp.at ? undefined : previous));
           }, 3000);
         }
       }
     },
-    [pushHeart, countFan],
+    [pushHeart, countFan, pushShout],
   );
 
-  const { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, viewers } = useLiveRoom(
+  const { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, broadcastShout, viewers } = useLiveRoom(
     live ? live.id : undefined,
     meId ? { userId: meId, userName: meName } : undefined,
     onEvent,
@@ -322,6 +352,15 @@ export function useLiveSession(liveId: string | undefined) {
     [live, broadcastWave, meName],
   );
 
+  const sendShout = useCallback(
+    (text: string) => {
+      if (!live || !text.trim()) return;
+      pushShout(text.trim().slice(0, 80));
+      broadcastShout(text);
+    },
+    [live, broadcastShout, pushShout],
+  );
+
   const pinComment = useCallback(
     async (comment: LiveComment | null) => {
       if (!live) return;
@@ -339,6 +378,7 @@ export function useLiveSession(liveId: string | undefined) {
     comments,
     hearts,
     joins,
+    shouts,
     pin,
     guests,
     topFans,
@@ -350,6 +390,7 @@ export function useLiveSession(liveId: string | undefined) {
     sendComment,
     sendHeart,
     sendWave,
+    sendShout,
     announceJoin,
     pinComment,
     setLive,

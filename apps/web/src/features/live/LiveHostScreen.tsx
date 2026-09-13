@@ -36,6 +36,9 @@ import {
   LivePin,
   LiveGoal,
   LiveTimer,
+  LiveMotion,
+  LiveGrade,
+  LiveIconButton,
   FanRow,
   RemoteVideo,
   buzz,
@@ -369,6 +372,7 @@ export function LiveHostScreen() {
 
   return (
     <div ref={gestures} className="relative flex h-full touch-none flex-col overflow-hidden bg-backdrop select-none">
+      <LiveMotion />
       {/* ---- picture: host above, guest below when on air ------------------ */}
       <div className="absolute inset-0 flex flex-col">
         <div className={cn('relative overflow-hidden', split ? 'h-1/2' : 'h-full')}>
@@ -426,6 +430,7 @@ export function LiveHostScreen() {
         {!split && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black/65 to-transparent" />
         )}
+        <LiveGrade />
       </div>
 
       <LiveHearts hearts={hearts} />
@@ -477,22 +482,22 @@ export function LiveHostScreen() {
         )}
 
         <div className="flex items-center gap-2">
-          <LiveToolButton label="Flip camera" onClick={preview.flip}>
+          <LiveIconButton label="Flip camera" onClick={preview.flip}>
             <CameraFlipIcon size={20} />
-          </LiveToolButton>
-          <LiveToolButton
+          </LiveIconButton>
+          <LiveIconButton
             label={requests.length > 0 ? `${requests.length} guest requests` : 'Guests'}
             alert={requests.length > 0}
             onClick={() => setShowGuests(true)}
           >
             <UsersIcon size={20} />
-          </LiveToolButton>
-          <LiveToolButton label="More options" onClick={() => setShowMore(true)}>
+          </LiveIconButton>
+          <LiveIconButton label="More options" onClick={() => setShowMore(true)}>
             <MoreIcon size={20} />
-          </LiveToolButton>
-          <LiveToolButton label="End live" danger onClick={() => setConfirmingEnd(true)}>
+          </LiveIconButton>
+          <LiveIconButton label="End live" danger onClick={() => setConfirmingEnd(true)}>
             <CloseIcon size={20} />
-          </LiveToolButton>
+          </LiveIconButton>
           <div className="min-w-0 flex-1">
             <LiveComposer
               onSend={(body) => void sendComment(body)}
@@ -863,39 +868,5 @@ export function LiveHostScreen() {
         </Sheet>
       )}
     </div>
-  );
-}
-
-function LiveToolButton({
-  label,
-  alert,
-  danger,
-  onClick,
-  children,
-}: {
-  label: string;
-  alert?: boolean;
-  /** FaceTime's red ender: the one destructive control in the row. */
-  danger?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      onPointerDown={(event) => event.stopPropagation()}
-      className={cn(
-        'focus-ring relative grid size-11 shrink-0 place-items-center rounded-full backdrop-blur-glass',
-        'transition-opacity duration-100 active:opacity-60',
-        danger ? 'bg-danger text-white' : 'bg-black/35 text-white',
-      )}
-    >
-      {children}
-      {alert && (
-        <span className="absolute top-1 right-1 size-2.5 rounded-full border-2 border-backdrop bg-danger" />
-      )}
-    </button>
   );
 }

@@ -28,6 +28,7 @@ import { SettingsRow } from '../features/settings/SettingsRow.js';
 import { useSignOut } from '../features/settings/useSignOut.js';
 import { beginAddingAccount } from '../features/auth/adding-account.js';
 import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
+import { SecurePhoneRow } from '../features/auth/SecurePhoneSheet.js';
 
 /**
  * Settings - the index.
@@ -124,6 +125,9 @@ export function SettingsScreen() {
           </div>
         ) : (
           <div className="mt-4 space-y-2">
+            {/* Only for an account with no number. See the component. */}
+            <SecurePhoneRow />
+
             <section className="rounded-lg bg-surface p-1 shadow-sm">
               <SettingsRow
                 icon={<AccountIcon size={19} />}

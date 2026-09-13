@@ -8,7 +8,7 @@
  * viewer count are the social proof; the guest button is the way in.
  */
 
-import { Avatar, CloseIcon, PingoDot, ShareIcon, UsersIcon, cn } from '@pingo/ui';
+import { Avatar, CheckIcon, CloseIcon, PingoDot, ShareIcon, UsersIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProfile, type FollowState } from '@pingo/core';
@@ -24,6 +24,9 @@ import {
   LiveHostCluster,
   LivePin,
   LiveGoal,
+  LiveMotion,
+  LiveGrade,
+  LiveIconButton,
   RemoteVideo,
   buzz,
   readBumpStreak,
@@ -244,6 +247,7 @@ export function LiveViewerScreen() {
 
   return (
     <div ref={gestures} className="relative flex h-full touch-none flex-col overflow-hidden bg-backdrop select-none">
+      <LiveMotion />
       {/* ---- picture ------------------------------------------------------ */}
       <div className="absolute inset-0">
         {remoteStream && (
@@ -261,14 +265,15 @@ export function LiveViewerScreen() {
         )}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/50 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black/65 to-transparent" />
+        <LiveGrade />
       </div>
 
       <LiveHearts hearts={hearts} />
 
       {/* A wave landing: the host noticed you, personally. */}
       {wave && (
-        <div className="animate-fade-in pointer-events-none absolute inset-x-0 top-24 z-20 flex justify-center">
-          <p className="rounded-full bg-white px-4 py-2 text-body font-semibold text-ink shadow-lg">
+        <div className="pointer-events-none absolute inset-x-0 top-24 z-20 flex justify-center">
+          <p className="live-pop rounded-full bg-white px-4 py-2 text-body font-semibold text-ink shadow-lg" style={{ animation: 'live-pop 220ms ease-out' }}>
             👋 {wave.fromName} waved at you
           </p>
         </div>
@@ -301,26 +306,12 @@ export function LiveViewerScreen() {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            aria-label={shared ? 'Link copied' : 'Share live'}
-            onClick={() => void share()}
-            className={cn(
-              'focus-ring grid size-10 place-items-center rounded-full bg-black/45 text-white backdrop-blur-glass',
-              'transition-transform duration-instant active:scale-95',
-              shared && 'bg-white text-ink',
-            )}
-          >
-            <ShareIcon size={18} />
-          </button>
-          <button
-            type="button"
-            aria-label="Leave live"
-            onClick={leave}
-            className="focus-ring grid size-10 place-items-center rounded-full bg-black/45 text-white backdrop-blur-glass transition-transform duration-instant active:scale-95"
-          >
+          <LiveIconButton label={shared ? 'Link copied' : 'Share live'} onClick={() => void share()}>
+            {shared ? <CheckIcon size={18} /> : <ShareIcon size={18} />}
+          </LiveIconButton>
+          <LiveIconButton label="Leave live" onClick={leave}>
             <CloseIcon size={19} />
-          </button>
+          </LiveIconButton>
         </div>
       </div>
 
@@ -354,26 +345,27 @@ export function LiveViewerScreen() {
 
         <LiveComments comments={comments} joins={joins} />
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <LiveComposer onSend={(body) => void sendComment(body)} onHeart={() => sendHeart()} placeholder="Say hi…" />
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={asked || requesting}
-            onClick={() => void askToJoin()}
-            className={cn(
-              'focus-ring flex flex-1 items-center justify-center gap-2 rounded-full border border-white/30 bg-black/30 py-2.5 text-caption font-semibold text-white backdrop-blur-glass',
-              'transition-transform duration-instant active:scale-[0.98] disabled:opacity-60',
-            )}
+          <LiveIconButton
+            label={asked ? 'Request sent - waiting for host' : 'Request to join the broadcast'}
+            onClick={() => {
+              if (!asked && !requesting) {
+                buzz(12);
+                void askToJoin();
+              }
+            }}
           >
-            <UsersIcon size={15} />
-            {asked ? 'Request sent - waiting for host' : requesting ? 'Asking…' : 'Request to join'}
-          </button>
+            {asked ? <CheckIcon size={19} /> : <UsersIcon size={19} />}
+          </LiveIconButton>
         </div>
+        {asked && (
+          <p role="status" className="text-center text-[0.6875rem] font-medium text-white/70">
+            Request sent - the host sees you at the door
+          </p>
+        )}
       </div>
 
       {/* ---- viewers ------------------------------------------------------------ */}
