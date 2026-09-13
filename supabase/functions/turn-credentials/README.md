@@ -57,7 +57,7 @@ pnpm supabase secrets set \
   TURN_PROVIDER=cloudflare \
   CF_TURN_KEY_ID=<your key id> \
   CF_TURN_API_TOKEN=<your api token> \
-  --project-ref lppzoqgvshhmxqsvggug
+  --project-ref gpijpmepzowwhvgkriqu
 ```
 
 Or paste them in the dashboard: Edge Functions → **Secrets**.
@@ -101,7 +101,7 @@ supabase secrets set \
   TURN_PROVIDER=coturn \
   TURN_URLS="turn:turn.yourdomain.com:3478?transport=udp,turn:turn.yourdomain.com:3478?transport=tcp,turns:turn.yourdomain.com:5349?transport=tcp" \
   TURN_STATIC_AUTH_SECRET=<the same secret as above> \
-  --project-ref lppzoqgvshhmxqsvggug
+  --project-ref gpijpmepzowwhvgkriqu
 ```
 
 ## Verify

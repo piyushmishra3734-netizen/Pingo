@@ -5,8 +5,8 @@
  * the schema grows past one table, replace this file wholesale with generated
  * output rather than extending it by hand:
  *
- *   pnpm dlx supabase gen types typescript \
- *     --project-id lppzoqgvshhmxqsvggug \
+  *   pnpm dlx supabase gen types typescript \
+  *     --project-id gpijpmepzowwhvgkriqu \
  *     --schema public \
  *     > apps/web/src/lib/supabase/types.ts
  *
