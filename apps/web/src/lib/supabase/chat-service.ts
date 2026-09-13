@@ -392,6 +392,16 @@ const DELTA_LIMIT = 200;
 const CONVERSATION_COALESCE_MS = 300;
 
 /**
+ * Minimum gap between read-mark writes for one conversation.
+ *
+ * Eight seconds: an active thread's per-message marks fold into one trailing
+ * write, while "Seen" still lands promptly by chat standards. The badge is
+ * local and immediate regardless - this only paces the server write and its
+ * Realtime echo to every member.
+ */
+const READ_MARK_MIN_GAP_MS = 8_000;
+
+/**
  * How many messages the cached page keeps as live ones are appended.
  *
  * Matches the page `useMessages` asks for, so a thread opened from cache shows
@@ -808,6 +818,15 @@ export class SupabaseChatService implements ChatService {
    * it from fourteen queries. See `#bumpConversation`.
    */
   #known = new Map<ConversationId, Conversation>();
+
+  /**
+   * Read-mark coalescing, per conversation. See `markConversationRead`: the
+   * caller fires per incoming message, and each write echoes to every member.
+   */
+  /** When the last read-mark RPC went out. */
+  #lastMarkAt = new Map<ConversationId, number>();
+  /** A trailing mark waiting out the window. */
+  #markPending = new Map<ConversationId, ReturnType<typeof setTimeout>>();
 
   /**
    * Direct conversations that exist but have never carried a message.
@@ -5069,8 +5088,46 @@ export class SupabaseChatService implements ChatService {
      * and the message-info screen would have nothing to show. Doing both in one
      * `security definer` call also means the cursor cannot be set to a time the
      * caller did not earn.
+     *
+     * Coalesced, because the caller fires on every new bottom message: an
+     * active thread would otherwise write once per incoming message, and each
+     * write echoes over Realtime to every member's `conversation_members`
+     * subscription. The first mark in a quiet spell goes immediately (opening a
+     * thread still reads at once); marks arriving within the window fold into
+     * one trailing write. The badge clears locally either way - see
+     * `#publishRead` below - so nobody watches this delay.
      */
-    await this.#client.rpc('mark_conversation_read', { conv: conversationId });
+    const now = Date.now();
+    const since = now - (this.#lastMarkAt.get(conversationId) ?? 0);
+    if (since >= READ_MARK_MIN_GAP_MS) {
+      this.#lastMarkAt.set(conversationId, now);
+      const pending = this.#markPending.get(conversationId);
+      if (pending) {
+        clearTimeout(pending);
+        this.#markPending.delete(conversationId);
+      }
+      await this.#client.rpc('mark_conversation_read', { conv: conversationId });
+    } else if (!this.#markPending.has(conversationId)) {
+      this.#markPending.set(
+        conversationId,
+        setTimeout(
+          () => {
+            this.#markPending.delete(conversationId);
+            this.#lastMarkAt.set(conversationId, Date.now());
+            // Fire-and-forget: a trailing mark that fails leaves the cursor
+            // for the next open, which re-marks anyway.
+            void (async () => {
+              try {
+                await this.#client.rpc('mark_conversation_read', { conv: conversationId });
+              } catch {
+                // Nothing to tell the reader; the badge already cleared locally.
+              }
+            })();
+          },
+          READ_MARK_MIN_GAP_MS - since,
+        ),
+      );
+    }
     releaseRead(conversationId);
 
     this.#publishRead(conversationId);
