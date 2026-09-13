@@ -1,4 +1,4 @@
-import { Button, CheckIcon, CloseIcon, LockIcon, PhoneIcon, ShieldIcon, cn } from '@pingo/ui';
+import { Button, CheckIcon, ChevronRightIcon, CloseIcon, LockIcon, PhoneIcon, ShieldIcon, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -406,6 +406,62 @@ export function CautionCard({ onAdd, onLater }: { onAdd: () => void; onLater: ()
         <CloseIcon size={16} />
       </button>
     </div>
+  );
+}
+
+/**
+ * The Settings row version of the ask: shield, title, one line, chevron.
+ * Shown on the Settings index and in `/dev/secure-lab` - a row, not a
+ * floating card, because Settings is already a list of rows.
+ */
+export function PhoneRowCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'focus-ring flex w-full items-center gap-3 rounded-lg bg-surface px-3 py-3 text-left shadow-sm',
+        'transition-colors duration-instant ease-standard hover:bg-hover active:bg-pressed',
+      )}
+    >
+      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-sunken text-brand" aria-hidden>
+        <ShieldIcon size={19} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-body text-ink">Secure your account</span>
+        <span className="block truncate text-caption text-text-secondary">
+          Lose Google access? Your number gets you back in.
+        </span>
+      </span>
+      <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
+    </button>
+  );
+}
+
+/**
+ * The row, for an account with no number. Renders nothing once a number
+ * lands on the session. Mounted on the Settings index.
+ */
+export function SecurePhoneRow() {
+  /** Set only while the signed-in account has no number. */
+  const [userId, setUserId] = useState<string>();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const { data } = getSupabaseClient().auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+      setUserId(user && !user.phone ? user.id : undefined);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  if (!userId) return null;
+
+  return (
+    <>
+      <PhoneRowCard onClick={() => setOpen(true)} />
+      {open && <SecurePhoneSheet onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
