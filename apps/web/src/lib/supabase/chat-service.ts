@@ -92,6 +92,8 @@ import { enqueue, flush } from '../local/outbox.js';
 import { rememberOwnText } from '../local/sent-text.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
+import { toStandardQuality } from '../../features/chat/media-quality.js';
+import { putMedia } from '../../features/chat/video-vault.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { refreshPresenceStatus } from '../../features/presence/status.js';
@@ -3474,7 +3476,16 @@ export class SupabaseChatService implements ChatService {
     const me = await this.#userId();
     const path = `${me}/${crypto.randomUUID()}.jpg`;
 
-    return this.#claimAndUpload(SNAP_BUCKET, path, image, image.type || 'image/jpeg', 'snap');
+    /*
+     * Shrunk like a chat photo. The camera editor exports full resolution and
+     * a Ping is viewed on a phone screen; sending the raw sensor output meant
+     * every Ping cost what a dozen compressed ones do. Never throws.
+     */
+    const sending = await toStandardQuality(
+      new File([image], 'snap', { type: image.type || 'image/jpeg' }),
+    ).catch(() => new File([image], 'snap', { type: image.type || 'image/jpeg' }));
+
+    return this.#claimAndUpload(SNAP_BUCKET, path, sending, sending.type || 'image/jpeg', 'snap');
   }
 
   async #uploadPhoto(image: Blob): Promise<string> {
@@ -4391,6 +4402,30 @@ export class SupabaseChatService implements ChatService {
      * sends write it - so reads need no key and cannot fail this way.
      */
     void rememberOwnText(id, draft.body).catch(() => undefined);
+
+    /*
+     * The sender already holds every byte just uploaded, so the vault is told.
+     *
+     * Without this the sender's own bubble downloads its own send on first
+     * render - through a signed URL, spending egress to fetch bytes that never
+     * left the device. Keyed on the client-made id, which is the row's id, so
+     * the bubble finds it exactly where a recipient's copy would be. Best
+     * effort and unawaited: a vault write that fails only costs a future
+     * download, never the send.
+     */
+    void (async () => {
+      const own: Blob[] = [];
+      if (draft.document) own.push(draft.document.file);
+      if (draft.photo) own.push(draft.photo.image);
+      if (keptPing) own.push(keptPing.image);
+      // Ephemeral Pings are deliberately excluded: their bytes are view-limited
+      // server-side, and nothing on this device reads the vault for a Ping, so
+      // writing them would be storage for nothing.
+      if (draft.voice) own.push(draft.voice.audio);
+      for (const blob of own) {
+        await putMedia(id, blob).catch(() => undefined);
+      }
+    })();
 
     /*
      * Replying is the receipt.

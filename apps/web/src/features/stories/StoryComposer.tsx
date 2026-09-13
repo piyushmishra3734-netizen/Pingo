@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { Overlay } from '../../components/Overlay.js';
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import { SnapEditor } from '../camera/SnapEditor.js';
+import { toStandardQuality } from '../chat/media-quality.js';
 import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
 import { useStories } from './StoryContext.js';
@@ -230,8 +231,20 @@ export function StoryComposer({
       for (let i = 0; i < total; i += 1) {
         const item = queue[i]!;
         if (total > 1) setProgress(`Posting ${i + 1} of ${total}…`);
+        /*
+         * Still photos shrink like chat photos: the editor works full
+         * resolution and the rail shows a fraction of it. Clips pass through -
+         * the DOM cannot re-encode video (see `video-transcode.ts`). Never
+         * throws: an unshrinkable slide posts as it came.
+         */
+        const media =
+          item.kind === 'photo'
+            ? await toStandardQuality(
+                new File([item.media], 'story', { type: item.media.type || 'image/jpeg' }),
+              ).catch(() => new File([item.media], 'story', { type: item.media.type || 'image/jpeg' }))
+            : item.media;
         await service.post({
-          media: item.media,
+          media,
           kind: item.kind,
           ...(item.videoEdit ? { videoEdit: item.videoEdit } : {}),
           ...(item.audio?.length ? { audio: item.audio } : {}),

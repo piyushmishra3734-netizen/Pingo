@@ -78,6 +78,7 @@ import { useBackStep } from '../navigation/useBackStep.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { PhotoComposer } from './PhotoComposer.js';
 import { probeKind, retypedAsAudio, type PickedKind } from './picked-media.js';
+import { probeVideo, videoTooLong } from './media-variants.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
@@ -243,6 +244,26 @@ export function ChatThread({
     if (!complaint) return false;
     await confirm({
       title: 'That file is too large',
+      description: complaint,
+      confirmLabel: 'OK',
+    });
+    return true;
+  };
+  /**
+   * Refuses a clip that runs past the duration ceiling, out loud.
+   *
+   * The twin of `refuseIfTooLarge` for the dimension size cannot see: the web
+   * cannot re-encode, so an hour-long screen recording would otherwise leave
+   * as hundreds of megabytes every recipient then downloads. Probed from the
+   * container header (kilobytes, not the clip), and silent when the probe
+   * fails - an unknown duration is sent as today, not refused on suspicion.
+   */
+  const refuseIfTooLong = async (file: File): Promise<boolean> => {
+    const shape = await probeVideo(file).catch(() => undefined);
+    const complaint = shape ? videoTooLong(shape.durationSeconds) : undefined;
+    if (!complaint) return false;
+    await confirm({
+      title: 'That video is too long',
       description: complaint,
       confirmLabel: 'OK',
     });
@@ -1978,6 +1999,12 @@ export function ChatThread({
                 images.includes(oversized[0]) ? 'photo' : 'file',
               );
               return;
+            }
+
+            // Duration is probed per clip; the first refusal stops the batch
+            // with a sentence, the way size does above.
+            for (const file of videos) {
+              if (await refuseIfTooLong(file)) return;
             }
 
             /*

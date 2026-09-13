@@ -37,6 +37,7 @@ import {
 } from '@pingo/core';
 
 import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
+import { toStandardQuality } from '../../features/chat/media-quality.js';
 import { cachePrivacyRules } from '../../features/settings/privacy-flags.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import type { Database, PostCommentRow, PostRow, ProfileRow } from './types.js';
@@ -928,9 +929,18 @@ export class SupabaseProfileService implements ProfileService {
     // The author's id leads the path, which is what the storage policy checks.
     const path = `${me}/${crypto.randomUUID()}.jpg`;
 
+    /*
+     * Compressed like a chat photo, for the same reason: the editor hands back
+     * full resolution and a profile grid shows a fraction of it. Never throws -
+     * a picture that cannot be shrunk is sent as it came.
+     */
+    const sending = await toStandardQuality(
+      new File([image], 'post', { type: image.type || 'image/jpeg' }),
+    ).catch(() => new File([image], 'post', { type: image.type || 'image/jpeg' }));
+
     const { error } = await this.client.storage
       .from(POST_BUCKET)
-      .upload(path, image, { contentType: image.type || 'image/jpeg' });
+      .upload(path, sending, { contentType: sending.type || 'image/jpeg' });
 
     if (error) rethrow(error);
     return path;

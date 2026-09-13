@@ -215,6 +215,11 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
             <img
               src={shown}
               alt={caption || 'Photo'}
+              // Below the fold is the common case in a thread: without this the
+              // browser fetches every photo on open, and the vault pays for
+              // bytes nobody scrolled to.
+              loading="lazy"
+              decoding="async"
               // The file is gone, or this signature no longer opens it. Either
               // way the honest panel below says so - see `failedSrc`.
               onError={() => setFailedSrc(shown)}

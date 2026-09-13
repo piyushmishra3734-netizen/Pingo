@@ -5,13 +5,13 @@ import {
   type FileAttachment,
   type VideoEdit,
 } from '@pingo/core';
-import { FileIcon, cn } from '@pingo/ui';
+import { FileIcon, PlayIcon, cn } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
 import { saveVideoBlob } from '../native/save-video.js';
-import { useOfflineVideo } from './useOfflineVideo.js';
-import { keepMedia, storedVideo } from './video-vault.js';
+import { makeVideoPoster } from './media-variants.js';
+import { keepMedia, keepVideo, putPoster, storedPoster, storedVideo } from './video-vault.js';
 import { VideoPlayer } from './VideoPlayer.js';
 import { VoiceNote } from './VoiceNote.js';
 import { ImageViewer } from '../profile/ImageViewer.js';
@@ -152,6 +152,10 @@ export function FileBubble({ file, mine, spaced, messageId, edit }: FileBubblePr
           <img
             src={file.url}
             alt={name}
+            // Same reason as the photo bubble's: an off-screen picture must
+            // not spend bytes before anybody scrolls to it.
+            loading="lazy"
+            decoding="async"
             onContextMenu={(event) => event.preventDefault()}
             // Collected after its 24 hours, or a signature that no longer
             // opens it. Falling through to the file row below says so; a
@@ -341,6 +345,36 @@ function AudioBubble({
  * will still play on a plane and one that will not, and that is worth a line
  * of text the moment it becomes true.
  */
+/**
+ * A received video, played from this device once it has been copied here.
+ *
+ * Split out from `FileBubble` because it needs state and `FileBubble` is a
+ * branch table - the hook cannot live behind an `if` that returns early for
+ * every other kind of file.
+ *
+ * ## Tap to play, not fetch on sight
+ *
+ * This used to download every video in every opened thread through
+ * `useOfflineVideo`, so scrolling past a dozen clips paid for all of them.
+ * Now a video nobody opens costs nothing: the bubble is a face (the cached
+ * poster, or a tile with the file's size) with a play button, and the bytes
+ * move only on an explicit tap. A copy already on this device still plays
+ * inline immediately - the sender's own clip, a replay - because no tap is
+ * needed to spend bytes that were never fetched.
+ *
+ * ## The receipt still means "the bytes are here"
+ *
+ * `confirmMediaReceived` fires from the completion of the vault write and from
+ * nowhere else - exactly as before, only later: on the tap that fetched rather
+ * than on the render that merely showed the card. A video nobody opened keeps
+ * the server's buffer copy until the sweeper's day is up, which is the outcome
+ * the retention design already provides for.
+ *
+ * The badge is not decoration. PINGO deletes its own copy as soon as everyone
+ * has one, so "Saved on this device" is the difference between a video that
+ * will still play on a plane and one that will not, and that is worth a line
+ * of text the moment it becomes true.
+ */
 function VideoBubble({
   file,
   name,
@@ -358,9 +392,83 @@ function VideoBubble({
   const { service } = useChat();
   /** The file's own shape, once it has told us. `4/5` until then. */
   const [ratio, setRatio] = useState<number>();
-  const { src, offline } = useOfflineVideo(file.id, file.url, () => {
+  /** Full bytes on this device, as an object URL. Absent until fetched or replayed. */
+  const [held, setHeld] = useState<string>();
+  /** The card's face, from the vault. Absent on a first sighting. */
+  const [face, setFace] = useState<string>();
+  /** The tap's download, in flight. */
+  const [loading, setLoading] = useState(false);
+  /** The tap's download failed: offline, quota, or the object already gone. */
+  const [failed, setFailed] = useState(false);
+
+  /*
+   * Asked, never fetched, on sight.
+   *
+   * `storedVideo`/`storedPoster` are IndexedDB reads - no network - so opening
+   * a thread full of videos costs no bytes here. Anything missing stays
+   * missing until the tap below.
+   */
+  useEffect(() => {
+    if (!messageId) return;
+    let live = true;
+    let heldUrl: string | undefined;
+    let faceUrl: string | undefined;
+
+    void (async () => {
+      const [video, poster] = await Promise.all([
+        storedVideo(messageId),
+        storedPoster(messageId),
+      ]);
+      if (!live) return;
+      if (video) {
+        heldUrl = URL.createObjectURL(video);
+        setHeld(heldUrl);
+      } else if (poster) {
+        faceUrl = URL.createObjectURL(poster);
+        setFace(faceUrl);
+      }
+    })();
+
+    return () => {
+      live = false;
+      if (heldUrl) URL.revokeObjectURL(heldUrl);
+      if (faceUrl) URL.revokeObjectURL(faceUrl);
+    };
+  }, [messageId]);
+
+  const confirm = () => {
     if (messageId) void service.confirmMediaReceived?.(messageId).catch(() => undefined);
-  });
+  };
+
+  /*
+   * The explicit tap. Fetches the whole object into the vault - the same
+   * `keepVideo` the old render path used, so the receipt keeps its meaning -
+   * then draws the face for next time from the bytes already in hand.
+   */
+  const load = () => {
+    if (!messageId || !file.url || loading || held) return;
+    setLoading(true);
+    setFailed(false);
+    void (async () => {
+      const blob = await keepVideo(messageId, file.url);
+      if (!blob) {
+        setLoading(false);
+        setFailed(true);
+        return;
+      }
+      confirm();
+      // The poster is derived, not downloaded: the bytes are already here, and
+      // the next sighting of this thread should not need them again.
+      const poster = await makeVideoPoster(blob).catch(() => undefined);
+      const heldUrl = URL.createObjectURL(blob);
+      setHeld(heldUrl);
+      if (poster) {
+        void putPoster(messageId, poster).catch(() => undefined);
+        setFace(URL.createObjectURL(poster));
+      }
+      setLoading(false);
+    })();
+  };
 
   return (
     <div className={cn('w-full', spaced && 'mb-2')} {...swallow}>
@@ -404,12 +512,51 @@ function VideoBubble({
         className="relative w-full overflow-hidden rounded-lg bg-black"
         style={{ aspectRatio: String(ratio ?? 4 / 5), width: 'min(22rem, 72vw)' }}
       >
-        {src && (
+        {held ? (
           <VideoPlayer
-            src={src}
+            src={held}
             edit={edit}
             onShape={(shape) => setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9))}
           />
+        ) : (
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            aria-label={loading ? `Loading video: ${name}` : `Play video: ${name}`}
+            className="focus-ring absolute inset-0 h-full w-full"
+          >
+            {face ? (
+              <img
+                src={face}
+                alt=""
+                aria-hidden
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="grid h-full w-full place-items-center bg-sunken">
+                <span className="px-4 text-center text-caption text-text-secondary">
+                  {file.size !== undefined ? formatFileSize(file.size) : 'Video'}
+                </span>
+              </span>
+            )}
+            <span className="absolute inset-0 grid place-items-center bg-black/25">
+              <span className="grid size-14 place-items-center rounded-full bg-black/60 text-white">
+                {loading ? (
+                  <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <PlayIcon size={24} />
+                )}
+              </span>
+            </span>
+            {failed && (
+              <span className="absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-center text-caption text-white">
+                Couldn't load. Try again.
+              </span>
+            )}
+          </button>
         )}
       </div>
       {/*
@@ -421,12 +568,12 @@ function VideoBubble({
         camera took. Having the first is why the second costs no download.
       */}
       <div className="flex items-center gap-2 pt-1">
-        {offline && (
+        {held && (
           <p className="min-w-0 flex-1 truncate text-caption text-text-tertiary">
             Saved on this device
           </p>
         )}
-        <GallerySave messageId={messageId} name={name} ready={offline} />
+        <GallerySave messageId={messageId} name={name} ready={held !== undefined} />
       </div>
     </div>
   );

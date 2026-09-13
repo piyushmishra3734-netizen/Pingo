@@ -42,6 +42,39 @@ import { localDelete, localGet, localSet, requestPersistentStorage, STORE } from
 const key = (messageId: string) => `video:${messageId}`;
 
 /**
+ * Posters live beside the videos they face, under their own prefix.
+ *
+ * A poster is derived bytes - a still frame of a clip this device holds (or
+ * held) - so it shares the store, the persistence request and the
+ * best-effort contract, but never the key: dropping a video must not drop the
+ * face that lets the thread render without re-downloading it, and a poster
+ * must never satisfy a "do we have the video" check. Same prefix discipline
+ * as `video:` for the same reason (see above).
+ */
+const posterKey = (messageId: string) => `poster:${messageId}`;
+
+/** The cached face of a video, if this device has drawn one. */
+export function storedPoster(messageId: string): Promise<Blob | undefined> {
+  return localGet<Blob>(STORE.media, posterKey(messageId)).catch(() => undefined);
+}
+
+/**
+ * Remembers a poster. Best effort like everything here: a poster that fails
+ * to persist only costs a future re-derivation, never correctness.
+ */
+export function putPoster(messageId: string, poster: Blob): Promise<boolean> {
+  if (poster.size === 0) return Promise.resolve(false);
+  try {
+    void requestPersistentStorage();
+    return localSet(STORE.media, posterKey(messageId), poster)
+      .then(() => true)
+      .catch(() => false);
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
+/**
  * Downloads in flight, so two bubbles for the same video fetch it once.
  *
  * Both copies of a message can be on screen at the same time - the thread and
@@ -122,9 +155,12 @@ export async function putMedia(messageId: string, blob: Blob): Promise<boolean> 
   }
 }
 
-/** Drops the local copy - used when the message itself is deleted. */
+/** Drops the local copy - and its poster - used when the message itself is deleted. */
 export function forgetVideo(messageId: string): Promise<unknown> {
-  return localDelete(STORE.media, key(messageId)).catch(() => undefined);
+  return Promise.all([
+    localDelete(STORE.media, key(messageId)).catch(() => undefined),
+    localDelete(STORE.media, posterKey(messageId)).catch(() => undefined),
+  ]);
 }
 
 /*
