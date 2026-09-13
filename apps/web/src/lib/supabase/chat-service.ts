@@ -3617,32 +3617,100 @@ export class SupabaseChatService implements ChatService {
   /**
    * Fresh signed URL for a voice storage path — used when play finds no URL
    * or the previous one expired mid-thread.
+   *
+   * Reads through the same cache as the page passes: a note replayed within
+   * the hour reuses its signature instead of minting another.
    */
   async signVoiceUrl(path: string): Promise<string | undefined> {
     if (!path.trim()) return undefined;
-    const { data, error } = await this.#client.storage
-      .from(VOICE_BUCKET)
-      .createSignedUrl(path, PHOTO_URL_TTL_SECONDS);
-    if (error || !data?.signedUrl) {
-      console.warn('[voice] signVoiceUrl failed', path, error?.message);
-      return undefined;
+    const hit = this.#signedUrlCache.get(this.#signedUrlCacheKey(VOICE_BUCKET, path));
+    if (hit && hit.expiresAt - Date.now() > 5 * 60 * 1000) return hit.url;
+    const fresh = await this.#signMissingStoragePaths(VOICE_BUCKET, [path]);
+    const url = fresh.get(path);
+    if (!url) {
+      console.warn('[voice] signVoiceUrl failed', path);
     }
-    return data.signedUrl;
+    return url;
   }
 
   /**
-   * Batch-sign private storage paths, with index + singular fallbacks.
+   * Signed URLs, remembered until near expiry.
    *
-   * Supabase sometimes returns entries without a usable `path` key, or a null
-   * `signedUrl` on one of a batch - either leaves the receiver with a silent
-   * voice bubble. Zip by request index first, then retry failures one by one.
+   * Every thread open re-signed every photo/voice/document on the page - up to
+   * three `createSignedUrls` calls per open for URLs that live an hour. The
+   * cache is keyed on the stable storage path (never on a URL, which changes
+   * per signature) and entries are reused until five minutes before expiry,
+   * then re-signed. Memory-only, deliberately: a signed URL on disk would
+   * outlive the tab that earned it, and the saving from persisting is one
+   * signing call per cold start - not worth the lifetime questions.
+   *
+   * Batch-signing keeps its index + singular fallbacks (see
+   * `#signMissingStoragePaths`): Supabase sometimes returns entries without a
+   * usable `path` key, or a null `signedUrl` on one of a batch - either leaves
+   * the receiver with a silent voice bubble. Zip by request index first, then
+   * retry failures one by one.
    */
+  #signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+  /** Signings in flight, so two pages opening together sign once. */
+  #signingInFlight = new Map<string, Promise<Map<string, string>>>();
+
+  /** Cache key: the bucket plus the stable path. Five minutes of skew are held back at read time. */
+  #signedUrlCacheKey(bucket: string, path: string): string {
+    return `${bucket}:${path}`;
+  }
+
   async #signStoragePaths(
     bucket: string,
     paths: string[],
   ): Promise<Map<string, string>> {
     const urlByPath = new Map<string, string>();
     if (paths.length === 0) return urlByPath;
+
+    const now = Date.now();
+    const SKEW_MS = 5 * 60 * 1000;
+    const missing = paths.filter((path) => {
+      const hit = this.#signedUrlCache.get(this.#signedUrlCacheKey(bucket, path));
+      if (hit && hit.expiresAt - now > SKEW_MS) {
+        urlByPath.set(path, hit.url);
+        return false;
+      }
+      return true;
+    });
+
+    // Everything remembered: no request at all. This is the common case on a
+    // thread revisited within the hour - three signing calls become zero.
+    if (missing.length === 0) return urlByPath;
+
+    // One flight per bucket+set, so a realtime echo landing mid-open does not
+    // sign the same page twice.
+    const flightKey = `${bucket}:${[...missing].sort().join(',')}`;
+    let flight = this.#signingInFlight.get(flightKey);
+    if (!flight) {
+      flight = this.#signMissingStoragePaths(bucket, missing);
+      this.#signingInFlight.set(flightKey, flight);
+      void flight.finally(() => {
+        if (this.#signingInFlight.get(flightKey) === flight) {
+          this.#signingInFlight.delete(flightKey);
+        }
+      });
+    }
+
+    const fresh = await flight;
+    for (const [path, url] of fresh) urlByPath.set(path, url);
+    return urlByPath;
+  }
+
+  /**
+   * The actual signing request, split out so the cache above can share it.
+   *
+   * Writes every fresh URL back into `#signedUrlCache` with its expiry, so
+   * the next open reuses rather than re-signs.
+   */
+  async #signMissingStoragePaths(
+    bucket: string,
+    paths: string[],
+  ): Promise<Map<string, string>> {
+    const urlByPath = new Map<string, string>();
 
     const { data } = await this.#client.storage
       .from(bucket)
@@ -3673,6 +3741,11 @@ export class SupabaseChatService implements ChatService {
         if (url) urlByPath.set(path, url);
       }),
     );
+
+    const expiresAt = Date.now() + PHOTO_URL_TTL_SECONDS * 1000;
+    for (const [path, url] of urlByPath) {
+      this.#signedUrlCache.set(this.#signedUrlCacheKey(bucket, path), { url, expiresAt });
+    }
 
     return urlByPath;
   }
