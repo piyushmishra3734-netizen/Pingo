@@ -58,3 +58,22 @@ export function recordMetric(key: NetMetricKey, by = 1): void {
 export function snapshotNetMetrics(): NetMetricsSnapshot {
   return { ...counters };
 }
+
+declare global {
+  // eslint-disable-next-line no-unused-vars
+  interface Window {
+    /** Read-only access to the counters above, for on-device baseline measurement. */
+    __pingoNetMetrics?: () => NetMetricsSnapshot;
+  }
+}
+
+/*
+ * Read-only console hook for real-device baselines (S1-S5).
+ *
+ * `snapshotNetMetrics()` already returns a copy, so calling this from the
+ * console cannot mutate the counters, send network traffic, or touch PII,
+ * secrets, or message content. Guarded for non-DOM (test/node) imports.
+ */
+if (typeof window !== 'undefined') {
+  window.__pingoNetMetrics = snapshotNetMetrics;
+}
