@@ -275,6 +275,11 @@ console.log('✓ own sends skip decryption, publishes retry, keying revalidates'
  */
 const dbSource = await readFile(resolve(process.cwd(), 'apps/web/src/lib/local/db.ts'), 'utf8');
 assert.match(dbSource, /const db = await openAt\(\);/, 'the local database opens at the version on disk');
-assert.doesNotMatch(dbSource, /\bDB_VERSION\b/, 'no constant can ask for a version below the one on disk');
+// Code, not prose: the comment in openDatabase names the old constant on purpose.
+assert.doesNotMatch(
+  dbSource,
+  /const DB_VERSION|openAt\(DB_VERSION\)/,
+  'no constant can ask for a version below the one on disk',
+);
 assert.match(dbSource, /db\.onversionchange = /, 'an open tab lets another tab upgrade');
 console.log('✓ the local database opens at any version on disk, and steps aside for upgrades');
