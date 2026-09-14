@@ -316,8 +316,8 @@ export class SupabaseCallService implements CallService {
   #connecting: Promise<void> | undefined;
 
   async #open(): Promise<void> {
-    const { data } = await this.#client.auth.getUser();
-    const id = data.user?.id;
+    const { data } = await this.#client.auth.getSession();
+    const id = data.session?.user.id;
     if (!id) throw new Error('Not signed in.');
 
     // Re-checked after the await: a teardown may have run while it was pending.

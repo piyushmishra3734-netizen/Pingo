@@ -127,8 +127,10 @@ export async function backfillAccountWraps(
   const ours = await accountKey(client);
   if (!ours) return report;
 
-  const { data: session } = await client.auth.getUser();
-  const userId = session.user?.id;
+  const {
+    data: { session },
+  } = await client.auth.getSession();
+  const userId = session?.user.id;
   if (!userId) return report;
 
   const { data: pkg, error: pkgError } = await client

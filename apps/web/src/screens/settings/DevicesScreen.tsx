@@ -52,8 +52,10 @@ export function DevicesScreen() {
 
   const load = useCallback(async () => {
     const client = getSupabaseClient();
-    const { data: session } = await client.auth.getUser();
-    const userId = session.user?.id;
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    const userId = session?.user.id;
     if (!userId) {
       setRows([]);
       return;

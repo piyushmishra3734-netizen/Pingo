@@ -121,8 +121,8 @@ export class SupabaseProfileService implements ProfileService {
   }
 
   private async requireUserId(): Promise<string> {
-    const { data } = await this.client.auth.getUser();
-    const id = data.user?.id;
+    const { data } = await this.client.auth.getSession();
+    const id = data.session?.user.id;
     if (!id) throw new ProfileError('unknown', 'Not signed in.');
     return id;
   }
@@ -645,8 +645,10 @@ export class SupabaseProfileService implements ProfileService {
   }
 
   async publishJourney(summary: PublicJourneyDraft): Promise<void> {
-    const { data: session } = await this.client.auth.getUser();
-    const userId = session.user?.id;
+    const {
+      data: { session },
+    } = await this.client.auth.getSession();
+    const userId = session?.user.id;
     if (!userId) return;
 
     try {

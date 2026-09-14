@@ -73,7 +73,6 @@ import {
   type RowStoreIntegrity,
   sealRecord,
 } from '../crypto/session.js';
-import { backfillAccountWraps } from '../crypto/account-backfill.js';
 import { deviceIdentity } from '../crypto/keys.js';
 import { shouldTrustCache } from '../egress-rules.js';
 import { callRecordFrom } from '../../features/calls/call-log-rules.js';
@@ -1115,11 +1114,33 @@ export class SupabaseChatService implements ChatService {
       void sealRecord(id).then((sealed) => localSet(STORE.meta, 'user-id', sealed));
     }
 
+    if (this.#startedFor !== id) {
+      this.#startedFor = id;
+      this.#startSession(id);
+    }
+
+    return id;
+  }
+
+  /**
+   * Everything a signed-in session starts - once per account per page load.
+   *
+   * All of this used to ride along on every `#userId()` call, about 35 methods,
+   * on the assumption that each step was one-and-done. Three stopped being so
+   * the moment they failed: the key publish retried three times per call, key
+   * adoption re-read `recovery_packages` per call, and the account-wrap
+   * backfill re-ran a query that times out. Measured on one phone: 104 failed
+   * publishes and 132 nine-second timeouts in half an hour, and on a slow
+   * connection that queue is what every tap waited behind.
+   */
+  #startedFor: string | undefined;
+
+  #startSession(id: string): void {
     /*
      * Publishing rides along with the first thing that needs an identity,
-     * rather than being a step sign-in has to remember. It runs once per
-     * session and never blocks: a device that has not published yet can still
-     * read and send, it just cannot be encrypted *to* until it has.
+     * rather than being a step sign-in has to remember. It never blocks: a
+     * device that has not published yet can still read and send, it just
+     * cannot be encrypted *to* until it has.
      */
     void publishDeviceKey(this.#client, id);
 
@@ -1138,16 +1159,14 @@ export class SupabaseChatService implements ChatService {
     void adoptAccountKey(this.#client, id).then(() => this.#healNoted().catch(() => undefined));
 
     /*
-     * And the backfill that keeps old history readable on new devices.
-     *
-     * The Sept-9 repair screen does this by hand for two known accounts, but
-     * any key replacement strands the same way - silently, until a new device
-     * meets old messages. So every device donates one small bounded pass a
-     * day: messages it can open get a wrap for the current account key, which
-     * is exactly what a future device will need. Idempotent, resumable, and
-     * capped at two batches - the manual screen is untouched for big jobs.
+     * No automatic account-wrap backfill here any more. It ran on every call
+     * of this method, `account_wrap_candidates` scans every sealed message the
+     * reader can see and hit the statement timeout every time (9 s, 500), and
+     * a failed pass never stamped its day - so it retried on every call and
+     * held the database up for everybody. New messages are not sealed since
+     * the normal/private split; Settings > Restore history still runs it by
+     * hand.
      */
-    void this.#maybeBackfillAccountWraps(id);
 
     /*
      * And then keep that row's timestamp honest.
@@ -1173,8 +1192,6 @@ export class SupabaseChatService implements ChatService {
     // Plaintext left on disk by a build that predates sealing. Runs once, and
     // costs one refetch for any conversation it clears.
     void purgeUnsealedCache();
-
-    return id;
   }
 
   /**
@@ -4038,35 +4055,6 @@ export class SupabaseChatService implements ChatService {
     }
   }
 
-  /*
-   * One small donated pass a day, per account on this device.
-   *
-   * Runs after adopt (it needs the account key to rewrap to), never on the
-   * send or read path, and stamps the day only when a pass actually ran - a
-   * device with no key to claim retries tomorrow instead of going quiet.
-   * Wraps added here heal future devices; `#healNoted` then heals this one.
-   */
-  async #maybeBackfillAccountWraps(userId: string): Promise<void> {
-    const stampKey = `pingo:account-backfill-day:${userId}`;
-    const today = new Date().toISOString().slice(0, 10);
-    try {
-      if (localStorage.getItem(stampKey) === today) return;
-    } catch {
-      return;
-    }
-    try {
-      const report = await backfillAccountWraps(this.#client, { maxBatches: 2 });
-      if (report.batches === 0) return;
-      try {
-        localStorage.setItem(stampKey, today);
-      } catch {
-        // A stamp that cannot persist just means trying again next launch.
-      }
-      if (report.added > 0) await this.#healNoted().catch(() => undefined);
-    } catch {
-      // Tomorrow, or the manual screen. Never the send path.
-    }
-  }
 
   async sendMessage(draft: OutgoingMessage): Promise<Message> {
     /*

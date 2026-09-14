@@ -124,8 +124,8 @@ export class SupabaseStoryService implements StoryService {
   }
 
   async #userId(): Promise<string> {
-    const { data } = await this.#client.auth.getUser();
-    const id = data.user?.id;
+    const { data } = await this.#client.auth.getSession();
+    const id = data.session?.user.id;
     if (!id) throw new Error('Not signed in.');
     return id;
   }

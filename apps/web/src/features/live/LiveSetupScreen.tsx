@@ -34,8 +34,10 @@ export function LiveSetupScreen() {
     (async () => {
       try {
         const client = getSupabaseClient();
-        const { data: session } = await client.auth.getUser();
-        const me = session.user?.id;
+        const {
+          data: { session },
+        } = await client.auth.getSession();
+        const me = session?.user.id;
         if (!active || !me) return;
         const { data } = await client
           .from('follows')

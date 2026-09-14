@@ -241,21 +241,26 @@ assert.match(
 );
 
 /*
- * The backfill runs itself, bounded.
+ * The backfill does not run itself.
  *
- * The Sept-9 repair was a manual screen for two known accounts; the next key
- * replacement would strand the same way. So every device donates a capped
- * pass a day - idempotent, resumable - and heals itself afterwards.
+ * It did, and `account_wrap_candidates` timed out on every call (9 s, 500)
+ * while a failed pass never stamped its day - so it retried on every
+ * `#userId()` and held the database up. Settings > Restore history runs it by
+ * hand; new messages are not sealed since the normal/private split.
+ */
+assert.doesNotMatch(
+  service,
+  /backfillAccountWraps\(/,
+  'the chat service never runs the account-wrap backfill on its own',
+);
+
+/*
+ * Session start runs once per account per page, not on every `#userId()`.
  */
 assert.match(
   service,
-  /backfillAccountWraps\(this\.#client, \{ maxBatches: 2 \}\)/,
-  'the daily pass is capped at two batches, not open-ended',
-);
-assert.match(
-  service,
-  /pingo:account-backfill-day/,
-  'and gated to once a day per account, not once a launch',
+  /if \(this\.#startedFor !== id\) \{\s*this\.#startedFor = id;\s*this\.#startSession\(id\);/,
+  'publish, adopt and the rest start once per session',
 );
 
 console.log('✓ own sends skip decryption, publishes retry, keying revalidates');
