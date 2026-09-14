@@ -27,22 +27,6 @@
 const DB_NAME = 'pingo';
 
 /**
- * Bumped when a store is added, because `onupgradeneeded` fires on a version
- * *increase* and on nothing else.
- *
- * The `keys` store was added at version 1 without this being raised, so every
- * device that had ever opened PINGO already held a version-1 database without
- * it. The store was therefore never created, `deviceIdentity` could not
- * persist, and a fresh keypair was minted on every page load - one dead
- * `device_keys` row per visit, and a database key that was gone before the
- * cache it sealed could be read back.
- *
- * `openDatabase` no longer depends on anyone remembering to change this. It is
- * still correct to change it, and it saves the reopen.
- */
-const DB_VERSION = 5;
-
-/**
  * The stores, and what each is for.
  *
  * Keyed by their natural id rather than an autoincrement, so writing the same
@@ -226,7 +210,20 @@ function openAt(version?: number): Promise<IDBDatabase | undefined> {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      /*
+       * Another tab needs a newer version - a store was added. Holding on
+       * blocks it, and a blocked open is a tab with no local layer at all. So
+       * this one lets go and forgets the handle; its next read reopens at the
+       * new version.
+       */
+      db.onversionchange = () => {
+        db.close();
+        open = undefined;
+      };
+      resolve(db);
+    };
     request.onerror = () => resolve(undefined);
     /*
      * Blocked means another tab holds an older version open. Resolving rather
@@ -252,7 +249,23 @@ function openAt(version?: number): Promise<IDBDatabase | undefined> {
  */
 function openDatabase(): Promise<IDBDatabase | undefined> {
   open ??= (async () => {
-    const db = await openAt(DB_VERSION);
+    /*
+     * At whatever version is on disk - no version asked for at all.
+     *
+     * This used to open at a constant, `DB_VERSION = 5`, while the reopen below
+     * takes the database one past whatever it finds. The first time a store
+     * was added without raising the constant (`sent-text`, 13 September) that
+     * reopen put every device at 6, and from the next load on each asked for 5
+     * of a database at 6 - a VersionError, not an upgrade. The open failed,
+     * `withStore` answered undefined for everything, and the local layer went
+     * dark: no cached pages and no startup snapshot, so every chat and every
+     * launch waited on the network; and no stored keys, so a new device
+     * identity was minted on every call and announced to the account.
+     *
+     * No version cannot be lower than what exists. A brand-new database is
+     * created at 1 and gets its stores from `onupgradeneeded` like any upgrade.
+     */
+    const db = await openAt();
     if (!db) return undefined;
 
     const missing = Object.values(STORE).filter((name) => !db.objectStoreNames.contains(name));

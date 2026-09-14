@@ -264,3 +264,17 @@ assert.match(
 );
 
 console.log('✓ own sends skip decryption, publishes retry, keying revalidates');
+
+/*
+ * The local database opens at whatever version is on disk.
+ *
+ * It opened at a constant (5) while its own upgrade path took devices to 6,
+ * and from then on every open was a VersionError: no cache, no stored keys,
+ * and a new device identity minted on every call. Asking for no version
+ * cannot be lower than what exists.
+ */
+const dbSource = await readFile(resolve(process.cwd(), 'apps/web/src/lib/local/db.ts'), 'utf8');
+assert.match(dbSource, /const db = await openAt\(\);/, 'the local database opens at the version on disk');
+assert.doesNotMatch(dbSource, /\bDB_VERSION\b/, 'no constant can ask for a version below the one on disk');
+assert.match(dbSource, /db\.onversionchange = /, 'an open tab lets another tab upgrade');
+console.log('✓ the local database opens at any version on disk, and steps aside for upgrades');

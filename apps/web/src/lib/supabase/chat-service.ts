@@ -3236,17 +3236,22 @@ export class SupabaseChatService implements ChatService {
 
     const me = await this.#userId();
 
+    /*
+     * Started together, awaited where they are used.
+     *
+     * The roster, the hidden list and the page are independent reads, and they
+     * ran one after another - then reactions, then decryption, each a full
+     * round trip. Measured on a thread with no local copy: first paint at 3.6 s
+     * and 9.9 s. `.then` is what sends a query builder; without it nothing
+     * leaves until the await.
+     */
     // The other side's read cursor is what lets an outgoing message show as
     // read rather than merely sent.
-    const { data: roster } = await this.#client
+    const rosterRead = this.#client
       .from('conversation_members')
       .select('user_id,last_read_at')
-      .eq('conversation_id', conversationId);
-
-    const theirReadAt = (roster ?? [])
-      .filter((m) => m.user_id !== me)
-      .map((m) => Date.parse(m.last_read_at))
-      .sort((a, b) => b - a)[0];
+      .eq('conversation_id', conversationId)
+      .then((result) => result);
 
     /*
      * What I deleted for myself.
@@ -3256,11 +3261,13 @@ export class SupabaseChatService implements ChatService {
      * join the client does, and the cache keeps a live removal from reappearing
      * when the thread is reopened.
      */
-    const { data: hiddenRows } = await this.#client
+    const hiddenRead = this.#client
       .from('hidden_messages')
       .select('message_id')
-      .eq('user_id', me);
-    for (const row of hiddenRows ?? []) this.#hidden.add(row.message_id);
+      .eq('user_id', me)
+      .then((result) => {
+        for (const row of result.data ?? []) this.#hidden.add(row.message_id);
+      });
 
     const limit = options?.limit ?? 50;
 
@@ -3298,6 +3305,8 @@ export class SupabaseChatService implements ChatService {
       // A short read from the database itself is the real end of the thread.
       if (batch.length === 0) break;
 
+      // The hidden list has to be in before anything is filtered by it.
+      await hiddenRead;
       collected.push(...batch.filter((row) => !this.#hidden.has(row.id)));
       cursor = batch[batch.length - 1]!.created_at;
       if (batch.length < limit) break;
@@ -3312,8 +3321,24 @@ export class SupabaseChatService implements ChatService {
      * from the model and never asks the server what the current state is - the
      * shape already carries all three things it needs: grouped by emoji, count
      * from `userIds.length`, and "mine" from whether my id is in there.
+     *
+     * Beside decryption rather than before it: neither reads the other, and a
+     * sealed row can need its own fetch for an account wrap.
      */
-    const reactions = await this.#reactionsFor(rows.map((row) => row.id));
+    // Decrypted as a batch before anything reads a body. Concurrent, because
+    // each row carries its own wrapped key and none depends on another.
+    // Whether every row opened decides whether this page may be cached. See
+    // openRows: caching a page that failed to decrypt makes the placeholder
+    // permanent.
+    const [reactions, fullyDecrypted, rosterResult] = await Promise.all([
+      this.#reactionsFor(rows.map((row) => row.id)),
+      openRows(rows),
+      rosterRead,
+    ]);
+    const theirReadAt = (rosterResult.data ?? [])
+      .filter((m) => m.user_id !== me)
+      .map((m) => Date.parse(m.last_read_at))
+      .sort((a, b) => b - a)[0];
     // The cache is filled here and mutated from then on. docs/13 § 8.1.
     for (const row of rows) {
       this.#reactions.set(row.id, reactions.get(row.id) ?? []);
@@ -3338,12 +3363,7 @@ export class SupabaseChatService implements ChatService {
       if (pending && me) this.#applyLocal(row.id, me, pending.emoji);
     }
 
-    // Decrypted as a batch before anything reads a body. Concurrent, because
-    // each row carries its own wrapped key and none depends on another.
-    // Whether every row opened decides whether this page may be cached. See
-    // openRows: caching a page that failed to decrypt makes the placeholder
-    // permanent.
-    this.#pageFullyDecrypted = await openRows(rows);
+    this.#pageFullyDecrypted = fullyDecrypted;
     // The high-water mark this page establishes, for the delta on the next open.
     this.#pageNewestUpdatedAt = newestUpdatedAt(rows, EPOCH);
 
