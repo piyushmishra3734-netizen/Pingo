@@ -141,7 +141,12 @@ export async function verifyRecovery(identity: RecoveryIdentity, code: string): 
 /** The password this account signs in with from now on. */
 export async function setNewPassword(password: string): Promise<void> {
   const { error } = await getSupabaseClient().auth.updateUser({ password });
-  if (error) throw fromSupabase(error, false);
+  /*
+   * `same_password` is the goal already met: this is the account's password.
+   * Read as a failure, it said "Something went wrong" and held somebody on the
+   * reset screen, retrying, after the code had already signed them in.
+   */
+  if (error && error.code !== 'same_password') throw fromSupabase(error, false);
 }
 
 /**

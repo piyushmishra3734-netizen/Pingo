@@ -500,7 +500,8 @@ class SupabasePhoneOtpAuth implements PhoneOtpAuth {
 
   async setPassword(password: string): Promise<void> {
     const { error } = await this.client.auth.updateUser({ password });
-    if (error) rethrow(error);
+    // Already this account's password: nothing to change, nothing wrong.
+    if (error && error.code !== 'same_password') rethrow(error);
   }
 }
 
