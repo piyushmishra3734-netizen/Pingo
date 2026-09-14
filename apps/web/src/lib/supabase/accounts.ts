@@ -40,6 +40,12 @@ export interface SavedAccount {
   name: string;
   handle: string;
   avatarUrl?: string;
+  /**
+   * Set once the account's PINGO profile has named it. A token refresh only
+   * knows the sign-in metadata - often just an email - so from then on it
+   * leaves the name, handle and photo alone.
+   */
+  named?: boolean;
   /** What `setSession` needs. */
   accessToken: string;
   refreshToken: string;
@@ -79,12 +85,35 @@ export function savedAccounts(): SavedAccount[] {
  * offering it.
  */
 export function remember(account: Omit<SavedAccount, 'savedAt'>): void {
-  const others = read().filter((a) => a.userId !== account.userId);
+  const all = read();
+  const previous = all.find((a) => a.userId === account.userId);
+  const others = all.filter((a) => a.userId !== account.userId);
+
+  const entry: SavedAccount = { ...account, savedAt: Date.now() };
+  if (previous?.named) {
+    entry.name = previous.name;
+    entry.handle = previous.handle;
+    entry.named = true;
+    if (previous.avatarUrl) entry.avatarUrl = previous.avatarUrl;
+  }
 
   // The current account is never the one dropped when the list is full: it is
   // by definition the one in use.
-  const next = [{ ...account, savedAt: Date.now() }, ...others].slice(0, MAX_ACCOUNTS);
-  write(next);
+  write([entry, ...others].slice(0, MAX_ACCOUNTS));
+}
+
+/** Names a saved account after its PINGO profile, for the switcher. */
+export function setSavedProfile(
+  userId: string,
+  shown: { name: string; handle: string; avatarUrl?: string },
+): void {
+  const all = read();
+  const entry = all.find((a) => a.userId === userId);
+  if (!entry) return;
+  const next: SavedAccount = { ...entry, name: shown.name, handle: shown.handle, named: true };
+  if (shown.avatarUrl) next.avatarUrl = shown.avatarUrl;
+  else delete next.avatarUrl;
+  write(all.map((a) => (a === entry ? next : a)));
 }
 
 export function forget(userId: string): void {

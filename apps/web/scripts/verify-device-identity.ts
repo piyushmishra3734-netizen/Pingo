@@ -318,3 +318,31 @@ assert.match(journeySource, /^const lastPublishedFor = new Map/m, 'the same jour
 const listSource = await readSource('apps/web/src/features/conversations/ConversationList.tsx');
 assert.match(listSource, /^const ensuredAi = new WeakSet/m, 'PINGO AI is ensured once per service, not per mount');
 console.log('✓ flags are optimistic, first paint skips reactions, returns skip the skeleton and repeat work');
+
+/*
+ * Switching accounts: the switcher names people by their profile, and a token
+ * refresh (which only knows the sign-in email) does not undo that.
+ */
+const stored = new Map<string, string>();
+(globalThis as { localStorage?: unknown }).localStorage = {
+  getItem: (key: string) => stored.get(key) ?? null,
+  setItem: (key: string, value: string) => void stored.set(key, value),
+  removeItem: (key: string) => void stored.delete(key),
+};
+const saved = await import('../src/lib/supabase/accounts.js');
+const tokens = { accessToken: 'a1', refreshToken: 'r1' };
+saved.remember({ userId: 'u1', name: 'me@example.com', handle: 'me@example.com', ...tokens });
+saved.setSavedProfile('u1', { name: 'Piyush', handle: '@piyush' });
+saved.remember({ userId: 'u1', name: 'me@example.com', handle: 'me@example.com', accessToken: 'a2', refreshToken: 'r2' });
+const [one] = saved.savedAccounts();
+assert.equal(one?.name, 'Piyush', 'a refresh keeps the profile name');
+assert.equal(one?.handle, '@piyush', 'a refresh keeps the @username');
+assert.equal(one?.refreshToken, 'r2', 'a refresh still stores the new token');
+saved.setSavedProfile('nobody', { name: 'X', handle: '@x' });
+assert.equal(saved.savedAccounts().length, 1, 'naming an unsaved account adds nothing');
+
+// A session that changed hands under the shell reloads rather than showing the last account's chats.
+const shellSource = await readSource('apps/web/src/app/AppShell.tsx');
+assert.match(shellSource, /currentUser\.id !== signedInAs/, 'the shell notices another account signed in');
+assert.match(shellSource, /if \(staleAccount\) window\.location\.assign\('\/chats'\)/, 'and reloads into it');
+console.log('✓ switched accounts reload into their own chats, and show their PINGO name');

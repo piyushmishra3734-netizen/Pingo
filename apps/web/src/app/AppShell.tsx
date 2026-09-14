@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useChat } from '@pingo/core';
+import { useAuth, useChat, useProfile } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
 import { AppLoader } from '../features/loading/AppLoader.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { startLensing } from '../features/glass/lens.js';
 import { startPressLight } from '../features/glass/press-light.js';
 import { redeemHeldReferral } from '../features/referrals/referrals-service.js';
 import { doneAddingAccount } from '../features/auth/adding-account.js';
+import { setSavedProfile } from '../lib/supabase/accounts.js';
 import { useLiveOnResume } from '../features/notifications/useLiveOnResume.js';
 import { usePushTapRouting } from '../features/notifications/usePushTapRouting.js';
 
@@ -75,7 +76,36 @@ export function AppShell() {
   usePushTapRouting();
   useLiveOnResume();
 
-  const { ready } = useChat();
+  const { ready, currentUser } = useChat();
+  const { session } = useAuth();
+  const { profile } = useProfile();
+
+  /*
+   * The chats on screen belong to somebody who is no longer signed in.
+   *
+   * Settings → Switch account → Add account signs in without a reload, and the
+   * chat state lives above the router, so the new account arrived at the old
+   * account's list and stayed there until a manual refresh. `switchTo` already
+   * reloads for this reason; this catches every other way the session can
+   * change hands - adding an account, or another tab switching. A reload is
+   * the same answer: it cannot leave one module holding the previous person.
+   */
+  const signedInAs = session?.user.id;
+  const staleAccount = Boolean(ready && currentUser && signedInAs && currentUser.id !== signedInAs);
+  useEffect(() => {
+    if (staleAccount) window.location.assign('/chats');
+  }, [staleAccount]);
+
+  // The switcher shows accounts by their PINGO name and @username, not by the
+  // sign-in email the session carries.
+  useEffect(() => {
+    if (!profile) return;
+    setSavedProfile(profile.id, {
+      name: profile.displayName,
+      handle: `@${profile.username}`,
+      ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+    });
+  }, [profile]);
   const location = useLocation();
   const isDesktop = useIsDesktop();
 
@@ -132,7 +162,7 @@ export function AppShell() {
    */
   const back = useNavigationType() === 'POP';
 
-  if (!ready) {
+  if (!ready || staleAccount) {
     return (
       <div className="grid h-full place-items-center bg-page">
         {/*
