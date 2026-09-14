@@ -46,6 +46,23 @@ interface UseMessagesResult {
  */
 const PAGE_SIZE = 50;
 
+/**
+ * Folds a fetched page into what the thread already holds, by id.
+ *
+ * The fetch is a snapshot from before it ran; live arrivals are newer than
+ * the query, not missing from it. Replacing state with the snapshot drops
+ * exactly those messages - a bubble that arrived a moment ago vanishes the
+ * instant the fetch resolves, and anything paged in above the window goes
+ * with it. Union keeps both: the server wins on rows it returned (edits,
+ * ticks), and anything it did not return (older pages, live arrivals,
+ * unsent optimistic sends) stays.
+ */
+function mergeHistory(previous: Message[], history: Message[]): Message[] {
+  const byId = new Map(previous.map((m) => [m.id, m]));
+  for (const message of history) byId.set(message.id, message);
+  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
+}
+
 export function useMessages(conversationId: ConversationId | undefined): UseMessagesResult {
   const { service } = useChat();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -114,7 +131,9 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
         // Guard against a slow response for a thread the user already left.
         if (!active) return;
         settled = true;
-        setMessages(history);
+        // Merged, not replaced: live arrivals landing between mount and this
+        // answer are newer than the query, not absent from the server.
+        setMessages((previous) => mergeHistory(previous, history));
         setHasOlder(history.length >= PAGE_SIZE);
       })
       .finally(() => {
@@ -237,14 +256,12 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
         void service
           .listMessages(conversationId, { limit: PAGE_SIZE })
           .then((history) => {
-            setMessages((previous) => {
-              // Anything optimistic and still unsent is ours and is not in the
-              // server's answer; dropping it would make a queued message
-              // vanish while it was waiting to go out.
-              const known = new Set(history.map((m) => m.id));
-              const pending = previous.filter((m) => !known.has(m.id) && m.status === 'sending');
-              return [...history, ...pending];
-            });
+            // Merged, not replaced: anything that arrived live while this
+            // fetch was in flight is newer than the query, and scrolled-up
+            // pages above the window are not the fetch's to drop. The old
+            // shape kept only `sending` optimistic rows, so a reconnect wiped
+            // the backlog and any just-arrived bubble the fetch had missed.
+            setMessages((previous) => mergeHistory(previous, history));
             setHasOlder(history.length >= PAGE_SIZE);
           })
           .catch(() => undefined);

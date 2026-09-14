@@ -101,7 +101,11 @@ async function switchAccount(previous: string, next: string): Promise<void> {
   // otherwise leave the slots empty so a fresh identity is generated.
   // Your remembered sends restart too: the memory copy belongs to whoever
   // was just parked, and the disk copy went with the loop above.
+  // Keying answers are per-conversation device lists under RLS, so they
+  // belong to the outgoing account as well - never reused across it.
   forgetOwnTexts();
+  keyingCache.clear();
+  keyingReads.clear();
   let restoredId: string | undefined;
   for (const slot of LIVE_KEYS) {
     const parked = await localGet<unknown>(STORE.keys, `${slot}@${next}`);
@@ -241,6 +245,54 @@ export function keyHealth(): {
   return { publish: publishState, publishedDeviceId: publishedFor, accountAdopted: account !== undefined };
 }
 
+export interface KeyHealthReport {
+  /** Publish state of this tab: idle (never tried/failed-and-retryable), pending, done. */
+  publish: 'idle' | 'pending' | 'done';
+  /** First 8 chars of the published device id, if any. Truncated: enough to compare across reloads. */
+  publishedDevice8: string | undefined;
+  /** First 8 chars of the identity mirror in localStorage, if any. */
+  mirror8: string | undefined;
+  /** Whether the account key has been adopted this tab (history fallback available). */
+  accountAdopted: boolean;
+}
+
+declare global {
+  // eslint-disable-next-line no-unused-vars
+  interface Window {
+    /** Read-only identity diagnostics for the console. No key material, no content. */
+    __pingoKeyHealth?: () => KeyHealthReport;
+  }
+}
+
+function readKeyHealth(): KeyHealthReport {
+  let mirror8: string | undefined;
+  try {
+    mirror8 = localStorage.getItem(IDENTITY_MIRROR)?.slice(0, 8);
+  } catch {
+    mirror8 = undefined;
+  }
+  const health = keyHealth();
+  return {
+    publish: health.publish,
+    publishedDevice8: health.publishedDeviceId?.slice(0, 8),
+    mirror8,
+    accountAdopted: health.accountAdopted,
+  };
+}
+
+/*
+ * Read-only console hook for the post-migration unreadable-message reports.
+ *
+ * Compare `mirror8` across two reloads on an affected browser: stable means
+ * one identity (and the cause is elsewhere), changing means the device mints
+ * a fresh identity every load and nothing sealed earlier can ever open.
+ * Deliberately never touches `deviceIdentity()` - resolving it here could
+ * mint, and a diagnostic must not move the thing it measures.
+ */
+if (typeof window !== 'undefined') {
+  window.__pingoKeyHealth = readKeyHealth;
+}
+
 /** Backoff between publish attempts. A launch hiccup, not a verdict. */
 const PUBLISH_RETRY_MS = [0, 800, 2000];
 
@@ -329,7 +381,18 @@ async function publishOnce(client: PingoSupabaseClient, userId: string): Promise
      * Omitted rather than backdated: on conflict only the columns sent are
      * written, so an existing row keeps whatever it last said honestly.
      */
-    await client.from('device_keys').upsert(
+    /*
+     * A failed publish must look failed, never published.
+     *
+     * This used to ignore the upsert's error and return the device id anyway:
+     * one blip, one RLS refusal, one missing column on the server, and the tab
+     * believed itself published (`done`) while the server held no row. Nobody
+     * could then wrap to this device - sends throw "key not available" and
+     * incoming mail arrives with no wrap for it - for the whole tab, with the
+     * diagnostics agreeing everything was fine. Throwing routes through the
+     * retry loop above and leaves `idle`, so the next send tries again.
+     */
+    const { error } = await client.from('device_keys').upsert(
       {
         device_id: identity.deviceId,
         user_id: userId,
@@ -357,11 +420,14 @@ async function publishOnce(client: PingoSupabaseClient, userId: string): Promise
        * identity is minted. Confirmed against the database - 74 rows, 74
        * distinct ids, none claimed twice.
        *
-       * If that ever stops being true this fails silently, and a device that
-       * cannot publish its public key is a device nobody can encrypt to.
+       * If that ever stops being true the upsert below throws, the retry loop
+       * retries, and the tab keeps reporting `idle` instead of pretending the
+       * key is published. A device that cannot publish is a device nobody can
+       * encrypt to, so lying about it is the worst option.
        */
       { onConflict: 'device_id' },
     );
+    if (error) throw error;
     return identity.deviceId;
 }
 
@@ -411,8 +477,12 @@ export function adoptAccountKey(client: PingoSupabaseClient, userId: string): Pr
 /** Dropped on sign-out, so the next account publishes its own device. */
 export function forgetPublication(): void {
   published = undefined;
+  publishedFor = undefined;
+  publishState = 'idle';
   account = undefined;
   sideWraps.clear();
+  keyingCache.clear();
+  keyingReads.clear();
   forgetAccountKey();
 }
 

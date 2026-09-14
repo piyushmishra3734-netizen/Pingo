@@ -1242,50 +1242,57 @@ export class SupabaseChatService implements ChatService {
            * hook de-duplicates by id, so whichever lands first wins. When the
            * socket won, the sender's own photo rendered as an unopened cover.
            */
-          // Decrypted before it is signed, because signing reads the row and
-          // the announcement reads the body.
-          void openRow(row)
-            .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
-            .then(([message]) => {
-              if (message) {
-                void this.#appendToCachedPage(message);
-                /*
-                 * And as a row, so history stays complete without a fetch to
-                 * rebuild it.
-                 *
-                 * Deliberately without extending the contiguous run - see
-                 * `#extendRowRun`. A socket message is adjacent to the newest
-                 * end only if the socket never dropped, and a dropped socket is
-                 * exactly how a hole gets into the store. Writing the row is
-                 * free; claiming it joins the run is not.
-                 */
-                void writeMessageRows(row.conversation_id, [message]);
-                this.#emit({ type: 'message:new', message });
-              }
-            });
-
           /*
-           * The list needs the new preview and a bumped position - and that is
-           * all it needs, so it is patched rather than rebuilt.
+           * Decrypted once, then shared by both consumers below.
            *
-           * This used to refetch, on every device, for every message. See
-           * `#bumpConversation` for what that cost. The refetch is still here
-           * for the only case that needs it: a conversation this device has
-           * never loaded, where there is nothing to patch.
+           * `openRow` decrypts in place: it overwrites `row.body` with the
+           * plaintext (or the placeholder). Two concurrent `openRow(row)`
+           * calls on the same object therefore race - the second decrypts
+           * the first one's output as if it were ciphertext, fails, and
+           * stamps the placeholder over a message that had just opened
+           * fine. Which consumer finishes last wins, so incoming messages
+           * flickered between text and "Sent before you added this device"
+           * depending on timing. One decrypt, one signing pass, then fan
+           * out to the thread and the list.
            */
-          void openRow(row)
-            .then(() => this.#signPhotos([row], [toMessage(row, undefined)]))
-            .then(async ([message]) => {
-              if (!message) return;
-              const mine = message.authorId === (await this.#userId().catch(() => undefined));
-              const patched = this.#bumpConversation(row.conversation_id, message, mine);
-              if (patched) {
-                this.#emit({ type: 'conversation:updated', conversation: patched });
-                return;
-              }
-              const rebuilt = await this.getConversation(row.conversation_id);
-              if (rebuilt) this.#emit({ type: 'conversation:updated', conversation: rebuilt });
-            });
+          void (async () => {
+            await openRow(row).catch(() => undefined);
+            const [message] = await this.#signPhotos([row], [toMessage(row, undefined)]).catch(
+              () => [],
+            );
+            if (!message) return;
+            void this.#appendToCachedPage(message);
+            /*
+             * And as a row, so history stays complete without a fetch to
+             * rebuild it.
+             *
+             * Deliberately without extending the contiguous run - see
+             * `#extendRowRun`. A socket message is adjacent to the newest
+             * end only if the socket never dropped, and a dropped socket is
+             * exactly how a hole gets into the store. Writing the row is
+             * free; claiming it joins the run is not.
+             */
+            void writeMessageRows(row.conversation_id, [message]);
+            this.#emit({ type: 'message:new', message });
+
+            /*
+             * The list needs the new preview and a bumped position - and that is
+             * all it needs, so it is patched rather than rebuilt.
+             *
+             * This used to refetch, on every device, for every message. See
+             * `#bumpConversation` for what that cost. The refetch is still here
+             * for the only case that needs it: a conversation this device has
+             * never loaded, where there is nothing to patch.
+             */
+            const mine = message.authorId === (await this.#userId().catch(() => undefined));
+            const patched = this.#bumpConversation(row.conversation_id, message, mine);
+            if (patched) {
+              this.#emit({ type: 'conversation:updated', conversation: patched });
+              return;
+            }
+            const rebuilt = await this.getConversation(row.conversation_id);
+            if (rebuilt) this.#emit({ type: 'conversation:updated', conversation: rebuilt });
+          })();
         },
       )
       /*
