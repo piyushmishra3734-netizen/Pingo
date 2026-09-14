@@ -27,9 +27,6 @@
 /** Long edge of a video poster. Big enough to look like the clip, small enough to be kilobytes. */
 const POSTER_LONG_EDGE = 480;
 
-/** Long edge of a still-image delivery variant. Matches the 480p send ceiling. */
-const THUMB_LONG_EDGE = 480;
-
 /** Quality for variant encodes. Below the send path's 0.72: a preview earns less. */
 const VARIANT_QUALITY = 0.66;
 
@@ -162,47 +159,6 @@ async function frameBlob(video: HTMLVideoElement): Promise<Blob | undefined> {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     return (await encodeCanvas(canvas, 'image/webp')) ?? (await encodeCanvas(canvas, 'image/jpeg'));
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * A small still-image variant of a picture, or `undefined`.
- *
- * The same ceiling as the send path: anything already at or under 480p gains
- * nothing from a second copy, so there is none. Animated types pass through
- * untouched for the reason `media-quality.ts` gives - flattening a sticker to
- * its first frame is a bug wearing a saving as a disguise.
- */
-export async function makeStillThumbnail(image: Blob): Promise<Blob | undefined> {
-  try {
-    if (!image.type.startsWith('image/')) return undefined;
-    if (image.type === 'image/gif' || image.type === 'image/apng') return undefined;
-    if (typeof createImageBitmap === 'undefined') return undefined;
-
-    const bitmap = await createImageBitmap(image);
-    const scale = Math.min(1, THUMB_LONG_EDGE / Math.max(bitmap.width, bitmap.height));
-    // Already small: a second copy would be bytes for nothing.
-    if (scale >= 1) {
-      bitmap.close();
-      return undefined;
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      bitmap.close();
-      return undefined;
-    }
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-
-    return (
-      (await encodeCanvas(canvas, 'image/webp')) ?? (await encodeCanvas(canvas, 'image/jpeg'))
-    );
   } catch {
     return undefined;
   }

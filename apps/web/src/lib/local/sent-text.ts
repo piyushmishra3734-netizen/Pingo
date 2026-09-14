@@ -14,6 +14,11 @@
  * so it is primed once per tab into a Map and read synchronously after that.
  * A hit means this device wrote it, which is the entire authorship check -
  * nothing else ever writes here.
+ *
+ * On disk every entry is sealed under the database key like the rest of the
+ * cache - this is your messages' text, and the disk is not meant to be
+ * readable. The first build of this store wrote plaintext; priming deletes
+ * anything that does not open.
  */
 
 import { STORE, localDelete, localEntries, localSet } from './db.js';
@@ -29,16 +34,36 @@ interface Entry {
 const memory = new Map<string, Entry>();
 let primed: Promise<void> | undefined;
 
+/*
+ * Imported lazily: `session.ts` reads this module, and a static import back
+ * would make the two a cycle.
+ */
+async function seal(entry: Entry): Promise<unknown> {
+  const { sealRecord } = await import('../crypto/session.js');
+  return sealRecord(entry);
+}
+
+async function open(stored: unknown): Promise<Entry | undefined> {
+  const { openRecord } = await import('../crypto/session.js');
+  return openRecord<Entry>(stored);
+}
+
 async function prime(): Promise<void> {
   if (!primed) {
     primed = (async () => {
       try {
-        const pairs = await localEntries<Entry>(STORE.sentText).catch(() => []);
-        // Newest wins the cap: entries carry their own clock.
-        const ordered = [...pairs].sort((a, b) => a[1].at - b[1].at);
-        for (const [id, entry] of ordered.slice(-MAX_ENTRIES)) {
-          if (entry && typeof entry.body === 'string') memory.set(id, entry);
+        const pairs = await localEntries<unknown>(STORE.sentText).catch(() => []);
+        const opened: Array<[string, Entry]> = [];
+        for (const [id, stored] of pairs) {
+          const entry = await open(stored).catch(() => undefined);
+          if (entry && typeof entry.body === 'string') opened.push([id, entry]);
+          // Plaintext from the first build, or sealed under a key this device
+          // no longer has: either way it is not kept.
+          else void localDelete(STORE.sentText, id).catch(() => undefined);
         }
+        // Newest wins the cap: entries carry their own clock.
+        opened.sort((a, b) => a[1].at - b[1].at);
+        for (const [id, entry] of opened.slice(-MAX_ENTRIES)) memory.set(id, entry);
       } catch {
         // An unreadable store degrades to decrypt-as-usual, never to a throw.
       }
@@ -58,7 +83,9 @@ export async function rememberOwnText(id: string, body: string): Promise<void> {
       void localDelete(STORE.sentText, oldest.value).catch(() => undefined);
     }
   }
-  void localSet(STORE.sentText, id, entry).catch(() => undefined);
+  void seal(entry)
+    .then((sealed) => localSet(STORE.sentText, id, sealed))
+    .catch(() => undefined);
 }
 
 /** The plaintext you sent under this id, or undefined. Never throws. */

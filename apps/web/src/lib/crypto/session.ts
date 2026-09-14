@@ -215,10 +215,13 @@ export function publishDeviceKey(client: PingoSupabaseClient, userId: string): P
      * An identity minted after the publish needs its own row. Checked lazily
      * so the common path stays one memo lookup; the reset takes effect on the
      * next call, which is at most one send away.
+     *
+     * Only once a publish has finished: while one is in flight `publishedFor`
+     * is still unset, and resetting then started a second publish beside it.
      */
     void deviceIdentity()
       .then(({ deviceId }) => {
-        if (deviceId !== publishedFor) published = undefined;
+        if (publishState === 'done' && deviceId !== publishedFor) published = undefined;
       })
       .catch(() => undefined);
   }
@@ -638,7 +641,9 @@ export async function conversationKeying(
           client.from('device_keys').select('device_id').in('user_id', [...cached.members]),
         ]);
         if (!members.error && !devices.error) {
-          const memberIds = new Set((members.data ?? []).map((m) => m.user_id));
+          // Filtered like the full read (AI holds no keys), or a thread with
+          // the AI in it never matched and never reused anything.
+          const memberIds = new Set(keyingMemberIds((members.data ?? []).map((m) => m.user_id)));
           const deviceIds = new Set((devices.data ?? []).map((d) => d.device_id));
           if (setsEqual(memberIds, cached.members) && setsEqual(deviceIds, cached.deviceIds)) {
             cached.fetchedAt = Date.now();

@@ -102,11 +102,35 @@ export class SupabaseLiveService {
     };
   }
 
+  /**
+   * Names and faces by id, kept for the session. A live re-reads the same few
+   * people on every comment, and each read used to be a profiles query.
+   */
+  #profileCache = new Map<string, ProfileRow>();
+
   async #profiles(ids: string[]): Promise<Map<string, ProfileRow>> {
-    if (ids.length === 0) return new Map();
-    const { data, error } = await this.#client.from('profiles').select('*').in('id', ids);
-    if (error) throw error;
-    return new Map((data ?? []).map((profile) => [profile.id, profile]));
+    const missing = ids.filter((id) => !this.#profileCache.has(id));
+    if (missing.length > 0) {
+      const { data, error } = await this.#client.from('profiles').select('*').in('id', missing);
+      if (error) throw error;
+      for (const profile of data ?? []) this.#profileCache.set(profile.id, profile);
+    }
+    const found = new Map<string, ProfileRow>();
+    for (const id of ids) {
+      const profile = this.#profileCache.get(id);
+      if (profile) found.set(id, profile);
+    }
+    return found;
+  }
+
+  /**
+   * A comment row from realtime, named from the author's profile. Comments
+   * reach other screens this way rather than over broadcast, where the name on
+   * a message is whatever the sender claims.
+   */
+  async commentFromRow(row: LiveCommentRow): Promise<LiveComment> {
+    const profiles = await this.#profiles([row.user_id]);
+    return this.#toComment(row, profiles.get(row.user_id));
   }
 
   /** Every currently-live stream the signed-in user may watch, newest first. */

@@ -57,8 +57,19 @@ const PAGE_SIZE = 50;
  * ticks), and anything it did not return (older pages, live arrivals,
  * unsent optimistic sends) stays.
  */
-function mergeHistory(previous: Message[], history: Message[]): Message[] {
-  const byId = new Map(previous.map((m) => [m.id, m]));
+function mergeHistory(
+  previous: Message[],
+  history: Message[],
+  conversationId: ConversationId | undefined,
+): Message[] {
+  /*
+   * Only this thread's. The hook outlives a switch between chats, so until the
+   * new thread's cache or history lands `previous` is still the last chat -
+   * and merging into it put those messages in this one.
+   */
+  const byId = new Map(
+    previous.filter((m) => m.conversationId === conversationId).map((m) => [m.id, m]),
+  );
   for (const message of history) byId.set(message.id, message);
   return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
 }
@@ -133,7 +144,7 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
         settled = true;
         // Merged, not replaced: live arrivals landing between mount and this
         // answer are newer than the query, not absent from the server.
-        setMessages((previous) => mergeHistory(previous, history));
+        setMessages((previous) => mergeHistory(previous, history, conversationId));
         setHasOlder(history.length >= PAGE_SIZE);
       })
       .finally(() => {
@@ -261,7 +272,7 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
             // pages above the window are not the fetch's to drop. The old
             // shape kept only `sending` optimistic rows, so a reconnect wiped
             // the backlog and any just-arrived bubble the fetch had missed.
-            setMessages((previous) => mergeHistory(previous, history));
+            setMessages((previous) => mergeHistory(previous, history, conversationId));
             setHasOlder(history.length >= PAGE_SIZE);
           })
           .catch(() => undefined);

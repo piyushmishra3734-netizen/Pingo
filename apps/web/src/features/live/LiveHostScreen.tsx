@@ -180,17 +180,32 @@ export function LiveHostScreen() {
   }, []);
 
   // ---- counters ------------------------------------------------------------
+  /*
+   * What the row last heard, and the highest room so far. Every write here
+   * reaches every screen watching over realtime, so an unchanged tick writes
+   * nothing, and the peak is read-and-written only when the room grows.
+   */
+  const flushedRef = useRef('');
+  const peakRef = useRef(0);
   useEffect(() => {
     if (!live || live.status !== 'live') return;
     for (const viewer of watchers) joinsRef.current.add(viewer.userId);
     const count = watchers.length;
     const flush = () => {
-      void service.updateCounters(live.id, {
+      const counters = {
         viewerCount: count,
         likesCount: likesRef.current,
         totalJoins: joinsRef.current.size,
-      });
-      void service.notePeak(live.id, count);
+      };
+      const stamp = `${counters.viewerCount}:${counters.likesCount}:${counters.totalJoins}`;
+      if (stamp !== flushedRef.current) {
+        flushedRef.current = stamp;
+        void service.updateCounters(live.id, counters);
+      }
+      if (count > peakRef.current) {
+        peakRef.current = count;
+        void service.notePeak(live.id, count);
+      }
     };
     flush();
     const tick = window.setInterval(flush, 5000);

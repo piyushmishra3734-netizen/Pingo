@@ -11,6 +11,7 @@ import { useAuth, useProfile } from '@pingo/core';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import type { LiveCommentRow } from '../../lib/supabase/types.js';
 import { soundGoal, soundGuest, soundHeart, soundJoin, soundWave } from './LiveSound.js';
 import type {
   LiveComment,
@@ -174,6 +175,27 @@ export function useLiveSession(liveId: string | undefined) {
           }
         },
       )
+      /*
+       * Comments arrive as rows, named from the author's profile - RLS decides
+       * who hears them, and nobody can post under somebody else's name the way
+       * a broadcast payload allowed. Our own comes back too; the id dedupes it.
+       */
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'live_comments', filter: `live_id=eq.${liveId}` },
+        (payload) => {
+          void service
+            .commentFromRow(payload.new as LiveCommentRow)
+            .then((comment) => {
+              setComments((previous) =>
+                previous.some((entry) => entry.id === comment.id)
+                  ? previous
+                  : [...previous.slice(-79), comment],
+              );
+            })
+            .catch(() => undefined);
+        },
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_guests', filter: `live_id=eq.${liveId}` },
@@ -212,12 +234,6 @@ export function useLiveSession(liveId: string | undefined) {
 
   const onEvent = useCallback(
     (event: LiveRoomEvent) => {
-      if (event.comment) {
-        setComments((previous) => {
-          if (previous.some((comment) => comment.id === event.comment!.id)) return previous;
-          return [...previous.slice(-79), event.comment!];
-        });
-      }
       if (event.heart) {
         pushHeart(event.heart);
         countFan(event.heart.userId, event.heart.userName);
@@ -228,7 +244,6 @@ export function useLiveSession(liveId: string | undefined) {
             : { n: 0, at: now };
         soundHeart(heartStreak.current.n);
       }
-      if (event.pin !== undefined) setPin(event.pin);
       if (event.join) {
         const join = event.join;
         setJoins((previous) => [...previous.slice(-9), join]);
@@ -258,7 +273,7 @@ export function useLiveSession(liveId: string | undefined) {
     [pushHeart, countFan, pushShout],
   );
 
-  const { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, broadcastShout, viewers } = useLiveRoom(
+  const { broadcastHeart, broadcastJoin, broadcastWave, broadcastShout, viewers } = useLiveRoom(
     live ? live.id : undefined,
     meId ? { userId: meId, userName: meName } : undefined,
     onEvent,
@@ -298,10 +313,12 @@ export function useLiveSession(liveId: string | undefined) {
       try {
         const saved = await service.postComment(live.id, body);
         if (saved) {
-          setComments((previous) => [...previous.slice(-79), saved]);
-          broadcastComment(saved);
+          // Everyone else hears it as the row lands (see the live-row channel).
+          setComments((previous) =>
+            previous.some((entry) => entry.id === saved.id) ? previous : [...previous.slice(-79), saved],
+          );
         } else {
-          // Preview mode (tables not deployed yet): local echo over broadcast.
+          // Preview mode (tables not deployed yet): a local echo only.
           const echo: LiveComment = {
             id: crypto.randomUUID(),
             liveId: live.id,
@@ -311,14 +328,13 @@ export function useLiveSession(liveId: string | undefined) {
             createdAt: Date.now(),
           };
           setComments((previous) => [...previous.slice(-79), echo]);
-          broadcastComment(echo);
         }
       } catch {
         // A comment that cannot send is dropped visibly nowhere - the input
         // keeps its text (the screen clears only on success).
       }
     },
-    [service, live, broadcastComment, meId, meName],
+    [service, live, meId, meName],
   );
 
   const sendHeart = useCallback(
@@ -365,10 +381,10 @@ export function useLiveSession(liveId: string | undefined) {
     async (comment: LiveComment | null) => {
       if (!live) return;
       setPin(comment);
-      broadcastPin(comment);
+      // Other screens read the pin from the row update - only the host can write it.
       await service.pinComment(live.id, comment);
     },
-    [service, live, broadcastPin],
+    [service, live],
   );
 
   return {

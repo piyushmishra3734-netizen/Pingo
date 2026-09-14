@@ -3,10 +3,12 @@
  *
  * ## One channel per live, plus the tables
  *
- * Comments persist in `live_comments` (history for late joiners); hearts and
- * typing-feel do not - they travel over the `live:<id>` broadcast channel and
- * vanish, like Instagram. Presence on the same channel is the viewer count:
- * whoever is tracked is watching right now.
+ * Comments and the pin are rows (`live_comments`, `live_streams.pinned_comment`)
+ * and reach every screen as row changes, so the name on a comment is the
+ * author's, never the sender's claim. Hearts, joins and waves do not persist -
+ * they travel over the `live:<id>` broadcast channel and vanish, like
+ * Instagram. Presence on the same channel is the viewer count: whoever is
+ * tracked is watching right now.
  *
  * ## The list refreshes from Postgres changes
  *
@@ -30,13 +32,10 @@ import {
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { LiveUnavailableError, SupabaseLiveService } from '../../lib/supabase/live-service.js';
-import type { LiveComment, LiveHeart, LivePresenceEvent, LiveStream } from './types.js';
+import type { LiveHeart, LivePresenceEvent, LiveStream } from './types.js';
 
 export interface LiveRoomEvent {
-  comment?: LiveComment;
   heart?: LiveHeart;
-  /** A pinned comment (or null for unpin). */
-  pin?: LiveComment | null;
   /** Someone walked in. */
   join?: LivePresenceEvent;
   /** The host waved at one viewer. */
@@ -117,8 +116,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  /** What the rail holds, so a counter flush on it can be told apart from news. */
+  const listed = useRef(new Set<string>());
+  listed.current = new Set(lives.map((live) => live.id));
+
   // Someone goes live or ends while this screen is open: re-read the rail.
-  // Coalesced (see refreshSoon): counter flushes arrive every few seconds.
   useEffect(() => {
     if (!signedIn) return;
     const channel = getSupabaseClient()
@@ -126,7 +128,17 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_streams' },
-        () => {
+        (payload) => {
+          /*
+           * The host flushes counters every few seconds, and each flush is an
+           * UPDATE here. Re-reading the rail for one - a list query plus
+           * profiles, on every signed-in phone - changed nothing it shows. Only
+           * a new live, an ended one, or one this rail has not seen re-reads.
+           */
+          const row = payload.new as { id?: string; status?: string } | undefined;
+          if (payload.eventType === 'UPDATE' && row?.status === 'live' && row.id && listed.current.has(row.id)) {
+            return;
+          }
           refreshSoon();
         },
       )
@@ -213,9 +225,7 @@ export function useLiveRoom(
   self: { userId: string; userName: string } | undefined,
   onEvent: (event: LiveRoomEvent) => void,
 ): {
-  broadcastComment: (comment: LiveComment) => void;
   broadcastHeart: (heart: LiveHeart) => void;
-  broadcastPin: (comment: LiveComment | null) => void;
   broadcastJoin: (userId: string, userName: string) => void;
   broadcastWave: (toUserId: string, fromName: string) => void;
   broadcastShout: (text: string) => void;
@@ -255,14 +265,8 @@ export function useLiveRoom(
     };
 
     channel
-      .on('broadcast', { event: 'comment' }, ({ payload }) => {
-        handler.current({ comment: payload as LiveComment });
-      })
       .on('broadcast', { event: 'heart' }, ({ payload }) => {
         handler.current({ heart: payload as LiveHeart });
-      })
-      .on('broadcast', { event: 'pin' }, ({ payload }) => {
-        handler.current({ pin: (payload ?? null) as LiveComment | null });
       })
       .on('broadcast', { event: 'join' }, ({ payload }) => {
         const peer = payload as { userId: string; userName: string };
@@ -314,18 +318,8 @@ export function useLiveRoom(
     }
   }, []);
 
-  const broadcastComment = useCallback(
-    (comment: LiveComment) => send('comment', comment),
-    [send],
-  );
-
   const broadcastHeart = useCallback(
     (heart: LiveHeart) => send('heart', heart),
-    [send],
-  );
-
-  const broadcastPin = useCallback(
-    (comment: LiveComment | null) => send('pin', comment),
     [send],
   );
 
@@ -346,5 +340,5 @@ export function useLiveRoom(
     [send],
   );
 
-  return { broadcastComment, broadcastHeart, broadcastPin, broadcastJoin, broadcastWave, broadcastShout, viewers };
+  return { broadcastHeart, broadcastJoin, broadcastWave, broadcastShout, viewers };
 }
