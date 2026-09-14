@@ -184,9 +184,11 @@ export function NotificationsScreen() {
     void service
       .listNotifications()
       .then((list) => {
+        // Kept even when the screen has already been left: on 2G the feed took
+        // longer than people stayed, so the next visit waited all over again.
+        if (profile?.id) lastFeed = { userId: profile.id, items: list };
         if (!active) return;
         setItems(list);
-        if (profile?.id) lastFeed = { userId: profile.id, items: list };
         void service.markAllNotificationsRead();
         // Badge only - not a load dependency (clear identity changes with unread).
         clear();
