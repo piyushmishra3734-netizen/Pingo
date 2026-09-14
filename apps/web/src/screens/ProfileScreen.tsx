@@ -114,7 +114,11 @@ export function ProfileScreen() {
 
   // ---- who ----------------------------------------------------------------
 
-  const [other, setOther] = useState<Profile | null | undefined>();
+  // Seeded on the first render too, or a known profile still flashes the
+  // loading state for one frame before the effect below hands it over.
+  const [other, setOther] = useState<Profile | null | undefined>(() =>
+    isSelf || !handle ? undefined : profiles.peek?.(handle),
+  );
 
   useEffect(() => {
     if (isSelf || !handle) {
