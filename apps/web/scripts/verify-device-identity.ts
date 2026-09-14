@@ -356,3 +356,12 @@ assert.match(
 );
 assert.match(service, /key === 'last_message_at' \|\|/, 'only last_message_at is treated as activity');
 console.log('✓ message bumps on the conversation row no longer rebuild the conversation');
+
+// Unstable line: a send whose request drops is queued AND retried on a timer,
+// a failed resend stays `sending`, and network failures do not shelve it.
+assert.match(service, /await enqueue\(draft, id\)\.catch\(\(\) => undefined\);\s*this\.#scheduleRetry\(\);/, 'a dropped send schedules a resend');
+assert.match(service, /if \(!serverRefused && !hasMediaDraft\(draft\)\) \{/, 'a dropped resend is not marked failed');
+assert.match(service, /this\.#flushing \?\?= this\.#drainOutbox\(\)/, 'outbox passes never overlap');
+const outboxSource = await readSource('apps/web/src/lib/local/outbox.ts');
+assert.match(outboxSource, /\?\.code\) await fail\(entry\);/, 'only server refusals count toward setting an entry aside');
+console.log('✓ a send that drops on a bad line is resent by itself, without turning red');

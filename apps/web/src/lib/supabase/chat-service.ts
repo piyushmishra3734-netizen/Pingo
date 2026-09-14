@@ -85,7 +85,7 @@ import {
   messageRowKey,
   type RowRun,
 } from '../local/db.js';
-import { enqueue, flush } from '../local/outbox.js';
+import { enqueue, flush, pending } from '../local/outbox.js';
 import { recordMetric } from '../net-metrics.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
@@ -387,6 +387,10 @@ const DELTA_LIMIT = 200;
  * produces, short enough that nobody could observe a row being stale.
  */
 const CONVERSATION_COALESCE_MS = 300;
+
+/** First and longest wait between outbox resends on a line that keeps dropping. */
+const RETRY_FIRST_MS = 2000;
+const RETRY_MAX_MS = 30_000;
 
 /**
  * Minimum gap between read-mark writes for one conversation.
@@ -4519,8 +4523,18 @@ export class SupabaseChatService implements ChatService {
        */
       const serverRefused = Boolean((error as { code?: string }).code);
 
-      if (!serverRefused && !hasMediaDraft(draft) && !existingId) {
-        await enqueue(draft, id).catch(() => undefined);
+      /*
+       * And a retry that hits the same bad line is still only waiting.
+       *
+       * With `existingId` this is the outbox resending, and the entry is still
+       * queued - marking the bubble `failed` here told the sender a message was
+       * lost that was about to go out on the next pass.
+       */
+      if (!serverRefused && !hasMediaDraft(draft)) {
+        if (!existingId) {
+          await enqueue(draft, id).catch(() => undefined);
+          this.#scheduleRetry();
+        }
         throw error;
       }
 
@@ -5451,7 +5465,46 @@ export class SupabaseChatService implements ChatService {
    * id and timestamp - otherwise the thread would hold a ghost that never
    * resolves and a duplicate would arrive beside it over realtime.
    */
-  async #flushOutbox(): Promise<void> {
+  /** The outbox pass in flight, so a reconnect and a retry never send one entry twice. */
+  #flushing: Promise<void> | undefined;
+  #retryTimer: ReturnType<typeof setTimeout> | undefined;
+  #retryDelay = RETRY_FIRST_MS;
+
+  /*
+   * Resend on a timer while anything is queued.
+   *
+   * The outbox drained only when the socket came back. On an unstable line the
+   * socket often stays up while one request drops, so nothing ever came back:
+   * measured 2026-09-14, a send whose request failed stayed `sending` for as
+   * long as it was watched, with the connection `connected` throughout. Backs
+   * off to half a minute, and stops as soon as the queue is empty.
+   */
+  #scheduleRetry(): void {
+    if (this.#retryTimer) return;
+    this.#retryTimer = setTimeout(() => {
+      this.#retryTimer = undefined;
+      void this.#flushOutbox()
+        .then(() => pending())
+        .then((left) => {
+          if (left.length === 0) {
+            this.#retryDelay = RETRY_FIRST_MS;
+            return;
+          }
+          this.#retryDelay = Math.min(this.#retryDelay * 2, RETRY_MAX_MS);
+          this.#scheduleRetry();
+        })
+        .catch(() => undefined);
+    }, this.#retryDelay);
+  }
+
+  #flushOutbox(): Promise<void> {
+    this.#flushing ??= this.#drainOutbox().finally(() => {
+      this.#flushing = undefined;
+    });
+    return this.#flushing;
+  }
+
+  async #drainOutbox(): Promise<void> {
     await flush(async (draft, id) => {
       // Same id, so the bubble that has been sitting at `sending` becomes the
       // real message rather than being joined by a copy of itself.

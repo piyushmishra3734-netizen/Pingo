@@ -122,8 +122,16 @@ export async function flush(
       await send(entry.draft, entry.id);
       await forget(entry.id);
       sent += 1;
-    } catch {
-      await fail(entry);
+    } catch (cause) {
+      /*
+       * Only a refusal counts toward setting an entry aside.
+       *
+       * The server's refusals carry a code; a dropped connection does not. With
+       * resends on a timer, counting those would shelve a message after half a
+       * minute of bad signal - silently, since a set-aside entry is never tried
+       * again.
+       */
+      if ((cause as { code?: unknown } | undefined)?.code) await fail(entry);
       break;
     }
   }
