@@ -362,7 +362,16 @@ export interface ChatService {
    */
   listMessages(
     conversationId: ConversationId,
-    options?: { limit?: number; before?: MessageId },
+    options?: {
+      limit?: number;
+      before?: MessageId;
+      /**
+       * For a thread with no local copy: called once with the decrypted page
+       * before its reactions arrive, so the first paint does not wait for them.
+       * The promise still resolves with the complete page.
+       */
+      onEarly?: (messages: Message[]) => void;
+    },
   ): Promise<Message[]>;
   /**
    * The last page this device saw, straight from disk. Never touches the

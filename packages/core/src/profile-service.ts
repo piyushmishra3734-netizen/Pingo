@@ -238,6 +238,8 @@ export interface ProfileService {
    * `null` for a handle nobody has.
    */
   find(handleOrId: string): Promise<Profile | null>;
+  /** A profile `find` already returned this session, without asking the server. */
+  peek?(handleOrId: string): Profile | undefined;
 
   /**
    * People whose handle or name begins with what has been typed.

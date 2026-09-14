@@ -74,11 +74,36 @@ function mergeHistory(
   return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/**
+ * What each thread last showed, for this tab.
+ *
+ * A thread remounts whenever you leave Chats and come back - a profile, the
+ * settings, another tab of the dock - and every remount started from nothing:
+ * the skeleton, then the cache a moment later. Measured at 75-126 ms of
+ * skeleton on every return to a chat that was already on disk. Starting from
+ * what was on screen makes the return look like it never left; the cache and
+ * the network below still correct it.
+ *
+ * Keyed by account as well as thread, because the tab can change hands
+ * without a reload.
+ */
+const lastShown = new Map<string, Message[]>();
+
 export function useMessages(conversationId: ConversationId | undefined): UseMessagesResult {
-  const { service } = useChat();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { service, currentUser } = useChat();
+  const shownKey = conversationId && currentUser ? `${currentUser.id}|${conversationId}` : undefined;
+  const [messages, setMessages] = useState<Message[]>(
+    () => (shownKey ? lastShown.get(shownKey) : undefined) ?? [],
+  );
   const [receipts, setReceipts] = useState<ReadReceipt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !(shownKey && lastShown.has(shownKey)));
+
+  // Kept current with what is on screen, so the next mount starts there. Only
+  // this thread's messages: on a switch the state briefly still holds the last.
+  useEffect(() => {
+    if (!shownKey || messages.length === 0) return;
+    if (messages.every((m) => m.conversationId === conversationId)) lastShown.set(shownKey, messages);
+  }, [shownKey, conversationId, messages]);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
   /**
@@ -101,8 +126,17 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
     }
 
     let active = true;
-    setLoading(true);
+    // What this thread showed last time, straight away - see `lastShown`.
+    const shown = shownKey ? lastShown.get(shownKey) : undefined;
+    if (shown) {
+      setMessages(shown);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setHasOlder(true);
+    /** Whether the early network page painted, so a late cache read cannot paint over it. */
+    let earlyPainted = false;
 
     // Where everyone had read up to at the moment the thread opened. Every
     // later move arrives on the socket, so this is asked once and never again.
@@ -127,9 +161,13 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
      */
     let settled = false;
 
+    let cachePainted = false;
     void service.cachedMessages(conversationId).then((cached) => {
-      if (!active || settled || !cached) return;
-      setMessages(cached);
+      if (!active || settled || earlyPainted || !cached) return;
+      cachePainted = true;
+      // Over a remembered thread, folded in rather than swapped, so an unsent
+      // bubble that was on screen does not blink out until the network answers.
+      setMessages((previous) => (shown ? mergeHistory(previous, cached, conversationId) : cached));
       setHasOlder(cached.length >= PAGE_SIZE);
       // Loading ends here: there is a thread on screen, and whether it is the
       // final one is not something a spinner can usefully say.
@@ -137,7 +175,18 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
     });
 
     void service
-      .listMessages(conversationId, { limit: PAGE_SIZE })
+      .listMessages(conversationId, {
+        limit: PAGE_SIZE,
+        // A thread with nothing on this device paints as soon as its page is
+        // readable, rather than after its reactions too.
+        onEarly: (early) => {
+          if (!active || settled || cachePainted || shown) return;
+          earlyPainted = true;
+          setMessages(early);
+          setHasOlder(early.length >= PAGE_SIZE);
+          setLoading(false);
+        },
+      })
       .then((history) => {
         // Guard against a slow response for a thread the user already left.
         if (!active) return;
@@ -154,7 +203,7 @@ export function useMessages(conversationId: ConversationId | undefined): UseMess
     return () => {
       active = false;
     };
-  }, [service, conversationId]);
+  }, [service, conversationId, shownKey]);
 
   /*
    * Older history, on demand.

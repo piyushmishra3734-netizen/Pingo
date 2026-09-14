@@ -25,7 +25,7 @@
  * and a fingerprint used to notice the same thing said twice.
  */
 import { useChat, useProfile } from '@pingo/core';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { evaluateMessages, type CountableMessage } from '../badges/metrics.js';
 import { libraryFor, type BadgeMetrics, type BadgeProgress } from '../badges/registry.js';
@@ -75,17 +75,20 @@ export interface JourneyState {
   empty: boolean;
 }
 
+/*
+ * Per tab, not per mount.
+ *
+ * These were refs, so every return to Chats read the published row again and
+ * published the same summary again - measured as three `journey_public`
+ * requests, one of them a write, on each trip back from a profile or the
+ * settings. Keyed by account, because the tab can change hands.
+ */
+const seededFor = new Set<string>();
+const lastPublishedFor = new Map<string, string>();
+
 export function useJourneyProgress(): JourneyState {
   const { service, currentUser, conversations, ready } = useChat();
   const { profile, service: profiles } = useProfile();
-
-  /**
-   * The last summary published, so the same row is not written on every mount.
-   */
-  const lastPublished = useRef('');
-
-  /** The account's published row is read once per session, not per count. */
-  const seeded = useRef(false);
   const [progress, setProgress] = useState<JourneyProgress>(EMPTY_PROGRESS);
   const [metrics, setMetrics] = useState<BadgeMetrics>({});
   const [pulse, setPulse] = useState<PulseEntry[]>([]);
@@ -127,8 +130,8 @@ export function useJourneyProgress(): JourneyState {
        * list — reading it once makes the floor follow the account rather than
        * the device.
        */
-      if (!seeded.current) {
-        seeded.current = true;
+      if (!seededFor.has(userId)) {
+        seededFor.add(userId);
         const published = await profiles.publicJourney(userId).catch(() => null);
         if (published && published.badgeIds.length > 0) {
           stored = mergeProgress(stored, {
@@ -230,8 +233,8 @@ export function useJourneyProgress(): JourneyState {
         level: levelFor(merged.momentsEarned).level,
         badges: merged.unlockedIds,
       });
-      if (summary !== lastPublished.current) {
-        lastPublished.current = summary;
+      if (summary !== lastPublishedFor.get(userId)) {
+        lastPublishedFor.set(userId, summary);
         void profiles
           .publishJourney({
             level: levelFor(merged.momentsEarned).level,
@@ -249,7 +252,7 @@ export function useJourneyProgress(): JourneyState {
              * the retry is one somebody was going to make anyway. Still no
              * message: publishing is a nicety, and now a nicety that recovers.
              */
-            lastPublished.current = '';
+            lastPublishedFor.delete(userId);
           });
       }
     })();

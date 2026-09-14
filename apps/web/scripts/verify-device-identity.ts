@@ -283,3 +283,38 @@ assert.doesNotMatch(
 );
 assert.match(dbSource, /db\.onversionchange = /, 'an open tab lets another tab upgrade');
 console.log('✓ the local database opens at any version on disk, and steps aside for upgrades');
+
+/*
+ * Second-pass latency fixes. Each was measured, not guessed.
+ */
+const readSource = (path: string) => readFile(resolve(process.cwd(), path), 'utf8');
+
+// Mute and friends: 3.8 s before the row moved, because the write was followed
+// by a full rebuild from the server. The flag now shows first, and rolls back.
+const flagsStart = service.indexOf('async setConversationFlags(');
+const flags = service.slice(flagsStart, service.indexOf('#withFlags(conversation', flagsStart));
+assert.ok(
+  flags.indexOf("type: 'conversation:updated'") < flags.indexOf('await this.#writeMembership('),
+  'a flag change reaches the screen before its write is awaited',
+);
+assert.match(flags, /catch \(cause\) \{[\s\S]*this\.#known\.set\(known\.id, known\)[\s\S]*throw cause;/, 'a failed flag write puts the row back');
+assert.doesNotMatch(flags, /await this\.#refresh\(conversationIds\)/, 'a known conversation is not rebuilt after a flag change');
+
+// A never-opened thread paints before its reactions query answers.
+assert.ok(
+  service.indexOf('options.onEarly(') < service.indexOf('const reactions = await reactionsRead;'),
+  'the early page is handed over before reactions are awaited',
+);
+
+// Coming back to a chat starts from what it showed, not from the skeleton.
+const useMessagesSource = await readSource('packages/core/src/react/use-messages.ts');
+assert.match(useMessagesSource, /const lastShown = new Map/, 'threads remember what they showed');
+assert.match(useMessagesSource, /useState\(\(\) => !\(shownKey && lastShown\.has\(shownKey\)\)\)/, 'a remembered thread mounts without loading');
+
+// Returning to Chats does not repeat once-per-session work.
+const journeySource = await readSource('apps/web/src/features/journey/useJourneyProgress.ts');
+assert.match(journeySource, /^const seededFor = new Set/m, 'the published journey is read once per tab');
+assert.match(journeySource, /^const lastPublishedFor = new Map/m, 'the same journey summary is published once per tab');
+const listSource = await readSource('apps/web/src/features/conversations/ConversationList.tsx');
+assert.match(listSource, /^const ensuredAi = new WeakSet/m, 'PINGO AI is ensured once per service, not per mount');
+console.log('✓ flags are optimistic, first paint skips reactions, returns skip the skeleton and repeat work');

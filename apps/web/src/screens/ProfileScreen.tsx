@@ -122,7 +122,9 @@ export function ProfileScreen() {
       return;
     }
     let active = true;
-    setOther(undefined);
+    // Somebody already seen this session paints at once; the fetch below
+    // refreshes them. Only a first visit waits.
+    setOther(profiles.peek?.(handle));
     void profiles
       .find(handle)
       .then((found) => {

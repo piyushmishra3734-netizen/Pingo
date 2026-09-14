@@ -149,6 +149,19 @@ export class SupabaseProfileService implements ProfileService {
    * username - the format check forbids the hyphens - so there is no input
    * that could be read either way.
    */
+  /**
+   * Profiles `find` returned this session, by id and by username.
+   *
+   * A profile opened a second time used to show "Loading profile" until the
+   * same row came back again. `peek` hands the screen the last copy to paint
+   * while `find` refreshes it. Memory only, for this tab.
+   */
+  private readonly seen = new Map<string, Profile>();
+
+  peek(handleOrId: string): Profile | undefined {
+    return this.seen.get(UUID.test(handleOrId) ? handleOrId : normaliseUsername(handleOrId));
+  }
+
   async find(handleOrId: string): Promise<Profile | null> {
     const column = UUID.test(handleOrId) ? 'id' : 'username';
     const value = column === 'id' ? handleOrId : normaliseUsername(handleOrId);
@@ -160,7 +173,12 @@ export class SupabaseProfileService implements ProfileService {
       .maybeSingle();
 
     if (error) rethrow(error);
-    return data ? toProfile(data) : null;
+    const found = data ? toProfile(data) : null;
+    if (found) {
+      this.seen.set(found.id, found);
+      this.seen.set(found.username, found);
+    }
+    return found;
   }
 
   async search(term: string, limit = 12): Promise<Profile[]> {

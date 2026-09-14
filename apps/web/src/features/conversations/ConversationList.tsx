@@ -82,6 +82,9 @@ export interface ConversationListProps {
   className?: string;
 }
 
+/** Services that have already been asked to make sure PINGO AI is in Chats. */
+const ensuredAi = new WeakSet<object>();
+
 export function ConversationList({
   activeConversationId,
   banner,
@@ -151,13 +154,14 @@ export function ConversationList({
   const { preferences } = usePreferences();
   const { keepArchived, swipeActions, pinAiToTop } = preferences.chats;
 
-  // Fresh installs: PINGO exists in Chats without hunting the + menu.
-  const ensuredAi = useRef(false);
+  // Fresh installs: PINGO exists in Chats without hunting the + menu. Once per
+  // service, not per mount: each call also rebuilds the conversation from the
+  // server, and this list remounts on every return to Chats.
   useEffect(() => {
-    if (!ready || ensuredAi.current) return;
-    ensuredAi.current = true;
+    if (!ready || ensuredAi.has(service)) return;
+    ensuredAi.add(service);
     void service.ensureAiConversation().catch(() => {
-      ensuredAi.current = false;
+      ensuredAi.delete(service);
     });
   }, [ready, service]);
 

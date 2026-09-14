@@ -89,6 +89,15 @@ function kindMeta(kind: AppNotification['kind']): {
   }
 }
 
+/**
+ * The feed as it last loaded, for this tab.
+ *
+ * Every visit showed "Loading activity" until the server answered - the second
+ * one too. Now a return visit shows the last list at once and the fetch below
+ * replaces it. Keyed by account, because the tab can change hands.
+ */
+let lastFeed: { userId: string; items: AppNotification[] } | undefined;
+
 export function NotificationsScreen() {
   const t = useT();
   const navigate = useNavigate();
@@ -128,7 +137,9 @@ export function NotificationsScreen() {
     }
   };
 
-  const [items, setItems] = useState<AppNotification[]>();
+  const [items, setItems] = useState<AppNotification[] | undefined>(() =>
+    lastFeed && lastFeed.userId === profile?.id ? lastFeed.items : undefined,
+  );
   const [version, setVersion] = useState(0);
   const [failed, setFailed] = useState(false);
 
@@ -175,6 +186,7 @@ export function NotificationsScreen() {
       .then((list) => {
         if (!active) return;
         setItems(list);
+        if (profile?.id) lastFeed = { userId: profile.id, items: list };
         void service.markAllNotificationsRead();
         // Badge only - not a load dependency (clear identity changes with unread).
         clear();

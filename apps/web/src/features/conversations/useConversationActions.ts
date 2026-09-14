@@ -9,13 +9,13 @@ import { useCallback, useState } from 'react';
  * its own pin-limit check is how four slightly different versions of a rule end
  * up in one screen. This owns the rule once.
  *
- * ## Nothing here is optimistic
+ * ## Shown at once, by the service
  *
- * These are deliberate, one-off acts on a list the user is looking at, and the
- * service already pushes a `conversation:updated` the instant the write lands.
- * An optimistic archive that un-archives itself a moment later is worse than one
- * that takes a beat - the row would leave and come back, which reads as the app
- * having changed its mind.
+ * `setConversationFlags` applies the flag to the row the moment it is asked and
+ * writes behind it; a write that fails puts the row back and throws, and `run`
+ * below turns that into the sentence the screen shows. Waiting for the server
+ * cost 2-4 s per mute, because the old path rebuilt the whole conversation
+ * before the row moved - a row that briefly comes back is the lesser harm.
  */
 
 export interface ConversationActions {
