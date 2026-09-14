@@ -59,7 +59,6 @@ import type {
 
 import {
   adoptAccountKey,
-  conversationKeying,
   openRecord,
   openRow,
   openRows,
@@ -72,7 +71,6 @@ import {
   verifyRowStore,
   writeMessageRows,
   type RowStoreIntegrity,
-  sealBody,
   sealRecord,
 } from '../crypto/session.js';
 import { backfillAccountWraps } from '../crypto/account-backfill.js';
@@ -90,7 +88,6 @@ import {
 } from '../local/db.js';
 import { enqueue, flush } from '../local/outbox.js';
 import { recordMetric } from '../net-metrics.js';
-import { rememberOwnText } from '../local/sent-text.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
 import { toStandardQuality } from '../../features/chat/media-quality.js';
@@ -3977,20 +3974,16 @@ export class SupabaseChatService implements ChatService {
     return blob;
   }
   /*
-   * Warms the keying a send will need (see `ChatService.warmThread`).
+   * Heals what the registry remembers for this thread (see
+   * `ChatService.warmThread`). Opening a conversation is the moment a healed
+   * message matters most - it is on screen - and the attempt is local crypto
+   * plus one fetch for exactly the ids that failed before, never a full
+   * re-read.
    *
-   * `conversationKeying` coalesces identical reads, so calling it here and
-   * again at seal time costs one round of queries, not two - the send reads
-   * warm. Failures are swallowed: a warm that fails changes nothing, the
-   * send simply reads fresh exactly as before.
-   *
-   * And heals what the registry remembers for this thread. Opening a
-   * conversation is the moment a healed message matters most - it is on
-   * screen - and the attempt is local crypto plus one fetch for exactly
-   * the ids that failed before, never a full re-read.
+   * It no longer pre-reads recipient keys: normal chats are not sealed, so a
+   * send needs none, and that read cost every thread open a round trip.
    */
   async warmThread(conversationId: string): Promise<void> {
-    await conversationKeying(this.#client, conversationId).catch(() => undefined);
     const ids = takeUnhealedFor(conversationId);
     if (ids.length > 0) await this.#healConversation(conversationId, ids).catch(() => undefined);
   }
@@ -4263,18 +4256,17 @@ export class SupabaseChatService implements ChatService {
       : undefined;
 
     /*
-     * Encrypted here, at the last moment before the row leaves.
+     * Stored as sent.
      *
-     * Everything above this line - uploads, ping paths, expiry - is about
-     * media, which this phase does not encrypt yet. The body does, and doing it
-     * at the insert rather than at the top of `sendMessage` means the offline
-     * queue holds plaintext it can re-seal on flush, when the recipient list
-     * may well have changed.
-     */
-    /*
-     * AI threads are never end-to-end encrypted: the server must read them to
-     * reply. Group messages that @mention PINGO AI are also plaintext so the
-     * model can see the ask — other group messages stay sealed as usual.
+     * Normal chats are not end-to-end encrypted (phase 1 of the normal/private
+     * split): the server is the source of truth, so history follows the
+     * account to every device instead of living and dying with device keys.
+     * End-to-end encryption comes back as an opt-in Private mode. Rows sealed
+     * before this change keep their envelope and still open wherever a key
+     * exists - `openRow` passes anything unsealed straight through.
+     *
+     * Whether this is an AI thread, or a group message that @mentions PINGO
+     * AI, still matters below: it decides whether the assistant is asked.
      */
     /*
      * The heavy read happens only when it can change the answer.
@@ -4288,8 +4280,8 @@ export class SupabaseChatService implements ChatService {
      * `#isAiConversation` now remembers both answers, so it is one small query
      * per conversation per session rather than one per message. And the
      * conversation itself is only fetched when the body actually mentions the
-     * assistant, which is what decides whether a *group* message goes in the
-     * clear. No mention, nothing to look up, straight to sealing.
+     * assistant, which is what decides whether a *group* message calls it. No
+     * mention, nothing to look up.
      */
     const mentioned = mentionsPingoAi(draft.body);
     const isAi = await this.#isAiConversation(draft.conversationId);
@@ -4301,11 +4293,8 @@ export class SupabaseChatService implements ChatService {
       (conversationSnap?.kind === 'group' || conversationSnap?.kind === 'community') &&
       Boolean(conversationSnap.participantIds.includes(PINGO_AI_USER_ID));
     const callAiInGroup = groupHasAi && mentioned;
-    const plaintextForAi = isAi || callAiInGroup;
 
-    const sealed = plaintextForAi
-      ? { body: draft.body, encryption: null as string | null, envelope: null as null }
-      : await sealBody(this.#client, draft.conversationId, draft.body);
+    const sealed = { body: draft.body, encryption: null as string | null, envelope: null as null };
 
     /*
      * Who was @mentioned in this body — resolved on-device, stored in meta.
@@ -4494,16 +4483,6 @@ export class SupabaseChatService implements ChatService {
      */
     this.#emit({ type: 'message:updated', message });
     releasePreviews();
-
-    /*
-     * Remembered in your own words, so no future read has to decrypt this
-     * row to show what you typed. A message sealed before this device
-     * published carries no wrap for it; the live bubble above already shows
-     * the plaintext, and this is what keeps that true across reloads,
-     * revisits, previews and search. Presence here proves authorship - only
-     * sends write it - so reads need no key and cannot fail this way.
-     */
-    void rememberOwnText(id, draft.body).catch(() => undefined);
 
     /*
      * The sender already holds every byte just uploaded, so the vault is told.
@@ -5524,24 +5503,18 @@ export class SupabaseChatService implements ChatService {
    */
 
   /**
-   * Edit re-seals, because the row it is replacing may be encrypted.
+   * Edits go in as plain text, like sends (see `sendMessage`).
    *
-   * Sending the new text as-is left `encryption` and the old envelope in place,
-   * so the message described itself as ciphertext it no longer contained and
-   * every reader -- including the author -- got the "sent before you added this
-   * device" placeholder over a message that had just been edited. The server
-   * cannot re-seal on our behalf, so it happens here, the same way it does on
-   * send.
+   * The four-argument `edit_message` clears `encryption` and the envelope with
+   * the new body, so editing a message sealed before the normal/private split
+   * turns it into a plain one rather than leaving an envelope that no longer
+   * describes its body - which would put the placeholder over the edit.
    */
   async editMessage(messageId: MessageId, body: string): Promise<void> {
     const trimmed = body.trim();
     if (!trimmed) throw new Error('Message cannot be empty.');
 
-    /*
-     * The conversation is read first because sealing needs the recipient list,
-     * and `editMessage` is given only a message id. One keyed lookup is a
-     * cheaper price than widening the signature through every caller.
-     */
+    // Only for the fallback event below, if the re-read after the edit fails.
     const { data, error } = await this.#client
       .from('messages')
       .select('conversation_id')
@@ -5551,56 +5524,13 @@ export class SupabaseChatService implements ChatService {
     if (error) throw new Error(error.message || 'Could not load the message.');
     if (!data) throw new Error('That message is no longer available.');
 
-    const sealed = await sealBody(this.#client, data.conversation_id, trimmed);
-
-    const { error: sealedError } = await this.#client.rpc('edit_message', {
+    const { error: editError } = await this.#client.rpc('edit_message', {
       target: messageId,
-      new_body: sealed.body,
-      new_encryption: sealed.encryption,
-      new_envelope: sealed.envelope,
+      new_body: trimmed,
+      new_encryption: null,
+      new_envelope: null,
     });
-
-    if (sealedError) {
-      /*
-       * The four-argument function may not be deployed yet.
-       *
-       * Client and database ship separately, and PostgREST answers a call it
-       * has no signature for with PGRST202 rather than anything more specific.
-       * Failing outright here would take editing away entirely on a database
-       * that is merely a migration behind, which is worse than the defect being
-       * fixed. So an unencrypted body falls back to the two-argument form,
-       * which is exactly what it did before and cannot corrupt a row that
-       * carries no envelope.
-       *
-       * An encrypted body does *not* fall back. The old function leaves
-       * `encryption` and the envelope in place while replacing the ciphertext
-       * with something the envelope no longer describes, which is the bug this
-       * whole change exists to remove. Refusing is the honest outcome: the edit
-       * visibly does not happen, rather than silently destroying the message.
-       */
-      if (sealedError.code !== 'PGRST202') {
-        throw new Error(sealedError.message || 'Could not save the edit.');
-      }
-
-      if (sealed.encryption !== null) {
-        throw new Error(
-          'This chat is end-to-end encrypted and the server has not been updated to accept edited ciphertext yet. Your message has not been changed.',
-        );
-      }
-
-      const { error: legacyError } = await this.#client.rpc('edit_message', {
-        target: messageId,
-        new_body: sealed.body,
-      });
-      if (legacyError) {
-        throw new Error(legacyError.message || 'Could not save the edit.');
-      }
-    }
-
-    // Your new words, remembered like a send - the re-read below decrypts,
-    // and an edit sealed before this device published would otherwise show
-    // the placeholder over text you just wrote.
-    void rememberOwnText(messageId, trimmed).catch(() => undefined);
+    if (editError) throw new Error(editError.message || 'Could not save the edit.');
 
     /*
      * Prefer a fresh row, but never fail the whole edit because the re-read

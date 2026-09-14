@@ -154,7 +154,9 @@ assert.ok(
 );
 
 /*
- * The send path remembers, on sends and on edits alike.
+ * Normal chats are stored as sent (the normal/private split, phase 1): no
+ * send or edit seals, and an edit clears the envelope an older sealed message
+ * carried. The own-text store above still serves messages sealed before that.
  */
 const service = await readFile(
   resolve(process.cwd(), 'apps/web/src/lib/supabase/chat-service.ts'),
@@ -162,14 +164,15 @@ const service = await readFile(
 );
 assert.match(
   service,
-  /void rememberOwnText\(id, draft\.body\)/,
-  'a sent message is remembered under the id its bubble already shows',
+  /const sealed = \{ body: draft\.body, encryption: null/,
+  'a normal send is stored as sent',
 );
 assert.match(
   service,
-  /void rememberOwnText\(messageId, trimmed\)/,
-  'an edit re-remembers, or the re-read decrypts stale wraps',
+  /new_encryption: null,\s*new_envelope: null/,
+  'an edit clears any envelope, so it never describes a body it no longer holds',
 );
+assert.doesNotMatch(service, /sealBody\(/, 'nothing in the chat service seals a normal message');
 
 /*
  * The 250ms: warm on open, reuse only after proving nothing changed.

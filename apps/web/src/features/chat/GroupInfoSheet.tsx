@@ -259,16 +259,12 @@ export function GroupInfoSheet({
    * Takes the assistant out of this group.
    *
    * Confirmed, because it changes what the group *is* for everybody in it, not
-   * just for the admin pressing the button - and the confirmation is where the
-   * good news goes: every message goes back to being sealed, with no exception
-   * for the ones that mention it.
+   * just for the admin pressing the button.
    */
   const turnAiOff = async () => {
     const ok = await confirm({
       title: 'Turn off PINGO AI here?',
-      description:
-        '@pingoai will stop replying in this group, and every message goes back to ' +
-        'being end-to-end encrypted with no exceptions. You can turn it back on later.',
+      description: '@pingoai will stop replying in this group. You can turn it back on later.',
       confirmLabel: 'Turn off',
     });
     if (ok) await run(service.setGroupAi(conversation.id, false));
@@ -621,19 +617,10 @@ export function GroupInfoSheet({
                 Anyone can type <span className="font-medium text-ink">@pingoai</span> and
                 it will reply here.
               </p>
-              {/*
-                Said plainly, and not buried.
-
-                A message that @mentions the assistant is sent unencrypted, because
-                something has to read it in order to answer it. Every other message in
-                this group stays end-to-end encrypted exactly as before - that
-                distinction is the whole reason this is worth spelling out rather than
-                summarising as "AI is on".
-              */}
+              {/* Said plainly: what the assistant reads. */}
               <p className="mt-1.5 text-caption text-text-tertiary">
-                Messages that mention it are <span className="font-medium">not</span>{' '}
-                end-to-end encrypted, so it can read what you asked. Everything else in
-                this group stays encrypted.
+                Only messages that mention it are sent to the assistant, so it can
+                read what you asked.
               </p>
               <Button
                 variant="secondary"
@@ -649,7 +636,7 @@ export function GroupInfoSheet({
             <>
               <p className="mb-2.5 text-caption text-text-tertiary">
                 Add PINGO AI so members can @pingoai and get a reply in this chat.
-                Messages that mention it are not end-to-end encrypted.
+                Only messages that mention it are sent to the assistant.
               </p>
               <Button
                 variant="secondary"

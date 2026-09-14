@@ -79,7 +79,7 @@ const en = {
   'welcome.tagline': 'Private.\nFast.\nBeautiful.',
   'welcome.getStarted': 'Get Started',
   'welcome.whyAccount':
-    'Messages are encrypted to you, so PINGO needs to know who you are.',
+    'Your chats live on your account, so PINGO needs to know who you are.',
   'welcome.continueGoogle': 'Continue with Google',
   'welcome.continuePhone': 'Continue with phone number',
   'welcome.haveAccount': 'Already have an account?',
@@ -334,7 +334,6 @@ const en = {
   'select.deleteMe': 'Delete for me',
 
   // in-thread chrome
-  'thread.e2ee': 'End-to-end encrypted',
   'thread.newMessages': 'New Messages',
   'thread.sending': 'Sending',
   'thread.notSent': 'Not sent',
@@ -893,7 +892,7 @@ const enGenz: Catalog = {
   'welcome.title': "hey, you're on PINGO",
   'welcome.tagline': 'Private.\nFast.\nActually pretty.',
   'welcome.getStarted': "let's go",
-  'welcome.whyAccount': 'messages are encrypted to you, so pingo has to know who you are.',
+  'welcome.whyAccount': 'your chats live on your account, so pingo has to know who you are.',
   'welcome.continueGoogle': 'continue with google',
   'welcome.continuePhone': 'continue with phone number',
   'welcome.haveAccount': 'already have an account?',
@@ -1095,7 +1094,6 @@ const enGenz: Catalog = {
   'select.copy': 'copy',
   'select.deleteEveryone': 'delete for everyone',
   'select.deleteMe': 'delete for me',
-  'thread.e2ee': 'end-to-end encrypted',
   'thread.newMessages': 'new messages',
   'thread.sending': 'sending…',
   'thread.notSent': 'not sent',

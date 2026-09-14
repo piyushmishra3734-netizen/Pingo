@@ -20,12 +20,13 @@ import { applyPageSeo } from '../lib/seo.js';
  * three-post shelf, the mutual-follow rule - rather than the generic clauses a
  * template would supply for features this product does not have.
  *
- * Encryption is stated as the product actually works: human chats are
- * end-to-end encrypted for message bodies; PINGO AI is not, because the
- * assistant must process text. Privacy Policy has the full map.
+ * Encryption is stated as the product actually works: normal chats are stored
+ * server-side and are not end-to-end encrypted (messages sent before 14
+ * September 2026 are); PINGO AI reads what it answers. Privacy Policy has the
+ * full map.
  */
 
-const UPDATED = '8 August 2026';
+const UPDATED = '14 September 2026';
 
 interface Section {
   /** Anchor target, so the download page can link straight to a section. */
@@ -39,7 +40,7 @@ const SECTIONS: Section[] = [
     id: 'summary',
     title: 'The short version',
     body: [
-      'PINGO is free. You own what you post. We do not sell your data or show you advertising. Human chats use end-to-end encryption for message bodies; PINGO AI is not E2EE because it must read your words to reply. The Privacy Policy explains both in detail.',
+      'PINGO is free. You own what you post. We do not sell your data or show you advertising. Your chats are stored on our servers so your history follows your account; they are not end-to-end encrypted (messages sent before 14 September 2026 are). PINGO AI must read your words to reply. The Privacy Policy explains both in detail.',
       'If you break the rules below, we may suspend or remove your account.',
     ],
   },
@@ -86,7 +87,7 @@ const SECTIONS: Section[] = [
     title: 'How your data is handled',
     body: [
       'Everything travels over HTTPS. Voice and video calls use WebRTC encryption between devices; a relay may help connect you without keeping a recording of the call.',
-      'Human direct and group message bodies are end-to-end encrypted on your devices before they are stored. The server holds ciphertext for those bodies, plus the metadata and media files the product needs to deliver chat.',
+      'Chats between people are stored on our servers so they are available on every device you sign in on. They are protected in transit, at rest and by access rules, but they are not end-to-end encrypted. Messages sent before 14 September 2026 are end-to-end encrypted.',
       'PINGO AI chats are not end-to-end encrypted. The assistant processes your AI messages on our systems and with our model provider so it can reply. AI memories exist only when you explicitly save them.',
       'We do not sell personal data, and there is no advertising on PINGO.',
       'The Privacy Policy sets out exactly what is held, what is not, who else processes data, and answers common questions.',
@@ -96,8 +97,8 @@ const SECTIONS: Section[] = [
     id: 'ai',
     title: 'PINGO AI',
     body: [
-      'PINGO AI is an optional assistant inside the app. It is not a human recipient and it is not an E2EE sealed chat.',
-      'Do not send passwords, recovery secrets, or material you need the server never to see into AI chat. Use human chats for private conversation with people.',
+      'PINGO AI is an optional assistant inside the app. It is not a human recipient.',
+      'Do not send passwords, recovery secrets, or material you need the server never to see into AI chat.',
       'You remain responsible for what you ask the assistant to do when it affects other people or breaks the conduct rules above.',
     ],
   },

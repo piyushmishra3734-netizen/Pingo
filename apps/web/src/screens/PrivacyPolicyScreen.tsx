@@ -15,12 +15,14 @@ import { applyPageSeo } from '../lib/seo.js';
  *
  * ## Written from the live product
  *
- * Human DMs use client-side end-to-end encryption. PINGO AI cannot, by design.
- * Pings, stories, profiles, calls, push, backup and onboarding assets are
- * described as they actually work — not as a generic template.
+ * Normal chats are stored server-side and are not end-to-end encrypted (since
+ * 14 September 2026 - history follows the account); messages sent before then
+ * stay sealed. PINGO AI reads what it answers. Pings, stories, profiles, calls,
+ * push, backup and onboarding assets are described as they actually work —
+ * not as a generic template.
  */
 
-const UPDATED = '8 August 2026';
+const UPDATED = '14 September 2026';
 
 interface Section {
   id: string;
@@ -36,8 +38,8 @@ const SECTIONS: Section[] = [
     title: 'The short version',
     body: [
       'PINGO is a private messaging product. There is no advertising, no data brokering, and no analytics SDK built to profile you.',
-      'Human chats (direct messages and groups between people) leave your device as ciphertext, and the server stores ciphertext, delivery metadata, and media files needed to deliver the product.',
-      'One thing we will not dress up: your chat history has to survive a lost phone, so the key that opens your messages belongs to your account and PINGO holds it. That means we could open message bodies. We do not, and nothing in the product does it - but we are not going to tell you we cannot.',
+      'Chats between people (direct messages and groups) are stored on PINGO\'s servers so your history follows your account to any device you sign in on. They travel over HTTPS, are encrypted at rest by our database provider, and are walled off by access rules so only the people in a conversation can read them.',
+      'One thing we will not dress up: these chats are not end-to-end encrypted, so PINGO is technically able to read them. We do not read your chats, and nothing in the product does - but we are not going to tell you we cannot. Messages sent before 14 September 2026 were end-to-end encrypted and stay that way, and an opt-in end-to-end encrypted Private mode is being built for conversations that need it.',
       'PINGO AI is different on purpose: the assistant must read what you type to reply. AI chats, AI memories you save, and the model provider that generates replies are not end-to-end encrypted.',
       'This page is the honest map. Privacy settings inside the app control who can find you and contact you; this document explains what exists on servers and devices.',
     ],
@@ -51,15 +53,15 @@ const SECTIONS: Section[] = [
     list: [
       'Account: email and/or phone (when you use them), password stored only as a secure hash, or Google sign-in identifiers if you choose Google. Username login resolves your handle without exposing your email in error messages.',
       'Profile: username, display name, avatar, bio, and profile presentation fields the product shows (including display counts where the product uses them).',
-      'Human messages: ciphertext for text and structured message kinds, plus metadata the app needs (sender, conversation, time, kind, reply targets, edit/delete state, reactions). Recipients decrypt on their devices with keys that stay on devices.',
+      'Human messages: the text and structured content of what you send, plus metadata the app needs (sender, conversation, time, kind, reply targets, edit/delete state, reactions). Messages sent before 14 September 2026 are stored as ciphertext that only devices with the keys can open.',
       'Message media: Pings (disappearing chat photos), chat photos, voice notes, documents, and similar attachments stored as files so the other person can open them. Access is limited by account rules; files are not a public gallery.',
       'Delivery and read state: how far each person has read, mute/pin/archive preferences, and chat-list organisation.',
       'Stories: media, caption, audience rules, expiry, and view activity the product shows.',
       'Posts: up to three on a profile, with captions and social counts the product displays (likes, comments where enabled).',
       'Social graph: follows and follow requests, blocks, and mutual connections used for messaging and discovery rules.',
-      'Groups: membership, roles, invite codes, and group messages under the same encryption model as other human chats.',
+      'Groups: membership, roles, invite codes, and group messages, stored the same way as other human chats.',
       'Calls: who called whom, when, and duration for history. Call audio and video are not recorded by PINGO. Media is WebRTC between devices; a relay may carry encrypted packets when direct connection fails.',
-      'Device keys: public keys for your devices so others can encrypt to you. Private keys are generated and kept on the device (and in recovery material you choose to create).',
+      'Device keys: public keys for your devices, used to open messages sent before 14 September 2026 and for Private mode. Private keys are generated and kept on the device (and in recovery material you choose to create).',
       'Secure backup / recovery: if you enable it, encrypted backup packages and recovery helpers you set up so a new device can restore history. We cannot usefully read a correctly sealed backup as chat plaintext.',
       'Push tokens: device tokens so we can send notifications. Notification payloads are kept minimal (who / what kind); full message text is not required for delivery.',
       'PINGO AI: AI conversation membership, plaintext of AI threads (required to generate replies), and AI memories only when you explicitly save them. Model inference is performed by our AI provider under our account.',
@@ -69,12 +71,14 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'encryption',
-    title: 'Encryption: human chat vs AI',
+    title: 'Encryption: who can read what',
     body: [
-      'Human direct messages and human group messages are encrypted for message bodies: your device encrypts before upload; other people\'s devices decrypt. The database stores ciphertext, so a mistake in our access rules, or a copy of the message table on its own, does not hand anybody readable chat text.',
-      'Where that stops. Your messages are wrapped for a key that belongs to your account rather than to one phone, because the alternative was that changing devices lost every conversation you had ever had - which is what used to happen. That key is stored on our servers, so PINGO is technically able to open message bodies. Earlier versions of this page said operators could not; that was true then and is not true now, and we would rather correct it than leave it standing.',
-      'Metadata still exists so the product works: who is in a conversation, timestamps, message kind, delivery and read markers, and pointers to media files. Metadata is not the same as reading the sealed body.',
-      'Chat media (Pings, voice notes, photos, files) is stored so recipients can open it. It is protected by account and storage rules and HTTPS; it is not the same construction as sealing a text body with your device keys. Treat sensitive photos and voice as sensitive even inside a chat.',
+      'Messages between people travel over HTTPS, are stored encrypted at rest by our database provider, and are protected by row-level security so only members of a conversation can request them. They are not end-to-end encrypted: PINGO runs the servers and is technically able to read stored messages. We do not, and nothing in the product does.',
+      'Why it changed. With end-to-end encryption, history was tied to device keys, and people lost chats when they changed phones or cleared a browser. From 14 September 2026 normal chats keep their history on your account instead. Earlier versions of this page described end-to-end encryption; that was true then and is not true for new messages now, and we would rather say so than leave it standing.',
+      'Messages sent before 14 September 2026 were end-to-end encrypted and remain so. They open on devices that hold the keys; anywhere else they show as locked rather than disappearing.',
+      'Private mode (being built): an opt-in, end-to-end encrypted mode for a conversation. In Private mode PINGO cannot read the messages - and losing your key can make them unreadable for good.',
+      'Metadata exists so the product works: who is in a conversation, timestamps, message kind, delivery and read markers, and pointers to media files.',
+      'Chat media (Pings, voice notes, photos, files) is stored so recipients can open it, protected by account and storage rules and HTTPS. Treat sensitive photos and voice as sensitive even inside a chat.',
       'PINGO AI cannot be end-to-end encrypted: the assistant must process your words. AI chat content and AI memories are processed on our systems and by the model provider. Do not put secrets in AI chat that you would not trust a server-side assistant with.',
       'Everything between your app and our infrastructure uses HTTPS. Passwords are hashed. Database access is constrained with row-level security so one account cannot simply request another account\'s rows.',
     ],
@@ -89,7 +93,6 @@ const SECTIONS: Section[] = [
       'Advertising IDs for resale, third-party ad pixels, or behavioural ad profiles.',
       'A product analytics stack whose job is to build a marketing dossier of you. Operational logs may exist to keep the service up and secure; they are not an ad graph.',
       'The content of live calls as a recording. PINGO does not keep a tape of your voice or video call.',
-      'Readable plaintext of human E2EE message bodies on the server under normal design (ciphertext is what is stored for those bodies).',
     ],
   },
   {
@@ -107,19 +110,19 @@ const SECTIONS: Section[] = [
     id: 'ai',
     title: 'PINGO AI',
     body: [
-      'PINGO AI is an in-app assistant in a separate conversation type from human E2EE chats.',
+      'PINGO AI is an in-app assistant in a separate conversation type from your chats with people.',
       'To answer you, the service sends recent AI-thread context (and any memories you explicitly saved) to our systems and the model provider. That content is processed to produce the reply.',
       'AI memories are not harvested automatically from everything you type. They are stored when you ask the product to remember something (or use an explicit memory action the product provides).',
-      'Do not use AI chat for passwords, recovery secrets, or anything you need the server never to see. Use human E2EE chat with people for private human conversation; use AI with that limit in mind.',
+      'Do not use AI chat for passwords, recovery secrets, or anything you need the server never to see.',
     ],
   },
   {
     id: 'devices',
     title: 'Devices, local data and backup',
     body: [
-      'PINGO is local-first where it can be: recent chats and keys live on the device so opening the app is fast and partly works offline.',
-      'A new device does not magically receive old human ciphertext it cannot decrypt. Restoring history depends on signing in and, when you use it, Secure Backup / recovery you set up.',
-      'If you lose every device and every recovery path, sealed human history may be unrecoverable. That is a consequence of E2EE, not a hidden server vault of plaintext.',
+      'PINGO keeps a local copy of recent chats on each device so opening the app is fast and partly works offline. The server holds the history, so signing in on a new device brings your chats back.',
+      'Messages sent before 14 September 2026 are end-to-end encrypted: a new device opens them only with the keys or the Secure Backup / recovery you set up.',
+      'If you lose every device and every recovery path, those sealed messages - and Private-mode messages, once it arrives - may be unrecoverable. That is what end-to-end encryption means.',
       'Uninstalling the app or clearing site data removes local copies on that device. It does not by itself delete the server account.',
     ],
   },
@@ -144,7 +147,7 @@ const SECTIONS: Section[] = [
       'Supabase: database, auth, file storage, realtime. Your account and app data live on this infrastructure under our project.',
       'Cloudflare: hosts the web app (and related edge delivery). Like any host, it sees connection metadata such as IP addresses for requests it serves. Cloudflare may also provide call relay (TURN) credentials so calls connect on hard networks.',
       'Google: only if you use Google sign-in, and/or if you enable push notifications that use Firebase Cloud Messaging / browser push libraries. Push content is kept minimal; we do not need FCM to store your full chat history.',
-      'AI model provider: processes AI-chat prompts and context to generate assistant replies. Human E2EE DM bodies are not sent there for ordinary human chat.',
+      'AI model provider: processes AI-chat prompts and context to generate assistant replies. Chats with people are not sent there, except a group message that @mentions PINGO AI.',
       'App stores / OS vendors: if you install a native build, their normal install and update channels apply under their policies.',
     ],
   },
@@ -174,11 +177,11 @@ const SECTIONS: Section[] = [
     title: 'Questions people actually ask',
     body: [],
     list: [
-      'Can PINGO staff read my human DMs? Under the E2EE design, message bodies are ciphertext on the server. Staff are not meant to read your private human chat as plaintext. Metadata and some media handling still exist for delivery.',
+      'Can PINGO staff read my human DMs? Technically yes: normal chats are stored on our servers so they can follow your account between devices. We do not read them, and access is limited to what running the service requires. Messages sent before 14 September 2026, and Private mode when it arrives, are end-to-end encrypted.',
       'Can PINGO staff read my AI chat? Yes, in principle — AI requires server-side processing. Treat AI chat as assistant processing, not as a sealed human DM.',
       'Are Pings private forever? No. They are limited-view media. Screenshots and screen recording by a recipient are outside any app\'s full control.',
       'If I log out, is my data deleted? No. Logout ends the session on that device. Your account and server-held data remain until you delete or request erasure.',
-      'If I get a new phone, do old chats appear automatically? Not always. Local history and E2EE keys live on devices. Use Secure Backup / recovery when you want a deliberate restore path.',
+      'If I get a new phone, do old chats appear automatically? Yes for normal chats: sign in and your history is there. Messages sent before 14 September 2026 need the keys or the Secure Backup / recovery you set up.',
       'Do you sell my data? No.',
       'Is there advertising? No ads in the product today.',
       'Who sees my profile? Username and public profile fields are part of a social messaging product. Use Privacy settings and blocking for finer control.',
@@ -217,7 +220,7 @@ export function PrivacyPolicyScreen() {
       applyPageSeo({
         title: 'Privacy Policy | PINGO',
         description:
-          'PINGO Privacy Policy: end-to-end encrypted human chats, PINGO AI processing limits, Pings, stories, backup, push, and what we store. Written from the live product.',
+          'PINGO Privacy Policy: how chats are stored, what PINGO AI processes, Pings, stories, backup, push, and what we hold. Written from the live product.',
         path: '/privacy',
         type: 'article',
       }),

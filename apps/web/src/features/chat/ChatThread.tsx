@@ -52,7 +52,6 @@ import { useMutuals } from '../profile/useMutuals.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer, type MentionOption } from './Composer.js';
-import { EncryptionNotice } from './EncryptionNotice.js';
 import { GroupInfoSheet } from './GroupInfoSheet.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
@@ -1791,11 +1790,11 @@ export function ChatThread({
               ))}
 
             {/*
-              Sits under the typing indicator (never above it). Human threads
-              get the quiet lock line; AI gets honesty that this chat is
-              processed for replies - not an E2EE claim.
+              Sits under the typing indicator (never above it). AI gets honesty
+              that this chat is processed for replies. Normal human chats carry
+              no lock line: they are not end-to-end encrypted (see sendMessage).
             */}
-            {isAi ? <AiPrivacyNotice /> : <EncryptionNotice />}
+            {isAi && <AiPrivacyNotice />}
 
             {/* Scroll anchor. */}
             <div ref={bottomRef} className="h-0" />
