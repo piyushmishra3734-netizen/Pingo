@@ -815,6 +815,8 @@ export class SupabaseChatService implements ChatService {
    * it from fourteen queries. See `#bumpConversation`.
    */
   #known = new Map<ConversationId, Conversation>();
+  /** The last `conversations` row seen per id - see `#onlyActivityMoved`. */
+  #conversationRows = new Map<string, ConversationRow>();
 
   /**
    * Read-mark coalescing, per conversation. See `markConversationRead`: the
@@ -1442,6 +1444,12 @@ export class SupabaseChatService implements ChatService {
         (payload) => {
           const row = (payload.new ?? payload.old) as { id?: string } | null;
           if (!row?.id) return;
+          if (
+            payload.eventType === 'UPDATE' &&
+            this.#onlyActivityMoved(payload.new as ConversationRow)
+          ) {
+            return;
+          }
           void this.#announce(row.id);
         },
       )
@@ -1815,6 +1823,7 @@ export class SupabaseChatService implements ChatService {
     options?: { allowSilent?: boolean },
   ): Promise<Conversation[]> {
     if (rows.length === 0) return [];
+    for (const row of rows) this.#conversationRows.set(row.id, row);
     const ids = rows.map((row) => row.id);
 
     const [{ data: members }, { data: previews }, { data: streaks }] = await Promise.all([
@@ -5448,6 +5457,29 @@ export class SupabaseChatService implements ChatService {
       // real message rather than being joined by a copy of itself.
       await this.#sendNow(draft, id);
     });
+  }
+
+  /**
+   * Whether a conversation row changed only in when its last message was.
+   *
+   * `messages_touch_conversation` bumps `last_message_at` on every message
+   * insert, so every message in every chat reached each member's socket twice:
+   * once as the message, which `#bumpConversation` already applies to the list
+   * row, and once as this row - which re-read the whole conversation. Measured
+   * on 2026-09-14: eight full rebuilds (six requests each, `conversation_previews`
+   * among them) for one message sent, and bursts every few seconds while idle.
+   *
+   * A rename, a picture, a wallpaper or a disappearing timer changes another
+   * column, and is still re-read. So is a row this device has not seen yet.
+   */
+  #onlyActivityMoved(row: ConversationRow): boolean {
+    const previous = this.#conversationRows.get(row.id);
+    this.#conversationRows.set(row.id, row);
+    if (!previous || !this.#known.has(row.id)) return false;
+    return (Object.keys(row) as (keyof ConversationRow)[]).every(
+      (key) =>
+        key === 'last_message_at' || JSON.stringify(row[key]) === JSON.stringify(previous[key]),
+    );
   }
 
   async #announce(conversationId: ConversationId): Promise<void> {

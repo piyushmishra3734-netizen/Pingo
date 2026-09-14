@@ -346,3 +346,13 @@ const shellSource = await readSource('apps/web/src/app/AppShell.tsx');
 assert.match(shellSource, /currentUser\.id !== signedInAs/, 'the shell notices another account signed in');
 assert.match(shellSource, /if \(staleAccount\) window\.location\.assign\('\/chats'\)/, 'and reloads into it');
 console.log('✓ switched accounts reload into their own chats, and show their PINGO name');
+
+// A message's `last_message_at` bump on its conversation row is not a reason to
+// re-read the whole conversation: the message event already moved the list row.
+assert.match(
+  service,
+  /payload\.eventType === 'UPDATE' &&\s*this\.#onlyActivityMoved\(payload\.new as ConversationRow\)\s*\)\s*\{\s*return;\s*\}\s*void this\.#announce\(row\.id\);/,
+  'a conversation row that only moved last_message_at does not trigger a rebuild',
+);
+assert.match(service, /key === 'last_message_at' \|\|/, 'only last_message_at is treated as activity');
+console.log('✓ message bumps on the conversation row no longer rebuild the conversation');
