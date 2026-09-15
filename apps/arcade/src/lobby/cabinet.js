@@ -39,11 +39,15 @@ const SCREEN_LIFT = 0.003;
 /**
  * A point on the cabinet's lid, in model units, for the dome light to stand
  * on. The lid is not flat - it rises 7 degrees toward the front, from 0.683
- * at the back to 0.725 over the screen (measured from its upward faces) - so
- * this is where that slope is at 0.1 forward of the origin: toward the
- * player, where the dome is seen from the seat.
+ * at the back to 0.725 at its front edge (z 0.181), measured from its upward
+ * faces - so this is where that slope is at z 0.13.
+ *
+ * As far forward as the dome's base still fits on the lid. At z 0.1 the lid's
+ * own front edge hid all but the top of the dome from the seat: the sight line
+ * from a seated eye grazes that edge, and every centimetre further back is
+ * another centimetre of dome behind it.
  */
-export const LID = { y: 0.715, z: 0.1 };
+export const LID = { y: 0.719, z: 0.13 };
 
 let model;
 

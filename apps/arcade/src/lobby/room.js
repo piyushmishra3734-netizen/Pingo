@@ -1,4 +1,5 @@
 import {
+  BoxGeometry,
   Group,
   HemisphereLight,
   Mesh,
@@ -37,8 +38,18 @@ import { contactShadowTexture, floorTexture } from './textures.js';
 const CABINET_OFFSET = CABINET_BACK * CABINET_SCALE + 0.02;
 /** Where a player sits: a stool's width in front of the control panel. */
 const SEAT_OFFSET = 1.8;
-/** Seated on a 0.52 m stool, an adult's eyes are about here. */
-const EYE_HEIGHT = 1.27;
+/**
+ * The seat camera's height: a little above and behind a seated head, rather
+ * than in it.
+ *
+ * At a true seated eye height (1.27 m) the cabinet's top slab filled the upper
+ * half of the view and hid the dome behind its front edge - measured, only its
+ * top sliver and halo showed. From here the screen and most of the dome are
+ * both in frame, which is what the seat is for: play on one, news on the other.
+ */
+const EYE_HEIGHT = 1.45;
+/** How far behind the stool the seat camera sits. */
+const CAMERA_BEHIND_STOOL = 0.55;
 
 function contactShadows(spots) {
   const texture = contactShadowTexture();
@@ -106,16 +117,34 @@ export function createRoom() {
   );
 
   /*
-   * Where each player's camera sits and what it looks at: seated eye height,
-   * just behind the stool, aimed at the middle of that cabinet's screen
-   * (0.42 model units up, 0.088 forward of the cabinet's origin).
+   * Where each player's camera sits and what it looks at.
+   *
+   * Seated eye height, a little behind the stool, aimed between the screen
+   * (1.01 m) and the dome on the lid (1.87 m) so both are in frame: the
+   * screen is what you came to play, and the dome is what tells you whether
+   * anyone is coming.
    */
-  const screenY = 0.42 * CABINET_SCALE;
   const screenZ = CABINET_OFFSET + 0.088 * CABINET_SCALE;
-  const seats = [
-    { id: 'A', position: [0, EYE_HEIGHT, -SEAT_OFFSET - 0.15], lookAt: [0, screenY, -screenZ] },
-    { id: 'B', position: [0, EYE_HEIGHT, SEAT_OFFSET + 0.15], lookAt: [0, screenY, screenZ] },
-  ];
+  const aimY = 1.3;
+  const hitMaterial = new MeshBasicMaterial();
+
+  const seats = [-1, 1].map((side, index) => {
+    /*
+     * The seat's tap target: an invisible box over the stool and the cabinet
+     * in front of it. Never drawn (`visible = false`), still hit by the ray.
+     */
+    const hit = new Mesh(new BoxGeometry(1.3, 1.95, 1.6), hitMaterial);
+    hit.position.set(0, 0.975, side * (SEAT_OFFSET - 0.45));
+    hit.visible = false;
+    group.add(hit);
+
+    return {
+      id: index === 0 ? 'A' : 'B',
+      position: [0, EYE_HEIGHT, side * (SEAT_OFFSET + CAMERA_BEHIND_STOOL)],
+      lookAt: [0, aimY, side * screenZ],
+      hit,
+    };
+  });
 
   // A dome on each lid, both driven by the one session: each player sees the
   // match's state from their own seat.

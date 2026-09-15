@@ -1,7 +1,11 @@
 import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
-import { createSession } from './core/session.js';
+import { playCoin, unlockAudio } from './audio/sfx.js';
+import { State, createSession } from './core/session.js';
+import { createCameraRig } from './lobby/camera-rig.js';
 import { createRoom } from './lobby/room.js';
+import { createSeatPicker } from './lobby/seat-picker.js';
+import { createOverlay } from './ui/overlay.js';
 
 /*
  * The mobile rules, set once here so nothing downstream can drift from them:
@@ -23,21 +27,29 @@ const room = createRoom();
 scene.add(room.group);
 
 /*
- * The match, and the one thing in the room it controls so far: the domes.
- * The session decides; the lobby only listens - see core/session.js.
+ * The field of view follows the screen's shape.
+ *
+ * A fixed 55 degrees is right on a laptop and wrong on a phone held upright:
+ * at an aspect of 0.46 it leaves about 27 degrees across, and a cabinet seen
+ * from the stool needs about 44. So the vertical angle widens until at least
+ * 44 degrees fit horizontally - landscape keeps 55, a portrait phone gets the
+ * whole machine instead of its middle.
  */
-const session = createSession();
-room.domes.set(session.light);
-session.on(({ light }) => room.domes.set(light));
+const BASE_FOV = 55;
+const MIN_HORIZONTAL_FOV = 44;
 
-/*
- * An establishing view until step 5 gives sitting down its own camera move:
- * off to one side, high enough to see both cabinets and both stools, which is
- * also the view that shows whether the back-to-back layout reads.
- */
-const camera = new PerspectiveCamera(55, 1, 0.1, 50);
-camera.position.set(2.6, 1.85, 3.1);
-camera.lookAt(0, 0.95, 0);
+function fitFov(aspect) {
+  const half = (MIN_HORIZONTAL_FOV * Math.PI) / 360;
+  const vertical = (2 * Math.atan(Math.tan(half) / aspect) * 180) / Math.PI;
+  return Math.max(BASE_FOV, vertical);
+}
+
+const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 50);
+const rig = createCameraRig(camera);
+
+/** Off to one side and high: both cabinets, both stools, both domes. */
+const OVERVIEW = { position: [2.6, 1.85, 3.1], lookAt: [0, 0.95, 0] };
+rig.snap(OVERVIEW);
 
 function resize() {
   const width = canvas.clientWidth;
@@ -45,15 +57,54 @@ function resize() {
   // `false`: the canvas keeps its CSS size; only the drawing buffer changes.
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
+  camera.fov = fitFov(camera.aspect);
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
 resize();
 
+/*
+ * The match. The session decides; everything in the room only listens - see
+ * core/session.js. The seat is the lobby's business, remembered here so the
+ * camera knows where "sitting down" means.
+ */
+const session = createSession();
+let seat = room.seats[0];
+
+const overlay = createOverlay({ onStand: () => session.leave() });
+
+function show(state, light) {
+  room.domes.set(light);
+  overlay.show(state);
+}
+show(session.state, session.light);
+
+session.on(({ from, to, light }) => {
+  show(to, light);
+  if (from === State.IDLE) rig.moveTo(seat);
+  if (to === State.IDLE) rig.moveTo(OVERVIEW);
+  if (to === State.PAIRED) playCoin();
+});
+
+createSeatPicker({
+  canvas,
+  camera,
+  seats: room.seats,
+  onPick(picked) {
+    // Already in a chair: a tap on the scene is not a request to swap seats.
+    if (session.state !== State.IDLE) return;
+    // The tap is the gesture the browser needs before it will play a sound.
+    unlockAudio();
+    seat = picked;
+    session.sit();
+  },
+});
+
 /** Dev-only overlay; stays undefined in a normal production build. */
 let hud;
 
 function frame(now) {
+  rig.update(now);
   room.domes.update(now);
   renderer.render(scene, camera);
   hud?.update(now);
@@ -74,29 +125,20 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
   });
   // The scene, reachable from a console or a headless probe. Dev only: it is
   // the difference between reading geometry numbers and guessing at them.
-  window.__arcade = { renderer, scene, camera, room, session };
+  window.__arcade = { renderer, scene, camera, room, session, rig };
 }
 
 /*
- * Driving the session by hand, in dev only, until step 5 (sitting down) and
- * steps 6-7 (a real guest) drive it for real.
- *
- * Keys for a laptop - S sit, G guest found, P paired, D dropped, L leave - and
- * for a phone a tap on the scene plays the whole story one beat at a time.
- * An action that does not apply is ignored by the session, so mashing keys
- * cannot put it in a state it could not reach.
+ * The rest of the story by keyboard, in dev only, until steps 6-7 bring a real
+ * guest: G guest found, P paired, D dropped, L leave, and S to sit at seat A
+ * without aiming. Any key also unlocks audio, so P plays the coin.
  */
 if (import.meta.env.DEV) {
   const KEYS = { s: 'sit', g: 'guestFound', p: 'paired', d: 'dropped', l: 'leave' };
   window.addEventListener('keydown', (event) => {
     const action = KEYS[event.key.toLowerCase()];
-    if (action) session.send(action);
-  });
-
-  const STORY = ['sit', 'guestFound', 'paired', 'dropped', 'paired', 'leave'];
-  let beat = 0;
-  canvas.addEventListener('pointerup', () => {
-    session.send(STORY[beat]);
-    beat = (beat + 1) % STORY.length;
+    if (!action) return;
+    unlockAudio();
+    session.send(action);
   });
 }
