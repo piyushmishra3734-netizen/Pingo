@@ -1,16 +1,10 @@
-import {
-  Color,
-  Mesh,
-  MeshBasicMaterial,
-  PerspectiveCamera,
-  PlaneGeometry,
-  Scene,
-  WebGLRenderer,
-} from 'three';
+import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+
+import { createRoom } from './lobby/room.js';
 
 /*
  * The mobile rules, set once here so nothing downstream can drift from them:
- * - no shadow maps; shadows are baked into textures
+ * - no shadow maps; contact shadows are drawn on a canvas at boot instead
  * - pixel ratio capped at 1.2; above that a budget phone's GPU heats up and throttles
  * - no MSAA; at this pixel ratio it costs more than it shows on a phone
  */
@@ -24,15 +18,17 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
 const scene = new Scene();
 scene.background = new Color(0x0d0a14);
 
-// Standing eye height, looking at the middle of the room.
-const camera = new PerspectiveCamera(60, 1, 0.1, 50);
-camera.position.set(0, 1.6, 4);
-camera.lookAt(0, 0.8, 0);
+const room = createRoom();
+scene.add(room.group);
 
-// A floor, so an empty scene is visibly running. Two triangles.
-const floor = new Mesh(new PlaneGeometry(8, 8), new MeshBasicMaterial({ color: 0x1b1626 }));
-floor.rotation.x = -Math.PI / 2;
-scene.add(floor);
+/*
+ * An establishing view until step 5 gives sitting down its own camera move:
+ * off to one side, high enough to see both cabinets and both stools, which is
+ * also the view that shows whether the back-to-back layout reads.
+ */
+const camera = new PerspectiveCamera(55, 1, 0.1, 50);
+camera.position.set(2.6, 1.85, 3.1);
+camera.lookAt(0, 0.95, 0);
 
 function resize() {
   const width = canvas.clientWidth;
@@ -66,4 +62,7 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
   import('./dev/perf-hud.js').then(({ createPerfHud }) => {
     hud = createPerfHud(renderer);
   });
+  // The scene, reachable from a console or a headless probe. Dev only: it is
+  // the difference between reading geometry numbers and guessing at them.
+  window.__arcade = { renderer, scene, camera, room };
 }
