@@ -1,5 +1,6 @@
 import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
+import { createSession } from './core/session.js';
 import { createRoom } from './lobby/room.js';
 
 /*
@@ -20,6 +21,14 @@ scene.background = new Color(0x0d0a14);
 
 const room = createRoom();
 scene.add(room.group);
+
+/*
+ * The match, and the one thing in the room it controls so far: the domes.
+ * The session decides; the lobby only listens - see core/session.js.
+ */
+const session = createSession();
+room.domes.set(session.light);
+session.on(({ light }) => room.domes.set(light));
 
 /*
  * An establishing view until step 5 gives sitting down its own camera move:
@@ -45,6 +54,7 @@ resize();
 let hud;
 
 function frame(now) {
+  room.domes.update(now);
   renderer.render(scene, camera);
   hud?.update(now);
 }
@@ -64,5 +74,29 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
   });
   // The scene, reachable from a console or a headless probe. Dev only: it is
   // the difference between reading geometry numbers and guessing at them.
-  window.__arcade = { renderer, scene, camera, room };
+  window.__arcade = { renderer, scene, camera, room, session };
+}
+
+/*
+ * Driving the session by hand, in dev only, until step 5 (sitting down) and
+ * steps 6-7 (a real guest) drive it for real.
+ *
+ * Keys for a laptop - S sit, G guest found, P paired, D dropped, L leave - and
+ * for a phone a tap on the scene plays the whole story one beat at a time.
+ * An action that does not apply is ignored by the session, so mashing keys
+ * cannot put it in a state it could not reach.
+ */
+if (import.meta.env.DEV) {
+  const KEYS = { s: 'sit', g: 'guestFound', p: 'paired', d: 'dropped', l: 'leave' };
+  window.addEventListener('keydown', (event) => {
+    const action = KEYS[event.key.toLowerCase()];
+    if (action) session.send(action);
+  });
+
+  const STORY = ['sit', 'guestFound', 'paired', 'dropped', 'paired', 'leave'];
+  let beat = 0;
+  canvas.addEventListener('pointerup', () => {
+    session.send(STORY[beat]);
+    beat = (beat + 1) % STORY.length;
+  });
 }

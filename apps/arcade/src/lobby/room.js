@@ -8,7 +8,8 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { CABINET_BACK, CABINET_SCALE, createCabinet } from './cabinet.js';
+import { CABINET_BACK, CABINET_SCALE, LID, createCabinet } from './cabinet.js';
+import { createDomeLights } from './dome-light.js';
 import { createStool } from './stool.js';
 import { contactShadowTexture, floorTexture } from './textures.js';
 
@@ -116,10 +117,22 @@ export function createRoom() {
     { id: 'B', position: [0, EYE_HEIGHT, SEAT_OFFSET + 0.15], lookAt: [0, screenY, screenZ] },
   ];
 
+  // A dome on each lid, both driven by the one session: each player sees the
+  // match's state from their own seat.
+  const lidY = LID.y * CABINET_SCALE;
+  const lidZ = CABINET_OFFSET + LID.z * CABINET_SCALE;
+  const domes = createDomeLights([
+    [0, lidY, -lidZ],
+    [0, lidY, lidZ],
+  ]);
+  group.add(domes.group);
+
   return {
     group,
     cabinets: [cabinetA, cabinetB],
     seats,
+    /** `set(light)` from the session, `update(now)` every frame. */
+    domes,
     /** Resolves when both cabinet bodies are in the scene. */
     ready: Promise.all([cabinetA.ready, cabinetB.ready]),
   };

@@ -45,6 +45,22 @@ export function contactShadowTexture() {
   return finish(element, { srgb: false });
 }
 
+/**
+ * The halo around a lit dome: white, so one texture serves every colour -
+ * the sprite's own colour tints it. Drawn additively, so it brightens what is
+ * behind it the way light does, without being a light.
+ */
+export function glowTexture() {
+  const [element, ctx] = canvas(128);
+  const gradient = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 128, 128);
+  return finish(element, { srgb: false });
+}
+
 /** Arcade carpet: near-black, with a faint grid so the floor has a scale. */
 export function floorTexture() {
   const [element, ctx] = canvas(128);
