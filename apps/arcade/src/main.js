@@ -1,10 +1,12 @@
 import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
 import { playCoin, unlockAudio } from './audio/sfx.js';
+import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig } from './lobby/camera-rig.js';
 import { createRoom } from './lobby/room.js';
 import { createSeatPicker } from './lobby/seat-picker.js';
+import { inviteUrl, newRoomId, roomFromSearch, seatFromSearch } from './net/room-id.js';
 import { createOverlay } from './ui/overlay.js';
 
 /*
@@ -64,27 +66,92 @@ window.addEventListener('resize', resize);
 resize();
 
 /*
- * The match. The session decides; everything in the room only listens - see
- * core/session.js. The seat is the lobby's business, remembered here so the
- * camera knows where "sitting down" means.
+ * The match. The session decides; the room, the overlay and the sounds only
+ * listen - see core/session.js. The network only ever *tells* the session
+ * what happened, through createMatch.
  */
 const session = createSession();
-let seat = room.seats[0];
+const seatById = { A: room.seats[0], B: room.seats[1] };
+let seat = seatById.A;
+let invite;
+let rtt;
+let note;
 
-const overlay = createOverlay({ onStand: () => session.leave() });
+const overlay = createOverlay({ onStand: stand });
 
-function show(state, light) {
-  room.domes.set(light);
-  overlay.show(state);
+function show() {
+  overlay.show(session.state, { invite, rtt, note });
 }
-show(session.state, session.light);
+
+/*
+ * The network layer, loaded the first time somebody sits down.
+ *
+ * Nobody needs signalling or WebRTC to look at the room, and adding them to
+ * the first download took the main bundle past 600 KB. As its own chunk it
+ * arrives in the time the camera spends gliding to the seat.
+ */
+let matchReady;
+
+function getMatch() {
+  matchReady ??= import('./net/match.js').then(({ createMatch }) =>
+    createMatch({
+      session,
+      signalUrl: SIGNAL_URL,
+      onRtt(ms) {
+        rtt = ms;
+        show();
+      },
+      onRole(role) {
+        // Only a host has somebody to invite; a promoted guest becomes one.
+        invite = role === 'host' ? inviteUrl(location.href, roomFromSearch(location.search), seat.id) : undefined;
+        show();
+      },
+      onFull() {
+        // Out of the chair and out of the room - the address bar included,
+        // or a reload would knock on the same full door again.
+        stand();
+        note = 'That game already has two players';
+        show();
+      },
+    }),
+  );
+  return matchReady;
+}
+
+room.domes.set(session.light);
+show();
 
 session.on(({ from, to, light }) => {
-  show(to, light);
+  room.domes.set(light);
+  if (to !== State.PAIRED) rtt = undefined;
   if (from === State.IDLE) rig.moveTo(seat);
   if (to === State.IDLE) rig.moveTo(OVERVIEW);
   if (to === State.PAIRED) playCoin();
+  show();
 });
+
+/** Sits at `picked` in room `roomId` - making the room if there is none. */
+function sit(picked, roomId) {
+  seat = picked;
+  note = undefined;
+  // The address bar carries the room, so a reload rejoins it and the link
+  // in it is already the invite.
+  const url = new URL(location.href);
+  url.searchParams.set('room', roomId);
+  history.replaceState(null, '', url);
+  session.sit();
+  void getMatch().then((match) => match.begin(roomId));
+}
+
+function stand() {
+  session.leave();
+  void matchReady?.then((match) => match.end());
+  invite = undefined;
+  const url = new URL(location.href);
+  url.search = '';
+  history.replaceState(null, '', url);
+  show();
+}
 
 createSeatPicker({
   canvas,
@@ -95,10 +162,19 @@ createSeatPicker({
     if (session.state !== State.IDLE) return;
     // The tap is the gesture the browser needs before it will play a sound.
     unlockAudio();
-    seat = picked;
-    session.sit();
+    sit(picked, newRoomId());
   },
 });
+
+/*
+ * Opened from an invite: straight to the other seat, and into the room.
+ *
+ * No tap has happened yet, so the browser will not play the coin until the
+ * guest touches the page once - the first touch anywhere unlocks it.
+ */
+const invitedTo = roomFromSearch(location.search);
+if (invitedTo) sit(seatById[seatFromSearch(location.search)], invitedTo);
+window.addEventListener('pointerdown', unlockAudio, { once: true });
 
 /** Dev-only overlay; stays undefined in a normal production build. */
 let hud;
@@ -125,20 +201,5 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
   });
   // The scene, reachable from a console or a headless probe. Dev only: it is
   // the difference between reading geometry numbers and guessing at them.
-  window.__arcade = { renderer, scene, camera, room, session, rig };
-}
-
-/*
- * The rest of the story by keyboard, in dev only, until steps 6-7 bring a real
- * guest: G guest found, P paired, D dropped, L leave, and S to sit at seat A
- * without aiming. Any key also unlocks audio, so P plays the coin.
- */
-if (import.meta.env.DEV) {
-  const KEYS = { s: 'sit', g: 'guestFound', p: 'paired', d: 'dropped', l: 'leave' };
-  window.addEventListener('keydown', (event) => {
-    const action = KEYS[event.key.toLowerCase()];
-    if (!action) return;
-    unlockAudio();
-    session.send(action);
-  });
+  window.__arcade = { renderer, scene, camera, room, session, rig, getMatch };
 }

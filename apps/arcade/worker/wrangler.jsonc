@@ -1,0 +1,26 @@
+{
+  // PINGO Arcade signalling: introduces two browsers so they can open a
+  // WebRTC connection, then gets out of the way. No game traffic passes
+  // through here - that goes peer to peer.
+  "name": "pingo-arcade-signal",
+  "main": "src/index.js",
+  // The newest date the installed workerd supports (wrangler 4.114); a later
+  // one refuses to start locally. Includes 2026-04-07's automatic replies to
+  // WebSocket close frames.
+  "compatibility_date": "2026-07-29",
+
+  // One Durable Object per room: the only way two requests (two players)
+  // can see the same state. SQLite-backed, because that is what the free
+  // plan allows; nothing is stored in it - the room is its open sockets.
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "ArcadeRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ArcadeRoom"] }],
+
+  "observability": { "enabled": true }
+
+  // Optional TURN, for players behind carrier NAT (common on Indian mobile
+  // data): set both as secrets and /ice starts returning Cloudflare TURN.
+  //   npx wrangler secret put TURN_KEY_ID --config apps/arcade/worker/wrangler.jsonc
+  //   npx wrangler secret put TURN_KEY_API_TOKEN --config apps/arcade/worker/wrangler.jsonc
+}
