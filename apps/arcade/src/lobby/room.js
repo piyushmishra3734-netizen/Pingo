@@ -8,7 +8,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { createCabinet } from './cabinet.js';
+import { CABINET_BACK, CABINET_SCALE, createCabinet } from './cabinet.js';
 import { createStool } from './stool.js';
 import { contactShadowTexture, floorTexture } from './textures.js';
 
@@ -32,15 +32,12 @@ import { contactShadowTexture, floorTexture } from './textures.js';
  * room.
  */
 
-/**
- * Distance from the room's centre to a cabinet's own centre.
- *
- * Wide enough that the pair reads as two machines sharing a spine rather than
- * one block: at 0.42 the shells met and the seam disappeared.
- */
-const CABINET_OFFSET = 0.48;
-/** Where a player sits, and where that seat's camera lives. */
-const SEAT_OFFSET = 1.35;
+/** Backs 4 cm apart at the spine, so the pair reads as two machines. */
+const CABINET_OFFSET = CABINET_BACK * CABINET_SCALE + 0.02;
+/** Where a player sits: a stool's width in front of the control panel. */
+const SEAT_OFFSET = 1.8;
+/** Seated on a 0.52 m stool, an adult's eyes are about here. */
+const EYE_HEIGHT = 1.27;
 
 function contactShadows(spots) {
   const texture = contactShadowTexture();
@@ -78,14 +75,13 @@ export function createRoom() {
   floor.rotation.x = -Math.PI / 2;
   group.add(floor);
 
-  // Seat A looks along +Z, seat B along -Z; the cabinet in front of each one
-  // is turned to face its player.
-  const cabinetA = createCabinet({ accentColor: 0xff4f8b, label: 'PINGO' });
+  // The model faces +Z: B needs nothing, A turns round to face its own seat.
+  const cabinetA = createCabinet();
   cabinetA.group.position.z = -CABINET_OFFSET;
+  cabinetA.group.rotation.y = Math.PI;
 
-  const cabinetB = createCabinet({ accentColor: 0x38e0d0, label: 'PINGO' });
+  const cabinetB = createCabinet();
   cabinetB.group.position.z = CABINET_OFFSET;
-  cabinetB.group.rotation.y = Math.PI;
 
   group.add(cabinetA.group, cabinetB.group);
 
@@ -95,23 +91,36 @@ export function createRoom() {
   stoolB.position.set(0, 0, SEAT_OFFSET);
   group.add(stoolA, stoolB);
 
+  // Footprint of one cabinet, a little larger than the model so the shadow
+  // softens past its edges; centred where the model's mass is.
+  const cabinetShadow = { w: 1.25, d: 1.55 };
+  const cabinetMiddle = CABINET_OFFSET + 0.025 * CABINET_SCALE;
   group.add(
     contactShadows([
-      { x: 0, z: -CABINET_OFFSET - 0.05, w: 1.5, d: 1.25 },
-      { x: 0, z: CABINET_OFFSET + 0.05, w: 1.5, d: 1.25 },
+      { x: 0, z: -cabinetMiddle, ...cabinetShadow },
+      { x: 0, z: cabinetMiddle, ...cabinetShadow },
       { x: 0, z: -SEAT_OFFSET, w: 0.8, d: 0.8 },
       { x: 0, z: SEAT_OFFSET, w: 0.8, d: 0.8 },
     ]),
   );
 
-  /**
-   * Where each player's camera sits, and what it looks at: seated eye height,
-   * a little back from the stool, aimed at that cabinet's screen.
+  /*
+   * Where each player's camera sits and what it looks at: seated eye height,
+   * just behind the stool, aimed at the middle of that cabinet's screen
+   * (0.42 model units up, 0.088 forward of the cabinet's origin).
    */
+  const screenY = 0.42 * CABINET_SCALE;
+  const screenZ = CABINET_OFFSET + 0.088 * CABINET_SCALE;
   const seats = [
-    { id: 'A', position: [0, 1.02, -SEAT_OFFSET + 0.05], lookAt: [0, 1.0, -CABINET_OFFSET] },
-    { id: 'B', position: [0, 1.02, SEAT_OFFSET - 0.05], lookAt: [0, 1.0, CABINET_OFFSET] },
+    { id: 'A', position: [0, EYE_HEIGHT, -SEAT_OFFSET - 0.15], lookAt: [0, screenY, -screenZ] },
+    { id: 'B', position: [0, EYE_HEIGHT, SEAT_OFFSET + 0.15], lookAt: [0, screenY, screenZ] },
   ];
 
-  return { group, cabinets: [cabinetA, cabinetB], seats };
+  return {
+    group,
+    cabinets: [cabinetA, cabinetB],
+    seats,
+    /** Resolves when both cabinet bodies are in the scene. */
+    ready: Promise.all([cabinetA.ready, cabinetB.ready]),
+  };
 }

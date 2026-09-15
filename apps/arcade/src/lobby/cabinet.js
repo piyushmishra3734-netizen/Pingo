@@ -1,121 +1,105 @@
-import { BoxGeometry, Mesh, MeshBasicMaterial, PlaneGeometry, Group } from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { Group, Mesh, MeshBasicMaterial, MeshLambertMaterial, PlaneGeometry } from 'three';
 
-import { DARK, MARQUEE, SHELL, accent } from './materials.js';
 import { attractTexture } from './textures.js';
 
 /**
- * A Japanese candy cab, from boxes.
+ * An arcade cabinet: Kenney's CC0 "Mini Arcade" machine, plus our own screen.
  *
- * Shaped after an Astro City: a low seated cabinet, a boxy pedestal, a control
- * panel that slopes toward the player, a monitor hood tipped back and a lit
- * marquee on top. Built facing -Z; the room rotates the second one to put the
- * pair back to back, which is how an arcade sets up a versus match - the
- * cabinets share a spine and the two players face each other across them.
+ * The model is 392 triangles and 39 KB, with an 8.7 KB palette texture shared
+ * by everything in the pack - so the characters that will walk up to it later
+ * come from the same place and look like they belong. Licence in
+ * public/models/LICENSE-kenney-mini-arcade.txt (CC0, no credit required).
  *
- * ## Why the parts are merged
+ * ## Our screen, on top of theirs
  *
- * Ten boxes is ten draw calls if they stay ten meshes, and the whole room has
- * a budget of thirty. Merged by material it is three: shell, dark and accent -
- * and the screen, which stays separate because Phase 2 swaps its texture for
- * the running game.
- *
- * Triangles: ~124 per cabinet, so both cabinets together cost about a
- * fortieth of the 5,000 the scene is allowed.
+ * The model is one mesh; its screen is a palette cell, not something a texture
+ * can be swapped into. So a plane of our own sits 3 mm (model units) in front
+ * of the model's glass, at the glass's own angle. Phase 2 hands that plane the
+ * running 2D game with `setScreenTexture` - one assignment, nothing reloaded.
  */
 
-const SCREEN_W = 0.62;
-const SCREEN_H = 0.465; // 4:3, like the CRT it is pretending to be
+const MODEL_URL = 'models/arcade-machine.glb';
+
+/** Kenney's machine is 0.725 units tall; this makes it a 1.75 m upright. */
+export const CABINET_SCALE = 1.75 / 0.725;
+
+/** Distance from the model's origin to its back panel, in model units. */
+export const CABINET_BACK = 0.244;
 
 /*
- * Where the glass sits, measured from the cabinet's centre (the player is at -Z).
- *
- * Front faces, nearest the player first:
- *   screen  -0.276
- *   bezel   -0.270   (0.05 deep, centred on -0.245)
- *   hood    -0.230
- *
- * Both earlier builds hid the screen by getting this order wrong: first inside
- * the hood (-0.21), then 2mm inside the bezel (-0.268, when the bezel's face
- * was at -0.270). The glass has to be the thing nearest the eye, so it sits
- * 6mm proud of the bezel - enough never to fight it for depth.
- *
- * The screen is not tilted, and that is a decision rather than an oversight: a
- * tilted plane 2cm in front of an upright box pushes its top edge back into
- * that box. Tilting both would cost geometry and buy a few degrees nobody
- * looking at a phone will notice.
+ * The model's own screen, in model units, found by grouping its
+ * forward-facing triangles: the inset panel with its own palette cell, 0.3
+ * wide, 0.19 along its slope, tipped back 18.7 degrees. Its centre and normal
+ * come straight from the vertex data, not from eyeballing a render.
  */
-const BEZEL_Z = -0.245;
-const SCREEN_Z = -0.276;
+const SCREEN = { width: 0.3, height: 0.1875, y: 0.42, z: 0.088, tilt: -0.326 };
+/** How far in front of the model's glass our plane floats, along its normal. */
+const SCREEN_LIFT = 0.003;
 
-function box(w, h, d, x, y, z, rotX = 0) {
-  const geometry = new BoxGeometry(w, h, d);
-  if (rotX) geometry.rotateX(rotX);
-  geometry.translate(x, y, z);
-  return geometry;
+let model;
+
+/**
+ * Fetched once, whatever the number of cabinets: both share one geometry and
+ * one material, which is also what keeps each at a single draw call.
+ */
+function loadModel() {
+  /*
+   * The loader is its own chunk, fetched here rather than at boot.
+   *
+   * GLTFLoader is 104 KB of minified JavaScript - measured, it took the main
+   * bundle from 527 KB to 631 KB. Imported statically, the first frame on 2G
+   * waits for all of it; imported here, the floor, stools and screens draw
+   * while it and the model download side by side.
+   */
+  model ??= import('three/addons/loaders/GLTFLoader.js')
+    .then(({ GLTFLoader }) => new GLTFLoader().loadAsync(MODEL_URL))
+    .then((gltf) => {
+    let mesh;
+    gltf.scene.traverse((object) => {
+      if (object.isMesh) mesh = object;
+    });
+    // Kenney ships a PBR material; the room's rule is Lambert. Same palette
+    // texture, lit per vertex instead of per pixel.
+    const material = new MeshLambertMaterial({ map: mesh.material.map });
+    mesh.material.dispose();
+    return { geometry: mesh.geometry, material };
+  });
+  return model;
 }
 
 /**
- * @param {{ accentColor?: number, label?: string }} [options]
+ * Faces +Z, the way Kenney built it; the room turns it.
+ *
+ * @param {{ label?: string }} [options]
  */
 export function createCabinet(options = {}) {
-  const { accentColor = 0xff4f8b, label = 'PINGO' } = options;
+  const { label = 'PINGO' } = options;
   const group = new Group();
+  group.scale.setScalar(CABINET_SCALE);
 
-  // -- shell: pedestal, monitor hood, control panel -----------------------
-  const shell = mergeGeometries([
-    box(0.92, 0.58, 0.66, 0, 0.29, 0), // pedestal
-    box(0.9, 0.68, 0.52, 0, 1.0, 0.03), // monitor hood
-    box(0.86, 0.12, 0.42, 0, 0.66, -0.16, -0.22), // control panel, sloped
-  ]);
-  group.add(new Mesh(shell, SHELL));
-
-  // -- dark: bezel, coin door, panel lip, plinth, marquee trim ------------
-  const dark = mergeGeometries([
-    box(0.8, 0.62, 0.05, 0, 1.02, BEZEL_Z), // the frame the glass sits in
-    box(0.3, 0.14, 0.04, 0, 0.36, -0.34), // coin door
-    box(0.86, 0.04, 0.06, 0, 0.6, -0.36), // lip under the control panel
-    box(0.96, 0.05, 0.7, 0, 0.025, 0), // plinth, so it sits on the floor
-    box(0.9, 0.04, 0.48, 0, 1.35, 0.02), // trim the marquee sits on
-  ]);
-  group.add(new Mesh(dark, DARK));
-
-  // -- accent: side stripes and the marquee cheeks ------------------------
-  const stripes = mergeGeometries([
-    box(0.04, 0.5, 0.6, -0.47, 0.33, 0), // left flank
-    box(0.04, 0.5, 0.6, 0.47, 0.33, 0), // right flank
-    box(0.9, 0.06, 0.2, 0, 0.72, -0.28), // button shelf edge
-  ]);
-  group.add(new Mesh(stripes, accent(accentColor)));
-
-  // -- marquee: unlit, so it glows without costing a light ----------------
-  group.add(new Mesh(box(0.86, 0.2, 0.44, 0, 1.47, 0.02), MARQUEE));
-
-  /*
-   * The screen: its own mesh, its own material.
-   *
-   * `MeshBasicMaterial` because a CRT emits rather than receives light, and
-   * because Phase 2 hands this material the 2D game's canvas as a texture -
-   * one assignment, no scene rebuild. Two triangles.
-   */
-  const screenMaterial = new MeshBasicMaterial({ map: attractTexture(label), name: 'screen' });
-  const screen = new Mesh(new PlaneGeometry(SCREEN_W, SCREEN_H), screenMaterial);
-  screen.position.set(0, 1.02, SCREEN_Z);
-  /*
-   * Turned to face the player.
-   *
-   * A plane's visible side points along +Z, and this cabinet faces -Z - so
-   * without this the glass showed its back to the chair, was culled, and the
-   * player looked at the dark bezel behind it. Rotating the plane rather than
-   * setting `side: DoubleSide` keeps one face to draw and the texture the
-   * right way round.
-   */
-  screen.rotation.y = Math.PI;
+  const screenMaterial = new MeshBasicMaterial({ map: attractTexture(label) });
+  const screen = new Mesh(new PlaneGeometry(SCREEN.width, SCREEN.height), screenMaterial);
+  screen.rotation.x = SCREEN.tilt;
+  // Pushed out along the glass's normal, (0, sin, cos) of the tilt, so it can
+  // never fight the model's own screen for depth.
+  screen.position.set(
+    0,
+    SCREEN.y + Math.sin(-SCREEN.tilt) * SCREEN_LIFT,
+    SCREEN.z + Math.cos(SCREEN.tilt) * SCREEN_LIFT,
+  );
   group.add(screen);
+
+  // The screen is there at once; the body follows when the file arrives, so a
+  // slow line shows the room filling in rather than nothing at all.
+  const ready = loadModel().then(({ geometry, material }) => {
+    group.add(new Mesh(geometry, material));
+  });
 
   return {
     group,
     screen,
+    /** Resolves when the cabinet body is in the scene. */
+    ready,
     /**
      * Hands the screen a new texture - the running game in Phase 2.
      * @param {import('three').Texture} texture

@@ -1,10 +1,11 @@
-import { CylinderGeometry, Mesh } from 'three';
+import { CylinderGeometry, Mesh, MeshLambertMaterial } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { STOOL } from './materials.js';
+/** Shared by every stool, so two stools are still one material. */
+const STOOL = new MeshLambertMaterial({ color: 0x2b2740 });
 
 /**
- * A low round stool, the kind bolted in front of a candy cab.
+ * A low round stool, the kind bolted in front of an arcade cabinet.
  *
  * One mesh, one material, one draw call: seat, post and foot merged. Ten
  * radial segments is enough at the size this ever appears on screen - a phone
