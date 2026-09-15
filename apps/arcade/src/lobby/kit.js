@@ -187,9 +187,20 @@ export async function loadLive(url) {
     if (!object.isMesh) return;
     const source = object.material;
     const vertexColors = Boolean(object.geometry.attributes.color);
-    if (source.transparent) object.material = material('glass');
+    if (source.transparent && !source.map) object.material = material('glass');
     else if (source.name === 'glow') object.material = new MeshBasicMaterial({ vertexColors });
-    else object.material = new MeshLambertMaterial({ map: source.map, vertexColors });
+    else {
+      // A textured model that was "transparent" (a claw machine's glass is
+      // holes in its texture) is drawn cut out instead: no sorting, no
+      // overdraw, and the glass reads as clear.
+      object.material = new MeshLambertMaterial({
+        map: source.map,
+        vertexColors,
+        alphaTest: source.transparent ? 0.5 : 0,
+        emissiveMap: source.emissiveMap,
+        emissive: source.emissiveMap ? 0xffffff : 0x000000,
+      });
+    }
     source.dispose();
   });
   return gltf;

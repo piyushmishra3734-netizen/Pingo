@@ -1,0 +1,10 @@
+claw-ladylion.glb is adapted from "Claw Arcade Animated .glb (v1.0) FREE Low Poly" by Lady Lion Studios
+https://sketchfab.com/3d-models/claw-arcade-glb-v09-free-low-poly-916fe82cd4734ec7b458f9e1c799ab56
+Licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+Changes: backdrop and animation removed; textures packed into one 1024x512 atlas; glass made a flat tint;
+geometry simplified (9,080 -> 1,817 triangles); normals removed (flat shaded); rescaled to 1.95 m.
+
+claw-efx.glb is adapted from "Claw Machine LOWPOLY RIGGED" by EFX
+https://sketchfab.com/3d-models/claw-machine-lowpoly-rigged-a831da37d48f45d4b9845e337e053ba2
+Licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+Changes: textures reduced to 512 px; normal/metal-roughness maps and material extensions removed.

@@ -44,17 +44,13 @@ export const CABINET = {
  */
 export const KENNEY_SCALE = 1.75 / 0.725;
 
-/**
- * Kenney's arcade-machine screen, in its model units - found by grouping the
- * model's forward-facing triangles: the inset panel, 0.3 wide, 0.19 along its
- * slope, tipped back 18.7 degrees. The running row in screens.js sits on it.
- */
-export const KENNEY_SCREEN = { width: 0.3, height: 0.1875, y: 0.42, z: 0.088, tilt: -0.326 };
-
 let model;
 
-/** Fetched once however many cabinets there are: they share one geometry and one material. */
-function loadModel() {
+/**
+ * Fetched once however many cabinets there are - the PINGO pair and the
+ * back-wall row share one geometry and one material.
+ */
+export function loadCabinetModel() {
   model ??= loadGltf(MODEL_URL).then((gltf) => {
     let mesh;
     gltf.scene.traverse((object) => {
@@ -83,7 +79,7 @@ export function createCabinet(options = {}) {
   group.add(screen);
 
   // The screen is there at once; the body follows when the file arrives.
-  const ready = loadModel().then(({ geometry, material }) => {
+  const ready = loadCabinetModel().then(({ geometry, material }) => {
     group.add(new Mesh(geometry, material));
   });
 

@@ -1,55 +1,53 @@
-import { Group, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
+import { Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
 
-import { KENNEY_SCALE } from './cabinet.js';
+import { CABINET, KENNEY_SCALE, loadCabinetModel } from './cabinet.js';
 import { createGlow } from './glow.js';
 import { bake, loadLive } from './kit.js';
 import { loadPerson } from './people.js';
 import { createLiveScreens } from './screens.js';
+import { createShell } from './shell.js';
 import { signTexture } from './textures.js';
 
 /**
  * PINGO ARCADE: the shop, and the pavement in front of it.
  *
- * - The storefront and the pavement: Quaternius's Downtown City MegaKit (CC0),
- *   composed offline into models/downtown/storefront.glb - a dark metal shop
- *   front with a glass door, a cornice band for the sign, a brick floor above.
- * - Inside: Kenney's Mini Arcade (walls, floor, machines) and Furniture Kit
- *   (stools, rug, plants); the PINGO pair in the middle is room.js.
+ * - The storefront, pavement, planters, bollards, AC units and the two steel
+ *   columns inside: Quaternius's Downtown City MegaKit (CC0), composed offline
+ *   into models/downtown/storefront.glb.
+ * - The room: carpet, brick walls and a dark concrete ceiling (shell.js).
+ * - The machines: the PINGO cabinet (Lady Lion Studios, CC-BY) for the pair in
+ *   the middle (room.js) and the row on the back wall; Kenney's Mini Arcade for
+ *   the rest; Kenney's Furniture Kit for stools and plants.
  * - People: Quaternius's Modular Men (people.js).
  *
  * ## The plan, from above (+Z is the street)
  *
- *   back wall:  basketball  dance   .  speakers  .  arcade x3  slots
- *   left wall:  claw x2, pinball x2          right wall: prizes, tickets, wheel, vending
- *   middle:     the PINGO versus pair (room.js), air hockey on the left,
- *               the prize counter and its attendant on the right
+ *   back wall:  basketball  dance   .   .   PINGO cabinets x3 (shooter, breakout, snake)
+ *   left wall:  claw x2, pinball             right wall: prizes, tickets, wheel, vending
+ *   middle:     the PINGO versus pair (room.js) between two steel columns,
+ *               air hockey on the left, the prize counter and its attendant on the right
  *   front:      the storefront, door in the middle, sign on the cornice
- *   outside:    pavement, doormat, plants - then only the night
+ *   outside:    pavement, planters, bollards - then only the night
  *
  * ## Three groups, one of them always hidden
  *
  * From the street the storefront hides the inside, so the inside is not drawn
  * there at all; step up to the door and it appears behind the glass. Inside,
- * the storefront goes instead - the camera is behind you, and it is the one
- * wall that would stand between the two. Either way about half the shop's
- * triangles are never drawn.
+ * the camera comes down to your shoulder and the storefront goes instead.
  *
  * ## Units
  *
- * The Kenney kit is scaled so its machine is 1.75 m; one wall piece is one
- * grid step (`U`, 2.41 m). The storefront is metres already.
+ * Metres. The Kenney machines are scaled so theirs is 1.75 m tall (`U`), and
+ * the room keeps the grid they were laid out on.
  */
 
 const U = KENNEY_SCALE;
-const HALF_W = 3 * U;
-const HALF_D = 2.5 * U;
-/** Half a Kenney wall piece's thickness. */
-const WALL = 0.3 * U;
-const INNER_W = HALF_W - WALL;
-const INNER_D = HALF_D - WALL;
+/** The side walls' inside faces, and the back wall's. */
+const INNER_W = 2.7 * U;
+const INNER_D = 2.2 * U;
 
 /** The storefront's line - storefront.glb was composed on it. */
-const FACADE_Z = HALF_D;
+const FACADE_Z = 2.5 * U;
 /** The storefront's inside face, and its street face (the door stands proud of the line). */
 const FACADE_BACK = FACADE_Z - 0.22;
 export const FRONT = FACADE_Z + 0.11;
@@ -60,6 +58,8 @@ const DOOR_HALF = 0.5 * WIDE;
 const KERB = FACADE_Z + 6.05;
 /** How far the glass door swings in, in radians. */
 const DOOR_OPEN = -1.5;
+/** High enough for the tallest machine (the dance machine, 2.3 m), low enough to feel like a room. */
+const CEILING = 3.0;
 
 const FURNITURE = 1.75;
 
@@ -76,37 +76,10 @@ const onBackWall = (name, x, depth) => arcade(name, x, -INNER_D + depth * U);
 const onLeftWall = (name, z, depth) => arcade(name, -INNER_W + depth * U, z, FACING_RIGHT);
 const onRightWall = (name, z, depth) => arcade(name, INNER_W - depth * U, z, FACING_LEFT);
 
-const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
-
-/** The last stretch of each side wall, from the last full piece to the storefront. */
-const FILL = FACADE_BACK - 2 * U;
-
-const SHELL = [
-  ...range(-2, 2).map((i) => arcade('wall', i * U, -HALF_D)),
-  arcade('wall-corner', -HALF_W, -HALF_D, Math.PI / 2),
-  arcade('wall-corner', HALF_W, -HALF_D, 0),
-  ...[-1.5, -0.5, 0.5, 1.5].flatMap((j) => [
-    arcade('wall', -HALF_W, j * U, Math.PI / 2),
-    arcade('wall', HALF_W, j * U, -Math.PI / 2),
-  ]),
-  // A wall piece squeezed along its length closes each side up to the storefront.
-  arcade('wall', -HALF_W, 2 * U + FILL / 2, Math.PI / 2, { scale: [FILL, U, U] }),
-  arcade('wall', HALF_W, 2 * U + FILL / 2, -Math.PI / 2, { scale: [FILL, U, U] }),
-  // Floor tiles sunk by their own thickness, so their top is y = 0.
-  ...range(0, 5).flatMap((i) =>
-    range(-2, 2).map((j) => arcade('floor', (i - 2.5) * U, j * U, 0, { y: -0.025 * U, solid: false })),
-  ),
-];
-
 // Depths measured from each GLB's bounds (its -min z).
 const MACHINES = [
   onBackWall('basketball-game', -5.2, 0.5),
   onBackWall('dance-machine', -3.2, 0.487),
-  onBackWall('arcade-machine', 2.2, 0.244),
-  onBackWall('arcade-machine', 3.3, 0.244),
-  onBackWall('arcade-machine', 4.4, 0.244),
-  onLeftWall('claw-machine', 3.4, 0.347),
-  onLeftWall('claw-machine', 1.6, 0.347),
   onLeftWall('pinball', -0.8, 0.325),
   onRightWall('prizes', 3.0, 0.2),
   onRightWall('ticket-machine', 0.9, 0.163),
@@ -117,28 +90,41 @@ const MACHINES = [
 ];
 
 const INTERIOR_DECOR = [
-  // Under the versus pair, long side along it.
-  furniture('rugRectangle', 0, 0, Math.PI / 2, { scale: [3.7, 1, 2.83] }),
   furniture('pottedPlant', -6.0, 4.75, 0, { scale: 2, solid: true }),
   furniture('pottedPlant', 6.0, 4.75, 0, { scale: 2, solid: true }),
 ];
 
-const STREET_DECOR = [
-  furniture('rugDoormat', 0, FRONT + 0.7, 0, { scale: [3.6, 1, 3.6] }),
-  furniture('pottedPlant', -1.75, FRONT + 0.6, 0, { scale: 2, solid: true }),
-  furniture('pottedPlant', 1.75, FRONT + 0.6, 0, { scale: 2, solid: true }),
-  furniture('trashcan', 4.2, FRONT + 0.6, 0, { scale: 1.1, solid: true }),
-];
+const STREET_DECOR = [furniture('rugDoormat', 0, FRONT + 0.7, 0, { scale: [3.6, 1, 3.6] })];
+
+/** The back-wall row: three more PINGO cabinets, each running its own game. */
+const ARCADE_ROW = [
+  { x: 2.2, game: 'shooter' },
+  { x: 3.3, game: 'breakout' },
+  { x: 4.4, game: 'snake' },
+].map((machine) => ({ ...machine, z: -INNER_D + CABINET.back, rot: 0 }));
+
+/**
+ * The claw machines on the left wall (Sketchfab, CC-BY - see CREDITS.txt),
+ * facing into the room. `size` is the model's footprint and height as
+ * prepared; `pivot` where its footprint centre is, in the file's own units.
+ */
+const CLAWS = [
+  { url: 'models/claw-ladylion.glb', z: 3.4, height: 1.95, fileHeight: 1.947, pivot: [0, 0], depth: 1.233, turn: 0 },
+  // Its front faces +Z in the file: a quarter turn puts it facing the room.
+  { url: 'models/claw-efx.glb', z: 1.6, height: 1.95, fileHeight: 2.38, pivot: [0.54, 0.96], depth: 1.15, turn: Math.PI / 2 },
+].map((claw) => ({ ...claw, x: -INNER_W + claw.depth / 2 + 0.05 }));
+
+/** As placed in storefront.glb: the columns inside, planters and bollards outside. */
+const PILLARS = [[-2.4, -1.0], [2.4, -1.0]];
+const PLANTERS = [[-7.2, FRONT + 1.3], [7.2, FRONT + 1.3]];
+const BOLLARDS = [-6, -3, 3, 6].map((x) => [x, KERB - 0.45]);
 
 /** Regulars at the machines, standing where a player would, facing the glass. */
 const REGULARS = [
   { name: 'punk', x: -4.3, z: 3.4, facing: -Math.PI / 2 }, // claw machine
   { name: 'beach', x: -4.2, z: -0.8, facing: -Math.PI / 2 }, // pinball
-  { name: 'worker', x: 3.3, z: -3.45, facing: Math.PI }, // arcade cabinet
+  { name: 'worker', x: 3.3, z: -3.9, facing: Math.PI }, // the shooter cabinet
 ];
-
-/** The row of Kenney arcade machines on the back wall, whose screens run. */
-const ARCADE_ROW = [2.2, 3.3, 4.4].map((x) => ({ x, z: -INNER_D + 0.244 * U }));
 
 const PINK = 0xff4f8b;
 const TEAL = 0x38e0d0;
@@ -149,10 +135,13 @@ const pool = (x, z, w, d, color, strength = 0.55) => ({ x, z, w, h: d, color, st
 
 /*
  * Where the light falls inside: a pool in front of every machine in its own
- * colour, the PINGO pair brightest, neon tubes along the tops of the walls.
+ * colour, the PINGO pair brightest, neon tubes along the walls under the ceiling.
  */
+const SIDE_LENGTH = FACADE_BACK + INNER_D;
+const SIDE_MIDDLE = (FACADE_BACK - INNER_D) / 2;
+const TUBE_Y = CEILING - 0.15;
 const INSIDE_GLOW = [
-  ...ARCADE_ROW.map(({ x }, i) => pool(x, -3.7, 1.5, 1.6, [TEAL, PINK, VIOLET][i])),
+  ...ARCADE_ROW.map(({ x }, i) => pool(x, -3.9, 1.3, 1.5, [TEAL, PINK, VIOLET][i], 0.6)),
   pool(-3.2, -2.4, 2.2, 1.8, PINK, 0.7),
   pool(-5.2, -2.4, 1.8, 1.6, AMBER),
   pool(-4.5, 3.4, 1.8, 1.8, TEAL),
@@ -165,9 +154,9 @@ const INSIDE_GLOW = [
   pool(5.3, -1.9, 1.4, 1.4, WHITE, 0.4),
   pool(0, 1.4, 2.0, 1.8, PINK, 0.7),
   pool(0, -1.4, 2.0, 1.8, PINK, 0.7),
-  { x: 0, y: U - 0.12, z: -INNER_D + 0.02, w: 2 * INNER_W, h: 0.16, color: PINK, strength: 1.2, tube: true },
-  { x: -INNER_W + 0.02, y: U - 0.12, z: 0, w: 2 * INNER_D, h: 0.16, color: TEAL, strength: 1.2, tube: true, rot: Math.PI / 2 },
-  { x: INNER_W - 0.02, y: U - 0.12, z: 0, w: 2 * INNER_D, h: 0.16, color: TEAL, strength: 1.2, tube: true, rot: -Math.PI / 2 },
+  { x: 0, y: TUBE_Y, z: -INNER_D + 0.02, w: 2 * INNER_W, h: 0.16, color: PINK, strength: 1.2, tube: true },
+  { x: -INNER_W + 0.02, y: TUBE_Y, z: SIDE_MIDDLE, w: SIDE_LENGTH, h: 0.16, color: TEAL, strength: 1.2, tube: true, rot: Math.PI / 2 },
+  { x: INNER_W - 0.02, y: TUBE_Y, z: SIDE_MIDDLE, w: SIDE_LENGTH, h: 0.16, color: TEAL, strength: 1.2, tube: true, rot: -Math.PI / 2 },
 ];
 
 /** Outside: the sign, the lit windows and the open door throw colour on the pavement. */
@@ -184,6 +173,8 @@ function neonFlicker(now) {
   return (t > 5.1 && t < 5.17) || (t > 5.3 && t < 5.36) ? 0.35 : 1;
 }
 
+const square = ([x, z], half) => [x - half, z - half, x + half, z + half];
+
 /**
  * @param {import('./kit.js').Placement[]} [extra] - room.js's own pieces (the stools)
  */
@@ -197,14 +188,26 @@ export function createShop(extra = []) {
   const street = new Group();
   group.add(interior, front, street);
 
+  const shell = createShell({ minX: -INNER_W, maxX: INNER_W, minZ: -INNER_D, maxZ: FACADE_BACK, height: CEILING });
+  interior.add(shell.floor, shell.walls, shell.ceiling);
+
   /** Footprints to walk into; filled as the models arrive. */
   const colliders = [
+    // The room's walls.
+    [-9, -INNER_D - 1, 9, -INNER_D],
+    [-INNER_W - 1, -INNER_D - 1, -INNER_W, FACADE_BACK],
+    [INNER_W, -INNER_D - 1, INNER_W + 1, FACADE_BACK],
     // The storefront, either side of the door.
-    [-HALF_W - WALL, FACADE_BACK, -DOOR_HALF, FRONT],
-    [DOOR_HALF, FACADE_BACK, HALF_W + WALL, FRONT],
+    [-8.1, FACADE_BACK, -DOOR_HALF, FRONT],
+    [DOOR_HALF, FACADE_BACK, 8.1, FRONT],
+    ...PILLARS.map((p) => square(p, 0.28)),
+    ...PLANTERS.map((p) => square(p, 1)),
+    ...BOLLARDS.map((p) => square(p, 0.12)),
+    ...ARCADE_ROW.map(({ x, z }) => [x - 0.36, z - CABINET.back, x + 0.36, z + CABINET.front]),
+    ...CLAWS.map(({ x, z, depth }) => [x - depth / 2, z - 0.72, x + depth / 2, z + 0.72]),
     // The attendant, and the regulars at their machines.
     [4.9, 2.7, 5.5, 3.3],
-    ...REGULARS.map(({ x, z }) => [x - 0.3, z - 0.3, x + 0.3, z + 0.3]),
+    ...REGULARS.map(({ x, z }) => square([x, z], 0.3)),
   ];
   /** Everyone in the shop but you, animated once a frame. */
   const people = [];
@@ -219,7 +222,7 @@ export function createShop(extra = []) {
 
   const insideGlow = createGlow(INSIDE_GLOW);
   const streetGlow = createGlow(STREET_GLOW);
-  const screens = createLiveScreens(ARCADE_ROW, U);
+  const screens = createLiveScreens(ARCADE_ROW);
   interior.add(insideGlow.mesh, screens.mesh);
   street.add(streetGlow.mesh);
 
@@ -228,19 +231,37 @@ export function createShop(extra = []) {
   let doorOpen = false;
 
   const ready = Promise.all([
-    bake([...SHELL, ...MACHINES, ...INTERIOR_DECOR, ...extra]).then(({ meshes, colliders: solid }) => {
+    bake([...MACHINES, ...INTERIOR_DECOR, ...extra]).then(({ meshes, colliders: solid }) => {
       interior.add(...meshes);
       colliders.push(...solid);
     }),
-    bake(STREET_DECOR).then(({ meshes, colliders: solid }) => {
-      street.add(...meshes);
-      colliders.push(...solid);
-    }),
+    bake(STREET_DECOR).then(({ meshes }) => street.add(...meshes)),
     loadLive('models/downtown/storefront.glb').then((gltf) => {
-      const [facade, leaf, pavement] = ['facade', 'door', 'pavement'].map((name) => gltf.scene.getObjectByName(name));
+      const part = (name) => gltf.scene.getObjectByName(name);
+      const [facade, leaf, pavement, props, pillars] = ['facade', 'door', 'pavement', 'props', 'pillars'].map(part);
       front.add(facade, leaf);
-      street.add(pavement);
+      street.add(pavement, props);
+      interior.add(pillars);
       door = leaf;
+    }),
+    ...CLAWS.map(({ url, x, z, height, fileHeight, pivot, turn }) =>
+      loadLive(url).then((gltf) => {
+        const scale = height / fileHeight;
+        const holder = new Group();
+        gltf.scene.scale.setScalar(scale);
+        gltf.scene.position.set(-pivot[0] * scale, 0, -pivot[1] * scale);
+        holder.add(gltf.scene);
+        holder.position.set(x, 0, z);
+        holder.rotation.y = turn;
+        interior.add(holder);
+      }),
+    ),
+    // The back-wall row: one geometry drawn three times in one call.
+    loadCabinetModel().then(({ geometry, material }) => {
+      const row = new InstancedMesh(geometry, material, ARCADE_ROW.length);
+      ARCADE_ROW.forEach(({ x, z, rot }, i) => row.setMatrixAt(i, new Matrix4().makeRotationY(rot).setPosition(x, 0, z)));
+      row.computeBoundingSphere();
+      interior.add(row);
     }),
     loadPerson('suit').then((person) => {
       person.body.position.set(5.2, 0, 3.0);
@@ -264,14 +285,20 @@ export function createShop(extra = []) {
     ),
   ]);
 
+  /** In the shop, rather than on the street or in the doorway. */
+  const inside = (p) => p.z < FACADE_BACK - 0.1 && Math.abs(p.x) < INNER_W;
+
   return {
     group,
     /** room.js puts the PINGO pair in here. */
     interior,
     colliders,
     ready,
+    inside,
     /** Where a player walks: the pavement and the shop. */
     bounds: { minX: -8.6, maxX: 8.6, minZ: -INNER_D, maxZ: KERB - 0.3 },
+    /** Where the camera may stand indoors: never through a wall. */
+    cameraBox: { minX: -INNER_W + 0.35, maxX: INNER_W - 0.35, maxZ: FACADE_BACK - 0.3 },
     /** On the pavement, facing the door. */
     spawn: { x: 0, z: FRONT + 4, facing: Math.PI },
 
@@ -281,11 +308,11 @@ export function createShop(extra = []) {
      * @returns {boolean} true the moment the door starts to open
      */
     update(dt, player, now) {
-      const inside = player.z < FACADE_BACK - 0.1 && Math.abs(player.x) < INNER_W;
+      const isIn = inside(player);
       // Only right at the door does the street draw both at once - the costliest view.
-      const atDoor = Math.abs(player.x) < 2.5 && player.z < FRONT + 2;
-      front.visible = !inside;
-      interior.visible = inside || atDoor;
+      const atDoor = Math.abs(player.x) < 1.5 && player.z < FRONT + 1.2;
+      front.visible = !isIn;
+      interior.visible = isIn || atDoor;
 
       const wantOpen = Math.abs(player.x) < 2.5 && Math.abs(player.z - FACADE_Z) < 3.2;
       const opened = wantOpen && !doorOpen;

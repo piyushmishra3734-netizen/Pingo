@@ -6,14 +6,25 @@ Arcade cabinet (the PINGO machines)
   https://creativecommons.org/licenses/by/4.0/
   Adapted: backdrop removed, textures atlased, geometry simplified, rescaled.
 
-Storefront and pavement
+Claw machines
+  "Claw Arcade Animated .glb (v1.0) FREE Low Poly" by Lady Lion Studios - CC BY 4.0
+  https://sketchfab.com/3d-models/claw-arcade-glb-v09-free-low-poly-916fe82cd4734ec7b458f9e1c799ab56
+  "Claw Machine LOWPOLY RIGGED" by EFX - CC BY 4.0
+  https://sketchfab.com/3d-models/claw-machine-lowpoly-rigged-a831da37d48f45d4b9845e337e053ba2
+  https://creativecommons.org/licenses/by/4.0/
+  Adapted: textures reduced, geometry simplified, rescaled.
+
+Storefront, pavement, columns, planters, bollards, AC units
   Downtown City MegaKit by Quaternius - CC0 - https://quaternius.com
 
 People
   Ultimate Modular Men by Quaternius - CC0 - https://quaternius.com
 
-Shop interior, machines, stools, rugs, plants
+Other machines, stools, plants
   Mini Arcade and Furniture Kit by Kenney - CC0 - https://kenney.nl
+
+Carpet texture
+  Carpet 012 from ambientCG - CC0 - https://ambientcg.com/view?id=Carpet012
 
 Arcade floor sound
   "Tokyo - arcade center floor 1_CsG.wav" by csaszi - CC0

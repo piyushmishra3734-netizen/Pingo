@@ -136,6 +136,10 @@ export function createRoom() {
     colliders: shop.colliders,
     bounds: shop.bounds,
     spawn: shop.spawn,
+    /** In the shop, rather than on the street or in the doorway. */
+    inside: shop.inside,
+    /** Where the camera may stand indoors. */
+    cameraBox: shop.cameraBox,
     /** Door, people, glow, and what is visible from where: once a frame. */
     update: shop.update,
     /** Resolves when the cabinets and the whole shop are in the scene. */

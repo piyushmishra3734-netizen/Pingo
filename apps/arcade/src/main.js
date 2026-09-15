@@ -60,7 +60,7 @@ function fitFov(aspect) {
 const camera = new PerspectiveCamera(BASE_FOV, 1, 0.05, 80);
 /** Seated: glides between seat and screen. Walking: `follow` trails the player. */
 const rig = createCameraRig(camera);
-const follow = createFollow(camera);
+const follow = createFollow(camera, room.cameraBox);
 
 /*
  * You, on the pavement outside, facing the door.
@@ -346,9 +346,7 @@ const AMBIENCE = { street: [0.16, true], floor: [0.5, false], seat: [0.3, false]
 let lastMood;
 
 function updateMood() {
-  const { x, z } = player.position;
-  const indoors = Math.abs(x) < 6.5 && z < 5.8;
-  let mood = indoors ? 'floor' : 'street';
+  let mood = room.inside(player.position) ? 'floor' : 'street';
   if (session.state !== State.IDLE) mood = mode === 'game' ? 'game' : 'seat';
   if (mood === lastMood) return;
   lastMood = mood;
@@ -388,7 +386,7 @@ function frame(now) {
   lastFrame = now;
   if (session.state === State.IDLE) {
     if (player.update(dt, walk.read())) playStep();
-    follow.update(dt, player.position);
+    follow.update(dt, player.position, room.inside(player.position));
     const near = findSeat();
     if (near !== nearSeat) {
       nearSeat = near;

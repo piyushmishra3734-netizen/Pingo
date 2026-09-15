@@ -31,17 +31,33 @@ export function tweenProgress(now, start, duration) {
  * than locks - an exponential catch-up, frame-rate independent - which also
  * makes standing up a glide from the seat back out to here, for free.
  */
-const FOLLOW = { height: 5.2, back: 6.2, aimHeight: 1.0, aimAhead: 1.5 };
+const STREET = { height: 5.2, back: 6.2, aimHeight: 1.0, aimAhead: 1.5 };
+/** Indoors: over the shoulder at eye height, under the ceiling - the shop at your own scale. */
+const INDOORS = { height: 1.75, back: 2.6, aimHeight: 1.35, aimAhead: 3.0 };
 
-export function createFollow(camera) {
+/**
+ * @param {import('three').Camera} camera
+ * @param {{ minX: number, maxX: number, maxZ: number }} room - where the camera may stand indoors
+ */
+export function createFollow(camera, room) {
   const position = new Vector3();
   const target = new Vector3();
   const wantPosition = new Vector3();
   const wantTarget = new Vector3();
+  /** 0 on the street, 1 inside, eased between: walking in, the camera comes down to your shoulder. */
+  let indoors = 0;
 
   const aimAt = (at) => {
-    wantPosition.set(at.x, FOLLOW.height, at.z + FOLLOW.back);
-    wantTarget.set(at.x, FOLLOW.aimHeight, at.z - FOLLOW.aimAhead);
+    const mix = (key) => STREET[key] + (INDOORS[key] - STREET[key]) * indoors;
+    let x = at.x;
+    let z = at.z + mix('back');
+    // Inside, the camera stays inside: against a wall it closes in rather than going through.
+    if (indoors > 0.5) {
+      x = Math.min(room.maxX, Math.max(room.minX, x));
+      z = Math.min(room.maxZ, z);
+    }
+    wantPosition.set(x, mix('height'), z);
+    wantTarget.set(at.x, mix('aimHeight'), at.z - mix('aimAhead'));
   };
   const apply = () => {
     camera.position.copy(position);
@@ -63,7 +79,8 @@ export function createFollow(camera) {
       target.set(...lookAt);
     },
 
-    update(dt, at) {
+    update(dt, at, inside = false) {
+      indoors += ((inside ? 1 : 0) - indoors) * Math.min(1, dt * 2.5);
       aimAt(at);
       const catchUp = 1 - Math.exp(-dt * 6);
       position.lerp(wantPosition, catchUp);
