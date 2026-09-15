@@ -57,6 +57,8 @@ test('only PINGO and a developer machine may open a room', () => {
     'https://pingochat.pages.dev',
     'https://abc123.pingochat.pages.dev',
     'https://pingochat.xyz',
+    'https://pingo-arcade.pages.dev',
+    'https://4f2a9c1.pingo-arcade.pages.dev',
   ]) {
     assert.ok(allowedOrigin(ok), ok);
   }

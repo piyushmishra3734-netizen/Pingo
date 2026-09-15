@@ -51,6 +51,52 @@
         /* The overlay must never swallow a tap meant for the scene. */
         pointer-events: none;
       }
+      /* The brawler's touch pad: phones only, at the bottom corners. */
+      .pad {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: max(14px, env(safe-area-inset-bottom));
+        z-index: 3;
+        display: none;
+        justify-content: space-between;
+        padding: 0 max(14px, env(safe-area-inset-left));
+        pointer-events: none;
+      }
+      @media (pointer: coarse) {
+        .pad {
+          display: flex;
+        }
+      }
+      .pad-side {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+      }
+      .pad-btn {
+        pointer-events: auto;
+        width: 60px;
+        height: 60px;
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        border-radius: 50%;
+        background: rgba(13, 10, 20, 0.45);
+        color: #fff;
+        font: 700 18px system-ui, -apple-system, 'Segoe UI', sans-serif;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .pad-btn.is-raised {
+        margin-bottom: 34px;
+      }
+      .pad-btn.is-small {
+        width: 48px;
+        height: 48px;
+        font-size: 15px;
+      }
+      .pad-btn.is-down {
+        background: rgba(255, 255, 255, 0.32);
+      }
       /* During a game: out of the picture, top right, small. */
       .overlay[data-mode='game'] {
         top: max(10px, env(safe-area-inset-top));

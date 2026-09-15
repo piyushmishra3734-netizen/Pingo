@@ -1,6 +1,6 @@
 import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
-import { playCoin, unlockAudio } from './audio/sfx.js';
+import { playCoin, playSound, unlockAudio } from './audio/sfx.js';
 import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig } from './lobby/camera-rig.js';
@@ -67,18 +67,43 @@ const rig = createCameraRig(camera);
  * screen. Each game will be its own chunk the same way.
  */
 let gameHost;
-let gameLoading;
 
-function loadGame() {
-  gameLoading ??= Promise.all([
-    import('./games/game-host.js'),
-    import('./games/versus-card.js'),
-  ]).then(([{ createGameHost }, { createVersusCard }]) => {
-    gameHost ??= createGameHost();
-    return { createVersusCard };
-  });
-  return gameLoading;
+/*
+ * What can be on the screen, and the session state each one needs: the VS
+ * card with a player opposite, the brawler against the computer while the
+ * invite is still out. Each resolves to a function that makes a fresh game.
+ */
+const GAMES = {
+  versus: {
+    state: State.PAIRED,
+    load: () =>
+      import('./games/versus-card.js').then(
+        ({ createVersusCard }) => () => createVersusCard({ youAreLeft: seat === seatById.A }),
+      ),
+  },
+  cpu: {
+    state: State.WAITING,
+    load: () =>
+      import('./games/brawler/index.js').then(
+        ({ createBrawler }) => () =>
+          createBrawler({ seed: Math.floor(Math.random() * 2 ** 31), onSound: playSound }),
+      ),
+  },
+};
+const gameLoads = {};
+
+function loadGame(kind) {
+  gameLoads[kind] ??= Promise.all([import('./games/game-host.js'), GAMES[kind].load()]).then(
+    ([{ createGameHost }, make]) => {
+      gameHost ??= createGameHost();
+      return make;
+    },
+  );
+  return gameLoads[kind];
 }
+
+/** @type {keyof typeof GAMES | undefined} */
+let playing;
 
 /** Off to one side and high: both cabinets, both stools, both domes. */
 const OVERVIEW = { position: [2.6, 1.85, 3.1], lookAt: [0, 0.95, 0] };
@@ -120,7 +145,8 @@ resize();
 
 const overlay = createOverlay({
   onStand: stand,
-  onPlay: () => void enterGame(),
+  onPlay: () => void enterGame('versus'),
+  onCpu: () => void enterGame('cpu'),
   onBack: () => exitGame(),
 });
 
@@ -182,23 +208,22 @@ const ENTER_AFTER_MS = 1200;
 const ZOOM_MS = 900;
 let enterTimer;
 
-async function enterGame() {
-  if (session.state !== State.PAIRED || mode !== 'lobby') return;
+async function enterGame(kind = 'versus') {
+  const needs = GAMES[kind].state;
+  if (session.state !== needs || mode !== 'lobby') return;
+  playing = kind;
   mode = 'zooming';
   show();
 
   const screen = cabinetFor(seat).screen;
-  const loading = loadGame();
+  const loading = loadGame(kind);
   const arrived = await rig.moveTo(screenPose(screen, camera), ZOOM_MS);
-  const { createVersusCard } = await loading;
-  // Superseded - dropped, or stood up, mid-glide - or no longer paired.
-  if (!arrived || mode !== 'zooming' || session.state !== State.PAIRED) return;
+  const make = await loading;
+  // Superseded - dropped, joined, or stood up mid-glide.
+  if (!arrived || mode !== 'zooming' || session.state !== needs) return;
 
   renderer.render(scene, camera);
-  gameHost.start(
-    createVersusCard({ youAreLeft: seat === seatById.A }),
-    screenRect(screen, camera, canvas.getBoundingClientRect()),
-  );
+  gameHost.start(make(), screenRect(screen, camera, canvas.getBoundingClientRect()));
   mode = 'game';
   setRunning(!document.hidden);
   show();
@@ -209,6 +234,7 @@ function exitGame() {
   clearTimeout(enterTimer);
   if (mode === 'lobby') return;
   gameHost?.stop();
+  playing = undefined;
   mode = 'lobby';
   setRunning(!document.hidden);
   if (session.state !== State.IDLE) rig.moveTo(seat);
@@ -221,13 +247,14 @@ show();
 session.on(({ from, to, light }) => {
   room.domes.set(light);
   if (to !== State.PAIRED) rtt = undefined;
-  // Leaving PAIRED - dropped or stood up - ends any game first.
-  if (from === State.PAIRED) exitGame();
+  // A game lasts as long as the state it needs: a drop ends the match, and
+  // somebody at the door ends the bout against the computer.
+  if (from === State.PAIRED || (playing && to !== GAMES[playing].state)) exitGame();
   if (from === State.IDLE) rig.moveTo(seat);
   if (to === State.IDLE) rig.moveTo(OVERVIEW);
   if (to === State.PAIRED) {
     playCoin();
-    void loadGame();
+    void loadGame('versus');
     clearTimeout(enterTimer);
     enterTimer = setTimeout(() => void enterGame(), ENTER_AFTER_MS);
   }

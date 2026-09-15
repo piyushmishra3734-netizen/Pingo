@@ -53,9 +53,9 @@ function button(label, className, onClick) {
 }
 
 /**
- * @param {{ onStand: () => void, onPlay: () => void, onBack: () => void }} options
+ * @param {{ onStand: () => void, onPlay: () => void, onBack: () => void, onCpu: () => void }} options
  */
-export function createOverlay({ onStand, onPlay, onBack }) {
+export function createOverlay({ onStand, onPlay, onBack, onCpu }) {
   const root = document.createElement('div');
   root.className = 'overlay';
 
@@ -83,10 +83,11 @@ export function createOverlay({ onStand, onPlay, onBack }) {
   });
 
   const play = button('Play', 'overlay-button overlay-invite', onPlay);
+  const cpu = button('Play vs computer', 'overlay-button overlay-invite', onCpu);
   const back = button('Back to the room', 'overlay-button', onBack);
   const stand = button('Stand up', 'overlay-button', onStand);
 
-  root.append(status, invite, field, play, back, stand);
+  root.append(status, invite, field, play, cpu, back, stand);
   document.body.append(root);
 
   return {
@@ -112,11 +113,14 @@ export function createOverlay({ onStand, onPlay, onBack }) {
 
       inviteUrl = extra.invite;
       // The invite only makes sense while somebody is still missing.
-      const inviting = Boolean(inviteUrl) && state === 'WAITING';
+      // Not during the bout vs the computer: up there it sits on the health bar.
+      const inviting = Boolean(inviteUrl) && state === 'WAITING' && !inGame;
       invite.hidden = !inviting;
       if (!inviting) field.hidden = true;
 
       play.hidden = !(state === 'PAIRED' && mode === 'lobby');
+      // Alone in the chair: fight the machine while the invite is out.
+      cpu.hidden = !(state === 'WAITING' && mode === 'lobby');
       back.hidden = !inGame;
       stand.hidden = !seated || inGame;
     },

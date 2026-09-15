@@ -65,6 +65,9 @@ const ALLOWED_ORIGINS = [
   /^http:\/\/(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/,
   /^https:\/\/([a-z0-9-]+\.)?pingochat\.pages\.dev$/,
   /^https:\/\/([a-z0-9-]+\.)?pingochat\.xyz$/,
+  // The arcade's own site (Cloudflare Pages project `pingo-arcade`), and its
+  // preview deploys.
+  /^https:\/\/([a-z0-9-]+\.)?pingo-arcade\.pages\.dev$/,
 ];
 
 /** @param {string | null} origin */

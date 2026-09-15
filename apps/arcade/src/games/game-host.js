@@ -103,7 +103,14 @@ export function createGameHost() {
     stop() {
       cancelAnimationFrame(raf);
       canvas.hidden = true;
+      // A game may own DOM of its own - the brawler's touch pad - and listeners.
+      game?.dispose?.();
       game = undefined;
+    },
+
+    /** The running game, for probes. */
+    get game() {
+      return game;
     },
 
     /** A hidden tab runs no game either. */
