@@ -1,7 +1,10 @@
 import { AnimationMixer, Group, LoopOnce, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
 
 import { CABINET_SCALE } from './cabinet.js';
+import { createGlow } from './glow.js';
 import { bake, loadLive } from './kit.js';
+import { loadPerson } from './people.js';
+import { createLiveScreens } from './screens.js';
 import { signTexture } from './textures.js';
 
 /**
@@ -117,23 +120,72 @@ const DECOR = [
   furniture('trashcan', 4.2, FRONT + 0.6, 0, { scale: 1.1, solid: true }),
 ];
 
-/** The pavement's edge - the road starts here. */
+/** The pavement's edge - past it, only the night. */
 const KERB = 13.75;
 
+/** Regulars at the machines, standing where a player would, facing the glass. */
+const REGULARS = [
+  { name: 'punk', x: -4.3, z: 3.4, facing: -Math.PI / 2 }, // claw machine
+  { name: 'beach', x: -4.2, z: -0.2, facing: -Math.PI / 2 }, // pinball
+  { name: 'worker', x: 3.3, z: -3.45, facing: Math.PI }, // arcade cabinet
+];
+
+/** The row of Kenney arcade machines on the back wall, whose screens run. */
+const ARCADE_ROW = [2.2, 3.3, 4.4].map((x) => ({ x, z: -INNER_D + 0.244 * U }));
+
+const PINK = 0xff4f8b;
+const TEAL = 0x38e0d0;
+const VIOLET = 0x8b5cff;
+const AMBER = 0xffb347;
+const WHITE = 0xdfe8ff;
+const pool = (x, z, w, d, color, strength = 0.55) => ({ x, z, w, h: d, color, strength, floor: true });
+
+/*
+ * Where the light falls. Pools in front of every machine, in its own colour;
+ * the PINGO pair brightest; the sign and windows on the pavement outside;
+ * neon tubes along the tops of the inner walls.
+ */
+const GLOW = [
+  ...ARCADE_ROW.map(({ x }, i) => pool(x, -3.7, 1.5, 1.6, [TEAL, PINK, VIOLET][i])),
+  pool(5.6, -3.7, 1.4, 1.5, AMBER),
+  pool(-3.2, -2.4, 2.2, 1.8, PINK, 0.7),
+  pool(-5.2, -2.4, 1.8, 1.6, AMBER),
+  pool(-4.5, 3.4, 1.8, 1.8, TEAL),
+  pool(-4.5, 1.6, 1.8, 1.8, TEAL),
+  pool(-4.4, -0.2, 1.6, 1.5, VIOLET),
+  pool(-4.4, -1.5, 1.6, 1.5, VIOLET),
+  pool(-2.9, 2.4, 3.2, 2.4, VIOLET, 0.45),
+  pool(3.6, 3.0, 1.8, 2.6, AMBER, 0.45),
+  pool(5.4, 0.9, 1.4, 1.4, AMBER),
+  pool(5.5, -0.4, 1.6, 1.6, PINK),
+  pool(5.3, -1.9, 1.4, 1.4, WHITE, 0.4),
+  pool(0, 2.2, 2.4, 2.2, PINK, 0.7),
+  pool(0, -2.2, 2.4, 2.2, PINK, 0.7),
+  pool(0, FRONT + 2.2, 9, 4.5, PINK, 0.5),
+  pool(-U, FRONT + 1.1, 2.6, 2, AMBER, 0.35),
+  pool(U, FRONT + 1.1, 2.6, 2, AMBER, 0.35),
+  { x: 0, y: U + 0.65, z: FRONT + 0.005, w: 7.6, h: 2.8, color: PINK, strength: 0.6 },
+  { x: 0, y: U - 0.12, z: -INNER_D + 0.02, w: 2 * INNER_W, h: 0.16, color: PINK, strength: 1.2, tube: true },
+  { x: -INNER_W + 0.02, y: U - 0.12, z: 0, w: 2 * INNER_D, h: 0.16, color: TEAL, strength: 1.2, tube: true, rot: Math.PI / 2 },
+  { x: INNER_W - 0.02, y: U - 0.12, z: 0, w: 2 * INNER_D, h: 0.16, color: TEAL, strength: 1.2, tube: true, rot: -Math.PI / 2 },
+];
+
+/** Mostly steady, with the two quick stutters a tired neon tube gives every few seconds. */
+function neonFlicker(now) {
+  const t = (now / 1000) % 7;
+  return (t > 5.1 && t < 5.17) || (t > 5.3 && t < 5.36) ? 0.35 : 1;
+}
+
+/*
+ * Just the shop and the pavement in front of it - no neighbours, no road.
+ * The street is where you arrive, not somewhere to go; beyond the paving the
+ * night is simply dark, and every triangle saved goes to the shop and its
+ * people instead.
+ */
 const STREET = [
   // The ground: one paving tile stretched. Its colour is one palette cell, so
-  // stretching it costs nothing and saves ~30 tiles. 2 cm below the shop floor.
-  road('tile-low', 0, -3.25, 0, { y: -0.16, scale: [44, ROADS, 34] }),
-  ...[-21, -14, -7, 0, 7, 14, 21].map((x) => road('road-side', x, KERB + 0.81 * ROADS, 0, { y: -0.14 })),
-  road('light-square', -9, KERB + 1.2, Math.PI),
-  road('light-square', 9, KERB + 1.2, Math.PI),
-  // Neighbours, fronts flush with the shop's.
-  city('building-a', -11.2, FRONT - 0.47 * CITY),
-  city('building-d', 11.1, FRONT - 0.45 * CITY),
-  city('low-detail-building-wide-a', -17.8, FRONT - 0.25 * CITY),
-  city('low-detail-building-wide-a', 17.8, FRONT - 0.25 * CITY),
-  // No skyline behind the shop: on a portrait phone the camera's tall view
-  // turned the kit's low-detail towers into blank grey slabs filling the top half.
+  // stretching it costs nothing. 2 cm below the shop floor.
+  road('tile-low', 0, 1.5, 0, { y: -0.16, scale: [24, ROADS, 24.5] }),
 ];
 
 /**
@@ -150,13 +202,23 @@ export function createShop(extra = []) {
     // The door frame's posts, either side of the opening.
     [0.4 * U, HALF_D - WALL, 0.5 * U, HALF_D + WALL],
     [-0.5 * U, HALF_D - WALL, -0.4 * U, HALF_D + WALL],
-    // The attendant.
+    // The attendant, and the regulars at their machines.
     [4.9, 2.7, 5.5, 3.3],
+    ...REGULARS.map(({ x, z }) => [x - 0.3, z - 0.3, x + 0.3, z + 0.3]),
   ];
+  /** Everyone in the shop but you, animated once a frame. */
+  const people = [];
+  let attendant;
+  /** The attendant waves once each time you come up to the counter. */
+  let waved = false;
 
   const sign = new Mesh(new PlaneGeometry(5.2, 1.3), new MeshBasicMaterial({ map: signTexture('PINGO ARCADE') }));
   sign.position.set(0, U + 0.65, FRONT + 0.02);
   front.add(sign);
+
+  const glow = createGlow(GLOW);
+  const screens = createLiveScreens(ARCADE_ROW, U);
+  group.add(glow.mesh, screens.mesh);
 
   const mixers = [];
   const door = { actions: {}, open: false };
@@ -183,22 +245,35 @@ export function createShop(extra = []) {
       }
       mixers.push(mixer);
     }),
-    loadLive('models/character-employee.glb').then((gltf) => {
-      gltf.scene.scale.setScalar(U);
-      gltf.scene.position.set(5.2, 0, 3.0);
-      gltf.scene.rotation.y = FACING_LEFT;
-      group.add(gltf.scene);
-      const mixer = new AnimationMixer(gltf.scene);
-      mixer.clipAction(gltf.animations.find((clip) => clip.name === 'idle')).play();
-      mixers.push(mixer);
+    loadPerson('suit').then((person) => {
+      person.body.position.set(5.2, 0, 3.0);
+      person.body.rotation.y = FACING_LEFT;
+      person.play('Idle_Neutral');
+      group.add(person.body);
+      people.push(person);
+      attendant = person;
     }),
+    // Regulars, busy at the machines. Their clip's start is staggered so the
+    // room is not a row of people pressing buttons in unison.
+    ...REGULARS.map(({ name, x, z, facing }, index) =>
+      loadPerson(name).then((person) => {
+        person.body.position.set(x, 0, z);
+        person.body.rotation.y = facing;
+        person.play('Interact', { speed: 0.75 + 0.15 * index });
+        person.offset(0.6 * index);
+        group.add(person.body);
+        people.push(person);
+      }),
+    ),
   ]);
 
+  /** @returns {boolean} true the moment the door starts to open */
   function setDoor(open) {
-    if (open === door.open || !door.actions.open) return;
+    if (open === door.open || !door.actions.open) return false;
     door.open = open;
     door.actions[open ? 'close' : 'open'].stop();
     door.actions[open ? 'open' : 'close'].reset().play();
+    return open;
   }
 
   return {
@@ -215,11 +290,23 @@ export function createShop(extra = []) {
      * wall steps aside once they are in - with the camera behind and above
      * the player, it is the one wall that would stand between the two.
      */
-    update(dt, player) {
+    update(dt, player, now) {
       const inside = player.z < INNER_D + 0.4 && Math.abs(player.x) < INNER_W;
       front.visible = !inside;
-      setDoor(Math.abs(player.x) < 2.5 && Math.abs(player.z - HALF_D) < 3.2);
+      const opened = setDoor(Math.abs(player.x) < 2.5 && Math.abs(player.z - HALF_D) < 3.2);
+      sign.material.color.setScalar(neonFlicker(now));
+      glow.update(now);
+      screens.update(now);
+      const toCounter = Math.hypot(player.x - 4.1, player.z - 3.0);
+      if (attendant && toCounter < 3 && !waved) {
+        waved = true;
+        attendant.once('Wave', 'Idle_Neutral');
+      } else if (toCounter > 5) {
+        waved = false;
+      }
       for (const mixer of mixers) mixer.update(dt);
+      for (const person of people) person.update(dt);
+      return opened;
     },
   };
 }

@@ -1,6 +1,6 @@
-import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
-import { playCoin, playSound, unlockAudio } from './audio/sfx.js';
+import { playCoin, playSound, playStep, setAmbience, startAmbience, unlockAudio } from './audio/sfx.js';
 import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig, createFollow } from './lobby/camera-rig.js';
@@ -26,6 +26,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
 
 const scene = new Scene();
 scene.background = new Color(0x0d0a14);
+// Past the paving the street fades into the night instead of ending at an edge.
+scene.fog = new Fog(0x0d0a14, 16, 32);
 
 const room = createRoom();
 scene.add(room.group);
@@ -261,6 +263,8 @@ async function enterGame(kind = 'versus') {
   renderer.render(scene, camera);
   gameHost.start(make(), screenRect(screen, camera, canvas.getBoundingClientRect()));
   mode = 'game';
+  // The 3D loop stops here, so the room goes quiet from here, not from a frame.
+  updateMood();
   setRunning(!document.hidden);
   show();
 }
@@ -326,10 +330,35 @@ function sit(picked, roomId) {
   void getMatch().then((match) => match.begin(roomId));
 }
 
+/*
+ * Sound needs a gesture first. The first tap or key anywhere unlocks it and
+ * starts the floor recording; `mood` then sets how loud the room is.
+ */
+function wake() {
+  unlockAudio();
+  void startAmbience('sounds/arcade-floor.mp3').then(() => {
+    lastMood = undefined;
+  });
+}
+
+/** [level, muffled] for each place you can be. */
+const AMBIENCE = { street: [0.16, true], floor: [0.5, false], seat: [0.3, false], game: [0.1, false] };
+let lastMood;
+
+function updateMood() {
+  const { x, z } = player.position;
+  const indoors = Math.abs(x) < 6.5 && z < 5.6;
+  let mood = indoors ? 'floor' : 'street';
+  if (session.state !== State.IDLE) mood = mode === 'game' ? 'game' : 'seat';
+  if (mood === lastMood) return;
+  lastMood = mood;
+  setAmbience(...AMBIENCE[mood]);
+}
+
 /** "Sit down" - the button, or E. The tap is also what unlocks sound. */
 function sitDown() {
   if (!nearSeat || session.state !== State.IDLE) return;
-  unlockAudio();
+  wake();
   sit(nearSeat, nearSeat === invitedSeat ? invitedTo : newRoomId());
 }
 
@@ -346,7 +375,8 @@ function stand() {
 window.addEventListener('keydown', (event) => {
   if ((event.code === 'KeyE' || event.code === 'Enter') && !event.repeat) sitDown();
 });
-window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('pointerdown', wake, { once: true });
+window.addEventListener('keydown', wake, { once: true });
 
 /** Dev-only overlay; stays undefined in a normal production build. */
 let hud;
@@ -357,7 +387,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   if (session.state === State.IDLE) {
-    player.update(dt, walk.read());
+    if (player.update(dt, walk.read())) playStep();
     follow.update(dt, player.position);
     const near = findSeat();
     if (near !== nearSeat) {
@@ -367,7 +397,8 @@ function frame(now) {
   } else {
     rig.update(now);
   }
-  room.update(dt, player.position);
+  if (room.update(dt, player.position, now)) playSound('door');
+  updateMood();
   room.domes.update(now);
   renderer.render(scene, camera);
   hud?.update(now);

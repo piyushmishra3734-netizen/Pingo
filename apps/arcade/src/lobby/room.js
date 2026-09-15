@@ -72,7 +72,9 @@ function contactShadows(spots) {
 export function createRoom() {
   const group = new Group();
 
-  group.add(new HemisphereLight(0xdfe4ff, 0x241f30, 1.15));
+  // Night: a dim violet sky and a dark floor bounce. The machines' own glow
+  // (glow.js) does the rest of the lighting, the way it does in a real arcade.
+  group.add(new HemisphereLight(0xb8a6ff, 0x1a1024, 0.8));
 
   // The model faces +Z: B needs nothing, A turns round to face its own seat.
   const cabinetA = createCabinet();

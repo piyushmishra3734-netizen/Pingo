@@ -87,6 +87,50 @@ function sweep(from, to, seconds, peak, type = 'square') {
   oscillator.stop(t + seconds + 0.02);
 }
 
+/*
+ * The room itself: a real arcade floor (a CC0 recording from Tokyo, see
+ * public/sounds) on a loop, through a low-pass filter - outside, the walls
+ * take the top off it; through the door it opens up.
+ */
+let ambience;
+
+/** Starts the floor loop. Call after unlockAudio; safe to call again. */
+export async function startAmbience(url) {
+  if (!context || ambience) return;
+  ambience = { gain: context.createGain(), filter: context.createBiquadFilter() };
+  ambience.gain.gain.value = 0;
+  ambience.filter.type = 'lowpass';
+  ambience.filter.frequency.value = 700;
+  ambience.filter.connect(ambience.gain).connect(context.destination);
+  try {
+    const buffer = await context.decodeAudioData(await (await fetch(url)).arrayBuffer());
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(ambience.filter);
+    source.start();
+  } catch {
+    /* no recording: the arcade is simply quiet */
+  }
+}
+
+/**
+ * How loud the room is (0-1), and whether a wall is in the way. Glides there
+ * rather than jumping, so walking through the door swells the sound.
+ */
+export function setAmbience(level, muffled) {
+  if (!ambience) return;
+  const t = context.currentTime;
+  ambience.gain.gain.setTargetAtTime(level, t, 0.35);
+  ambience.filter.frequency.setTargetAtTime(muffled ? 700 : 16000, t, 0.35);
+}
+
+/** A soft footfall: a short low thud, quieter than anything a game says. */
+export function playStep() {
+  if (!context) return;
+  burst(150 + Math.random() * 40, 0.07, 0.07);
+}
+
 /**
  * The brawler's sounds, by the event names bout.js emits. Synthesised like
  * the coin: nothing to download, and a hit is heard the step it lands.
@@ -100,4 +144,5 @@ export function playSound(name) {
   } else if (name === 'block') burst(2600, 0.05, 0.15);
   else if (name === 'ko') sweep(520, 90, 0.7, 0.18);
   else if (name === 'fight') sweep(440, 880, 0.18, 0.12);
+  else if (name === 'door') burst(450, 0.4, 0.1);
 }

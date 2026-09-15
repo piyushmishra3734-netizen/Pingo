@@ -32,7 +32,7 @@ export const CABINET_BACK = 0.244;
  * wide, 0.19 along its slope, tipped back 18.7 degrees. Its centre and normal
  * come straight from the vertex data, not from eyeballing a render.
  */
-const SCREEN = { width: 0.3, height: 0.1875, y: 0.42, z: 0.088, tilt: -0.326 };
+export const SCREEN = { width: 0.3, height: 0.1875, y: 0.42, z: 0.088, tilt: -0.326 };
 /** How far in front of the model's glass our plane floats, along its normal. */
 const SCREEN_LIFT = 0.003;
 
