@@ -95,6 +95,16 @@ export function createOverlay({ onStand, onPlay, onBack, onCpu, onSit }) {
   const sit = button('Sit down', 'overlay-button overlay-invite overlay-action', onSit);
   document.body.append(sit);
 
+  // Who made the models and sounds. One of them is CC-BY, which asks for its
+  // credit where people can find it; the CC0 ones get theirs anyway.
+  const credits = document.createElement('a');
+  credits.className = 'credits';
+  credits.href = 'CREDITS.txt';
+  credits.target = '_blank';
+  credits.rel = 'noopener';
+  credits.textContent = 'Credits';
+  document.body.append(credits);
+
   return {
     /**
      * @param {string} state - the session's state
@@ -109,6 +119,7 @@ export function createOverlay({ onStand, onPlay, onBack, onCpu, onSit }) {
       // foot it moves to the top, clear of the stick and the action button.
       root.dataset.mode = seated ? mode : 'walk';
       sit.hidden = !(extra.canSit && !seated);
+      credits.hidden = seated;
 
       let text = seated ? STATUS[state] : 'Walk in and sit at the PINGO machine';
       if (state === 'PAIRED' && extra.rtt !== undefined) text += ` · ${extra.rtt} ms`;

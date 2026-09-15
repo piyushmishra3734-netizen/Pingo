@@ -1,0 +1,20 @@
+PINGO Arcade - credits
+
+Arcade cabinet (the PINGO machines)
+  "Arcade Cabinet .glb (v0.9) FREE Low Poly" by Lady Lion Studios - CC BY 4.0
+  https://sketchfab.com/3d-models/arcade-cabinet-glb-v09-free-low-poly-5685d09900dc4393b245f6e924457fc7
+  https://creativecommons.org/licenses/by/4.0/
+  Adapted: backdrop removed, textures atlased, geometry simplified, rescaled.
+
+Storefront and pavement
+  Downtown City MegaKit by Quaternius - CC0 - https://quaternius.com
+
+People
+  Ultimate Modular Men by Quaternius - CC0 - https://quaternius.com
+
+Shop interior, machines, stools, rugs, plants
+  Mini Arcade and Furniture Kit by Kenney - CC0 - https://kenney.nl
+
+Arcade floor sound
+  "Tokyo - arcade center floor 1_CsG.wav" by csaszi - CC0
+  https://freesound.org/people/csaszi/sounds/481770/

@@ -1,0 +1,6 @@
+pingo-cabinet.glb is adapted from "Arcade Cabinet .glb (v0.9) FREE Low Poly" by Lady Lion Studios
+https://sketchfab.com/3d-models/arcade-cabinet-glb-v09-free-low-poly-5685d09900dc4393b245f6e924457fc7
+Licensed under Creative Commons Attribution 4.0 (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+Changes: backdrop removed; textures packed into one 1024 px atlas; geometry simplified (8,050 -> 2,050 triangles);
+normals removed (drawn flat shaded); rescaled to 1.8 m, turned to face +Z.
+The model's textures are from cc0textures.com (CC0), per the author.

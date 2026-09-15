@@ -176,15 +176,20 @@ export async function bake(placements) {
 }
 
 /**
- * A model that moves - a character, the door - kept whole, its PBR material
- * swapped for Lambert like everything else.
+ * A model kept whole - one that moves, or one composed offline like the
+ * storefront - its PBR materials swapped for Lambert like everything else.
+ * Vertex colours carry through (the storefront's tints live there), and a
+ * material named `glow` - the lit windows - is drawn unlit: it gives light.
  */
 export async function loadLive(url) {
   const gltf = await loadGltf(url);
   gltf.scene.traverse((object) => {
     if (!object.isMesh) return;
     const source = object.material;
-    object.material = source.transparent ? material('glass') : new MeshLambertMaterial({ map: source.map });
+    const vertexColors = Boolean(object.geometry.attributes.color);
+    if (source.transparent) object.material = material('glass');
+    else if (source.name === 'glow') object.material = new MeshBasicMaterial({ vertexColors });
+    else object.material = new MeshLambertMaterial({ map: source.map, vertexColors });
     source.dispose();
   });
   return gltf;

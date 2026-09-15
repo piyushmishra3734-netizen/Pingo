@@ -1,7 +1,7 @@
 import { CanvasTexture, Mesh, MeshBasicMaterial, NearestFilter, PlaneGeometry, SRGBColorSpace } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { SCREEN } from './cabinet.js';
+import { KENNEY_SCREEN as SCREEN } from './cabinet.js';
 
 /**
  * Screens that are on: the other machines in the shop play their attract

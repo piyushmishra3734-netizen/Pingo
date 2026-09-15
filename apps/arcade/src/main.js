@@ -347,7 +347,7 @@ let lastMood;
 
 function updateMood() {
   const { x, z } = player.position;
-  const indoors = Math.abs(x) < 6.5 && z < 5.6;
+  const indoors = Math.abs(x) < 6.5 && z < 5.8;
   let mood = indoors ? 'floor' : 'street';
   if (session.state !== State.IDLE) mood = mode === 'game' ? 'game' : 'seat';
   if (mood === lastMood) return;

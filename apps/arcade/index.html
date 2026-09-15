@@ -139,6 +139,22 @@
         padding: 0 28px;
         font: 600 17px system-ui, -apple-system, 'Segoe UI', sans-serif;
       }
+      .credits {
+        position: fixed;
+        right: max(12px, env(safe-area-inset-right));
+        top: max(12px, env(safe-area-inset-top));
+        z-index: 2;
+        padding: 6px 8px;
+        font: 500 12px system-ui, -apple-system, 'Segoe UI', sans-serif;
+        color: rgba(244, 241, 250, 0.62);
+        text-decoration: none;
+      }
+      .credits:focus-visible {
+        outline: 2px solid #f4f1fa;
+      }
+      .credits[hidden] {
+        display: none;
+      }
       .overlay[data-mode='walk'] {
         top: max(12px, env(safe-area-inset-top));
         bottom: auto;
