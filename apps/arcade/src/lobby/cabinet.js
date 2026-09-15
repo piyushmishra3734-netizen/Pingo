@@ -23,6 +23,7 @@ import { attractTexture } from './textures.js';
  */
 
 const MODEL_URL = 'models/pingo-cabinet.glb';
+const FAR_URL = 'models/pingo-cabinet-far.glb';
 
 /** The cabinet's measurements, in metres, from the prepared model. */
 export const CABINET = {
@@ -44,14 +45,21 @@ export const CABINET = {
  */
 export const KENNEY_SCALE = 1.75 / 0.725;
 
-let model;
+const models = {};
 
 /**
- * Fetched once however many cabinets there are - the PINGO pair and the
- * back-wall row share one geometry and one material.
+ * Fetched once however many cabinets there are - the PINGO pair shares one
+ * geometry and material.
+ *
+ * `far` is the same cabinet at ~600 triangles instead of ~1,900, for the row
+ * on the back wall: the careful simplifier stops at the UV seams, the sloppy
+ * one does not, and from across the room nobody can tell. It keeps the
+ * inside of the shop under the 20k-triangle budget.
+ *
+ * @param {'near' | 'far'} [detail]
  */
-export function loadCabinetModel() {
-  model ??= loadGltf(MODEL_URL).then((gltf) => {
+export function loadCabinetModel(detail = 'near') {
+  models[detail] ??= loadGltf(detail === 'far' ? FAR_URL : MODEL_URL).then((gltf) => {
     let mesh;
     gltf.scene.traverse((object) => {
       if (object.isMesh) mesh = object;
@@ -60,7 +68,7 @@ export function loadCabinetModel() {
     mesh.material.dispose();
     return { geometry: mesh.geometry, material };
   });
-  return model;
+  return models[detail];
 }
 
 /**

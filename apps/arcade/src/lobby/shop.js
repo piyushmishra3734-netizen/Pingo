@@ -256,8 +256,8 @@ export function createShop(extra = []) {
         interior.add(holder);
       }),
     ),
-    // The back-wall row: one geometry drawn three times in one call.
-    loadCabinetModel().then(({ geometry, material }) => {
+    // The back-wall row: the far cabinet, drawn three times in one call.
+    loadCabinetModel('far').then(({ geometry, material }) => {
       const row = new InstancedMesh(geometry, material, ARCADE_ROW.length);
       ARCADE_ROW.forEach(({ x, z, rot }, i) => row.setMatrixAt(i, new Matrix4().makeRotationY(rot).setPosition(x, 0, z)));
       row.computeBoundingSphere();
@@ -309,10 +309,13 @@ export function createShop(extra = []) {
      */
     update(dt, player, now) {
       const isIn = inside(player);
-      // Only right at the door does the street draw both at once - the costliest view.
-      const atDoor = Math.abs(player.x) < 1.5 && player.z < FRONT + 1.2;
+      // Never both at once: drawing the room behind the open door as well as
+      // the street took the doorway to 41 draw calls. The glass shows a dark
+      // shop until you step through, the way a lit window hides a dim room.
       front.visible = !isIn;
-      interior.visible = isIn || atDoor;
+      interior.visible = isIn;
+      // Inside, the camera stays inside and faces in: the street is never in view.
+      street.visible = !isIn;
 
       const wantOpen = Math.abs(player.x) < 2.5 && Math.abs(player.z - FACADE_Z) < 3.2;
       const opened = wantOpen && !doorOpen;
