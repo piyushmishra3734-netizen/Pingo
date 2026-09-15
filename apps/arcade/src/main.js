@@ -5,6 +5,7 @@ import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig } from './lobby/camera-rig.js';
 import { createRoom } from './lobby/room.js';
+import { screenPose, screenRect } from './lobby/screen-pose.js';
 import { createSeatPicker } from './lobby/seat-picker.js';
 import { inviteUrl, newRoomId, roomFromSearch, seatFromSearch } from './net/room-id.js';
 import { createOverlay } from './ui/overlay.js';
@@ -28,6 +29,13 @@ scene.background = new Color(0x0d0a14);
 const room = createRoom();
 scene.add(room.group);
 
+/**
+ * Where the player is: looking at the room, gliding into the screen, or
+ * playing - in which case three draws nothing at all.
+ * @type {'lobby' | 'zooming' | 'game'}
+ */
+let mode = 'lobby';
+
 /*
  * The field of view follows the screen's shape.
  *
@@ -46,8 +54,31 @@ function fitFov(aspect) {
   return Math.max(BASE_FOV, vertical);
 }
 
-const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 50);
+const camera = new PerspectiveCamera(BASE_FOV, 1, 0.05, 50);
 const rig = createCameraRig(camera);
+
+/*
+ * The 2D side, fetched when a match is on rather than at boot.
+ *
+ * Nobody needs a game to look at the room, and every game added to the first
+ * download pushes the room's first frame later on 2G - with the host and the
+ * VS card alone the main bundle passed 600 KB. The fetch starts the moment
+ * the players pair, so it has landed long before the camera reaches the
+ * screen. Each game will be its own chunk the same way.
+ */
+let gameHost;
+let gameLoading;
+
+function loadGame() {
+  gameLoading ??= Promise.all([
+    import('./games/game-host.js'),
+    import('./games/versus-card.js'),
+  ]).then(([{ createGameHost }, { createVersusCard }]) => {
+    gameHost ??= createGameHost();
+    return { createVersusCard };
+  });
+  return gameLoading;
+}
 
 /** Off to one side and high: both cabinets, both stools, both domes. */
 const OVERVIEW = { position: [2.6, 1.85, 3.1], lookAt: [0, 0.95, 0] };
@@ -61,9 +92,17 @@ function resize() {
   camera.aspect = width / height;
   camera.fov = fitFov(camera.aspect);
   camera.updateProjectionMatrix();
+
+  // Mid-game, the 3D loop is off: re-seat the camera for the new shape, draw
+  // the one frame the game sits on, and move the game to match it.
+  if (mode === 'game') {
+    const screen = cabinetFor(seat).screen;
+    rig.snap(screenPose(screen, camera));
+    renderer.render(scene, camera);
+    gameHost.place(screenRect(screen, camera, canvas.getBoundingClientRect()));
+  }
 }
 window.addEventListener('resize', resize);
-resize();
 
 /*
  * The match. The session decides; the room, the overlay and the sounds only
@@ -77,10 +116,21 @@ let invite;
 let rtt;
 let note;
 
-const overlay = createOverlay({ onStand: stand });
+resize();
+
+const overlay = createOverlay({
+  onStand: stand,
+  onPlay: () => void enterGame(),
+  onBack: () => exitGame(),
+});
 
 function show() {
-  overlay.show(session.state, { invite, rtt, note });
+  overlay.show(session.state, { invite, rtt, note, mode });
+}
+
+/** The cabinet in front of a seat. */
+function cabinetFor(picked) {
+  return room.cabinets[picked === seatById.A ? 0 : 1];
 }
 
 /*
@@ -118,15 +168,69 @@ function getMatch() {
   return matchReady;
 }
 
+/*
+ * Into the screen.
+ *
+ * A beat after the coin so the green light registers, then the camera glides
+ * square-on to the cabinet's screen until it fills the view. On arrival the
+ * 3D loop stops - three draws nothing from here, which is the battery and the
+ * memory bandwidth back - and the 2D game appears exactly over the screen it
+ * replaces, its rectangle measured from the screen's own projected corners.
+ * The last 3D frame stays underneath as the cabinet around the game.
+ */
+const ENTER_AFTER_MS = 1200;
+const ZOOM_MS = 900;
+let enterTimer;
+
+async function enterGame() {
+  if (session.state !== State.PAIRED || mode !== 'lobby') return;
+  mode = 'zooming';
+  show();
+
+  const screen = cabinetFor(seat).screen;
+  const loading = loadGame();
+  const arrived = await rig.moveTo(screenPose(screen, camera), ZOOM_MS);
+  const { createVersusCard } = await loading;
+  // Superseded - dropped, or stood up, mid-glide - or no longer paired.
+  if (!arrived || mode !== 'zooming' || session.state !== State.PAIRED) return;
+
+  renderer.render(scene, camera);
+  gameHost.start(
+    createVersusCard({ youAreLeft: seat === seatById.A }),
+    screenRect(screen, camera, canvas.getBoundingClientRect()),
+  );
+  mode = 'game';
+  setRunning(!document.hidden);
+  show();
+}
+
+/** Out of the screen: the game goes, three comes back, the camera glides out. */
+function exitGame() {
+  clearTimeout(enterTimer);
+  if (mode === 'lobby') return;
+  gameHost?.stop();
+  mode = 'lobby';
+  setRunning(!document.hidden);
+  if (session.state !== State.IDLE) rig.moveTo(seat);
+  show();
+}
+
 room.domes.set(session.light);
 show();
 
 session.on(({ from, to, light }) => {
   room.domes.set(light);
   if (to !== State.PAIRED) rtt = undefined;
+  // Leaving PAIRED - dropped or stood up - ends any game first.
+  if (from === State.PAIRED) exitGame();
   if (from === State.IDLE) rig.moveTo(seat);
   if (to === State.IDLE) rig.moveTo(OVERVIEW);
-  if (to === State.PAIRED) playCoin();
+  if (to === State.PAIRED) {
+    playCoin();
+    void loadGame();
+    clearTimeout(enterTimer);
+    enterTimer = setTimeout(() => void enterGame(), ENTER_AFTER_MS);
+  }
   show();
 });
 
@@ -186,9 +290,14 @@ function frame(now) {
   hud?.update(now);
 }
 
-// A hidden tab draws nothing: nobody can see it, and the battery can.
-function setRunning(running) {
-  renderer.setAnimationLoop(running ? frame : null);
+/*
+ * One switch for both loops: three runs only in the room, the game only in
+ * the game, and neither while the tab is hidden - nobody can see it, and the
+ * battery can.
+ */
+function setRunning(visible) {
+  renderer.setAnimationLoop(visible && mode !== 'game' ? frame : null);
+  gameHost?.setPaused(!visible);
 }
 document.addEventListener('visibilitychange', () => setRunning(!document.hidden));
 setRunning(true);
@@ -201,5 +310,20 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
   });
   // The scene, reachable from a console or a headless probe. Dev only: it is
   // the difference between reading geometry numbers and guessing at them.
-  window.__arcade = { renderer, scene, camera, room, session, rig, getMatch };
+  window.__arcade = {
+    renderer,
+    scene,
+    camera,
+    room,
+    session,
+    rig,
+    get gameHost() {
+      return gameHost;
+    },
+    getMatch,
+    get mode() {
+      return mode;
+    },
+    screenRect: () => screenRect(cabinetFor(seat).screen, camera, canvas.getBoundingClientRect()),
+  };
 }

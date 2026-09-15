@@ -1,6 +1,6 @@
 /**
- * The only DOM on the page besides the canvas: a status line, the invite, and
- * a way back out of the chair.
+ * The only DOM on the page besides the canvases: a status line, the invite,
+ * and the buttons that move you between the room, the chair and the game.
  *
  * DOM rather than drawn in the scene because text in HTML is sharp at any
  * pixel ratio, readable by a screen reader, and free to lay out - three would
@@ -43,10 +43,19 @@ async function sendLink(url, field) {
   return 'shown';
 }
 
+function button(label, className, onClick) {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = className;
+  element.textContent = label;
+  element.addEventListener('click', onClick);
+  return element;
+}
+
 /**
- * @param {{ onStand: () => void }} options
+ * @param {{ onStand: () => void, onPlay: () => void, onBack: () => void }} options
  */
-export function createOverlay({ onStand }) {
+export function createOverlay({ onStand, onPlay, onBack }) {
   const root = document.createElement('div');
   root.className = 'overlay';
 
@@ -54,49 +63,52 @@ export function createOverlay({ onStand }) {
   status.className = 'overlay-status';
   status.setAttribute('role', 'status');
 
-  const invite = document.createElement('button');
-  invite.type = 'button';
-  invite.className = 'overlay-button overlay-invite';
-  invite.textContent = 'Copy invite link';
-
+  let inviteUrl;
+  let resetLabel;
   const field = document.createElement('input');
   field.className = 'overlay-link';
   field.readOnly = true;
   field.hidden = true;
   field.setAttribute('aria-label', 'Invite link');
 
-  const stand = document.createElement('button');
-  stand.type = 'button';
-  stand.className = 'overlay-button';
-  stand.textContent = 'Stand up';
-  stand.addEventListener('click', onStand);
-
-  root.append(status, invite, field, stand);
-  document.body.append(root);
-
-  let inviteUrl;
-  let resetLabel;
-  invite.addEventListener('click', async () => {
+  const invite = button('Copy invite link', 'overlay-button overlay-invite', async () => {
     if (!inviteUrl) return;
     const how = await sendLink(inviteUrl, field);
-    invite.textContent = how === 'shown' ? 'Copy the link below' : how === 'copied' ? 'Link copied ✓' : 'Shared ✓';
+    invite.textContent =
+      how === 'shown' ? 'Copy the link below' : how === 'copied' ? 'Link copied ✓' : 'Shared ✓';
     clearTimeout(resetLabel);
     resetLabel = setTimeout(() => {
       invite.textContent = 'Copy invite link';
     }, 2500);
   });
 
+  const play = button('Play', 'overlay-button overlay-invite', onPlay);
+  const back = button('Back to the room', 'overlay-button', onBack);
+  const stand = button('Stand up', 'overlay-button', onStand);
+
+  root.append(status, invite, field, play, back, stand);
+  document.body.append(root);
+
   return {
     /**
      * @param {string} state - the session's state
-     * @param {{ invite?: string, rtt?: number, note?: string }} [extra]
+     * @param {{ invite?: string, rtt?: number, note?: string, mode?: 'lobby' | 'zooming' | 'game' }} [extra]
      */
     show(state, extra = {}) {
+      const { mode = 'lobby' } = extra;
       const seated = state !== 'IDLE';
+      const inGame = mode === 'game';
+      // In a game the overlay moves to a corner (see index.html): at the
+      // bottom it sat on the game itself - measured, over "GET READY".
+      root.dataset.mode = mode;
+
       let text = seated ? STATUS[state] : 'Tap a stool to sit';
       if (state === 'PAIRED' && extra.rtt !== undefined) text += ` · ${extra.rtt} ms`;
+      if (mode === 'zooming') text = 'Get ready…';
       if (extra.note) text = extra.note;
       status.textContent = text;
+      // In the game the screen says everything; the status would sit on it.
+      status.hidden = inGame;
 
       inviteUrl = extra.invite;
       // The invite only makes sense while somebody is still missing.
@@ -104,7 +116,9 @@ export function createOverlay({ onStand }) {
       invite.hidden = !inviting;
       if (!inviting) field.hidden = true;
 
-      stand.hidden = !seated;
+      play.hidden = !(state === 'PAIRED' && mode === 'lobby');
+      back.hidden = !inGame;
+      stand.hidden = !seated || inGame;
     },
   };
 }

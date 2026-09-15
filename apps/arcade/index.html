@@ -27,7 +27,16 @@
         height: 100dvh;
         touch-action: none;
       }
+      /* The 2D game, laid exactly over the cabinet's screen by game-host.js. */
+      .game-screen {
+        position: fixed;
+        z-index: 1;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        background: #000;
+      }
       .overlay {
+        z-index: 2;
         position: fixed;
         left: 50%;
         bottom: max(20px, env(safe-area-inset-bottom));
@@ -41,6 +50,20 @@
         text-align: center;
         /* The overlay must never swallow a tap meant for the scene. */
         pointer-events: none;
+      }
+      /* During a game: out of the picture, top right, small. */
+      .overlay[data-mode='game'] {
+        top: max(10px, env(safe-area-inset-top));
+        right: max(10px, env(safe-area-inset-right));
+        bottom: auto;
+        left: auto;
+        transform: none;
+      }
+      .overlay[data-mode='game'] .overlay-button {
+        min-height: 36px;
+        padding: 0 14px;
+        font-size: 13px;
+        background: rgba(13, 10, 20, 0.55);
       }
       .overlay-status {
         margin: 0;

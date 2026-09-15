@@ -37,6 +37,14 @@ export function createCameraRig(camera) {
   let start = 0;
   let duration = 0;
   let moving = false;
+  /** Settles the promise of the glide in progress: true arrived, false superseded. */
+  let settle;
+
+  const finish = (arrived) => {
+    const done = settle;
+    settle = undefined;
+    done?.(arrived);
+  };
 
   return {
     /** Jump straight to a pose - for the first frame, where there is nothing to glide from. */
@@ -44,10 +52,18 @@ export function createCameraRig(camera) {
       camera.position.set(...pose.position);
       camera.lookAt(...pose.lookAt);
       moving = false;
+      finish(false);
     },
 
-    /** Glide from wherever the camera is now, even mid-glide, to `pose`. */
+    /**
+     * Glide from wherever the camera is now, even mid-glide, to `pose`.
+     *
+     * Resolves true on arrival, or false if another move replaced this one -
+     * so a caller waiting to do something *at* the destination (start a game
+     * at the screen) can tell that the destination changed under it.
+     */
     moveTo(pose, ms = 900) {
+      finish(false);
       fromPosition.copy(camera.position);
       fromRotation.copy(camera.quaternion);
       scratch.position.set(...pose.position);
@@ -57,6 +73,9 @@ export function createCameraRig(camera) {
       start = performance.now();
       duration = ms;
       moving = true;
+      return new Promise((resolve) => {
+        settle = resolve;
+      });
     },
 
     /** Once per frame, before rendering. */
@@ -65,7 +84,10 @@ export function createCameraRig(camera) {
       const t = tweenProgress(now, start, duration);
       camera.position.lerpVectors(fromPosition, toPosition, t);
       camera.quaternion.slerpQuaternions(fromRotation, toRotation, t);
-      if (t >= 1) moving = false;
+      if (t >= 1) {
+        moving = false;
+        finish(true);
+      }
     },
 
     get moving() {
