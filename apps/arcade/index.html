@@ -97,6 +97,52 @@
       .pad-btn.is-down {
         background: rgba(255, 255, 255, 0.32);
       }
+      /* On foot: a thumb stick bottom left (phones only), the action button bottom right. */
+      .stick {
+        position: fixed;
+        left: max(24px, env(safe-area-inset-left));
+        bottom: max(24px, env(safe-area-inset-bottom));
+        z-index: 3;
+        display: none;
+        width: 112px;
+        height: 112px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        background: rgba(13, 10, 20, 0.35);
+        touch-action: none;
+      }
+      @media (pointer: coarse) {
+        .stick {
+          display: block;
+        }
+      }
+      .stick[hidden] {
+        display: none;
+      }
+      .stick-knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 48px;
+        height: 48px;
+        margin: -24px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.55);
+        pointer-events: none;
+      }
+      .overlay-action {
+        position: fixed;
+        right: max(24px, env(safe-area-inset-right));
+        bottom: max(32px, env(safe-area-inset-bottom));
+        z-index: 3;
+        min-height: 56px;
+        padding: 0 28px;
+        font: 600 17px system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      .overlay[data-mode='walk'] {
+        top: max(12px, env(safe-area-inset-top));
+        bottom: auto;
+      }
       /* During a game: out of the picture, top right, small. */
       .overlay[data-mode='game'] {
         top: max(10px, env(safe-area-inset-top));

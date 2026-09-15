@@ -61,17 +61,25 @@ export function glowTexture() {
   return finish(element, { srgb: false });
 }
 
-/** Arcade carpet: near-black, with a faint grid so the floor has a scale. */
-export function floorTexture() {
-  const [element, ctx] = canvas(128);
-  // Light enough for a soft shadow to read against: at #17141f the contact
-  // patches were there and invisible, which is the same as not being there.
-  ctx.fillStyle = '#231e2e';
-  ctx.fillRect(0, 0, 128, 128);
-  ctx.strokeStyle = 'rgba(255,255,255,0.045)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, 126, 126);
-  return finish(element, { repeat: 10 });
+/** The shop's name over its door, in neon. Text, so it is drawn, not fetched. */
+export function signTexture(text) {
+  const element = document.createElement('canvas');
+  element.width = 512;
+  element.height = 128;
+  const ctx = element.getContext('2d');
+  ctx.fillStyle = '#1a0f22';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.strokeStyle = '#ff4f8b';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, 500, 116);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 60px "Space Grotesk", system-ui, sans-serif';
+  ctx.shadowColor = '#ff4f8b';
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = '#ffe9f1';
+  ctx.fillText(text, 256, 68);
+  return finish(element);
 }
 
 /**

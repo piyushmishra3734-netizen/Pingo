@@ -25,6 +25,54 @@ export function tweenProgress(now, start, duration) {
  * @typedef {{ position: number[], lookAt: number[] }} Pose
  */
 
+/*
+ * Walking: the camera rides behind and above the player, always from the
+ * street side, so the stick's "up" is always "further in". It trails rather
+ * than locks - an exponential catch-up, frame-rate independent - which also
+ * makes standing up a glide from the seat back out to here, for free.
+ */
+const FOLLOW = { height: 5.2, back: 6.2, aimHeight: 1.0, aimAhead: 1.5 };
+
+export function createFollow(camera) {
+  const position = new Vector3();
+  const target = new Vector3();
+  const wantPosition = new Vector3();
+  const wantTarget = new Vector3();
+
+  const aimAt = (at) => {
+    wantPosition.set(at.x, FOLLOW.height, at.z + FOLLOW.back);
+    wantTarget.set(at.x, FOLLOW.aimHeight, at.z - FOLLOW.aimAhead);
+  };
+  const apply = () => {
+    camera.position.copy(position);
+    camera.lookAt(target);
+  };
+
+  return {
+    /** Straight to the player - the first frame. */
+    snap(at) {
+      aimAt(at);
+      position.copy(wantPosition);
+      target.copy(wantTarget);
+      apply();
+    },
+
+    /** Take over from wherever the camera is, looking at `lookAt` - after a seat. */
+    reset(lookAt) {
+      position.copy(camera.position);
+      target.set(...lookAt);
+    },
+
+    update(dt, at) {
+      aimAt(at);
+      const catchUp = 1 - Math.exp(-dt * 6);
+      position.lerp(wantPosition, catchUp);
+      target.lerp(wantTarget, catchUp);
+      apply();
+    },
+  };
+}
+
 // A camera, not a plain Object3D: `lookAt` aims a camera's -Z at the target,
 // an Object3D's +Z - using the wrong one would face every seat backwards.
 const scratch = new PerspectiveCamera();

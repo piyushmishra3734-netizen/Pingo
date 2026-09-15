@@ -53,9 +53,9 @@ function button(label, className, onClick) {
 }
 
 /**
- * @param {{ onStand: () => void, onPlay: () => void, onBack: () => void, onCpu: () => void }} options
+ * @param {{ onStand: () => void, onPlay: () => void, onBack: () => void, onCpu: () => void, onSit: () => void }} options
  */
-export function createOverlay({ onStand, onPlay, onBack, onCpu }) {
+export function createOverlay({ onStand, onPlay, onBack, onCpu, onSit }) {
   const root = document.createElement('div');
   root.className = 'overlay';
 
@@ -90,20 +90,27 @@ export function createOverlay({ onStand, onPlay, onBack, onCpu }) {
   root.append(status, invite, field, play, cpu, back, stand);
   document.body.append(root);
 
+  // Bottom right, under the thumb the stick does not use - where games keep
+  // their action button.
+  const sit = button('Sit down', 'overlay-button overlay-invite overlay-action', onSit);
+  document.body.append(sit);
+
   return {
     /**
      * @param {string} state - the session's state
-     * @param {{ invite?: string, rtt?: number, note?: string, mode?: 'lobby' | 'zooming' | 'game' }} [extra]
+     * @param {{ invite?: string, rtt?: number, note?: string, mode?: 'lobby' | 'zooming' | 'game', canSit?: boolean }} [extra]
      */
     show(state, extra = {}) {
       const { mode = 'lobby' } = extra;
       const seated = state !== 'IDLE';
       const inGame = mode === 'game';
       // In a game the overlay moves to a corner (see index.html): at the
-      // bottom it sat on the game itself - measured, over "GET READY".
-      root.dataset.mode = mode;
+      // bottom it sat on the game itself - measured, over "GET READY". On
+      // foot it moves to the top, clear of the stick and the action button.
+      root.dataset.mode = seated ? mode : 'walk';
+      sit.hidden = !(extra.canSit && !seated);
 
-      let text = seated ? STATUS[state] : 'Tap a stool to sit';
+      let text = seated ? STATUS[state] : 'Walk in and sit at the PINGO machine';
       if (state === 'PAIRED' && extra.rtt !== undefined) text += ` · ${extra.rtt} ms`;
       if (mode === 'zooming') text = 'Get ready…';
       if (extra.note) text = extra.note;

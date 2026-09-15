@@ -1,37 +1,31 @@
-import {
-  BoxGeometry,
-  Group,
-  HemisphereLight,
-  Mesh,
-  MeshBasicMaterial,
-  MeshLambertMaterial,
-  PlaneGeometry,
-} from 'three';
+import { Group, HemisphereLight, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { CABINET_BACK, CABINET_SCALE, LID, createCabinet } from './cabinet.js';
 import { createDomeLights } from './dome-light.js';
-import { createStool } from './stool.js';
-import { contactShadowTexture, floorTexture } from './textures.js';
+import { createShop, furniture } from './shop.js';
+import { contactShadowTexture } from './textures.js';
 
 /**
- * The room: floor, two cabinets back to back, a stool at each, and the soft
- * patches that make all of it sit on the ground.
+ * The PINGO versus pair in the middle of the shop: two cabinets back to back,
+ * a stool at each, the dome lights, and the seats players sit in.
  *
  * ## The versus layout
  *
  * The cabinets share a spine at the centre and face outward, so the two
  * players sit facing each other with the machines between them - a Japanese
- * arcade's taisen setup. Seat A is at -Z, seat B at +Z, and each seat's camera
- * anchor looks at its own screen.
+ * arcade's taisen setup. Seat A is at -Z (the back of the shop), seat B at +Z
+ * (the door side), and each seat's camera anchor looks at its own screen.
+ *
+ * Everything around them - the street, the shop, the other machines - is
+ * shop.js.
  *
  * ## Light
  *
  * One `HemisphereLight` and nothing else: sky above, bounce from the floor
  * below, no position and no shadow map to compute. It is the cheapest thing in
- * three that still gives a surface a top and a bottom. The dome light over
- * each cabinet arrives in step 4 and glows by material, not by lighting the
- * room.
+ * three that still gives a surface a top and a bottom. The dome lights glow by
+ * material, not by lighting the room.
  */
 
 /** Backs 4 cm apart at the spine, so the pair reads as two machines. */
@@ -80,13 +74,6 @@ export function createRoom() {
 
   group.add(new HemisphereLight(0xdfe4ff, 0x241f30, 1.15));
 
-  const floor = new Mesh(
-    new PlaneGeometry(14, 14),
-    new MeshLambertMaterial({ map: floorTexture() }),
-  );
-  floor.rotation.x = -Math.PI / 2;
-  group.add(floor);
-
   // The model faces +Z: B needs nothing, A turns round to face its own seat.
   const cabinetA = createCabinet();
   cabinetA.group.position.z = -CABINET_OFFSET;
@@ -97,11 +84,12 @@ export function createRoom() {
 
   group.add(cabinetA.group, cabinetB.group);
 
-  const stoolA = createStool();
-  stoolA.position.set(0, 0, -SEAT_OFFSET);
-  const stoolB = createStool();
-  stoolB.position.set(0, 0, SEAT_OFFSET);
-  group.add(stoolA, stoolB);
+  // The stools are Kenney bar stools, baked in with the rest of the shop.
+  const shop = createShop([
+    furniture('stoolBar', 0, -SEAT_OFFSET),
+    furniture('stoolBar', 0, SEAT_OFFSET),
+  ]);
+  group.add(shop.group);
 
   // Footprint of one cabinet, a little larger than the model so the shadow
   // softens past its edges; centred where the model's mass is.
@@ -116,6 +104,14 @@ export function createRoom() {
     ]),
   );
 
+  // The pair and its stools are solid too.
+  const pairReach = CABINET_OFFSET + 0.294 * CABINET_SCALE;
+  shop.colliders.push(
+    [-0.5, -pairReach, 0.5, pairReach],
+    [-0.25, -SEAT_OFFSET - 0.25, 0.25, -SEAT_OFFSET + 0.25],
+    [-0.25, SEAT_OFFSET - 0.25, 0.25, SEAT_OFFSET + 0.25],
+  );
+
   /*
    * Where each player's camera sits and what it looks at.
    *
@@ -126,25 +122,17 @@ export function createRoom() {
    */
   const screenZ = CABINET_OFFSET + 0.088 * CABINET_SCALE;
   const aimY = 1.3;
-  const hitMaterial = new MeshBasicMaterial();
 
-  const seats = [-1, 1].map((side, index) => {
-    /*
-     * The seat's tap target: an invisible box over the stool and the cabinet
-     * in front of it. Never drawn (`visible = false`), still hit by the ray.
-     */
-    const hit = new Mesh(new BoxGeometry(1.3, 1.95, 1.6), hitMaterial);
-    hit.position.set(0, 0.975, side * (SEAT_OFFSET - 0.45));
-    hit.visible = false;
-    group.add(hit);
-
-    return {
-      id: index === 0 ? 'A' : 'B',
-      position: [0, EYE_HEIGHT, side * (SEAT_OFFSET + CAMERA_BEHIND_STOOL)],
-      lookAt: [0, aimY, side * screenZ],
-      hit,
-    };
-  });
+  const seats = [-1, 1].map((side, index) => ({
+    id: index === 0 ? 'A' : 'B',
+    position: [0, EYE_HEIGHT, side * (SEAT_OFFSET + CAMERA_BEHIND_STOOL)],
+    lookAt: [0, aimY, side * screenZ],
+    /** The stool, on the ground: walk within reach of it to sit. */
+    stool: [0, side * SEAT_OFFSET],
+    /** Where you are standing after you get up: beside the stool, facing away. */
+    standAt: [0.95, side * SEAT_OFFSET],
+    facing: side < 0 ? Math.PI : 0,
+  }));
 
   // A dome on each lid, both driven by the one session: each player sees the
   // match's state from their own seat.
@@ -162,7 +150,12 @@ export function createRoom() {
     seats,
     /** `set(light)` from the session, `update(now)` every frame. */
     domes,
-    /** Resolves when both cabinet bodies are in the scene. */
-    ready: Promise.all([cabinetA.ready, cabinetB.ready]),
+    colliders: shop.colliders,
+    bounds: shop.bounds,
+    spawn: shop.spawn,
+    /** Door, attendant, and the front wall's cutaway: once a frame. */
+    update: shop.update,
+    /** Resolves when the cabinets and the whole shop are in the scene. */
+    ready: Promise.all([cabinetA.ready, cabinetB.ready, shop.ready]),
   };
 }

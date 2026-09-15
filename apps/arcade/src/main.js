@@ -3,10 +3,11 @@ import { Color, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { playCoin, playSound, unlockAudio } from './audio/sfx.js';
 import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
-import { createCameraRig } from './lobby/camera-rig.js';
+import { createCameraRig, createFollow } from './lobby/camera-rig.js';
+import { createPlayer } from './lobby/player.js';
 import { createRoom } from './lobby/room.js';
 import { screenPose, screenRect } from './lobby/screen-pose.js';
-import { createSeatPicker } from './lobby/seat-picker.js';
+import { createWalkInput } from './lobby/walk-input.js';
 import { inviteUrl, newRoomId, roomFromSearch, seatFromSearch } from './net/room-id.js';
 import { createOverlay } from './ui/overlay.js';
 
@@ -54,8 +55,19 @@ function fitFov(aspect) {
   return Math.max(BASE_FOV, vertical);
 }
 
-const camera = new PerspectiveCamera(BASE_FOV, 1, 0.05, 50);
+const camera = new PerspectiveCamera(BASE_FOV, 1, 0.05, 80);
+/** Seated: glides between seat and screen. Walking: `follow` trails the player. */
 const rig = createCameraRig(camera);
+const follow = createFollow(camera);
+
+/*
+ * You, on the pavement outside, facing the door.
+ */
+const player = createPlayer({ colliders: room.colliders, bounds: room.bounds });
+scene.add(player.group);
+player.place(room.spawn.x, room.spawn.z, room.spawn.facing);
+follow.snap(player.position);
+const walk = createWalkInput();
 
 /*
  * The 2D side, fetched when a match is on rather than at boot.
@@ -105,10 +117,6 @@ function loadGame(kind) {
 /** @type {keyof typeof GAMES | undefined} */
 let playing;
 
-/** Off to one side and high: both cabinets, both stools, both domes. */
-const OVERVIEW = { position: [2.6, 1.85, 3.1], lookAt: [0, 0.95, 0] };
-rig.snap(OVERVIEW);
-
 function resize() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
@@ -141,6 +149,24 @@ let invite;
 let rtt;
 let note;
 
+/*
+ * Opened from an invite: you still arrive outside and walk in, and the one
+ * seat you can take is the free one opposite your friend.
+ */
+const invitedTo = roomFromSearch(location.search);
+const invitedSeat = invitedTo ? seatById[seatFromSearch(location.search)] : undefined;
+
+/** How close to a stool you have to be to sit on it. */
+const SIT_REACH = 1.5;
+/** The stool within reach, if any - what "Sit down" would sit you on. */
+let nearSeat;
+
+function findSeat() {
+  const { x, z } = player.position;
+  const seats = invitedSeat ? [invitedSeat] : room.seats;
+  return seats.find(({ stool }) => Math.hypot(stool[0] - x, stool[1] - z) < SIT_REACH);
+}
+
 resize();
 
 const overlay = createOverlay({
@@ -148,10 +174,20 @@ const overlay = createOverlay({
   onPlay: () => void enterGame('versus'),
   onCpu: () => void enterGame('cpu'),
   onBack: () => exitGame(),
+  onSit: sitDown,
 });
 
 function show() {
-  overlay.show(session.state, { invite, rtt, note, mode });
+  const hint = invitedSeat
+    ? 'Your friend is inside - sit at the PINGO machine'
+    : 'Walk in and sit at the PINGO machine';
+  overlay.show(session.state, {
+    invite,
+    rtt,
+    note: note ?? (session.state === State.IDLE ? hint : undefined),
+    mode,
+    canSit: Boolean(nearSeat),
+  });
 }
 
 /** The cabinet in front of a seat. */
@@ -241,6 +277,15 @@ function exitGame() {
   show();
 }
 
+/** Back on your feet beside the stool; the camera trails back out behind you. */
+function standUp() {
+  const [x, z] = seat.standAt;
+  player.place(x, z, seat.facing);
+  player.group.visible = true;
+  follow.reset(seat.lookAt);
+  walk.setEnabled(true);
+}
+
 room.domes.set(session.light);
 show();
 
@@ -250,8 +295,15 @@ session.on(({ from, to, light }) => {
   // A game lasts as long as the state it needs: a drop ends the match, and
   // somebody at the door ends the bout against the computer.
   if (from === State.PAIRED || (playing && to !== GAMES[playing].state)) exitGame();
-  if (from === State.IDLE) rig.moveTo(seat);
-  if (to === State.IDLE) rig.moveTo(OVERVIEW);
+  if (from === State.IDLE) {
+    // Seated: the camera takes the seat, and your own body would only sit
+    // between it and the screen.
+    rig.moveTo(seat);
+    player.group.visible = false;
+    walk.setEnabled(false);
+    nearSeat = undefined;
+  }
+  if (to === State.IDLE) standUp();
   if (to === State.PAIRED) {
     playCoin();
     void loadGame('versus');
@@ -274,6 +326,13 @@ function sit(picked, roomId) {
   void getMatch().then((match) => match.begin(roomId));
 }
 
+/** "Sit down" - the button, or E. The tap is also what unlocks sound. */
+function sitDown() {
+  if (!nearSeat || session.state !== State.IDLE) return;
+  unlockAudio();
+  sit(nearSeat, nearSeat === invitedSeat ? invitedTo : newRoomId());
+}
+
 function stand() {
   session.leave();
   void matchReady?.then((match) => match.end());
@@ -284,34 +343,31 @@ function stand() {
   show();
 }
 
-createSeatPicker({
-  canvas,
-  camera,
-  seats: room.seats,
-  onPick(picked) {
-    // Already in a chair: a tap on the scene is not a request to swap seats.
-    if (session.state !== State.IDLE) return;
-    // The tap is the gesture the browser needs before it will play a sound.
-    unlockAudio();
-    sit(picked, newRoomId());
-  },
+window.addEventListener('keydown', (event) => {
+  if ((event.code === 'KeyE' || event.code === 'Enter') && !event.repeat) sitDown();
 });
-
-/*
- * Opened from an invite: straight to the other seat, and into the room.
- *
- * No tap has happened yet, so the browser will not play the coin until the
- * guest touches the page once - the first touch anywhere unlocks it.
- */
-const invitedTo = roomFromSearch(location.search);
-if (invitedTo) sit(seatById[seatFromSearch(location.search)], invitedTo);
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 
 /** Dev-only overlay; stays undefined in a normal production build. */
 let hud;
+let lastFrame = performance.now();
 
 function frame(now) {
-  rig.update(now);
+  // Capped: a tab brought back after a minute takes one normal step, not a leap.
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+  if (session.state === State.IDLE) {
+    player.update(dt, walk.read());
+    follow.update(dt, player.position);
+    const near = findSeat();
+    if (near !== nearSeat) {
+      nearSeat = near;
+      show();
+    }
+  } else {
+    rig.update(now);
+  }
+  room.update(dt, player.position);
   room.domes.update(now);
   renderer.render(scene, camera);
   hud?.update(now);
@@ -344,6 +400,7 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
     room,
     session,
     rig,
+    player,
     get gameHost() {
       return gameHost;
     },
