@@ -14,7 +14,7 @@ import { publicAppUrl } from '../../lib/public-origin.js';
  */
 
 /** The arcade itself, a separate static site loaded in a frame. */
-export const ARCADE_URL = ((typeof import.meta.env === 'undefined' ? undefined : import.meta.env.VITE_ARCADE_URL) as string | undefined) ?? 'https://realism.pingo-arcade.pages.dev/';
+export const ARCADE_URL = ((typeof import.meta.env === 'undefined' ? undefined : import.meta.env.VITE_ARCADE_URL) as string | undefined) ?? 'https://pingo-arcade.pages.dev/';
 
 /** The arcade's origin, the only one whose messages the frame host believes. */
 export const ARCADE_ORIGIN = new URL(ARCADE_URL).origin;
