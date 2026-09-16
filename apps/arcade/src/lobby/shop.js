@@ -4,6 +4,7 @@ import { CABINET, KENNEY_SCALE, loadCabinetModel } from './cabinet.js';
 import { createGlow } from './glow.js';
 import { bake, loadLive } from './kit.js';
 import { loadPerson } from './people.js';
+import { createSmoker } from './smoker.js';
 import { createLiveScreens } from './screens.js';
 import { createShell } from './shell.js';
 import { signTexture } from './textures.js';
@@ -119,6 +120,9 @@ const PILLARS = [[-2.4, -1.0], [2.4, -1.0]];
 const PLANTERS = [[-7.2, FRONT + 1.3], [7.2, FRONT + 1.3]];
 const BOLLARDS = [-6, -3, 3, 6].map((x) => [x, KERB - 0.45]);
 
+/** The smoker outside, back against the storefront beside the door, facing the street. */
+const SMOKER = { x: -1.05, z: FRONT + 0.18, facing: 0 };
+
 /** Regulars at the machines, standing where a player would, facing the glass. */
 const REGULARS = [
   { name: 'punk', x: -4.3, z: 3.4, facing: -Math.PI / 2 }, // claw machine
@@ -208,6 +212,7 @@ export function createShop(extra = []) {
     // The attendant, and the regulars at their machines.
     [4.9, 2.7, 5.5, 3.3],
     ...REGULARS.map(({ x, z }) => square([x, z], 0.3)),
+    square([SMOKER.x, SMOKER.z], 0.3),
   ];
   /** Everyone in the shop but you, animated once a frame. */
   const people = [];
@@ -226,6 +231,9 @@ export function createShop(extra = []) {
   interior.add(insideGlow.mesh, screens.mesh);
   street.add(streetGlow.mesh);
 
+  const smoker = createSmoker(SMOKER);
+  street.add(smoker.group, smoker.smoke);
+
   let door;
   let doorAngle = 0;
   let doorOpen = false;
@@ -235,6 +243,7 @@ export function createShop(extra = []) {
       interior.add(...meshes);
       colliders.push(...solid);
     }),
+    smoker.ready,
     bake(STREET_DECOR).then(({ meshes }) => street.add(...meshes)),
     loadLive('models/downtown/storefront.glb').then((gltf) => {
       const part = (name) => gltf.scene.getObjectByName(name);
@@ -337,6 +346,7 @@ export function createShop(extra = []) {
         waved = false;
       }
       for (const person of people) person.update(dt);
+      if (!isIn) smoker.update(dt);
       return opened;
     },
   };
