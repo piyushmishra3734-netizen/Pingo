@@ -72,6 +72,25 @@ function burst(frequency, seconds, peak) {
   source.stop(t + seconds + 0.02);
 }
 
+/** A crowd roar: looped noise, low and wide, swelling up and dying away. */
+function crowd(seconds, peak) {
+  const t = context.currentTime;
+  const source = context.createBufferSource();
+  source.buffer = noiseBuffer();
+  source.loop = true;
+  const filter = context.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 900;
+  filter.Q.value = 0.4;
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(peak, t + 0.25);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  source.connect(filter).connect(gain).connect(context.destination);
+  source.start(t);
+  source.stop(t + seconds + 0.05);
+}
+
 /** A pitch sweep - a thump going down, a flourish going up. */
 function sweep(from, to, seconds, peak, type = 'square') {
   const t = context.currentTime;
@@ -143,6 +162,20 @@ export function playSound(name) {
     sweep(140, 60, 0.12, 0.25, 'sine');
   } else if (name === 'block') burst(2600, 0.05, 0.15);
   else if (name === 'ko') sweep(520, 90, 0.7, 0.18);
-  else if (name === 'fight') sweep(440, 880, 0.18, 0.12);
+  else if (name === 'fight' || name === 'bell') {
+    sweep(1320, 1250, 0.9, 0.14, 'triangle');
+    sweep(2640, 2500, 0.5, 0.05, 'sine');
+  } else if (name === 'star-hit') {
+    burst(500, 0.25, 0.5);
+    sweep(180, 40, 0.3, 0.35, 'sine');
+    crowd(1.4, 0.22);
+  } else if (name === 'down') {
+    sweep(120, 45, 0.35, 0.35, 'sine');
+    crowd(1.8, 0.25);
+  } else if (name === 'count') sweep(900, 880, 0.12, 0.09, 'square');
+  else if (name === 'star') {
+    sweep(880, 1760, 0.15, 0.08, 'triangle');
+    setTimeout(() => sweep(1320, 2640, 0.2, 0.07, 'triangle'), 90);
+  } else if (name === 'cheer') crowd(1.6, 0.2);
   else if (name === 'door') burst(450, 0.4, 0.1);
 }

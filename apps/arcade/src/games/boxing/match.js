@@ -14,7 +14,7 @@
  */
 
 /** One byte of intent per boxer per step. LEFT/RIGHT are screen directions. */
-export const IN = { LEFT: 1, RIGHT: 2, JAB: 4, POWER: 8, BLOCK: 16, DODGE: 32 };
+export const IN = { LEFT: 1, RIGHT: 2, JAB: 4, POWER: 8, BLOCK: 16, DODGE: 32, STAR: 64 };
 
 export const MAX_HEALTH = 1000;
 export const MAX_STAMINA = 1000;
@@ -43,14 +43,42 @@ export const REMATCH_AFTER = 150;
 export const PUNCHES = {
   jab: { startup: 6, active: 4, recovery: 11, reach: 105, damage: 55, stamina: 40, hitstun: 12, blockstun: 8, push: 10 },
   power: { startup: 14, active: 4, recovery: 22, reach: 115, damage: 140, stamina: 120, hitstun: 22, blockstun: 14, push: 28 },
+  // The star punch: earned, never spammed. Slow enough to see coming, and a
+  // guard only halves it.
+  star: { startup: 16, active: 5, recovery: 24, reach: 125, damage: 240, stamina: 0, hitstun: 34, blockstun: 22, push: 60 },
 };
+
+/*
+ * Hit stop: the whole match holds still for a few steps when a punch lands -
+ * it is what makes a hit feel like it connected. Part of the match, not the
+ * drawing, so two phones hold for exactly the same steps.
+ */
+export const HITSTOP = { block: 3, jab: 4, power: 8, star: 14, counter: 4, knockdown: 22 };
+
+/*
+ * Stars, as in Punch-Out: a counter punch, or a slip that makes the other
+ * boxer whiff, earns one. STAR spends one on a star punch.
+ */
+export const MAX_STARS = 3;
+
+/*
+ * Knockdowns: at zero health you go down and the referee counts. Mash jab or
+ * power to get up before ten; each knockdown needs more presses and gives
+ * back less. One more knockdown than GET_UP lists ends the round.
+ */
+export const COUNT_STEPS = 50;
+export const DOWN_SETTLE = 40;
+export const GET_UP = [
+  { presses: 10, health: 450 },
+  { presses: 18, health: 280 },
+];
 
 /** A slip: out of the way from step 3 to 16, then a moment to recover. */
 export const DODGE = { length: 26, from: 3, to: 16, stamina: 70 };
 
 /** Blocked punches still cost a little health and some stamina. */
 const BLOCK_DAMAGE = 0.15;
-const BLOCK_STAMINA = { jab: 30, power: 90 };
+const BLOCK_STAMINA = { jab: 30, power: 90, star: 150 };
 /** Hitting someone who is mid-punch counts extra. */
 const COUNTER = 1.5;
 /** Below this, guard breaks and punches lose their sting. */
@@ -58,7 +86,7 @@ const TIRED = 200;
 const REGEN = { idle: 4, block: 1 };
 
 function boxer(x, facing) {
-  return { x, facing, health: MAX_HEALTH, stamina: MAX_STAMINA, state: 'idle', t: 0, stun: 0, hit: false, prev: 0, walk: 0, knockdowns: 0 };
+  return { x, facing, health: MAX_HEALTH, stamina: MAX_STAMINA, state: 'idle', t: 0, stun: 0, hit: false, prev: 0, walk: 0, knockdowns: 0, stars: 0, mash: 0, count: 0, combo: 0, comboT: 0 };
 }
 
 const startingBoxers = () => [boxer(-START_GAP / 2, 1), boxer(START_GAP / 2, -1)];
@@ -71,10 +99,10 @@ export function createMatch() {
     wins: [0, 0],
     timer: ROUND_FRAMES,
     boxers: startingBoxers(),
+    hitstop: 0,
     roundWinner: null,
     winner: null,
     events: [],
-    prevStart: 0,
   };
 }
 
@@ -101,6 +129,16 @@ function stepBoxer(b, bits, other) {
 
   if (b.state === 'ko' || b.state === 'win') return;
 
+  if (b.state === 'down') {
+    // Presses before the fall settles are wasted: nobody bounces straight up.
+    if (b.t > DOWN_SETTLE && pressed & (IN.JAB | IN.POWER | IN.STAR)) b.mash += 1;
+    return;
+  }
+  if (b.state === 'rise') {
+    if (b.t >= 30) set(b, 'idle');
+    return;
+  }
+
   if (b.state === 'hurt' || b.state === 'blockstun') {
     b.stun -= 1;
     if (b.stun <= 0) set(b, 'idle');
@@ -122,7 +160,10 @@ function stepBoxer(b, bits, other) {
 
   // Free: punch on the press, slip on the press, guard while held, else move.
   const tired = b.stamina < TIRED;
-  if (pressed & IN.POWER && b.stamina >= PUNCHES.power.stamina / 2) {
+  if (pressed & IN.STAR && b.stars > 0) {
+    set(b, 'star');
+    b.stars -= 1;
+  } else if (pressed & IN.POWER && b.stamina >= PUNCHES.power.stamina / 2) {
     set(b, 'power');
     spend(b, PUNCHES.power.stamina);
   } else if (pressed & IN.JAB) {
@@ -155,7 +196,7 @@ function stepBoxer(b, bits, other) {
 /** Resolves `attacker`'s punch against `defender`, once per punch. */
 function land(match, attacker, defender, index) {
   const punch = PUNCHES[attacker.state];
-  if (!punch || attacker.hit || defender.state === 'ko') return;
+  if (!punch || attacker.hit || defender.state === 'ko' || defender.state === 'down' || defender.state === 'rise') return;
   if (attacker.t < punch.startup || attacker.t >= punch.startup + punch.active) return;
 
   const distance = (defender.x - attacker.x) * attacker.facing;
@@ -165,7 +206,12 @@ function land(match, attacker, defender, index) {
     // left its thrower open. It does not get to try again when the slip ends.
     attacker.hit = true;
     attacker.whiffed = true;
+    // Slipping a big punch earns a star; slipping jabs does not farm them.
     match.events.push({ type: 'whiff', boxer: index, dodged: true });
+    if (attacker.state !== 'jab' && defender.stars < MAX_STARS) {
+      defender.stars += 1;
+      match.events.push({ type: 'star', boxer: 1 - index });
+    }
     return;
   }
   if (distance > punch.reach) {
@@ -183,7 +229,9 @@ function land(match, attacker, defender, index) {
   const kind = attacker.state;
 
   if (blocked) {
-    defender.health -= Math.floor(punch.damage * BLOCK_DAMAGE * weak);
+    defender.health -= Math.floor(punch.damage * (kind === 'star' ? 0.5 : BLOCK_DAMAGE) * weak);
+    attacker.combo = 0;
+    match.hitstop = HITSTOP.block;
     spend(defender, BLOCK_STAMINA[kind]);
     set(defender, 'blockstun');
     defender.stun = punch.blockstun;
@@ -191,19 +239,38 @@ function land(match, attacker, defender, index) {
     match.events.push({ type: 'block', boxer: 1 - index, punch: kind });
   } else {
     const counter = PUNCHES[defender.state] ? COUNTER : 1;
-    defender.health -= Math.floor(punch.damage * weak * counter);
+    const damage = Math.floor(punch.damage * weak * counter);
+    defender.health -= damage;
     set(defender, 'hurt');
     defender.stun = punch.hitstun;
     defender.x += attacker.facing * punch.push;
-    match.events.push({ type: 'hit', boxer: 1 - index, punch: kind, counter: counter > 1 });
+    attacker.combo = attacker.comboT > 0 ? attacker.combo + 1 : 1;
+    attacker.comboT = 50;
+    match.hitstop = HITSTOP[kind] + (counter > 1 ? HITSTOP.counter : 0);
+    match.events.push({ type: 'hit', boxer: 1 - index, punch: kind, counter: counter > 1, damage, combo: attacker.combo });
+    if (counter > 1 && kind !== 'star' && attacker.stars < MAX_STARS) {
+      attacker.stars += 1;
+      match.events.push({ type: 'star', boxer: index });
+    }
   }
   clampX(defender);
 
   if (defender.health <= 0) {
     defender.health = 0;
     defender.knockdowns += 1;
-    set(defender, 'ko');
-    match.events.push({ type: 'ko', boxer: 1 - index });
+    match.hitstop = HITSTOP.knockdown;
+    attacker.combo = 0;
+    if (defender.knockdowns > GET_UP.length) {
+      set(defender, 'ko');
+      match.events.push({ type: 'ko', boxer: 1 - index });
+    } else {
+      set(defender, 'down');
+      defender.count = 0;
+      defender.mash = 0;
+      match.phase = 'down';
+      match.t = 0;
+      match.events.push({ type: 'down', boxer: 1 - index });
+    }
   }
 }
 
@@ -237,11 +304,18 @@ function finishRound(match) {
  */
 export function stepMatch(match, inputs) {
   match.events = [];
+  if (match.hitstop > 0) {
+    match.hitstop -= 1;
+    return;
+  }
   match.t += 1;
   const [a, b] = match.boxers;
   const live = match.phase === 'fight';
-  stepBoxer(a, live ? inputs[0] : 0, b);
-  stepBoxer(b, live ? inputs[1] : 0, a);
+  // During a count only the boxer on the floor has anything to press.
+  const hands = (x, bits) => (live || x.state === 'down' ? bits : 0);
+  stepBoxer(a, hands(a, inputs[0]), b);
+  stepBoxer(b, hands(b, inputs[1]), a);
+  for (const x of match.boxers) if (x.comboT > 0) x.comboT -= 1;
   if (live) {
     land(match, a, b, 0);
     land(match, b, a, 1);
@@ -270,6 +344,35 @@ export function stepMatch(match, inputs) {
       }
       break;
     }
+    case 'down': {
+      const index = a.state === 'down' ? 0 : 1;
+      const fallen = match.boxers[index];
+      const standing = match.boxers[1 - index];
+      // The one still standing backs off to give the count room.
+      if (Math.abs(standing.x - fallen.x) < 150) {
+        standing.x -= standing.facing;
+        clampX(standing);
+      }
+      if (match.t > DOWN_SETTLE && (match.t - DOWN_SETTLE) % COUNT_STEPS === 0) {
+        fallen.count += 1;
+        match.events.push({ type: 'count', boxer: index, count: fallen.count });
+      }
+      const need = GET_UP[fallen.knockdowns - 1];
+      if (fallen.mash >= need.presses) {
+        fallen.health = need.health;
+        set(fallen, 'rise');
+        match.phase = 'fight';
+        match.t = 60;
+        match.events.push({ type: 'rise', boxer: index });
+      } else if (fallen.count >= 10) {
+        set(fallen, 'ko');
+        match.roundWinner = 1 - index;
+        match.phase = 'ko';
+        match.t = 0;
+        match.events.push({ type: 'ko', boxer: index });
+      }
+      break;
+    }
     case 'ko':
     case 'timeup':
       if (match.t === 50 && match.roundWinner !== null) {
@@ -278,12 +381,6 @@ export function stepMatch(match, inputs) {
       }
       if (match.t >= (match.phase === 'ko' ? KO_FRAMES : TIMEUP_FRAMES)) finishRound(match);
       break;
-    case 'over': {
-      const pressed = inputs[0] & ~match.prevStart;
-      if (match.t >= REMATCH_AFTER && pressed & (IN.JAB | IN.POWER)) Object.assign(match, createMatch());
-      break;
-    }
     default:
   }
-  match.prevStart = inputs[0];
 }

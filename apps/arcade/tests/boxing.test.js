@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createBoxingCpu } from '../src/games/boxing/cpu.js';
-import { DODGE, IN, MAX_HEALTH, PUNCHES, ROUND_FRAMES, createMatch, stepMatch } from '../src/games/boxing/match.js';
+import { COUNT_STEPS, DODGE, DOWN_SETTLE, GET_UP, HITSTOP, IN, MAX_HEALTH, PUNCHES, ROUND_FRAMES, createMatch, stepMatch } from '../src/games/boxing/match.js';
 
 /** A match past its intro, boxers `gap` cm apart around the middle. */
 function fighting(gap = 90) {
@@ -82,9 +82,59 @@ test('nobody walks through the other boxer or out of the ring', () => {
   assert.ok(match.boxers[0].x >= -230 && match.boxers[1].x <= 230);
 });
 
+test('a knockdown is counted; mashing gets you up, doing nothing is a knockout', () => {
+  const match = fighting(90);
+  match.boxers[1].health = 10;
+  tap(match, 0, IN.JAB);
+  assert.equal(match.phase, 'down');
+  assert.equal(match.boxers[1].state, 'down');
+  run(match, DOWN_SETTLE + 1);
+  for (let i = 0; i < GET_UP[0].presses; i += 1) {
+    stepMatch(match, [0, IN.JAB]);
+    stepMatch(match, [0, 0]);
+  }
+  assert.equal(match.phase, 'fight');
+  assert.equal(match.boxers[1].health, GET_UP[0].health);
+
+  run(match, 40);
+  match.boxers[0].x = -45;
+  match.boxers[1].x = 45;
+  match.boxers[1].health = 10;
+  tap(match, 0, IN.JAB);
+  assert.equal(match.phase, 'down');
+  run(match, DOWN_SETTLE + COUNT_STEPS * 10 + 5);
+  assert.equal(match.phase, 'ko');
+  run(match, 200);
+  assert.deepEqual(match.wins, [1, 0]);
+});
+
+test('hit stop holds the whole match still when a punch lands', () => {
+  const match = fighting(90);
+  stepMatch(match, [IN.JAB, 0]);
+  run(match, PUNCHES.jab.startup);
+  assert.equal(match.hitstop, HITSTOP.jab);
+  const t = match.boxers[1].t;
+  run(match, HITSTOP.jab);
+  assert.equal(match.boxers[1].t, t, 'nobody moved during the stop');
+});
+
+test('a counter punch earns a star, and a star punch spends it', () => {
+  const match = fighting(90);
+  stepMatch(match, [0, IN.POWER]);
+  run(match, 4);
+  stepMatch(match, [IN.JAB, 0]);
+  run(match, 30);
+  assert.equal(match.boxers[0].stars, 1);
+  run(match, 40);
+  stepMatch(match, [IN.STAR, 0]);
+  assert.equal(match.boxers[0].state, 'star');
+  assert.equal(match.boxers[0].stars, 0);
+});
+
 test('a knockout ends the round; two rounds win the match', () => {
   const match = fighting(90);
   match.boxers[1].health = 10;
+  match.boxers[1].knockdowns = GET_UP.length;
   tap(match, 0, IN.JAB);
   assert.equal(match.boxers[1].state, 'ko');
   run(match, 200);
@@ -96,6 +146,7 @@ test('a knockout ends the round; two rounds win the match', () => {
   match.boxers[0].x = -45;
   match.boxers[1].x = 45;
   match.boxers[1].health = 10;
+  match.boxers[1].knockdowns = GET_UP.length;
   tap(match, 0, IN.JAB);
   run(match, 200);
   assert.equal(match.phase, 'over');
