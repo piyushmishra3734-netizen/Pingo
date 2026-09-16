@@ -182,13 +182,16 @@ export function createBoxingScene() {
         flash.scale.multiplyScalar(1 + dt * 2);
       }
 
-      // Inside the ropes, the way a broadcast ring camera works: from outside,
-      // the near ropes ran straight across the boxers.
+      // High ringside, looking down over the top rope: level with the boxers
+      // the near ropes ran across their bodies, and inside the ropes the
+      // corner posts filled the frame. From up here the ropes pass below
+      // their chests, and the camera never drifts towards a corner.
       const [a, b] = match.boxers;
       const middle = ((a.x + b.x) / 2) * CM;
       shake = Math.max(0, shake - dt * 0.25);
       const jolt = shake ? (Math.random() - 0.5) * shake : 0;
-      camera.position.set(middle * 0.5 + jolt, CANVAS + 1.35 + jolt, 2.75);
+      const along = Math.max(-1.2, Math.min(1.2, middle * 0.6));
+      camera.position.set(along + jolt, CANVAS + 2.6 + jolt, 5.2);
       camera.lookAt(middle * 0.8, CANVAS + 1.0, 0);
     },
 
