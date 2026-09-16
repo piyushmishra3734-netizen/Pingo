@@ -6,6 +6,7 @@ import { State, createSession } from './core/session.js';
 import { createCameraRig, createFollow } from './lobby/camera-rig.js';
 import { createFriend } from './lobby/friend.js';
 import { createPlayer } from './lobby/player.js';
+import { createVoiceBubble, meterFor } from './lobby/voice-bubble.js';
 import { createRoom } from './lobby/room.js';
 import { screenPose, screenRect } from './lobby/screen-pose.js';
 import { createWalkInput } from './lobby/walk-input.js';
@@ -125,6 +126,8 @@ function loadGame(kind) {
     gameHost ??= createGameHost();
     return make;
   });
+  // A failed download (a flaky network) must not stick: the next tap retries.
+  gameLoads[kind].catch(() => delete gameLoads[kind]);
   return gameLoads[kind];
 }
 
@@ -340,6 +343,11 @@ setInterval(sendPosition, 100);
 const voice = new Audio();
 voice.autoplay = true;
 let micTrack = null;
+/** Your own voice bubble, over your head while you talk. */
+const myBubble = createVoiceBubble();
+myBubble.sprite.position.y = 2.15;
+player.group.add(myBubble.sprite);
+let myMeter;
 
 const social = createSocial({
   onSend(text) {
@@ -355,12 +363,14 @@ const social = createSocial({
     if (!on) {
       micTrack?.stop();
       micTrack = null;
+      myMeter = undefined;
       match?.setMic(null);
       return false;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       micTrack = stream.getAudioTracks()[0];
+      myMeter = meterFor(stream);
       await getMatch();
       match.setMic(micTrack);
       social.add('', linked ? 'Mic on - your friend can hear you' : 'Mic on - your friend will hear you when they join', { system: true });
@@ -432,17 +442,27 @@ async function enterGame(kind, online) {
 
   const screen = cabinetFor(seat).screen;
   const loading = loadGame(kind);
+  loading.catch(() => {});
   const arrived = await rig.moveTo(screenPose(screen, camera), ZOOM_MS);
-  const make = await loading;
-  if (!arrived || mode !== 'zooming' || session.state === State.IDLE) return;
-
-  const game = make(online);
-  if (game.is3d) {
-    await game.ready;
-    if (mode !== 'zooming' || session.state === State.IDLE) {
-      game.dispose();
-      return;
+  let game;
+  try {
+    const make = await loading;
+    if (mode !== 'zooming' || session.state === State.IDLE) throw new Error('moved away');
+    // A resize mid-glide (a phone's address bar sliding away) cuts the glide short: finish it.
+    if (!arrived) rig.snap(screenPose(screen, camera));
+    game = make(online);
+    if (game.is3d) await game.ready;
+    if (mode !== 'zooming' || session.state === State.IDLE) throw new Error('moved away');
+  } catch (error) {
+    // Never stuck halfway into the screen: back to the menu, and say so.
+    game?.dispose();
+    if (mode === 'zooming') {
+      if (String(error?.message) !== 'moved away') social.add('', 'Could not load the game - check your connection and tap again', { system: true });
+      exitGame(online !== undefined);
     }
+    return;
+  }
+  if (game.is3d) {
     activeGame = game;
     game.resize(canvas.clientWidth, canvas.clientHeight);
   } else {
@@ -595,6 +615,7 @@ function frame(now) {
   }
   friend.update(dt);
   friend.speaking = social.level();
+  myBubble.update(dt, myMeter?.() ?? 0);
   if (room.update(dt, player.position, now)) playSound('door');
   updateMood();
   room.domes.update(now);

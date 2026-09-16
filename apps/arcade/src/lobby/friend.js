@@ -2,6 +2,7 @@ import { CanvasTexture, Color, Euler, Group, Mesh, MeshBasicMaterial, PlaneGeome
 
 import { loadPerson } from './people.js';
 import { contactShadowTexture } from './textures.js';
+import { createVoiceBubble } from './voice-bubble.js';
 
 /**
  * The other player, as the room sees them: walking where their last few
@@ -64,6 +65,8 @@ export function createFriend(room) {
   tag.position.y = 2.1;
   tag.renderOrder = 10;
   group.add(tag);
+  const bubble = createVoiceBubble();
+  group.add(bubble.sprite);
 
   let person;
   let bones = {};
@@ -145,6 +148,8 @@ export function createFriend(room) {
       }
       tag.position.y = (seat ? 1.85 : 2.1) + Math.sin(performance.now() / 90) * 0.02 * speaking;
       tag.material.color.setRGB(1, 1, 1).lerp(TALKING, Math.min(1, speaking * 2));
+      bubble.sprite.position.y = tag.position.y + 0.32;
+      bubble.update(dt, speaking);
     },
   };
 }

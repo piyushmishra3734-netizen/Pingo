@@ -7,6 +7,8 @@
  * line (net/peer.js). This file only draws and listens.
  */
 
+import { meterFor } from '../lobby/voice-bubble.js';
+
 const STYLE = `
 .so { position: fixed; z-index: 4; left: max(10px, env(safe-area-inset-left)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; pointer-events: none;
   font: 600 14px/1.3 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #fff; }
@@ -176,21 +178,7 @@ export function createSocial({ onSend, onMic, onSpeaker }) {
       audio.srcObject = stream;
       audio.muted = !speakerOn;
       void audio.play().catch(() => {});
-      try {
-        const context = new AudioContext();
-        const analyser = context.createAnalyser();
-        analyser.fftSize = 256;
-        context.createMediaStreamSource(stream).connect(analyser);
-        const data = new Uint8Array(analyser.fftSize);
-        meter = () => {
-          analyser.getByteTimeDomainData(data);
-          let peak = 0;
-          for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
-          return Math.min(1, peak / 40);
-        };
-      } catch {
-        meter = undefined;
-      }
+      meter = meterFor(stream);
     },
 
     /** How loud the friend is right now; also lights their chip. */

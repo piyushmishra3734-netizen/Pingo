@@ -32,7 +32,7 @@ const STYLE = `
 @keyframes sm-blink { 50% { opacity: 0.25; } }
 .sm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .sm-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-content: start; min-height: 0; overflow-y: auto; }
-.sm-game { position: relative; display: grid; gap: 8px; padding: 12px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14); background: linear-gradient(160deg, var(--a), var(--b)); }
+.sm-game { cursor: pointer; position: relative; display: grid; gap: 8px; padding: 12px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14); background: linear-gradient(160deg, var(--a), var(--b)); }
 .sm-game::before { content: attr(data-art); position: absolute; right: -4px; top: -6px; font-size: 50px; opacity: 0.9; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transform: rotate(8deg); }
 .sm-game h3 { margin: 0; font: 900 italic 19px/1 system-ui, sans-serif; letter-spacing: 0.02em; text-shadow: 0 2px 0 rgba(0,0,0,0.4); padding-right: 58px; }
 .sm-game p { margin: 0; font: 600 12px/1.3 system-ui, sans-serif; color: rgba(255,255,255,0.82); padding-right: 40px; min-height: 2.6em; }
@@ -134,6 +134,12 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
     const vsFriend = button('👥 vs Friend', 'hot', () => onPlay(game.kind, 'friend'));
     row.append(cpu, vsFriend);
     card.append(el('h3', '', game.title), el('p', '', game.text), row);
+    // The whole card is a tap target: a tap anywhere but a button plays the computer.
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('button')) return;
+      onClick?.();
+      onPlay(game.kind, 'cpu');
+    });
     games.append(card);
     return { game, vsFriend };
   });
