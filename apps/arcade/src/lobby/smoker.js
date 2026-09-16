@@ -3,7 +3,7 @@ import { AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, Cylin
 import { loadPerson } from './people.js';
 
 /**
- * The regular outside: leaning by the door, a cigarette in hand. Every few
+ * The regular outside: leaning on the wall by the door, a cigarette in hand. Every few
  * seconds the hand comes up, the tip glows, and a puff drifts off into the
  * night - life on the street before you are even in.
  *
@@ -16,11 +16,9 @@ export const DRAG = {
   UpperArmR: [-0.6, 0, 0],
   LowerArmR: [0, 0, 1.9],
 };
-/** Leaning back on the wall, one foot up against it: always on, over Idle. */
+/** Leaning back on the wall, both feet down: always on, over Idle. */
 export const LEAN = {
   Torso: [-0.18, 0, 0],
-  UpperLegL: [-0.7, 0, 0],
-  LowerLegL: [1.7, 0, 0],
 };
 const CYCLE = 6.5;
 const RAISE = 0.6;
