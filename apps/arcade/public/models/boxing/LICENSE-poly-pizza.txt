@@ -1,0 +1,4 @@
+ring.glb is adapted from "Boxing Ring" by Zaw Imagineering (https://poly.pizza/m/52-2oyc8wzE)
+gloves.glb is adapted from "Boxing Gloves" by Zsky (https://poly.pizza/m/l2S6HNEpey)
+Both licensed under Creative Commons Attribution 3.0: https://creativecommons.org/licenses/by/3.0/
+Changes: material colours baked into vertex colours, parts joined, rescaled (ring 6 m across; gloves split left/right, 0.27 m).

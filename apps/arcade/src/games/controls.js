@@ -41,18 +41,22 @@ const PAD = [
   ],
 ];
 
-export function createControls() {
+/**
+ * @param {{ keys?: Record<string, number>, pad?: Array<Array<{ label: string, bit: number, name: string, raised?: boolean, small?: boolean }>> }} [layout]
+ *   the brawler's by default; other games bring their own buttons.
+ */
+export function createControls({ keys: keyMap = KEYS, pad: layout = PAD } = {}) {
   let keys = 0;
   let touch = 0;
 
   const down = (event) => {
-    const bit = KEYS[event.code];
+    const bit = keyMap[event.code];
     if (!bit) return;
     keys |= bit;
     event.preventDefault();
   };
   const up = (event) => {
-    const bit = KEYS[event.code];
+    const bit = keyMap[event.code];
     if (bit) keys &= ~bit;
   };
   // A key held while the window loses focus never sends its keyup.
@@ -66,7 +70,7 @@ export function createControls() {
 
   const pad = document.createElement('div');
   pad.className = 'pad';
-  for (const side of PAD) {
+  for (const side of layout) {
     const group = document.createElement('div');
     group.className = 'pad-side';
     for (const { label, bit, name, raised, small } of side) {

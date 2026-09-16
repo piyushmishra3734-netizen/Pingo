@@ -62,14 +62,17 @@ export async function loadPerson(name) {
     /** Loop a clip, crossfading from whatever was playing. */
     play,
 
-    /** Play a clip once - a wave - then go back to `then`. */
-    once(clip, then = 'Idle') {
+    /**
+     * Play a clip once - a wave, a punch - then go back to `then`. `hold`
+     * keeps its last frame instead (a knockout stays down).
+     */
+    once(clip, then = 'Idle', { speed = 1, hold = false } = {}) {
       const next = actions[clip];
-      if (!next || next === current) return;
-      after = then;
+      if (!next) return;
+      after = hold ? undefined : then;
       next.setLoop(LoopOnce, 1);
-      next.clampWhenFinished = false;
-      next.timeScale = 1;
+      next.clampWhenFinished = hold;
+      next.timeScale = speed;
       next.reset().fadeIn(0.2).play();
       current?.fadeOut(0.2);
       current = next;

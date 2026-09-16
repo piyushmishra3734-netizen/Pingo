@@ -95,6 +95,13 @@ const GAMES = {
         ({ createVersusCard }) => () => createVersusCard({ youAreLeft: seat === seatById.A }),
       ),
   },
+  boxing: {
+    state: State.WAITING,
+    load: () =>
+      import('./games/boxing/index.js').then(
+        ({ createBoxing }) => () => createBoxing({ renderer, onSound: playSound, seed: Math.floor(Math.random() * 2 ** 31) }),
+      ),
+  },
   cpu: {
     state: State.WAITING,
     load: () =>
@@ -118,6 +125,8 @@ function loadGame(kind) {
 
 /** @type {keyof typeof GAMES | undefined} */
 let playing;
+/** A game that draws in 3D with the arcade's renderer (boxing), while one is on. */
+let activeGame;
 
 function resize() {
   const width = canvas.clientWidth;
@@ -130,7 +139,9 @@ function resize() {
 
   // Mid-game, the 3D loop is off: re-seat the camera for the new shape, draw
   // the one frame the game sits on, and move the game to match it.
-  if (mode === 'game') {
+  if (mode === 'game' && activeGame) {
+    activeGame.resize(width, height);
+  } else if (mode === 'game') {
     const screen = cabinetFor(seat).screen;
     rig.snap(screenPose(screen, camera));
     renderer.render(scene, camera);
@@ -175,6 +186,7 @@ const overlay = createOverlay({
   onStand: stand,
   onPlay: () => void enterGame('versus'),
   onCpu: () => void enterGame('cpu'),
+  onBoxing: () => void enterGame('boxing'),
   onBack: () => exitGame(),
   onSit: sitDown,
 });
@@ -260,8 +272,20 @@ async function enterGame(kind = 'versus') {
   // Superseded - dropped, joined, or stood up mid-glide.
   if (!arrived || mode !== 'zooming' || session.state !== needs) return;
 
-  renderer.render(scene, camera);
-  gameHost.start(make(), screenRect(screen, camera, canvas.getBoundingClientRect()));
+  const game = make();
+  if (game.is3d) {
+    // A 3D game takes the whole screen once its models are in.
+    await game.ready;
+    if (mode !== 'zooming' || session.state !== needs) {
+      game.dispose();
+      return;
+    }
+    activeGame = game;
+    game.resize(canvas.clientWidth, canvas.clientHeight);
+  } else {
+    renderer.render(scene, camera);
+    gameHost.start(game, screenRect(screen, camera, canvas.getBoundingClientRect()));
+  }
   mode = 'game';
   // The 3D loop stops here, so the room goes quiet from here, not from a frame.
   updateMood();
@@ -274,6 +298,8 @@ function exitGame() {
   clearTimeout(enterTimer);
   if (mode === 'lobby') return;
   gameHost?.stop();
+  activeGame?.dispose();
+  activeGame = undefined;
   playing = undefined;
   mode = 'lobby';
   setRunning(!document.hidden);
@@ -408,7 +434,9 @@ function frame(now) {
  * battery can.
  */
 function setRunning(visible) {
-  renderer.setAnimationLoop(visible && mode !== 'game' ? frame : null);
+  const game3d = mode === 'game' && activeGame;
+  if (game3d && visible) activeGame.resume();
+  renderer.setAnimationLoop(visible ? (mode !== 'game' ? frame : game3d ? activeGame.frame : null) : null);
   gameHost?.setPaused(!visible);
 }
 document.addEventListener('visibilitychange', () => setRunning(!document.hidden));
@@ -432,6 +460,9 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
     player,
     get gameHost() {
       return gameHost;
+    },
+    get activeGame() {
+      return activeGame;
     },
     getMatch,
     get mode() {
