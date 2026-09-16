@@ -308,11 +308,11 @@ function wireMatch(m) {
     }
     const seed = Math.floor(Math.random() * 2 ** 31);
     m.send({ type: 'start', kind, seed });
-    void enterGame(kind, { side: 0, seed, net: m, names: [myName, friendName || 'Friend'] });
+    void enterGame(kind, { side: 0, seed, net: m, names: [myName, friendName || 'Friend'], exit: () => exitGame(true) });
   });
   m.on('start', ({ kind, seed }) => {
     menu.update({ ask: null, waiting: null });
-    void enterGame(kind, { side: 1, seed, net: m, names: [friendName || 'Friend', myName] });
+    void enterGame(kind, { side: 1, seed, net: m, names: [friendName || 'Friend', myName], exit: () => exitGame(true) });
   });
   m.on('leave-game', () => {
     if (playingOnline) {

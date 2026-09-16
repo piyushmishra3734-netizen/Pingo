@@ -129,6 +129,11 @@ export function createHud() {
   }
 
   return {
+    setNames(left, right) {
+      sides[0].name.textContent = left.toUpperCase();
+      sides[1].name.textContent = right.toUpperCase();
+    },
+
     setOpponent(name) {
       sides[1].name.textContent = name.toUpperCase();
     },
@@ -191,7 +196,7 @@ export function createHud() {
       setTimeout(() => node.remove(), 950);
     },
 
-    update(match, youDown) {
+    update(match, youDown, you = 0) {
       match.boxers.forEach((boxer, i) => {
         const s = sides[i];
         s.health.style.width = `${(100 * boxer.health) / MAX_HEALTH}%`;
@@ -221,7 +226,7 @@ export function createHud() {
         } else if (fallen) sub = 'Stay down…';
       } else if (match.phase === 'ko') text = 'K.O.!';
       else if (match.phase === 'timeup') text = 'TIME';
-      else if (match.phase === 'over') text = match.winner === 0 ? 'YOU WIN!' : match.winner === null ? 'DRAW' : 'YOU LOSE';
+      else if (match.phase === 'over') text = match.winner === you ? 'YOU WIN!' : match.winner === null ? 'DRAW' : 'YOU LOSE';
       const next = `${text}|${sub}|${mash.toFixed(2)}`;
       if (next !== lastBanner) {
         const textChanged = lastBanner.split('|')[0] !== text;

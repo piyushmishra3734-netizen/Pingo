@@ -1,5 +1,6 @@
 import { startLoop } from '../../audio/sfx.js';
 import { createControls } from '../controls.js';
+import { createLockstep, hashNumbers } from '../lockstep.js';
 import { stepsFor, STEP_MS } from '../game-host.js';
 import { createBoxingCpu } from './cpu.js';
 import { createHud } from './hud.js';
@@ -63,7 +64,11 @@ const SOUNDS = {
   fight: () => 'fight',
 };
 
-export function createBoxing({ renderer, onSound, seed = 1 }) {
+/**
+ * `online`, for a match against a friend: which boxer you are (0 red, 1 blue),
+ * the shared seed, the link, both names, and how to leave.
+ */
+export function createBoxing({ renderer, onSound, seed = 1, online }) {
   const view = createBoxingScene();
   const hud = createHud();
   const controls = createControls({ keys: KEYS, pad: PAD });
@@ -80,6 +85,12 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
   let last = 0;
   let accumulator = 0;
   let size = { width: innerWidth, height: innerHeight };
+  /** Which boxer is you. */
+  const you = online?.side ?? 0;
+  let lock;
+  let rounds = 0;
+  const wants = [false, false];
+  const offs = [];
 
   const setPad = (on) => {
     const pad = document.querySelector('.pad');
@@ -164,10 +175,98 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
     }
   }
 
-  const ready = view.setLooks([PLAYER_LOOK, ROSTER[foe].look]).then(() => {
-    hud.setOpponent(ROSTER[foe].name);
-    ladder();
-  });
+  /** One step of the match with both inputs; true when the match has ended. */
+  function stepOnce(inputs) {
+    if (stage !== 'fight') return true;
+    stepMatch(match, inputs);
+    for (const event of match.events) {
+      view.onEvent(event, match);
+      show(event);
+      const sound = SOUNDS[event.type]?.(event);
+      if (sound) onSound?.(sound);
+    }
+    if (match.phase === 'over' && !ended) {
+      ended = true;
+      onSound?.('bell');
+    }
+    if (ended && match.t >= REMATCH_AFTER * 0.6) {
+      if (online) finishOnline();
+      else finish();
+      return true;
+    }
+    return false;
+  }
+
+  function startOnline() {
+    lock?.dispose();
+    match = createMatch();
+    ended = false;
+    wants[0] = false;
+    wants[1] = false;
+    lock = createLockstep({
+      net: online.net,
+      side: you,
+      step: (inputs) => stepOnce(inputs),
+      hash: () => hashNumbers(match.boxers.flatMap((b) => [b.x, b.health, b.stamina, b.t])),
+      onDesync: (step) => console.error('boxing desync at step', step),
+    });
+    hud.closeMenu();
+    setPad(true);
+    crowd();
+    crowd = startLoop('sounds/crowd-loop.mp3', 0.18);
+    stage = 'fight';
+  }
+
+  function finishOnline() {
+    crowd();
+    setPad(false);
+    stage = 'menu';
+    const won = match.winner === you;
+    onSound?.(won ? 'win' : match.winner === null ? 'bell' : 'lose');
+    const them = online.names[1 - you];
+    const card = (line) =>
+      hud.showEnd(match.winner === null ? 'DRAW' : won ? 'YOU WIN! 🏆' : `${them.toUpperCase()} WINS`, line, [
+        [wants[you] ? `Waiting for ${them}…` : 'Rematch', requestRematch, true],
+        ['Back to the arcade', () => online.exit?.()],
+      ]);
+    rematchCard = card;
+    card(won ? `You knocked out ${them}!` : `Ask ${them} for a rematch`);
+  }
+
+  let rematchCard;
+  function requestRematch() {
+    if (wants[you]) return;
+    wants[you] = true;
+    online.net.send({ type: 'g-rematch' });
+    maybeRematch();
+    if (!wants[1 - you]) rematchCard?.('Rematch asked…');
+  }
+
+  function maybeRematch() {
+    if (!wants[0] || !wants[1]) return;
+    rounds += 1;
+    startOnline();
+  }
+
+  if (online) {
+    offs.push(
+      online.net.on('g-rematch', () => {
+        wants[1 - you] = true;
+        if (!wants[you] && stage === 'menu') rematchCard?.(`${online.names[1 - you]} wants a rematch!`);
+        maybeRematch();
+      }),
+    );
+  }
+
+  const ready = online
+    ? view.setLooks(['beach', 'punk']).then(() => {
+        hud.setNames(online.names[0], online.names[1]);
+        startOnline();
+      })
+    : view.setLooks([PLAYER_LOOK, ROSTER[foe].look]).then(() => {
+        hud.setOpponent(ROSTER[foe].name);
+        ladder();
+      });
 
   return {
     is3d: true,
@@ -189,25 +288,15 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
       const next = stepsFor(accumulator, elapsed);
       accumulator = next.accumulator;
       const steps = stage !== 'fight' || window.__boxing?.freeze ? 0 : next.steps;
-      for (let i = 0; i < steps; i += 1) {
-        stepMatch(match, [controls.read(), cpu.think(match, 1)]);
-        for (const event of match.events) {
-          view.onEvent(event, match);
-          show(event);
-          const sound = SOUNDS[event.type]?.(event);
-          if (sound) onSound?.(sound);
-        }
-        if (match.phase === 'over' && !ended) {
-          ended = true;
-          onSound?.('bell');
-        }
-        if (ended && match.t >= REMATCH_AFTER * 0.6) {
-          finish();
-          break;
+      if (online) {
+        if (stage === 'fight') lock.advance(steps, controls.read());
+      } else {
+        for (let i = 0; i < steps; i += 1) {
+          if (stepOnce([controls.read(), cpu.think(match, 1)])) break;
         }
       }
       view.update(match, Math.min(elapsed, STEP_MS * 5) / 1000);
-      hud.update(match, match.boxers[0].state === 'down');
+      hud.update(match, match.boxers[you].state === 'down', you);
       renderer.render(view.scene, view.camera);
     },
 
@@ -224,6 +313,8 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
 
     dispose() {
       crowd();
+      lock?.dispose();
+      offs.forEach((off) => off());
       controls.dispose();
       hud.dispose();
     },
