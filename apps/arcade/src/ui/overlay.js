@@ -53,9 +53,9 @@ function button(label, className, onClick) {
 }
 
 /**
- * @param {{ onStand: () => void, onPlay: () => void, onBack: () => void, onCpu: () => void, onBoxing: () => void, onSit: () => void }} options
+ * @param {{ onStand: () => void, onPlay: () => void, onBack: () => void, onCpu: () => void, onBoxing: () => void, onRacing: () => void, onSit: () => void }} options
  */
-export function createOverlay({ onStand, onPlay, onBack, onCpu, onBoxing, onSit }) {
+export function createOverlay({ onStand, onPlay, onBack, onCpu, onBoxing, onRacing, onSit }) {
   const root = document.createElement('div');
   root.className = 'overlay';
 
@@ -84,11 +84,12 @@ export function createOverlay({ onStand, onPlay, onBack, onCpu, onBoxing, onSit 
 
   const play = button('Play', 'overlay-button overlay-invite', onPlay);
   const boxing = button('🥊 Boxing vs computer', 'overlay-button overlay-invite', onBoxing);
+  const racing = button('🏎️ Kart racing vs computer', 'overlay-button overlay-invite', onRacing);
   const cpu = button('Brawler vs computer', 'overlay-button', onCpu);
   const back = button('Back to the room', 'overlay-button', onBack);
   const stand = button('Stand up', 'overlay-button', onStand);
 
-  root.append(status, invite, field, play, boxing, cpu, back, stand);
+  root.append(status, invite, field, play, boxing, racing, cpu, back, stand);
   document.body.append(root);
 
   // Bottom right, under the thumb the stick does not use - where games keep
@@ -141,6 +142,7 @@ export function createOverlay({ onStand, onPlay, onBack, onCpu, onBoxing, onSit 
       // Alone in the chair: fight the machine while the invite is out.
       cpu.hidden = !(state === 'WAITING' && mode === 'lobby');
       boxing.hidden = cpu.hidden;
+      racing.hidden = cpu.hidden;
       back.hidden = !inGame;
       stand.hidden = !seated || inGame;
     },

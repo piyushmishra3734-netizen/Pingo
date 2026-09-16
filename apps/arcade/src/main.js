@@ -1,6 +1,6 @@
 import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
-import { playCoin, playSound, playStep, setAmbience, startAmbience, unlockAudio } from './audio/sfx.js';
+import { createEngine, playCoin, playSound, playStep, setAmbience, startAmbience, unlockAudio } from './audio/sfx.js';
 import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig, createFollow } from './lobby/camera-rig.js';
@@ -102,6 +102,14 @@ const GAMES = {
         ({ createBoxing }) => () => createBoxing({ renderer, onSound: playSound, seed: Math.floor(Math.random() * 2 ** 31) }),
       ),
   },
+  racing: {
+    state: State.WAITING,
+    load: () =>
+      import('./games/racing/index.js').then(
+        ({ createRacing }) => () =>
+          createRacing({ renderer, onSound: playSound, engine: createEngine(), seed: Math.floor(Math.random() * 2 ** 31) }),
+      ),
+  },
   cpu: {
     state: State.WAITING,
     load: () =>
@@ -187,6 +195,7 @@ const overlay = createOverlay({
   onPlay: () => void enterGame('versus'),
   onCpu: () => void enterGame('cpu'),
   onBoxing: () => void enterGame('boxing'),
+  onRacing: () => void enterGame('racing'),
   onBack: () => exitGame(),
   onSit: sitDown,
 });

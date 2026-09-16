@@ -177,5 +177,50 @@ export function playSound(name) {
     sweep(880, 1760, 0.15, 0.08, 'triangle');
     setTimeout(() => sweep(1320, 2640, 0.2, 0.07, 'triangle'), 90);
   } else if (name === 'cheer') crowd(1.6, 0.2);
-  else if (name === 'door') burst(450, 0.4, 0.1);
+  else if (name === 'go') sweep(1760, 1700, 0.45, 0.12, 'square');
+  else if (name === 'boost') {
+    burst(1800, 0.35, 0.18);
+    sweep(220, 660, 0.3, 0.1, 'sawtooth');
+  } else if (name === 'spark') sweep(1400, 2400, 0.08, 0.05, 'triangle');
+  else if (name === 'lap') {
+    sweep(1046, 1046, 0.1, 0.08, 'square');
+    setTimeout(() => sweep(1568, 1568, 0.18, 0.08, 'square'), 110);
+  } else if (name === 'door') burst(450, 0.4, 0.1);
+}
+
+/**
+ * A kart engine: two detuned sawtooths through a low-pass, pitched by speed.
+ * `set(0..1, boosting)` every frame; `stop()` when the race closes.
+ */
+export function createEngine() {
+  if (!context) return { set() {}, stop() {} };
+  const t = context.currentTime;
+  const filter = context.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 900;
+  const gain = context.createGain();
+  gain.gain.value = 0;
+  const oscillators = [0, 7].map((detune) => {
+    const o = context.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = 60;
+    o.detune.value = detune * 10;
+    o.connect(filter);
+    o.start(t);
+    return o;
+  });
+  filter.connect(gain).connect(context.destination);
+  return {
+    set(speed, boosting) {
+      const now = context.currentTime;
+      const pitch = 55 + speed * 120 + (boosting ? 40 : 0);
+      for (const o of oscillators) o.frequency.setTargetAtTime(pitch, now, 0.08);
+      gain.gain.setTargetAtTime(speed > 0.01 ? 0.035 + speed * 0.03 : 0, now, 0.1);
+      filter.frequency.setTargetAtTime(600 + speed * 1400, now, 0.1);
+    },
+    stop() {
+      gain.gain.setTargetAtTime(0, context.currentTime, 0.05);
+      for (const o of oscillators) o.stop(context.currentTime + 0.3);
+    },
+  };
 }
