@@ -312,9 +312,11 @@ export function createRacingScene() {
       flame.material.opacity = k.boost > 0 ? 0.75 + 0.25 * Math.sin(rolled * 50) : 0;
 
       // Chase camera: behind where the kart is going, a little above.
-      const behind = 8.5;
-      aim.set(k.x + Math.sin(k.travel) * behind, 4.3, k.z + Math.cos(k.travel) * behind);
-      look.set(k.x - Math.sin(k.yaw) * 9, 1.0, k.z - Math.cos(k.yaw) * 9);
+      // Upright phones get a higher camera: more road ahead, less sky.
+      const portrait = camera.aspect < 1;
+      const behind = portrait ? 9.5 : 8.5;
+      aim.set(k.x + Math.sin(k.travel) * behind, portrait ? 6 : 4.3, k.z + Math.cos(k.travel) * behind);
+      look.set(k.x - Math.sin(k.yaw) * 10, portrait ? 0 : 1.0, k.z - Math.cos(k.yaw) * 10);
       if (race.phase === 'countdown' && race.t < 2) {
         eye.copy(aim);
         focus.copy(look);
