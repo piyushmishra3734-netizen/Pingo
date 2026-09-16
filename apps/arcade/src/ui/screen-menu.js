@@ -111,7 +111,7 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
   root.append(head, friend, games);
   document.body.append(root);
 
-  let state = { name: '', friendName: '', linked: false, friendSeated: false, ask: null, waiting: null, invite: '' };
+  let state = { inPingo: false, name: '', friendName: '', linked: false, friendSeated: false, ask: null, waiting: null, invite: '' };
   let ask;
 
   root.addEventListener('click', (event) => {
@@ -152,16 +152,15 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
     if (!state.linked) {
       line.append(dot, 'Play with a friend - send them an invite');
       const actions = el('div', 'sm-actions');
-      actions.append(
-        button('💬 Invite from PINGO', 'hot', onInvite),
-        button('🔗 Copy link', '', async (event) => {
-          const target = event.currentTarget;
-          target.textContent = (await onCopyLink()) === 'copied' ? '✓ Copied' : '🔗 Link below';
-          setTimeout(() => {
-            target.textContent = '🔗 Copy link';
-          }, 2000);
-        }),
-      );
+      const copy = button('🔗 Copy link', '', async (event) => {
+        const target = event.currentTarget;
+        target.textContent = (await onCopyLink()) === 'copied' ? '✓ Copied' : '🔗 Link below';
+        setTimeout(() => {
+          target.textContent = '🔗 Copy link';
+        }, 2000);
+      });
+      // Inside PINGO a friend is invited from your PINGO chats; outside it, by link.
+      actions.append(state.inPingo ? button('➕ Invite PINGO friends', 'hot', onInvite) : copy);
       friend.append(line, actions);
     } else if (!state.friendSeated) {
       line.append(dot);
@@ -205,7 +204,7 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
       const before = state;
       state = { ...state, ...next };
       meName.textContent = state.name || 'Player';
-      if (before.linked !== state.linked || before.friendSeated !== state.friendSeated || before.friendName !== state.friendName || !friend.childElementCount) renderFriend();
+      if (before.inPingo !== state.inPingo || before.linked !== state.linked || before.friendSeated !== state.friendSeated || before.friendName !== state.friendName || !friend.childElementCount) renderFriend();
       for (const { game, vsFriend } of cards) {
         vsFriend.disabled = !game.friend || !state.friendSeated;
         vsFriend.textContent = game.friend ? `👥 vs ${state.friendSeated ? state.friendName || 'Friend' : 'Friend'}` : '👥 Soon';

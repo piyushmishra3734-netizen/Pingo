@@ -32,6 +32,8 @@ import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { PingBubble } from './PingBubble.js';
+import { ArcadeInviteCard } from '../arcade/ArcadeInviteCard.js';
+import { parseArcadeInvite } from '../arcade/arcade-link.js';
 import { LinkPreviewCard } from './LinkPreviewCard.js';
 import { VideoLinkCard } from './VideoLinkCard.js';
 import { VoiceNote } from './VoiceNote.js';
@@ -207,7 +209,12 @@ export function MessageBubble({
 
   const voiceNote = message.attachments.find((a) => a.kind === 'audio');
   const file = message.attachments.find((a) => a.kind === 'file');
-  const hasBody = message.body.trim().length > 0;
+  /* A PINGO Arcade invite is drawn as a Join card, in place of its text and link. */
+  const arcadeInvite = useMemo(
+    () => (message.deleted ? undefined : parseArcadeInvite(message.body)),
+    [message.body, message.deleted],
+  );
+  const hasBody = !arcadeInvite && message.body.trim().length > 0;
   /*
    * Derived, not stored - see the note at the end of the `Message` type.
    *
@@ -227,14 +234,14 @@ export function MessageBubble({
    * about.
    */
   const firstLink = useMemo(() => {
-    if (message.deleted || videoLink) return undefined;
+    if (message.deleted || videoLink || arcadeInvite) return undefined;
     for (const segment of linkify(message.body)) {
       // `mailto:` is a link the same way a phone number is - there is no page
       // behind it to describe.
       if (segment.kind === 'link' && segment.href.startsWith('http')) return segment.href;
     }
     return undefined;
-  }, [message.body, message.deleted, videoLink]);
+  }, [message.body, message.deleted, videoLink, arcadeInvite]);
   /** First bubble of a group cluster from someone else. Sits above the glass. */
   const nameLabel =
     !mine && authorName && (position === 'first' || position === 'single') ? (
@@ -556,6 +563,8 @@ export function MessageBubble({
           {videoLink && (
             <VideoLinkCard preview={videoLink} messageId={message.id} spaced={hasBody} />
           )}
+
+          {arcadeInvite && <ArcadeInviteCard invite={arcadeInvite} mine={mine} />}
 
           {firstLink && <LinkPreviewCard href={firstLink} mine={mine} spaced={hasBody} />}
 

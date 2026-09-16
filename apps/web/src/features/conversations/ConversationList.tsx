@@ -474,6 +474,12 @@ export function ConversationList({
                   </IconButton>
                 )}
 
+                <IconButton label="PINGO Arcade" variant="ghost" onClick={() => navigate('/arcade')}>
+                  <span aria-hidden className="text-[20px] leading-none">
+                    🎮
+                  </span>
+                </IconButton>
+
                 <IconButton
                   label={t('chats.startSomething')}
                   variant="ghost"

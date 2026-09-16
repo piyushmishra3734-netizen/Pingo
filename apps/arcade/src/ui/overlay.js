@@ -45,7 +45,7 @@ function button(label, className, onClick) {
 /**
  * @param {{ onStand: () => void, onBack: () => void, onSit: () => void }} options
  */
-export function createOverlay({ onStand, onBack, onSit }) {
+export function createOverlay({ onStand, onBack, onSit, onLeave }) {
   const root = document.createElement('div');
   root.className = 'overlay';
 
@@ -65,12 +65,15 @@ export function createOverlay({ onStand, onBack, onSit }) {
 
   // Who made the models and sounds. Some are CC-BY, which asks for their
   // credit where people can find it; the CC0 ones get theirs anyway.
-  const credits = document.createElement('a');
-  credits.className = 'credits';
-  credits.href = 'CREDITS.txt';
-  credits.target = '_blank';
-  credits.rel = 'noopener';
-  credits.textContent = 'Credits';
+  // Inside PINGO that corner is the way back to PINGO instead.
+  const credits = onLeave ? button('✕ Leave', 'credits overlay-button', onLeave) : document.createElement('a');
+  if (!onLeave) {
+    credits.className = 'credits';
+    credits.href = 'CREDITS.txt';
+    credits.target = '_blank';
+    credits.rel = 'noopener';
+    credits.textContent = 'Credits';
+  }
   document.body.append(credits);
 
   return {

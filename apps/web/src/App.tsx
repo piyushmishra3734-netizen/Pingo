@@ -78,6 +78,7 @@ const AchievementsScreen = lazyScreen(
   'AchievementsScreen',
 );
 const InviteScreen = lazyScreen(() => import('./screens/InviteScreen.js'), 'InviteScreen');
+const ArcadeScreen = lazyScreen(() => import('./screens/ArcadeScreen.js'), 'ArcadeScreen');
 const MythicMissionScreen = lazyScreen(
   () => import('./screens/MythicMissionScreen.js'),
   'MythicMissionScreen',
@@ -502,6 +503,8 @@ export function App() {
                   would make it read as a page you wandered onto.
                 */}
                 <Route path="/invite" element={<InviteScreen />} />
+                {/* The arcade: full screen, outside the shell, like live. */}
+                <Route path="/arcade" element={<ArcadeScreen />} />
                 {/*
                   Live: fullscreen, outside the shell like the camera's gate.
                   `/live/setup` and `/live/host/:liveId` sit before the dynamic

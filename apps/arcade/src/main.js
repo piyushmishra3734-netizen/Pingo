@@ -78,7 +78,10 @@ scene.add(friend.group);
  */
 const NAME_KEY = 'pingo-arcade-name';
 const params = new URLSearchParams(location.search);
+/** Opened inside the PINGO app: your PINGO name, and invites go to PINGO friends, not a link. */
+const inPingo = params.get('embed') === 'pingo' && window.parent !== window;
 let myName = (() => {
+  if (inPingo && params.get('as')) return params.get('as').slice(0, 18);
   try {
     return localStorage.getItem(NAME_KEY) || '';
   } catch {
@@ -199,6 +202,7 @@ const overlay = createOverlay({
   onStand: stand,
   onBack: () => exitGame(true),
   onSit: sitDown,
+  ...(inPingo ? { onLeave: () => window.parent.postMessage({ type: 'pingo-arcade:leave' }, '*') } : {}),
 });
 
 function show() {
@@ -208,7 +212,7 @@ function show() {
     mode,
     canSit: Boolean(nearSeat),
   });
-  menu.update({ name: myName, friendName, linked, friendSeated: friendSeat >= 0 });
+  menu.update({ inPingo, name: myName, friendName, linked, friendSeated: friendSeat >= 0 });
 }
 
 /** The cabinet in front of a seat. */
@@ -399,9 +403,9 @@ const menu = createScreenMenu({
     match.send({ type: 'propose', kind });
   },
   onInvite() {
-    const url = myInvite();
-    const text = `🎮 ${myName} invited you to play in PINGO Arcade! Tap to join: ${url}`;
-    window.open(`https://pingochat.xyz/share?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+    if (!inPingo) return void sendLink(myInvite());
+    // PINGO shows its own friend picker and sends each friend a Join card.
+    window.parent.postMessage({ type: 'pingo-arcade:invite', room: roomId, seat: seatLetter() === 'B' ? 'A' : 'B', from: myName }, '*');
   },
   onCopyLink: () => sendLink(myInvite()),
   onAnswer(yes, kind) {
@@ -588,7 +592,14 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('pointerdown', wake, { once: true });
 window.addEventListener('keydown', wake, { once: true });
 
-// Arrived by invite: connect straight away, so your friend sees you walk in.
+// In PINGO the room exists from the moment you walk in, so friends can be invited straight away.
+if (inPingo && !roomId) {
+  roomId = newRoomId();
+  const url = new URL(location.href);
+  url.searchParams.set('room', roomId);
+  history.replaceState(null, '', url);
+}
+// Arrived by invite (or opened from PINGO): connect straight away, so your friend sees you walk in.
 if (roomId) void getMatch().then((m) => m.begin(roomId));
 
 resize();
