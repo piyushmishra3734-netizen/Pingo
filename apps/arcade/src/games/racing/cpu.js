@@ -1,3 +1,4 @@
+import { datan2, dcos, dhypot, dsin } from '../dmath.js';
 import { IN, progress } from './race.js';
 
 /**
@@ -18,7 +19,7 @@ function mulberry32(seed) {
   };
 }
 
-const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const wrap = (a) => datan2(dsin(a), dcos(a));
 
 /** @param {{ pace?: number, drift?: number, lane?: number, seed?: number, player?: number }} [options] */
 export function createRacingCpu({ pace = 1, drift = 0.6, lane = 0, seed = 1, player = 0 } = {}) {
@@ -49,9 +50,9 @@ export function createRacingCpu({ pace = 1, drift = 0.6, lane = 0, seed = 1, pla
       const look = Math.floor(8 + k.speed * 0.45);
       const p = points[(k.at + look) % n];
       const offset = lane + wobble;
-      const tx = p.x + -Math.cos(p.yaw) * offset;
-      const tz = p.z + Math.sin(p.yaw) * offset;
-      const want = Math.atan2(-(tx - k.x), -(tz - k.z));
+      const tx = p.x + -dcos(p.yaw) * offset;
+      const tz = p.z + dsin(p.yaw) * offset;
+      const want = datan2(-(tx - k.x), -(tz - k.z));
       const diff = wrap(want - k.yaw);
 
       // A big bend coming up: drift it.

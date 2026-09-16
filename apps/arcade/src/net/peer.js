@@ -24,9 +24,10 @@
  *   onClose: () => void,
  *   onControl?: (message: object) => void,
  *   onInput?: (data: ArrayBuffer | string) => void,
+ *   onAudio?: (stream: MediaStream) => void,
  * }} options
  */
-export function createPeer({ role, iceServers, signal, onOpen, onClose, onControl, onInput }) {
+export function createPeer({ role, iceServers, signal, onOpen, onClose, onControl, onInput, onAudio }) {
   const connection = new RTCPeerConnection({ iceServers });
   const heldCandidates = [];
   let control;
@@ -71,7 +72,18 @@ export function createPeer({ role, iceServers, signal, onOpen, onClose, onContro
     if (connection.connectionState === 'failed') finish(true);
   });
 
+  /*
+   * Voice: one audio transceiver, made with the connection and sending
+   * nothing until the mic is switched on. Turning the mic on later is then a
+   * replaceTrack on the existing sender - no second offer and answer.
+   */
+  let voice;
+  connection.addEventListener('track', ({ track, streams }) => {
+    if (track.kind === 'audio') onAudio?.(streams[0] ?? new MediaStream([track]));
+  });
+
   if (role === 'host') {
+    voice = connection.addTransceiver('audio', { direction: 'sendrecv' });
     wire(connection.createDataChannel('control'));
     wire(connection.createDataChannel('input', { ordered: false, maxRetransmits: 0 }));
   } else {
@@ -97,6 +109,9 @@ export function createPeer({ role, iceServers, signal, onOpen, onClose, onContro
       if (finished) return;
       if (message.type === 'offer' && role === 'guest') {
         await connection.setRemoteDescription({ type: 'offer', sdp: message.sdp });
+        // The host offered a voice line; answer that we can send on it too.
+        voice = connection.getTransceivers().find((t) => t.receiver.track.kind === 'audio');
+        if (voice) voice.direction = 'sendrecv';
         await applyHeldCandidates();
         await connection.setLocalDescription(await connection.createAnswer());
         signal({ type: 'answer', sdp: connection.localDescription.sdp });
@@ -118,6 +133,11 @@ export function createPeer({ role, iceServers, signal, onOpen, onClose, onContro
 
     sendInput(data) {
       if (input?.readyState === 'open') input.send(data);
+    },
+
+    /** Puts a microphone track on the voice line, or takes it off (null). */
+    async setMic(track) {
+      await voice?.sender.replaceTrack(track);
     },
 
     /** Closes without calling `onClose`: the caller already knows. */

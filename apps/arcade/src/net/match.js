@@ -25,9 +25,10 @@ const RECONNECT_AFTER_MS = 2000;
  *   onRtt?: (ms: number) => void,
  *   onRole?: (role: 'host' | 'guest') => void,
  *   onFull?: () => void,
+ *   onLink?: (open: boolean) => void,
  * }} options
  */
-export function createMatch({ session, signalUrl, onRtt, onRole, onFull }) {
+export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink }) {
   let roomId;
   let signaling;
   let peer;
@@ -36,6 +37,13 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull }) {
   let reconnectTimer;
   let active = false;
   let role;
+  /** True while the data channel to the other player is open. */
+  let linked = false;
+  /** Handlers for control messages by type, and for raw input packets. */
+  const handlers = new Map();
+  const inputHandlers = new Set();
+  let micTrack = null;
+  let onVoice;
   /** The last few things that happened, oldest first - read by `debug()`. */
   const events = [];
   const note = (what) => {
@@ -52,6 +60,10 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull }) {
     stopPing();
     peer?.close();
     peer = undefined;
+    if (linked) {
+      linked = false;
+      onLink?.(false);
+    }
   }
 
   /** The other player is gone, or never quite arrived: back to waiting. */
@@ -72,6 +84,9 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull }) {
       },
       onOpen() {
         note('control open');
+        linked = true;
+        onLink?.(true);
+        if (micTrack) void peer?.setMic(micTrack);
         session.paired();
         stopPing();
         pingTimer = setInterval(() => peer?.sendControl({ type: 'ping', t: performance.now() }), PING_EVERY_MS);
@@ -81,6 +96,13 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull }) {
       onControl(message) {
         if (message.type === 'ping') peer?.sendControl({ type: 'pong', t: message.t });
         if (message.type === 'pong') onRtt?.(Math.round(performance.now() - message.t));
+        for (const handler of handlers.get(message.type) ?? []) handler(message);
+      },
+      onInput(data) {
+        for (const handler of inputHandlers) handler(data);
+      },
+      onAudio(stream) {
+        onVoice?.(stream);
       },
     });
     return peer;
@@ -155,9 +177,46 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull }) {
       signaling = undefined;
     },
 
-    /** For Phase 2's games: the unreliable channel. */
+    /** The unreliable channel: game inputs, where late is worse than lost. */
     sendInput(data) {
       peer?.sendInput(data);
+    },
+
+    /** Raw packets from the unreliable channel. Returns an unsubscribe. */
+    onInput(handler) {
+      inputHandlers.add(handler);
+      return () => inputHandlers.delete(handler);
+    },
+
+    /** The reliable channel: anything that must arrive, as JSON. */
+    send(message) {
+      peer?.sendControl(message);
+    },
+
+    /** Control messages of one type. Returns an unsubscribe. */
+    on(type, handler) {
+      if (!handlers.has(type)) handlers.set(type, new Set());
+      handlers.get(type).add(handler);
+      return () => handlers.get(type).delete(handler);
+    },
+
+    get linked() {
+      return linked;
+    },
+
+    get role() {
+      return role;
+    },
+
+    /** Your microphone on the voice line (null for off). Kept across reconnects. */
+    setMic(track) {
+      micTrack = track;
+      void peer?.setMic(track);
+    },
+
+    /** Called with the other player's voice when it arrives. */
+    onVoice(handler) {
+      onVoice = handler;
     },
 
     /** Everything a stalled handshake needs explaining with. Dev probes only. */

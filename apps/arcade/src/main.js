@@ -1,15 +1,18 @@
 import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
-import { createEngine, playCoin, playSound, playStep, setAmbience, startAmbience, unlockAudio } from './audio/sfx.js';
+import { createEngine, playCoin, playSound, playStep, setAmbience, setMuted, startAmbience, unlockAudio } from './audio/sfx.js';
 import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig, createFollow } from './lobby/camera-rig.js';
+import { createFriend } from './lobby/friend.js';
 import { createPlayer } from './lobby/player.js';
 import { createRoom } from './lobby/room.js';
 import { screenPose, screenRect } from './lobby/screen-pose.js';
 import { createWalkInput } from './lobby/walk-input.js';
 import { inviteUrl, newRoomId, roomFromSearch, seatFromSearch } from './net/room-id.js';
-import { createOverlay } from './ui/overlay.js';
+import { createOverlay, sendLink } from './ui/overlay.js';
+import { createScreenMenu } from './ui/screen-menu.js';
+import { createSocial } from './ui/social.js';
 
 /*
  * The mobile rules, set once here so nothing downstream can drift from them:
@@ -34,19 +37,14 @@ scene.add(room.group);
 
 /**
  * Where the player is: looking at the room, gliding into the screen, or
- * playing - in which case three draws nothing at all.
+ * playing.
  * @type {'lobby' | 'zooming' | 'game'}
  */
 let mode = 'lobby';
 
 /*
- * The field of view follows the screen's shape.
- *
- * A fixed 55 degrees is right on a laptop and wrong on a phone held upright:
- * at an aspect of 0.46 it leaves about 27 degrees across, and a cabinet seen
- * from the stool needs about 44. So the vertical angle widens until at least
- * 44 degrees fit horizontally - landscape keeps 55, a portrait phone gets the
- * whole machine instead of its middle.
+ * The field of view follows the screen's shape: landscape keeps 55 degrees,
+ * a portrait phone widens until a cabinet's 44 degrees fit across.
  */
 const BASE_FOV = 55;
 const MIN_HORIZONTAL_FOV = 44;
@@ -62,91 +60,92 @@ const camera = new PerspectiveCamera(BASE_FOV, 1, 0.05, 80);
 const rig = createCameraRig(camera);
 const follow = createFollow(camera, room.cameraBox);
 
-/*
- * You, on the pavement outside, facing the door.
- */
+/** You, on the pavement outside, facing the door. */
 const player = createPlayer({ colliders: room.colliders, bounds: room.bounds });
 scene.add(player.group);
 player.place(room.spawn.x, room.spawn.z, room.spawn.facing);
 follow.snap(player.position);
 const walk = createWalkInput();
 
+/** The other player, when there is one. */
+const friend = createFriend(room);
+scene.add(friend.group);
+
 /*
- * The 2D side, fetched when a match is on rather than at boot.
- *
- * Nobody needs a game to look at the room, and every game added to the first
- * download pushes the room's first frame later on 2G - with the host and the
- * VS card alone the main bundle passed 600 KB. The fetch starts the moment
- * the players pair, so it has landed long before the camera reaches the
- * screen. Each game will be its own chunk the same way.
+ * Who you are. A name is all the arcade needs: it rides along in the invite
+ * link and in the first message to a friend.
+ */
+const NAME_KEY = 'pingo-arcade-name';
+const params = new URLSearchParams(location.search);
+let myName = (() => {
+  try {
+    return localStorage.getItem(NAME_KEY) || '';
+  } catch {
+    return '';
+  }
+})();
+if (!myName) myName = params.get('as')?.slice(0, 18) || `Player${100 + Math.floor(Math.random() * 900)}`;
+let friendName = params.get('from')?.slice(0, 18) || '';
+
+/*
+ * The 2D side, fetched when a game is picked rather than at boot. Each game
+ * is its own chunk.
  */
 let gameHost;
 
-/*
- * What can be on the screen, and the session state each one needs: the VS
- * card with a player opposite, the brawler against the computer while the
- * invite is still out. Each resolves to a function that makes a fresh game.
+/**
+ * What can be on the screen. Each resolves to a function that makes a fresh
+ * game; `online` (a side and a seed) is set for a game against your friend.
  */
 const GAMES = {
-  versus: {
-    state: State.PAIRED,
-    load: () =>
-      import('./games/versus-card.js').then(
-        ({ createVersusCard }) => () => createVersusCard({ youAreLeft: seat === seatById.A }),
-      ),
-  },
   boxing: {
-    state: State.WAITING,
     load: () =>
       import('./games/boxing/index.js').then(
-        ({ createBoxing }) => () => createBoxing({ renderer, onSound: playSound, seed: Math.floor(Math.random() * 2 ** 31) }),
+        ({ createBoxing }) => (online) => createBoxing({ renderer, onSound: playSound, seed: online?.seed ?? Math.floor(Math.random() * 2 ** 31), online }),
       ),
   },
   racing: {
-    state: State.WAITING,
     load: () =>
       import('./games/racing/index.js').then(
-        ({ createRacing }) => () =>
-          createRacing({ renderer, onSound: playSound, engine: createEngine(), seed: Math.floor(Math.random() * 2 ** 31) }),
+        ({ createRacing }) => (online) =>
+          createRacing({ renderer, onSound: playSound, engine: createEngine(), seed: online?.seed ?? Math.floor(Math.random() * 2 ** 31), online }),
       ),
   },
   cpu: {
-    state: State.WAITING,
     load: () =>
       import('./games/brawler/index.js').then(
-        ({ createBrawler }) => () =>
-          createBrawler({ seed: Math.floor(Math.random() * 2 ** 31), onSound: playSound }),
+        ({ createBrawler }) => () => createBrawler({ seed: Math.floor(Math.random() * 2 ** 31), onSound: playSound }),
       ),
   },
 };
 const gameLoads = {};
 
 function loadGame(kind) {
-  gameLoads[kind] ??= Promise.all([import('./games/game-host.js'), GAMES[kind].load()]).then(
-    ([{ createGameHost }, make]) => {
-      gameHost ??= createGameHost();
-      return make;
-    },
-  );
+  gameLoads[kind] ??= Promise.all([import('./games/game-host.js'), GAMES[kind].load()]).then(([{ createGameHost }, make]) => {
+    gameHost ??= createGameHost();
+    return make;
+  });
   return gameLoads[kind];
 }
 
 /** @type {keyof typeof GAMES | undefined} */
 let playing;
-/** A game that draws in 3D with the arcade's renderer (boxing), while one is on. */
+/** Whether the game on now is against your friend. */
+let playingOnline = false;
+/** A game that draws in 3D with the arcade's renderer, while one is on. */
 let activeGame;
+
+/** How much of the view the machine's screen takes while its menu is up. */
+const MENU_MARGIN = 1.22;
 
 function resize() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
-  // `false`: the canvas keeps its CSS size; only the drawing buffer changes.
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.fov = fitFov(camera.aspect);
   camera.updateProjectionMatrix();
 
-  // Mid-game, the 3D loop is off: re-seat the camera for the new shape, draw
-  // the one frame the game sits on, and move the game to match it.
   if (mode === 'game' && activeGame) {
     activeGame.resize(width, height);
   } else if (mode === 'game') {
@@ -154,6 +153,8 @@ function resize() {
     rig.snap(screenPose(screen, camera));
     renderer.render(scene, camera);
     gameHost.place(screenRect(screen, camera, canvas.getBoundingClientRect()));
+  } else if (session.state !== State.IDLE && !rig.moving) {
+    rig.snap(screenPose(cabinetFor(seat).screen, camera, MENU_MARGIN));
   }
 }
 window.addEventListener('resize', resize);
@@ -164,18 +165,17 @@ window.addEventListener('resize', resize);
  * what happened, through createMatch.
  */
 const session = createSession();
-const seatById = { A: room.seats[0], B: room.seats[1] };
-let seat = seatById.A;
-let invite;
+let seat = room.seats[0];
 let rtt;
 let note;
 
-/*
- * Opened from an invite: you still arrive outside and walk in, and the one
- * seat you can take is the free one opposite your friend.
- */
-const invitedTo = roomFromSearch(location.search);
-const invitedSeat = invitedTo ? seatById[seatFromSearch(location.search)] : undefined;
+/** The room you are in, once you have sat down or arrived by invite. */
+let roomId = roomFromSearch(location.search);
+/** The seat the invite asks you to take (the free one). */
+const invitedSeat = roomId ? room.seats[seatFromSearch(location.search) === 'A' ? 0 : 1] : undefined;
+/** Your friend's seat index while they sit, else -1. */
+let friendSeat = -1;
+let linked = false;
 
 /** How close to a stool you have to be to sit on it. */
 const SIT_REACH = 1.5;
@@ -184,93 +184,249 @@ let nearSeat;
 
 function findSeat() {
   const { x, z } = player.position;
-  const seats = invitedSeat ? [invitedSeat] : room.seats;
-  return seats.find(({ stool }) => Math.hypot(stool[0] - x, stool[1] - z) < SIT_REACH);
+  return room.seats.find(
+    (candidate, index) =>
+      index !== friendSeat &&
+      (!invitedSeat || candidate === invitedSeat || linked) &&
+      Math.hypot(candidate.stool[0] - x, candidate.stool[1] - z) < SIT_REACH,
+  );
 }
-
-resize();
 
 const overlay = createOverlay({
   onStand: stand,
-  onPlay: () => void enterGame('versus'),
-  onCpu: () => void enterGame('cpu'),
-  onBoxing: () => void enterGame('boxing'),
-  onRacing: () => void enterGame('racing'),
-  onBack: () => exitGame(),
+  onBack: () => exitGame(true),
   onSit: sitDown,
 });
 
 function show() {
-  const hint = invitedSeat
-    ? 'Your friend is inside - sit at the PINGO machine'
-    : 'Walk in and sit at the PINGO machine';
+  const hint = friendName && !linked && invitedSeat ? `${friendName} invited you - walk in and sit at the PINGO machine` : undefined;
   overlay.show(session.state, {
-    invite,
-    rtt,
     note: note ?? (session.state === State.IDLE ? hint : undefined),
     mode,
     canSit: Boolean(nearSeat),
   });
+  menu.update({ name: myName, friendName, linked, friendSeated: friendSeat >= 0 });
 }
 
 /** The cabinet in front of a seat. */
 function cabinetFor(picked) {
-  return room.cabinets[picked === seatById.A ? 0 : 1];
+  return room.cabinets[picked === room.seats[0] ? 0 : 1];
 }
 
+const seatLetter = () => (seat === room.seats[0] ? 'A' : 'B');
+const myInvite = () => {
+  const url = new URL(inviteUrl(location.href, roomId, seatLetter()));
+  url.searchParams.set('from', myName);
+  return url.toString();
+};
+
 /*
- * The network layer, loaded the first time somebody sits down.
- *
- * Nobody needs signalling or WebRTC to look at the room, and adding them to
- * the first download took the main bundle past 600 KB. As its own chunk it
- * arrives in the time the camera spends gliding to the seat.
+ * The network layer, loaded the first time somebody sits down - or at once,
+ * for somebody arriving by invite, so their friend sees them walk in.
  */
 let matchReady;
+let match;
 
 function getMatch() {
-  matchReady ??= import('./net/match.js').then(({ createMatch }) =>
-    createMatch({
+  matchReady ??= import('./net/match.js').then(({ createMatch }) => {
+    match = createMatch({
       session,
       signalUrl: SIGNAL_URL,
       onRtt(ms) {
         rtt = ms;
-        show();
-      },
-      onRole(role) {
-        // Only a host has somebody to invite; a promoted guest becomes one.
-        invite = role === 'host' ? inviteUrl(location.href, roomFromSearch(location.search), seat.id) : undefined;
-        show();
       },
       onFull() {
-        // Out of the chair and out of the room - the address bar included,
-        // or a reload would knock on the same full door again.
         stand();
         note = 'That game already has two players';
         show();
       },
-    }),
-  );
+      onLink(open) {
+        linked = open;
+        if (open) {
+          match.send({ type: 'hello', name: myName });
+          sendPosition();
+          if (session.state === State.WAITING) session.paired();
+        } else {
+          if (friendName) social.add('', `${friendName} left the arcade`, { system: true });
+          friend.hide();
+          friendSeat = -1;
+          social.setFriend(null);
+          menu.update({ ask: null, waiting: null });
+          if (playingOnline) exitGame(true);
+        }
+        show();
+      },
+    });
+    wireMatch(match);
+    match.onVoice((stream) => social.playVoice(stream, voice));
+    return match;
+  });
   return matchReady;
 }
 
-/*
- * Into the screen.
- *
- * A beat after the coin so the green light registers, then the camera glides
- * square-on to the cabinet's screen until it fills the view. On arrival the
- * 3D loop stops - three draws nothing from here, which is the battery and the
- * memory bandwidth back - and the 2D game appears exactly over the screen it
- * replaces, its rectangle measured from the screen's own projected corners.
- * The last 3D frame stays underneath as the cabinet around the game.
- */
-const ENTER_AFTER_MS = 1200;
-const ZOOM_MS = 900;
-let enterTimer;
+/** What your friend's machine tells yours. */
+function wireMatch(m) {
+  m.on('hello', ({ name }) => {
+    const fresh = !friendName || friendName !== name;
+    friendName = String(name ?? 'Friend').slice(0, 18);
+    friend.setName(friendName);
+    social.setFriend(friendName);
+    if (fresh) {
+      social.add('', `${friendName} joined the arcade 🎮`, { system: true });
+      playCoin();
+    }
+    show();
+  });
+  m.on('pos', (message) => {
+    friend.apply(message);
+    const seated = typeof message.s === 'number' ? message.s : -1;
+    if (seated !== friendSeat) {
+      friendSeat = seated;
+      if (seated >= 0) social.add('', `${friendName || 'Your friend'} sat down at the PINGO machine`, { system: true });
+      show();
+    }
+  });
+  m.on('chat', ({ text }) => {
+    social.add(friendName || 'Friend', String(text).slice(0, 120));
+    playSound('chat');
+  });
+  m.on('propose', ({ kind }) => {
+    if (!GAMES[kind]) return;
+    if (session.state === State.IDLE || mode !== 'lobby') {
+      m.send({ type: 'answer', kind, yes: false, busy: true });
+      return;
+    }
+    menu.update({ ask: kind, waiting: null });
+    playSound('select');
+  });
+  m.on('cancel', () => menu.update({ ask: null }));
+  m.on('answer', ({ kind, yes, busy }) => {
+    menu.update({ waiting: null });
+    if (!yes) {
+      social.add('', `${friendName || 'Your friend'} ${busy ? 'is busy right now' : 'said not now'}`, { system: true });
+      return;
+    }
+    const seed = Math.floor(Math.random() * 2 ** 31);
+    m.send({ type: 'start', kind, seed });
+    void enterGame(kind, { side: 0, seed, net: m, names: [myName, friendName || 'Friend'] });
+  });
+  m.on('start', ({ kind, seed }) => {
+    menu.update({ ask: null, waiting: null });
+    void enterGame(kind, { side: 1, seed, net: m, names: [friendName || 'Friend', myName] });
+  });
+  m.on('leave-game', () => {
+    if (playingOnline) {
+      social.add('', `${friendName || 'Your friend'} left the game`, { system: true });
+      exitGame(false);
+    }
+  });
+}
 
-async function enterGame(kind = 'versus') {
-  const needs = GAMES[kind].state;
-  if (session.state !== needs || mode !== 'lobby') return;
+/** Where you are, ten times a second, while a friend is connected. */
+function sendPosition() {
+  if (!linked) return;
+  const seated = session.state !== State.IDLE;
+  match.send({
+    type: 'pos',
+    x: +player.position.x.toFixed(2),
+    z: +player.position.z.toFixed(2),
+    h: +player.group.rotation.y.toFixed(2),
+    s: seated ? room.seats.indexOf(seat) : -1,
+  });
+}
+setInterval(sendPosition, 100);
+
+/* Voice: the friend's audio plays through this element. */
+const voice = new Audio();
+voice.autoplay = true;
+let micTrack = null;
+
+const social = createSocial({
+  onSend(text) {
+    if (!linked) {
+      social.add('', 'Nobody to talk to yet - invite a friend from the PINGO machine', { system: true });
+      return;
+    }
+    match.send({ type: 'chat', text });
+    social.add(myName, text, { mine: true });
+  },
+  async onMic(on) {
+    wake();
+    if (!on) {
+      micTrack?.stop();
+      micTrack = null;
+      match?.setMic(null);
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      micTrack = stream.getAudioTracks()[0];
+      await getMatch();
+      match.setMic(micTrack);
+      social.add('', linked ? 'Mic on - your friend can hear you' : 'Mic on - your friend will hear you when they join', { system: true });
+      return true;
+    } catch {
+      social.add('', 'Microphone blocked - allow it in the browser to talk', { system: true });
+      return false;
+    }
+  },
+  onSpeaker(on) {
+    voice.muted = !on;
+    setMuted(!on);
+  },
+});
+social.setPlace('top');
+
+/* The PINGO machine's screen. */
+const menu = createScreenMenu({
+  onPlay(kind, vs) {
+    if (vs === 'cpu') {
+      void enterGame(kind);
+      return;
+    }
+    if (!linked || friendSeat < 0) return;
+    menu.update({ waiting: kind });
+    match.send({ type: 'propose', kind });
+  },
+  onInvite() {
+    const url = myInvite();
+    const text = `🎮 ${myName} invited you to play in PINGO Arcade! Tap to join: ${url}`;
+    window.open(`https://pingochat.xyz/share?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  },
+  onCopyLink: () => sendLink(myInvite()),
+  onAnswer(yes, kind) {
+    menu.update({ ask: null });
+    match?.send({ type: 'answer', kind, yes });
+    playSound(yes ? 'confirm' : 'back');
+  },
+  onCancel() {
+    menu.update({ waiting: null });
+    match?.send({ type: 'cancel' });
+  },
+  onRename(name) {
+    myName = name;
+    try {
+      localStorage.setItem(NAME_KEY, name);
+    } catch {
+      /* private window: the name lasts this visit */
+    }
+    if (linked) match.send({ type: 'hello', name });
+    show();
+  },
+  onStand: stand,
+  onClick: () => playSound('click'),
+});
+
+/*
+ * Into the screen: the camera glides square-on to the cabinet's screen. A 3D
+ * game then takes the whole view; a 2D one appears exactly over the screen.
+ */
+const ZOOM_MS = 700;
+
+async function enterGame(kind, online) {
+  if (session.state === State.IDLE || mode !== 'lobby') return;
   playing = kind;
+  playingOnline = Boolean(online);
   mode = 'zooming';
   show();
 
@@ -278,14 +434,12 @@ async function enterGame(kind = 'versus') {
   const loading = loadGame(kind);
   const arrived = await rig.moveTo(screenPose(screen, camera), ZOOM_MS);
   const make = await loading;
-  // Superseded - dropped, joined, or stood up mid-glide.
-  if (!arrived || mode !== 'zooming' || session.state !== needs) return;
+  if (!arrived || mode !== 'zooming' || session.state === State.IDLE) return;
 
-  const game = make();
+  const game = make(online);
   if (game.is3d) {
-    // A 3D game takes the whole screen once its models are in.
     await game.ready;
-    if (mode !== 'zooming' || session.state !== needs) {
+    if (mode !== 'zooming' || session.state === State.IDLE) {
       game.dispose();
       return;
     }
@@ -296,23 +450,28 @@ async function enterGame(kind = 'versus') {
     gameHost.start(game, screenRect(screen, camera, canvas.getBoundingClientRect()));
   }
   mode = 'game';
-  // The 3D loop stops here, so the room goes quiet from here, not from a frame.
+  social.setPlace('mid');
   updateMood();
   setRunning(!document.hidden);
   show();
 }
 
-/** Out of the screen: the game goes, three comes back, the camera glides out. */
-function exitGame() {
-  clearTimeout(enterTimer);
+/**
+ * Out of the game, back to the machine's menu. `tell` lets your friend know,
+ * so their screen goes back too.
+ */
+function exitGame(tell = false) {
   if (mode === 'lobby') return;
+  if (tell && playingOnline) match?.send({ type: 'leave-game' });
   gameHost?.stop();
   activeGame?.dispose();
   activeGame = undefined;
   playing = undefined;
+  playingOnline = false;
   mode = 'lobby';
+  social.setPlace('top');
   setRunning(!document.hidden);
-  if (session.state !== State.IDLE) rig.moveTo(seat);
+  if (session.state !== State.IDLE) rig.moveTo(screenPose(cabinetFor(seat).screen, camera, MENU_MARGIN), ZOOM_MS);
   show();
 }
 
@@ -331,46 +490,47 @@ show();
 session.on(({ from, to, light }) => {
   room.domes.set(light);
   if (to !== State.PAIRED) rtt = undefined;
-  // A game lasts as long as the state it needs: a drop ends the match, and
-  // somebody at the door ends the bout against the computer.
-  if (from === State.PAIRED || (playing && to !== GAMES[playing].state)) exitGame();
   if (from === State.IDLE) {
-    // Seated: the camera takes the seat, and your own body would only sit
-    // between it and the screen.
-    rig.moveTo(seat);
+    // Seated: the camera goes to the machine's screen, where the menu is.
+    rig.moveTo(screenPose(cabinetFor(seat).screen, camera, MENU_MARGIN), 1100);
     player.group.visible = false;
     walk.setEnabled(false);
     nearSeat = undefined;
+    sendPosition();
   }
-  if (to === State.IDLE) standUp();
-  if (to === State.PAIRED) {
-    playCoin();
-    void loadGame('versus');
-    clearTimeout(enterTimer);
-    enterTimer = setTimeout(() => void enterGame(), ENTER_AFTER_MS);
+  if (to === State.IDLE) {
+    exitGame(true);
+    standUp();
+    sendPosition();
   }
   show();
 });
 
-/** Sits at `picked` in room `roomId` - making the room if there is none. */
-function sit(picked, roomId) {
+/** Sits at `picked` - making a room first if you are not in one. */
+function sit(picked) {
   seat = picked;
   note = undefined;
-  // The address bar carries the room, so a reload rejoins it and the link
-  // in it is already the invite.
+  if (!roomId) roomId = newRoomId();
+  // The address bar carries the room, so a reload rejoins it.
   const url = new URL(location.href);
   url.searchParams.set('room', roomId);
   history.replaceState(null, '', url);
   session.sit();
-  void getMatch().then((match) => match.begin(roomId));
+  void getMatch().then((m) => {
+    if (!m.debug().active) void m.begin(roomId);
+    else if (linked) session.paired();
+  });
 }
 
 /*
  * Sound needs a gesture first. The first tap or key anywhere unlocks it and
  * starts the floor recording; `mood` then sets how loud the room is.
  */
+let woken = false;
 function wake() {
   unlockAudio();
+  if (woken) return;
+  woken = true;
   void startAmbience('sounds/arcade-floor.mp3').then(() => {
     lastMood = undefined;
   });
@@ -392,31 +552,32 @@ function updateMood() {
 function sitDown() {
   if (!nearSeat || session.state !== State.IDLE) return;
   wake();
-  sit(nearSeat, nearSeat === invitedSeat ? invitedTo : newRoomId());
+  sit(nearSeat);
 }
 
+/** Up from the chair. The link to your friend stays: they can still see you. */
 function stand() {
   session.leave();
-  void matchReady?.then((match) => match.end());
-  invite = undefined;
-  const url = new URL(location.href);
-  url.search = '';
-  history.replaceState(null, '', url);
   show();
 }
 
 window.addEventListener('keydown', (event) => {
+  if (document.activeElement?.tagName === 'INPUT') return;
   if ((event.code === 'KeyE' || event.code === 'Enter') && !event.repeat) sitDown();
 });
 window.addEventListener('pointerdown', wake, { once: true });
 window.addEventListener('keydown', wake, { once: true });
+
+// Arrived by invite: connect straight away, so your friend sees you walk in.
+if (roomId) void getMatch().then((m) => m.begin(roomId));
+
+resize();
 
 /** Dev-only overlay; stays undefined in a normal production build. */
 let hud;
 let lastFrame = performance.now();
 
 function frame(now) {
-  // Capped: a tab brought back after a minute takes one normal step, not a leap.
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   if (session.state === State.IDLE) {
@@ -427,9 +588,13 @@ function frame(now) {
       nearSeat = near;
       show();
     }
+    menu.place(null);
   } else {
     rig.update(now);
+    menu.place(mode === 'lobby' && !rig.moving ? screenRect(cabinetFor(seat).screen, camera, canvas.getBoundingClientRect()) : null);
   }
+  friend.update(dt);
+  friend.speaking = social.level();
   if (room.update(dt, player.position, now)) playSound('door');
   updateMood();
   room.domes.update(now);
@@ -439,8 +604,7 @@ function frame(now) {
 
 /*
  * One switch for both loops: three runs only in the room, the game only in
- * the game, and neither while the tab is hidden - nobody can see it, and the
- * battery can.
+ * the game, and neither while the tab is hidden.
  */
 function setRunning(visible) {
   const game3d = mode === 'game' && activeGame;
@@ -451,14 +615,10 @@ function setRunning(visible) {
 document.addEventListener('visibilitychange', () => setRunning(!document.hidden));
 setRunning(true);
 
-// Its own chunk: always in dev, and in a production build with `?hud` for
-// checks on a real phone. Everyone else never downloads it.
-if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
+if (import.meta.env.DEV || params.has('hud')) {
   import('./dev/perf-hud.js').then(({ createPerfHud }) => {
     hud = createPerfHud(renderer);
   });
-  // The scene, reachable from a console or a headless probe. Dev only: it is
-  // the difference between reading geometry numbers and guessing at them.
   window.__arcade = {
     renderer,
     scene,
@@ -467,13 +627,25 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('hud')) {
     session,
     rig,
     player,
+    friend,
+    menu,
+    social,
     get gameHost() {
       return gameHost;
     },
     get activeGame() {
       return activeGame;
     },
+    get match() {
+      return match;
+    },
     getMatch,
+    get linked() {
+      return linked;
+    },
+    get friendSeat() {
+      return friendSeat;
+    },
     get mode() {
       return mode;
     },

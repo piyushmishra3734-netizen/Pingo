@@ -1,3 +1,5 @@
+import { datan2, dcos, dhypot, dsin } from '../dmath.js';
+
 /**
  * A circuit, from a string: the Kenney Racing Kit's road tiles laid like a
  * turtle walks. `B` is the two-tile start grid, `S` a straight tile, `R` and
@@ -44,9 +46,9 @@ export const TRACKS = [
   },
 ];
 
-const heading = (yaw) => [-Math.sin(yaw), -Math.cos(yaw)];
-const axisX = (theta) => [Math.cos(theta), -Math.sin(theta)];
-const axisZ = (theta) => [Math.sin(theta), Math.cos(theta)];
+const heading = (yaw) => [-dsin(yaw), -dcos(yaw)];
+const axisX = (theta) => [dcos(theta), -dsin(theta)];
+const axisZ = (theta) => [dsin(theta), dcos(theta)];
 
 /**
  * @param {string} layout
@@ -106,7 +108,7 @@ export function buildTrack(layout) {
       const steps = Math.round((radius * Math.PI) / 2);
       for (let k = 0; k < steps; k += 1) {
         const a = (k / steps) * (Math.PI / 2);
-        const [u, v] = right ? [Math.cos(a), Math.sin(a)] : [Math.sin(a), Math.cos(a)];
+        const [u, v] = right ? [dcos(a), dsin(a)] : [dsin(a), dcos(a)];
         raw.push([cx - radius * (u * xx + v * zx), cz - radius * (u * xz + v * zz)]);
       }
       const [nx, nz] = right ? [2, -1.5] : [0.5, 0];
@@ -118,8 +120,8 @@ export function buildTrack(layout) {
 
   const points = raw.map(([x, z], i) => {
     const [nx, nz] = raw[(i + 1) % raw.length];
-    return { x, z, yaw: Math.atan2(-(nx - x), -(nz - z)) };
+    return { x, z, yaw: datan2(-(nx - x), -(nz - z)) };
   });
-  const closed = Math.hypot(px, pz) < 0.01 && Math.abs(Math.sin(yaw)) < 1e-6 && Math.cos(yaw) > 0;
+  const closed = dhypot(px, pz) < 0.01 && Math.abs(dsin(yaw)) < 1e-6 && dcos(yaw) > 0;
   return { pieces, points, cells, closed, overlaps };
 }

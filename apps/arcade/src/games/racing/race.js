@@ -1,3 +1,4 @@
+import { datan2, dcos, dhypot, dsin } from '../dmath.js';
 import { HALF_ROAD, buildTrack } from './track.js';
 
 /**
@@ -9,9 +10,9 @@ import { HALF_ROAD, buildTrack } from './track.js';
  * a slipstream; tap DRIFT just as the lights go for a rocket start (too early
  * and you stall); boost pads on the straights.
  *
- * No drawing, no DOM, no clock, no randomness. ponytail: floats and
- * Math.sin/cos, so two different browsers could drift apart over a long race;
- * switch to a sine table before racing between phones.
+ * No drawing, no DOM, no clock, no randomness. Floats, but all
+ * the trig is dmath.js, so two different browsers never drift apart; the
+ * same inputs make the same race on every phone.
  */
 
 export const IN = { LEFT: 1, RIGHT: 2, BRAKE: 4, DRIFT: 8 };
@@ -48,8 +49,8 @@ const GRID = [
 ];
 
 function kart(point, [back, across], index) {
-  const hx = -Math.sin(point.yaw);
-  const hz = -Math.cos(point.yaw);
+  const hx = -dsin(point.yaw);
+  const hz = -dcos(point.yaw);
   return {
     index,
     x: point.x - hx * back + -hz * across,
@@ -115,7 +116,7 @@ function locate(points, k, from, span = 30) {
   return best;
 }
 
-const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const wrap = (a) => datan2(dsin(a), dcos(a));
 
 /** How far round the race a kart is, in centre-line points. */
 export function progress(race, k) {
@@ -187,8 +188,8 @@ function stepKart(race, k, bits) {
   else k.speed = Math.max(top, k.speed - 20 * DT);
   if (k.drift) k.speed *= 0.9993;
 
-  k.x += -Math.sin(k.travel) * k.speed * DT;
-  k.z += -Math.cos(k.travel) * k.speed * DT;
+  k.x += -dsin(k.travel) * k.speed * DT;
+  k.z += -dcos(k.travel) * k.speed * DT;
 }
 
 function placeOnTrack(race, k) {
@@ -209,8 +210,8 @@ function placeOnTrack(race, k) {
   }
 
   const p = points[k.at];
-  const hx = -Math.sin(p.yaw);
-  const hz = -Math.cos(p.yaw);
+  const hx = -dsin(p.yaw);
+  const hz = -dcos(p.yaw);
   // Positive lateral is to the right of the road's direction.
   const dx = k.x - p.x;
   const dz = k.z - p.z;
@@ -250,7 +251,7 @@ function interact(race) {
       const b = karts[j];
       const dx = b.x - a.x;
       const dz = b.z - a.z;
-      const d = Math.hypot(dx, dz);
+      const d = dhypot(dx, dz);
       if (d < RADIUS * 2 && d > 0.0001) {
         const push = (RADIUS * 2 - d) / 2;
         a.x -= (dx / d) * push;
@@ -265,8 +266,8 @@ function interact(race) {
   // Slipstream: close behind someone and in line with them.
   for (const k of karts) {
     if (k.finished) continue;
-    const hx = -Math.sin(k.yaw);
-    const hz = -Math.cos(k.yaw);
+    const hx = -dsin(k.yaw);
+    const hz = -dcos(k.yaw);
     const drafting = karts.some((o) => {
       if (o === k) return false;
       const dx = o.x - k.x;

@@ -30,14 +30,14 @@ const scale = new Vector3();
  * filling it. Along the screen's own normal, so a tilted screen is seen as a
  * rectangle rather than a trapezoid.
  */
-export function screenPose(screen, camera) {
+export function screenPose(screen, camera, margin = 1) {
   screen.updateWorldMatrix(true, false);
   screen.getWorldPosition(centre);
   // A mesh's "direction" is its local +Z in world space: the way the glass faces.
   screen.getWorldDirection(normal);
   screen.getWorldScale(scale);
   const { width, height } = screen.geometry.parameters;
-  const distance = fitDistance(width * scale.x, height * scale.y, camera.fov, camera.aspect);
+  const distance = fitDistance(width * scale.x, height * scale.y, camera.fov, camera.aspect) * margin;
   return {
     position: centre.clone().addScaledVector(normal, distance).toArray(),
     lookAt: centre.toArray(),
