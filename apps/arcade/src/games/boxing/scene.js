@@ -2,6 +2,7 @@ import {
   AdditiveBlending,
   Color,
   DirectionalLight,
+  Euler,
   Fog,
   HemisphereLight,
   Mesh,
@@ -9,6 +10,7 @@ import {
   MeshLambertMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  Quaternion,
   Scene,
   Sprite,
   SpriteMaterial,
@@ -42,7 +44,28 @@ const BASE_FOV = 38;
 /** Where a glove sits on its wrist bone, in metres, and how it is turned. */
 const GLOVE = { forward: 0.07, turn: [0, 0, 0] };
 
+/*
+ * The guard: extra rotation on each arm bone (radians, local XYZ), laid over
+ * whatever clip is playing. The Modular Men have walk and punch clips but no
+ * boxing stance, so the stance is made here.
+ *
+ * Found by turning one bone on one axis at a time and looking (pose-probe):
+ * on these rigs Z swings the upper arm forward and folds the elbow, X tucks
+ * the elbow in, and the right arm's axes are the left's mirrored.
+ */
+/** Fists up in front of the face, elbows in. */
+const STANCE = { UpperArmL: [0.35, 0, -0.4], LowerArmL: [0, 0, -2.4], UpperArmR: [-0.35, 0, 0.4], LowerArmR: [0, 0, 2.4] };
+/** Blocking: gloves up by the temples, covering the head. */
+const COVER = { UpperArmL: [0, 0, -0.85], LowerArmL: [0, 0, -2.0], UpperArmR: [0, 0, 0.85], LowerArmR: [0, 0, 2.0] };
+/** How much of the guard each arm keeps: the punching arm lets go for its punch. */
+const ARM_WEIGHT = { jab: [0, 1], power: [1, 0], hurt: [0.5, 0.5], ko: [0, 0], win: [0, 0] };
+
 const scratch = new Vector3();
+const euler = new Euler();
+const turn = new Quaternion();
+
+/** Tuning hook for the probes; never set in a normal build. */
+const debug = import.meta.env.DEV || new URLSearchParams(location.search).has('hud') ? (window.__boxing = { STANCE, COVER, freeze: false, camera: null }) : null;
 
 function flashSprite() {
   const sprite = new Sprite(new SpriteMaterial({ map: glowTexture(), blending: AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
@@ -102,7 +125,9 @@ export function createBoxingScene() {
         bone.add(glove);
       }
       person.play('Idle');
-      views.push({ person, state: '', t: 0, hits: 0 });
+      const bones = Object.fromEntries(Object.keys(STANCE).map((name) => [name, person.body.getObjectByName(name)]));
+      const pose = Object.fromEntries(Object.keys(STANCE).map((name) => [name, [...STANCE[name]]]));
+      views.push({ person, state: '', t: 0, hits: 0, bones, pose });
     });
   });
 
@@ -175,6 +200,20 @@ export function createBoxingScene() {
           body.rotateX(0.38 * depth);
         }
         view.person.update(dt);
+
+        // The guard goes on after the clip has posed the bones this frame,
+        // easing towards the stance, the cover, or letting go for a punch.
+        const target = boxer.state === 'block' || boxer.state === 'blockstun' ? COVER : STANCE;
+        const [left, right] = ARM_WEIGHT[boxer.state] ?? [1, 1];
+        const ease = Math.min(1, dt * 14);
+        for (const name of Object.keys(STANCE)) {
+          const bone = view.bones[name];
+          if (!bone) continue;
+          const weight = name.endsWith('L') ? left : right;
+          const now = view.pose[name];
+          for (let k = 0; k < 3; k += 1) now[k] += (target[name][k] * weight - now[k]) * ease;
+          bone.quaternion.multiply(turn.setFromEuler(euler.set(now[0], now[1], now[2])));
+        }
       });
 
       for (const flash of flashes) {
@@ -191,8 +230,13 @@ export function createBoxingScene() {
       shake = Math.max(0, shake - dt * 0.25);
       const jolt = shake ? (Math.random() - 0.5) * shake : 0;
       const along = Math.max(-1.2, Math.min(1.2, middle * 0.6));
-      camera.position.set(along + jolt, CANVAS + 2.6 + jolt, 5.2);
-      camera.lookAt(middle * 0.8, CANVAS + 1.0, 0);
+      if (debug?.camera) {
+        camera.position.set(...debug.camera.position);
+        camera.lookAt(...debug.camera.lookAt);
+      } else {
+        camera.position.set(along + jolt, CANVAS + 2.6 + jolt, 5.2);
+        camera.lookAt(middle * 0.8, CANVAS + 1.0, 0);
+      }
     },
 
     resize(width, height) {

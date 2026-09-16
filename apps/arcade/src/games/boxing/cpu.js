@@ -7,7 +7,7 @@ import { IN, PUNCHES } from './match.js';
  *
  * ## It sees punches the way a person does
  *
- * A punch is only noticed `react` steps after it starts. On normal that is 9:
+ * A punch is only noticed `react` steps after it starts. On normal that is 10:
  * after a jab's 6-step startup (jabs mostly land) and before a power punch's
  * 14 (power punches get blocked or slipped) - which teaches the player that
  * the jab is how you open someone up.
@@ -17,7 +17,7 @@ import { IN, PUNCHES } from './match.js';
 
 export const LEVELS = {
   easy: { react: 14, think: 26, aggression: 0.35, defend: 0.35 },
-  normal: { react: 9, think: 16, aggression: 0.5, defend: 0.6 },
+  normal: { react: 10, think: 16, aggression: 0.42, defend: 0.55 },
   hard: { react: 6, think: 9, aggression: 0.65, defend: 0.8 },
 };
 

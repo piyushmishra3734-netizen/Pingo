@@ -69,7 +69,8 @@ export function createBoxing({ renderer, onSound, level = 'normal', seed = 1 }) 
       last = now;
       const next = stepsFor(accumulator, elapsed);
       accumulator = next.accumulator;
-      for (let i = 0; i < next.steps; i += 1) {
+      const steps = window.__boxing?.freeze ? 0 : next.steps;
+      for (let i = 0; i < steps; i += 1) {
         stepMatch(match, [controls.read(), cpu.think(match, 1)]);
         for (const event of match.events) {
           view.onEvent(event, match);
