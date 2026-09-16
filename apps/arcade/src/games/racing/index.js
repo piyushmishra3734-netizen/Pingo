@@ -133,11 +133,11 @@ export function createRacing({ renderer, onSound, engine, seed = 1 }) {
     choices.push(['Race again', start, !podium || !next]);
     choices.push(['All tracks', menu]);
     hud.showResults(title, lines, standings, choices);
-    onSound?.(you.place === 1 ? 'cheer' : 'bell');
+    onSound?.(you.place <= 3 ? 'win' : 'lose');
   }
 
   function react(event) {
-    if (event.type === 'count') onSound?.('count');
+    if (event.type === 'count') onSound?.('race-count');
     else if (event.type === 'go') onSound?.('go');
     if (event.kart !== 0) return;
     switch (event.type) {
@@ -160,14 +160,14 @@ export function createRacing({ renderer, onSound, engine, seed = 1 }) {
         onSound?.('boost');
         break;
       case 'bump':
-        onSound?.('block');
+        onSound?.('bump');
         break;
       case 'lap':
         if (event.lap === race.laps - 1) hud.pop('FINAL LAP!', '#ffd84a');
         onSound?.('lap');
         break;
       case 'finish':
-        onSound?.('bell');
+        onSound?.('lap');
         break;
       default:
     }

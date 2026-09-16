@@ -420,7 +420,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   if (session.state === State.IDLE) {
-    if (player.update(dt, walk.read())) playStep();
+    if (player.update(dt, walk.read())) playStep(room.inside(player.position));
     follow.update(dt, player.position, room.inside(player.position));
     const near = findSeat();
     if (near !== nearSeat) {

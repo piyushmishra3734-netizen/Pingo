@@ -1,3 +1,4 @@
+import { startLoop } from '../../audio/sfx.js';
 import { createControls } from '../controls.js';
 import { stepsFor, STEP_MS } from '../game-host.js';
 import { createBoxingCpu } from './cpu.js';
@@ -73,6 +74,8 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
   /** 'menu' while a card is up, 'fight' while the match runs. */
   let stage = 'menu';
   let ended = false;
+  /** The crowd round the ring, while a fight is on. */
+  let crowd = () => {};
 
   let last = 0;
   let accumulator = 0;
@@ -106,18 +109,21 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
     ended = false;
     hud.closeMenu();
     setPad(true);
+    crowd();
+    crowd = startLoop('sounds/crowd-loop.mp3', 0.18);
     stage = 'fight';
   }
 
   function finish() {
     const entry = ROSTER[foe];
     const won = match.winner === 0;
+    crowd();
     setPad(false);
     stage = 'menu';
     if (won) {
       const first = progress.beaten <= foe;
       recordWin(progress, foe);
-      onSound?.('cheer');
+      onSound?.('win');
       const next = ROSTER[foe + 1];
       if (next) {
         hud.showEnd('YOU WIN! 🏆', first ? `${next.name} “${next.nick}” unlocked` : `🔥 ${progress.streak}-day streak`, [
@@ -132,6 +138,7 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
         ]);
       }
     } else {
+      onSound?.('lose');
       hud.showEnd(match.winner === null ? 'DRAW' : `${entry.name.toUpperCase()} WINS`, `💡 ${entry.tip}`, [
         ['Rematch', start, true],
         ['All opponents', ladder],
@@ -216,6 +223,7 @@ export function createBoxing({ renderer, onSound, seed = 1 }) {
     },
 
     dispose() {
+      crowd();
       controls.dispose();
       hud.dispose();
     },

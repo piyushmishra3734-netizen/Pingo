@@ -35,6 +35,15 @@ Other machines, stools, plants
 Carpet texture
   Carpet 012 from ambientCG - CC0 - https://ambientcg.com/view?id=Carpet012
 
+Game sounds
+  Impact Sounds, Interface Sounds, Digital Audio and Music Jingles by Kenney - CC0 - https://kenney.nl
+  "racing car engine sound loops" - CC0 - https://opengameart.org/content/racing-car-engine-sound-loops
+  "100 CC0 SFX" - CC0 - https://opengameart.org/content/100-cc0-sfx
+  "Free Crowd Cheering Sounds" by Gregor Quendel - CC BY 4.0
+  https://opengameart.org/content/free-crowd-cheering-sounds
+  https://creativecommons.org/licenses/by/4.0/
+  Adapted: cut short, faded, converted to mono mp3.
+
 Arcade floor sound
   "Tokyo - arcade center floor 1_CsG.wav" by csaszi - CC0
   https://freesound.org/people/csaszi/sounds/481770/

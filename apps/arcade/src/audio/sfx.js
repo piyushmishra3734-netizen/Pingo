@@ -1,109 +1,152 @@
 /**
- * The arcade's sounds, synthesised - no audio file to fetch or decode.
+ * The arcade's sounds: real recordings (Kenney's audio packs and a few from
+ * OpenGameArt - see public/CREDITS.txt), cut short and saved as small mono
+ * mp3s in public/sounds.
  *
  * ## Unlocking
  *
  * Browsers refuse to make a sound until the page has been touched, and they
- * refuse silently. So the AudioContext is created on the first real gesture -
- * sitting down - and every sound after that has somewhere to play. A sound
- * asked for before that simply does not happen, which is the only thing the
- * browser would have allowed anyway.
+ * refuse silently. So the AudioContext is created on the first real gesture,
+ * and every file is fetched and decoded then - about 300 KB in all. A sound
+ * asked for before its file has arrived simply does not happen.
+ *
+ * ## Variety
+ *
+ * A sound with several takes (`hit-1`, `hit-2`, ...) plays a random one, a
+ * few percent off pitch: the same punch heard ten times in a row is what
+ * makes a game sound cheap.
  */
 
 let context;
+let master;
+
+const TAKES = {
+  hit: 3,
+  'hit-heavy': 3,
+  block: 2,
+  ko: 1,
+  fall: 1,
+  bell: 2,
+  count: 1,
+  star: 1,
+  'star-hit': 1,
+  cheer: 2,
+  coin: 1,
+  door: 1,
+  'step-street': 5,
+  'step-carpet': 5,
+  'race-count': 1,
+  go: 1,
+  boost: 1,
+  spark: 1,
+  lap: 1,
+  click: 1,
+  select: 1,
+  back: 1,
+  confirm: 1,
+  win: 1,
+  lose: 1,
+  chat: 1,
+  bump: 1,
+};
+
+/** Event names the games use, and the recordings (and loudness) each plays. */
+const SOUNDS = {
+  hit: [['hit', 0.9]],
+  'hit-heavy': [['hit-heavy', 1]],
+  block: [['block', 0.8]],
+  ko: [['ko', 1], ['fall', 0.8], ['cheer', 0.7]],
+  down: [['fall', 1], ['cheer', 0.6]],
+  count: [['count', 0.7]],
+  star: [['star', 0.6]],
+  'star-hit': [['hit-heavy', 1], ['star-hit', 0.6], ['cheer', 0.5]],
+  cheer: [['cheer', 0.7]],
+  fight: [['bell', 0.8]],
+  bell: [['bell', 0.8]],
+  door: [['door', 0.5]],
+  go: [['go', 0.7]],
+  'race-count': [['race-count', 0.6]],
+  boost: [['boost', 0.55]],
+  spark: [['spark', 0.4]],
+  lap: [['lap', 0.6]],
+  click: [['click', 0.5]],
+  select: [['select', 0.5]],
+  back: [['back', 0.5]],
+  confirm: [['confirm', 0.6]],
+  win: [['win', 0.6], ['cheer', 0.5]],
+  lose: [['lose', 0.6]],
+  chat: [['chat', 0.5]],
+  bump: [['bump', 0.5]],
+  // The brawler's names.
+  punch: [['hit', 0.8]],
+  kick: [['hit-heavy', 0.9]],
+  over: [['bell', 0.7]],
+};
+
+const buffers = new Map();
+let loading;
+
+function loadAll() {
+  loading ??= Promise.all(
+    Object.entries(TAKES).flatMap(([name, count]) =>
+      Array.from({ length: count }, async (_, i) => {
+        try {
+          const data = await (await fetch(`sounds/${name}-${i + 1}.mp3`)).arrayBuffer();
+          const buffer = await context.decodeAudioData(data);
+          if (!buffers.has(name)) buffers.set(name, []);
+          buffers.get(name).push(buffer);
+        } catch {
+          /* a missing take is a quieter game, not a broken one */
+        }
+      }),
+    ),
+  );
+  return loading;
+}
 
 /** Call from inside a tap or keypress handler. Safe to call every time. */
 export function unlockAudio() {
-  context ??= new AudioContext();
+  if (!context) {
+    context = new AudioContext();
+    master = context.createGain();
+    master.connect(context.destination);
+    void loadAll();
+  }
   if (context.state === 'suspended') void context.resume();
 }
 
-/**
- * The coin drop: two square-wave notes, B5 then E6, the shape every arcade
- * coin sound has had since the 1980s. Half a second, quiet enough not to
- * startle someone on a bus.
- */
+/** Turns every game sound off or on (the speaker button). */
+export function setMuted(muted) {
+  if (master) master.gain.value = muted ? 0 : 1;
+}
+
+function play(name, volume = 1, { rate = 1 } = {}) {
+  const takes = buffers.get(name);
+  if (!context || !takes?.length) return;
+  const source = context.createBufferSource();
+  source.buffer = takes[Math.floor(Math.random() * takes.length)];
+  source.playbackRate.value = rate * (0.95 + Math.random() * 0.1);
+  const gain = context.createGain();
+  gain.gain.value = volume;
+  source.connect(gain).connect(master);
+  source.start();
+}
+
+/** A game event's sound, by name. Unknown names are silent. */
+export function playSound(name) {
+  for (const [take, volume] of SOUNDS[name] ?? []) play(take, volume);
+}
+
+/** The coin drop, when a friend arrives. */
 export function playCoin() {
-  if (!context) return;
-  const t = context.currentTime;
-
-  const oscillator = context.createOscillator();
-  oscillator.type = 'square';
-  oscillator.frequency.setValueAtTime(987.77, t); // B5
-  oscillator.frequency.setValueAtTime(1318.51, t + 0.08); // E6
-
-  const gain = context.createGain();
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(0.16, t + 0.01);
-  gain.gain.setValueAtTime(0.16, t + 0.08);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start(t);
-  oscillator.stop(t + 0.52);
+  play('coin', 0.7);
 }
 
-let noise;
-
-/** 0.4 s of white noise, made once: the raw material of every hit. */
-function noiseBuffer() {
-  if (!noise) {
-    noise = context.createBuffer(1, Math.floor(context.sampleRate * 0.4), context.sampleRate);
-    const data = noise.getChannelData(0);
-    for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
-  }
-  return noise;
-}
-
-/** Noise through a band-pass: low and long is a thud, high and short a tap. */
-function burst(frequency, seconds, peak) {
-  const t = context.currentTime;
-  const source = context.createBufferSource();
-  source.buffer = noiseBuffer();
-  const filter = context.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = frequency;
-  filter.Q.value = 0.8;
-  const gain = context.createGain();
-  gain.gain.setValueAtTime(peak, t);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
-  source.connect(filter).connect(gain).connect(context.destination);
-  source.start(t);
-  source.stop(t + seconds + 0.02);
-}
-
-/** A crowd roar: looped noise, low and wide, swelling up and dying away. */
-function crowd(seconds, peak) {
-  const t = context.currentTime;
-  const source = context.createBufferSource();
-  source.buffer = noiseBuffer();
-  source.loop = true;
-  const filter = context.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = 900;
-  filter.Q.value = 0.4;
-  const gain = context.createGain();
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(peak, t + 0.25);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
-  source.connect(filter).connect(gain).connect(context.destination);
-  source.start(t);
-  source.stop(t + seconds + 0.05);
-}
-
-/** A pitch sweep - a thump going down, a flourish going up. */
-function sweep(from, to, seconds, peak, type = 'square') {
-  const t = context.currentTime;
-  const oscillator = context.createOscillator();
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(from, t);
-  oscillator.frequency.exponentialRampToValueAtTime(to, t + seconds);
-  const gain = context.createGain();
-  gain.gain.setValueAtTime(peak, t);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start(t);
-  oscillator.stop(t + seconds + 0.02);
+let stepIndoors = false;
+/** A footfall; `indoors` swaps pavement for carpet. */
+export function playStep(indoors = stepIndoors) {
+  stepIndoors = indoors;
+  play(indoors ? 'step-carpet' : 'step-street', indoors ? 0.25 : 0.35);
 }
 
 /*
@@ -120,7 +163,7 @@ export async function startAmbience(url) {
   ambience.gain.gain.value = 0;
   ambience.filter.type = 'lowpass';
   ambience.filter.frequency.value = 700;
-  ambience.filter.connect(ambience.gain).connect(context.destination);
+  ambience.filter.connect(ambience.gain).connect(master);
   try {
     const buffer = await context.decodeAudioData(await (await fetch(url)).arrayBuffer());
     const source = context.createBufferSource();
@@ -144,83 +187,67 @@ export function setAmbience(level, muffled) {
   ambience.filter.frequency.setTargetAtTime(muffled ? 700 : 16000, t, 0.35);
 }
 
-/** A soft footfall: a short low thud, quieter than anything a game says. */
-export function playStep() {
-  if (!context) return;
-  burst(150 + Math.random() * 40, 0.07, 0.07);
-}
-
 /**
- * The brawler's sounds, by the event names bout.js emits. Synthesised like
- * the coin: nothing to download, and a hit is heard the step it lands.
+ * A looping recording under a game - the crowd round the ring. Returns a stop
+ * function.
  */
-export function playSound(name) {
-  if (!context) return;
-  if (name === 'hit') burst(1100, 0.08, 0.3);
-  else if (name === 'hit-heavy') {
-    burst(700, 0.14, 0.4);
-    sweep(140, 60, 0.12, 0.25, 'sine');
-  } else if (name === 'block') burst(2600, 0.05, 0.15);
-  else if (name === 'ko') sweep(520, 90, 0.7, 0.18);
-  else if (name === 'fight' || name === 'bell') {
-    sweep(1320, 1250, 0.9, 0.14, 'triangle');
-    sweep(2640, 2500, 0.5, 0.05, 'sine');
-  } else if (name === 'star-hit') {
-    burst(500, 0.25, 0.5);
-    sweep(180, 40, 0.3, 0.35, 'sine');
-    crowd(1.4, 0.22);
-  } else if (name === 'down') {
-    sweep(120, 45, 0.35, 0.35, 'sine');
-    crowd(1.8, 0.25);
-  } else if (name === 'count') sweep(900, 880, 0.12, 0.09, 'square');
-  else if (name === 'star') {
-    sweep(880, 1760, 0.15, 0.08, 'triangle');
-    setTimeout(() => sweep(1320, 2640, 0.2, 0.07, 'triangle'), 90);
-  } else if (name === 'cheer') crowd(1.6, 0.2);
-  else if (name === 'go') sweep(1760, 1700, 0.45, 0.12, 'square');
-  else if (name === 'boost') {
-    burst(1800, 0.35, 0.18);
-    sweep(220, 660, 0.3, 0.1, 'sawtooth');
-  } else if (name === 'spark') sweep(1400, 2400, 0.08, 0.05, 'triangle');
-  else if (name === 'lap') {
-    sweep(1046, 1046, 0.1, 0.08, 'square');
-    setTimeout(() => sweep(1568, 1568, 0.18, 0.08, 'square'), 110);
-  } else if (name === 'door') burst(450, 0.4, 0.1);
+export function startLoop(url, volume = 0.25) {
+  if (!context) return () => {};
+  const gain = context.createGain();
+  gain.gain.value = 0;
+  gain.connect(master);
+  let source;
+  let stopped = false;
+  void fetch(url)
+    .then((response) => response.arrayBuffer())
+    .then((data) => context.decodeAudioData(data))
+    .then((buffer) => {
+      if (stopped) return;
+      source = context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(gain);
+      source.start();
+      gain.gain.setTargetAtTime(volume, context.currentTime, 0.6);
+    })
+    .catch(() => {});
+  return () => {
+    stopped = true;
+    gain.gain.setTargetAtTime(0, context.currentTime, 0.2);
+    source?.stop(context.currentTime + 0.8);
+  };
 }
 
 /**
- * A kart engine: two detuned sawtooths through a low-pass, pitched by speed.
+ * A kart engine: a recorded engine loop, pitched and swelled by speed.
  * `set(0..1, boosting)` every frame; `stop()` when the race closes.
  */
 export function createEngine() {
   if (!context) return { set() {}, stop() {} };
-  const t = context.currentTime;
-  const filter = context.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = 900;
   const gain = context.createGain();
   gain.gain.value = 0;
-  const oscillators = [0, 7].map((detune) => {
-    const o = context.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = 60;
-    o.detune.value = detune * 10;
-    o.connect(filter);
-    o.start(t);
-    return o;
-  });
-  filter.connect(gain).connect(context.destination);
+  gain.connect(master);
+  let source;
+  void fetch('sounds/engine-loop.mp3')
+    .then((response) => response.arrayBuffer())
+    .then((data) => context.decodeAudioData(data))
+    .then((buffer) => {
+      source = context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(gain);
+      source.start();
+    })
+    .catch(() => {});
   return {
     set(speed, boosting) {
       const now = context.currentTime;
-      const pitch = 55 + speed * 120 + (boosting ? 40 : 0);
-      for (const o of oscillators) o.frequency.setTargetAtTime(pitch, now, 0.08);
-      gain.gain.setTargetAtTime(speed > 0.01 ? 0.035 + speed * 0.03 : 0, now, 0.1);
-      filter.frequency.setTargetAtTime(600 + speed * 1400, now, 0.1);
+      source?.playbackRate.setTargetAtTime(0.55 + speed * 0.9 + (boosting ? 0.25 : 0), now, 0.08);
+      gain.gain.setTargetAtTime(speed > 0.01 ? 0.12 + speed * 0.18 : 0.05, now, 0.1);
     },
     stop() {
       gain.gain.setTargetAtTime(0, context.currentTime, 0.05);
-      for (const o of oscillators) o.stop(context.currentTime + 0.3);
+      source?.stop(context.currentTime + 0.3);
     },
   };
 }
