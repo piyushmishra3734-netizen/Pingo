@@ -20,6 +20,8 @@ export const IN = { LEFT: 1, RIGHT: 2, BRAKE: 4, DRIFT: 8 };
 const DT = 1 / 60;
 export const COUNTDOWN = 180;
 export const FINISH_HOLD = 150;
+/** With two players, how long the race waits for the second after the first crosses the line. */
+export const WAIT_FOR_SECOND = 900;
 
 const TOP_SPEED = 26;
 const ACCEL = 13;
@@ -78,8 +80,9 @@ function kart(point, [back, across], index) {
 /**
  * @param {{ layout: string, laps?: number, pads?: number[] }} track
  * @param {number} [count] karts in the race
+ * @param {number} [humans] how many of them, from kart 0, are players
  */
-export function createRace(track, count = 4) {
+export function createRace(track, count = 4, humans = 1) {
   const built = buildTrack(track.layout);
   const { points } = built;
   // The grid sits on the start tile, a little after the line.
@@ -96,6 +99,7 @@ export function createRace(track, count = 4) {
     t: 0,
     time: 0,
     karts,
+    humans,
     events: [],
   };
 }
@@ -334,7 +338,10 @@ export function stepRace(race, inputs) {
   interact(race);
   rank(race);
 
-  if (race.phase === 'race' && race.karts[0].finished) {
+  // Over when every player is home - or, with two, a while after the first is.
+  const players = race.karts.slice(0, race.humans);
+  const first = Math.min(...players.map((k) => k.finished || Infinity));
+  if (race.phase === 'race' && (players.every((k) => k.finished) || race.time - first >= WAIT_FOR_SECOND)) {
     race.phase = 'finished';
     race.t = 0;
   }

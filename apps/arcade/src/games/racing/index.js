@@ -1,5 +1,6 @@
 import { createControls } from '../controls.js';
 import { stepsFor, STEP_MS } from '../game-host.js';
+import { createLockstep, hashNumbers } from '../lockstep.js';
 import { createRacingCpu } from './cpu.js';
 import { MEDALS, clock, createHud } from './hud.js';
 import { FINISH_HOLD, IN, createRace, stepRace } from './race.js';
@@ -10,7 +11,12 @@ import { TRACKS } from './track.js';
  * Kart racing against three computers, full screen in 3D, drawn with the
  * arcade's renderer while the arcade is paused - like boxing.
  *
- * @param {{ renderer: import('three').WebGLRenderer, onSound?: (name: string) => void, engine?: { set: (speed: number, boost: boolean) => void, stop: () => void }, seed?: number }} options
+ * Against a friend (`online`) it is you and them in karts 0 and 1 plus two
+ * computers, run in lockstep (../lockstep.js): both phones step the same race
+ * with the same inputs, and the computers draw from the same seed. Each
+ * rematch moves on to the next track.
+ *
+ * @param {{ renderer: import('three').WebGLRenderer, onSound?: (name: string) => void, engine?: { set: (speed: number, boost: boolean) => void, stop: () => void }, seed?: number, online?: { side: 0 | 1, seed: number, net: any, names: [string, string], exit?: () => void } }} options
  */
 
 const KEYS = {
@@ -59,7 +65,7 @@ function saveProgress(progress) {
   }
 }
 
-export function createRacing({ renderer, onSound, engine, seed = 1 }) {
+export function createRacing({ renderer, onSound, engine, seed = 1, online }) {
   const view = createRacingScene();
   const hud = createHud();
   const controls = createControls({ keys: KEYS, pad: PAD });
@@ -69,6 +75,13 @@ export function createRacing({ renderer, onSound, engine, seed = 1 }) {
   let drivers = [];
   let stage = 'menu';
   let done = false;
+  /** Which kart is you. */
+  const you = online?.side ?? 0;
+  let lock;
+  let rounds = 0;
+  const wants = [false, false];
+  const offs = [];
+  let rematchCard;
 
   let last = 0;
   let accumulator = 0;
@@ -139,7 +152,7 @@ export function createRacing({ renderer, onSound, engine, seed = 1 }) {
   function react(event) {
     if (event.type === 'count') onSound?.('race-count');
     else if (event.type === 'go') onSound?.('go');
-    if (event.kart !== 0) return;
+    if (event.kart !== you) return;
     switch (event.type) {
       case 'turbo':
         hud.pop(TURBO[event.level], TURBO_COLOR[event.level]);
@@ -173,7 +186,92 @@ export function createRacing({ renderer, onSound, engine, seed = 1 }) {
     }
   }
 
-  const ready = view.ready.then(() => pick(trackIndex)).then(menu);
+  /** Karts 0 and 1 are the two players online; the rest are the computer rivals. */
+  const nameOf = (index) => (online ? (index < 2 ? online.names[index] : RIVALS[index - 2]) : RIVALS[index - 1]);
+
+  /** One step with every kart's input; true once the race is over. */
+  function stepOnce(inputs) {
+    if (stage !== 'race') return true;
+    stepRace(race, inputs);
+    race.events.forEach(react);
+    if (race.phase === 'finished' && !done && race.t >= FINISH_HOLD) {
+      done = true;
+      if (online) resultsOnline();
+      else results();
+      return true;
+    }
+    return false;
+  }
+
+  async function startOnline() {
+    lock?.dispose();
+    lock = undefined;
+    stage = 'menu';
+    wants[0] = false;
+    wants[1] = false;
+    trackIndex = (online.seed + rounds) % TRACKS.length;
+    const track = TRACKS[trackIndex];
+    race = createRace(track, 4, 2);
+    await view.build(race, 7 + trackIndex);
+    const roundSeed = (online.seed + rounds * 7919) >>> 0;
+    drivers = race.karts.map((_, i) => (i < 2 ? null : createRacingCpu({ pace: track.pace * [1, 1.02][i - 2], drift: 0.45 + 0.15 * i, lane: [-2.5, 2.5][i - 2], seed: roundSeed + i })));
+    done = false;
+    lock = createLockstep({
+      net: online.net,
+      side: you,
+      step: ([a, b]) => stepOnce([a, b, drivers[2].think(race, 2), drivers[3].think(race, 3)]),
+      hash: () => hashNumbers(race.karts.flatMap((k) => [k.x, k.z, k.speed])),
+      onDesync: (step) => console.error('racing desync at step', step),
+    });
+    hud.closeMenu();
+    hud.pop(`vs ${online.names[1 - you]} · ${track.name}`, '#ffd84a');
+    setPad(true);
+    stage = 'race';
+  }
+
+  function resultsOnline() {
+    stage = 'menu';
+    setPad(false);
+    engine?.set(0, false);
+    const me = race.karts[you];
+    const them = online.names[1 - you];
+    const won = me.place < race.karts[1 - you].place;
+    const title = me.place === 1 ? '🏆 1st PLACE!' : `${me.place}${['', 'st', 'nd', 'rd', 'th'][me.place]} place`;
+    const standings = [...race.karts]
+      .sort((a, b) => a.place - b.place)
+      .map((k) => [`${k.place}. ${k.index === you ? 'YOU' : nameOf(k.index)}`, k.finished ? clock(k.finished) : '—', k.index === you]);
+    rematchCard = (line) =>
+      hud.showResults(title, [line], standings, [
+        [wants[you] ? `Waiting for ${them}…` : `Rematch: ${TRACKS[(online.seed + rounds + 1) % TRACKS.length].name} ▶`, requestRematch, true],
+        ['Back to the arcade', () => online.exit?.()],
+      ]);
+    rematchCard(won ? `You beat ${them}! 🎉` : `${them} beat you - get them back`);
+    onSound?.(won ? 'win' : 'lose');
+  }
+
+  function requestRematch() {
+    if (wants[you]) return;
+    wants[you] = true;
+    online.net.send({ type: 'g-rematch' });
+    if (wants[1 - you]) {
+      rounds += 1;
+      void startOnline();
+    } else rematchCard?.('Rematch asked…');
+  }
+
+  if (online) {
+    offs.push(
+      online.net.on('g-rematch', () => {
+        wants[1 - you] = true;
+        if (wants[you]) {
+          rounds += 1;
+          void startOnline();
+        } else if (stage === 'menu') rematchCard?.(`${online.names[1 - you]} wants a rematch!`);
+      }),
+    );
+  }
+
+  const ready = online ? view.ready.then(startOnline) : view.ready.then(() => pick(trackIndex)).then(menu);
 
   return {
     is3d: true,
@@ -192,21 +290,17 @@ export function createRacing({ renderer, onSound, engine, seed = 1 }) {
       const next = stepsFor(accumulator, elapsed);
       accumulator = next.accumulator;
       if (stage === 'race') {
-        for (let i = 0; i < next.steps; i += 1) {
-          const inputs = race.karts.map((_, k) => (k === 0 ? controls.read() : drivers[k].think(race, k)));
-          stepRace(race, inputs);
-          race.events.forEach(react);
-          if (race.phase === 'finished' && !done && race.t >= FINISH_HOLD) {
-            done = true;
-            results();
-            break;
+        if (online) lock.advance(next.steps, controls.read());
+        else {
+          for (let i = 0; i < next.steps; i += 1) {
+            if (stepOnce(race.karts.map((_, k) => (k === 0 ? controls.read() : drivers[k].think(race, k))))) break;
           }
         }
-        const you = race.karts[0];
-        engine?.set(you.speed / 26, you.boost > 0);
+        const mine = race.karts[you];
+        engine?.set(mine.speed / 26, mine.boost > 0);
       }
-      view.update(race, Math.min(elapsed, STEP_MS * 5) / 1000);
-      hud.update(race);
+      view.update(race, Math.min(elapsed, STEP_MS * 5) / 1000, you);
+      hud.update(race, you);
       renderer.render(view.scene, view.camera);
     },
 
@@ -220,6 +314,8 @@ export function createRacing({ renderer, onSound, engine, seed = 1 }) {
     },
 
     dispose() {
+      lock?.dispose();
+      offs.forEach((off) => off());
       engine?.stop();
       controls.dispose();
       hud.dispose();

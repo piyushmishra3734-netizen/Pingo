@@ -65,3 +65,34 @@ test('two ends of a lossy link play exactly the same match', () => {
   for (let i = 0; i < n; i += 1) assert.equal(history[0][i], history[1][i], `diverged at step ${i}`);
   assert.ok(matches[0].boxers.some((b) => b.health < 1000), 'punches landed');
 });
+
+test('two ends of a lossy link drive exactly the same kart race', async () => {
+  const { createRacingCpu } = await import('../src/games/racing/cpu.js');
+  const race = await import('../src/games/racing/race.js');
+  const { TRACKS } = await import('../src/games/racing/track.js');
+  const link = pair({ loss: 0.25, lag: 4 });
+  const races = [0, 1].map(() => race.createRace(TRACKS[1], 4, 2));
+  const cpus = [0, 1].map(() => [2, 3].map((i) => createRacingCpu({ pace: TRACKS[1].pace, lane: i === 2 ? -2.5 : 2.5, seed: 99 + i })));
+  const history = [[], []];
+  const locks = [0, 1].map((side) =>
+    createLockstep({
+      net: link.nets[side],
+      side,
+      step([a, b]) {
+        const r = races[side];
+        race.stepRace(r, [a, b, cpus[side][0].think(r, 2), cpus[side][1].think(r, 3)]);
+        history[side].push(r.karts.map((k) => `${k.x},${k.z},${k.speed}`).join('|'));
+      },
+    }),
+  );
+  const R = race.IN.RIGHT;
+  const script = (side, t) => (t % 50 < (side ? 9 : 14) ? R : t % 70 < 12 ? race.IN.LEFT : 0) | (t % 200 < 40 ? race.IN.DRIFT : 0);
+  for (let t = 0; t < 4000; t += 1) {
+    locks.forEach((lock, side) => lock.advance(1, script(side, t)));
+    link.deliver();
+  }
+  const n = Math.min(locks[0].frame, locks[1].frame);
+  assert.ok(n > 2400, `only ${n} steps ran`);
+  for (let i = 0; i < n; i += 1) assert.equal(history[0][i], history[1][i], `diverged at step ${i}`);
+  assert.ok(races[0].karts[0].speed > 0 && races[0].karts[1].x !== races[0].karts[0].x, 'both karts drove');
+});
