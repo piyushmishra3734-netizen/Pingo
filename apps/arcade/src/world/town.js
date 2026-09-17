@@ -164,7 +164,7 @@ function createBuilder() {
  * A house: plaster box, windows in bays, a hip roof with eaves.
  * @param {ReturnType<typeof createBuilder>} b
  */
-function house(b, { x, y = 0, z, w, d, floors = 2, turn = 0, wall = WALLS[0], roof = ROOFS[0] }) {
+function house(b, { x, y = 0, z, w, d, floors = 2, turn = 0, wall = WALLS[0], roof = ROOFS[0], props = 1, seed = 0 }) {
   const h = floors * FLOOR;
   const cos = Math.cos(turn);
   const sin = Math.sin(turn);
@@ -210,6 +210,94 @@ function house(b, { x, y = 0, z, w, d, floors = 2, turn = 0, wall = WALLS[0], ro
   }
   // The underside of the eaves, so the overhang is solid from below.
   b.quad(e[3], e[2], e[1], e[0], dark.clone().multiplyScalar(0.7));
+
+  if (props < 1) return;
+  // A chimney standing out of the roof.
+  const brick = new Color('#9a6450');
+  box(b, at, { cx: (alongX ? ridge * 0.6 : 0.6) * (seed % 2 ? 1 : -1), cy: h + rise * 0.55, cz: alongX ? 0.5 : ridge * 0.4, sx: 0.35, sy: rise * 0.75 + 0.6, sz: 0.35 }, brick);
+
+  // A balcony on the front at the first floor, on about half the houses: a
+  // slab, an iron rail, and at higher settings flowers spilling over it.
+  if (floors < 2 || seed % 2) return;
+  const bw = Math.min(w * 0.55, 3.2);
+  const deep = 0.85;
+  const floorY = FLOOR - 0.1;
+  const stone = new Color('#e6dccb');
+  box(b, at, { cx: 0, cy: floorY - 0.08, cz: hd + deep / 2, sx: bw / 2, sy: 0.08, sz: deep / 2 }, stone);
+  const iron = new Color('#3b4048');
+  const railY = floorY + 0.9;
+  b.quad(at(-bw / 2, floorY, hd + deep), at(bw / 2, floorY, hd + deep), at(bw / 2, railY, hd + deep), at(-bw / 2, railY, hd + deep), iron);
+  b.quad(at(bw / 2, floorY, hd + deep), at(-bw / 2, floorY, hd + deep), at(-bw / 2, railY, hd + deep), at(bw / 2, railY, hd + deep), iron);
+  if (props < 2) return;
+  const blooms = ['#e58fa8', '#f2c14e', '#f4f1ea', '#b99be0'];
+  for (let i = 0; i < 3; i += 1) {
+    const [fx, fy, fz] = at(-bw / 2 + bw * (0.2 + i * 0.3), railY - 0.1, hd + deep + 0.1);
+    const pot = leaf(leafDetail - 1).clone();
+    pot.scale(0.45, 0.35, 0.3);
+    pot.translate(fx, fy, fz);
+    b.addGeometry(pot, new Color(i % 2 ? '#6a9a55' : blooms[(seed + i) % blooms.length]));
+  }
+}
+
+/** A box from its centre and half-sizes, in a house's local frame (`at`). Top and four sides. */
+function box(b, at, { cx, cy, cz, sx, sy, sz }, colour) {
+  const p = (dx, dy, dz) => at(cx + dx * sx, cy + dy * sy, cz + dz * sz);
+  const side = colour.clone().multiplyScalar(0.88);
+  b.quad(p(-1, 1, 1), p(1, 1, 1), p(1, 1, -1), p(-1, 1, -1), colour);
+  b.quad(p(-1, -1, 1), p(1, -1, 1), p(1, 1, 1), p(-1, 1, 1), side);
+  b.quad(p(1, -1, -1), p(-1, -1, -1), p(-1, 1, -1), p(1, 1, -1), side);
+  b.quad(p(1, -1, 1), p(1, -1, -1), p(1, 1, -1), p(1, 1, 1), colour);
+  b.quad(p(-1, -1, -1), p(-1, -1, 1), p(-1, 1, 1), p(-1, 1, -1), colour);
+}
+
+/** A tuft of flowers: two crossed cards, both faces, in one bloom colour. */
+function flowers(b, { x, y = 0, z, colour = '#e58fa8', size = 0.5 }) {
+  const c = new Color(colour);
+  const stem = new Color('#6f9a55');
+  for (const [dx, dz] of [
+    [size, 0],
+    [0, size],
+  ]) {
+    const a = [x - dx, y, z - dz];
+    const bq = [x + dx, y, z + dz];
+    const tA = [x - dx, y + size * 1.2, z - dz];
+    const tB = [x + dx, y + size * 1.2, z + dz];
+    b.tri(a, bq, tB, [PLAIN, PLAIN, PLAIN], stem);
+    b.tri(a, tB, tA, [PLAIN, PLAIN, PLAIN], c);
+    b.tri(bq, a, tA, [PLAIN, PLAIN, PLAIN], stem);
+    b.tri(bq, tA, tB, [PLAIN, PLAIN, PLAIN], c);
+  }
+}
+
+/** A bench: seat and back, for the promenades. */
+function bench(b, { x, y = 0, z, turn = 0 }) {
+  const cos = Math.cos(turn);
+  const sin = Math.sin(turn);
+  const at = (px, py, pz) => [x + px * cos - pz * sin, y + py, z + px * sin + pz * cos];
+  const wood = new Color('#8a6446');
+  box(b, at, { cx: 0, cy: 0.45, cz: 0, sx: 0.9, sy: 0.05, sz: 0.25 }, wood);
+  box(b, at, { cx: 0, cy: 0.8, cz: -0.24, sx: 0.9, sy: 0.25, sz: 0.04 }, wood);
+  const iron = new Color('#3b4048');
+  box(b, at, { cx: -0.8, cy: 0.22, cz: 0, sx: 0.05, sy: 0.22, sz: 0.2 }, iron);
+  box(b, at, { cx: 0.8, cy: 0.22, cz: 0, sx: 0.05, sy: 0.22, sz: 0.2 }, iron);
+}
+
+/** A railing round part of a circle (a promenade edge): posts and a top rail. */
+function railing(b, { x, y = 0, z, radius, from = 0, to = Math.PI * 2, gaps = () => false }) {
+  const iron = new Color('#3b4048');
+  const steps = Math.max(8, Math.round((radius * (to - from)) / 2));
+  for (let i = 0; i < steps; i += 1) {
+    const a0 = from + ((to - from) * i) / steps;
+    const a1 = from + ((to - from) * (i + 1)) / steps;
+    const p0 = [x + Math.cos(a0) * radius, z + Math.sin(a0) * radius];
+    const p1 = [x + Math.cos(a1) * radius, z + Math.sin(a1) * radius];
+    if (gaps(p0[0], p0[1]) || gaps(p1[0], p1[1])) continue;
+    // Top rail, both faces, and a post.
+    b.quad([p0[0], y + 0.95, p0[1]], [p1[0], y + 0.95, p1[1]], [p1[0], y + 1.05, p1[1]], [p0[0], y + 1.05, p0[1]], iron);
+    b.quad([p1[0], y + 0.95, p1[1]], [p0[0], y + 0.95, p0[1]], [p0[0], y + 1.05, p0[1]], [p1[0], y + 1.05, p1[1]], iron);
+    const at = (px, py, pz) => [p0[0] + px, y + py, p0[1] + pz];
+    box(b, at, { cx: 0, cy: 0.5, cz: 0, sx: 0.04, sy: 0.5, sz: 0.04 }, iron);
+  }
 }
 
 /**
@@ -386,7 +474,7 @@ function railway(b, { curve, gauge = 2.4, sleeperEvery = 2.2, railEvery = 4.5 })
     const bq = offset(f, w, 0.12, -l);
     const c = offset(f, w, 0.12, l);
     const d = offset(f, -w, 0.12, l);
-    b.quad(d, c, bq, a, wood);
+    b.quad(a, bq, c, d, wood);
     b.quad(offset(f, w, 0, -l), offset(f, -w, 0, -l), a, bq, woodDark);
   }
   // Rails: continuous ribbons with a top and two sides.
@@ -412,29 +500,84 @@ function railway(b, { curve, gauge = 2.4, sleeperEvery = 2.2, railEvery = 4.5 })
   return curve;
 }
 
-/**
- * @param {{ houses?: any[], pines?: any[], bushes?: any[], lighthouses?: any[], lamps?: any[], railway?: any }} layout
- * @param {{ windows: number }} palette
- */
-export function createTown(layout, palette, quality = { leaf: 1 }) {
-  leafDetail = quality.leaf;
-  const b = createBuilder();
-  for (const spec of layout.houses ?? []) house(b, spec);
-  for (const spec of layout.pines ?? []) pine(b, spec);
-  for (const spec of layout.bushes ?? []) bush(b, spec);
-  for (const spec of layout.lighthouses ?? []) lighthouse(b, spec);
-  for (const spec of layout.lamps ?? []) lamp(b, spec);
-  if (layout.railway) railway(b, layout.railway);
+/** The one material every building, tree, lamp, tram and the line share. */
+export function townMaterial(palette) {
   const { map, emissive } = bayTexture();
-  const material = new MeshLambertMaterial({
+  return new MeshLambertMaterial({
     map,
     vertexColors: true,
     emissive: new Color('#ffb45c'),
     emissiveMap: emissive,
     emissiveIntensity: palette.windows,
   });
-  const mesh = new Mesh(b.build(), material);
-  mesh.frustumCulled = false;
-  return { mesh };
+}
+
+/**
+ * One place's worth of things - an island's houses, trees and props - as one
+ * mesh, so each island is culled on its own when it is out of view.
+ *
+ * @param {{ houses?: any[], pines?: any[], bushes?: any[], lighthouses?: any[], lamps?: any[], flowers?: any[], benches?: any[], railings?: any[], railway?: any }} layout
+ */
+export function createTown(layout, material, quality = { leaf: 1, props: 1 }) {
+  leafDetail = quality.leaf;
+  const b = createBuilder();
+  for (const spec of layout.houses ?? []) house(b, { ...spec, props: quality.props });
+  for (const spec of layout.pines ?? []) pine(b, spec);
+  for (const spec of layout.bushes ?? []) bush(b, spec);
+  for (const spec of layout.lighthouses ?? []) lighthouse(b, spec);
+  for (const spec of layout.lamps ?? []) lamp(b, spec);
+  for (const spec of layout.flowers ?? []) flowers(b, spec);
+  for (const spec of layout.benches ?? []) bench(b, spec);
+  for (const spec of layout.railings ?? []) railing(b, spec);
+  if (layout.railway) railway(b, layout.railway);
+  const geometry = b.build();
+  geometry.computeBoundingSphere();
+  return new Mesh(geometry, material);
+}
+
+/**
+ * The tram: a wooden driving car and a long green carriage behind it, lit
+ * windows down both sides. Built along +z around its own origin; the world
+ * moves it along the line each frame.
+ */
+export function createTram(material) {
+  const cars = [
+    { length: 5.5, body: '#7a5238', roof: '#4e3526' },
+    { length: 10, body: '#2f7a6e', roof: '#23574f' },
+  ];
+  return cars.map(({ length, body, roof }) => {
+    const b = createBuilder();
+    const at = (px, py, pz) => [px, py, pz];
+    const hw = 1.35;
+    const hl = length / 2;
+    const base = 0.7;
+    const top = 3.3;
+    const wall = new Color(body);
+    const uFloors = 1;
+    const bays = Math.max(2, Math.round(length / 1.6));
+    const side = (ax, az, bx, bz, count, colour) =>
+      b.quad(at(ax, base, az), at(bx, base, bz), at(bx, top, bz), at(ax, top, az), colour, [
+        [0, 0],
+        [count, 0],
+        [count, uFloors],
+        [0, uFloors],
+      ]);
+    side(-hw, hl, hw, hl, 1, wall);
+    side(hw, hl, hw, -hl, bays, wall.clone().multiplyScalar(0.92));
+    side(hw, -hl, -hw, -hl, 1, wall);
+    side(-hw, -hl, -hw, hl, bays, wall.clone().multiplyScalar(0.92));
+    const r = new Color(roof);
+    // A roof with a gentle camber and a little overhang.
+    b.quad(at(-hw - 0.15, top, hl + 0.2), at(0, top + 0.45, hl + 0.2), at(0, top + 0.45, -hl - 0.2), at(-hw - 0.15, top, -hl - 0.2), r);
+    b.quad(at(0, top + 0.45, hl + 0.2), at(hw + 0.15, top, hl + 0.2), at(hw + 0.15, top, -hl - 0.2), at(0, top + 0.45, -hl - 0.2), r);
+    b.quad(at(-hw - 0.15, top, -hl - 0.2), at(hw + 0.15, top, -hl - 0.2), at(hw + 0.15, top, hl + 0.2), at(-hw - 0.15, top, hl + 0.2), r.clone().multiplyScalar(0.6));
+    // Undercarriage.
+    box(b, at, { cx: 0, cy: 0.45, cz: 0, sx: hw * 0.8, sy: 0.3, sz: hl * 0.85 }, new Color('#2f3238'));
+    const geometry = b.build();
+    geometry.computeBoundingSphere();
+    const mesh = new Mesh(geometry, material);
+    mesh.userData.length = length;
+    return mesh;
+  });
 }
 

@@ -8,7 +8,8 @@ import { createClouds } from './clouds.js';
 import { createIslands } from './islands.js';
 import { paletteFor } from './palette.js';
 import { createSky } from './sky.js';
-import { ROOFS, WALLS, createTown } from './town.js';
+import { createSparkles } from './sparkles.js';
+import { ROOFS, WALLS, createTown, createTram, townMaterial } from './town.js';
 
 /**
  * The world above the clouds.
@@ -124,6 +125,7 @@ function scatter({ x, y, z, count, spread, seed, minD = 0, stretch = 1, avoid = 
 const pineAt = (px, py, pz, r) => ({ x: px, y: py, z: pz, height: 5.5 + r() * 3.5, lean: r() * 0.8, seed: Math.floor(r() * 100) });
 
 function layout(avoidLine, quality, curve) {
+  const many = (n) => Math.max(1, Math.round(n * quality.trees));
   // The corridor the camera looks down from the spawn stays open.
   const view = (px, pz) => pz > 6 && Math.abs(px) < 12;
   const offPlaza = (px, pz) => Math.hypot(px, pz - 2) < 14 || avoidLine(px, pz) || view(px, pz);
@@ -138,18 +140,18 @@ function layout(avoidLine, quality, curve) {
   ];
   const clear = (px, pz) => houses.some((h) => Math.hypot(h.x - px, h.z - pz) < 4.5);
   const pines = [
-    ...scatter({ x: 0, y: 0, z: 0, count: 10, spread: 25, minD: 16, seed: 201, avoid: (px, pz) => avoidLine(px, pz) || view(px, pz) || clear(px, pz) }, pineAt),
-    ...scatter({ x: TOWN.x, y: TOWN.y, z: TOWN.z, count: 18, spread: TOWN.radius * 0.95, stretch: TOWN.stretch, seed: 202, avoid: (px, pz) => avoidLine(px, pz) || onTerrace(px, pz) || clear(px, pz) }, pineAt),
-    ...scatter({ x: TERRACE.x, y: TERRACE.y, z: TERRACE.z, count: 3, spread: TERRACE.radius * 0.8, seed: 207, avoid: clear }, pineAt),
-    ...scatter({ x: GARDEN.x, y: GARDEN.y, z: GARDEN.z, count: 8, spread: GARDEN.radius * 0.8, seed: 203, avoid: avoidLine }, pineAt),
-    ...scatter({ x: BEACON.x, y: BEACON.y, z: BEACON.z, count: 8, spread: BEACON.radius * 0.9, seed: 204, avoid: (px, pz) => avoidLine(px, pz) || clear(px, pz) }, pineAt),
-    ...scatter({ x: VILLAGE.x, y: VILLAGE.y, z: VILLAGE.z, count: 7, spread: VILLAGE.radius * 0.9, seed: 208, avoid: clear }, pineAt),
-    ...scatter({ x: ISLES[1].x, y: ISLES[1].y, z: ISLES[1].z, count: 5, spread: 9, seed: 205 }, pineAt),
+    ...scatter({ x: 0, y: 0, z: 0, count: many(10), spread: 25, minD: 16, seed: 201, avoid: (px, pz) => avoidLine(px, pz) || view(px, pz) || clear(px, pz) }, pineAt),
+    ...scatter({ x: TOWN.x, y: TOWN.y, z: TOWN.z, count: many(18), spread: TOWN.radius * 0.95, stretch: TOWN.stretch, seed: 202, avoid: (px, pz) => avoidLine(px, pz) || onTerrace(px, pz) || clear(px, pz) }, pineAt),
+    ...scatter({ x: TERRACE.x, y: TERRACE.y, z: TERRACE.z, count: many(3), spread: TERRACE.radius * 0.8, seed: 207, avoid: clear }, pineAt),
+    ...scatter({ x: GARDEN.x, y: GARDEN.y, z: GARDEN.z, count: many(8), spread: GARDEN.radius * 0.8, seed: 203, avoid: avoidLine }, pineAt),
+    ...scatter({ x: BEACON.x, y: BEACON.y, z: BEACON.z, count: many(8), spread: BEACON.radius * 0.9, seed: 204, avoid: (px, pz) => avoidLine(px, pz) || clear(px, pz) }, pineAt),
+    ...scatter({ x: VILLAGE.x, y: VILLAGE.y, z: VILLAGE.z, count: many(7), spread: VILLAGE.radius * 0.9, seed: 208, avoid: clear }, pineAt),
+    ...scatter({ x: ISLES[1].x, y: ISLES[1].y, z: ISLES[1].z, count: many(5), spread: 9, seed: 205 }, pineAt),
   ];
   const bushes = [
-    ...scatter({ x: 0, y: 0, z: 2, count: 18, spread: 17, minD: 13, seed: 301, avoid: (px, pz) => avoidLine(px, pz) || (pz > 12 && Math.abs(px) < 5) }, (px, py, pz, r) => ({ x: px, y: py, z: pz, size: 0.6 + r() * 0.6, colour: r() > 0.7 ? '#8fb86a' : '#6a9a55' })),
-    ...scatter({ x: GARDEN.x, y: GARDEN.y, z: GARDEN.z, count: 16, spread: GARDEN.radius * 0.9, seed: 302 }, (px, py, pz, r) => ({ x: px, y: py, z: pz, size: 0.8 + r(), colour: r() > 0.6 ? '#b8c77a' : '#7aa85e' })),
-    ...scatter({ x: ISLES[1].x, y: ISLES[1].y, z: ISLES[1].z, count: 8, spread: 10, seed: 303 }, (px, py, pz, r) => ({ x: px, y: py, z: pz, size: 0.8 + r() * 0.8 })),
+    ...scatter({ x: 0, y: 0, z: 2, count: many(18), spread: 17, minD: 13, seed: 301, avoid: (px, pz) => avoidLine(px, pz) || (pz > 12 && Math.abs(px) < 5) }, (px, py, pz, r) => ({ x: px, y: py, z: pz, size: 0.6 + r() * 0.6, colour: r() > 0.7 ? '#8fb86a' : '#6a9a55' })),
+    ...scatter({ x: GARDEN.x, y: GARDEN.y, z: GARDEN.z, count: many(16), spread: GARDEN.radius * 0.9, seed: 302 }, (px, py, pz, r) => ({ x: px, y: py, z: pz, size: 0.8 + r(), colour: r() > 0.6 ? '#b8c77a' : '#7aa85e' })),
+    ...scatter({ x: ISLES[1].x, y: ISLES[1].y, z: ISLES[1].z, count: many(8), spread: 10, seed: 303 }, (px, py, pz, r) => ({ x: px, y: py, z: pz, size: 0.8 + r() * 0.8 })),
   ];
   // Lamps round the home plaza, and beside the line wherever it crosses a paved island.
   const lamps = Array.from({ length: 8 }, (_, i) => {
@@ -165,14 +167,71 @@ function layout(avoidLine, quality, curve) {
     const side = curve.getTangentAt(t).cross(new Vector3(0, 1, 0)).normalize();
     lamps.push({ x: p.x + side.x * 3.6, y: island.y, z: p.z + side.z * 3.6 });
   }
+  // Props that only show at higher settings: flowers in the grass rims and
+  // gardens, benches and railings along the promenades.
+  const blooms = ['#e58fa8', '#f2c14e', '#f4f1ea', '#b99be0', '#f08a6b'];
+  const bloom = (px, py, pz, r) => ({ x: px, y: py, z: pz, colour: blooms[Math.floor(r() * blooms.length)], size: 0.35 + r() * 0.3 });
+  const flowerCount = [0, 0, 1, 2.5][quality.props] ?? 0;
+  const flowers = flowerCount
+    ? [
+        ...scatter({ x: 0, y: 0, z: 0, count: Math.round(70 * flowerCount), spread: 27, minD: 25, seed: 501, avoid: avoidLine }, bloom),
+        ...scatter({ x: GARDEN.x, y: GARDEN.y, z: GARDEN.z, count: Math.round(90 * flowerCount), spread: GARDEN.radius * 0.95, seed: 502, avoid: avoidLine }, bloom),
+        ...scatter({ x: TOWN.x, y: TOWN.y, z: TOWN.z, count: Math.round(90 * flowerCount), spread: TOWN.radius * 0.99, minD: TOWN.radius * 0.9, stretch: TOWN.stretch, seed: 503, avoid: avoidLine }, bloom),
+        ...scatter({ x: BEACON.x, y: BEACON.y, z: BEACON.z, count: Math.round(50 * flowerCount), spread: BEACON.radius * 0.99, minD: BEACON.radius * 0.9, seed: 504, avoid: avoidLine }, bloom),
+        ...scatter({ x: VILLAGE.x, y: VILLAGE.y, z: VILLAGE.z, count: Math.round(40 * flowerCount), spread: VILLAGE.radius * 0.99, minD: VILLAGE.radius * 0.9, seed: 505, avoid: avoidLine }, bloom),
+      ]
+    : [];
+  const benches =
+    quality.props >= 2
+      ? Array.from({ length: 6 }, (_, i) => {
+          const a = (i / 6) * Math.PI * 2 + 0.5;
+          return { x: Math.cos(a) * 9, y: 0, z: 2 + Math.sin(a) * 9, turn: -a - Math.PI / 2 };
+        }).filter((bn) => !avoidLine(bn.x, bn.z) && !view(bn.x, bn.z))
+      : [];
+  const railings =
+    quality.props >= 2
+      ? [
+          { x: 0, y: 0, z: 0, radius: 24, gaps: (px, pz) => avoidLine(px, pz) },
+          { x: BEACON.x, y: BEACON.y, z: BEACON.z, radius: BEACON.radius * 0.86, gaps: (px, pz) => avoidLine(px, pz) },
+          { x: VILLAGE.x, y: VILLAGE.y, z: VILLAGE.z, radius: VILLAGE.radius * 0.86, gaps: (px, pz) => avoidLine(px, pz) },
+        ]
+      : [];
   return {
     houses,
     pines,
     bushes,
     lighthouses: [{ x: BEACON.x - 12, y: BEACON.y, z: BEACON.z - 12, height: 26 }],
     lamps,
+    flowers,
+    benches,
+    railings,
     railway: { curve, sleeperEvery: quality.sleeperEvery },
   };
+}
+
+/**
+ * Splits a layout by island, so each island's town is its own mesh and is
+ * culled when it is out of view. Everything goes to the island it stands on
+ * (the nearest by edge distance); the line is a mesh of its own.
+ */
+function byPlace(everything, places) {
+  const groups = places.map(() => ({ houses: [], pines: [], bushes: [], lighthouses: [], lamps: [], flowers: [], benches: [], railings: [] }));
+  for (const [kind, list] of Object.entries(everything)) {
+    if (kind === 'railway') continue;
+    for (const item of list) {
+      let best = 0;
+      let bestD = Infinity;
+      places.forEach((s, i) => {
+        const d = Math.hypot((item.x - s.x) / (s.stretch ?? 1), item.z - s.z) - s.radius + Math.abs(item.y - s.y) * 2;
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      groups[best][kind].push(item);
+    }
+  }
+  return [...groups, { railway: everything.railway }];
 }
 
 /**
@@ -255,8 +314,21 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
   // Nothing is built within 6 m of the line.
   const samples = Array.from({ length: 400 }, (_, i) => curve.getPointAt(i / 400));
   const avoidLine = (px, pz) => samples.some((p) => Math.hypot(px - p.x, pz - p.z) < 6);
-  const town = createTown(layout(avoidLine, quality, curve), palette, quality);
-  group.add(sky.mesh, clouds.sea, clouds.field, islands, town.mesh, clouds.puffs);
+  const material = townMaterial(palette);
+  const towns = byPlace(layout(avoidLine, quality, curve), places).map((part) => createTown(part, material, quality));
+  group.add(sky.mesh, clouds.sea, clouds.field, islands, ...towns, clouds.puffs);
+
+  // The tram, running the loop; it eases to a crawl through the home station.
+  const tram = createTram(material);
+  group.add(...tram);
+  const lineLength = curve.getLength();
+  const station = 0.02;
+  let travelled = 0;
+  let lastSeconds = 0;
+
+  const sparkles = createSparkles(curve, quality.sparkles, 0.25 + palette.stars * 0.75);
+  group.add(sparkles.points);
+  const ahead = new Vector3();
 
   // The PINGO pair stays for now, on the plaza, as the place games are played.
   const cabinetA = createCabinet();
@@ -313,9 +385,26 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
     },
 
     /** Sky and clouds follow the camera and drift. */
-    tick(camera, seconds) {
+    tick(camera, seconds, pixelRatio = 1) {
       sky.update(camera, seconds);
       clouds.update(camera, seconds);
+      sparkles.update(seconds, pixelRatio);
+
+      const dt = Math.min(0.1, seconds - lastSeconds);
+      lastSeconds = seconds;
+      const u = (travelled / lineLength) % 1;
+      const fromStation = Math.min(Math.abs(u - station), 1 - Math.abs(u - station));
+      const speed = 4 + 14 * Math.min(1, fromStation * 25);
+      travelled += speed * Math.max(0, dt);
+      let back = 0;
+      for (const car of tram) {
+        const at = (((travelled - back - car.userData.length / 2) / lineLength) % 1 + 1) % 1;
+        const p = curve.getPointAt(at);
+        curve.getPointAt((at + 0.002) % 1, ahead);
+        car.position.set(p.x, p.y + 0.3, p.z);
+        car.lookAt(ahead.x, ahead.y + 0.3, ahead.z);
+        back += car.userData.length + 0.8;
+      }
     },
   };
 }

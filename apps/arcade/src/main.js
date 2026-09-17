@@ -664,7 +664,7 @@ function frame(now) {
   if (room.update(dt, player.position, now)) playSound('door');
   updateMood();
   room.domes.update(now);
-  room.tick(camera, now / 1000);
+  room.tick(camera, now / 1000, renderer.getPixelRatio());
   renderer.render(scene, camera);
   hud?.update(now);
 }
