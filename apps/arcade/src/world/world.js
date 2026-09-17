@@ -36,8 +36,8 @@ const CAMERA_BEHIND_STOOL = 0.55;
 const HOME = { x: 0, y: -0.02, z: 0, radius: 28, depth: 30, seed: 3, top: 'town', segments: 40, dome: 0 };
 
 /** The places, each on its own island. Tops are at `y`. */
-const TOWN = { x: 96, y: -12, z: -88, radius: 40, depth: 34, stretch: 1.25, seed: 21, top: 'town', segments: 44, dome: 0 };
-const TERRACE = { x: 78, y: -6, z: -104, radius: 15, depth: 6.5, seed: 27, top: 'town', segments: 30, dome: 0 };
+const TOWN = { x: 96, y: -12, z: -88, radius: 40, depth: 27, stretch: 1.25, seed: 21, top: 'town', segments: 44, dome: 0 };
+const TERRACE = { x: 78, y: -6, z: -104, radius: 15, depth: 6.5, cliff: 6.5, seed: 27, top: 'town', segments: 30, dome: 0 };
 const BEACON = { x: 34, y: 20, z: -205, radius: 27, depth: 26, seed: 23, top: 'town', segments: 36, dome: 0 };
 const GARDEN = { x: -98, y: 10, z: -52, radius: 16, depth: 18, seed: 22, top: 'meadow', segments: 30 };
 const VILLAGE = { x: -132, y: -16, z: 84, radius: 23, depth: 24, seed: 26, top: 'town', segments: 34, dome: 0 };
@@ -70,7 +70,8 @@ const LINE = [
   [48, 20.35, -210],
   [14, 20.35, -214],
   [-30, 12, -192],
-  [-72, -4, -140],
+  // A second arc up into the sky on the far side of the loop.
+  [-72, 30, -140],
   [-104, 8, -84],
   [-74, 10, -18],
   [-34, 5, 42],
@@ -255,7 +256,8 @@ function spikes(curve, islands) {
     const p = curve.getPointAt(t);
     const overIsland = islands.some((s) => Math.hypot((p.x - s.x) / (s.stretch ?? 1), p.z - s.z) < s.radius + 8);
     if (overIsland) continue;
-    out.push({ x: p.x, y: p.y - 1.2, z: p.z, radius: 3.2 + (i % 3) * 0.6, depth: 11 + (i % 4) * 2, seed: 400 + i, top: 'meadow', segments: 12, dome: 0.3 });
+    // Well below the deck: the trestle legs (railway.js) reach down to it.
+    out.push({ x: p.x, y: p.y - 6.5, z: p.z, radius: 3.2 + (i % 3) * 0.6, depth: 16 + (i % 4) * 2, seed: 400 + i, top: 'meadow', segments: 12, dome: 0.3 });
   }
   return out;
 }

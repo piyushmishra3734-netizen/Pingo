@@ -659,7 +659,8 @@ function setRiding(on) {
 }
 function rideCamera(dt) {
   const [front, carriage] = room.tram;
-  rideWant.set(-7, 7.5, -17).applyQuaternion(carriage.quaternion).add(carriage.position);
+  // Off to one side and a little behind, so the carriage's windows are in view.
+  rideWant.set(-9, 6, -9).applyQuaternion(carriage.quaternion).add(carriage.position);
   const k = 1 - Math.exp(-dt * 2.5);
   rideEye.lerp(rideWant, k);
   rideLook.lerp(front.position, 1 - Math.exp(-dt * 4)).setY(front.position.y + 1.5);
