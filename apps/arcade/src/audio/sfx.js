@@ -104,14 +104,25 @@ function loadAll() {
   return loading;
 }
 
+function makeContext() {
+  if (context) return;
+  context = new AudioContext();
+  master = context.createGain();
+  master.connect(context.destination);
+  void loadAll();
+}
+
+/**
+ * Makes the (still silent) audio context and fetches the sounds before anyone
+ * moves. Doing it on the first tap froze the first step for half a second.
+ */
+export function prepareAudio() {
+  makeContext();
+}
+
 /** Call from inside a tap or keypress handler. Safe to call every time. */
 export function unlockAudio() {
-  if (!context) {
-    context = new AudioContext();
-    master = context.createGain();
-    master.connect(context.destination);
-    void loadAll();
-  }
+  makeContext();
   if (context.state === 'suspended') void context.resume();
 }
 

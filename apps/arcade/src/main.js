@@ -1,6 +1,6 @@
 import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
-import { createEngine, playCoin, playSound, playStep, setAmbience, setMuted, startAmbience, unlockAudio } from './audio/sfx.js';
+import { createEngine, playCoin, playSound, playStep, prepareAudio, setAmbience, setMuted, startAmbience, unlockAudio } from './audio/sfx.js';
 import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig, createFollow } from './lobby/camera-rig.js';
@@ -646,6 +646,47 @@ function setRunning(visible) {
 }
 document.addEventListener('visibilitychange', () => setRunning(!document.hidden));
 setRunning(true);
+
+/*
+ * Warm the GPU before anyone walks. Three builds a shader the first time a
+ * material is drawn in a given state, and on a phone that is a half-second
+ * freeze - which landed exactly at the door, the moment the shop's inside first
+ * came into view. So the shop is drawn once from the street, the doorway and
+ * inside (the room decides what shows from where), with nothing culled, before
+ * anyone gets there.
+ */
+function warmUp() {
+  const culled = [];
+  scene.traverse((object) => {
+    if (object.frustumCulled) {
+      culled.push(object);
+      object.frustumCulled = false;
+    }
+  });
+  const { x, z } = player.position;
+  try {
+    for (const spot of [{ x: 0, z: room.spawn.z }, { x: 0, z: room.spawn.z - 4 }, { x: 0, z: 1.5 }, { x: 0, z: -4 }]) {
+      room.update(0, spot, performance.now());
+      renderer.render(scene, camera);
+    }
+  } finally {
+    for (const object of culled) object.frustumCulled = true;
+    room.update(0, { x, z }, performance.now());
+    if (window.__arcade) window.__arcade.warm = renderer.info.programs.length;
+  }
+}
+// Parts of the shop settle after `ready` (textures decoding, models streaming
+// in), and a settled material needs its own shader - so warm again a few times
+// while that happens, rather than once too early.
+for (const ms of [1500, 4000, 8000, 15000]) setTimeout(() => void room.ready.then(warmUp), ms);
+setTimeout(() => {
+  prepareAudio();
+  // The floor loop decodes now too, silent until the first tap resumes audio.
+  woken = true;
+  void startAmbience('sounds/arcade-floor.mp3').then(() => {
+    lastMood = undefined;
+  });
+}, 2500);
 
 if (import.meta.env.DEV || params.has('hud')) {
   import('./dev/perf-hud.js').then(({ createPerfHud }) => {
