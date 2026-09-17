@@ -97,8 +97,9 @@ function cluster({ x, y, z, count, spread, seed, stretch = 1, floors = [2, 4], a
     const d = Math.sqrt(r()) * spread;
     const hx = x + Math.cos(a) * d * stretch;
     const hz = z + Math.sin(a) * d;
-    const w = 5 + r() * 3;
-    const dd = 4.5 + r() * 2.5;
+    // Wide fronts, many bays - the film's town is long plaster facades.
+    const w = 6 + r() * 6;
+    const dd = 5 + r() * 3;
     if (avoid(hx, hz)) continue;
     if (houses.some((o) => Math.hypot(o.x - hx, o.z - hz) < (Math.max(o.w, o.d) + Math.max(w, dd)) * 0.55)) continue;
     // Streets: houses square to one another, with a little hand-made slop.
