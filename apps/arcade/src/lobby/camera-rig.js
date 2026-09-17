@@ -31,7 +31,8 @@ export function tweenProgress(now, start, duration) {
  * than locks - an exponential catch-up, frame-rate independent - which also
  * makes standing up a glide from the seat back out to here, for free.
  */
-const STREET = { height: 5.2, back: 6.2, aimHeight: 1.0, aimAhead: 1.5 };
+// Outdoors the world is the star: high, well back, looking out past the player.
+const STREET = { height: 6.8, back: 11.5, aimHeight: 1.6, aimAhead: 6 };
 /** Indoors: over the shoulder at eye height, under the ceiling - the shop at your own scale. */
 const INDOORS = { height: 1.75, back: 2.6, aimHeight: 1.35, aimAhead: 3.0 };
 

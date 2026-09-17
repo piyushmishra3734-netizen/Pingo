@@ -1,39 +1,41 @@
 import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 
-import { createEngine, playCoin, playSound, playStep, prepareAudio, setAmbience, setMuted, startAmbience, unlockAudio } from './audio/sfx.js';
+import { createEngine, playCoin, playSound, playStep, prepareAudio, setAmbience, setMuted, unlockAudio } from './audio/sfx.js';
+import { pickQuality, setQuality } from './core/quality.js';
 import { SIGNAL_URL } from './config.js';
 import { State, createSession } from './core/session.js';
 import { createCameraRig, createFollow } from './lobby/camera-rig.js';
 import { createFriend } from './lobby/friend.js';
 import { createPlayer } from './lobby/player.js';
 import { createVoiceBubble, meterFor } from './lobby/voice-bubble.js';
-import { createRoom } from './lobby/room.js';
 import { screenPose, screenRect } from './lobby/screen-pose.js';
 import { createWalkInput } from './lobby/walk-input.js';
 import { inviteUrl, newRoomId, roomFromSearch, seatFromSearch } from './net/room-id.js';
 import { createOverlay, sendLink } from './ui/overlay.js';
 import { createScreenMenu } from './ui/screen-menu.js';
 import { createSocial } from './ui/social.js';
+import { createWorld } from './world/world.js';
 
 /*
- * The mobile rules, set once here so nothing downstream can drift from them:
- * - no shadow maps; contact shadows are drawn on a canvas at boot instead
- * - pixel ratio capped at 1.2; above that a budget phone's GPU heats up and throttles
- * - no MSAA; at this pixel ratio it costs more than it shows on a phone
+ * Graphics quality (core/quality.js) decides resolution, antialiasing and how
+ * much detail the world is built with - low for development and weak phones,
+ * high and ultra for devices that can show the world at its best. No shadow
+ * maps at any level: contact shading is painted in.
  */
-const MAX_PIXEL_RATIO = 1.2;
+const quality = pickQuality();
 
 const canvas = document.getElementById('stage');
-const renderer = new WebGLRenderer({ canvas, antialias: false });
+const renderer = new WebGLRenderer({ canvas, antialias: quality.antialias });
 renderer.shadowMap.enabled = false;
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatio) * quality.renderScale);
 
+const params = new URLSearchParams(location.search);
 const scene = new Scene();
-scene.background = new Color(0x0d0a14);
-// Past the paving the street fades into the night instead of ending at an edge.
-scene.fog = new Fog(0x0d0a14, 16, 32);
-
-const room = createRoom();
+/** The world above the clouds; `?time=day|dusk|night` picks the hour. */
+const room = createWorld({ time: params.get('time') ?? 'dusk', quality });
+scene.background = room.palette.horizon;
+// Distance softens into the sky's own haze: atmospheric perspective, for free.
+scene.fog = new Fog(room.palette.fog, 90, quality.fogFar);
 scene.add(room.group);
 
 /**
@@ -56,7 +58,7 @@ function fitFov(aspect) {
   return Math.max(BASE_FOV, vertical);
 }
 
-const camera = new PerspectiveCamera(BASE_FOV, 1, 0.05, 80);
+const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 3000);
 /** Seated: glides between seat and screen. Walking: `follow` trails the player. */
 const rig = createCameraRig(camera);
 const follow = createFollow(camera, room.cameraBox);
@@ -77,7 +79,6 @@ scene.add(friend.group);
  * link and in the first message to a friend.
  */
 const NAME_KEY = 'pingo-arcade-name';
-const params = new URLSearchParams(location.search);
 /** Opened inside the PINGO app: your PINGO name, and invites go to PINGO friends, not a link. */
 const inPingo = params.get('embed') === 'pingo' && window.parent !== window;
 let myName = (() => {
@@ -388,6 +389,8 @@ function inviteFriends() {
 const social = createSocial({
   onInvite: inviteFriends,
   onStand: stand,
+  quality: quality.name,
+  onQuality: setQuality,
   ...(inPingo ? { onLeave: () => window.parent.postMessage({ type: 'pingo-arcade:leave' }, '*') } : {}),
   onSend(text) {
     if (!linked) {
@@ -586,9 +589,6 @@ function wake() {
   unlockAudio();
   if (woken) return;
   woken = true;
-  void startAmbience('sounds/arcade-floor.mp3').then(() => {
-    lastMood = undefined;
-  });
 }
 
 /** [level, muffled] for each place you can be. */
@@ -664,6 +664,7 @@ function frame(now) {
   if (room.update(dt, player.position, now)) playSound('door');
   updateMood();
   room.domes.update(now);
+  room.tick(camera, now / 1000);
   renderer.render(scene, camera);
   hud?.update(now);
 }
@@ -715,11 +716,6 @@ function warmUp() {
 for (const ms of [1500, 4000, 8000, 15000]) setTimeout(() => void room.ready.then(warmUp), ms);
 setTimeout(() => {
   prepareAudio();
-  // The floor loop decodes now too, silent until the first tap resumes audio.
-  woken = true;
-  void startAmbience('sounds/arcade-floor.mp3').then(() => {
-    lastMood = undefined;
-  });
 }, 2500);
 
 if (import.meta.env.DEV || params.has('hud')) {

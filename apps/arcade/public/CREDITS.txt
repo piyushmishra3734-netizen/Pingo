@@ -1,21 +1,10 @@
-PINGO Arcade - credits
+PINGO - credits
 
 Arcade cabinet (the PINGO machines)
   "Arcade Cabinet .glb (v0.9) FREE Low Poly" by Lady Lion Studios - CC BY 4.0
   https://sketchfab.com/3d-models/arcade-cabinet-glb-v09-free-low-poly-5685d09900dc4393b245f6e924457fc7
   https://creativecommons.org/licenses/by/4.0/
   Adapted: backdrop removed, textures atlased, geometry simplified, rescaled.
-
-Claw machines
-  "Claw Arcade Animated .glb (v1.0) FREE Low Poly" by Lady Lion Studios - CC BY 4.0
-  https://sketchfab.com/3d-models/claw-arcade-glb-v09-free-low-poly-916fe82cd4734ec7b458f9e1c799ab56
-  "Claw Machine LOWPOLY RIGGED" by EFX - CC BY 4.0
-  https://sketchfab.com/3d-models/claw-machine-lowpoly-rigged-a831da37d48f45d4b9845e337e053ba2
-  https://creativecommons.org/licenses/by/4.0/
-  Adapted: textures reduced, geometry simplified, rescaled.
-
-Storefront, pavement, columns, planters, bollards, AC units
-  Downtown City MegaKit by Quaternius - CC0 - https://quaternius.com
 
 Boxing ring and gloves
   "Boxing Ring" by Zaw Imagineering - CC BY 3.0 - https://poly.pizza/m/52-2oyc8wzE
@@ -29,12 +18,6 @@ Kart racing: road, barriers, stands, trees, karts and drivers
 People
   Ultimate Modular Men by Quaternius - CC0 - https://quaternius.com
 
-Other machines, stools, plants
-  Mini Arcade and Furniture Kit by Kenney - CC0 - https://kenney.nl
-
-Carpet texture
-  Carpet 012 from ambientCG - CC0 - https://ambientcg.com/view?id=Carpet012
-
 Game sounds
   Impact Sounds, Interface Sounds, Digital Audio and Music Jingles by Kenney - CC0 - https://kenney.nl
   "racing car engine sound loops" - CC0 - https://opengameart.org/content/racing-car-engine-sound-loops
@@ -44,6 +27,5 @@ Game sounds
   https://creativecommons.org/licenses/by/4.0/
   Adapted: cut short, faded, converted to mono mp3.
 
-Arcade floor sound
-  "Tokyo - arcade center floor 1_CsG.wav" by csaszi - CC0
-  https://freesound.org/people/csaszi/sounds/481770/
+The world (sky, clouds, islands, houses, trees, the railway)
+  Made for PINGO in code - no third-party assets.

@@ -7,7 +7,7 @@
  * line (net/peer.js). This file only draws and listens.
  */
 
-import { DoorOpen, Info, LogOut, Menu, MessageSquareText, Mic, SignalHigh, SignalLow, SignalMedium, SignalZero, User, UserPlus, Volume2, VolumeX, WifiOff } from 'lucide';
+import { DoorOpen, Gauge, Info, LogOut, Menu, MessageSquareText, Mic, SignalHigh, SignalLow, SignalMedium, SignalZero, User, UserPlus, Volume2, VolumeX, WifiOff } from 'lucide';
 
 import { meterFor } from '../lobby/voice-bubble.js';
 import { icon } from './icon.js';
@@ -63,9 +63,11 @@ const LINE_MS = 9000;
  *   onInvite: () => void,
  *   onStand: () => void,
  *   onLeave?: () => void,
+ *   quality?: string,
+ *   onQuality?: (name: string) => void,
  * }} handlers - `onLeave` only inside PINGO, where there is somewhere to go back to
  */
-export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLeave }) {
+export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLeave, quality = 'medium', onQuality }) {
   if (!styled) {
     const style = document.createElement('style');
     style.textContent = STYLE;
@@ -116,7 +118,10 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
   credits.target = '_blank';
   credits.rel = 'noopener';
   credits.append(icon(Info, 20), 'Credits');
-  menuPanel.append(item(UserPlus, 'Invite friends', onInvite, 'hot'), speaker, standItem, credits);
+  // Graphics: tap to step through the levels; the world reloads at the new one.
+  const LEVELS = ['low', 'medium', 'high', 'ultra'];
+  const graphics = item(Gauge, `Graphics: ${quality}`, () => onQuality?.(LEVELS[(LEVELS.indexOf(quality) + 1) % LEVELS.length]));
+  menuPanel.append(item(UserPlus, 'Invite friends', onInvite, 'hot'), speaker, graphics, standItem, credits);
   if (onLeave) menuPanel.append(item(DoorOpen, 'Leave arcade', onLeave));
   menuButton.addEventListener('click', () => {
     menuPanel.hidden = !menuPanel.hidden;
