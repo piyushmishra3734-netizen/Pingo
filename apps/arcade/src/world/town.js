@@ -187,6 +187,22 @@ function house(b, { x, y = 0, z, w, d, floors = 2, turn = 0, wall = WALLS[0], ro
   face(hw, -hd, -hw, -hd, w, wallColour);
   face(-hw, -hd, -hw, hd, d, shade);
 
+  // A front door, just proud of the wall, and on every third house a shop:
+  // a striped awning over the ground floor.
+  const doorX = (seed % 3) - 1;
+  const door = new Color(['#5b3f2e', '#3f5a52', '#6b3a34'][seed % 3]);
+  b.quad(at(doorX - 0.55, 0, hd + 0.03), at(doorX + 0.55, 0, hd + 0.03), at(doorX + 0.55, 2.2, hd + 0.03), at(doorX - 0.55, 2.2, hd + 0.03), door);
+  if (props >= 1 && seed % 3 === 0) {
+    const stripes = [new Color(['#c2513f', '#3f7a6a', '#d9a13b'][seed % 3 === 0 ? (seed >> 2) % 3 : 0]), new Color('#f2ece0')];
+    const n = Math.max(4, Math.round(w * 1.2));
+    for (let i = 0; i < n; i += 1) {
+      const x0 = -hw + (w * i) / n;
+      const x1 = -hw + (w * (i + 1)) / n;
+      b.quad(at(x0, 2.35, hd + 1.1), at(x1, 2.35, hd + 1.1), at(x1, 2.85, hd), at(x0, 2.85, hd), stripes[i % 2]);
+      b.quad(at(x1, 2.35, hd + 1.1), at(x0, 2.35, hd + 1.1), at(x0, 2.85, hd), at(x1, 2.85, hd), stripes[i % 2].clone().multiplyScalar(0.7));
+    }
+  }
+
   // Hip roof: eaves overhang, slopes to a short ridge along the long side.
   const roofColour = new Color(roof);
   const dark = roofColour.clone().multiplyScalar(0.8);
@@ -500,6 +516,65 @@ function railway(b, { curve, gauge = 2.4, sleeperEvery = 2.2, railEvery = 4.5 })
   return curve;
 }
 
+/**
+ * The game kiosk on the home plaza: a little pavilion on four posts with a
+ * teal hip roof and lanterns under the eaves, over the two game machines -
+ * a market stall where people sit down to play.
+ */
+function kiosk(b, { x, y = 0, z, w = 4.2, d = 6.4 }) {
+  const at = (px, py, pz) => [x + px, y + py, z + pz];
+  const post = new Color('#6b4a33');
+  const hw = w / 2;
+  const hd = d / 2;
+  for (const [px, pz] of [
+    [-hw, -hd],
+    [hw, -hd],
+    [hw, hd],
+    [-hw, hd],
+  ]) {
+    box(b, at, { cx: px, cy: 1.6, cz: pz, sx: 0.1, sy: 1.6, sz: 0.1 }, post);
+  }
+  // A timber frame along the top.
+  box(b, at, { cx: 0, cy: 3.25, cz: -hd, sx: hw + 0.1, sy: 0.1, sz: 0.1 }, post);
+  box(b, at, { cx: 0, cy: 3.25, cz: hd, sx: hw + 0.1, sy: 0.1, sz: 0.1 }, post);
+  box(b, at, { cx: -hw, cy: 3.25, cz: 0, sx: 0.1, sy: 0.1, sz: hd + 0.1 }, post);
+  box(b, at, { cx: hw, cy: 3.25, cz: 0, sx: 0.1, sy: 0.1, sz: hd + 0.1 }, post);
+  // Roof: a hip roof in two teal tones, with a lighter band at the eaves.
+  const roof = new Color('#2f6e64');
+  const dark = roof.clone().multiplyScalar(0.75);
+  const o = 0.6;
+  const h = 3.35;
+  const rise = 1.6;
+  const e = [at(-hw - o, h, hd + o), at(hw + o, h, hd + o), at(hw + o, h, -hd - o), at(-hw - o, h, -hd - o)];
+  const r1 = at(0, h + rise, hd * 0.45);
+  const r2 = at(0, h + rise, -hd * 0.45);
+  b.tri(e[0], e[1], r1, [PLAIN, PLAIN, PLAIN], roof);
+  b.quad(e[1], e[2], r2, r1, dark);
+  b.tri(e[2], e[3], r2, [PLAIN, PLAIN, PLAIN], roof);
+  b.quad(e[3], e[0], r1, r2, dark);
+  b.quad(e[3], e[2], e[1], e[0], dark.clone().multiplyScalar(0.6));
+  // Lanterns hanging at the corners (window-glass UVs: they glow at dusk).
+  const glass = new Color('#ffffff');
+  for (const [px, pz] of [
+    [-hw, -hd],
+    [hw, -hd],
+    [hw, hd],
+    [-hw, hd],
+  ]) {
+    const lx = x + px * 1.05;
+    const lz = z + pz * 1.05;
+    const g = GLASS;
+    for (const [ax, az, bx, bz] of [
+      [-0.16, 0.16, 0.16, 0.16],
+      [0.16, 0.16, 0.16, -0.16],
+      [0.16, -0.16, -0.16, -0.16],
+      [-0.16, -0.16, -0.16, 0.16],
+    ]) {
+      b.quad([lx + ax, y + 2.6, lz + az], [lx + bx, y + 2.6, lz + bz], [lx + bx, y + 3.0, lz + bz], [lx + ax, y + 3.0, lz + az], glass, [g, g, g, g]);
+    }
+  }
+}
+
 /** The one material every building, tree, lamp, tram and the line share. */
 export function townMaterial(palette) {
   const { map, emissive } = bayTexture();
@@ -529,6 +604,7 @@ export function createTown(layout, material, quality = { leaf: 1, props: 1 }) {
   for (const spec of layout.flowers ?? []) flowers(b, spec);
   for (const spec of layout.benches ?? []) bench(b, spec);
   for (const spec of layout.railings ?? []) railing(b, spec);
+  for (const spec of layout.kiosks ?? []) kiosk(b, spec);
   if (layout.railway) railway(b, layout.railway);
   const geometry = b.build();
   geometry.computeBoundingSphere();
@@ -536,16 +612,147 @@ export function createTown(layout, material, quality = { leaf: 1, props: 1 }) {
 }
 
 /**
- * The tram: a wooden driving car and a long green carriage behind it, lit
- * windows down both sides. Built along +z around its own origin; the world
- * moves it along the line each frame.
+ * A station: a raised platform beside the line, a canopy on slim posts along
+ * it, benches under the canopy and lamps at the ends.
+ *
+ * @param {{ curve: import('three').Curve<Vector3>, from: number, to: number, side?: 1 | -1 }} spec
+ *   from/to: where along the line (0-1) the platform runs; side: which side of the track
  */
-export function createTram(material) {
+function station(b, { curve, from, to, side = 1 }) {
+  const up = new Vector3(0, 1, 0);
+  const steps = Math.max(4, Math.round((to - from) * curve.getLength() / 3));
+  const stone = new Color('#e7dfcf');
+  const edge = new Color('#c9bda6');
+  const post = new Color('#3b4048');
+  const canopy = new Color('#2f6e64');
+  const frame = (t) => {
+    const p = curve.getPointAt(t);
+    const tangent = curve.getTangentAt(t);
+    const across = new Vector3().crossVectors(tangent, up).normalize().multiplyScalar(side);
+    return { p, across };
+  };
+  const at = (f, out, height) => [f.p.x + f.across.x * out, f.p.y + height, f.p.z + f.across.z * out];
+  for (let i = 0; i < steps; i += 1) {
+    const f0 = frame(from + ((to - from) * i) / steps);
+    const f1 = frame(from + ((to - from) * (i + 1)) / steps);
+    // Platform top (from 2.1 m to 5.6 m off the centre line), and its face to the track.
+    const flip = side < 0;
+    const q = (a, bq, c, d, colour) => (flip ? b.quad(d, c, bq, a, colour) : b.quad(a, bq, c, d, colour));
+    q(at(f0, 2.1, 0.75), at(f0, 5.6, 0.75), at(f1, 5.6, 0.75), at(f1, 2.1, 0.75), stone);
+    q(at(f1, 2.1, -0.3), at(f1, 2.1, 0.75), at(f0, 2.1, 0.75), at(f0, 2.1, -0.3), edge);
+    // Canopy: a sloped roof over the back half of the platform, both faces.
+    q(at(f0, 2.4, 3.9), at(f0, 5.8, 4.4), at(f1, 5.8, 4.4), at(f1, 2.4, 3.9), canopy);
+    q(at(f1, 2.4, 3.9), at(f1, 5.8, 4.4), at(f0, 5.8, 4.4), at(f0, 2.4, 3.9), canopy.clone().multiplyScalar(0.7));
+    if (i % 2 === 0) {
+      const [px, py, pz] = at(f0, 4.9, 0.75);
+      const at2 = (dx, dy, dz) => [px + dx, py + dy, pz + dz];
+      box(b, at2, { cx: 0, cy: 1.8, cz: 0, sx: 0.06, sy: 1.8, sz: 0.06 }, post);
+    }
+    if (i % 4 === 1) {
+      const [px, py, pz] = at(f0, 4.6, 0.75);
+      bench(b, { x: px, y: py, z: pz, turn: Math.atan2(f0.across.x, f0.across.z) + Math.PI });
+    }
+  }
+  const [lx, ly, lz] = at(frame(from), 3.2, 0.75);
+  lamp(b, { x: lx, y: ly, z: lz });
+  const [mx, my, mz] = at(frame(to), 3.2, 0.75);
+  lamp(b, { x: mx, y: my, z: mz });
+}
+
+/** Stations along the line, as one mesh. */
+export function createStations(specs, material) {
+  const b = createBuilder();
+  for (const spec of specs) station(b, spec);
+  const geometry = b.build();
+  geometry.computeBoundingSphere();
+  return new Mesh(geometry, material);
+}
+
+/** The tram's own window tile: an arched window with passengers in it, over wood panelling. */
+function tramTexture() {
+  const w = 128;
+  const h = 128;
+  const make = () => {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return [c, c.getContext('2d')];
+  };
+  const [colour, c] = make();
+  const [glow, e] = make();
+  c.fillStyle = '#f2ece0';
+  c.fillRect(0, 0, w, h);
+  // Panelling below the windows.
+  c.fillStyle = '#d9cfbd';
+  c.fillRect(0, 84, w, 44);
+  c.fillStyle = 'rgba(80,60,40,0.25)';
+  for (let x = 0; x < w; x += 16) c.fillRect(x, 88, 2, 40);
+  e.fillStyle = '#000';
+  e.fillRect(0, 0, w, h);
+  // The arched window and the people behind it.
+  const arch = (ctx, fill) => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(18, 78);
+    ctx.lineTo(18, 34);
+    ctx.arc(64, 34, 46, Math.PI, 0);
+    ctx.lineTo(110, 78);
+    ctx.closePath();
+    ctx.fill();
+  };
+  arch(c, '#2b3a4f');
+  const warm = e.createLinearGradient(0, 10, 0, 78);
+  warm.addColorStop(0, '#ffe2ad');
+  warm.addColorStop(1, '#f6b46f');
+  arch(e, warm);
+  for (const [ctx, fill] of [
+    [c, '#1d2533'],
+    [e, '#7a3f1f'],
+  ]) {
+    ctx.fillStyle = fill;
+    for (const [x, s] of [
+      [44, 1],
+      [82, 0.9],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(x, 50, 9 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x, 78, 16 * s, 16 * s, 0, Math.PI, 0);
+      ctx.fill();
+    }
+  }
+  const texture = (canvas) => {
+    const t = new CanvasTexture(canvas);
+    t.wrapS = RepeatWrapping;
+    t.wrapT = RepeatWrapping;
+    t.colorSpace = SRGBColorSpace;
+    return t;
+  };
+  return { map: texture(colour), emissive: texture(glow) };
+}
+
+/**
+ * The tram: a wooden driving car and a long green carriage, arched windows
+ * with passengers lit warm down both sides, a headlamp and a trolley pole.
+ * Built along +z around its own origin; the world moves it along the line.
+ */
+export function createTram(palette) {
+  const { map, emissive } = tramTexture();
+  const material = new MeshLambertMaterial({
+    map,
+    vertexColors: true,
+    emissive: new Color('#ffb45c'),
+    emissiveMap: emissive,
+    // Lit a little even by day: people are aboard.
+    emissiveIntensity: Math.max(0.2, palette.windows * 0.7),
+  });
+  const PLAIN_T = [0.05, 0.95];
   const cars = [
-    { length: 5.5, body: '#7a5238', roof: '#4e3526' },
-    { length: 10, body: '#2f7a6e', roof: '#23574f' },
+    { length: 5.5, body: '#8a5c3e', roof: '#4e3526', front: true },
+    { length: 10, body: '#3d8a7b', roof: '#28604f', front: false },
   ];
-  return cars.map(({ length, body, roof }) => {
+  return cars.map(({ length, body, roof, front }) => {
     const b = createBuilder();
     const at = (px, py, pz) => [px, py, pz];
     const hw = 1.35;
@@ -553,26 +760,55 @@ export function createTram(material) {
     const base = 0.7;
     const top = 3.3;
     const wall = new Color(body);
-    const uFloors = 1;
-    const bays = Math.max(2, Math.round(length / 1.6));
+    const bays = Math.max(2, Math.round(length / 1.7));
     const side = (ax, az, bx, bz, count, colour) =>
       b.quad(at(ax, base, az), at(bx, base, bz), at(bx, top, bz), at(ax, top, az), colour, [
         [0, 0],
         [count, 0],
-        [count, uFloors],
-        [0, uFloors],
+        [count, 1],
+        [0, 1],
       ]);
-    side(-hw, hl, hw, hl, 1, wall);
-    side(hw, hl, hw, -hl, bays, wall.clone().multiplyScalar(0.92));
-    side(hw, -hl, -hw, -hl, 1, wall);
-    side(-hw, -hl, -hw, hl, bays, wall.clone().multiplyScalar(0.92));
+    const light = new Color('#ffffff').lerp(wall, 0.35);
+    side(-hw, hl, hw, hl, 1, light);
+    side(hw, hl, hw, -hl, bays, light);
+    side(hw, -hl, -hw, -hl, 1, light);
+    side(-hw, -hl, -hw, hl, bays, light);
+    // Coloured skirt and roof line in the car's own colour.
+    const plain = [PLAIN_T, PLAIN_T, PLAIN_T, PLAIN_T];
+    for (const [ax, az, bx, bz] of [
+      [-hw - 0.02, hl + 0.02, hw + 0.02, hl + 0.02],
+      [hw + 0.02, hl + 0.02, hw + 0.02, -hl - 0.02],
+      [hw + 0.02, -hl - 0.02, -hw - 0.02, -hl - 0.02],
+      [-hw - 0.02, -hl - 0.02, -hw - 0.02, hl + 0.02],
+    ]) {
+      b.quad(at(ax, base, az), at(bx, base, bz), at(bx, base + 0.75, bz), at(ax, base + 0.75, az), wall, plain);
+      b.quad(at(ax, top - 0.35, az), at(bx, top - 0.35, bz), at(bx, top, bz), at(ax, top, az), wall, plain);
+    }
     const r = new Color(roof);
-    // A roof with a gentle camber and a little overhang.
-    b.quad(at(-hw - 0.15, top, hl + 0.2), at(0, top + 0.45, hl + 0.2), at(0, top + 0.45, -hl - 0.2), at(-hw - 0.15, top, -hl - 0.2), r);
-    b.quad(at(0, top + 0.45, hl + 0.2), at(hw + 0.15, top, hl + 0.2), at(hw + 0.15, top, -hl - 0.2), at(0, top + 0.45, -hl - 0.2), r);
-    b.quad(at(-hw - 0.15, top, -hl - 0.2), at(hw + 0.15, top, -hl - 0.2), at(hw + 0.15, top, hl + 0.2), at(-hw - 0.15, top, hl + 0.2), r.clone().multiplyScalar(0.6));
-    // Undercarriage.
-    box(b, at, { cx: 0, cy: 0.45, cz: 0, sx: hw * 0.8, sy: 0.3, sz: hl * 0.85 }, new Color('#2f3238'));
+    b.quad(at(-hw - 0.15, top, hl + 0.2), at(0, top + 0.45, hl + 0.2), at(0, top + 0.45, -hl - 0.2), at(-hw - 0.15, top, -hl - 0.2), r, plain);
+    b.quad(at(0, top + 0.45, hl + 0.2), at(hw + 0.15, top, hl + 0.2), at(hw + 0.15, top, -hl - 0.2), at(0, top + 0.45, -hl - 0.2), r, plain);
+    b.quad(at(-hw - 0.15, top, -hl - 0.2), at(hw + 0.15, top, -hl - 0.2), at(hw + 0.15, top, hl + 0.2), at(-hw - 0.15, top, hl + 0.2), r.clone().multiplyScalar(0.6), plain);
+    const dark = new Color('#2f3238');
+    const tbox = (spec, colour) => {
+      const p = (dx, dy, dz) => at(spec.cx + dx * spec.sx, spec.cy + dy * spec.sy, spec.cz + dz * spec.sz);
+      const sideC = colour.clone().multiplyScalar(0.88);
+      b.quad(p(-1, 1, 1), p(1, 1, 1), p(1, 1, -1), p(-1, 1, -1), colour, plain);
+      b.quad(p(-1, -1, 1), p(1, -1, 1), p(1, 1, 1), p(-1, 1, 1), sideC, plain);
+      b.quad(p(1, -1, -1), p(-1, -1, -1), p(-1, 1, -1), p(1, 1, -1), sideC, plain);
+      b.quad(p(1, -1, 1), p(1, -1, -1), p(1, 1, -1), p(1, 1, 1), colour, plain);
+      b.quad(p(-1, -1, -1), p(-1, -1, 1), p(-1, 1, 1), p(-1, 1, -1), colour, plain);
+    };
+    tbox({ cx: 0, cy: 0.45, cz: 0, sx: hw * 0.8, sy: 0.3, sz: hl * 0.85 }, dark);
+    // Bogies at each end.
+    for (const z of [-hl * 0.65, hl * 0.65]) tbox({ cx: 0, cy: 0.25, cz: z, sx: hw * 0.9, sy: 0.22, sz: 0.7 }, new Color('#23262b'));
+    if (front) {
+      // Headlamp: a small lit box on the nose (window-glass UVs glow).
+      const g = [0.2, 0.62];
+      b.quad(at(-0.25, 1.6, hl + 0.06), at(0.25, 1.6, hl + 0.06), at(0.25, 2.0, hl + 0.06), at(-0.25, 2.0, hl + 0.06), new Color('#ffffff'), [g, g, g, g]);
+      // Trolley pole reaching back up to the (unseen) wire.
+      tbox({ cx: 0, cy: top + 0.6, cz: -0.4, sx: 0.05, sy: 0.05, sz: 2.2 }, dark);
+      tbox({ cx: 0, cy: top + 0.5, cz: 1.4, sx: 0.25, sy: 0.08, sz: 0.25 }, dark);
+    }
     const geometry = b.build();
     geometry.computeBoundingSphere();
     const mesh = new Mesh(geometry, material);
@@ -580,4 +816,3 @@ export function createTram(material) {
     return mesh;
   });
 }
-

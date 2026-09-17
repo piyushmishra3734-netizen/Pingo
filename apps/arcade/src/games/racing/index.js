@@ -249,7 +249,7 @@ export function createRacing({ renderer, onSound, engine, seed = 1, online }) {
     rematchCard = (line) =>
       hud.showResults(title, [line], standings, [
         [wants[you] ? `Waiting for ${them}…` : withIcon(ChevronRight, `Rematch: ${TRACKS[(online.seed + rounds + 1) % TRACKS.length].name}`, { after: true }), requestRematch, true],
-        ['Back to the arcade', () => online.exit?.()],
+        ['Back to the world', () => online.exit?.()],
       ]);
     rematchCard(won ? withIcon(Trophy, `You beat ${them}!`, { size: 15 }) : `${them} beat you - get them back`);
     onSound?.(won ? 'win' : 'lose');

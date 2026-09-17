@@ -20,13 +20,14 @@
  * - leaf: leaf-blob subdivision
  * - clouds: cloud billboard density
  * - sparkles: glowing motes in the air
+ * - people: townsfolk walking the home island and waiting at the station
  */
 
 export const LEVELS = {
-  low: { pixelRatio: 1, renderScale: 0.6, antialias: false, detail: 0.6, props: 0, trees: 0.6, leaf: 0, clouds: 0.6, octaves: 3, sleeperEvery: 3, sparkles: 60, fogFar: 1100 },
-  medium: { pixelRatio: 1.2, renderScale: 1, antialias: false, detail: 1, props: 1, trees: 1, leaf: 1, clouds: 1, octaves: 4, sleeperEvery: 2.2, sparkles: 150, fogFar: 1300 },
-  high: { pixelRatio: 1.75, renderScale: 1, antialias: true, detail: 2, props: 2, trees: 1.7, leaf: 2, clouds: 1.5, octaves: 5, sleeperEvery: 1.6, sparkles: 350, fogFar: 1700 },
-  ultra: { pixelRatio: 2, renderScale: 1, antialias: true, detail: 3, props: 3, trees: 2.6, leaf: 3, clouds: 2.2, octaves: 5, sleeperEvery: 1.2, sparkles: 700, fogFar: 2200 },
+  low: { pixelRatio: 1, renderScale: 0.6, antialias: false, detail: 0.6, props: 0, trees: 0.6, leaf: 0, clouds: 0.6, octaves: 3, sleeperEvery: 3, sparkles: 60, people: 2, fogFar: 1100 },
+  medium: { pixelRatio: 1.2, renderScale: 1, antialias: false, detail: 1, props: 1, trees: 1, leaf: 1, clouds: 1, octaves: 4, sleeperEvery: 2.2, sparkles: 150, people: 5, fogFar: 1300 },
+  high: { pixelRatio: 1.75, renderScale: 1, antialias: true, detail: 2, props: 2, trees: 1.7, leaf: 2, clouds: 1.5, octaves: 5, sleeperEvery: 1.6, sparkles: 350, people: 10, fogFar: 1700 },
+  ultra: { pixelRatio: 2, renderScale: 1, antialias: true, detail: 4, props: 3, trees: 3.6, leaf: 3, clouds: 2.4, octaves: 5, sleeperEvery: 1.2, sparkles: 900, people: 18, fogFar: 2400 },
 };
 
 const KEY = 'pingo-world-quality';

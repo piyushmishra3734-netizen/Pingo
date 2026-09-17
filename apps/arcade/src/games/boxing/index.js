@@ -230,7 +230,7 @@ export function createBoxing({ renderer, onSound, seed = 1, online }) {
     const card = (line) =>
       hud.showEnd(match.winner === null ? 'DRAW' : won ? withIcon(Trophy, 'YOU WIN!', { size: 30 }) : `${them.toUpperCase()} WINS`, line, [
         [wants[you] ? `Waiting for ${them}…` : 'Rematch', requestRematch, true],
-        ['Back to the arcade', () => online.exit?.()],
+        ['Back to the world', () => online.exit?.()],
       ]);
     rematchCard = card;
     card(won ? `You knocked out ${them}!` : `Ask ${them} for a rematch`);

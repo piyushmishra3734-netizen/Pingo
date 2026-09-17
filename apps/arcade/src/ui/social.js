@@ -7,7 +7,7 @@
  * line (net/peer.js). This file only draws and listens.
  */
 
-import { DoorOpen, Gauge, Info, LogOut, Menu, MessageSquareText, Mic, SignalHigh, SignalLow, SignalMedium, SignalZero, User, UserPlus, Volume2, VolumeX, WifiOff } from 'lucide';
+import { DoorOpen, Gauge, Info, TramFront, LogOut, Menu, MessageSquareText, Mic, SignalHigh, SignalLow, SignalMedium, SignalZero, User, UserPlus, Volume2, VolumeX, WifiOff } from 'lucide';
 
 import { meterFor } from '../lobby/voice-bubble.js';
 import { icon } from './icon.js';
@@ -67,7 +67,7 @@ const LINE_MS = 9000;
  *   onQuality?: (name: string) => void,
  * }} handlers - `onLeave` only inside PINGO, where there is somewhere to go back to
  */
-export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLeave, quality = 'medium', onQuality }) {
+export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLeave, quality = 'medium', onQuality, onRide }) {
   if (!styled) {
     const style = document.createElement('style');
     style.textContent = STYLE;
@@ -122,7 +122,8 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
   const LEVELS = ['low', 'medium', 'high', 'ultra'];
   const graphics = item(Gauge, `Graphics: ${quality}`, () => onQuality?.(LEVELS[(LEVELS.indexOf(quality) + 1) % LEVELS.length]));
   menuPanel.append(item(UserPlus, 'Invite friends', onInvite, 'hot'), speaker, graphics, standItem, credits);
-  if (onLeave) menuPanel.append(item(DoorOpen, 'Leave arcade', onLeave));
+  if (onRide) menuPanel.insertBefore(item(TramFront, 'Ride the tram', onRide), speaker);
+  if (onLeave) menuPanel.append(item(DoorOpen, 'Leave', onLeave));
   menuButton.addEventListener('click', () => {
     menuPanel.hidden = !menuPanel.hidden;
   });

@@ -58,7 +58,7 @@ export function createOverlay({ onStand, onBack, onSit }) {
   status.className = 'overlay-status';
   status.setAttribute('role', 'status');
 
-  const back = button(withIcon(X, 'Back to the arcade', { size: 15 }), 'overlay-button', onBack);
+  const back = button(withIcon(X, 'Back to the world', { size: 15 }), 'overlay-button', onBack);
   const stand = button('Stand up', 'overlay-button', onStand);
   root.append(status, back, stand);
   document.body.append(root);
@@ -82,7 +82,7 @@ export function createOverlay({ onStand, onBack, onSit }) {
       root.dataset.mode = seated ? mode : 'walk';
       sit.hidden = !(extra.canSit && !seated);
 
-      let text = seated ? '' : 'Walk in and sit at the PINGO machine';
+      let text = seated ? '' : 'Find the game kiosk on the plaza';
       if (mode === 'zooming') text = 'Get ready…';
       if (extra.note) text = extra.note;
       status.textContent = text;

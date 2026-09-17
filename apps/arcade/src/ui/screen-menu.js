@@ -102,7 +102,7 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
 
   const head = el('div', 'sm-head');
   const logo = el('div', 'sm-logo');
-  logo.innerHTML = 'PINGO ARCADE<small>INSERT COIN</small>';
+  logo.innerHTML = 'PINGO<small>GAMES</small>';
   const me = el('button', 'sm-me');
   me.type = 'button';
   const meName = el('span');
@@ -125,7 +125,7 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
 
   me.addEventListener('click', () => {
     // A plain prompt: a keyboard that works everywhere, and nothing to style.
-    const next = window.prompt('Your name in the arcade', state.name)?.trim().slice(0, 18);
+    const next = window.prompt('Your name in PINGO', state.name)?.trim().slice(0, 18);
     if (next) onRename(next);
   });
 
@@ -168,7 +168,7 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
     } else if (!state.friendSeated) {
       line.append(dot);
       const b = el('b', '', who);
-      line.append(b, ' is in the arcade - waiting for them to sit at the PINGO machine');
+      line.append(b, ' is here - waiting for them to sit at the game kiosk');
       friend.append(line);
     } else {
       line.append(dot);

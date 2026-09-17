@@ -9,7 +9,8 @@ import { createIslands } from './islands.js';
 import { paletteFor } from './palette.js';
 import { createSky } from './sky.js';
 import { createSparkles } from './sparkles.js';
-import { ROOFS, WALLS, createTown, createTram, townMaterial } from './town.js';
+import { createTownsfolk } from './townsfolk.js';
+import { ROOFS, WALLS, createStations, createTown, createTram, townMaterial } from './town.js';
 
 /**
  * The world above the clouds.
@@ -104,6 +105,7 @@ function cluster({ x, y, z, count, spread, seed, stretch = 1, floors = [2, 4], a
       turn: Math.round(r() * 2) * (Math.PI / 2) + (r() - 0.5) * 0.06,
       wall: WALLS[Math.floor(r() * WALLS.length)],
       roof: ROOFS[Math.floor(r() * ROOFS.length)],
+      seed: Math.floor(r() * 1000),
     });
   }
   return houses;
@@ -171,7 +173,7 @@ function layout(avoidLine, quality, curve) {
   // gardens, benches and railings along the promenades.
   const blooms = ['#e58fa8', '#f2c14e', '#f4f1ea', '#b99be0', '#f08a6b'];
   const bloom = (px, py, pz, r) => ({ x: px, y: py, z: pz, colour: blooms[Math.floor(r() * blooms.length)], size: 0.35 + r() * 0.3 });
-  const flowerCount = [0, 0, 1, 2.5][quality.props] ?? 0;
+  const flowerCount = [0, 0, 1, 4][quality.props] ?? 0;
   const flowers = flowerCount
     ? [
         ...scatter({ x: 0, y: 0, z: 0, count: Math.round(70 * flowerCount), spread: 27, minD: 25, seed: 501, avoid: avoidLine }, bloom),
@@ -205,6 +207,7 @@ function layout(avoidLine, quality, curve) {
     flowers,
     benches,
     railings,
+    kiosks: [{ x: 0, y: 0, z: 0 }],
     railway: { curve, sleeperEvery: quality.sleeperEvery },
   };
 }
@@ -215,7 +218,7 @@ function layout(avoidLine, quality, curve) {
  * (the nearest by edge distance); the line is a mesh of its own.
  */
 function byPlace(everything, places) {
-  const groups = places.map(() => ({ houses: [], pines: [], bushes: [], lighthouses: [], lamps: [], flowers: [], benches: [], railings: [] }));
+  const groups = places.map(() => ({ houses: [], pines: [], bushes: [], lighthouses: [], lamps: [], flowers: [], benches: [], railings: [], kiosks: [] }));
   for (const [kind, list] of Object.entries(everything)) {
     if (kind === 'railway') continue;
     for (const item of list) {
@@ -305,7 +308,7 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
   const curve = new CatmullRomCurve3(LINE.map(([x, y, z]) => new Vector3(x, y, z)), true, 'centripetal');
   const places = [HOME, TOWN, TERRACE, BEACON, GARDEN, VILLAGE, ...ISLES];
   const sky = createSky(palette);
-  const clouds = createClouds(palette, { sky: cloudPuffs(quality.clouds), field: cloudField(quality.clouds) }, quality);
+  const clouds = createClouds(palette, { sky: cloudPuffs(quality.clouds), field: cloudField(Math.min(quality.clouds, 1.15)) }, quality);
   // Island smoothness scales with quality; the shapes themselves never change.
   const islands = createIslands(
     [...places, ...spikes(curve, places), ...FAR].map((spec) => ({ ...spec, segments: Math.max(10, Math.round((spec.segments ?? 28) * quality.detail)) })),
@@ -313,13 +316,47 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
 
   // Nothing is built within 6 m of the line.
   const samples = Array.from({ length: 400 }, (_, i) => curve.getPointAt(i / 400));
-  const avoidLine = (px, pz) => samples.some((p) => Math.hypot(px - p.x, pz - p.z) < 6);
+  const avoidLine = (px, pz) => samples.some((p) => Math.hypot(px - p.x, pz - p.z) < 7.5);
   const material = townMaterial(palette);
   const towns = byPlace(layout(avoidLine, quality, curve), places).map((part) => createTown(part, material, quality));
   group.add(sky.mesh, clouds.sea, clouds.field, islands, ...towns, clouds.puffs);
 
   // The tram, running the loop; it eases to a crawl through the home station.
-  const tram = createTram(material);
+  // Stations where the line runs across the home island and the town.
+  const along = (x, z) => {
+    let best = 0;
+    let bestD = Infinity;
+    samples.forEach((p, i) => {
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    return best / samples.length;
+  };
+  const home = [along(21, 12), along(21, -6)].sort((a, b) => a - b);
+  const downtown = [along(78, -73), along(112, -88)].sort((a, b) => a - b);
+  const stations = createStations(
+    [
+      { curve, from: home[0], to: home[1], side: -1 },
+      { curve, from: downtown[0], to: downtown[1], side: 1 },
+    ],
+    material,
+  );
+  group.add(stations);
+
+  // People on the plaza and waiting on the home platform, facing the line.
+  const platform = Array.from({ length: 6 }, (_, i) => {
+    const t = home[0] + ((home[1] - home[0]) * (i + 0.5)) / 6;
+    const p = curve.getPointAt(t);
+    const across = curve.getTangentAt(t).cross(new Vector3(0, 1, 0)).normalize().multiplyScalar(-1);
+    return { x: p.x + across.x * (3 + (i % 2) * 1.4), y: p.y + 0.75, z: p.z + across.z * (3 + (i % 2) * 1.4), facing: Math.atan2(-across.x, -across.z) };
+  });
+  const townsfolk = createTownsfolk({ count: quality.people ?? 4, plaza: { x: 0, z: 0 }, platform });
+  group.add(townsfolk.group);
+
+  const tram = createTram(palette);
   group.add(...tram);
   const lineLength = curve.getLength();
   const station = 0.02;
@@ -362,12 +399,14 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
   group.add(domes.group);
 
   const reach = CABINET_OFFSET + CABINET.front;
-  const colliders = [[-0.4, -reach, 0.4, reach]];
+  // The machines, and the kiosk's four posts.
+  const colliders = [[-0.4, -reach, 0.4, reach], ...[[-2.1, -3.2], [2.1, -3.2], [2.1, 3.2], [-2.1, 3.2]].map(([px, pz]) => [px - 0.2, pz - 0.2, px + 0.2, pz + 0.2])];
 
   return {
     group,
     palette,
     curve,
+    tram,
     cabinets: [cabinetA, cabinetB],
     seats,
     domes,
@@ -377,7 +416,7 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
     spawn: { x: 0, z: 11, facing: Math.PI },
     inside: () => false,
     cameraBox: { minX: -16, maxX: 16, maxZ: 16 },
-    ready: Promise.all([cabinetA.ready, cabinetB.ready]),
+    ready: Promise.all([cabinetA.ready, cabinetB.ready, townsfolk.ready]),
 
     /** Once a frame, like the room: nothing opens here. */
     update() {
@@ -392,6 +431,7 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
 
       const dt = Math.min(0.1, seconds - lastSeconds);
       lastSeconds = seconds;
+      townsfolk.update(Math.max(0, dt));
       const u = (travelled / lineLength) % 1;
       const fromStation = Math.min(Math.abs(u - station), 1 - Math.abs(u - station));
       const speed = 4 + 14 * Math.min(1, fromStation * 25);

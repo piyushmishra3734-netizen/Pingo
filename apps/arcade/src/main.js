@@ -1,4 +1,4 @@
-import { Color, Fog, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { Fog, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
 
 import { createEngine, playCoin, playSound, playStep, prepareAudio, setAmbience, setMuted, unlockAudio } from './audio/sfx.js';
 import { pickQuality, setQuality } from './core/quality.js';
@@ -206,7 +206,7 @@ const overlay = createOverlay({
 });
 
 function show() {
-  const hint = friendName && !linked && invitedSeat ? `${friendName} invited you - walk in and sit at the PINGO machine` : undefined;
+  const hint = friendName && !linked && invitedSeat ? `${friendName} invited you - meet them at the game kiosk on the plaza` : undefined;
   overlay.show(session.state, {
     note: note ?? (session.state === State.IDLE ? hint : undefined),
     mode,
@@ -255,7 +255,7 @@ function getMatch() {
           sendPosition();
           if (session.state === State.WAITING) session.paired();
         } else {
-          if (friendName) social.add('', `${friendName} left the arcade`, { system: true });
+          if (friendName) social.add('', `${friendName} left`, { system: true });
           friend.hide();
           friendSeat = -1;
           social.setFriend(null);
@@ -280,7 +280,7 @@ function wireMatch(m) {
     friend.setName(friendName);
     social.setFriend(friendName);
     if (fresh) {
-      social.add('', `${friendName} joined the arcade`, { system: true });
+      social.add('', `${friendName} is here`, { system: true });
       playCoin();
     }
     show();
@@ -290,7 +290,7 @@ function wireMatch(m) {
     const seated = typeof message.s === 'number' ? message.s : -1;
     if (seated !== friendSeat) {
       friendSeat = seated;
-      if (seated >= 0) social.add('', `${friendName || 'Your friend'} sat down at the PINGO machine`, { system: true });
+      if (seated >= 0) social.add('', `${friendName || 'Your friend'} sat down at the game kiosk`, { system: true });
       show();
     }
   });
@@ -391,10 +391,11 @@ const social = createSocial({
   onStand: stand,
   quality: quality.name,
   onQuality: setQuality,
+  onRide: () => setRiding(!riding),
   ...(inPingo ? { onLeave: () => window.parent.postMessage({ type: 'pingo-arcade:leave' }, '*') } : {}),
   onSend(text) {
     if (!linked) {
-      social.add('', 'Nobody to talk to yet - invite a friend from the PINGO machine', { system: true });
+      social.add('', 'Nobody to talk to yet - invite a friend from the menu', { system: true });
       return;
     }
     match.send({ type: 'chat', text });
@@ -638,6 +639,34 @@ if (roomId) void getMatch().then((m) => m.begin(roomId));
 
 resize();
 
+/*
+ * Riding the tram: a cinematic camera that follows the carriage round the
+ * loop from behind and above, easing so the world slides by. The player
+ * stays where they stood; moving (or the menu) ends the ride.
+ */
+let riding = false;
+const rideEye = new Vector3();
+const rideLook = new Vector3();
+const rideWant = new Vector3();
+function setRiding(on) {
+  riding = on;
+  if (on) {
+    rideEye.copy(camera.position);
+    social.add('', 'Riding the tram - move to get off', { system: true });
+  } else {
+    follow.snap(player.position);
+  }
+}
+function rideCamera(dt) {
+  const [front, carriage] = room.tram;
+  rideWant.set(-7, 7.5, -17).applyQuaternion(carriage.quaternion).add(carriage.position);
+  const k = 1 - Math.exp(-dt * 2.5);
+  rideEye.lerp(rideWant, k);
+  rideLook.lerp(front.position, 1 - Math.exp(-dt * 4)).setY(front.position.y + 1.5);
+  camera.position.copy(rideEye);
+  camera.lookAt(rideLook);
+}
+
 /** Dev-only overlay; stays undefined in a normal production build. */
 let hud;
 let lastFrame = performance.now();
@@ -646,8 +675,12 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   if (session.state === State.IDLE) {
-    if (player.update(dt, walk.read())) playStep(room.inside(player.position));
-    follow.update(dt, player.position, room.inside(player.position));
+    const move = walk.read();
+    // Any push on the stick ends a ride and hands the camera back.
+    if (riding && Math.hypot(move.x, move.y) > 0.2) setRiding(false);
+    if (player.update(dt, move)) playStep(room.inside(player.position));
+    if (riding) rideCamera(dt);
+    else follow.update(dt, player.position, room.inside(player.position));
     const near = findSeat();
     if (near !== nearSeat) {
       nearSeat = near;
