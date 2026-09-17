@@ -1,8 +1,11 @@
+import { ChevronLeft, ChevronRight, LockOpen, Medal, Star, Trophy } from 'lucide';
+
+import { icon, withIcon } from '../../ui/icon.js';
 import { createControls } from '../controls.js';
 import { stepsFor, STEP_MS } from '../game-host.js';
 import { createLockstep, hashNumbers } from '../lockstep.js';
 import { createRacingCpu } from './cpu.js';
-import { MEDALS, clock, createHud } from './hud.js';
+import { clock, createHud, medal as medalIcon } from './hud.js';
 import { FINISH_HOLD, IN, createRace, stepRace } from './race.js';
 import { createRacingScene } from './scene.js';
 import { TRACKS } from './track.js';
@@ -34,8 +37,8 @@ const KEYS = {
 
 const PAD = [
   [
-    { label: '◀', bit: IN.LEFT, name: 'Steer left' },
-    { label: '▶', bit: IN.RIGHT, name: 'Steer right' },
+    { label: icon(ChevronLeft, 26), bit: IN.LEFT, name: 'Steer left' },
+    { label: icon(ChevronRight, 26), bit: IN.RIGHT, name: 'Steer right' },
   ],
   [
     { label: 'BRAKE', bit: IN.BRAKE, name: 'Brake', small: true },
@@ -131,18 +134,21 @@ export function createRacing({ renderer, onSound, engine, seed = 1, online }) {
     if (unlockedNow) progress.unlocked = trackIndex + 2;
     saveProgress(progress);
     const medal = track.medals.findIndex((m) => you.finished <= m * 60);
-    const title = you.place === 1 ? '🏆 1st PLACE!' : `${you.place}${['', 'st', 'nd', 'rd', 'th'][you.place]} place`;
-    const lines = [
-      `${clock(you.finished)}${record ? ' · ⭐ NEW BEST' : ''}${medal >= 0 ? ` · ${MEDALS[medal]}` : ` · 🥉 under ${track.medals[2]}s`}`,
-    ];
-    if (unlockedNow) lines.push(`🔓 ${TRACKS[trackIndex + 1].name} unlocked!`);
+    const title = you.place === 1 ? withIcon(Trophy, '1st PLACE!', { size: 30 }) : `${you.place}${['', 'st', 'nd', 'rd', 'th'][you.place]} place`;
+    const summary = document.createElement('span');
+    summary.className = 'ic-label';
+    summary.append(clock(you.finished));
+    if (record) summary.append(' · ', withIcon(Star, 'NEW BEST', { size: 15 }));
+    summary.append(' · ', medal >= 0 ? medalIcon(medal) : withIcon(Medal, `bronze under ${track.medals[2]}s`, { size: 15 }));
+    const lines = [summary];
+    if (unlockedNow) lines.push(withIcon(LockOpen, `${TRACKS[trackIndex + 1].name} unlocked!`, { size: 15 }));
     else if (!podium) lines.push('Top 3 unlocks the next track. Drift the bends for turbos!');
     const standings = [...race.karts]
       .sort((a, b) => a.place - b.place)
       .map((k) => [`${k.place}. ${k.index === 0 ? 'YOU' : RIVALS[k.index - 1]}`, k.finished ? clock(k.finished) : '—', k.index === 0]);
     const next = TRACKS[trackIndex + 1];
     const choices = [];
-    if (next && progress.unlocked > trackIndex + 1) choices.push([`Next: ${next.name} ▶`, () => void pick(trackIndex + 1), podium]);
+    if (next && progress.unlocked > trackIndex + 1) choices.push([withIcon(ChevronRight, `Next: ${next.name}`, { after: true }), () => void pick(trackIndex + 1), podium]);
     choices.push(['Race again', start, !podium || !next]);
     choices.push(['All tracks', menu]);
     hud.showResults(title, lines, standings, choices);
@@ -236,16 +242,16 @@ export function createRacing({ renderer, onSound, engine, seed = 1, online }) {
     const me = race.karts[you];
     const them = online.names[1 - you];
     const won = me.place < race.karts[1 - you].place;
-    const title = me.place === 1 ? '🏆 1st PLACE!' : `${me.place}${['', 'st', 'nd', 'rd', 'th'][me.place]} place`;
+    const title = me.place === 1 ? withIcon(Trophy, '1st PLACE!', { size: 30 }) : `${me.place}${['', 'st', 'nd', 'rd', 'th'][me.place]} place`;
     const standings = [...race.karts]
       .sort((a, b) => a.place - b.place)
       .map((k) => [`${k.place}. ${k.index === you ? 'YOU' : nameOf(k.index)}`, k.finished ? clock(k.finished) : '—', k.index === you]);
     rematchCard = (line) =>
       hud.showResults(title, [line], standings, [
-        [wants[you] ? `Waiting for ${them}…` : `Rematch: ${TRACKS[(online.seed + rounds + 1) % TRACKS.length].name} ▶`, requestRematch, true],
+        [wants[you] ? `Waiting for ${them}…` : withIcon(ChevronRight, `Rematch: ${TRACKS[(online.seed + rounds + 1) % TRACKS.length].name}`, { after: true }), requestRematch, true],
         ['Back to the arcade', () => online.exit?.()],
       ]);
-    rematchCard(won ? `You beat ${them}! 🎉` : `${them} beat you - get them back`);
+    rematchCard(won ? withIcon(Trophy, `You beat ${them}!`, { size: 15 }) : `${them} beat you - get them back`);
     onSound?.(won ? 'win' : 'lose');
   }
 

@@ -7,7 +7,10 @@
  * line (net/peer.js). This file only draws and listens.
  */
 
+import { MessageCircle, Mic, MicOff, User, Volume2, VolumeX } from 'lucide';
+
 import { meterFor } from '../lobby/voice-bubble.js';
+import { icon } from './icon.js';
 
 const STYLE = `
 .so { position: fixed; z-index: 4; left: max(10px, env(safe-area-inset-left)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; pointer-events: none;
@@ -15,7 +18,7 @@ const STYLE = `
 .so[data-place='top'] { top: max(10px, env(safe-area-inset-top)); transform: none; }
 .so-bar { display: flex; gap: 6px; pointer-events: auto; }
 .so-btn { position: relative; width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.22); background: rgba(12,8,22,0.62); backdrop-filter: blur(6px); color: #fff; font-size: 19px; cursor: pointer; display: grid; place-items: center; }
-.so-btn.off::after { content: ''; position: absolute; width: 26px; height: 3px; background: #ff4f6d; border-radius: 2px; transform: rotate(-45deg); box-shadow: 0 0 0 1.5px rgba(12,8,22,0.9); }
+.so-btn.off { color: #ff8a9e; }
 .so-btn.live { border-color: #45ff7a; box-shadow: 0 0 0 2px rgba(69,255,122,0.35); }
 .so-btn .badge { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff4f8b; font: 800 10px/16px system-ui; }
 .so-friend { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; padding: 5px 10px 5px 6px; border-radius: 99px; background: rgba(12,8,22,0.62); border: 1px solid rgba(255,255,255,0.18); font-size: 13px; }
@@ -58,16 +61,20 @@ export function createSocial({ onSend, onMic, onSpeaker }) {
   }
   const root = el('div', 'so');
   const bar = el('div', 'so-bar');
-  const chat = el('button', 'so-btn', '💬');
+  const chat = el('button', 'so-btn');
+  chat.append(icon(MessageCircle, 20));
   chat.setAttribute('aria-label', 'Chat');
-  const mic = el('button', 'so-btn off', '🎤');
+  const mic = el('button', 'so-btn off');
+  mic.append(icon(MicOff, 20));
   mic.setAttribute('aria-label', 'Microphone');
-  const speaker = el('button', 'so-btn', '🔊');
+  const speaker = el('button', 'so-btn');
+  speaker.append(icon(Volume2, 20));
   speaker.setAttribute('aria-label', 'Speaker');
   bar.append(chat, mic, speaker);
   const friend = el('div', 'so-friend');
   friend.hidden = true;
-  const avatar = el('i', '', '👤');
+  const avatar = el('i');
+  avatar.append(icon(User, 13));
   const friendName = el('span');
   friend.append(avatar, friendName);
   const log = el('div', 'so-log');
@@ -131,11 +138,12 @@ export function createSocial({ onSend, onMic, onSpeaker }) {
     micOn = await onMic(want);
     mic.classList.toggle('off', !micOn);
     mic.classList.toggle('live', micOn);
+    mic.replaceChildren(icon(micOn ? Mic : MicOff, 20));
   });
   speaker.addEventListener('click', () => {
     speakerOn = !speakerOn;
     speaker.classList.toggle('off', !speakerOn);
-    speaker.textContent = speakerOn ? '🔊' : '🔈';
+    speaker.replaceChildren(icon(speakerOn ? Volume2 : VolumeX, 20));
     onSpeaker(speakerOn);
   });
 

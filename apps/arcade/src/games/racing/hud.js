@@ -1,3 +1,7 @@
+import { CarFront, ChevronRight, Lightbulb, Lock, Medal } from 'lucide';
+
+import { icon, withIcon } from '../../ui/icon.js';
+
 /**
  * The race's screen furniture: place, lap and time; the lights; words that
  * pop when you earn a turbo; the track list and the results card.
@@ -43,12 +47,20 @@ const STYLE = `
 
 let styled = false;
 const SUFFIX = ['', 'st', 'nd', 'rd', 'th'];
-export const MEDALS = ['🥇', '🥈', '🥉'];
+const MEDAL_COLOURS = ['#ffd84a', '#d9e2ec', '#e0915a'];
+/** Gold, silver, bronze: a Lucide medal in its metal's colour. */
+export function medal(place, size = 18) {
+  const node = icon(Medal, size);
+  node.style.color = MEDAL_COLOURS[place];
+  return node;
+}
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
+  // Text, or a node - an icon with its label.
+  if (text instanceof Node) node.append(text);
+  else if (text !== undefined) node.textContent = text;
   return node;
 }
 
@@ -109,7 +121,7 @@ export function createHud() {
 
     showTracks(tracks, progress, onPick) {
       openMenu((card) => {
-        card.append(el('h2', '', '🏎️ PINGO KARTS'));
+        card.append(el('h2', '', withIcon(CarFront, 'PINGO KARTS', { size: 30 })));
         card.append(el('div', 'rc-sub', 'Finish in the top 3 to unlock the next track'));
         tracks.forEach((track, i) => {
           const locked = i >= progress.unlocked;
@@ -117,9 +129,9 @@ export function createHud() {
           const row = button('', `rc-row${i === progress.unlocked - 1 ? ' next' : ''}`, () => onPick(i));
           row.disabled = locked;
           const who = el('div');
-          who.append(el('strong', '', track.name), el('span', '', locked ? '🔒 Finish top 3 on the one above' : best ? `Best ${clock(best)}` : track.nick));
-          const medal = best ? track.medals.findIndex((m) => best <= m * 60) : -1;
-          row.append(el('div', 'n', locked ? '🔒' : medal >= 0 ? MEDALS[medal] : String(i + 1)), who, el('em', '', locked ? '' : 'RACE ▶'));
+          who.append(el('strong', '', track.name), el('span', '', locked ? 'Finish top 3 on the one above' : best ? `Best ${clock(best)}` : track.nick));
+          const won = best ? track.medals.findIndex((m) => best <= m * 60) : -1;
+          row.append(el('div', 'n', locked ? icon(Lock, 18) : won >= 0 ? medal(won, 22) : String(i + 1)), who, el('em', '', locked ? '' : withIcon(ChevronRight, 'RACE', { size: 14, after: true })));
           card.append(row);
         });
         card.append(el('div', 'rc-keys', '← → steer · hold Space to drift, let go to boost · S brake'));
@@ -128,9 +140,9 @@ export function createHud() {
 
     showIntro(track, onGo) {
       openMenu((card) => {
-        card.append(el('h2', '', track.name.toUpperCase()), el('div', 'rc-sub', `${track.laps} laps · 🥇 under ${track.medals[0]}s`));
+        card.append(el('h2', '', track.name.toUpperCase()), el('div', 'rc-sub', withIcon(Medal, `${track.laps} laps · gold under ${track.medals[0]}s`, { size: 15 })));
         const tips = el('div', 'rc-sub');
-        tips.innerHTML = '💡 Hold <b>DRIFT</b> through a bend: blue → orange → <b>pink</b> sparks, then let go for a turbo.<br>Tap <b>DRIFT</b> just before GO for a rocket start.';
+        tips.innerHTML = `${icon(Lightbulb, 15).outerHTML} Hold <b>DRIFT</b> through a bend: blue → orange → <b>pink</b> sparks, then let go for a turbo.<br>Tap <b>DRIFT</b> just before GO for a rocket start.`;
         card.append(tips);
         const actions = el('div', 'rc-actions');
         actions.append(button('START', 'rc-btn primary', onGo));

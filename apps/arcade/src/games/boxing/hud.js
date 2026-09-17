@@ -1,3 +1,6 @@
+import { ChevronRight, Check, Flame, HandFist, Lightbulb, Lock, Star, Trophy } from 'lucide';
+
+import { icon, withIcon } from '../../ui/icon.js';
 import { GET_UP, MAX_HEALTH, MAX_STAMINA, MAX_STARS, ROUNDS_TO_WIN } from './match.js';
 
 /**
@@ -23,8 +26,8 @@ const STYLE = `
 .bx-side.right .bx-bar i { left: auto; right: 0; }
 .bx-bar.thin { height: 6px; }
 .bx-bar.thin i { background: linear-gradient(#7ff0d8, #29b7a3); }
-.bx-stars { font-size: 17px; line-height: 1; letter-spacing: 3px; color: rgba(255,255,255,0.25); text-shadow: 0 1px 2px #000; }
-.bx-stars b { color: #ffc83a; font-weight: 400; text-shadow: 0 0 8px rgba(255,200,58,0.9); }
+.bx-stars { display: flex; gap: 3px; color: rgba(255,255,255,0.3); filter: drop-shadow(0 1px 2px #000); }
+.bx-stars .on { color: #ffc83a; fill: #ffc83a; filter: drop-shadow(0 0 6px rgba(255,200,58,0.9)); }
 .bx-clock { text-align: center; font: 800 12px/1.1 system-ui, sans-serif; letter-spacing: 0.1em; text-shadow: 0 1px 2px #000; }
 .bx-clock b { display: block; font-size: 28px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
 .bx-banner { position: absolute; left: 0; right: 0; top: 34%; text-align: center; font: 900 clamp(34px, 9vw, 72px)/1 system-ui, sans-serif; letter-spacing: 0.04em; text-shadow: 0 4px 0 #000, 0 0 24px rgba(255,79,139,0.7); }
@@ -66,7 +69,9 @@ let styled = false;
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
+  // Text, or a node - an icon with its label.
+  if (text instanceof Node) node.append(text);
+  else if (text !== undefined) node.textContent = text;
   return node;
 }
 
@@ -92,7 +97,7 @@ export function createHud() {
   top.append(sides[0].root, clock, sides[1].root);
   const banner = el('div', 'bx-banner');
   const pops = el('div');
-  const help = el('div', 'bx-help', '← → move · J jab · K power · L block · S slip · I ★ star punch');
+  const help = el('div', 'bx-help', '← → move · J jab · K power · L block · S slip · I star punch');
   root.append(top, pops, banner, help);
   document.body.append(root);
 
@@ -141,10 +146,10 @@ export function createHud() {
     /** The ladder: every opponent, the next one lit, later ones locked. */
     showLadder(roster, progress, onPick) {
       openMenu((card) => {
-        card.append(el('h2', '', '🥊 PINGO BOXING'));
+        card.append(el('h2', '', withIcon(HandFist, 'PINGO BOXING', { size: 30 })));
         const sub = el('div', 'bx-sub');
-        const belt = progress.beaten >= roster.length ? '🏆 Champion' : `Beaten <b>${progress.beaten}/${roster.length}</b>`;
-        sub.innerHTML = `${belt}${progress.streak ? ` · 🔥 <b>${progress.streak}</b>-day streak` : ''}`;
+        const belt = progress.beaten >= roster.length ? `${icon(Trophy, 15).outerHTML} Champion` : `Beaten <b>${progress.beaten}/${roster.length}</b>`;
+        sub.innerHTML = `${belt}${progress.streak ? ` · ${icon(Flame, 15).outerHTML} <b>${progress.streak}</b>-day streak` : ''}`;
         card.append(sub);
         roster.forEach((foe, i) => {
           const locked = i > progress.beaten;
@@ -152,7 +157,11 @@ export function createHud() {
           pick.disabled = locked;
           const who = el('div');
           who.append(el('strong', '', foe.name), el('span', '', locked ? 'Beat the one above to unlock' : foe.nick));
-          pick.append(el('div', 'n', locked ? '🔒' : String(i + 1)), who, el('em', '', i < progress.beaten ? '✓ BEATEN' : locked ? '' : 'FIGHT ▶'));
+          pick.append(
+            el('div', 'n', locked ? icon(Lock, 18) : String(i + 1)),
+            who,
+            el('em', '', i < progress.beaten ? withIcon(Check, 'BEATEN', { size: 14 }) : locked ? '' : withIcon(ChevronRight, 'FIGHT', { size: 14, after: true })),
+          );
           card.append(pick);
         });
         card.append(el('div', 'bx-keys', 'J jab · K power · L block · S slip · I star punch'));
@@ -163,7 +172,7 @@ export function createHud() {
     showIntro(foe, index, onGo) {
       openMenu((card) => {
         card.append(el('div', 'bx-sub', `FIGHT ${index + 1}`), el('h2', '', foe.name.toUpperCase()), el('div', 'bx-sub', `“${foe.nick}”`));
-        card.append(el('div', 'bx-tip', `💡 ${foe.tip}`));
+        card.append(el('div', 'bx-tip', withIcon(Lightbulb, foe.tip, { size: 16 })));
         const actions = el('div', 'bx-actions');
         actions.append(button('FIGHT!', 'bx-btn primary', onGo));
         card.append(actions);
@@ -204,7 +213,7 @@ export function createHud() {
         s.wins.textContent = '●'.repeat(match.wins[i]) + '○'.repeat(Math.max(0, ROUNDS_TO_WIN - match.wins[i]));
         if (s.shown !== boxer.stars) {
           s.shown = boxer.stars;
-          s.stars.innerHTML = `<b>${'★'.repeat(boxer.stars)}</b>${'☆'.repeat(MAX_STARS - boxer.stars)}`;
+          s.stars.replaceChildren(...Array.from({ length: MAX_STARS }, (_, n) => icon(Star, 17, n < boxer.stars ? 'ic on' : 'ic')));
         }
       });
       clock.innerHTML = `ROUND ${match.round}<b>${Math.ceil(match.timer / 60)}</b>`;

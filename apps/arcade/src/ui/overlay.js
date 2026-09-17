@@ -1,3 +1,7 @@
+import { X } from 'lucide';
+
+import { withIcon } from './icon.js';
+
 /**
  * The buttons that move you between the room, the chair and the game: a
  * status line on foot, Sit down beside a stool, Stand up in the chair, Back
@@ -37,7 +41,8 @@ function button(label, className, onClick) {
   const element = document.createElement('button');
   element.type = 'button';
   element.className = className;
-  element.textContent = label;
+  if (label instanceof Node) element.append(label);
+  else element.textContent = label;
   element.addEventListener('click', onClick);
   return element;
 }
@@ -53,7 +58,7 @@ export function createOverlay({ onStand, onBack, onSit, onLeave }) {
   status.className = 'overlay-status';
   status.setAttribute('role', 'status');
 
-  const back = button('✕ Back to the arcade', 'overlay-button', onBack);
+  const back = button(withIcon(X, 'Back to the arcade', { size: 15 }), 'overlay-button', onBack);
   const stand = button('Stand up', 'overlay-button', onStand);
   root.append(status, back, stand);
   document.body.append(root);
@@ -66,7 +71,7 @@ export function createOverlay({ onStand, onBack, onSit, onLeave }) {
   // Who made the models and sounds. Some are CC-BY, which asks for their
   // credit where people can find it; the CC0 ones get theirs anyway.
   // Inside PINGO that corner is the way back to PINGO instead.
-  const credits = onLeave ? button('✕ Leave', 'credits overlay-button', onLeave) : document.createElement('a');
+  const credits = onLeave ? button(withIcon(X, 'Leave', { size: 15 }), 'credits overlay-button', onLeave) : document.createElement('a');
   if (!onLeave) {
     credits.className = 'credits';
     credits.href = 'CREDITS.txt';

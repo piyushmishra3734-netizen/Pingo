@@ -1,4 +1,5 @@
 import { useChat, useProfile } from '@pingo/core';
+import { Gamepad2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -111,7 +112,8 @@ export function ArcadeScreen() {
           role="status"
           className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-2 text-caption font-semibold text-white backdrop-blur"
         >
-          🎮 Invite sent to {sent === 1 ? '1 chat' : `${sent} chats`} - they'll get a Join button
+          <Gamepad2 size={16} className="mr-1.5 inline align-[-3px]" aria-hidden />
+          Invite sent to {sent === 1 ? '1 chat' : `${sent} chats`} - they'll get a Join button
         </div>
       )}
 

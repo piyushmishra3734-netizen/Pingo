@@ -1,4 +1,5 @@
 import { cn } from '@pingo/ui';
+import { Gamepad2, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import type { ArcadeInvite } from './arcade-link.js';
@@ -24,7 +25,7 @@ export function ArcadeInviteCard({ invite, mine }: { invite: ArcadeInvite; mine:
           aria-hidden
           className="grid size-12 shrink-0 place-items-center rounded-xl bg-[linear-gradient(135deg,#ff4f8b,#7a3cff)] text-2xl shadow-[0_4px_14px_rgba(255,79,139,0.35)]"
         >
-          🎮
+          <Gamepad2 size={24} strokeWidth={2} className="text-white" />
         </span>
         <div className="min-w-0">
           <p className="text-body font-semibold">PINGO Arcade</p>
@@ -39,7 +40,10 @@ export function ArcadeInviteCard({ invite, mine }: { invite: ArcadeInvite; mine:
           onClick={join}
           className="rounded-full bg-[linear-gradient(#ff5d97,#d92a6c)] px-4 py-2.5 text-body font-bold text-white shadow-[0_4px_14px_rgba(255,79,139,0.35)] active:scale-[0.97]"
         >
-          ▶ Join game
+          <span className="inline-flex items-center gap-1.5">
+            <Play size={16} strokeWidth={2.5} fill="currentColor" aria-hidden />
+            Join game
+          </span>
         </button>
       )}
     </div>

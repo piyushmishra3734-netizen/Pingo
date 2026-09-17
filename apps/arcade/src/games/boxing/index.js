@@ -1,4 +1,7 @@
+import { ChevronLeft, ChevronRight, Flame, Lightbulb, Star, Trophy } from 'lucide';
+
 import { startLoop } from '../../audio/sfx.js';
+import { icon, withIcon } from '../../ui/icon.js';
 import { createControls } from '../controls.js';
 import { createLockstep, hashNumbers } from '../lockstep.js';
 import { stepsFor, STEP_MS } from '../game-host.js';
@@ -41,13 +44,13 @@ const KEYS = {
 
 const PAD = [
   [
-    { label: '◀', bit: IN.LEFT, name: 'Step left' },
-    { label: '▶', bit: IN.RIGHT, name: 'Step right' },
+    { label: icon(ChevronLeft, 26), bit: IN.LEFT, name: 'Step left' },
+    { label: icon(ChevronRight, 26), bit: IN.RIGHT, name: 'Step right' },
   ],
   [
     { label: 'SLIP', bit: IN.DODGE, name: 'Slip', small: true },
     { label: 'BLOCK', bit: IN.BLOCK, name: 'Block', small: true },
-    { label: '★', bit: IN.STAR, name: 'Star punch', small: true },
+    { label: icon(Star, 22), bit: IN.STAR, name: 'Star punch', small: true },
     { label: 'JAB', bit: IN.JAB, name: 'Jab' },
     { label: 'POW', bit: IN.POWER, name: 'Power punch', raised: true },
   ],
@@ -137,20 +140,20 @@ export function createBoxing({ renderer, onSound, seed = 1, online }) {
       onSound?.('win');
       const next = ROSTER[foe + 1];
       if (next) {
-        hud.showEnd('YOU WIN! 🏆', first ? `${next.name} “${next.nick}” unlocked` : `🔥 ${progress.streak}-day streak`, [
-          [`Next: ${next.name} ▶`, () => void pick(foe + 1), true],
+        hud.showEnd(withIcon(Trophy, 'YOU WIN!', { size: 30 }), first ? `${next.name} “${next.nick}” unlocked` : withIcon(Flame, `${progress.streak}-day streak`, { size: 15 }), [
+          [withIcon(ChevronRight, `Next: ${next.name}`, { after: true }), () => void pick(foe + 1), true],
           ['Rematch', start],
           ['All opponents', ladder],
         ]);
       } else {
-        hud.showEnd('🏆 CHAMPION!', `You beat ${entry.name}. Come back tomorrow to keep the 🔥 ${progress.streak}-day streak.`, [
+        hud.showEnd(withIcon(Trophy, 'CHAMPION!', { size: 30 }), `You beat ${entry.name}. Come back tomorrow to keep the ${progress.streak}-day streak.`, [
           ['Rematch', start, true],
           ['All opponents', ladder],
         ]);
       }
     } else {
       onSound?.('lose');
-      hud.showEnd(match.winner === null ? 'DRAW' : `${entry.name.toUpperCase()} WINS`, `💡 ${entry.tip}`, [
+      hud.showEnd(match.winner === null ? 'DRAW' : `${entry.name.toUpperCase()} WINS`, withIcon(Lightbulb, entry.tip, { size: 15 }), [
         ['Rematch', start, true],
         ['All opponents', ladder],
       ]);
@@ -163,12 +166,12 @@ export function createBoxing({ renderer, onSound, seed = 1, online }) {
     if (event.type === 'hit') {
       const at = view.headOnScreen(event.boxer, width, height);
       hud.pop(String(event.damage), at.x, at.y, event.punch === 'jab' ? '' : 'big');
-      if (event.punch === 'star') hud.pop('★ STAR PUNCH!', width / 2, height * 0.3, 'big');
+      if (event.punch === 'star') hud.pop(withIcon(Star, 'STAR PUNCH!', { size: 30 }), width / 2, height * 0.3, 'big');
       else if (event.counter) hud.pop('COUNTER!', at.x, at.y - 40, 'big');
       if (event.combo >= 3) hud.pop(`${event.combo} HIT COMBO`, width / 2, height * 0.24, 'combo');
     } else if (event.type === 'star') {
       const at = view.headOnScreen(event.boxer, width, height);
-      hud.pop('+★', at.x, at.y - 30, 'star');
+      hud.pop(withIcon(Star, '+1', { size: 24 }), at.x, at.y - 30, 'star');
     } else if (event.type === 'whiff' && event.dodged) {
       const at = view.headOnScreen(1 - event.boxer, width, height);
       hud.pop('SLIPPED!', at.x, at.y - 10, 'combo');
@@ -225,7 +228,7 @@ export function createBoxing({ renderer, onSound, seed = 1, online }) {
     onSound?.(won ? 'win' : match.winner === null ? 'bell' : 'lose');
     const them = online.names[1 - you];
     const card = (line) =>
-      hud.showEnd(match.winner === null ? 'DRAW' : won ? 'YOU WIN! 🏆' : `${them.toUpperCase()} WINS`, line, [
+      hud.showEnd(match.winner === null ? 'DRAW' : won ? withIcon(Trophy, 'YOU WIN!', { size: 30 }) : `${them.toUpperCase()} WINS`, line, [
         [wants[you] ? `Waiting for ${them}…` : 'Rematch', requestRematch, true],
         ['Back to the arcade', () => online.exit?.()],
       ]);

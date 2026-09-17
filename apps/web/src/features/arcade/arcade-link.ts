@@ -36,7 +36,7 @@ export function arcadeInviteLink({ room, seat, from }: ArcadeInvite): string {
 }
 
 export function arcadeInviteBody(invite: ArcadeInvite): string {
-  return `🎮 ${invite.from} invited you to play in PINGO Arcade!\n${arcadeInviteLink(invite)}`;
+  return `${invite.from} invited you to play in PINGO Arcade!\n${arcadeInviteLink(invite)}`;
 }
 
 /** The invite in a message body, if that is what it is. */

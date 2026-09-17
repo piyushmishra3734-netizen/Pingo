@@ -279,7 +279,7 @@ function wireMatch(m) {
     friend.setName(friendName);
     social.setFriend(friendName);
     if (fresh) {
-      social.add('', `${friendName} joined the arcade 🎮`, { system: true });
+      social.add('', `${friendName} joined the arcade`, { system: true });
       playCoin();
     }
     show();

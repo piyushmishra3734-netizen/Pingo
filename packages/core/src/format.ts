@@ -157,7 +157,7 @@ export function messagePreview(
 
   let text = message.body.trim();
   // A PINGO Arcade invite is a Join card in the thread; its link is not a preview.
-  if (/\/arcade\?room=/.test(text)) text = '🎮 Game invite';
+  if (/\/arcade\?room=/.test(text)) text = 'Game invite';
   // Attachment kinds carry no body, so each says what it is.
   if (!text && message.photo) text = 'Photo';
   if (!text && message.location) text = message.location.label ?? 'Location';

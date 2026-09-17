@@ -9,6 +9,10 @@
  * frame, so it still reads as the machine talking.
  */
 
+import { Bot, CarFront, Check, HandFist, Link, LogOut, Pencil, Swords, User, UserPlus, Users } from 'lucide';
+
+import { icon, withIcon } from './icon.js';
+
 const STYLE = `
 .sm { position: fixed; z-index: 2; display: grid; grid-template-rows: auto auto 1fr; gap: 10px; box-sizing: border-box; padding: 14px; overflow: hidden;
   font: 600 14px/1.3 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #f4f1fa;
@@ -33,7 +37,7 @@ const STYLE = `
 .sm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .sm-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-content: start; min-height: 0; overflow-y: auto; }
 .sm-game { cursor: pointer; position: relative; display: grid; gap: 8px; padding: 12px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14); background: linear-gradient(160deg, var(--a), var(--b)); }
-.sm-game::before { content: attr(data-art); position: absolute; right: -4px; top: -6px; font-size: 50px; opacity: 0.9; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transform: rotate(8deg); }
+.sm-art { position: absolute; right: 6px; top: 4px; color: #fff; opacity: 0.92; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transform: rotate(8deg); }
 .sm-game h3 { margin: 0; font: 900 italic 19px/1 system-ui, sans-serif; letter-spacing: 0.02em; text-shadow: 0 2px 0 rgba(0,0,0,0.4); padding-right: 58px; }
 .sm-game p { margin: 0; font: 600 12px/1.3 system-ui, sans-serif; color: rgba(255,255,255,0.82); padding-right: 40px; min-height: 2.6em; }
 .sm-game .row { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -52,9 +56,9 @@ const STYLE = `
 `;
 
 export const GAME_CARDS = [
-  { kind: 'boxing', art: '🥊', title: 'BOXING', text: 'Slip, counter, knock them down.', a: '#ff4f6d', b: '#6b1238', friend: true },
-  { kind: 'racing', art: '🏎️', title: 'KART RACING', text: 'Drift the bends, boost past.', a: '#3aa0ff', b: '#15306e', friend: true },
-  { kind: 'cpu', art: '👊', title: 'STREET BRAWL', text: 'Classic 2D fighter.', a: '#ffae3a', b: '#6e3a10', friend: false },
+  { kind: 'boxing', art: HandFist, title: 'BOXING', text: 'Slip, counter, knock them down.', a: '#ff4f6d', b: '#6b1238', friend: true },
+  { kind: 'racing', art: CarFront, title: 'KART RACING', text: 'Drift the bends, boost past.', a: '#3aa0ff', b: '#15306e', friend: true },
+  { kind: 'cpu', art: Swords, title: 'STREET BRAWL', text: 'Classic 2D fighter.', a: '#ffae3a', b: '#6e3a10', friend: false },
 ];
 
 let styled = false;
@@ -62,7 +66,8 @@ let styled = false;
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
+  if (text instanceof Node) node.append(text);
+  else if (text !== undefined) node.textContent = text;
   return node;
 }
 
@@ -101,9 +106,9 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
   const me = el('button', 'sm-me');
   me.type = 'button';
   const meName = el('span');
-  me.append('👤', meName, '✏️');
+  me.append(icon(User, 15), meName, icon(Pencil, 13));
   const right = el('div', 'sm-actions');
-  right.append(me, button('⏏ Stand up', '', onStand));
+  right.append(me, button(withIcon(LogOut, 'Stand up', { size: 15 }), '', onStand));
   head.append(logo, right);
 
   const friend = el('div', 'sm-friend');
@@ -126,12 +131,12 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
 
   const cards = GAME_CARDS.map((game) => {
     const card = el('div', 'sm-game');
-    card.dataset.art = game.art;
+    card.append(icon(game.art, 48, 'sm-art'));
     card.style.setProperty('--a', game.a);
     card.style.setProperty('--b', game.b);
     const row = el('div', 'row');
-    const cpu = button('▶ vs CPU', '', () => onPlay(game.kind, 'cpu'));
-    const vsFriend = button('👥 vs Friend', 'hot', () => onPlay(game.kind, 'friend'));
+    const cpu = button(withIcon(Bot, 'vs CPU', { size: 15 }), '', () => onPlay(game.kind, 'cpu'));
+    const vsFriend = button(withIcon(Users, 'vs Friend', { size: 15 }), 'hot', () => onPlay(game.kind, 'friend'));
     row.append(cpu, vsFriend);
     card.append(el('h3', '', game.title), el('p', '', game.text), row);
     // The whole card is a tap target: a tap anywhere but a button plays the computer.
@@ -152,15 +157,13 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
     if (!state.linked) {
       line.append(dot, 'Play with a friend - send them an invite');
       const actions = el('div', 'sm-actions');
-      const copy = button('🔗 Copy link', '', async (event) => {
+      const copy = button(withIcon(Link, 'Copy link', { size: 15 }), '', async (event) => {
         const target = event.currentTarget;
-        target.textContent = (await onCopyLink()) === 'copied' ? '✓ Copied' : '🔗 Link below';
-        setTimeout(() => {
-          target.textContent = '🔗 Copy link';
-        }, 2000);
+        target.replaceChildren((await onCopyLink()) === 'copied' ? withIcon(Check, 'Copied', { size: 15 }) : withIcon(Link, 'Link below', { size: 15 }));
+        setTimeout(() => target.replaceChildren(withIcon(Link, 'Copy link', { size: 15 })), 2000);
       });
       // Inside PINGO a friend is invited from your PINGO chats; outside it, by link.
-      actions.append(state.inPingo ? button('➕ Invite PINGO friends', 'hot', onInvite) : copy);
+      actions.append(state.inPingo ? button(withIcon(UserPlus, 'Invite PINGO friends', { size: 15 }), 'hot', onInvite) : copy);
       friend.append(line, actions);
     } else if (!state.friendSeated) {
       line.append(dot);
@@ -183,12 +186,12 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
     const box = el('div');
     const who = state.friendName || 'Your friend';
     if (state.ask) {
-      box.append(el('div', 'big', card.art), el('h4', '', `${who} wants to play ${card.title.toLowerCase()}!`));
+      box.append(el('div', 'big', icon(card.art, 54)), el('h4', '', `${who} wants to play ${card.title.toLowerCase()}!`));
       const actions = el('div', 'sm-actions');
       actions.append(button("LET'S GO!", 'go', () => onAnswer(true, state.ask)), button('Not now', '', () => onAnswer(false, state.ask)));
       box.append(actions);
     } else {
-      box.append(el('div', 'big', card.art), el('h4', '', `Waiting for ${who} to accept…`));
+      box.append(el('div', 'big', icon(card.art, 54)), el('h4', '', `Waiting for ${who} to accept…`));
       box.append(button('Cancel', '', onCancel));
     }
     ask.append(box);
@@ -207,7 +210,7 @@ export function createScreenMenu({ onPlay, onInvite, onCopyLink, onAnswer, onCan
       if (before.inPingo !== state.inPingo || before.linked !== state.linked || before.friendSeated !== state.friendSeated || before.friendName !== state.friendName || !friend.childElementCount) renderFriend();
       for (const { game, vsFriend } of cards) {
         vsFriend.disabled = !game.friend || !state.friendSeated;
-        vsFriend.textContent = game.friend ? `👥 vs ${state.friendSeated ? state.friendName || 'Friend' : 'Friend'}` : '👥 Soon';
+        vsFriend.replaceChildren(withIcon(Users, game.friend ? `vs ${state.friendSeated ? state.friendName || 'Friend' : 'Friend'}` : 'Soon', { size: 15 }));
       }
       if (before.ask !== state.ask || before.waiting !== state.waiting || before.friendName !== state.friendName) renderAsk();
     },

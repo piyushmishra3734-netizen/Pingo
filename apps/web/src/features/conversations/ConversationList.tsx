@@ -1,3 +1,4 @@
+import { Gamepad2 } from 'lucide-react';
 import {
   conversationFilterLabels,
   conversationFilters,
@@ -475,9 +476,7 @@ export function ConversationList({
                 )}
 
                 <IconButton label="PINGO Arcade" variant="ghost" onClick={() => navigate('/arcade')}>
-                  <span aria-hidden className="text-[20px] leading-none">
-                    🎮
-                  </span>
+                  <Gamepad2 size={22} strokeWidth={1.9} aria-hidden />
                 </IconButton>
 
                 <IconButton

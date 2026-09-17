@@ -24,7 +24,7 @@ export const ROSTER = [
     look: 'worker',
     level: 'easy',
     style: { aggression: 0.55, power: 0.7, defend: 0.25, think: 20 },
-    tip: 'He swings big. Slip the glow, hit back, earn a ★.',
+    tip: 'He swings big. Slip the glow, hit back, earn a star.',
   },
   {
     name: 'Slick Sam',
@@ -48,7 +48,7 @@ export const ROSTER = [
     look: 'casual2',
     level: 'hard',
     style: { star: 0.1 },
-    tip: 'Everything at once. Save your ★ for when he whiffs.',
+    tip: 'Everything at once. Save your star punch for when he whiffs.',
   },
 ];
 

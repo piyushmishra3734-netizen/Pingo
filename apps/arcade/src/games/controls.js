@@ -1,3 +1,6 @@
+import { ChevronLeft, ChevronRight, ChevronUp } from 'lucide';
+
+import { icon } from '../ui/icon.js';
 import { IN } from './brawler/bout.js';
 
 /**
@@ -30,9 +33,9 @@ const KEYS = {
 
 const PAD = [
   [
-    { label: '◀', bit: IN.LEFT, name: 'Left' },
-    { label: '▲', bit: IN.UP, name: 'Jump', raised: true },
-    { label: '▶', bit: IN.RIGHT, name: 'Right' },
+    { label: icon(ChevronLeft, 26), bit: IN.LEFT, name: 'Left' },
+    { label: icon(ChevronUp, 26), bit: IN.UP, name: 'Jump', raised: true },
+    { label: icon(ChevronRight, 26), bit: IN.RIGHT, name: 'Right' },
   ],
   [
     { label: 'B', bit: IN.BLOCK, name: 'Block', small: true },
@@ -77,7 +80,9 @@ export function createControls({ keys: keyMap = KEYS, pad: layout = PAD } = {}) 
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `pad-btn${raised ? ' is-raised' : ''}${small ? ' is-small' : ''}`;
-      button.textContent = label;
+      // A letter, or a Lucide icon.
+      if (label instanceof Node) button.append(label);
+      else button.textContent = label;
       button.setAttribute('aria-label', name);
       const press = (event) => {
         touch |= bit;
