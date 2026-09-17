@@ -4,13 +4,15 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CABINET, createCabinet } from '../lobby/cabinet.js';
 import { createDomeLights } from '../lobby/dome-light.js';
 import { contactShadowTexture } from '../lobby/textures.js';
-import { createClouds } from './clouds.js';
 import { createIslands } from './islands.js';
 import { paletteFor } from './palette.js';
 import { createSky } from './sky.js';
+import { createLightPools } from './pools.js';
 import { createSparkles } from './sparkles.js';
 import { createTownsfolk } from './townsfolk.js';
-import { ROOFS, WALLS, createStations, createTown, createTram, townMaterial } from './town.js';
+import { createRailway, createStations } from './railway.js';
+import { ROOFS, WALLS, createTown, townMaterial } from './town.js';
+import { createTram } from './tram.js';
 
 /**
  * The world above the clouds.
@@ -60,7 +62,11 @@ const LINE = [
   [96, -11.65, -80],
   [124, -11.65, -96],
   [142, -4, -136],
-  [98, 14, -190],
+  // The line soars: a long arc up into the sky and down to the lighthouse.
+  [150, 24, -170],
+  [126, 52, -196],
+  [92, 44, -206],
+  [70, 26, -212],
   [48, 20.35, -210],
   [14, 20.35, -214],
   [-30, 12, -192],
@@ -191,7 +197,7 @@ function layout(avoidLine, quality, curve) {
         }).filter((bn) => !avoidLine(bn.x, bn.z) && !view(bn.x, bn.z))
       : [];
   const railings =
-    quality.props >= 2
+    quality.props >= 1
       ? [
           { x: 0, y: 0, z: 0, radius: 24, gaps: (px, pz) => avoidLine(px, pz) },
           { x: BEACON.x, y: BEACON.y, z: BEACON.z, radius: BEACON.radius * 0.86, gaps: (px, pz) => avoidLine(px, pz) },
@@ -234,7 +240,7 @@ function byPlace(everything, places) {
       groups[best][kind].push(item);
     }
   }
-  return [...groups, { railway: everything.railway }];
+  return groups;
 }
 
 /**
@@ -254,37 +260,6 @@ function spikes(curve, islands) {
   return out;
 }
 
-/** Clouds up in the sky: small painted clusters, as in the film; the sea below carries the rest. */
-function cloudPuffs(density = 1) {
-  const puffs = [];
-  const r = seeded(7);
-  for (let i = 0; i < Math.round(22 * density); i += 1) {
-    const a = r() * Math.PI * 2;
-    const d = 250 + r() * 650;
-    puffs.push({ x: Math.cos(a) * d, y: 110 + r() * 170, z: Math.sin(a) * d, w: 50 + r() * 70 });
-  }
-  return puffs;
-}
-
-/**
- * The cloud field lying on the sea: painted billows on a jittered grid, thick
- * near the islands and thinning out to open water towards the horizon.
- */
-function cloudField(density = 1) {
-  const out = [];
-  const r = seeded(99);
-  const step = 64 / Math.sqrt(density);
-  for (let x = -1500; x <= 1500; x += step) {
-    for (let z = -1500; z <= 1500; z += step) {
-      const d = Math.hypot(x, z);
-      // Open water shows through: fewer clouds with distance, and gaps everywhere.
-      if (r() > 0.5 - d / 3400) continue;
-      out.push({ x: x + (r() - 0.5) * step, y: -64 + r() * 10, z: z + (r() - 0.5) * step, w: 55 + r() * 95 + d * 0.04 });
-    }
-  }
-  return out;
-}
-
 function contactShadows(spots) {
   const texture = contactShadowTexture();
   const planes = spots.map(({ x, z, w, d }) => {
@@ -297,7 +272,8 @@ function contactShadows(spots) {
 }
 
 export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, leaf: 1, octaves: 4, sleeperEvery: 2.2 } } = {}) {
-  const palette = paletteFor(time);
+  const hour = ['day', 'dusk', 'night'].includes(time) ? time : 'dusk';
+  const palette = paletteFor(hour);
   const group = new Group();
 
   group.add(new HemisphereLight(palette.hemiSky, palette.hemiGround, palette.hemiIntensity));
@@ -307,8 +283,8 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
 
   const curve = new CatmullRomCurve3(LINE.map(([x, y, z]) => new Vector3(x, y, z)), true, 'centripetal');
   const places = [HOME, TOWN, TERRACE, BEACON, GARDEN, VILLAGE, ...ISLES];
-  const sky = createSky(palette);
-  const clouds = createClouds(palette, { sky: cloudPuffs(quality.clouds), field: cloudField(Math.min(quality.clouds, 1.15)) }, quality);
+  // The painted backdrop; its resolution scales with quality.
+  const sky = createSky(palette, `panorama/${hour}-${quality.panorama ?? 3072}.webp`);
   // Island smoothness scales with quality; the shapes themselves never change.
   const islands = createIslands(
     [...places, ...spikes(curve, places), ...FAR].map((spec) => ({ ...spec, segments: Math.max(10, Math.round((spec.segments ?? 28) * quality.detail)) })),
@@ -319,7 +295,8 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
   const avoidLine = (px, pz) => samples.some((p) => Math.hypot(px - p.x, pz - p.z) < 7.5);
   const material = townMaterial(palette);
   const towns = byPlace(layout(avoidLine, quality, curve), places).map((part) => createTown(part, material, quality));
-  group.add(sky.mesh, clouds.sea, clouds.field, islands, ...towns, clouds.puffs);
+  towns.push(createRailway(curve, material, quality));
+  group.add(sky.mesh, islands, ...towns);
 
   // The tram, running the loop; it eases to a crawl through the home station.
   // Stations where the line runs across the home island and the town.
@@ -345,6 +322,10 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
     material,
   );
   group.add(stations);
+
+  // Warm pools of light on the ground under every lamp and lantern.
+  const lights = [...towns, stations].flatMap((mesh) => mesh.geometry.userData.lights ?? []);
+  if (palette.lampPools > 0) group.add(createLightPools(lights, palette.lampPools));
 
   // People on the plaza and waiting on the home platform, facing the line.
   const platform = Array.from({ length: 6 }, (_, i) => {
@@ -416,7 +397,7 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
     spawn: { x: 0, z: 11, facing: Math.PI },
     inside: () => false,
     cameraBox: { minX: -16, maxX: 16, maxZ: 16 },
-    ready: Promise.all([cabinetA.ready, cabinetB.ready, townsfolk.ready]),
+    ready: Promise.all([cabinetA.ready, cabinetB.ready, townsfolk.ready, sky.ready]),
 
     /** Once a frame, like the room: nothing opens here. */
     update() {
@@ -426,7 +407,6 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
     /** Sky and clouds follow the camera and drift. */
     tick(camera, seconds, pixelRatio = 1) {
       sky.update(camera, seconds);
-      clouds.update(camera, seconds);
       sparkles.update(seconds, pixelRatio);
 
       const dt = Math.min(0.1, seconds - lastSeconds);

@@ -33,9 +33,9 @@ const params = new URLSearchParams(location.search);
 const scene = new Scene();
 /** The world above the clouds; `?time=day|dusk|night` picks the hour. */
 const room = createWorld({ time: params.get('time') ?? 'dusk', quality });
-scene.background = room.palette.horizon;
+scene.background = room.palette.fog;
 // Distance softens into the sky's own haze: atmospheric perspective, for free.
-scene.fog = new Fog(room.palette.fog, 90, quality.fogFar);
+scene.fog = new Fog(room.palette.fog, 140, quality.fogFar);
 scene.add(room.group);
 
 /**

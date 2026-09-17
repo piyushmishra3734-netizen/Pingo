@@ -14,17 +14,19 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
  */
 
 const TOPS = {
-  grass: ['#8dbb62', '#6fa152'],
-  meadow: ['#a6c86c', '#7fae5a'],
-  stone: ['#efe6d2', '#e2d6bf'],
+  grass: ['#5f9a5c', '#4f8a55'],
+  meadow: ['#78a862', '#5f9a5a'],
+  stone: ['#e0dcd8', '#d6d1cc'],
   // A paved town top ringed with grass, as the islands in the film are.
-  town: ['#d9d6cf', '#c9c5bc', '#79a35a'],
+  town: ['#dcd9da', '#d2cfd1', '#4f8a57'],
 };
+/** Which tops are paved: they get stone flags drawn in the shader. */
+const PAVED = { stone: 1, town: 1 };
 /** The edge band under each kind of top. */
-const LIPS = { grass: '#7a8f55', meadow: '#7a8f55', stone: '#cdbfa5', town: '#6f8f55' };
-const EARTH = new Color('#8b7a5c');
-const ROCK = new Color('#5f7468');
-const TIP = new Color('#2f4450');
+const LIPS = { grass: '#3f6f55', meadow: '#3f6f55', stone: '#9a968f', town: '#3f6f55' };
+const EARTH = new Color('#35604c');
+const ROCK = new Color('#3f5a58');
+const TIP = new Color('#1c2a31');
 
 function mulberry32(seed) {
   let s = seed >>> 0;
@@ -51,10 +53,13 @@ export function islandGeometry({ x, y, z, radius, depth = radius * 1.1, seed = 1
 
   const positions = [];
   const colors = [];
+  const paving = [];
+  let paved = 0;
   const indices = [];
   const add = (px, py, pz, colour) => {
     positions.push(px + x, py + y, pz + z);
     colors.push(colour.r, colour.g, colour.b);
+    paving.push(paved);
     return positions.length / 3 - 1;
   };
   const ring = (scale, height, colour, jitter = 0) =>
@@ -71,6 +76,7 @@ export function islandGeometry({ x, y, z, radius, depth = radius * 1.1, seed = 1
 
   // Top: a gentle dome, lighter in the middle.
   const [inner, outer, rim] = TOPS[top].map((hex) => new Color(hex));
+  paved = PAVED[top] ?? 0;
   const centre = add(0, dome, 0, inner);
   const mid = ring(0.55, dome * 0.75, inner.clone().lerp(outer, 0.5));
   for (let i = 0; i < segments; i += 1) {
@@ -80,12 +86,14 @@ export function islandGeometry({ x, y, z, radius, depth = radius * 1.1, seed = 1
   let last = mid;
   if (rim) {
     // Paving to 88%, then a band of grass to the edge.
-    const paved = ring(0.88, dome * 0.2, outer);
-    band(mid, paved);
+    const flags = ring(0.88, dome * 0.2, outer);
+    band(mid, flags);
+    paved = 0;
     const grass = ring(0.9, dome * 0.15, rim);
-    band(paved, grass);
+    band(flags, grass);
     last = grass;
   }
+  paved = 0;
   const edge = ring(1, 0, rim ?? outer);
   band(last, edge);
 
@@ -114,6 +122,7 @@ export function islandGeometry({ x, y, z, radius, depth = radius * 1.1, seed = 1
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
   geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3));
+  geometry.setAttribute('paved', new BufferAttribute(new Float32Array(paving), 1));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -122,6 +131,46 @@ export function islandGeometry({ x, y, z, radius, depth = radius * 1.1, seed = 1
 /** Every island as one mesh. Near ones get more segments than distant ones. */
 export function createIslands(specs) {
   const geometry = mergeGeometries(specs.map(islandGeometry));
-  const mesh = new Mesh(geometry, new MeshLambertMaterial({ vertexColors: true }));
-  return mesh;
+  const material = new MeshLambertMaterial({ vertexColors: true });
+  // Stone flags on paved tops: offset rows of slabs with darker joints and a
+  // little variation slab to slab, drawn from world position - no texture.
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        attribute float paved;
+        varying float vPaved;
+        varying vec2 vGround;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vPaved = paved;
+        vGround = (modelMatrix * vec4(position, 1.0)).xz;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying float vPaved;
+        varying vec2 vGround;
+        float slabHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        if (vPaved > 0.5) {
+          vec2 g = vGround / vec2(1.3, 0.9);
+          float row = floor(g.y);
+          g.x += mod(row, 2.0) * 0.5;
+          vec2 cell = floor(g);
+          vec2 f = fract(g);
+          float joint = min(min(f.x, 1.0 - f.x) * 1.3, min(f.y, 1.0 - f.y) * 0.9);
+          float line = 1.0 - smoothstep(0.02, 0.06, joint);
+          diffuseColor.rgb *= (0.93 + slabHash(cell) * 0.1) * (1.0 - line * 0.22);
+        }`,
+      );
+  };
+  return new Mesh(geometry, material);
 }
