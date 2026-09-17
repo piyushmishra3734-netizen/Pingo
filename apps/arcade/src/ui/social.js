@@ -7,7 +7,7 @@
  * line (net/peer.js). This file only draws and listens.
  */
 
-import { MessageCircle, Mic, MicOff, User, Volume2, VolumeX } from 'lucide';
+import { DoorOpen, Info, LogOut, Menu, MessageSquareText, Mic, SignalHigh, SignalLow, SignalMedium, SignalZero, User, UserPlus, Volume2, VolumeX, WifiOff } from 'lucide';
 
 import { meterFor } from '../lobby/voice-bubble.js';
 import { icon } from './icon.js';
@@ -16,11 +16,21 @@ const STYLE = `
 .so { position: fixed; z-index: 4; left: max(10px, env(safe-area-inset-left)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; pointer-events: none;
   font: 600 14px/1.3 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #fff; }
 .so[data-place='top'] { top: max(10px, env(safe-area-inset-top)); transform: none; }
-.so-bar { display: flex; gap: 6px; pointer-events: auto; }
-.so-btn { position: relative; width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.22); background: rgba(12,8,22,0.62); backdrop-filter: blur(6px); color: #fff; font-size: 19px; cursor: pointer; display: grid; place-items: center; }
-.so-btn.off { color: #ff8a9e; }
+.so-bar { display: flex; align-items: center; gap: 2px; align-self: flex-start; padding: 4px 8px; border-radius: 999px; background: rgba(8,6,14,0.82); box-shadow: 0 4px 16px rgba(0,0,0,0.35); pointer-events: auto; }
+.so-net { display: flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; margin-left: 2px; border-left: 1px solid rgba(255,255,255,0.15); font: 700 11px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.so-net[hidden] { display: none; }
+.so-friend[hidden] { display: none; }
+.so-menu { position: absolute; top: calc(100% + 8px); left: 0; display: grid; gap: 4px; min-width: 220px; padding: 8px; border-radius: 16px; background: rgba(8,6,14,0.92); box-shadow: 0 10px 30px rgba(0,0,0,0.45); pointer-events: auto; }
+.so-menu[hidden] { display: none; }
+.so-item { display: flex; align-items: center; gap: 12px; padding: 12px; border: 0; border-radius: 10px; background: transparent; color: #fff; font: 700 15px system-ui, sans-serif; text-align: left; text-decoration: none; cursor: pointer; }
+.so-item:hover, .so-item:focus-visible { background: rgba(255,255,255,0.1); outline: none; }
+.so-item.hot { background: linear-gradient(#ff5d97, #d92a6c); }
+.so-item[hidden] { display: none; }
+.so-btn { position: relative; width: 46px; height: 42px; border: 0; border-radius: 999px; background: transparent; color: #fff; cursor: pointer; display: grid; place-items: center; }
+.so-btn:active { background: rgba(255,255,255,0.12); }
+.so-btn.off::after { content: ''; position: absolute; width: 26px; height: 2.5px; background: #ff4f6d; border-radius: 2px; transform: rotate(-45deg); }
 .so-btn.live { border-color: #45ff7a; box-shadow: 0 0 0 2px rgba(69,255,122,0.35); }
-.so-btn .badge { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff4f8b; font: 800 10px/16px system-ui; }
+.so-btn .badge { position: absolute; top: 1px; right: 3px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #fff; color: #08060e; font: 800 11px/18px system-ui; }
 .so-friend { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; padding: 5px 10px 5px 6px; border-radius: 99px; background: rgba(12,8,22,0.62); border: 1px solid rgba(255,255,255,0.18); font-size: 13px; }
 .so-friend i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; background: #3a2a66; font-size: 12px; transition: box-shadow 80ms; }
 .so-log { display: flex; flex-direction: column; gap: 4px; max-width: min(320px, 70vw); }
@@ -50,9 +60,12 @@ const LINE_MS = 9000;
  *   onSend: (text: string) => void,
  *   onMic: (on: boolean) => Promise<boolean>,
  *   onSpeaker: (on: boolean) => void,
- * }} handlers
+ *   onInvite: () => void,
+ *   onStand: () => void,
+ *   onLeave?: () => void,
+ * }} handlers - `onLeave` only inside PINGO, where there is somewhere to go back to
  */
-export function createSocial({ onSend, onMic, onSpeaker }) {
+export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLeave }) {
   if (!styled) {
     const style = document.createElement('style');
     style.textContent = STYLE;
@@ -60,17 +73,57 @@ export function createSocial({ onSend, onMic, onSpeaker }) {
     styled = true;
   }
   const root = el('div', 'so');
+  // Roblox's top bar: one dark pill - menu, chat, mic - and how the line to
+  // your friend is doing.
   const bar = el('div', 'so-bar');
+  const menuButton = el('button', 'so-btn');
+  menuButton.append(icon(Menu, 24));
+  menuButton.setAttribute('aria-label', 'Menu');
   const chat = el('button', 'so-btn');
-  chat.append(icon(MessageCircle, 20));
+  chat.append(icon(MessageSquareText, 23));
   chat.setAttribute('aria-label', 'Chat');
   const mic = el('button', 'so-btn off');
-  mic.append(icon(MicOff, 20));
+  mic.append(icon(Mic, 23));
   mic.setAttribute('aria-label', 'Microphone');
-  const speaker = el('button', 'so-btn');
-  speaker.append(icon(Volume2, 20));
-  speaker.setAttribute('aria-label', 'Speaker');
-  bar.append(chat, mic, speaker);
+  const net = el('div', 'so-net');
+  net.hidden = true;
+  bar.append(menuButton, chat, mic, net);
+
+  const menuPanel = el('div', 'so-menu');
+  menuPanel.hidden = true;
+  const closeMenu = () => {
+    menuPanel.hidden = true;
+  };
+  const item = (node, label, onClick, className = '') => {
+    const button = el('button', `so-item ${className}`);
+    button.type = 'button';
+    button.append(icon(node, 20), label);
+    button.addEventListener('click', () => {
+      closeMenu();
+      onClick();
+    });
+    return button;
+  };
+  const speaker = item(Volume2, 'Sound on', () => {
+    speakerOn = !speakerOn;
+    speaker.replaceChildren(icon(speakerOn ? Volume2 : VolumeX, 20), speakerOn ? 'Sound on' : 'Sound off');
+    onSpeaker(speakerOn);
+  });
+  const standItem = item(LogOut, 'Stand up', onStand);
+  standItem.hidden = true;
+  const credits = el('a', 'so-item');
+  credits.href = 'CREDITS.txt';
+  credits.target = '_blank';
+  credits.rel = 'noopener';
+  credits.append(icon(Info, 20), 'Credits');
+  menuPanel.append(item(UserPlus, 'Invite friends', onInvite, 'hot'), speaker, standItem, credits);
+  if (onLeave) menuPanel.append(item(DoorOpen, 'Leave arcade', onLeave));
+  menuButton.addEventListener('click', () => {
+    menuPanel.hidden = !menuPanel.hidden;
+  });
+  window.addEventListener('pointerdown', (event) => {
+    if (!menuPanel.hidden && !menuPanel.contains(event.target) && !menuButton.contains(event.target)) closeMenu();
+  });
   const friend = el('div', 'so-friend');
   friend.hidden = true;
   const avatar = el('i');
@@ -87,7 +140,10 @@ export function createSocial({ onSend, onMic, onSpeaker }) {
   const send = el('button', '', 'Send');
   send.type = 'submit';
   form.append(input, send);
-  root.append(bar, friend, log, form);
+  const top = el('div');
+  top.style.position = 'relative';
+  top.append(bar, menuPanel);
+  root.append(top, friend, log, form);
   document.body.append(root);
 
   let unread = 0;
@@ -138,13 +194,6 @@ export function createSocial({ onSend, onMic, onSpeaker }) {
     micOn = await onMic(want);
     mic.classList.toggle('off', !micOn);
     mic.classList.toggle('live', micOn);
-    mic.replaceChildren(icon(micOn ? Mic : MicOff, 20));
-  });
-  speaker.addEventListener('click', () => {
-    speakerOn = !speakerOn;
-    speaker.classList.toggle('off', !speakerOn);
-    speaker.replaceChildren(icon(speakerOn ? Volume2 : VolumeX, 20));
-    onSpeaker(speakerOn);
   });
 
   function add(name, text, { mine = false, system = false } = {}) {
@@ -166,6 +215,36 @@ export function createSocial({ onSend, onMic, onSpeaker }) {
 
   return {
     add,
+
+    /** Stand up appears in the menu only while you are sitting. */
+    setSeated(seated) {
+      standItem.hidden = !seated;
+    },
+
+    /**
+     * The line to your friend: `offline` with no network at all, otherwise
+     * the round trip in ms while linked (null hides it: nobody to measure),
+     * and `stalled` once they have stopped answering.
+     */
+    setNet({ offline = false, rtt = null, stalled = false }) {
+      const show = offline || stalled || rtt !== null;
+      net.hidden = !show;
+      if (!show) return;
+      const [node, colour, text] = offline
+        ? [WifiOff, '#ff4f6d', 'Offline']
+        : stalled
+          ? [SignalZero, '#ff4f6d', 'Lag']
+          : rtt < 120
+            ? [SignalHigh, '#45ff7a', `${rtt}ms`]
+            : rtt < 250
+              ? [SignalMedium, '#ffd84a', `${rtt}ms`]
+              : [SignalLow, '#ff9a2e', `${rtt}ms`];
+      const key = `${text}${colour}`;
+      if (net.dataset.key === key) return;
+      net.dataset.key = key;
+      net.style.color = colour;
+      net.replaceChildren(icon(node, 18), text);
+    },
 
     /** The friend chip: their name, or hidden with null. */
     setFriend(name) {

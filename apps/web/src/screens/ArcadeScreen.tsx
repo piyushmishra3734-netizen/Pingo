@@ -1,6 +1,6 @@
 import { useChat, useProfile } from '@pingo/core';
 import { Gamepad2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sheet } from '../components/Sheet.js';
@@ -14,14 +14,30 @@ import { PingRecipients, PingSendButton } from '../features/camera/PingRecipient
  * who you are (your PINGO name) and, when you arrive from a Join card, which
  * room to walk into. Walking in on your own makes a fresh room.
  *
- * Leaving is the arcade's own "✕ Leave" button, which posts back here.
+ * Leaving is "Leave arcade" in the arcade's own menu, which posts back here.
+ * The room it opens is written into this page's address, so a reload (PINGO
+ * refreshing itself, the phone reclaiming memory) walks back into the same
+ * room instead of a new one.
+ *
+ * The arcade is a landscape game. Upright, PINGO first asks the phone to turn
+ * (full screen + orientation lock, where the WebView allows it); where it
+ * cannot, the frame is drawn turned a quarter, so the game is landscape either
+ * way and the player just turns the phone.
  *
  * Inviting happens here, not in the frame: the arcade posts the room it is in,
  * and PINGO shows its own friend picker - the one sharing and Pings use - then
  * sends each chosen chat an invite message, which the bubble draws as a Join
  * card. No link to copy, nothing to paste.
  */
+const portraitQuery = () => window.matchMedia('(orientation: portrait)');
+const subscribePortrait = (onChange: () => void) => {
+  const query = portraitQuery();
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+
 export function ArcadeScreen() {
+  const portrait = useSyncExternalStore(subscribePortrait, () => portraitQuery().matches);
   const navigate = useNavigate();
   const { search } = useLocation();
   const { profile } = useProfile();
@@ -52,12 +68,31 @@ export function ArcadeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Try the real thing first: full screen, locked to landscape. Browsers and
+  // WebViews that refuse leave `portrait` true, and the frame turns instead.
+  useEffect(() => {
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+    void document.documentElement
+      .requestFullscreen?.({ navigationUI: 'hide' })
+      .then(() => orientation.lock?.('landscape'))
+      .catch(() => undefined);
+    return () => {
+      orientation.unlock?.();
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    };
+  }, []);
+
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== ARCADE_ORIGIN) return;
       const data = event.data as { type?: string; room?: string; seat?: string; from?: string } | null;
       if (data?.type === 'pingo-arcade:leave') {
         leave();
+        return;
+      }
+      if (data?.type === 'pingo-arcade:room') {
+        const room = inviteFromSearch(`?${new URLSearchParams({ room: data.room ?? '', seat: data.seat ?? 'A' })}`);
+        if (room) navigate(`/arcade?${new URLSearchParams({ room: room.room, seat: room.seat })}`, { replace: true });
         return;
       }
       if (data?.type !== 'pingo-arcade:invite') return;
@@ -104,7 +139,12 @@ export function ArcadeScreen() {
         title="PINGO Arcade"
         src={src}
         allow="microphone; autoplay; fullscreen; clipboard-write"
-        className="size-full border-0"
+        className="border-0"
+        style={
+          portrait
+            ? { position: 'absolute', top: 0, left: '100vw', width: '100dvh', height: '100vw', transform: 'rotate(90deg)', transformOrigin: 'top left' }
+            : { width: '100%', height: '100%' }
+        }
       />
 
       {sent > 0 && (

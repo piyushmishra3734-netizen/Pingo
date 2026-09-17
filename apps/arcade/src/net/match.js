@@ -17,6 +17,8 @@ import { connectSignaling } from './signaling.js';
 
 const PING_EVERY_MS = 2000;
 const RECONNECT_AFTER_MS = 2000;
+/** A `join` while still linked: if the old link has not answered in this long, it is dead. */
+const STALE_LINK_MS = 3000;
 
 /**
  * @param {{
@@ -39,6 +41,9 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink 
   let role;
   /** True while the data channel to the other player is open. */
   let linked = false;
+  /** When the other player last answered a ping. */
+  let lastPong = 0;
+  let staleTimer;
   /** Handlers for control messages by type, and for raw input packets. */
   const handlers = new Map();
   const inputHandlers = new Set();
@@ -95,7 +100,10 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink 
       onClose: dropped,
       onControl(message) {
         if (message.type === 'ping') peer?.sendControl({ type: 'pong', t: message.t });
-        if (message.type === 'pong') onRtt?.(Math.round(performance.now() - message.t));
+        if (message.type === 'pong') {
+          lastPong = performance.now();
+          onRtt?.(Math.round(lastPong - message.t));
+        }
         for (const handler of handlers.get(message.type) ?? []) handler(message);
       },
       onInput(data) {
@@ -116,15 +124,34 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink 
         onRole?.(message.role);
         // A guest arrives to a host who is already waiting: connecting starts
         // now, and the host's offer is on its way.
-        if (message.role === 'guest') {
+        // Back on the relay after a blip, with the game link still up: keep it.
+        if (message.role === 'guest' && !linked) {
           session.guestFound();
           newPeer('guest');
         }
         break;
-      case 'join':
-        session.guestFound();
-        void newPeer('host').start();
+      case 'join': {
+        if (!linked) {
+          session.guestFound();
+          void newPeer('host').start();
+          break;
+        }
+        /*
+         * Somebody joined while the link looks open. Either the friend's relay
+         * socket blinked (the link is fine - leave it) or they reloaded and the
+         * old link is a ghost. A ping tells which: no answer, and it is rebuilt.
+         */
+        const asked = performance.now();
+        peer?.sendControl({ type: 'ping', t: asked });
+        clearTimeout(staleTimer);
+        staleTimer = setTimeout(() => {
+          if (!active || lastPong >= asked) return;
+          note('stale link, re-offering');
+          session.guestFound();
+          void newPeer('host').start();
+        }, STALE_LINK_MS);
         break;
+      }
       case 'offer':
       case 'answer':
       case 'candidate':
@@ -134,7 +161,9 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink 
         // The Worker has made us the host; the next arrival gets our offer.
         role = 'host';
         onRole?.('host');
-        dropped();
+        // Their relay socket went, not necessarily them: phones drop idle
+        // sockets all the time. The game link itself says when they are gone.
+        if (!linked) dropped();
         break;
       case 'full':
         active = false;
@@ -150,9 +179,10 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink 
       onClose() {
         signaling = undefined;
         if (!active) return;
-        // The relay went away (a network change, a Worker restart). The
-        // player is still in the chair: wait, then knock again.
-        dropped();
+        // The relay went away (a network change, a Worker restart, a phone
+        // closing an idle socket). A game link that is still up carries on;
+        // only a half-made handshake is abandoned. Then knock again.
+        if (!linked) dropped();
         clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => active && connect(), RECONNECT_AFTER_MS);
       },
@@ -172,6 +202,7 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink 
     end() {
       active = false;
       clearTimeout(reconnectTimer);
+      clearTimeout(staleTimer);
       dropPeer();
       signaling?.close();
       signaling = undefined;
@@ -206,6 +237,11 @@ export function createMatch({ session, signalUrl, onRtt, onRole, onFull, onLink 
 
     get role() {
       return role;
+    },
+
+    /** Milliseconds since the other player last answered, or null if never. */
+    get silentFor() {
+      return lastPong ? performance.now() - lastPong : null;
     },
 
     /** Your microphone on the voice line (null for off). Kept across reconnects. */

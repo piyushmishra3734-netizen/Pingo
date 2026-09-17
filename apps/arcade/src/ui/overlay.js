@@ -1,4 +1,4 @@
-import { X } from 'lucide';
+import { Armchair, X } from 'lucide';
 
 import { withIcon } from './icon.js';
 
@@ -50,7 +50,7 @@ function button(label, className, onClick) {
 /**
  * @param {{ onStand: () => void, onBack: () => void, onSit: () => void }} options
  */
-export function createOverlay({ onStand, onBack, onSit, onLeave }) {
+export function createOverlay({ onStand, onBack, onSit }) {
   const root = document.createElement('div');
   root.className = 'overlay';
 
@@ -65,21 +65,10 @@ export function createOverlay({ onStand, onBack, onSit, onLeave }) {
 
   // Bottom right, under the thumb the stick does not use - where games keep
   // their action button.
-  const sit = button('Sit down', 'overlay-button overlay-invite overlay-action', onSit);
+  const sit = button(withIcon(Armchair, 'SIT', { size: 30 }), 'overlay-button overlay-invite overlay-action', onSit);
+  sit.setAttribute('aria-label', 'Sit down');
   document.body.append(sit);
 
-  // Who made the models and sounds. Some are CC-BY, which asks for their
-  // credit where people can find it; the CC0 ones get theirs anyway.
-  // Inside PINGO that corner is the way back to PINGO instead.
-  const credits = onLeave ? button(withIcon(X, 'Leave', { size: 15 }), 'credits overlay-button', onLeave) : document.createElement('a');
-  if (!onLeave) {
-    credits.className = 'credits';
-    credits.href = 'CREDITS.txt';
-    credits.target = '_blank';
-    credits.rel = 'noopener';
-    credits.textContent = 'Credits';
-  }
-  document.body.append(credits);
 
   return {
     /**
@@ -92,7 +81,6 @@ export function createOverlay({ onStand, onBack, onSit, onLeave }) {
       const inGame = mode === 'game';
       root.dataset.mode = seated ? mode : 'walk';
       sit.hidden = !(extra.canSit && !seated);
-      credits.hidden = seated;
 
       let text = seated ? '' : 'Walk in and sit at the PINGO machine';
       if (mode === 'zooming') text = 'Get ready…';

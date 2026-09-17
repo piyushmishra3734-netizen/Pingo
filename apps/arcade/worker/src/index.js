@@ -18,13 +18,42 @@ import { ROOM_ID, admit, allowedOrigin, parseForward } from './room.js';
  *   offer / answer / candidate         relayed verbatim from the other player
  */
 
+/** A socket that has sent no heartbeat in this long is a ghost (the client beats every 20 s). */
+const GHOST_MS = 50_000;
+
 export class ArcadeRoom extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    // Heartbeats are answered by the runtime, without waking the room.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('{"type":"keepalive"}', '{"type":"keepalive-ok"}'));
+  }
+
   async fetch() {
     const [client, server] = Object.values(new WebSocketPair());
 
     // Hibernation-aware accept: an idle room costs nothing while two players
     // sit and wait, and the role survives in the socket's attachment.
     this.ctx.acceptWebSocket(server);
+
+    /*
+     * A phone that lost its network leaves its socket open here until the
+     * runtime notices, which can be minutes - and while it sits there the room
+     * looks full to that same player coming back. Silent ones are let go first.
+     */
+    const now = Date.now();
+    for (const ws of this.#players()) {
+      // Only a client that has beaten before can be judged by its silence;
+      // an older one that never beats is left alone, as it always was.
+      const heard = this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime();
+      if (heard && now - heard > GHOST_MS) {
+        this.#leave(ws);
+        try {
+          ws.close(4002, 'silent');
+        } catch {
+          /* already gone */
+        }
+      }
+    }
 
     const present = this.#players().map((ws) => ws.deserializeAttachment().role);
     const role = admit(present);

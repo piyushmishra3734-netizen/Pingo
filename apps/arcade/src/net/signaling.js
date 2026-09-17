@@ -23,7 +23,18 @@ export function connectSignaling(baseUrl, roomId, { onMessage, onClose }) {
     onMessage(message);
   });
 
+  /*
+   * A heartbeat. Phones and carriers close sockets that sit silent, and the
+   * Worker answers this without waking the room (an auto-response), recording
+   * when it last heard from us - so a socket that has gone quiet can be told
+   * from a player who is still here.
+   */
+  const heartbeat = setInterval(() => {
+    if (socket.readyState === WebSocket.OPEN) socket.send('{"type":"keepalive"}');
+  }, 20000);
+
   socket.addEventListener('close', (event) => {
+    clearInterval(heartbeat);
     if (!closedByUs) onClose(event.code);
   });
 
@@ -33,6 +44,7 @@ export function connectSignaling(baseUrl, roomId, { onMessage, onClose }) {
     },
     /** Leaves the room; `onClose` is not called for a close we asked for. */
     close() {
+      clearInterval(heartbeat);
       closedByUs = true;
       socket.close(1000, 'left');
     },

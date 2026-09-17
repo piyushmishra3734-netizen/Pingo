@@ -202,7 +202,6 @@ const overlay = createOverlay({
   onStand: stand,
   onBack: () => exitGame(true),
   onSit: sitDown,
-  ...(inPingo ? { onLeave: () => window.parent.postMessage({ type: 'pingo-arcade:leave' }, '*') } : {}),
 });
 
 function show() {
@@ -212,6 +211,7 @@ function show() {
     mode,
     canSit: Boolean(nearSeat),
   });
+  social.setSeated(session.state !== State.IDLE);
   menu.update({ inPingo, name: myName, friendName, linked, friendSeated: friendSeat >= 0 });
 }
 
@@ -343,6 +343,15 @@ function sendPosition() {
 }
 setInterval(sendPosition, 100);
 
+// The top bar's signal: offline, lagging, or the round trip to your friend.
+setInterval(() => {
+  social.setNet({
+    offline: !navigator.onLine,
+    rtt: linked && rtt !== undefined ? rtt : null,
+    stalled: linked && (match?.silentFor ?? 0) > 4000,
+  });
+}, 500);
+
 /* Voice: the friend's audio plays through this element. */
 const voice = new Audio();
 voice.autoplay = true;
@@ -353,7 +362,33 @@ myBubble.sprite.position.y = 2.15;
 player.group.add(myBubble.sprite);
 let myMeter;
 
+/**
+ * Invites a friend - from the top bar's menu or the machine's screen. Walking
+ * in without a room makes one first, so there is always something to invite
+ * them into. Inside PINGO, PINGO's own friend list takes it from here;
+ * elsewhere the link is copied.
+ */
+function inviteFriends() {
+  if (!roomId) {
+    roomId = newRoomId();
+    const url = new URL(location.href);
+    url.searchParams.set('room', roomId);
+    history.replaceState(null, '', url);
+    void getMatch().then((m) => m.begin(roomId));
+  }
+  if (!inPingo) {
+    void sendLink(myInvite()).then((how) => {
+      if (how === 'copied') social.add('', 'Invite link copied - send it to a friend', { system: true });
+    });
+    return;
+  }
+  window.parent.postMessage({ type: 'pingo-arcade:invite', room: roomId, seat: seatLetter() === 'B' ? 'A' : 'B', from: myName }, '*');
+}
+
 const social = createSocial({
+  onInvite: inviteFriends,
+  onStand: stand,
+  ...(inPingo ? { onLeave: () => window.parent.postMessage({ type: 'pingo-arcade:leave' }, '*') } : {}),
   onSend(text) {
     if (!linked) {
       social.add('', 'Nobody to talk to yet - invite a friend from the PINGO machine', { system: true });
@@ -402,11 +437,7 @@ const menu = createScreenMenu({
     menu.update({ waiting: kind });
     match.send({ type: 'propose', kind });
   },
-  onInvite() {
-    if (!inPingo) return void sendLink(myInvite());
-    // PINGO shows its own friend picker and sends each friend a Join card.
-    window.parent.postMessage({ type: 'pingo-arcade:invite', room: roomId, seat: seatLetter() === 'B' ? 'A' : 'B', from: myName }, '*');
-  },
+  onInvite: inviteFriends,
   onCopyLink: () => sendLink(myInvite()),
   onAnswer(yes, kind) {
     menu.update({ ask: null });
@@ -598,6 +629,9 @@ if (inPingo && !roomId) {
   const url = new URL(location.href);
   url.searchParams.set('room', roomId);
   history.replaceState(null, '', url);
+  // PINGO keeps the room in its own address, so a reload walks back into this
+  // room rather than opening a new one (and losing your friend).
+  window.parent.postMessage({ type: 'pingo-arcade:room', room: roomId, seat: 'A' }, '*');
 }
 // Arrived by invite (or opened from PINGO): connect straight away, so your friend sees you walk in.
 if (roomId) void getMatch().then((m) => m.begin(roomId));

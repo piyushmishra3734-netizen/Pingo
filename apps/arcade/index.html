@@ -104,11 +104,12 @@
         bottom: max(24px, env(safe-area-inset-bottom));
         z-index: 3;
         display: none;
-        width: 112px;
-        height: 112px;
-        border: 2px solid rgba(255, 255, 255, 0.3);
+        width: 124px;
+        height: 124px;
+        border: 3px solid rgba(255, 255, 255, 0.55);
         border-radius: 50%;
-        background: rgba(13, 10, 20, 0.35);
+        background: rgba(20, 26, 48, 0.55);
+        box-shadow: inset 0 0 0 5px rgba(10, 12, 24, 0.45);
         touch-action: none;
       }
       @media (pointer: coarse) {
@@ -123,37 +124,39 @@
         position: absolute;
         left: 50%;
         top: 50%;
-        width: 48px;
-        height: 48px;
-        margin: -24px;
+        width: 56px;
+        height: 56px;
+        margin: -28px;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.55);
+        background: rgba(10, 12, 24, 0.88);
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.28);
         pointer-events: none;
       }
-      .overlay-action {
+      /* Roblox's action button: a dark disc with a ring, bottom right, icon only. */
+      .overlay-button.overlay-action {
         position: fixed;
         right: max(24px, env(safe-area-inset-right));
-        bottom: max(32px, env(safe-area-inset-bottom));
+        bottom: max(28px, env(safe-area-inset-bottom));
         z-index: 3;
-        min-height: 56px;
-        padding: 0 28px;
-        font: 600 17px system-ui, -apple-system, 'Segoe UI', sans-serif;
+        display: grid;
+        place-items: center;
+        width: 80px;
+        height: 80px;
+        padding: 0;
+        border: 3px solid rgba(255, 255, 255, 0.55);
+        border-radius: 50%;
+        background: rgba(20, 26, 48, 0.72);
+        box-shadow: inset 0 0 0 4px rgba(10, 12, 24, 0.6);
+        color: #fff;
+        font: 800 10px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+        letter-spacing: 0.08em;
       }
-      .credits {
-        position: fixed;
-        right: max(12px, env(safe-area-inset-right));
-        top: max(12px, env(safe-area-inset-top));
-        z-index: 2;
-        padding: 6px 8px;
-        font: 500 12px system-ui, -apple-system, 'Segoe UI', sans-serif;
-        color: rgba(244, 241, 250, 0.62);
-        text-decoration: none;
+      .overlay-button.overlay-action:active {
+        background: rgba(255, 255, 255, 0.25);
       }
-      .credits:focus-visible {
-        outline: 2px solid #f4f1fa;
-      }
-      .credits[hidden] {
-        display: none;
+      .overlay-action .ic-label {
+        flex-direction: column;
+        gap: 3px;
       }
       .overlay[data-mode='walk'] {
         top: max(12px, env(safe-area-inset-top));
@@ -196,8 +199,6 @@
         outline-offset: 3px;
       }
       .overlay-invite {
-        background: #f4f1fa;
-        color: #120e1a;
         font-weight: 600;
       }
       .overlay-link {
