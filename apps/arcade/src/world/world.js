@@ -13,6 +13,7 @@ import { createTownsfolk } from './townsfolk.js';
 import { createRailway, createStations } from './railway.js';
 import { ROOFS, WALLS, createTown, townMaterial } from './town.js';
 import { createTram } from './tram/index.js';
+import { createWorkshop } from './workshop.js';
 
 /**
  * The world above the clouds.
@@ -41,6 +42,16 @@ const TERRACE = { x: 78, y: -6, z: -104, radius: 15, depth: 6.5, cliff: 6.5, see
 const BEACON = { x: 34, y: 20, z: -205, radius: 27, depth: 26, seed: 23, top: 'town', segments: 36, dome: 0 };
 const GARDEN = { x: -98, y: 10, z: -52, radius: 16, depth: 18, seed: 22, top: 'meadow', segments: 30 };
 const VILLAGE = { x: -132, y: -16, z: 84, radius: 23, depth: 24, seed: 26, top: 'town', segments: 34, dome: 0 };
+/**
+ * Pingo Cloudworks, the tram workshop: its own island out under the long arc
+ * on the far side of the loop, so the line runs past it and you look down into
+ * the yard as you ride. `yaw` turns the yard to face the line; the paving is
+ * sized to stay on the island.
+ */
+const WORKS = { x: -29.5, y: 18, z: -113.6, radius: 46, depth: 34, seed: 31, top: 'town', segments: 38, dome: 0 };
+const WORKS_YARD = { x0: -22, x1: 21, z0: -40, z1: 30 };
+const WORKS_YAW = -34.3 * (Math.PI / 180) + Math.PI;
+
 const ISLES = [
   { x: 146, y: 4, z: 44, radius: 12, depth: 14, seed: 25, top: 'grass' },
   { x: -64, y: -26, z: -168, radius: 13, depth: 15, seed: 24, top: 'meadow' },
@@ -290,7 +301,7 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
   const sky = createSky(palette, `panorama/${hour}-${quality.panorama ?? 3072}.webp`);
   // Island smoothness scales with quality; the shapes themselves never change.
   const islands = createIslands(
-    [...places, ...spikes(curve, places), ...FAR].map((spec) => ({ ...spec, segments: Math.max(10, Math.round((spec.segments ?? 28) * quality.detail)) })),
+    [...places, WORKS, ...spikes(curve, places), ...FAR].map((spec) => ({ ...spec, segments: Math.max(10, Math.round((spec.segments ?? 28) * quality.detail)) })),
   );
 
   // Nothing is built within 6 m of the line.
@@ -348,6 +359,13 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
   const tram = createTram({ palette, quality, curve, stations: stationList, config: {} });
   group.add(tram.group);
   let lastSeconds = 0;
+
+  // The workshop yard on its own island, as scenery you ride past; the build
+  // menu (ui/workshop-menu.js) does the fitting wherever the tram stands.
+  const workshop = createWorkshop({ detail: quality.props ?? 2, yard: WORKS_YARD });
+  workshop.group.position.set(WORKS.x, WORKS.y, WORKS.z);
+  workshop.group.rotation.y = WORKS_YAW;
+  group.add(workshop.group);
 
   const sparkles = createSparkles(curve, quality.sparkles, 0.25 + palette.stars * 0.75);
   group.add(sparkles.points);

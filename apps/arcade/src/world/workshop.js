@@ -341,12 +341,20 @@ function beamLamp(b, lit, [x, y, z]) {
  *   - exitCurvePoints: from the bay out through the yard, in railway.js's
  *     convention (track centre line; the tram rides at y + 0.3).
  */
-export function createWorkshop({ detail = 2, name = 'Pingo Cloudworks' } = {}) {
+export function createWorkshop({ detail = 2, name = 'Pingo Cloudworks', yard = { x0: -43, x1: 23, z0: -42, z1: 63 } } = {}) {
   const d = Math.max(0, Math.min(3, Math.round(detail)));
   const b = createBuilder();
   const lit = createBuilder();
 
-  paving(b, { x0: -43, x1: 23, z0: -42, z1: 63, detail: d });
+  paving(b, { ...yard, detail: d });
+
+  // Tracks are drawn inside the yard: a smaller yard (a smaller island) keeps
+  // the rails on the paving instead of running them off the edge.
+  const held = ([x, y, z]) => [Math.min(yard.x1, Math.max(yard.x0, x)), y, Math.min(yard.z1, Math.max(yard.z0, z))];
+  const rails = (points) => {
+    const kept = points.map(held).filter((p, i, all) => i === 0 || Math.hypot(p[0] - all[i - 1][0], p[2] - all[i - 1][2]) > 1);
+    if (kept.length >= 2) track(b, kept, d);
+  };
 
   // Tracks: the bay line, one either side, and the yard beyond the switch.
   const exitCurvePoints = [
@@ -357,15 +365,15 @@ export function createWorkshop({ detail = 2, name = 'Pingo Cloudworks' } = {}) {
     [-22, 0, 50],
     [-40, 0, 53],
   ];
-  track(b, [[0, 0, -38], [0, 0, 18]], d);
-  track(b, exitCurvePoints.slice(1), d);
-  track(b, [[0, 0, 18], [0, 0, 62]], d);
-  track(b, [[6.5, 0, -38], [6.5, 0, 14]], d);
+  rails([[0, 0, -38], [0, 0, 18]]);
+  rails(exitCurvePoints.slice(1));
+  rails([[0, 0, 18], [0, 0, 62]]);
+  rails([[6.5, 0, -38], [6.5, 0, 14]]);
   if (d >= 1) {
-    track(b, [[-6.4, 0, -38], [-6.4, 0, 8]], d);
-    track(b, [[0, 0, 18], [-3, 0, 25], [-10, 0, 31], [-24, 0, 36]], d);
+    rails([[-6.4, 0, -38], [-6.4, 0, 8]]);
+    rails([[0, 0, 18], [-3, 0, 25], [-10, 0, 31], [-24, 0, 36]]);
   }
-  if (d >= 2) track(b, [[6.5, 0, 14], [7, 0, 24], [4, 0, 40], [2, 0, 62]], d);
+  if (d >= 2) rails([[6.5, 0, 14], [7, 0, 24], [4, 0, 40], [2, 0, 62]]);
 
   // The workshop sheds behind the bay, and a second one across the yard.
   shed(b, lit, { x0: -17, x1: -9.2, z0: -40, z1: 14, h: 6.6, rise: 2, face: 1, slits: true, detail: d });
