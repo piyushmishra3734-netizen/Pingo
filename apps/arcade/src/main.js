@@ -14,6 +14,7 @@ import { inviteUrl, newRoomId, roomFromSearch, seatFromSearch } from './net/room
 import { createOverlay, sendLink } from './ui/overlay.js';
 import { createScreenMenu } from './ui/screen-menu.js';
 import { createSocial } from './ui/social.js';
+import { createTramHud } from './ui/tram-hud.js';
 import { createWorld } from './world/world.js';
 
 /*
@@ -640,25 +641,58 @@ if (roomId) void getMatch().then((m) => m.begin(roomId));
 resize();
 
 /*
- * Riding the tram: a cinematic camera that follows the carriage round the
- * loop from behind and above, easing so the world slides by. The player
- * stays where they stood; moving (or the menu) ends the ride.
+ * Riding the tram: you drive it. The camera follows the carriage round the
+ * loop from behind and to the side, the HUD (ui/tram-hud.js) takes power,
+ * brake, lean and the doors, and the driving logic (world/tram/drive.js) runs
+ * with your inputs instead of the autopilot's. The player stays where they
+ * stood; moving (or the menu) ends the ride.
  */
 let riding = false;
+let tramHud;
 const rideEye = new Vector3();
 const rideLook = new Vector3();
 const rideWant = new Vector3();
 function setRiding(on) {
   riding = on;
+  room.tram.autopilot = !on;
   if (on) {
     rideEye.copy(camera.position);
-    social.add('', 'Riding the tram - move to get off', { system: true });
+    const input = room.tram.input;
+    tramHud ??= createTramHud({
+      onPower: (down) => {
+        input.power = down;
+      },
+      onBrake: (down) => {
+        input.brake = down;
+      },
+      onLean: (lean) => {
+        input.lean = lean;
+      },
+      onOpenDoors: () => {
+        input.openDoors = true;
+      },
+      onMenu: () => setRiding(false),
+    });
+    tramHud.show(true);
+    tramHud.update(room.tram.drive);
+    social.add('', 'Driving the tram - W power, S brake, A/D lean, E doors', { system: true });
   } else {
+    tramHud?.show(false);
     follow.snap(player.position);
   }
 }
+
+/** What the driving logic just did, as words on the screen. */
+function tramEvents(events) {
+  for (const event of events ?? []) {
+    if (event.type === 'doors-opening') tramHud?.message(`Doors opening - ${event.station}`);
+    else if (event.type === 'streak-broken') tramHud?.message(event.message);
+    else if (event.type === 'paid') tramHud?.message(`+${event.coins} tips`);
+    else if (event.type === 'missed-station') tramHud?.message(`Missed ${event.station}`);
+  }
+}
 function rideCamera(dt) {
-  const [front, carriage] = room.tram;
+  const [front, carriage] = room.tram.cars;
   // Off to one side and a little behind, so the carriage's windows are in view.
   rideWant.set(-9, 6, -9).applyQuaternion(carriage.quaternion).add(carriage.position);
   const k = 1 - Math.exp(-dt * 2.5);
@@ -698,7 +732,11 @@ function frame(now) {
   if (room.update(dt, player.position, now)) playSound('door');
   updateMood();
   room.domes.update(now);
-  room.tick(camera, now / 1000, renderer.getPixelRatio());
+  const tramEventList = room.tick(camera, now / 1000, renderer.getPixelRatio());
+  if (riding) {
+    tramHud.update(room.tram.drive);
+    tramEvents(tramEventList);
+  }
   renderer.render(scene, camera);
   hud?.update(now);
 }

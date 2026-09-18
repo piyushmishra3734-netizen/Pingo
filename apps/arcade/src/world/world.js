@@ -12,7 +12,7 @@ import { createSparkles } from './sparkles.js';
 import { createTownsfolk } from './townsfolk.js';
 import { createRailway, createStations } from './railway.js';
 import { ROOFS, WALLS, createTown, townMaterial } from './town.js';
-import { createTram } from './tram.js';
+import { createTram } from './tram/index.js';
 
 /**
  * The world above the clouds.
@@ -340,16 +340,17 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
   const townsfolk = createTownsfolk({ count: quality.people ?? 4, plaza: { x: 0, z: 0 }, platform });
   group.add(townsfolk.group);
 
-  const tram = createTram(palette);
-  group.add(...tram);
-  const lineLength = curve.getLength();
-  const station = 0.02;
-  let travelled = 0;
+  // The tram: parts, driving logic and animation all live in world/tram.
+  const stationList = [
+    { name: 'Cloudfoot Terrace', at: ((home[0] + home[1]) / 2) * curve.getLength() },
+    { name: 'Marigold Quay', at: ((downtown[0] + downtown[1]) / 2) * curve.getLength() },
+  ].sort((a, b) => a.at - b.at);
+  const tram = createTram({ palette, quality, curve, stations: stationList, config: {} });
+  group.add(tram.group);
   let lastSeconds = 0;
 
   const sparkles = createSparkles(curve, quality.sparkles, 0.25 + palette.stars * 0.75);
   group.add(sparkles.points);
-  const ahead = new Vector3();
 
   // The PINGO pair stays for now, on the plaza, as the place games are played.
   const cabinetA = createCabinet();
@@ -412,22 +413,10 @@ export function createWorld({ time = 'dusk', quality = { detail: 1, clouds: 1, l
       sky.update(camera, seconds);
       sparkles.update(seconds, pixelRatio);
 
-      const dt = Math.min(0.1, seconds - lastSeconds);
+      const dt = Math.max(0, Math.min(0.1, seconds - lastSeconds));
       lastSeconds = seconds;
-      townsfolk.update(Math.max(0, dt));
-      const u = (travelled / lineLength) % 1;
-      const fromStation = Math.min(Math.abs(u - station), 1 - Math.abs(u - station));
-      const speed = 4 + 14 * Math.min(1, fromStation * 25);
-      travelled += speed * Math.max(0, dt);
-      let back = 0;
-      for (const car of tram) {
-        const at = (((travelled - back - car.userData.length / 2) / lineLength) % 1 + 1) % 1;
-        const p = curve.getPointAt(at);
-        curve.getPointAt((at + 0.002) % 1, ahead);
-        car.position.set(p.x, p.y + 0.3, p.z);
-        car.lookAt(ahead.x, ahead.y + 0.3, ahead.z);
-        back += car.userData.length + 0.8;
-      }
+      townsfolk.update(dt);
+      return tram.update(dt, seconds);
     },
   };
 }
