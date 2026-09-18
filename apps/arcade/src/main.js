@@ -15,6 +15,9 @@ import { createOverlay, sendLink } from './ui/overlay.js';
 import { createScreenMenu } from './ui/screen-menu.js';
 import { createSocial } from './ui/social.js';
 import { createTramHud } from './ui/tram-hud.js';
+import { createWorkshopMenu } from './ui/workshop-menu.js';
+import { FRONT_CARS } from './world/tram/index.js';
+import { ROOFS } from './world/tram/roofs.js';
 import { createWorld } from './world/world.js';
 
 /*
@@ -671,15 +674,64 @@ function setRiding(on) {
       onOpenDoors: () => {
         input.openDoors = true;
       },
-      onMenu: () => setRiding(false),
+      onMenu: () => openBuild(),
     });
     tramHud.show(true);
     tramHud.update(room.tram.drive);
     social.add('', 'Driving the tram - W power, S brake, A/D lean, E doors', { system: true });
   } else {
     tramHud?.show(false);
+    closeBuild();
     follow.snap(player.position);
   }
+}
+
+/*
+ * Build your tram: the workshop menu (ui/workshop-menu.js) over the ride.
+ * Picking a part runs the crane swap in world/tram/animate.js, whose statuses
+ * fill the fitting card; "Start journey" goes back to driving and "Explore"
+ * gets off the tram.
+ */
+let buildMenu;
+let building = false;
+const listOf = (parts) => Object.entries(parts).map(([id, part]) => ({ id, name: part.name }));
+
+function openBuild() {
+  const tram = room.tram;
+  // The crane needs the tram still: a car being lowered is placed on the line
+  // every frame, so it only settles while the tram is standing.
+  building = true;
+  buildMenu ??= createWorkshopMenu({
+    roofs: listOf(ROOFS),
+    cars: listOf(FRONT_CARS),
+    selected: { roof: tram.fitted.roof, car: tram.fitted.front },
+    onPick: fitPart,
+    onStart: () => closeBuild(),
+    onExplore: () => {
+      closeBuild();
+      setRiding(false);
+    },
+  });
+  buildMenu.setSelected('roof', tram.fitted.roof);
+  buildMenu.setSelected('car', tram.fitted.front);
+  buildMenu.show(true);
+}
+
+function closeBuild() {
+  building = false;
+  buildMenu?.show(false);
+}
+
+function fitPart(kind, id) {
+  const parts = kind === 'roof' ? ROOFS : FRONT_CARS;
+  const name = parts[id]?.name ?? '';
+  const onStatus = (text, progress) => buildMenu.setStatus({ name, text, progress });
+  const tram = room.tram;
+  const swap = kind === 'roof' ? tram.swapRoof(id, onStatus) : tram.swapFront(id, onStatus);
+  swap.then(() => {
+    buildMenu.setStatus(null);
+    buildMenu.setSelected(kind, id);
+  });
 }
 
 /** What the driving logic just did, as words on the screen. */
@@ -692,7 +744,7 @@ function tramEvents(events) {
   }
 }
 function rideCamera(dt) {
-  const [front, carriage] = room.tram.cars;
+  const [front, carriage] = room.tram.cars.map((car) => car.group);
   // Off to one side and a little behind, so the carriage's windows are in view.
   rideWant.set(-9, 6, -9).applyQuaternion(carriage.quaternion).add(carriage.position);
   const k = 1 - Math.exp(-dt * 2.5);
@@ -732,6 +784,11 @@ function frame(now) {
   if (room.update(dt, player.position, now)) playSound('door');
   updateMood();
   room.domes.update(now);
+  if (building) {
+    const input = room.tram.input;
+    input.power = false;
+    input.brake = true;
+  }
   const tramEventList = room.tick(camera, now / 1000, renderer.getPixelRatio());
   if (riding) {
     tramHud.update(room.tram.drive);
