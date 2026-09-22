@@ -85,7 +85,14 @@ export function meterFor(stream) {
     analyser.fftSize = 256;
     context.createMediaStreamSource(stream).connect(analyser);
     const data = new Uint8Array(analyser.fftSize);
+    // A friend's voice usually arrives over the network, not from a tap, and a
+    // browser keeps an audio context made then asleep until the next gesture:
+    // wake it on the first one, or the meter reads silence while they talk.
     void context.resume().catch(() => {});
+    if (context.state !== 'running') {
+      const wake = () => void context.resume().catch(() => {});
+      for (const type of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(type, wake, { once: true, passive: true });
+    }
     return () => {
       analyser.getByteTimeDomainData(data);
       let peak = 0;

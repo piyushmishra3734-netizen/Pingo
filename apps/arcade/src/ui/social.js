@@ -156,6 +156,22 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
   let micOn = false;
   let speakerOn = true;
 
+  /** A friend's chip and voice line, made the first time either is needed; hidden until named. */
+  function personFor(id) {
+    let person = people.get(id);
+    if (person) return person;
+    const chip = el('div', 'so-friend');
+    chip.hidden = true;
+    const avatar = el('i');
+    avatar.append(icon(User, 13));
+    const label = el('span');
+    chip.append(avatar, label);
+    friends.append(chip);
+    person = { chip, avatar, name: label };
+    people.set(id, person);
+    return person;
+  }
+
   const badge = () => {
     chat.querySelector('.badge')?.remove();
     if (unread > 0) chat.append(el('span', 'badge', String(unread)));
@@ -264,31 +280,26 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
 
     /** A friend in the room gets a chip with their name; null takes them away. */
     setFriend(id, name) {
-      let person = people.get(id);
       if (name == null) {
+        const person = people.get(id);
         if (!person) return;
         person.audio?.pause();
         person.chip.remove();
         people.delete(id);
         return;
       }
-      if (!person) {
-        const chip = el('div', 'so-friend');
-        const avatar = el('i');
-        avatar.append(icon(User, 13));
-        const label = el('span');
-        chip.append(avatar, label);
-        friends.append(chip);
-        person = { chip, avatar, name: label };
-        people.set(id, person);
-      }
+      const person = personFor(id);
       person.name.textContent = name;
+      person.chip.hidden = false;
     },
 
-    /** A friend's voice arrived: it plays on its own line, and lights their chip while loud. */
+    /**
+     * A friend's voice arrived: it plays on its own line, and lights their
+     * chip while loud. Their audio comes with the handshake, before their
+     * name does, so the line is made here if their chip is not there yet.
+     */
     playVoice(id, stream) {
-      const person = people.get(id);
-      if (!person) return;
+      const person = personFor(id);
       person.audio ??= Object.assign(new Audio(), { autoplay: true });
       person.audio.srcObject = stream;
       person.audio.muted = !speakerOn;
