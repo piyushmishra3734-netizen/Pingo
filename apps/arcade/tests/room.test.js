@@ -3,16 +3,32 @@ import test from 'node:test';
 
 import {
   MAX_MESSAGE_BYTES,
+  MAX_PEERS,
   ROOM_ID,
   admit,
   allowedOrigin,
+  newPlayerId,
   parseForward,
 } from '../worker/src/room.js';
 
-test('the first player in is the host, the second a guest, the third refused', () => {
+test('the first player in is the host, the next five guests, the seventh refused', () => {
+  assert.equal(MAX_PEERS, 6);
   assert.equal(admit([]), 'host');
   assert.equal(admit(['host']), 'guest');
-  assert.equal(admit(['host', 'guest']), null);
+  assert.equal(admit(['host', 'guest', 'guest', 'guest', 'guest']), 'guest');
+  assert.equal(admit(['host', 'guest', 'guest', 'guest', 'guest', 'guest']), null);
+});
+
+test('player ids are short, url-safe and never repeat within a room', () => {
+  const taken = [];
+  for (let i = 0; i < 50; i += 1) taken.push(newPlayerId(taken));
+  assert.equal(new Set(taken).size, 50);
+  for (const id of taken) assert.match(id, /^[a-z0-9]{1,6}$/);
+});
+
+test('a handshake may be addressed to one player, but only by a string id', () => {
+  assert.deepEqual(parseForward(JSON.stringify({ type: 'offer', to: 'abc123', sdp: 'x' })), { type: 'offer', to: 'abc123', sdp: 'x' });
+  assert.equal(parseForward(JSON.stringify({ type: 'offer', to: 7 })), null);
 });
 
 test('a room left with its guest promoted to host admits the next as guest', () => {

@@ -1,21 +1,26 @@
 import { DurableObject } from 'cloudflare:workers';
 
-import { ROOM_ID, admit, allowedOrigin, parseForward } from './room.js';
+import { ROOM_ID, admit, allowedOrigin, newPlayerId, parseForward } from './room.js';
 
 /**
  * PINGO Arcade signalling.
  *
- *   GET /room/<id>   WebSocket - join a two-player room
+ *   GET /room/<id>   WebSocket - join a room of up to six
  *   GET /ice         the ICE servers a client should use (STUN, plus TURN
  *                    when the TURN secrets are set)
  *
+ * Every player links to every other (a mesh); this only introduces them.
+ *
  * ## The protocol, server to client
  *
- *   { type: 'welcome', role, peers }   you are in; `peers` counts you
- *   { type: 'join' }                   somebody arrived - you send the offer
- *   { type: 'peer-left' }              they went; you are the host now
- *   { type: 'full' }                   then close 4001: two are already playing
- *   offer / answer / candidate         relayed verbatim from the other player
+ *   { type: 'welcome', id, others, role, peers }
+ *                              you are in as `id`; `others` are the ids
+ *                              already here, who will each send you an offer
+ *   { type: 'join', id }       `id` arrived - you send them the offer
+ *   { type: 'peer-left', id }  `id` went
+ *   { type: 'full' }           then close 4001: six are already here
+ *   offer / answer / candidate relayed with `from`, to the player named in
+ *                              `to` (or to everyone, for an old client)
  */
 
 /** A socket that has sent no heartbeat in this long is a ghost (the client beats every 20 s). */
@@ -28,8 +33,24 @@ export class ArcadeRoom extends DurableObject {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('{"type":"keepalive"}', '{"type":"keepalive-ok"}'));
   }
 
-  async fetch() {
+  async fetch(request) {
     const [client, server] = Object.values(new WebSocketPair());
+    // A client names itself, so a phone whose socket blinked comes back as the
+    // same player rather than a stranger; an old client doesn't, and gets one.
+    const asked = new URL(request.url).searchParams.get('me');
+    const own = asked && /^[a-z0-9]{4,12}$/.test(asked) ? asked : null;
+    if (own) {
+      for (const ws of this.#players()) {
+        if (ws.deserializeAttachment().id !== own) continue;
+        // Their old socket, still open here: it is them, coming back.
+        this.#leave(ws);
+        try {
+          ws.close(4003, 'replaced');
+        } catch {
+          /* already gone */
+        }
+      }
+    }
 
     // Hibernation-aware accept: an idle room costs nothing while two players
     // sit and wait, and the role survives in the socket's attachment.
@@ -55,8 +76,8 @@ export class ArcadeRoom extends DurableObject {
       }
     }
 
-    const present = this.#players().map((ws) => ws.deserializeAttachment().role);
-    const role = admit(present);
+    const others = this.#players();
+    const role = admit(others.map((ws) => ws.deserializeAttachment().role));
 
     if (!role) {
       server.send(JSON.stringify({ type: 'full' }));
@@ -64,10 +85,11 @@ export class ArcadeRoom extends DurableObject {
       return new Response(null, { status: 101, webSocket: client });
     }
 
-    const others = this.#players();
-    server.serializeAttachment({ role });
-    server.send(JSON.stringify({ type: 'welcome', role, peers: others.length + 1 }));
-    for (const ws of others) ws.send(JSON.stringify({ type: 'join' }));
+    const ids = others.map((ws) => ws.deserializeAttachment().id);
+    const id = own ?? newPlayerId(ids);
+    server.serializeAttachment({ role, id });
+    server.send(JSON.stringify({ type: 'welcome', id, others: ids, role, peers: others.length + 1 }));
+    for (const ws of others) ws.send(JSON.stringify({ type: 'join', id }));
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -75,8 +97,14 @@ export class ArcadeRoom extends DurableObject {
   webSocketMessage(ws, raw) {
     const message = parseForward(raw);
     if (!message) return;
-    const text = JSON.stringify(message);
-    for (const other of this.#players()) if (other !== ws) other.send(text);
+    const from = ws.deserializeAttachment()?.id;
+    if (!from) return;
+    const text = JSON.stringify({ ...message, from });
+    for (const other of this.#players()) {
+      if (other === ws) continue;
+      if (message.to !== undefined && other.deserializeAttachment().id !== message.to) continue;
+      other.send(text);
+    }
   }
 
   webSocketClose(ws, code) {
@@ -100,13 +128,15 @@ export class ArcadeRoom extends DurableObject {
 
   #leave(ws) {
     // A refused socket closing is not a player leaving.
-    if (!ws.deserializeAttachment()?.role) return;
-    ws.serializeAttachment({ role: null });
+    const gone = ws.deserializeAttachment();
+    if (!gone?.role) return;
+    ws.serializeAttachment({ role: null, id: gone.id });
     for (const other of this.#players()) {
       if (other === ws) continue;
-      // Whoever stays becomes the host, so the next arrival gets an offer.
-      other.serializeAttachment({ role: 'host' });
-      other.send(JSON.stringify({ type: 'peer-left' }));
+      // An old two-player client expects to become the host when its friend goes.
+      const stay = other.deserializeAttachment();
+      if (this.#players().length <= 2) other.serializeAttachment({ ...stay, role: 'host' });
+      other.send(JSON.stringify({ type: 'peer-left', id: gone.id }));
     }
   }
 }

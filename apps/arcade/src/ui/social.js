@@ -20,6 +20,8 @@ const STYLE = `
 .so-net { display: flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; margin-left: 2px; border-left: 1px solid rgba(255,255,255,0.15); font: 700 11px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
 .so-net[hidden] { display: none; }
 .so-friend[hidden] { display: none; }
+.so-friends { display: flex; flex-wrap: wrap; gap: 6px; max-width: 360px; }
+.so-friends:empty { display: none; }
 .so-menu { position: absolute; top: calc(100% + 8px); left: 0; display: grid; gap: 4px; min-width: 220px; padding: 8px; border-radius: 16px; background: rgba(8,6,14,0.92); box-shadow: 0 10px 30px rgba(0,0,0,0.45); pointer-events: auto; }
 .so-menu[hidden] { display: none; }
 .so-item { display: flex; align-items: center; gap: 12px; padding: 12px; border: 0; border-radius: 10px; background: transparent; color: #fff; font: 700 15px system-ui, sans-serif; text-align: left; text-decoration: none; cursor: pointer; }
@@ -85,9 +87,14 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
   const mic = el('button', 'so-btn off');
   mic.append(icon(Mic, 23));
   mic.setAttribute('aria-label', 'Microphone');
+  // Invite, right by the mic: one tap sends friends this same room.
+  const invite = el('button', 'so-btn');
+  invite.append(icon(UserPlus, 23));
+  invite.setAttribute('aria-label', 'Invite friends');
+  invite.addEventListener('click', () => onInvite());
   const net = el('div', 'so-net');
   net.hidden = true;
-  bar.append(menuButton, chat, mic, net);
+  bar.append(menuButton, chat, mic, invite, net);
 
   const menuPanel = el('div', 'so-menu');
   menuPanel.hidden = true;
@@ -107,6 +114,7 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
   const speaker = item(Volume2, 'Sound on', () => {
     speakerOn = !speakerOn;
     speaker.replaceChildren(icon(speakerOn ? Volume2 : VolumeX, 20), speakerOn ? 'Sound on' : 'Sound off');
+    for (const person of people.values()) if (person.audio) person.audio.muted = !speakerOn;
     onSpeaker(speakerOn);
   });
   const standItem = item(LogOut, 'Stand up', onStand);
@@ -124,12 +132,10 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
   window.addEventListener('pointerdown', (event) => {
     if (!menuPanel.hidden && !menuPanel.contains(event.target) && !menuButton.contains(event.target)) closeMenu();
   });
-  const friend = el('div', 'so-friend');
-  friend.hidden = true;
-  const avatar = el('i');
-  avatar.append(icon(User, 13));
-  const friendName = el('span');
-  friend.append(avatar, friendName);
+  // A chip for each friend in the room, lit while they talk.
+  const friends = el('div', 'so-friends');
+  /** @type {Map<string, { chip: HTMLElement, avatar: HTMLElement, name: HTMLElement, audio?: HTMLAudioElement, meter?: () => number }>} */
+  const people = new Map();
   const log = el('div', 'so-log');
   const form = el('form', 'so-form');
   form.hidden = true;
@@ -143,13 +149,12 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
   const top = el('div');
   top.style.position = 'relative';
   top.append(bar, menuPanel);
-  root.append(top, friend, log, form);
+  root.append(top, friends, log, form);
   document.body.append(root);
 
   let unread = 0;
   let micOn = false;
   let speakerOn = true;
-  let meter;
 
   const badge = () => {
     chat.querySelector('.badge')?.remove();
@@ -257,21 +262,45 @@ export function createSocial({ onSend, onMic, onSpeaker, onInvite, onStand, onLe
       root.dataset.place = place;
     },
 
-    /**
-     * The other player's voice arrived: play it, and light their chip while
-     * it is loud. Returns a reader for the current level (0-1).
-     */
-    playVoice(stream, audio) {
-      audio.srcObject = stream;
-      audio.muted = !speakerOn;
-      void audio.play().catch(() => {});
-      meter = meterFor(stream);
+    /** A friend in the room gets a chip with their name; null takes them away. */
+    setFriend(id, name) {
+      let person = people.get(id);
+      if (name == null) {
+        if (!person) return;
+        person.audio?.pause();
+        person.chip.remove();
+        people.delete(id);
+        return;
+      }
+      if (!person) {
+        const chip = el('div', 'so-friend');
+        const avatar = el('i');
+        avatar.append(icon(User, 13));
+        const label = el('span');
+        chip.append(avatar, label);
+        friends.append(chip);
+        person = { chip, avatar, name: label };
+        people.set(id, person);
+      }
+      person.name.textContent = name;
     },
 
-    /** How loud the friend is right now; also lights their chip. */
-    level() {
-      const value = meter?.() ?? 0;
-      avatar.style.boxShadow = value > 0.12 ? `0 0 0 ${2 + value * 4}px #45ff7a` : 'none';
+    /** A friend's voice arrived: it plays on its own line, and lights their chip while loud. */
+    playVoice(id, stream) {
+      const person = people.get(id);
+      if (!person) return;
+      person.audio ??= Object.assign(new Audio(), { autoplay: true });
+      person.audio.srcObject = stream;
+      person.audio.muted = !speakerOn;
+      void person.audio.play().catch(() => {});
+      person.meter = meterFor(stream);
+    },
+
+    /** How loud a friend is right now (0-1); also lights their chip. */
+    level(id) {
+      const person = people.get(id);
+      const value = person?.meter?.() ?? 0;
+      if (person) person.avatar.style.boxShadow = value > 0.12 ? `0 0 0 ${2 + value * 4}px #45ff7a` : 'none';
       return value;
     },
   };

@@ -68,9 +68,44 @@ player.place(room.spawn.x, room.spawn.z, room.spawn.facing);
 follow.snap(player.position);
 const walk = createWalkInput();
 
-/** The other player, when there is one. */
-const friend = createFriend(room);
-scene.add(friend.group);
+/**
+ * Everyone else in the room, by their id in it: up to five friends, each an
+ * avatar walking the world with a name over their head and a seat (-1 when
+ * standing).
+ * @type {Map<string, { avatar: ReturnType<typeof createFriend>, name: string, seat: number }>}
+ */
+const friends = new Map();
+const nameOf = (id) => friends.get(id)?.name || 'Friend';
+
+function friendFor(id) {
+  let entry = friends.get(id);
+  if (!entry) {
+    const avatar = createFriend(room);
+    scene.add(avatar.group);
+    entry = { avatar, name: '', seat: -1 };
+    friends.set(id, entry);
+  }
+  return entry;
+}
+
+function forgetFriend(id) {
+  const entry = friends.get(id);
+  if (!entry) return;
+  entry.avatar.hide();
+  scene.remove(entry.avatar.group);
+  friends.delete(id);
+  social.setFriend(id, null);
+}
+
+/** Whether a friend is sitting on the stool with this index. */
+const seatTaken = (index) => [...friends.values()].some((entry) => entry.seat === index);
+
+/** The friend on the stool across from yours - the one a game is played against. */
+function opponent() {
+  const other = room.seats.indexOf(seat) === 0 ? 1 : 0;
+  for (const [id, entry] of friends) if (entry.seat === other) return id;
+  return undefined;
+}
 
 /*
  * Who you are. A name is all the arcade needs: it rides along in the invite
@@ -179,9 +214,9 @@ let note;
 let roomId = roomFromSearch(location.search);
 /** The seat the invite asks you to take (the free one). */
 const invitedSeat = roomId ? room.seats[seatFromSearch(location.search) === 'A' ? 0 : 1] : undefined;
-/** Your friend's seat index while they sit, else -1. */
-let friendSeat = -1;
 let linked = false;
+/** Who a game question is with: the friend you asked, or who asked you. */
+let gameWith;
 
 /** How close to a stool you have to be to sit on it. */
 const SIT_REACH = 1.5;
@@ -192,7 +227,7 @@ function findSeat() {
   const { x, z } = player.position;
   return room.seats.find(
     (candidate, index) =>
-      index !== friendSeat &&
+      !seatTaken(index) &&
       (!invitedSeat || candidate === invitedSeat || linked) &&
       Math.hypot(candidate.stool[0] - x, candidate.stool[1] - z) < SIT_REACH,
   );
@@ -212,7 +247,8 @@ function show() {
     canSit: Boolean(nearSeat),
   });
   social.setSeated(session.state !== State.IDLE);
-  menu.update({ inPingo, name: myName, friendName, linked, friendSeated: friendSeat >= 0 });
+  const across = opponent();
+  menu.update({ inPingo, name: myName, friendName: across ? nameOf(across) : friendName, linked, friendSeated: Boolean(across) });
 }
 
 /** The cabinet in front of a seat. */
@@ -244,86 +280,97 @@ function getMatch() {
       },
       onFull() {
         stand();
-        note = 'That game already has two players';
+        note = 'That room is full - six players are already in';
         show();
       },
-      onLink(open) {
-        linked = open;
-        if (open) {
-          match.send({ type: 'hello', name: myName });
-          sendPosition();
-          if (session.state === State.WAITING) session.paired();
-        } else {
-          if (friendName) social.add('', `${friendName} left the arcade`, { system: true });
-          friend.hide();
-          friendSeat = -1;
-          social.setFriend(null);
+      onJoin(id) {
+        linked = true;
+        friendFor(id);
+        match.sendTo(id, { type: 'hello', name: myName });
+        sendPosition();
+        if (session.state === State.WAITING) session.paired();
+        show();
+      },
+      onLeave(id) {
+        linked = match.linked;
+        if (friends.has(id)) social.add('', `${nameOf(id)} left the arcade`, { system: true });
+        forgetFriend(id);
+        if (gameWith === id) {
           menu.update({ ask: null, waiting: null });
-          if (playingOnline) exitGame(true);
+          if (playingOnline) exitGame(false);
+          gameWith = undefined;
         }
         show();
       },
     });
     wireMatch(match);
-    match.onVoice((stream) => social.playVoice(stream, voice));
+    match.onVoice((stream, id) => social.playVoice(id, stream));
     return match;
   });
   return matchReady;
 }
 
-/** What your friend's machine tells yours. */
+/** What your friends' machines tell yours; every handler is told who sent it. */
 function wireMatch(m) {
-  m.on('hello', ({ name }) => {
-    const fresh = !friendName || friendName !== name;
-    friendName = String(name ?? 'Friend').slice(0, 18);
-    friend.setName(friendName);
-    social.setFriend(friendName);
+  m.on('hello', ({ name }, from) => {
+    const entry = friendFor(from);
+    const fresh = entry.name !== name;
+    entry.name = String(name ?? 'Friend').slice(0, 18);
+    entry.avatar.setName(entry.name);
+    social.setFriend(from, entry.name);
     if (fresh) {
-      social.add('', `${friendName} joined the arcade`, { system: true });
+      social.add('', `${entry.name} joined the arcade`, { system: true });
       playCoin();
     }
     show();
   });
-  m.on('pos', (message) => {
-    friend.apply(message);
+  m.on('pos', (message, from) => {
+    const entry = friendFor(from);
+    entry.avatar.apply(message);
     const seated = typeof message.s === 'number' ? message.s : -1;
-    if (seated !== friendSeat) {
-      friendSeat = seated;
-      if (seated >= 0) social.add('', `${friendName || 'Your friend'} sat down at the PINGO machine`, { system: true });
+    if (seated !== entry.seat) {
+      entry.seat = seated;
+      if (seated >= 0) social.add('', `${entry.name || 'A friend'} sat down at the PINGO machine`, { system: true });
       show();
     }
   });
-  m.on('chat', ({ text }) => {
-    social.add(friendName || 'Friend', String(text).slice(0, 120));
+  m.on('chat', ({ text }, from) => {
+    social.add(nameOf(from), String(text).slice(0, 120));
     playSound('chat');
   });
-  m.on('propose', ({ kind }) => {
+  // Games are one against one: only the friend on the other stool can ask.
+  m.on('propose', ({ kind }, from) => {
     if (!GAMES[kind]) return;
-    if (session.state === State.IDLE || mode !== 'lobby') {
-      m.send({ type: 'answer', kind, yes: false, busy: true });
+    if (session.state === State.IDLE || mode !== 'lobby' || from !== opponent()) {
+      m.sendTo(from, { type: 'answer', kind, yes: false, busy: true });
       return;
     }
+    gameWith = from;
     menu.update({ ask: kind, waiting: null });
     playSound('select');
   });
-  m.on('cancel', () => menu.update({ ask: null }));
-  m.on('answer', ({ kind, yes, busy }) => {
+  m.on('cancel', (_, from) => {
+    if (from === gameWith) menu.update({ ask: null });
+  });
+  m.on('answer', ({ kind, yes, busy }, from) => {
+    if (from !== gameWith) return;
     menu.update({ waiting: null });
     if (!yes) {
-      social.add('', `${friendName || 'Your friend'} ${busy ? 'is busy right now' : 'said not now'}`, { system: true });
+      social.add('', `${nameOf(from)} ${busy ? 'is busy right now' : 'said not now'}`, { system: true });
       return;
     }
     const seed = Math.floor(Math.random() * 2 ** 31);
-    m.send({ type: 'start', kind, seed });
-    void enterGame(kind, { side: 0, seed, net: m, names: [myName, friendName || 'Friend'], exit: () => exitGame(true) });
+    m.sendTo(from, { type: 'start', kind, seed });
+    void enterGame(kind, { side: 0, seed, net: m.link(from), names: [myName, nameOf(from)], exit: () => exitGame(true) });
   });
-  m.on('start', ({ kind, seed }) => {
+  m.on('start', ({ kind, seed }, from) => {
+    if (from !== gameWith) return;
     menu.update({ ask: null, waiting: null });
-    void enterGame(kind, { side: 1, seed, net: m, names: [friendName || 'Friend', myName], exit: () => exitGame(true) });
+    void enterGame(kind, { side: 1, seed, net: m.link(from), names: [nameOf(from), myName], exit: () => exitGame(true) });
   });
-  m.on('leave-game', () => {
-    if (playingOnline) {
-      social.add('', `${friendName || 'Your friend'} left the game`, { system: true });
+  m.on('leave-game', (_, from) => {
+    if (playingOnline && from === gameWith) {
+      social.add('', `${nameOf(from)} left the game`, { system: true });
       exitGame(false);
     }
   });
@@ -352,9 +399,7 @@ setInterval(() => {
   });
 }, 500);
 
-/* Voice: the friend's audio plays through this element. */
-const voice = new Audio();
-voice.autoplay = true;
+/* Voice: each friend's audio plays on its own line (ui/social.js). */
 let micTrack = null;
 /** Your own voice bubble, over your head while you talk. */
 const myBubble = createVoiceBubble();
@@ -412,7 +457,7 @@ const social = createSocial({
       myMeter = meterFor(stream);
       await getMatch();
       match.setMic(micTrack);
-      social.add('', linked ? 'Mic on - your friend can hear you' : 'Mic on - your friend will hear you when they join', { system: true });
+      social.add('', linked ? 'Mic on - everyone in the room can hear you' : 'Mic on - friends will hear you when they join', { system: true });
       return true;
     } catch {
       social.add('', 'Microphone blocked - allow it in the browser to talk', { system: true });
@@ -420,7 +465,6 @@ const social = createSocial({
     }
   },
   onSpeaker(on) {
-    voice.muted = !on;
     setMuted(!on);
   },
 });
@@ -433,20 +477,22 @@ const menu = createScreenMenu({
       void enterGame(kind);
       return;
     }
-    if (!linked || friendSeat < 0) return;
+    const across = opponent();
+    if (!across) return;
+    gameWith = across;
     menu.update({ waiting: kind });
-    match.send({ type: 'propose', kind });
+    match.sendTo(across, { type: 'propose', kind });
   },
   onInvite: inviteFriends,
   onCopyLink: () => sendLink(myInvite()),
   onAnswer(yes, kind) {
     menu.update({ ask: null });
-    match?.send({ type: 'answer', kind, yes });
+    if (gameWith) match?.sendTo(gameWith, { type: 'answer', kind, yes });
     playSound(yes ? 'confirm' : 'back');
   },
   onCancel() {
     menu.update({ waiting: null });
-    match?.send({ type: 'cancel' });
+    if (gameWith) match?.sendTo(gameWith, { type: 'cancel' });
   },
   onRename(name) {
     myName = name;
@@ -517,7 +563,7 @@ async function enterGame(kind, online) {
  */
 function exitGame(tell = false) {
   if (mode === 'lobby') return;
-  if (tell && playingOnline) match?.send({ type: 'leave-game' });
+  if (tell && playingOnline && gameWith) match?.sendTo(gameWith, { type: 'leave-game' });
   gameHost?.stop();
   activeGame?.dispose();
   activeGame = undefined;
@@ -658,8 +704,10 @@ function frame(now) {
     rig.update(now);
     menu.place(mode === 'lobby' && !rig.moving ? screenRect(cabinetFor(seat).screen, camera, canvas.getBoundingClientRect()) : null);
   }
-  friend.update(dt);
-  friend.speaking = social.level();
+  for (const [id, entry] of friends) {
+    entry.avatar.update(dt);
+    entry.avatar.speaking = social.level(id);
+  }
   myBubble.update(dt, myMeter?.() ?? 0);
   if (room.update(dt, player.position, now)) playSound('door');
   updateMood();
@@ -734,7 +782,7 @@ if (import.meta.env.DEV || params.has('hud')) {
     session,
     rig,
     player,
-    friend,
+    friends,
     menu,
     social,
     get gameHost() {
@@ -750,8 +798,8 @@ if (import.meta.env.DEV || params.has('hud')) {
     get linked() {
       return linked;
     },
-    get friendSeat() {
-      return friendSeat;
+    get opponent() {
+      return opponent();
     },
     get mode() {
       return mode;

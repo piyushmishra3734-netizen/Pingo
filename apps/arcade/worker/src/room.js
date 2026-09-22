@@ -3,8 +3,20 @@
  * can be tested with plain node and the Durable Object only wires them up.
  */
 
-/** A room holds exactly two players: the arcade is one versus machine. */
-export const MAX_PEERS = 2;
+/**
+ * A room holds up to six: you and five friends in the same world. Every pair
+ * gets its own peer-to-peer link (a mesh), so the machines stay one versus
+ * one - whoever sits across from you - while everyone walks, talks and chats.
+ */
+export const MAX_PEERS = 6;
+
+/** A short id for a player, unique within their room; handshakes are addressed with it. */
+export function newPlayerId(taken) {
+  for (;;) {
+    const id = Math.random().toString(36).slice(2, 8);
+    if (!taken.includes(id)) return id;
+  }
+}
 
 /** Room ids are short, lowercase and URL-safe. Anything else is refused. */
 export const ROOM_ID = /^[a-z0-9]{6,32}$/;
@@ -22,17 +34,17 @@ export const MAX_MESSAGE_BYTES = 16 * 1024;
  * The role a newcomer gets, given the roles already in the room - or null when
  * the room is full.
  *
- * The host is whoever is already waiting, and the host is the one who sends
- * the offer when somebody arrives. When a host leaves, the player who stays is
- * promoted (see the Durable Object), so a room that has emptied to one always
- * has a host, and every newcomer is a guest.
+ * With a mesh, "host" only means "first in": in every pair it is the player
+ * who was already there that sends the offer, so the newcomer is a guest to
+ * each of them. The role is kept for clients that still speak the two-player
+ * protocol, where it meant the same thing.
  *
  * @param {string[]} present
  * @returns {'host' | 'guest' | null}
  */
 export function admit(present) {
   if (present.length >= MAX_PEERS) return null;
-  return present.includes('host') ? 'guest' : 'host';
+  return present.length === 0 ? 'host' : 'guest';
 }
 
 /**
@@ -50,6 +62,8 @@ export function parseForward(raw) {
     return null;
   }
   if (!message || typeof message !== 'object' || !FORWARDED.has(message.type)) return null;
+  // `to` addresses one player; anything else is a client of the old protocol.
+  if (message.to !== undefined && typeof message.to !== 'string') return null;
   return message;
 }
 

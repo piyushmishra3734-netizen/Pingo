@@ -29,6 +29,9 @@ import { PingRecipients, PingSendButton } from '../features/camera/PingRecipient
  * sends each chosen chat an invite message, which the bubble draws as a Join
  * card. No link to copy, nothing to paste.
  */
+/** A room holds six, so you can bring five friends into it at once. */
+const MAX_INVITES = 5;
+
 const portraitQuery = () => window.matchMedia('(orientation: portrait)');
 const subscribePortrait = (onChange: () => void) => {
   const query = portraitQuery();
@@ -111,7 +114,8 @@ export function ArcadeScreen() {
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(conversationId)) next.delete(conversationId);
-      else next.add(conversationId);
+      // A room holds six: you and five friends.
+      else if (next.size < MAX_INVITES) next.add(conversationId);
       return next;
     });
   };
@@ -160,7 +164,7 @@ export function ArcadeScreen() {
       {invite && (
         <Sheet
           title="Invite to PINGO Arcade"
-          description="They get a Join card in chat and walk straight into your room."
+          description={`Up to ${MAX_INVITES} friends, all into this same room (${selected.size}/${MAX_INVITES} picked). They get a Join card in chat.`}
           onClose={() => setInvite(undefined)}
           elevated
         >
