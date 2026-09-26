@@ -169,6 +169,8 @@ export function connectionTitle(
   t: (key: 'connection.waiting' | 'connection.connecting') => string,
 ): string | undefined {
   if (quality === 'offline') return t('connection.waiting');
-  if (quality === 'connecting' || quality === 'poor') return t('connection.connecting');
+  // Only when truly not connected. A slow link still delivers; Chrome's rtt guess
+  // alone read as a dead app, stuck on "Connecting…" while messages flowed.
+  if (quality === 'connecting') return t('connection.connecting');
   return undefined;
 }
