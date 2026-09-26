@@ -157,6 +157,8 @@
   @keyframes lq-pop { from { opacity: 0; transform: scale(0.55); } }
   .lq-lift { animation: lq-lift 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
   .lq-pop { animation: lq-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+  /* The lifted copy is already exactly the bubble's width; its thread-width cap would wrap it letter by letter. */
+  .lq-lifted [id^='message-'] { max-width: none !important; }
 
   /* Progressive blur at both ends of the thread, so the glass sits on something calm. */
   .lq-scrim-top,

@@ -158,7 +158,7 @@ export function MessageContextMenu({
             lift read as the bubble rising rather than as a copy appearing.
           */}
           <div
-            className="lq-lift pointer-events-none absolute"
+            className="lq-lift lq-lifted pointer-events-none absolute"
             style={{
               left: anchor.left,
               top: anchor.top - LIFT_PX,
