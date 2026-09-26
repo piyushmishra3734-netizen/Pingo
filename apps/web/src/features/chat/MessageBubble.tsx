@@ -704,7 +704,14 @@ function DeliveryIndicator({ status }: { status: Message['status'] }) {
    * day without looking properly.
    */
   if (status === 'sending') {
-    return <ClockIcon size={13} className="text-text-tertiary" title={t('thread.sending')} />;
+    // Turning while it waits, as in the approved design: a still clock reads as stuck.
+    return (
+      <ClockIcon
+        size={13}
+        className="animate-spin text-text-tertiary [animation-duration:1.6s]"
+        title={t('thread.sending')}
+      />
+    );
   }
 
   if (status === 'failed') {

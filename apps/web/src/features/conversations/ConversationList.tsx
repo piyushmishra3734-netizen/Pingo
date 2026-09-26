@@ -14,6 +14,7 @@ import {
 import {
   Avatar,
   BellIcon,
+  ChevronRightIcon,
   IconButton,
   SearchField,
   PlusIcon,
@@ -270,7 +271,6 @@ export function ConversationList({
    * underneath, as people rather than as chats.
    */
   const [people, setPeople] = useState<Profile[]>([]);
-  const [openingPerson, setOpeningPerson] = useState<string>();
 
   useEffect(() => {
     const term = query.trim();
@@ -332,6 +332,24 @@ export function ConversationList({
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
+      {/*
+        One scroller, with the header stuck to its top - the approved sample's
+        arrangement. The list runs under the frosted header instead of stopping
+        at its edge, and as it scrolls the stories fold away smoothly.
+
+        `overflow-anchor: none`, or the browser shifts the list to compensate
+        while the header changes height and the fold fights the finger. One
+        pixel short of the screen (`mb-px`), or Chrome treats this as the page
+        and hides its address bar on every scroll, and the dock jumps with it.
+      */}
+      <div
+        className="mb-px min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
+        onScroll={(event) => {
+          const top = event.currentTarget.scrollTop;
+          if (top > 60) setFolded(true);
+          else if (top < 4) setFolded(false);
+        }}
+      >
       <header
         className={cn(
           'sticky top-0 z-100 shrink-0',
@@ -553,8 +571,8 @@ export function ConversationList({
             {showRail && (
               <div
                 className={cn(
-                  'grid transition-[grid-template-rows,opacity] duration-300 ease-standard',
-                  folded ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
+                  'overflow-hidden transition-[max-height,opacity] duration-300 ease-standard',
+                  folded ? 'max-h-0 opacity-0' : 'max-h-[130px] opacity-100',
                 )}
                 aria-hidden={folded}
               >
@@ -644,17 +662,12 @@ export function ConversationList({
         </p>
       )}
 
-      <div
-        className="min-h-0 flex-1 overflow-y-auto px-2 pt-1 pb-2"
-        onScroll={(event) => {
-          const top = event.currentTarget.scrollTop;
-          if (top > 60) setFolded(true);
-          else if (top < 4) setFolded(false);
-        }}
-        role={selectionMode ? 'listbox' : undefined}
-        aria-multiselectable={selectionMode ? true : undefined}
-        aria-label={selectionMode ? 'Conversations, selecting' : undefined}
-      >
+        <div
+          className="px-2 pt-1 pb-2"
+          role={selectionMode ? 'listbox' : undefined}
+          aria-multiselectable={selectionMode ? true : undefined}
+          aria-label={selectionMode ? 'Conversations, selecting' : undefined}
+        >
         <ChatListBody
           ready={ready}
           conversations={ordered}
@@ -731,9 +744,9 @@ export function ConversationList({
 
           Rendered here rather than inside `ChatListBody`, which is about
           conversations and would have to learn a second kind of row to hold
-          these. Tapping one opens the thread, creating it if there is not one
-          yet - the same thing `startDirectConversation` does from New chat,
-          which is why this does not need a screen of its own.
+          these. Tapping one opens their profile, not a chat: finding somebody
+          by id is looking them up, and the profile is where you decide - its
+          Message button starts the thread.
         */}
         {searching && people.length > 0 && (
           <section className="px-1 pt-2 pb-1">
@@ -745,14 +758,7 @@ export function ConversationList({
                 <li key={person.id}>
                   <button
                     type="button"
-                    disabled={openingPerson === person.id}
-                    onClick={() => {
-                      setOpeningPerson(person.id);
-                      void service
-                        .startDirectConversation(person.id)
-                        .then((id) => navigate(`/chats/${id}`))
-                        .finally(() => setOpeningPerson(undefined));
-                    }}
+                    onClick={() => navigate(`/profile/${person.username}`)}
                     className={cn(
                       'focus-ring flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left',
                       'transition-colors duration-instant hover:bg-hover active:bg-pressed',
@@ -771,15 +777,14 @@ export function ConversationList({
                         @{person.username}
                       </span>
                     </span>
-                    <span className="shrink-0 text-caption text-brand">
-                      {openingPerson === person.id ? 'Opening…' : 'Message'}
-                    </span>
+                    <ChevronRightIcon size={16} className="shrink-0 text-text-tertiary" />
                   </button>
                 </li>
               ))}
             </ul>
           </section>
         )}
+        </div>
       </div>
 
       {openStory && (
