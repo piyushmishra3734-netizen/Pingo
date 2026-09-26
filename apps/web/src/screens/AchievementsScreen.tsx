@@ -196,7 +196,7 @@ export function AchievementsScreen() {
                     option.id === aura && 'ring-[1.5px] ring-inset ring-ink',
                   )}
                 >
-                  <AchievementArt achievement={lead} size="small" aura={option.id} className="size-10" />
+                  <AchievementArt achievement={lead} size="small" className={cn('size-10', GLOW[option.id])} />
                   {option.label}
                 </button>
               ))}
@@ -238,6 +238,20 @@ export function AchievementsScreen() {
     </div>
   );
 }
+
+/**
+ * Each glow as light around the badge itself, for the picker.
+ *
+ * The aura behind a full emblem is a soft disc, which at forty pixels is the
+ * same pale smudge in all three options - so the picker showed three identical
+ * badges. A drop shadow in the aura's colours follows the badge's own outline
+ * and reads at any size.
+ */
+const GLOW: Record<(typeof AURAS)[number]['id'], string> = {
+  classic: 'drop-shadow-[0_4px_10px_rgba(124,92,255,0.8)]',
+  iridescent: '[filter:drop-shadow(-3px_4px_8px_rgba(120,190,255,0.9))_drop-shadow(3px_4px_8px_rgba(255,170,220,0.8))]',
+  gold: 'drop-shadow-[0_4px_10px_rgba(255,190,90,0.95)]',
+};
 
 /** "22 Aug 2026", in the reader's own locale, or nothing at all. */
 function shortDate(iso?: string): string | undefined {
