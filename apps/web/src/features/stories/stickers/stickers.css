@@ -1,0 +1,111 @@
+/*
+ * Story stickers, shared by the editor and the viewer.
+ *
+ * Plain CSS rather than utilities: these are drawn objects with their own
+ * typography and colour, the same in every theme, and a sticker has to look
+ * exactly the same where it was placed and where it is watched. Everything is
+ * prefixed `sk-` so nothing here can meet a utility of the same name.
+ *
+ * The typefaces are the story fonts, self-hosted for the same reason Space
+ * Grotesk is (nobody else learns who opened a story). Latin subsets, OFL - see
+ * /fonts/OFL.txt.
+ */
+@font-face { font-family: 'Oswald'; font-weight: 600; font-display: swap; src: url('/fonts/oswald-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Yellowtail'; font-display: swap; src: url('/fonts/yellowtail-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Courier Prime'; font-weight: 700; font-display: swap; src: url('/fonts/courier-prime-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Anton'; font-display: swap; src: url('/fonts/anton-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Playfair Display'; font-style: italic; font-weight: 700; font-display: swap; src: url('/fonts/playfair-italic-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Poppins'; font-style: italic; font-weight: 800; font-display: swap; src: url('/fonts/poppins-italic-latin.woff2') format('woff2'); }
+
+.sk-layer { position: absolute; pointer-events: none; container-type: inline-size; }
+/* Sizes are in the frame's own width (cqw) so a sticker is the same size on every screen. */
+.sk { position: absolute; left: 0; top: 0; pointer-events: auto; touch-action: none; width: max-content; max-width: 94cqw; font-size: 4.1cqw; user-select: none; -webkit-user-select: none; }
+.sk-dying { transition: transform .25s ease-in, opacity .25s; opacity: 0; }
+
+/* text */
+.sk-txt { white-space: pre-wrap; overflow-wrap: anywhere; text-align: center; line-height: 1.15; padding: .15em .35em; border-radius: .3em; color: #fff; }
+.sk-bg-soft { background: rgba(0,0,0,.55); }
+.sk-f-classic { font-family: 'Manrope', system-ui, sans-serif; font-weight: 800; }
+.sk-f-modern { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: .02em; }
+.sk-f-neon { font-family: 'Yellowtail', cursive; text-shadow: 0 0 .2em currentColor, 0 0 .6em currentColor, 0 0 1.1em #e0559b; }
+.sk-f-type { font-family: 'Courier Prime', monospace; font-weight: 700; }
+.sk-f-type.sk-bg-none { background: #000; }
+.sk-f-strong { font-family: 'Anton', sans-serif; text-transform: uppercase; font-style: italic; }
+.sk-f-elegant { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 700; }
+.sk-f-direct { font-family: 'Poppins', sans-serif; font-style: italic; font-weight: 800; }
+.sk-anim-type .sk-ch { opacity: 0; animation: sk-in .01s forwards; }
+@keyframes sk-in { to { opacity: 1; } }
+.sk-anim-pop { animation: sk-pop 1.2s cubic-bezier(.34,1.56,.64,1) infinite alternate; }
+@keyframes sk-pop { from { transform: scale(.92); } to { transform: scale(1.06); } }
+.sk-anim-wave .sk-ch { display: inline-block; animation: sk-wave 1.2s ease-in-out infinite; }
+@keyframes sk-wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.2em); } }
+.sk-anim-flicker { animation: sk-flicker 2.4s infinite; }
+@keyframes sk-flicker { 0%, 18%, 22%, 60%, 64%, 100% { opacity: 1; } 20%, 62% { opacity: .35; } }
+
+/* chips: location, mention, hashtag, link */
+.sk-chip { display: inline-flex; align-items: center; justify-content: center; gap: .35em; padding: .45em .7em; border-radius: .55em; font: 800 1em/1.15 'Manrope', system-ui, sans-serif; text-transform: uppercase; text-align: center; max-width: 76cqw; box-shadow: 0 .25em .8em rgba(0,0,0,.18); }
+.sk-chip svg { width: 1em; height: 1em; flex: none; }
+.sk-chip.s0 { background: #fff; }
+.sk-chip.s0.sk-loc { color: #8b3dff; } .sk-chip.s0.sk-tag { color: #e0559b; } .sk-chip.s0.sk-link { color: #0a84ff; }
+.sk-chip.s0.sk-men span { background: linear-gradient(90deg, #ff7a00, #e0559b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sk-chip.sk-link { text-transform: none; overflow-wrap: anywhere; }
+.sk-chip.s1 { background: linear-gradient(90deg, #8b5dff, #e0559b, #ff9a5a); color: #fff; }
+.sk-chip.s2 { background: rgba(255,255,255,.2); color: #fff; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1px rgba(255,255,255,.4); }
+.sk-chip.s3 { background: #111; color: #fff; }
+
+/* cards */
+.sk-card { width: 60cqw; border-radius: 4cqw; background: #fff; color: #111; box-shadow: 0 2.5cqw 8cqw -2.5cqw rgba(0,0,0,.45); overflow: hidden; font-family: 'Manrope', system-ui, sans-serif; }
+.sk-q { padding: 3.6cqw 3.6cqw 2.6cqw; font-weight: 800; font-size: 4.1cqw; text-align: center; outline: none; }
+.sk-poll .sk-opts { display: flex; border-top: 1px solid #eee; }
+.sk-poll .sk-opt { flex: 1; position: relative; padding: 3.6cqw 1.5cqw; font-weight: 800; font-size: 5.2cqw; text-align: center; overflow: hidden; }
+.sk-poll .sk-opt + .sk-opt { border-left: 1px solid #eee; }
+.sk-poll .sk-opt:first-child .sk-lb { background: linear-gradient(90deg, #22c55e, #16a34a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sk-poll .sk-opt:last-child .sk-lb { background: linear-gradient(90deg, #ff3b30, #e0559b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sk-poll .sk-lb { position: relative; outline: none; }
+.sk-poll .sk-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(139,93,255,.14); transition: width .7s cubic-bezier(.2,.8,.2,1); }
+.sk-poll .sk-pct { position: relative; display: block; font-size: 3.3cqw; font-weight: 700; color: #8b5dff; opacity: 0; transition: opacity .4s .3s; }
+.sk-poll.sk-voted .sk-pct { opacity: 1; }
+.sk-poll .sk-opt.sk-mine .sk-lb { text-decoration: underline; text-underline-offset: .2em; }
+.sk-question { background: linear-gradient(160deg, #8b5dff, #e0559b); color: #fff; padding-bottom: 3cqw; }
+.sk-question .sk-ans { margin: 0 3cqw; background: #fff; color: #999; border-radius: 3cqw; padding: 3cqw; font-size: 3.6cqw; text-align: center; }
+.sk-countdown .sk-q { text-transform: uppercase; font-size: 3.6cqw; letter-spacing: .02em; text-align: left; }
+.sk-digits { display: flex; justify-content: center; align-items: flex-start; gap: 1cqw; padding: 0 3cqw 1.5cqw; }
+.sk-grp { display: flex; flex-direction: column; align-items: center; gap: .8cqw; }
+.sk-grp .sk-d { display: flex; gap: .8cqw; }
+.sk-grp .sk-d i { font-style: normal; width: 6.6cqw; height: 9.2cqw; border-radius: 1.5cqw; background: #f1f1f3; display: grid; place-items: center; font-weight: 800; font-size: 5.6cqw; font-variant-numeric: tabular-nums; }
+.sk-grp small { font-size: 2.6cqw; color: #888; }
+.sk-colon { font-weight: 800; font-size: 5cqw; padding-top: 1.5cqw; color: #bbb; }
+.sk-remind { display: block; width: calc(100% - 6cqw); margin: 1cqw 3cqw 3cqw; padding: 2.3cqw; border-radius: 2.6cqw; text-align: center; font-weight: 700; font-size: 3.3cqw; background: #f1f1f3; color: #111; }
+.sk-remind.sk-on { background: linear-gradient(90deg, #8b5dff, #e0559b); color: #fff; }
+.sk-slider .sk-q { padding-bottom: 1.5cqw; }
+.sk-track { position: relative; margin: 2cqw 4.6cqw 5cqw; height: 2cqw; border-radius: 1cqw; background: #eee; }
+.sk-track .sk-done { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1cqw; background: linear-gradient(90deg, #ff9a5a, #e0559b); width: 0; }
+.sk-track .sk-knob { position: absolute; top: 50%; left: 0; font-size: 8.7cqw; transform: translate(-50%, -54%); touch-action: none; cursor: grab; line-height: 1; }
+.sk-track .sk-avg { position: absolute; top: 50%; width: 5.6cqw; height: 5.6cqw; border-radius: 50%; transform: translate(-50%, -50%); background: #fff; box-shadow: 0 0 0 2px #8b5dff; display: none; font-size: 2.6cqw; place-items: center; font-weight: 800; color: #8b5dff; }
+.sk-slider.sk-answered .sk-avg { display: grid; }
+.sk-quiz { width: 62cqw; }
+.sk-quiz .sk-q { background: linear-gradient(90deg, #1f1f1f, #3a3a3a); color: #fff; }
+.sk-quiz .sk-os { padding: 2.6cqw; display: flex; flex-direction: column; gap: 2cqw; }
+.sk-quiz .sk-o { display: flex; align-items: center; gap: 2.6cqw; padding: 2.6cqw 3cqw; border-radius: 3cqw; background: #f1f1f3; font-weight: 700; font-size: 3.6cqw; text-align: left; width: 100%; color: #111; transition: background .25s, color .25s; }
+.sk-quiz .sk-o b { width: 6cqw; height: 6cqw; flex: none; border-radius: 50%; background: #fff; color: #111; display: grid; place-items: center; font-size: 3cqw; }
+.sk-quiz .sk-o.sk-right { background: #22c55e; color: #fff; }
+.sk-quiz .sk-o.sk-wrong { background: #ff3b30; color: #fff; animation: sk-shake .4s; }
+@keyframes sk-shake { 25% { transform: translateX(-1.5cqw); } 75% { transform: translateX(1.5cqw); } }
+.sk-music { display: flex; align-items: center; gap: 2.6cqw; padding: 2cqw 3cqw 2cqw 2cqw; border-radius: 3.6cqw; background: #fff; color: #111; box-shadow: 0 2cqw 6cqw -2cqw rgba(0,0,0,.45); max-width: 62cqw; font-family: 'Manrope', system-ui, sans-serif; }
+.sk-music img { width: 11cqw; height: 11cqw; border-radius: 2cqw; object-fit: cover; }
+.sk-music b { display: block; font-size: 3.6cqw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42cqw; }
+.sk-music span { font-size: 3cqw; color: #777; }
+.sk-eq { display: inline-flex; gap: .5cqw; align-items: flex-end; height: 3cqw; margin-right: 1cqw; }
+.sk-eq i { width: .8cqw; background: #e0559b; border-radius: 1px; animation: sk-eq .8s ease-in-out infinite alternate; }
+.sk-eq i:nth-child(2) { animation-delay: .2s; } .sk-eq i:nth-child(3) { animation-delay: .4s; }
+@keyframes sk-eq { from { height: .8cqw; } to { height: 3cqw; } }
+.sk-clock { font: 800 11.3cqw/1 'Manrope', system-ui, sans-serif; color: #fff; text-shadow: 0 1cqw 4.6cqw rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
+.sk-clock small { font-size: 4.6cqw; margin-left: 1cqw; }
+.sk-emoji img { width: 28cqw; display: block; filter: drop-shadow(0 1.5cqw 3cqw rgba(0,0,0,.3)); pointer-events: none; }
+.sk-postcard { width: 54cqw; border-radius: 3.6cqw; overflow: hidden; background: #fff; color: #111; box-shadow: 0 4cqw 10cqw -3cqw rgba(0,0,0,.55); }
+.sk-postcard header { display: flex; align-items: center; gap: 1.8cqw; padding: 2cqw 2.6cqw; font: 700 3.1cqw 'Manrope', system-ui, sans-serif; }
+.sk-postcard header img { width: 5.6cqw; height: 5.6cqw; border-radius: 50%; object-fit: cover; }
+.sk-postcard > img { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; }
+.sk-postcard.s1 { background: none; box-shadow: none; }
+.sk-postcard.s1 header { display: none; }
+.sk-postcard.s1 > img { border-radius: 3.6cqw; box-shadow: 0 4cqw 10cqw -3cqw rgba(0,0,0,.55); }

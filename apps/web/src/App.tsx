@@ -112,6 +112,7 @@ const VoxelQrLab = lazyScreen(() => import('./screens/dev/VoxelQrLab.js'), 'Voxe
 const InviteLab = lazyScreen(() => import('./screens/dev/InviteLab.js'), 'InviteLab');
 const StatusLab = lazyScreen(() => import('./screens/dev/StatusLab.js'), 'StatusLab');
 const SecurePhoneLab = lazyScreen(() => import('./screens/dev/SecurePhoneLab.js'), 'SecurePhoneLab');
+const StoryLab = lazyScreen(() => import('./screens/dev/StoryLab.js'), 'StoryLab');
 const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');const RecoverCodeScreen = lazyScreen(() => import('./screens/auth/RecoverScreens.js'), 'RecoverCodeScreen');
 const ResetPasswordScreen = lazyScreen(() => import('./screens/auth/RecoverScreens.js'), 'ResetPasswordScreen');
 const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
@@ -416,6 +417,9 @@ export function App() {
             )}
             {import.meta.env.DEV && (
               <Route path="/dev/secure-lab" element={<SecurePhoneLab />} />
+            )}
+            {import.meta.env.DEV && (
+              <Route path="/dev/story-lab" element={<StoryLab />} />
             )}
 
             {/* Pre-session. A signed-in visitor is sent to Home. */}

@@ -17,6 +17,7 @@ import { StoryActions } from './StoryActions.js';
 import { useStories } from './StoryContext.js';
 import { MyStoryMenu, OtherStoryMenu } from './StoryMenus.js';
 import { StoryOverlay } from './StoryOverlay.js';
+import { StoryStickerLayer } from './stickers/StoryStickerLayer.js';
 import { StoryProgress } from './StoryProgress.js';
 import { StorySound, soundLength } from './StorySound.js';
 import { MAX_STORY_SECONDS } from './story-audio.js';
@@ -539,6 +540,15 @@ export function StoryViewer({
 
           <StoryOverlay story={story} />
 
+          <StoryStickerLayer
+            story={story}
+            hold={player.hold}
+            onOpenProfile={(username) => {
+              onClose();
+              navigate(`/profile/${username}`);
+            }}
+          />
+
           {/*
             The sound the author laid on it, on the story's own clock. Renders
             nothing - see `StorySound` for why it has no control of its own.
@@ -958,7 +968,8 @@ function StoryVideo({
           ...(geometry ? geometry.video : {}),
           // The same arrival a photo gets - see `StoryImage`. The slight
           // overscale keeps the blur from showing soft edges at the frame.
-          filter: sharp ? 'none' : ready ? 'blur(0px)' : 'blur(26px)',
+          // A video's look from the editor is played, not re-encoded.
+          filter: sharp ? story.decor?.filter || 'none' : `${ready ? 'blur(0px)' : 'blur(26px)'} ${story.decor?.filter ?? ''}`,
           transform: geometry
             ? `${String(geometry.video.transform)} ${arriving}`
             : arriving,

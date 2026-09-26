@@ -15,6 +15,7 @@ import { SnapEditor } from '../camera/SnapEditor.js';
 import { toStandardQuality } from '../chat/media-quality.js';
 import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
+import { StoryEditor } from './StoryEditor.js';
 import { useStories } from './StoryContext.js';
 
 /**
@@ -77,6 +78,8 @@ export function StoryComposer({
   const [choosing, setChoosing] = useState(false);
 
   const [busy, setBusy] = useState(false);
+  /** One picture or clip, open in the Instagram-style editor. */
+  const [ig, setIg] = useState<{ src: string; kind: StoryKind; media: Blob }>();
   const [error, setError] = useState<string>();
   const [progress, setProgress] = useState<string>();
   /** Which queued clip is open in the video editor, by id. */
@@ -151,6 +154,15 @@ export function StoryComposer({
 
     if (files.length === 1) {
       const file = files[0]!;
+      /*
+       * One picture or one clip opens the story editor and posts from there,
+       * stickers and all. A GIF keeps the old path (it must not be flattened
+       * into one frame), and so does adding to slides already queued.
+       */
+      if (!appending && !isGifLike(file)) {
+        setIg({ src: URL.createObjectURL(file), kind: file.type.startsWith('video/') ? 'video' : 'photo', media: file });
+        return;
+      }
       if (file.type.startsWith('video/')) {
         const item = makeItem(file, 'video');
         if (appending) appendItems([item]);
@@ -306,6 +318,30 @@ export function StoryComposer({
       }}
     />
   );
+
+  if (ig) {
+    return (
+      <>
+        {galleryInput}
+        <StoryEditor
+          src={ig.src}
+          kind={ig.kind}
+          media={ig.media}
+          onClose={() => {
+            URL.revokeObjectURL(ig.src);
+            setIg(undefined);
+            onClose();
+          }}
+          onPost={async (draft) => {
+            await service.post(draft);
+            URL.revokeObjectURL(ig.src);
+            await refresh();
+            onPosted();
+          }}
+        />
+      </>
+    );
+  }
 
   // ---- step 1: source -----------------------------------------------------
 

@@ -82,6 +82,12 @@ export type {
   StoryViewer,
   StoryInsights,
   StoryReaction,
+  StorySticker,
+  StoryStickerType,
+  StoryDecor,
+  StickerAnswer,
+  StickerResult,
+  StickerResponse,
 } from './story-service.js';
 export { STORY_REACTIONS, STORY_PHOTO_MS, STORY_AUDIENCES } from './story-service.js';
 

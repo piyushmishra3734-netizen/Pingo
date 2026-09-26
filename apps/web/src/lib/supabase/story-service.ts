@@ -17,9 +17,14 @@
  * viewer's own preference about a story they are perfectly entitled to see.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
+  StickerAnswer,
+  StickerResponse,
+  StickerResult,
   Story,
   StoryAudioTrack,
+  StoryDecor,
   StoryDraft,
   StoryGroup,
   StoryInsights,
@@ -50,6 +55,13 @@ interface StoredAudioTrack {
  * that fails to describe its sound should play silently, not fail to open, so
  * anything that is not a list of pieces with a path is simply not sound.
  */
+/** The `decor` column, read defensively: anything that is not the shape we write is ignored. */
+function storedDecor(row: StoryRow): StoryDecor | undefined {
+  const raw = (row as unknown as { decor?: unknown }).decor as StoryDecor | null | undefined;
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.stickers)) return undefined;
+  return raw;
+}
+
 function storedAudio(row: StoryRow): StoredAudioTrack[] {
   const raw = (row as unknown as { audio?: unknown }).audio;
   if (!Array.isArray(raw)) return [];
@@ -266,6 +278,7 @@ export class SupabaseStoryService implements StoryService {
         return tracks.length > 0 ? { audio: tracks } : {};
       })(),
       audience: row.audience as Story['audience'],
+      ...(storedDecor(row) ? { decor: storedDecor(row)! } : {}),
       createdAt: Date.parse(row.created_at),
       expiresAt: Date.parse(row.expires_at),
       seen: seen.has(row.id),
@@ -466,6 +479,10 @@ export class SupabaseStoryService implements StoryService {
           : {}) as Record<string, never>),
         // Either kind of story can carry sound - see 20260913000000.
         ...((audioRow.length > 0 ? { audio: audioRow } : {}) as Record<string, never>),
+        // Stickers as data - see 20260927000000.
+        ...((draft.decor?.stickers.length || draft.decor?.filter || draft.decor?.bg
+          ? { decor: draft.decor }
+          : {}) as Record<string, never>),
       })
       .select('*')
       .single();
@@ -592,6 +609,73 @@ export class SupabaseStoryService implements StoryService {
 
     const row = data?.[0];
     return { views: row?.views ?? 0, likes: row?.likes ?? 0, replies: row?.replies ?? 0 };
+  }
+
+  // -- stickers ---------------------------------------------------------------
+
+  /*
+   * The answers table and results function ship in 20260927000000, after the
+   * generated database types; the untyped client stands in until they are
+   * regenerated.
+   */
+  get #db(): SupabaseClient {
+    return this.#client as unknown as SupabaseClient;
+  }
+
+  async answerSticker(storyId: string, stickerId: string, answer: StickerAnswer): Promise<void> {
+    const { error } = await this.#db
+      .from('story_sticker_answers')
+      .insert({ story_id: storyId, sticker_id: stickerId, value: answer });
+    // Answered already (the primary key): the first answer stands, as it should.
+    if (error && error.code !== '23505') throw error;
+  }
+
+  async stickerResults(
+    storyId: string,
+  ): Promise<{ results: StickerResult[]; mine: Record<string, StickerAnswer> }> {
+    const me = await this.#userId();
+    const [totals, own] = await Promise.all([
+      this.#db.rpc('story_sticker_results', { target: storyId }),
+      this.#db.from('story_sticker_answers').select('sticker_id, value').eq('story_id', storyId).eq('user_id', me),
+    ]);
+    if (totals.error) throw totals.error;
+    if (own.error) throw own.error;
+    const results = ((totals.data ?? []) as { sticker_id: string; choice: number | null; votes: number; average: number | null }[]).map(
+      (row) => ({ stickerId: row.sticker_id, choice: row.choice, votes: Number(row.votes), average: row.average }),
+    );
+    const mine: Record<string, StickerAnswer> = {};
+    for (const row of (own.data ?? []) as { sticker_id: string; value: StickerAnswer }[]) mine[row.sticker_id] = row.value;
+    return { results, mine };
+  }
+
+  async listStickerResponses(storyId: string): Promise<StickerResponse[]> {
+    // The table's own policy returns everyone's rows to the author and only one's own to anyone else.
+    const { data, error } = await this.#db
+      .from('story_sticker_answers')
+      .select('sticker_id, user_id, value, created_at')
+      .eq('story_id', storyId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const rows = (data ?? []) as { sticker_id: string; user_id: string; value: StickerAnswer; created_at: string }[];
+    if (rows.length === 0) return [];
+    const { data: people } = await this.#client
+      .from('profiles')
+      .select('*')
+      .in('id', [...new Set(rows.map((r) => r.user_id))]);
+    const byId = new Map((people ?? []).map((p) => [p.id, p]));
+    return rows.flatMap((row) => {
+      const p = byId.get(row.user_id);
+      if (!p) return [];
+      return [{
+        stickerId: row.sticker_id,
+        userId: row.user_id,
+        username: p.username,
+        displayName: p.display_name,
+        ...(p.avatar_url ? { avatarUrl: p.avatar_url } : {}),
+        answer: row.value,
+        at: Date.parse(row.created_at),
+      }];
+    });
   }
 
   // -- close friends --------------------------------------------------------

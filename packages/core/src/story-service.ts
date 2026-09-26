@@ -36,6 +36,72 @@ export type StoryAudience =
   /** Named people, and nobody else. */
   | 'custom';
 
+/**
+ * A sticker on a story, stored as data and drawn live over the media.
+ *
+ * Kept as data rather than baked into the pixels because some of them are
+ * meant to be used - a poll has to be voted on, a slider slid, a question
+ * answered. `x`/`y` place its centre as fractions of the frame, `s` scales and
+ * `r` turns it (degrees); `style` is which look it was tapped to; `d` is what
+ * that type needs (text, options, a date, a song).
+ */
+export type StoryStickerType =
+  | 'text' | 'loc' | 'men' | 'tag' | 'link' | 'poll' | 'question' | 'countdown'
+  | 'slider' | 'quiz' | 'music' | 'clock' | 'emoji' | 'post';
+
+export interface StorySticker {
+  id: string;
+  type: StoryStickerType;
+  x: number;
+  y: number;
+  s: number;
+  r: number;
+  style?: number;
+  d: Record<string, unknown>;
+}
+
+/** Everything drawn over a story's media. */
+export interface StoryDecor {
+  v: 1;
+  /** A video's look. A photo has its filter baked into the file instead. */
+  filter?: string;
+  /** Behind a shared post, which sits on the photo's own colours. */
+  bg?: string;
+  stickers: StorySticker[];
+}
+
+/** What one viewer did with one sticker. */
+export interface StickerAnswer {
+  /** Poll or quiz option. */
+  choice?: number;
+  /** Emoji slider, 0-1. */
+  slide?: number;
+  /** Reply to a question sticker. */
+  text?: string;
+  /** Countdown reminder. */
+  remind?: boolean;
+}
+
+/** Counts for one option of one sticker. Never who. */
+export interface StickerResult {
+  stickerId: string;
+  choice: number | null;
+  votes: number;
+  /** Mean slider position, for sliders. */
+  average: number | null;
+}
+
+/** One person's answer, as the author sees it. */
+export interface StickerResponse {
+  stickerId: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  answer: StickerAnswer;
+  at: number;
+}
+
 /** One posted story. */
 export interface Story {
   id: string;
@@ -62,6 +128,8 @@ export interface Story {
   /** Sound the author laid on top. Absent means the story is as it was shot. */
   audio?: StoryAudioTrack[];
   audience: StoryAudience;
+  /** Stickers drawn over the media. Absent on stories posted before stickers were data. */
+  decor?: StoryDecor;
   createdAt: number;
   expiresAt: number;
   /** Whether the signed-in user has already opened it. Drives the ring state. */
@@ -143,6 +211,8 @@ export interface StoryDraft {
   videoEdit?: VideoEdit;
   /** Music, a voice, a sound lifted from another clip. Either kind of story. */
   audio?: StoryAudioDraft[];
+  /** Stickers, placed in the editor. */
+  decor?: StoryDecor;
 }
 
 /** One person who watched a story. Owner-only - see `listViewers`. */
@@ -208,6 +278,17 @@ export interface StoryService {
 
   /** Views, likes and replies for one story. Author only. */
   insights(storyId: string): Promise<StoryInsights>;
+
+  // -- stickers ---------------------------------------------------------------
+
+  /** Votes, slides, answers. One per person per sticker, and final. */
+  answerSticker(storyId: string, stickerId: string, answer: StickerAnswer): Promise<void>;
+
+  /** The totals viewers are shown, and what the signed-in user answered themselves. */
+  stickerResults(storyId: string): Promise<{ results: StickerResult[]; mine: Record<string, StickerAnswer> }>;
+
+  /** Who answered what. Author only; returns empty for anyone else. */
+  listStickerResponses(storyId: string): Promise<StickerResponse[]>;
 
   // -- close friends --------------------------------------------------------
 
