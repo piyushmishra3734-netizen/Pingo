@@ -1,4 +1,4 @@
-import { Avatar, CameraIcon, TrashIcon, cn } from '@pingo/ui';
+import { Avatar, CameraIcon, TrashIcon, cn, type AvatarSize } from '@pingo/ui';
 import { useRef, useState } from 'react';
 
 import { ImageViewer } from './ImageViewer.js';
@@ -40,6 +40,7 @@ export function ProfileAvatar({
   isSelf,
   onChangePhoto,
   onRemovePhoto,
+  size = 'xl',
 }: {
   name: string;
   id: string;
@@ -49,6 +50,7 @@ export function ProfileAvatar({
   isSelf: boolean;
   onChangePhoto: () => void;
   onRemovePhoto: () => void;
+  size?: AvatarSize;
 }) {
   const [viewing, setViewing] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -151,16 +153,18 @@ export function ProfileAvatar({
             Own profile: a little more air and emphasis without growing the face
             - "this is my identity" rather than a denser stranger portrait.
           */
-          isSelf
-            ? 'ring-[5px] ring-surface p-0.5 shadow-md'
-            : 'ring-[3px] ring-surface',
+          size === 'hero'
+            ? 'ring-[3px] ring-surface'
+            : isSelf
+              ? 'ring-[5px] ring-surface p-0.5 shadow-md'
+              : 'ring-[3px] ring-surface',
         )}
       >
         <Avatar
           name={name}
           id={id}
           src={src}
-          size="xl"
+          size={size}
           presence={presence}
         />
       </button>

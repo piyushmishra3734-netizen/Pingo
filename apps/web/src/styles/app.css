@@ -19,6 +19,34 @@
 @source "../../../../packages/ui/src";
 @source "../../src";
 
+/*
+ * Manrope, for the profile screens only.
+ *
+ * The profile was designed as one card after a reference drawn in Manrope, and
+ * in Space Grotesk the same card read as a different design - the name, the
+ * numbers and the small lines all changed shape. Self-hosted for the same
+ * reason Space Grotesk is (no third party learns who opened a profile), one
+ * variable file for every weight, latin only. OFL - see /fonts/OFL.txt.
+ */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/manrope-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@layer components {
+  /* The three profile screens: the face, and a page a shade off the card so the card stands up. */
+  .profile-type {
+    font-family: 'Manrope', var(--font-sans);
+    letter-spacing: -0.02em;
+    background-color: color-mix(in srgb, var(--color-page) 95%, var(--color-ink));
+  }
+}
+
 @layer base {
   /*
    * Full-height chain, so a screen can be `h-full` and actually fill the viewport.

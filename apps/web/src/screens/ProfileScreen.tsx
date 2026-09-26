@@ -12,6 +12,7 @@ import {
 import {
   Button,
   ChatIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   EditIcon,
   EmptyState,
@@ -25,7 +26,7 @@ import {
   VideoIcon,
   cn,
 } from '@pingo/ui';
-import { AtSign, Briefcase, Compass, MapPin, Trophy } from 'lucide-react';
+import { AtSign, Briefcase, Compass, Image as ImageGlyph, LayoutGrid, MapPin, Trophy } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
@@ -508,7 +509,7 @@ export function ProfileScreen() {
       property for the few details that opt into it.
     */
     <div
-      className="relative h-full overflow-y-auto bg-page"
+      className="profile-type relative h-full overflow-y-auto"
       style={
         isMythic
           ? {
@@ -533,27 +534,7 @@ export function ProfileScreen() {
             : {})}
         />
       )}
-      <ScreenHeader
-        title={isSelf ? 'Profile' : person.displayName}
-        showBack
-        action={
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label={isSelf ? 'Profile menu' : `Options for ${person.displayName}`}
-            className={cn(
-              // Same family as the back control: 40 drawn, 44 hit, same weight.
-              'touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full',
-              'text-text-secondary transition-colors duration-instant',
-              'hover:bg-hover hover:text-ink active:scale-[0.96]',
-            )}
-          >
-            {isSelf ? <MenuIcon size={20} /> : <MoreIcon size={20} />}
-          </button>
-        }
-      />
-
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-2 pb-10 pt-2">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-2 pb-10 pt-[max(0.5rem,env(safe-area-inset-top))]">
         {/*
           The whole person is one card.
 
@@ -576,6 +557,29 @@ export function ProfileScreen() {
               onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
             />
 
+            {/*
+              Back and the menu sit on the cover, not in a bar above it: the
+              card is the top of the page. Dark glass rather than a blur - a
+              backdrop filter over the cover is a compositing layer that paints
+              over whatever is meant to sit on top of it.
+            */}
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label="Back"
+              className="focus-ring absolute left-3 top-3 z-[3] grid size-9 place-items-center rounded-full bg-black/30 text-white transition-transform duration-instant active:scale-[0.94]"
+            >
+              <ChevronLeftIcon size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label={isSelf ? 'Profile menu' : `Options for ${person.displayName}`}
+              className="focus-ring absolute right-3 top-3 z-[3] grid size-9 place-items-center rounded-full bg-black/30 text-white transition-transform duration-instant active:scale-[0.94]"
+            >
+              {isSelf ? <MenuIcon size={19} /> : <MoreIcon size={19} />}
+            </button>
+
             <div className="pointer-events-none relative px-[18px] pb-5 pt-[92px] [&>*]:pointer-events-auto">
               <div className="flex items-end justify-between gap-3">
                 {/* `flex`, not `block`: an inline-flex child on a text baseline sits off centre. */}
@@ -586,6 +590,7 @@ export function ProfileScreen() {
                     src={person.avatarUrl}
                     presence={isSelf ? myStatus : othersMark}
                     isSelf={isSelf}
+                    size="hero"
                     onChangePhoto={() => avatarFileRef.current?.click()}
                     onRemovePhoto={() => {
                       void (async () => {
@@ -606,8 +611,8 @@ export function ProfileScreen() {
                   <Link
                     to="/profile/edit"
                     className={cn(
-                      'focus-ring mb-2 inline-flex h-10 items-center gap-1.5 rounded-full px-5',
-                      'bg-brand text-caption font-medium text-on-brand',
+                      'focus-ring mb-2 inline-flex h-[38px] items-center gap-1.5 rounded-full px-5',
+                      'bg-brand text-[14px] font-semibold text-on-brand',
                       'transition-transform duration-instant active:scale-[0.96]',
                     )}
                   >
@@ -615,23 +620,19 @@ export function ProfileScreen() {
                     Edit profile
                   </Link>
                 ) : (
-                  <FollowButton userId={person.id} name={person.displayName} className="mb-2 h-10" />
+                  <FollowButton userId={person.id} name={person.displayName} tone="pill" className="mb-2" />
                 )}
               </div>
 
-              {/*
-                `h2`, not `h1`. `ScreenHeader` already contributes the page's one
-                `h1`, and two of them leave a screen reader with no single answer
-                to "what is this page".
-              */}
-              <h2 className="mt-3 flex items-center gap-1.5 text-[24px] font-bold leading-tight tracking-[-0.04em] text-ink">
+              {/* The page's one heading, now there is no bar above the card. */}
+              <h1 className="mt-3 flex items-center gap-1.5 text-[24px] font-bold leading-tight tracking-[-0.045em] text-ink">
                 <span className="min-w-0 truncate">{person.displayName}</span>
                 <AchievementMark achievement={achievements.lead(person.id)} />
-              </h2>
+              </h1>
 
               {/* Two lines at most: a profile is an identity, not an information sheet. */}
               {person.bio && (
-                <p className="mt-1 line-clamp-2 text-body leading-snug text-text-secondary">
+                <p className="mt-1 line-clamp-2 text-[15px] font-medium leading-snug text-text-secondary">
                   <CaptionText text={person.bio} />
                 </p>
               )}
@@ -794,8 +795,8 @@ export function ProfileScreen() {
         {/* ---- tabs ----------------------------------------------------- */}
         {showMediaTab && (
           <div role="tablist" aria-label="Profile content" className="flex rounded-full bg-surface p-1">
-            <TabButton id="posts" label="Posts" active={tab === 'posts'} onSelect={() => setTab('posts')} />
-            <TabButton id="media" label="Media" active={tab === 'media'} onSelect={() => setTab('media')} />
+            <TabButton id="posts" label="Posts" icon={<LayoutGrid size={15} />} active={tab === 'posts'} onSelect={() => setTab('posts')} />
+            <TabButton id="media" label="Media" icon={<ImageGlyph size={15} />} active={tab === 'media'} onSelect={() => setTab('media')} />
           </div>
         )}
 
@@ -1235,11 +1236,13 @@ function Stat({
 function TabButton({
   id,
   label,
+  icon,
   active,
   onSelect,
 }: {
   id: Tab;
   label: string;
+  icon: ReactNode;
   active: boolean;
   onSelect: () => void;
 }) {
@@ -1252,11 +1255,12 @@ function TabButton({
       aria-controls={`panel-${id}`}
       onClick={onSelect}
       className={cn(
-        'focus-ring h-10 flex-1 rounded-full text-body font-medium',
+        'focus-ring inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full text-[14px] font-semibold',
         'transition-colors duration-instant',
         active ? 'bg-brand text-on-brand' : 'text-text-secondary hover:text-ink',
       )}
     >
+      {icon}
       {label}
     </button>
   );

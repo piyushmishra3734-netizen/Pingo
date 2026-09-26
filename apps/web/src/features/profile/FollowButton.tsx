@@ -1,5 +1,6 @@
 import { useProfile, type FollowState } from '@pingo/core';
 import { cn } from '@pingo/ui';
+import { Clock, UserCheck, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
@@ -33,12 +34,15 @@ export function FollowButton({
   name,
   onChange,
   className,
+  tone = 'default',
 }: {
   userId: string;
   /** Used in the confirmation when a friendship is about to end. */
   name?: string;
   onChange?: (state: FollowState) => void;
   className?: string;
+  /** `pill`: the dark pill with an icon that sits on the profile card. */
+  tone?: 'default' | 'pill';
 }) {
   const { service } = useProfile();
   const confirm = useConfirm();
@@ -122,6 +126,27 @@ export function FollowButton({
         return service.removeFollow(userId);
       });
     })();
+
+  if (tone === 'pill') {
+    const Icon = state === 'mutual' ? UserCheck : state === 'requested' || state === 'following' ? Clock : UserPlus;
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={busy}
+        className={cn(
+          'focus-ring inline-flex h-[38px] items-center gap-1.5 rounded-full px-5 text-[14px] font-semibold',
+          'transition-transform duration-instant ease-standard active:scale-[0.96]',
+          state === 'requested' || state === 'following' ? 'bg-sunken text-ink' : 'bg-brand text-on-brand',
+          busy && 'opacity-60',
+          className,
+        )}
+      >
+        <Icon size={15} />
+        {label}
+      </button>
+    );
+  }
 
   return (
     <button

@@ -24,7 +24,8 @@ import { initials, variantFromSeed } from '../utils/text.js';
  * motion as every other live indicator in PINGO.
  */
 
-export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+/** `hero` is the face on the profile card: between `lg` and `xl`, sized to that card. */
+export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'hero' | 'xl' | '2xl';
 
 export interface AvatarProps {
   name: string;
@@ -55,6 +56,7 @@ const PX: Record<AvatarSize, number> = {
   sm: 40,
   md: 48,
   lg: 62,
+  hero: 76,
   xl: 96,
   '2xl': 128,
 };
@@ -65,6 +67,7 @@ const TEXT: Record<AvatarSize, string> = {
   sm: 'text-caption',
   md: 'text-body',
   lg: 'text-h2',
+  hero: 'text-h1',
   xl: 'text-h1',
   '2xl': 'text-display',
 };
@@ -75,6 +78,7 @@ const DOT: Record<AvatarSize, { size: number; inset: string }> = {
   sm: { size: 9, inset: '-bottom-0 -right-0' },
   md: { size: 11, inset: '-bottom-0.5 -right-0.5' },
   lg: { size: 13, inset: '-bottom-0.5 -right-0.5' },
+  hero: { size: 16, inset: 'bottom-0.5 right-0.5' },
   xl: { size: 18, inset: 'bottom-1 right-1' },
   '2xl': { size: 24, inset: 'bottom-2 right-2' },
 };
@@ -85,6 +89,7 @@ const RING: Record<AvatarSize, number> = {
   sm: 1.75,
   md: 2,
   lg: 2.25,
+  hero: 2.5,
   xl: 2.5,
   '2xl': 3,
 };

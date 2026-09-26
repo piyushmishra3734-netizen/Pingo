@@ -208,7 +208,7 @@ export function EditProfileScreen() {
   const shownName = displayName.trim() || 'Your name';
 
   return (
-    <div className="h-full overflow-y-auto bg-page">
+    <div className="profile-type h-full overflow-y-auto">
       {editorSrc && (
         <AvatarPhotoEditor
           src={editorSrc}
@@ -259,8 +259,8 @@ export function EditProfileScreen() {
                   aria-label={hasPhoto ? 'Change photo' : 'Add photo'}
                   className="focus-ring relative inline-flex rounded-full ring-[3px] ring-surface transition-transform duration-instant active:scale-[0.97]"
                 >
-                  <Avatar name={shownName} id={profile.id} src={shownAvatar} size="xl" />
-                  <span className="absolute -bottom-0.5 -right-0.5 grid size-8 place-items-center rounded-full border-[3px] border-surface bg-brand text-on-brand">
+                  <Avatar name={shownName} id={profile.id} src={shownAvatar} size="hero" />
+                  <span className="absolute -bottom-0.5 -right-0.5 grid size-7 place-items-center rounded-full border-[3px] border-surface bg-brand text-on-brand">
                     <CameraIcon size={14} />
                   </span>
                 </button>
@@ -284,11 +284,11 @@ export function EditProfileScreen() {
                 )}
               </div>
 
-              <h2 className="mt-3 truncate text-[24px] font-bold leading-tight tracking-[-0.04em] text-ink">
+              <h2 className="mt-3 truncate text-[24px] font-bold leading-tight tracking-[-0.045em] text-ink">
                 {shownName}
               </h2>
               {bio.trim() && (
-                <p className="mt-1 line-clamp-2 text-body leading-snug text-text-secondary">{bio}</p>
+                <p className="mt-1 line-clamp-2 text-[15px] font-medium leading-snug text-text-secondary">{bio}</p>
               )}
               <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12.5px] text-text-secondary">
                 {handle && <Fact icon={<AtSign size={14} />}>{handle}</Fact>}

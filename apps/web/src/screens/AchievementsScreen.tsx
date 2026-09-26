@@ -97,7 +97,7 @@ export function AchievementsScreen() {
   return (
     /* The wash is the root's own background - see `mythicWashStyle`. */
     <div
-      className="relative flex h-full min-h-0 flex-col bg-page"
+      className="profile-type relative flex h-full min-h-0 flex-col"
       style={isMythic ? mythicWashStyle(accent) : undefined}
     >
       <ScreenHeader title="Achievements" showBack />
