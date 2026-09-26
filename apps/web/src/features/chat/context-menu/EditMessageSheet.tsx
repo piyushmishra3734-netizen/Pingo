@@ -57,7 +57,7 @@ export function EditMessageSheet({ body, onCancel, onSave }: EditMessageSheetPro
           role="dialog"
           aria-modal="true"
           aria-label="Edit message"
-          className="animate-panel-in relative flex flex-col gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          className="animate-panel-in relative mx-auto flex w-full max-w-2xl flex-col gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           onKeyDown={(event) => {
             if (event.key === 'Escape') onCancel();
             if (event.key === 'Enter' && !event.shiftKey) {

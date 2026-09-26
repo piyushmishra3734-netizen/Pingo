@@ -7,7 +7,7 @@ import { filterStill } from '../features/camera/filterStill.js';
 import { FILTERS } from '../features/camera/filters/registry.js';
 import { SnapEditor } from '../features/camera/SnapEditor.js';
 import { SnapCamera, type SnapShot } from '../features/camera/snap/SnapCamera.js';
-import { SnapPost } from '../features/camera/snap/SnapPost.js';
+import { SnapShotEditor } from '../features/camera/snap/SnapShotEditor.js';
 import { useCamera } from '../features/camera/useCamera.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
@@ -318,17 +318,28 @@ export function CameraScreen() {
    * makes a mis-tap cost a permission prompt and a lit camera light, so it
    * waits here for a deliberate "yes". Nothing is requested until then.
    */
+  /*
+   * After the shutter: Instagram's story editor, and Snapchat's Send to.
+   *
+   * One flow rather than two. The camera is Snap's - Lenses, music, hold to
+   * record - and what comes after it is the story editor people already know,
+   * whose arrow sends to My story, Close friends or chats. A chat gets a Ping,
+   * with its view limit.
+   */
   if (snapShot) {
     return (
-      <SnapPost
+      <SnapShotEditor
         shot={snapShot}
         {...(lockedChatId ? { lockedChatId } : {})}
-        onRetake={() => setSnapShot(undefined)}
-        onSent={({ conversationId }) => {
+        onDone={() => {
           setSnapShot(undefined);
           // From a chat: back to it. From the dock: stay on the camera, as Snapchat does.
-          const back = lockedChatId ?? conversationId;
-          if (lockedChatId && back) navigate(`/chats/${back}`, { replace: true });
+          if (lockedChatId) navigate(`/chats/${lockedChatId}`, { replace: true });
+        }}
+        onPost={async (draft) => {
+          await stories.post(draft);
+          if (preferences.camera.saveSnaps && snapShot.kind === 'photo') void saveImage(draft.media, 'pingo-story.jpg');
+          await refresh();
         }}
       />
     );

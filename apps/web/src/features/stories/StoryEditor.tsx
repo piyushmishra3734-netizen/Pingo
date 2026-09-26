@@ -3,7 +3,7 @@ import { cn } from '@pingo/ui';
 import {
   AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronDown, ChevronLeft, CircleCheck, Circle,
   Download, Ellipsis, Eraser, Highlighter, Link as LinkIcon, MapPin, Music2, Pause, PenLine, Play, Search, Sparkles, Star,
-  Sticker, Type, Undo2, ArrowRight, Zap, AlarmClock, Clock, Hash,
+  Sticker, Type, Undo2, ArrowRight, Zap, AlarmClock, Clock, Hash, Timer,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -11,7 +11,7 @@ import { Overlay } from '../../components/Overlay.js';
 import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
-import { SendTo, drawStickers, noteSends } from '../camera/snap/SnapPost.js';
+import { SendTo, drawStickers, noteSends } from '../camera/snap/send-to.js';
 import { Blue, ClipSheet, Field, MusicSheet, Panel, type Song } from '../music/sheets.js';
 
 /**
@@ -54,9 +54,16 @@ export interface StoryEditorProps {
   bg?: string;
   onClose: () => void;
   onPost: (draft: StoryDraft) => Promise<void>;
+  /** A song already chosen in the camera. */
+  initialSong?: Song;
+  /**
+   * Opened from the camera: a chat gets a Ping - a picture with a view limit -
+   * rather than an ordinary photo, and one chat may already be chosen.
+   */
+  ping?: { lockedChatId?: string };
 }
 
-export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost }: StoryEditorProps) {
+export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost, initialSong, ping }: StoryEditorProps) {
   const { users, service: chat } = useChat();
   const { profile } = useProfile();
   const stage = useRef<HTMLDivElement>(null);
@@ -68,7 +75,9 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const [filterI, setFilterI] = useState(0);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [caption, setCaption] = useState('');
-  const [song, setSong] = useState<Song>();
+  const [song, setSong] = useState<Song | undefined>(initialSong);
+  /** A Ping's view limit: once, twice, or as often as they like. */
+  const [views, setViews] = useState<1 | 2 | null>(2);
   const [mode, setMode] = useState<'none' | 'text' | 'draw'>('none');
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [rail, setRail] = useState<'labels' | 'icons' | 'open'>('labels');
@@ -288,7 +297,9 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       try {
         if (kind === 'photo') {
           const image = await exportPhoto(true);
-          await Promise.all(chatIds.map((conversationId) => chat.sendMessage({ conversationId, body: '', photo: { image } })));
+          await Promise.all(chatIds.map((conversationId) => chat.sendMessage(
+            ping ? { conversationId, body: 'Ping', ping: { image, views } } : { conversationId, body: '', photo: { image } },
+          )));
         } else {
           const file = new File([media], `story.${media.type.includes('mp4') ? 'mp4' : 'webm'}`, { type: media.type || 'video/mp4' });
           await Promise.all(chatIds.map((conversationId) => chat.sendMessage({ conversationId, body: '', document: { file } })));
@@ -319,6 +330,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const moreTools: [string, ReactNode, () => void][] = [
     ['Mention', <AtSign key="m" />, () => setSheet('mention')],
     ...(kind === 'photo' ? [['Draw', <Brush key="d" />, () => setMode('draw')] as [string, ReactNode, () => void]] : []),
+    ...(ping && kind === 'photo' ? [[views === null ? 'Views: ∞' : `Views: ${views}`, <Timer key="v" />, () => setViews((v) => (v === 1 ? 2 : v === 2 ? null : 1))] as [string, ReactNode, () => void]] : []),
     ['Download', <Download key="dl" />, () => void download()],
     ['More', <Ellipsis key="mo" />, () => setSheet('more')],
   ];
@@ -410,6 +422,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
           <EditorSheets
             kind={sheet} setKind={setSheet} kindOfMedia={kind} filterI={filterI} setFilterI={setFilterI} src={src}
             users={users} add={add} song={song} setSong={(s) => { setSong(s); if (s) playSong(s); }} chooseSong={chooseSong}
+            ping={ping ? { views: kind === 'photo' ? views : undefined, ...(ping.lockedChatId ? { locked: ping.lockedChatId } : {}) } : undefined}
             countdown={countdownFor.current} onCountdown={(d) => { const c = countdownFor.current; countdownFor.current = undefined; if (c) update(c.id, { d }); else add({ type: 'countdown', y: 0.3, d }); }}
             onPost={post} onDiscard={() => { player.current?.pause(); onClose(); }} onSend={sendTo}
             onPreview={(s) => { if (!s) player.current?.pause(); else playSong(s); }}
@@ -539,6 +552,7 @@ interface SheetsProps {
   countdown?: StorySticker; onCountdown: (d: Record<string, unknown>) => void;
   onPost: (a: StoryAudience, ids?: string[]) => Promise<void>; onDiscard: () => void; onPreview: (s?: Song) => void;
   onSend: (chatIds: string[], story: false | 'friends' | 'close') => Promise<void>;
+  ping: { views: 1 | 2 | null | undefined; locked?: string } | undefined;
 }
 
 function EditorSheets(p: SheetsProps) {
@@ -622,7 +636,7 @@ function EditorSheets(p: SheetsProps) {
         </Panel>
       );
     case 'share':
-      return <SendTo views={undefined} onClose={close} onSend={(ids, story) => { close(); void p.onSend(ids, story); }} />;
+      return <SendTo views={p.ping?.views} {...(p.ping?.locked ? { locked: p.ping.locked } : {})} onClose={close} onSend={(ids, story) => { close(); void p.onSend(ids, story); }} />;
   }
   return null;
 }
