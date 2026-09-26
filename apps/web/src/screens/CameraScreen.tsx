@@ -6,6 +6,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { filterStill } from '../features/camera/filterStill.js';
 import { FILTERS } from '../features/camera/filters/registry.js';
 import { SnapEditor } from '../features/camera/SnapEditor.js';
+import { SnapCamera, type SnapShot } from '../features/camera/snap/SnapCamera.js';
+import { SnapPost } from '../features/camera/snap/SnapPost.js';
 import { useCamera } from '../features/camera/useCamera.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.js';
@@ -81,6 +83,9 @@ export function CameraScreen() {
   /** Drives the confirmation, and the beat before returning to the camera. */
   const [sentCount, setSentCount] = useState(0);
 
+  /** What the Snap camera took, on its way to Save, My story or Send to. */
+  const [snapShot, setSnapShot] = useState<SnapShot>();
+  useBackStep(!!snapShot, () => setSnapShot(undefined));
   const [grid, setGrid] = useState(false);
   const [timer, setTimer] = useState<(typeof TIMERS)[number]>(0);
   const [countdown, setCountdown] = useState<number>();
@@ -91,9 +96,10 @@ export function CameraScreen() {
 
   // Nothing is opened until the gate is passed, so arriving here by a mis-tap
   // never triggers the permission prompt.
+  // The Snap camera below owns the camera now; this pipeline stays closed.
   const camera = useCamera(
     chain,
-    stage !== 'gate',
+    false,
     // Settings → Camera & Pings → Default Camera. 'front' is the selfie lens.
     preferences.camera.defaultCamera === 'back' ? 'environment' : 'user',
   );
@@ -312,6 +318,22 @@ export function CameraScreen() {
    * makes a mis-tap cost a permission prompt and a lit camera light, so it
    * waits here for a deliberate "yes". Nothing is requested until then.
    */
+  if (snapShot) {
+    return (
+      <SnapPost
+        shot={snapShot}
+        {...(lockedChatId ? { lockedChatId } : {})}
+        onRetake={() => setSnapShot(undefined)}
+        onSent={({ conversationId }) => {
+          setSnapShot(undefined);
+          // From a chat: back to it. From the dock: stay on the camera, as Snapchat does.
+          const back = lockedChatId ?? conversationId;
+          if (lockedChatId && back) navigate(`/chats/${back}`, { replace: true });
+        }}
+      />
+    );
+  }
+
   if (stage === 'gate') {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-backdrop px-8">
@@ -363,11 +385,11 @@ export function CameraScreen() {
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) beginFilter(file, false);
+            if (file) setSnapShot({ kind: file.type.startsWith('video/') ? 'video' : 'photo', blob: file });
           }}
         />
       </div>
@@ -532,230 +554,16 @@ export function CameraScreen() {
   }
 
 
-  // ---- live ---------------------------------------------------------------
+  // ---- live: Snapchat's camera --------------------------------------------------
 
-  const ready = camera.status === 'ready';
 
   return (
-    <div className="flex h-full flex-col bg-backdrop">
-      <div
-        ref={frameRef}
-        className="relative min-h-0 flex-1 touch-none overflow-hidden"
-        onClick={(event) => {
-          if (!ready || !camera.capabilities.focusPoint) return;
-          const rect = frameRef.current?.getBoundingClientRect();
-          if (!rect) return;
-          const x = (event.clientX - rect.left) / rect.width;
-          const y = (event.clientY - rect.top) / rect.height;
-          camera.focusAt(x, y);
-          setFocusRing({ x, y });
-          window.setTimeout(() => setFocusRing(undefined), 900);
-        }}
-      >
-        <canvas
-          ref={camera.canvasRef}
-          className={cn(
-            'absolute inset-0 size-full object-cover',
-            /*
-              Mirrored on the front lens, unless Settings says otherwise.
-              That switch was read by nothing, so turning it off changed the
-              preview not at all - and the settings page claimed it took effect
-              immediately. Rear-facing is never mirrored either way: there is
-              nothing to mirror, you are looking outward.
-            */
-            camera.facing === 'user' && preferences.camera.mirror && '-scale-x-100',
-            !ready && 'opacity-0',
-          )}
-        />
-
-        {/* Rule of thirds. Two lines each way, nothing else. */}
-        {grid && ready && (
-          <div className="pointer-events-none absolute inset-0" aria-hidden>
-            <div className="absolute inset-y-0 left-1/3 w-px bg-white/25" />
-            <div className="absolute inset-y-0 left-2/3 w-px bg-white/25" />
-            <div className="absolute inset-x-0 top-1/3 h-px bg-white/25" />
-            <div className="absolute inset-x-0 top-2/3 h-px bg-white/25" />
-          </div>
-        )}
-
-        {focusRing && (
-          <span
-            aria-hidden
-            style={{ left: `${focusRing.x * 100}%`, top: `${focusRing.y * 100}%` }}
-            className="pointer-events-none absolute size-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/90"
-          />
-        )}
-
-        {countdown !== undefined && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <span className="text-display text-white drop-shadow-lg">{countdown}</span>
-          </div>
-        )}
-
-        {/* The shutter blink. Brief and opaque, the way a real one reads. */}
-        {flash && <div className="pointer-events-none absolute inset-0 bg-white" aria-hidden />}
-
-        {camera.status === 'starting' && (
-          <div className="absolute inset-0 grid place-items-center">
-            <PingoDot state="loading" size={8} label="Starting camera" />
-          </div>
-        )}
-
-        {/*
-          Three different failures, said as three different things.
-
-          This used to be one screen for all of them, and for the commonest -
-          somebody tapped Block - it said "No camera here", which is false. A
-          person told their device has no camera has no reason to look in site
-          settings, so the only way out was to leave. Permission and a busy
-          device both change outside this tab, so both get Try again; a device
-          with no camera gets only the honest sentence and the gallery.
-        */}
-        {camera.status === 'unavailable' && (
-          <div className="absolute inset-0 grid place-items-center px-8 text-center">
-            <div>
-              <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-white/10 text-white">
-                <CameraIcon size={28} />
-              </span>
-              <p className="mt-6 text-body text-white">
-                {camera.blocked === 'permission'
-                  ? t('camera.denied')
-                  : camera.blocked === 'busy'
-                    ? t('camera.busy')
-                    : camera.blocked === 'missing'
-                      ? t('camera.none')
-                      : t('camera.failed')}
-              </p>
-              <p className="mt-2 text-caption text-white/60">
-                {camera.blocked === 'permission'
-                  ? t('camera.deniedHint')
-                  : camera.blocked === 'busy'
-                    ? t('camera.busyHint')
-                    : t('camera.pickInstead')}
-              </p>
-              {camera.blocked !== 'missing' && (
-                <button
-                  type="button"
-                  onClick={camera.retry}
-                  className="focus-ring mt-5 rounded-full bg-white/12 px-5 py-2 text-caption text-white active:bg-white/20"
-                >
-                  {t('camera.retry')}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ---- hardware controls, only where they exist ------------------ */}
-        {ready && (
-          <div className="absolute top-4 right-4 flex flex-col gap-2">
-            <RoundControl label="Switch camera" onClick={() => void camera.flip()}>
-              <CameraFlipIcon size={20} />
-            </RoundControl>
-
-            <RoundControl label="Grid" active={grid} onClick={() => setGrid(!grid)}>
-              <GridIcon size={19} />
-            </RoundControl>
-
-            {camera.capabilities.torch && (
-              <RoundControl label="Flash" active={camera.torch} onClick={camera.toggleTorch}>
-                <span className="text-body leading-none">⚡</span>
-              </RoundControl>
-            )}
-
-            <RoundControl
-              label={timer === 0 ? 'Timer off' : `Timer ${timer} seconds`}
-              active={timer !== 0}
-              onClick={() => setTimer(TIMERS[(TIMERS.indexOf(timer) + 1) % TIMERS.length]!)}
-            >
-              <span className="text-caption font-semibold leading-none">
-                {timer === 0 ? 'T' : timer}
-              </span>
-            </RoundControl>
-          </div>
-        )}
-
-        {ready && camera.capabilities.zoom && (
-          <Slider
-            label="Zoom"
-            range={camera.capabilities.zoom}
-            value={camera.zoom}
-            onChange={camera.setZoom}
-            className="bottom-16"
-          />
-        )}
-
-        {ready && camera.capabilities.exposure && (
-          <Slider
-            label="Exposure"
-            range={camera.capabilities.exposure}
-            value={camera.exposure}
-            onChange={camera.setExposure}
-            className="bottom-4"
-          />
-        )}
-      </div>
-
-      {/*
-        Always shown, camera or not. The live preview cannot render a filter
-        without a stream, but the filter itself still applies to the still - so
-        hiding the rail here would hide a feature that works.
-      */}
-      <FilterRail
-        selected={filterId}
-        onSelect={setFilterId}
-        disabled={!ready}
-        enabled={preferences.camera.filters}
-      />
-
-      <div className="shrink-0 px-6 pt-1 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-center gap-8">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="focus-ring rounded-full px-3 py-2 text-body text-white hover:bg-white/10"
-          >
-            Gallery
-          </button>
-
-          <button
-            type="button"
-            aria-label="Take a Ping"
-            disabled={!ready || countdown !== undefined}
-            onClick={shoot}
-            className={cn(
-              'grid size-18 place-items-center rounded-full',
-              'focus-ring ring-4 ring-white',
-              'transition-transform duration-instant ease-standard active:scale-[0.94]',
-              'disabled:opacity-40',
-            )}
-          >
-            <span className="size-14 rounded-full bg-white" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/chats')}
-            className="focus-ring rounded-full px-3 py-2 text-body text-white hover:bg-white/10"
-          >
-            Close
-          </button>
-        </div>
-
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="user"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            // Unfiltered: a gallery photo never went through the live pipeline.
-            if (file) beginFilter(file, false);
-          }}
-        />
-      </div>
-    </div>
+    <SnapCamera
+      preferred={preferences.camera.defaultCamera === 'back' ? 'environment' : 'user'}
+      onShot={setSnapShot}
+      onGallery={(file) => setSnapShot({ kind: file.type.startsWith('video/') ? 'video' : 'photo', blob: file })}
+      onClose={() => navigate(lockedChatId ? `/chats/${lockedChatId}` : '/chats', { replace: true })}
+    />
   );
 }
 

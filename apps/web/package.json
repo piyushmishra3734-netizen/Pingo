@@ -32,6 +32,7 @@
     "@pingo/tokens": "workspace:*",
     "@pingo/ui": "workspace:*",
     "@scure/bip39": "^2.2.0",
+    "@snap/camera-kit": "1.22.0",
     "@supabase/supabase-js": "^2.110.8",
     "@twemoji/api": "17.0.3",
     "emoji-mart": "5.6.0",

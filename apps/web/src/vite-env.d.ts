@@ -27,6 +27,10 @@ interface ImportMetaEnv {
    * https://pingochat.xyz.
    */
   readonly VITE_PUBLIC_APP_URL?: string;
+  /** Snap Camera Kit client token; see features/camera/snap/camera-kit.ts. */
+  readonly VITE_CAMERA_KIT_TOKEN?: string;
+  /** Snap Camera Kit lens group id. */
+  readonly VITE_CAMERA_KIT_GROUP?: string;
 }
 
 interface ImportMeta {

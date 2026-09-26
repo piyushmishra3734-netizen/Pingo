@@ -102,6 +102,9 @@ importers:
       '@scure/bip39':
         specifier: ^2.2.0
         version: 2.2.0
+      '@snap/camera-kit':
+        specifier: 1.22.0
+        version: 1.22.0(google-protobuf@3.21.4)
       '@supabase/supabase-js':
         specifier: ^2.110.8
         version: 2.110.8
@@ -739,6 +742,9 @@ packages:
 
   '@bufbuild/protobuf@1.10.1':
     resolution: {integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==}
+
+  '@bufbuild/protobuf@2.15.0':
+    resolution: {integrity: sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==}
 
   '@capacitor/android@8.4.2':
     resolution: {integrity: sha512-bzf8XZ9C+ePgOQ+e+T0fnhHGH4aCNY494vvSQIF5w4AY07RwEmkFqZs1678DDSMH0hLSQpxEwXGFNUVcXO6bBA==}
@@ -1533,6 +1539,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@improbable-eng/grpc-web@0.15.0':
+    resolution: {integrity: sha512-ERft9/0/8CmYalqOVnJnpdDry28q+j+nAlFFARdjyxXDJ+Mhgv9+F600QC8BR9ygOfrXRlAk6CvST2j+JCpQPg==}
+    peerDependencies:
+      google-protobuf: ^3.14.0
+
   '@ionic/cli-framework-output@2.2.8':
     resolution: {integrity: sha512-TshtaFQsovB4NWRBydbNFawql6yul7d5bMiW1WYYf17hd99V6xdDdk3vtF51bw6sLkxON3bDQpWsnUc9/hVo3g==}
     engines: {node: '>=16.0.0'}
@@ -1832,6 +1843,17 @@ packages:
 
   '@scure/bip39@2.2.0':
     resolution: {integrity: sha512-T/Bj/YvYMNkIPq6EENO6/rcs2e7qTNuyoUXf0KBFDmp0ZDu0H2X4Lq6yC3i0c8PcWkov5EbW+yQZZbdMmk154A==}
+
+  '@snap/camera-kit@1.22.0':
+    resolution: {integrity: sha512-tT7Bxh+GmX+VPj6PvEbiFQTyNGLItnqMDmhyPX/f87bXtiCmz3/28tku+VSLcTWLg9DGb6rXfwd/FlMsF/X0Xg==}
+
+  '@snap/state-management@1.22.0':
+    resolution: {integrity: sha512-AlMNHFKx5IS5ey7wKJdrUJgQMLA03Bp3342jHIISjk33XykjodMzRwD1F2NtuJjMdiuVKnnccmL/j3ncgcjkGg==}
+    peerDependencies:
+      rxjs: ^7.5.7
+
+  '@snap/ts-inject@0.3.2':
+    resolution: {integrity: sha512-qfJeleX3vhyPaQcwmtxZVr9tLQsm0/yZcSHAdJIX+f7CUP+kmf2K+XxBCUrUBVfPQci2Mai3CNZG7Rnk5J2G7w==}
 
   '@supabase/auth-js@2.110.8':
     resolution: {integrity: sha512-TQ5neTUDX2C2WmyYa03yGhLMkhdE/SkHXtK8/qxO/APUy3rsymsJCBP48p4jcN6iO2G0ow6RRexQd2mX+dSyJg==}
@@ -2144,6 +2166,12 @@ packages:
   brace-expansion@5.0.8:
     resolution: {integrity: sha512-JZyDyq3D4AUifKTPOB7DELf6XsB3WdPuNxCtob1vFXPsSXhdAiHBWJ/tJ8HAc9aH84BK+5JFZLNkJKx3G9kzQg==}
     engines: {node: 20 || >=22}
+
+  browser-fs-access@0.38.0:
+    resolution: {integrity: sha512-JveqW2w6pEZqFEEfMgCszXzYpE89dG+nPsmOdcs741mFFAROeL+iqjGEpR07RI+s0YY0EFr+4KnOoACprJTpOw==}
+
+  browser-headers@0.4.1:
+    resolution: {integrity: sha512-CA9hsySZVo9371qEHjHZtYxV2cFtVj5Wj/ZHi8ooEsrtm4vOnl9Y9HmyYWk9q+05d7K3rdoAE0j3MVEFVvtQtg==}
 
   browserslist@4.28.7:
     resolution: {integrity: sha512-JxV13hNrFxqjOc8alRbq9dK1MM79NEXYpma2B2J4wAtpWS5zIEIKqWPGCl7N4o7Uc7B7itylh7SuDujATRyyTw==}
@@ -2466,6 +2494,9 @@ packages:
   globalthis@1.0.4:
     resolution: {integrity: sha512-DpLKbNU4WylpxJykQujfCcwYWiV/Jhm50Goo0wrVILAv5jOr9d+H+UR3PhSCD2rCCEIg0uc+G+muBTwD54JhDQ==}
     engines: {node: '>= 0.4'}
+
+  google-protobuf@3.21.4:
+    resolution: {integrity: sha512-MnG7N936zcKTco4Jd2PX2U96Kf9PxygAPKBug+74LHzmHXmceN16MmRcdgZv+DGef/S9YvQAfRsNCn4cjf9yyQ==}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -3320,6 +3351,11 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
+  uuid@10.0.0:
+    resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
+
   vite-plugin-pwa@1.3.0:
     resolution: {integrity: sha512-c5kMgN+ITrOtHXp8PAtk2uOIEea6XjP/unCGxOWWBzQ6qa65qj/awHg0wf+QF9E/2u9vh86LqxPwzEPNbM2r5A==}
     engines: {node: '>=16.0.0'}
@@ -3371,6 +3407,9 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  wasm-feature-detect@1.9.0:
+    resolution: {integrity: sha512-zonE+xlIIYtxPy++L24ow0hAD8CICb4+FgPyROd3buyXIqsJvUEDkBgfCCoXOd1Hu3DUr0GOfnPIdcGV+YpNaA==}
 
   web-vitals@4.2.4:
     resolution: {integrity: sha512-r4DIlprAGwJ7YM11VZp4R884m0Vmgr6EAKe3P+kO0PPj3Unqyvv59rczf6UiGcb9Z8QxZVcqKNwv/g0WNdWwsw==}
@@ -4178,6 +4217,8 @@ snapshots:
 
   '@bufbuild/protobuf@1.10.1': {}
 
+  '@bufbuild/protobuf@2.15.0': {}
+
   '@capacitor/android@8.4.2(@capacitor/core@8.4.2)':
     dependencies:
       '@capacitor/core': 8.4.2
@@ -4868,6 +4909,11 @@ snapshots:
   '@img/sharp-win32-x64@0.35.3':
     optional: true
 
+  '@improbable-eng/grpc-web@0.15.0(google-protobuf@3.21.4)':
+    dependencies:
+      browser-headers: 0.4.1
+      google-protobuf: 3.21.4
+
   '@ionic/cli-framework-output@2.2.8':
     dependencies:
       '@ionic/utils-terminal': 2.3.5
@@ -5146,6 +5192,28 @@ snapshots:
     dependencies:
       '@noble/hashes': 2.2.0
       '@scure/base': 2.2.0
+
+  '@snap/camera-kit@1.22.0(google-protobuf@3.21.4)':
+    dependencies:
+      '@bufbuild/protobuf': 2.15.0
+      '@improbable-eng/grpc-web': 0.15.0(google-protobuf@3.21.4)
+      '@snap/state-management': 1.22.0(rxjs@7.8.2)
+      '@snap/ts-inject': 0.3.2
+      '@types/trusted-types': 2.0.7
+      browser-fs-access: 0.38.0
+      browser-headers: 0.4.1
+      rxjs: 7.8.2
+      tslib: 2.8.1
+      uuid: 10.0.0
+      wasm-feature-detect: 1.9.0
+    transitivePeerDependencies:
+      - google-protobuf
+
+  '@snap/state-management@1.22.0(rxjs@7.8.2)':
+    dependencies:
+      rxjs: 7.8.2
+
+  '@snap/ts-inject@0.3.2': {}
 
   '@supabase/auth-js@2.110.8':
     dependencies:
@@ -5439,6 +5507,10 @@ snapshots:
   brace-expansion@5.0.8:
     dependencies:
       balanced-match: 4.0.4
+
+  browser-fs-access@0.38.0: {}
+
+  browser-headers@0.4.1: {}
 
   browserslist@4.28.7:
     dependencies:
@@ -5898,6 +5970,8 @@ snapshots:
     dependencies:
       define-properties: 1.2.1
       gopd: 1.2.0
+
+  google-protobuf@3.21.4: {}
 
   gopd@1.2.0: {}
 
@@ -6445,7 +6519,6 @@ snapshots:
   rxjs@7.8.2:
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   safe-array-concat@1.1.4:
     dependencies:
@@ -6811,6 +6884,8 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
+  uuid@10.0.0: {}
+
   vite-plugin-pwa@1.3.0(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0))(workbox-build@7.4.1(@types/babel__core@7.20.5))(workbox-window@7.4.1):
     dependencies:
       debug: 4.4.3
@@ -6836,6 +6911,8 @@ snapshots:
       jiti: 2.7.0
       lightningcss: 1.32.0
       terser: 5.49.0
+
+  wasm-feature-detect@1.9.0: {}
 
   web-vitals@4.2.4: {}
 
