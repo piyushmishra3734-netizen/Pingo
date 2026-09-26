@@ -22,6 +22,7 @@ import {
   MoreIcon,
   PhoneIcon,
   QrIcon,
+  ShareIcon,
   UsersIcon,
   VideoIcon,
   cn,
@@ -370,6 +371,20 @@ export function ProfileScreen() {
     setMenuOpen(false);
   };
 
+  /** The system share sheet where there is one, the clipboard where there is not. */
+  const shareLink = async () => {
+    const link = profileLink(person.username);
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ url: link });
+        return;
+      } catch {
+        // Cancelled, or refused. Fall through to the clipboard.
+      }
+    }
+    await copyLink();
+  };
+
   const toggleBlock = async () => {
     setMenuOpen(false);
     const next = !blocked;
@@ -686,14 +701,23 @@ export function ProfileScreen() {
 
         {/* ---- actions -------------------------------------------------- */}
         {isSelf ? (
-          <Button
-            variant="secondary"
-            className="h-12 w-full rounded-full"
-            leadingIcon={<QrIcon size={18} />}
-            onClick={() => setSharing(true)}
-          >
-            Share profile
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              className="h-12 flex-1 rounded-full bg-surface"
+              leadingIcon={<ShareIcon size={17} />}
+              onClick={() => void shareLink()}
+            >
+              Share profile
+            </Button>
+            <IconButton
+              label="Show my QR code"
+              onClick={() => setSharing(true)}
+              className="size-12 shrink-0 rounded-full bg-surface text-ink hover:bg-hover"
+            >
+              <QrIcon size={19} />
+            </IconButton>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             {/*

@@ -32,10 +32,31 @@ export function PostGrid({
   /** Absent on someone else's profile. */
   onAdd?: () => void;
 }) {
-  const empties = isSelf ? Math.max(0, 3 - posts.length) : 0;
+  /*
+   * One "New post" tile, first, while there is room - not a box per empty
+   * slot. Three plus-signs under two pictures read as a form to fill in; one
+   * tile that says what it does is an invitation.
+   */
+  const canAdd = isSelf && Boolean(onAdd) && posts.length < 3;
 
   return (
-    <div className="grid grid-cols-3 gap-1 sm:gap-2">
+    <div className="grid grid-cols-3 gap-1 overflow-hidden rounded-[24px]">
+      {canAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label="Add a post"
+          className={cn(
+            'focus-ring flex aspect-square flex-col items-center justify-center gap-1.5 bg-surface',
+            'text-caption font-medium text-text-secondary',
+            'transition-colors duration-150 ease-standard hover:bg-hover',
+          )}
+        >
+          <PlusIcon size={22} className="text-ink" />
+          New post
+        </button>
+      )}
+
       {posts.map((post, index) => (
         <button
           key={post.id}
@@ -43,7 +64,7 @@ export function PostGrid({
           onClick={() => onOpen(post)}
           aria-label={post.caption ? `Post: ${post.caption}` : `Post ${index + 1}`}
           className={cn(
-            'group focus-ring relative aspect-square overflow-hidden rounded-lg bg-hover',
+            'group focus-ring relative aspect-square overflow-hidden bg-sunken',
             'transition-transform duration-quick ease-standard active:scale-[0.98]',
           )}
         >
@@ -77,23 +98,6 @@ export function PostGrid({
         </button>
       ))}
 
-      {Array.from({ length: empties }, (_, index) => (
-        <button
-          key={`empty-${index}`}
-          type="button"
-          onClick={onAdd}
-          aria-label="Add a post"
-          className={cn(
-            'focus-ring grid aspect-square place-items-center rounded-lg',
-            // Soft surface + thin border - not a dashed wireframe.
-            'border border-line/55 bg-surface/80 text-text-tertiary shadow-sm',
-            'transition-[border-color,color,background-color] duration-150 ease-standard',
-            'hover:border-brand/35 hover:bg-selected hover:text-brand',
-          )}
-        >
-          <PlusIcon size={20} />
-        </button>
-      ))}
     </div>
   );
 }
@@ -109,9 +113,8 @@ export function OwnPostsEmpty({ onAdd }: { onAdd: () => void }) {
       onClick={onAdd}
       className={cn(
         'focus-ring flex w-full flex-col items-center justify-center gap-3',
-        'rounded-xl border border-line/50 bg-surface/90 px-6 py-12 text-center shadow-sm',
-        'transition-[border-color,background-color,box-shadow] duration-150 ease-standard',
-        'hover:border-brand/30 hover:bg-selected/60 hover:shadow-md',
+        'rounded-[28px] bg-surface px-6 py-12 text-center',
+        'transition-colors duration-150 ease-standard hover:bg-hover',
       )}
     >
       <span
@@ -136,7 +139,7 @@ export function OwnPostsEmpty({ onAdd }: { onAdd: () => void }) {
 /** Nothing posted, and nowhere for open slots to help - someone else's. */
 export function PostsEmpty({ name }: { name: string }) {
   return (
-    <div className="rounded-xl border border-line/40 bg-surface px-6 py-14 text-center shadow-sm">
+    <div className="rounded-[28px] bg-surface px-6 py-14 text-center">
       <span className="mx-auto grid size-12 place-items-center rounded-full bg-sunken text-text-tertiary">
         <ImageIcon size={26} />
       </span>
@@ -150,9 +153,9 @@ export function PostsEmpty({ name }: { name: string }) {
 
 export function PostGridSkeleton() {
   return (
-    <div className="grid grid-cols-3 gap-1 sm:gap-2" role="status" aria-label="Loading posts">
+    <div className="grid grid-cols-3 gap-1 overflow-hidden rounded-[24px]" role="status" aria-label="Loading posts">
       {Array.from({ length: 3 }, (_, i) => (
-        <Skeleton key={i} className="aspect-square rounded-lg" />
+        <Skeleton key={i} className="aspect-square rounded-none" />
       ))}
     </div>
   );
