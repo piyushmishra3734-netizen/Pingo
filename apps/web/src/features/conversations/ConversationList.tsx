@@ -254,6 +254,16 @@ export function ConversationList({
    * header changing height can never flip it straight back.
    */
   const [folded, setFolded] = useState(false);
+  const railRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const observer = new ResizeObserver(() => setHeaderHeight(header.offsetHeight));
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
   const netTitle = connectionTitle(useConnectionStatus(), t);
   const showRail = !searching && filter === 'all' && !activeList && !selectionMode;
   const railFaces = storyGroups
@@ -349,18 +359,18 @@ export function ConversationList({
       <div
         className="mb-px min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         onScroll={(event) => {
-          const top = event.currentTarget.scrollTop;
-          if (top > 60) setFolded(true);
-          else if (top < 4) setFolded(false);
+          const rail = railRef.current?.offsetHeight ?? 0;
+          setFolded(rail > 0 && event.currentTarget.scrollTop > rail * 0.55);
         }}
       >
       <header
+        ref={headerRef}
         className={cn(
           'sticky top-0 z-100 shrink-0',
           // Divider under the chrome at ~70% of default line strength.
           // Telegram's bar: the page, frosted, and one hairline - not a framed slab of glass.
-          'border-b border-line bg-page/85 backdrop-blur-xl backdrop-saturate-150',
-          'px-4 pt-4 pb-3',
+          'bg-page/85 backdrop-blur-xl backdrop-saturate-150',
+          'px-4 pt-4 pb-2',
           'pt-[max(1rem,env(safe-area-inset-top))]',
         )}
       >
@@ -493,8 +503,15 @@ export function ConversationList({
                   </span>
                 ) : (
                   <>
-                    {folded && showRail && railFaces.length > 0 && (
-                      <span className="flex" aria-hidden>
+                    {showRail && railFaces.length > 0 && (
+                      <span
+                        className={cn(
+                          'flex transition-[max-width,opacity,transform] duration-300 ease-standard',
+                          folded
+                            ? 'max-w-[90px] scale-100 opacity-100'
+                            : '-mr-1.5 max-w-0 scale-50 opacity-0',
+                        )}
+                        aria-hidden>
                         {railFaces.map((group, index) => (
                           <span
                             key={group.authorId}
@@ -568,20 +585,20 @@ export function ConversationList({
               />
             </div>
 
+          </>
+        )}
+      </header>
+
+      {!selectionMode && (
+        <>
             {/*
               Stories under the search, as Telegram does it, and the Arcade in
               the seat beside your own circle. Folds away as the list scrolls.
             */}
             {showRail && (
-              <div
-                className={cn(
-                  'overflow-hidden transition-[max-height,opacity] duration-300 ease-standard',
-                  folded ? 'max-h-0 opacity-0' : 'max-h-[130px] opacity-100',
-                )}
-                aria-hidden={folded}
-              >
-                <div className="min-h-0 overflow-hidden">
-                  <div className="-mx-4 pt-2.5">
+              <div ref={railRef} className="pt-1">
+                <div>
+                  <div className="px-1">
                     <StoriesRow
                       groups={storyGroups}
                       currentUserId={profile?.id}
@@ -615,7 +632,8 @@ export function ConversationList({
             <nav
               role="tablist"
               aria-label={t('chats.filter')}
-              className="scrollbar-none -mx-4 mt-1.5 -mb-3 flex gap-5 overflow-x-auto px-5"
+              style={{ top: headerHeight }}
+              className="scrollbar-none sticky z-[99] flex gap-5 overflow-x-auto border-b border-line bg-page/85 px-5 backdrop-blur-xl backdrop-saturate-150"
             >
               {conversationFilters.map((f) => (
                 <FolderTab
@@ -652,9 +670,8 @@ export function ConversationList({
                 </FolderTab>
               ))}
             </nav>
-          </>
-        )}
-      </header>
+        </>
+      )}
 
       {actions.error && (
         <p

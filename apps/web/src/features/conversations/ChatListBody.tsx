@@ -303,7 +303,7 @@ export function ChatListBody({
             onClick={() => setShowArchived((was) => !was)}
             aria-expanded={showArchived}
             className={cn(
-              'group focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left',
+              'group focus-ring flex w-full items-center gap-3 rounded-xl px-3 py-0 text-left',
               'transition-colors duration-instant hover:bg-hover active:bg-pressed',
               '[transition:background-color_120ms_var(--ease-standard),transform_180ms_var(--ease-spring)]',
               'active:scale-[0.985]',
@@ -311,25 +311,26 @@ export function ChatListBody({
           >
             <span
               className={cn(
-                'grid size-12 shrink-0 place-items-center rounded-full',
-                'bg-sunken text-text-secondary ring-1 ring-line/80',
+                // The approved shelf: a filled grey face the size of the rows' faces, a white glyph.
+                'grid size-[62px] shrink-0 place-items-center rounded-full',
+                'bg-ink/35 text-white',
               )}
               aria-hidden
             >
-              <ArchiveIcon size={20} />
+              <ArchiveIcon size={24} />
             </span>
 
-            <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 flex-1 flex-col justify-center self-stretch border-b border-line py-2.5">
               <span className="flex items-baseline gap-2">
-                <span className="min-w-0 flex-1 truncate text-body text-ink">{t('chats.archived')}</span>
+                <span className="min-w-0 flex-1 truncate text-body font-semibold text-text-secondary">{t('chats.archived')}</span>
                 {latestArchived && (
-                  <span className="shrink-0 text-caption tabular-nums text-ink/45">
+                  <span className="shrink-0 text-[13px] tabular-nums text-ink/45">
                     {formatConversationTimestamp(latestArchived.updatedAt)}
                   </span>
                 )}
               </span>
-              <span className="mt-1 flex items-center gap-1.5">
-                <span className="min-w-0 flex-1 truncate text-caption text-text-secondary">
+              <span className="mt-0.5 flex items-center gap-1.5">
+                <span className="min-w-0 flex-1 truncate text-[14.5px] text-text-secondary">
                   {archivePreview ??
                     `${archived.length} ${archived.length === 1 ? 'chat' : 'chats'}`}
                 </span>
