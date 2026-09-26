@@ -119,7 +119,9 @@ function Pill({
         // merely re-rendering must not re-announce itself.
         !leaving && 'motion-safe:animate-react-in',
         'text-caption transition-all duration-quick ease-standard',
-        mine ? 'bg-selected text-brand' : 'bg-sunken text-text-secondary',
+        // Tinted in the bubble's own ink, so it reads on glass and on the brand alike.
+        'bg-current/15 font-semibold',
+        mine && 'ring-1 ring-current/40',
         leaving ? 'scale-90 opacity-0' : 'scale-100 opacity-100',
         busy && 'opacity-60',
       )}

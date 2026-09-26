@@ -143,6 +143,10 @@
   button.lq-glass-water:active,
   a.lq-glass-water:active { transform: scale(0.92); }
 
+  /* The search field at rest: glyph and word centred, Telegram's way; left-aligned the moment it is used. */
+  .lq-search:not(:focus-within):has(input:placeholder-shown) { justify-content: center; }
+  .lq-search:not(:focus-within):has(input:placeholder-shown) input { flex: 0 0 auto; width: 4.2em; }
+
   /* Menus are glass too, frosted enough to read a list off. */
   .lq-menu { --lq-fill: rgb(255 255 255 / 0.62); }
   :root[data-theme='dark'] .lq-menu { --lq-fill: rgb(28 28 34 / 0.62); }

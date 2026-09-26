@@ -25,6 +25,7 @@ import { useAchievements } from '../achievements/useAchievements.js';
 import { rememberSharedElement } from '../../hooks/useSharedElement.js';
 import { useLongPress } from '../chat/context-menu/useLongPress.js';
 import { StreakFlame } from './StreakFlame.js';
+import { useStories } from '../stories/StoryContext.js';
 import { presenceMark } from '../presence/status.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 
@@ -82,6 +83,8 @@ export function ConversationRow({
       ? conversation.participantIds.find((id) => id !== currentUser?.id)
       : undefined;
   const achievements = useAchievements([badgeHolder]);
+  const { groups: storyGroups } = useStories();
+  const story = badgeHolder ? storyGroups.find((g) => g.authorId === badgeHolder) : undefined;
 
   const isTyping = conversation.typingUserIds.length > 0;
   const hasUnread = conversation.unreadCount > 0;
@@ -121,7 +124,18 @@ export function ConversationRow({
         build, where the selector matched zero elements and the transition was
         silently doing nothing.
       */}
-      <span data-shared-avatar="" className="inline-flex shrink-0">
+      <span
+        data-shared-avatar=""
+        className={cn(
+          'inline-flex shrink-0 rounded-full',
+          // A story up: the ring, as in the rail. Unseen in colour, seen quiet.
+          story && 'p-[2.5px] [&>*]:ring-2 [&>*]:ring-page',
+          story &&
+            (story.allSeen
+              ? 'bg-line-strong'
+              : 'bg-[conic-gradient(from_210deg,#e0559b,#ff9a5a,#8b5dff,#e0559b)]'),
+        )}
+      >
       <Avatar
         name={conversation.title}
         id={partner?.id ?? conversation.id}
@@ -146,43 +160,22 @@ export function ConversationRow({
 
       {/* The hairline sits under the text, not under the face - Telegram's row. */}
       <div className="flex min-w-0 flex-1 flex-col justify-center self-stretch border-b border-line py-2.5">
-        <div className="flex items-baseline gap-2">
-          <span
-            className={cn(
-              'min-w-0 flex-1 truncate text-body font-semibold text-ink',
+        <div className="flex items-center gap-2">
+          {/* Name, badge and mute as one group on the left - the approved row. */}
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span className="min-w-0 truncate text-body font-semibold text-ink">{conversation.title}</span>
+            {/* Only a direct chat's name is a person's; a group's badge sits by the sender. */}
+            <AchievementMark achievement={achievements.lead(badgeHolder)} />
+            {conversation.muted && (
+              <MuteIcon
+                size={14}
+                className="shrink-0 text-text-tertiary"
+                title={formatMuteUntil(conversation.mutedUntil) ?? 'Muted'}
+              />
             )}
-          >
-            {conversation.title}
           </span>
 
-          {/*
-            The badge beside the name it belongs to.
-
-            Only on a direct chat: the title of a group is the group's name, and
-            hanging a person's badge off it would be attributing an achievement
-            to a room. Groups show it next to the sender instead, where the name
-            is a person's.
-          */}
-          <AchievementMark achievement={achievements.lead(badgeHolder)} />
-
-          {/*
-            Markers at tertiary weight so none compete with the title or the
-            unread badge. A favourite is the quietest - a filter you set once -
-            so it sits furthest from the timestamp the eye lands on.
-
-            Streak numbers used to ship with a fire emoji next to the name.
-            That read as a Snapchat-style unread signal and fought the purple
-            badge; the count still exists as a quiet tabular note when present.
-          */}
           {conversation.streak !== undefined && (
-            /*
-              The flame and the number, as one thing.
-
-              The emoji version was removed for fighting the unread badge; this
-              is drawn in PINGO's own palette at fifteen pixels and stays out of
-              the badge's colour entirely. The count keeps its tabular figures
-              so a two-digit streak does not shift the row.
-            */
             <span className="flex shrink-0 items-center gap-0.5">
               <StreakFlame days={conversation.streak} />
               <span className="text-caption tabular-nums text-text-tertiary">
@@ -194,18 +187,20 @@ export function ConversationRow({
           {conversation.favorite && (
             <StarIcon size={12} className="shrink-0 text-text-tertiary" title="Favourite" />
           )}
-          {conversation.pinned && (
-            <PinIcon size={13} className="shrink-0 text-text-tertiary" title="Pinned" />
-          )}
-          {conversation.muted && (
-            <MuteIcon
-              size={13}
-              className="shrink-0 text-text-tertiary"
-              // Says how long, not just that. The row has no space for the
-              // sentence, so it is the tooltip and the accessible name.
-              title={formatMuteUntil(conversation.mutedUntil) ?? 'Muted'}
-            />
-          )}
+          {/* Delivery beside the time, as in the approved row. Read only while receipts are on. */}
+              {lastMessageIsMine &&
+                lastMessage &&
+                (lastMessage.status === 'read' && readReceiptsOn() ? (
+                  <CheckDoubleIcon size={14} className="shrink-0 text-brand" title="Read" />
+                ) : lastMessage.status === 'delivered' && readReceiptsOn() ? (
+                  <CheckDoubleIcon
+                    size={14}
+                    className="shrink-0 text-text-tertiary"
+                    title="Delivered"
+                  />
+                ) : (
+                  <CheckIcon size={14} className="shrink-0 text-text-tertiary" title="Sent" />
+                ))}
 
           {/*
             Time stays top-right. Unread lives on the preview line below.
@@ -243,19 +238,6 @@ export function ConversationRow({
                 anything past sending, for the reason given in the bubble:
                 a grey double tick appearing was the read receipt too.
               */}
-              {lastMessageIsMine &&
-                lastMessage &&
-                (lastMessage.status === 'read' && readReceiptsOn() ? (
-                  <CheckDoubleIcon size={14} className="shrink-0 text-brand" title="Read" />
-                ) : lastMessage.status === 'delivered' && readReceiptsOn() ? (
-                  <CheckDoubleIcon
-                    size={14}
-                    className="shrink-0 text-text-tertiary"
-                    title="Delivered"
-                  />
-                ) : (
-                  <CheckIcon size={14} className="shrink-0 text-text-tertiary" title="Sent" />
-                ))}
 
               <span
                 className={cn(
@@ -281,6 +263,9 @@ export function ConversationRow({
               className="mt-0.5 shrink-0"
               srSuffix="unread messages"
             />
+          )}
+          {!hasUnread && conversation.pinned && (
+            <PinIcon size={15} className="mt-0.5 shrink-0 rotate-45 text-text-tertiary" title="Pinned" />
           )}
         </div>
       </div>

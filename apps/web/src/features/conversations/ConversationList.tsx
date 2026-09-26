@@ -17,7 +17,6 @@ import {
   ChevronRightIcon,
   IconButton,
   SearchField,
-  PlusIcon,
   cn,
 } from '@pingo/ui';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -123,7 +122,9 @@ export function ConversationList({
 
   /** Selection mode is "the set is non-empty", so there is no second flag. */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const selectionMode = selectedIds.size > 0;
+  /** Edit was tapped: selecting with nothing picked yet, as Telegram's Edit does. */
+  const [editing, setEditing] = useState(false);
+  const selectionMode = selectedIds.size > 0 || editing;
 
   /*
    * Selecting chats is a mode this screen is in, and Back leaves the mode
@@ -231,7 +232,10 @@ export function ConversationList({
     });
   }, [conversations]);
 
-  const clearSelection = () => setSelectedIds(new Set());
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setEditing(false);
+  };
 
   const toggleSelect = (conversation: Conversation) => {
     setSelectedIds((previous) => {
@@ -468,14 +472,14 @@ export function ConversationList({
             */}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center">
               <div className="flex items-center justify-start">
-                <IconButton
-                  label={t('chats.startSomething')}
-                  variant="ghost"
+                {/* Telegram's Edit. Selecting chats leads the menu; starting something follows. */}
+                <button
+                  type="button"
                   onClick={() => setStarting(true)}
-                  className="text-brand"
+                  className="focus-ring rounded-lg px-1.5 py-1.5 text-[16px] font-medium text-brand active:opacity-60"
                 >
-                  <PlusIcon size={23} />
-                </IconButton>
+                  Edit
+                </button>
               </div>
 
               <h1 className="flex min-w-0 items-center justify-center gap-2 text-[17px] font-semibold text-ink">
@@ -558,9 +562,9 @@ export function ConversationList({
                 inputRef={searchRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('chats.search')}
+                placeholder={t('common.search')}
                 aria-label={t('chats.searchAria')}
-                className="h-10 rounded-xl border-transparent bg-sunken focus-within:border-line"
+                className="lq-search h-10 rounded-xl border-transparent bg-sunken focus-within:border-line"
               />
             </div>
 
@@ -864,7 +868,15 @@ export function ConversationList({
         />
       )}
 
-      {starting && <NewChatMenu onClose={() => setStarting(false)} />}
+      {starting && (
+        <NewChatMenu
+          onClose={() => setStarting(false)}
+          onSelectChats={() => {
+            setStarting(false);
+            setEditing(true);
+          }}
+        />
+      )}
     </div>
   );
 }

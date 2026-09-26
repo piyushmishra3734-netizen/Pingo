@@ -1,5 +1,5 @@
 import { useChat } from '@pingo/core';
-import { ChatIcon, ChevronRightIcon, UserIcon, UsersIcon, cn } from '@pingo/ui';
+import { ChatIcon, CheckIcon, ChevronRightIcon, UserIcon, UsersIcon, cn } from '@pingo/ui';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,7 +16,14 @@ import { useT } from '../i18n/useT.js';
  * Keep this short. A menu that grows past about four entries stops being a
  * choice and starts being a screen, and this one is opened by reflex.
  */
-export function NewChatMenu({ onClose }: { onClose: () => void }) {
+export function NewChatMenu({
+  onClose,
+  onSelectChats,
+}: {
+  onClose: () => void;
+  /** Present when opened from Edit: picking chats comes first. */
+  onSelectChats?: () => void;
+}) {
   const t = useT();
   const navigate = useNavigate();
   const { service } = useChat();
@@ -45,6 +52,16 @@ export function NewChatMenu({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title={t('chats.menuStart')} onClose={onClose}>
       <ul className="flex flex-col">
+        {onSelectChats && (
+          <li>
+            <Row
+              icon={<CheckIcon size={20} />}
+              title="Select chats"
+              detail="Pin, mute, archive or delete several at once"
+              onClick={onSelectChats}
+            />
+          </li>
+        )}
         <li>
           <Row
             icon={<ChatIcon size={20} />}

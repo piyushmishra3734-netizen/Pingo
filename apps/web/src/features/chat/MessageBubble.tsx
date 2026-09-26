@@ -599,6 +599,8 @@ export function MessageBubble({
               )}
             </p>
           )}
+          {/* Reactions inside the bubble, at its foot - once, as in the approved design. */}
+          {reactions}
         </div>
 
         {/*
@@ -616,39 +618,6 @@ export function MessageBubble({
           />
         )}
 
-        {message.reactions.length > 0 && (
-          <div
-            className={cn(
-              // Reactions straddle the bubble's lower edge, as on most platforms.
-              'flex -mt-1.5 gap-1',
-              mine ? 'justify-end pr-2' : 'justify-start pl-2',
-            )}
-          >
-            {message.reactions.map((reaction) => (
-              <span
-                key={reaction.emoji}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full',
-                  'bg-surface px-2 py-0.5 shadow-sm',
-                  'text-caption',
-                )}
-              >
-                <span aria-hidden>{reaction.emoji}</span>
-                {reaction.userIds.length > 1 && (
-                  <span className="text-text-secondary tabular-nums">
-                    {reaction.userIds.length}
-                  </span>
-                )}
-                <span className="sr-only">
-                  {reaction.emoji} from {reaction.userIds.length} person
-                  {reaction.userIds.length === 1 ? '' : 's'}
-                </span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {reactions}
 
         {showMeta && (
           <div

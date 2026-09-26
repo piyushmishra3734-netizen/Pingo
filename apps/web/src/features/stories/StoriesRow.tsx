@@ -325,7 +325,7 @@ function MyCircle({
       </span>
 
       <span className="w-full truncate text-center text-[0.6875rem] font-medium leading-tight text-text-secondary">
-        You
+        Your story
       </span>
     </span>
   );
