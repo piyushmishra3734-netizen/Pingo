@@ -117,28 +117,10 @@
   [data-wallpaper-dark] .lq-chip,
   :root[data-theme='dark'] .lq-chip { --lq-fill: rgb(16 16 22 / 0.35); }
 
-  /* Your messages: tinted glass, the brand lit from above. */
+  /* Your messages: flat brand, iMessage's way - no gradient, no gloss, no rim. */
   .lq-brand-glass-water {
     color: var(--color-on-brand);
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-brand) 90%, white),
-      color-mix(in srgb, var(--color-brand) 94%, black)
-    );
-    box-shadow:
-      inset 1.5px 1.5px 0.5px -1px rgb(255 255 255 / 0.75),
-      inset -1px -1px 0.5px -0.5px rgb(255 255 255 / 0.3),
-      inset 0 -8px 14px -10px rgb(0 0 0 / 0.3),
-      0 8px 16px -10px color-mix(in srgb, var(--color-brand) 45%, transparent);
-  }
-  .lq-brand-glass-water::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    z-index: -1;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgb(255 255 255 / 0.22), transparent 55%);
+    background: var(--color-brand);
   }
   button.lq-glass-water:active,
   a.lq-glass-water:active { transform: scale(0.92); }
