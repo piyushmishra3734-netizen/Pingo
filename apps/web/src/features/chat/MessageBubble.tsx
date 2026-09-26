@@ -292,7 +292,7 @@ export function MessageBubble({
             'max-w-[68%] px-4 py-2.5',
             arrive,
             SHAPE[mine ? 'mine' : 'theirs'][position],
-            'border border-line bg-surface',
+            'lq-glass-water lq-read',
           )}
         >
           <p className="text-body italic text-text-tertiary">
@@ -467,7 +467,7 @@ export function MessageBubble({
             'px-4 py-2.5',
             SHAPE[mine ? 'mine' : 'theirs'][position],
             mine
-              ? 'bg-brand-glass text-on-brand'
+              ? 'lq-brand-glass-water text-on-brand'
               /*
                 Incoming bubbles are glass, the same glass as the header and
                 the composer.
@@ -483,7 +483,7 @@ export function MessageBubble({
                 Shape + padding are locked to the glass material — do not
                 restyle these for “aesthetics” without re-tuning glass itself.
               */
-              : 'glass-water text-ink',
+              : 'lq-glass-water lq-read text-ink',
             // A failed send desaturates and outlines, rather than turning red.
             message.status === 'failed' && 'opacity-60 ring-1 ring-danger/40',
           )}

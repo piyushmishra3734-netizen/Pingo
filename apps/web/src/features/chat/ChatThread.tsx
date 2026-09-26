@@ -484,6 +484,27 @@ export function ChatThread({
   const [groupInfo, setGroupInfo] = useState(false);
   /** The info page: the person or the group, and what can be done about this chat. */
   const [infoOpen, setInfoOpen] = useState(false);
+
+  /*
+   * The header and the composer float over the thread, and the thread runs
+   * under both - the way it does on iOS. Their heights are measured, not
+   * assumed: the composer grows with a reply preview, a draft, a picker.
+   */
+  const headerRef = useRef<HTMLElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [chrome, setChrome] = useState({ top: 72, bottom: 76 });
+  useEffect(() => {
+    const header = headerRef.current;
+    const composer = composerRef.current;
+    if (!header || !composer) return;
+    const measure = () =>
+      setChrome({ top: header.offsetTop + header.offsetHeight, bottom: composer.offsetHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, []);
   const netTitle = connectionTitle(useConnectionStatus(), t);
 
   // Cleared when the thread changes: a reply aimed at another conversation
@@ -1180,6 +1201,13 @@ export function ChatThread({
   return (
     <div
       className={cn('chat-wallpaper relative flex h-full min-h-0 flex-col', className)}
+      onPointerMove={(event) => {
+        const glass = (event.target as HTMLElement).closest<HTMLElement>('.lq-glass-water');
+        if (!glass) return;
+        const r = glass.getBoundingClientRect();
+        glass.style.setProperty('--mx', `${((event.clientX - r.left) / r.width) * 100}%`);
+        glass.style.setProperty('--my', `${((event.clientY - r.top) / r.height) * 100}%`);
+      }}
       /*
         The chosen wallpaper, read straight rather than through a provider.
         It has to be right in the first painted frame - a thread that starts
@@ -1242,8 +1270,9 @@ export function ChatThread({
       )}
       {/* ---- Header ------------------------------------------------------- */}
       <header
+        ref={headerRef}
         className={cn(
-          'z-100 flex shrink-0 items-center gap-3',
+          'absolute inset-x-0 top-0 z-100 flex items-center gap-3',
           /*
             A panel that floats, not a bar that spans.
 
@@ -1336,8 +1365,8 @@ export function ChatThread({
             to="/chats"
             aria-label="Back to conversations"
             className={cn(
-              'glass-water relative grid size-11 shrink-0 place-items-center rounded-full',
-              'focus-ring text-ink transition-transform duration-instant active:scale-[0.94]',
+              'lq-glass-water grid size-[46px] shrink-0 place-items-center rounded-full',
+              'focus-ring text-ink',
             )}
           >
             <ChevronLeftIcon size={22} />
@@ -1348,15 +1377,15 @@ export function ChatThread({
             )}
           </Link>
         ) : (
-          <span className="size-11" aria-hidden />
+          <span className="size-[46px]" aria-hidden />
         )}
         <button
           type="button"
           onClick={openInfo}
           aria-label={`${conversation.title}, info`}
           className={cn(
-            'glass-water mx-auto flex min-w-0 max-w-full flex-col items-center justify-center rounded-full px-5 py-1',
-            'focus-ring transition-transform duration-instant active:scale-[0.97]',
+            'lq-glass-water mx-auto flex min-w-0 max-w-full flex-col items-center justify-center rounded-full px-5 py-1.5',
+            'focus-ring',
           )}
         >
           <span className="flex max-w-full items-center gap-1.5 text-[16px] font-semibold leading-tight text-ink">
@@ -1389,7 +1418,7 @@ export function ChatThread({
           type="button"
           onClick={openInfo}
           aria-label={`${conversation.title}, photo`}
-          className="glass-water grid size-11 shrink-0 place-items-center rounded-full p-[3px] focus-ring active:scale-[0.94]"
+          className="lq-glass-water grid size-[46px] shrink-0 place-items-center rounded-full p-[3px] focus-ring"
         >
           <span ref={headerAvatar} className="inline-grid size-full place-items-center">
             {isGroup && !conversation.avatarUrl ? (
@@ -1415,14 +1444,19 @@ export function ChatThread({
       {callNotice && (
         <p
           role="status"
-          className="shrink-0 border-b border-line bg-surface px-4 py-2 text-caption text-text-secondary"
+          className="absolute inset-x-2 z-100 rounded-xl bg-surface px-4 py-2 text-caption text-text-secondary shadow-sm"
+          style={{ top: chrome.top + 6 }}
         >
           {callNotice}
         </p>
       )}
 
       {/* ---- Thread ------------------------------------------------------- */}
-      <div ref={scrollRef} className="thread-fade min-h-0 flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto"
+        style={{ paddingTop: chrome.top, paddingBottom: chrome.bottom }}
+      >
         {loading ? (
           <ThreadSkeleton />
         ) : (
@@ -1494,7 +1528,7 @@ export function ChatThread({
                     */}
                     <span
                       className={cn(
-                        'glass-water inline-block rounded-full px-3 py-1',
+                        'lq-glass-water lq-chip inline-block rounded-full px-3 py-1',
                         'text-caption text-text-secondary',
                       )}
                     >
@@ -1762,8 +1796,14 @@ export function ChatThread({
         bordered composer strip, so it never rides a full-width "patti".
         One slot: New Messages wins over Latest.
       */}
+      <div aria-hidden className="lq-scrim-top pointer-events-none absolute inset-x-0 top-0 z-[90]" style={{ height: chrome.top + 36 }} />
+      <div aria-hidden className="lq-scrim-bottom pointer-events-none absolute inset-x-0 bottom-0 z-[90]" style={{ height: chrome.bottom + 24 }} />
+
       {jumpChipMode && (
-        <div className="pointer-events-none relative z-20 -mt-3 mb-1 flex justify-center px-3">
+        <div
+          className="pointer-events-none absolute inset-x-0 z-[96] flex justify-center px-3"
+          style={{ bottom: chrome.bottom + 6 }}
+        >
           <div className="pointer-events-auto">
             {jumpChipMode === 'new' && newSession ? (
               <ThreadJumpChip
@@ -1780,7 +1820,9 @@ export function ChatThread({
 
       {/* ---- Composer ----------------------------------------------------- */}
       <div
+        ref={composerRef}
         className={cn(
+          'absolute inset-x-0 bottom-0 z-[95]',
           /*
             No bar behind the bar.
 

@@ -537,6 +537,19 @@ export function Composer({
       )}
 
       <div className="flex items-end gap-2">
+      {/* Attach is its own piece of glass, left of the field - the sample's three objects. */}
+      {attach && !recorder.recording && (
+        <span className="lq-glass-water grid size-[46px] shrink-0 place-items-center rounded-full text-ink">
+          <AttachMenu
+            onGallery={attach.gallery}
+            onCamera={attach.camera}
+            onDocument={attach.document}
+            onLocation={attach.location}
+            onContact={attach.contact}
+            onEvent={attach.event}
+          />
+        </span>
+      )}
       {recorder.recording ? (
         <VoiceRecorderBar
           recorder={recorder}
@@ -558,21 +571,9 @@ export function Composer({
        */
       <div
         className={cn(
-          'glass-lit glass-water flex min-w-0 flex-1 items-end gap-1 rounded-xl px-1.5 py-1.5',
-          'transition-[box-shadow] duration-instant ease-standard',
-          'focus-within:shadow-sm',
+          'lq-glass-water flex min-h-[46px] min-w-0 flex-1 items-end gap-1 rounded-[23px] px-2 py-[3px]',
         )}
       >
-      {attach && (
-        <AttachMenu
-          onGallery={attach.gallery}
-          onCamera={attach.camera}
-          onDocument={attach.document}
-          onLocation={attach.location}
-          onContact={attach.contact}
-          onEvent={attach.event}
-        />
-      )}
 
       <div className="relative flex min-w-0 flex-1 items-end gap-1 px-1">
         {mention && mentionList.length > 0 && (
@@ -851,8 +852,9 @@ export function Composer({
          */
         <IconButton
           label="Record voice message"
-          variant="filled"
+          variant="ghost"
           size="lg"
+          className="lq-glass-water size-[46px] rounded-full text-ink"
           
           onPointerDown={(event) => {
             // Secondary buttons and the context menu are not this gesture.

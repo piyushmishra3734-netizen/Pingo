@@ -442,7 +442,11 @@ function Row({
 
 /** Media, links and files from the messages already loaded, as three tabs. */
 function Shared({ messages, onOpen }: { messages: readonly Message[]; onOpen: (messageId: string) => void }) {
-  const found = useMemo(() => collectSharedMedia(messages), [messages]);
+  const found = useMemo(() => {
+    const all = collectSharedMedia(messages);
+    // Only what can be drawn: a sealed photo with no URL yet would be a grey square.
+    return { ...all, media: all.media.filter((m) => m.url || m.kind === 'video') };
+  }, [messages]);
   const [tab, setTab] = useState<'media' | 'links' | 'files'>('media');
   const tabs = [
     ['media', 'Media'],
