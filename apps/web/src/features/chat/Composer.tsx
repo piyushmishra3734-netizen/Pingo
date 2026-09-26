@@ -801,6 +801,11 @@ export function Composer({
 
       </div>
 
+      </div>
+      )}
+
+      {/* Send, or the mic: its own piece of glass, outside the field. Hidden while recording, which has its own send. */}
+      {!recorder.recording && (<>
       {/*
         Send, or the microphone, in the same place.
 
@@ -835,7 +840,7 @@ export function Composer({
             the finger is down, which is a different thing from a performance
             after the fact.
           */
-          className="glass-lit glass-press"
+          className="glass-lit glass-press size-[46px]"
         >
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={21} className="-translate-x-px translate-y-px" />
@@ -908,8 +913,7 @@ export function Composer({
           <MicIcon size={20} />
         </IconButton>
       )}
-      </div>
-      )}
+      </>)}
       </div>
     </div>
   );
