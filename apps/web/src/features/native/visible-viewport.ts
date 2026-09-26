@@ -40,14 +40,14 @@ export function trackVisibleViewport(): () => void {
      * scroll, which is the jiggle. Only something *shorter* than the page is a
      * keyboard, and that is the only case this is for.
      */
-    const height = Math.round(Math.min(view.height, window.innerHeight));
+    const keyboard = window.innerHeight - view.height > 80;
+    const height = Math.round(keyboard ? view.height : window.innerHeight);
     if (Math.abs(height - last) > 1) {
       last = height;
       root.style.setProperty('--app-height', `${height}px`);
     }
     // Safari scrolls the whole page up to show the field. Put it back - but only
     // while a keyboard is actually up, never in the middle of an ordinary scroll.
-    const keyboard = window.innerHeight - view.height > 80;
     if (keyboard && (view.offsetTop > 0 || window.scrollY > 0)) window.scrollTo(0, 0);
   };
 
