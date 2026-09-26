@@ -453,6 +453,8 @@ export function MessageBubble({
         {...trigger}
         className={cn(
           'group relative max-w-[68%] min-w-0',
+          // Holding a bubble opens its menu; it must not also select text and summon the browser's search sheet.
+          'select-none [-webkit-touch-callout:none]',
           arrive,
           // Focusable for the keyboard openers, never outlined by a press  - 
           // the menu appearing is the feedback.

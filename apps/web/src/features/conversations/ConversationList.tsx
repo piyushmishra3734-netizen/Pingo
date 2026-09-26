@@ -336,7 +336,8 @@ export function ConversationList({
         className={cn(
           'sticky top-0 z-100 shrink-0',
           // Divider under the chrome at ~70% of default line strength.
-          'glass-surface border-x-0 border-t-0 border-b border-b-line/70',
+          // Telegram's bar: the page, frosted, and one hairline - not a framed slab of glass.
+          'border-b border-line bg-page/85 backdrop-blur-xl backdrop-saturate-150',
           'px-4 pt-4 pb-3',
           'pt-[max(1rem,env(safe-area-inset-top))]',
         )}

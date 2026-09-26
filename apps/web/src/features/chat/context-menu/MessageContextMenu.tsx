@@ -213,7 +213,9 @@ function watch(
   if (!element) return () => undefined;
 
   const measure = () => {
-    const box = element.getBoundingClientRect();
+    // Layout size, not the painted one: the panels pop in from a smaller scale,
+    // and measuring mid-animation put them past the edge of the screen.
+    const box = { width: element.offsetWidth, height: element.offsetHeight };
     set((previous) => {
       const next = { height: Math.round(box.height), width: Math.round(box.width) };
       return next.height === previous.height && next.width === previous.width
@@ -325,8 +327,13 @@ function place(
    * panel the left edge stays visible and the panel's own overflow handles the
    * rest, rather than the panel being pushed off the left to fit its right.
    */
+  // Your own messages sit on the right, so the menu hangs from their right edge, as on iOS.
+  const rightSide = anchor.left + anchor.width / 2 > viewportWidth / 2;
   const clamp = (width: number) =>
-    Math.max(GAP_PX, Math.min(anchor.left, viewportWidth - width - GAP_PX));
+    Math.max(
+      GAP_PX,
+      Math.min(rightSide ? anchor.right - width : anchor.left, viewportWidth - width - GAP_PX),
+    );
 
   return {
     left: clamp(size.width),
