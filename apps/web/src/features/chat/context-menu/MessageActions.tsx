@@ -1,6 +1,6 @@
 import type { Message } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { Copy, Ellipsis, Flag, Forward, Info, Languages, Pencil, Pin, Reply, Star, Trash, Trash2 } from 'lucide-react';
+import { Copy, Ellipsis, Forward, Pencil, Reply, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 /**
@@ -85,9 +85,9 @@ export function MessageActions({
   const text = message.body.trim().length > 0;
 
   /*
-   * The approved list, iOS's shape: what you reach for most, one tap each,
-   * then the destructive ones set apart below a gap. The long tail - remind,
-   * share, save, speak, jump - is still one row away, under More.
+   * iOS's shape, kept short: the four things reached for most, More for the
+   * rest (pin, star, info, translate, remind, share...), and one red Delete
+   * set apart below. A long list covered half the chat it was about.
    */
   return (
     <div
@@ -99,19 +99,17 @@ export function MessageActions({
     >
       <Action label="Reply" icon={<Reply size={19} />} onClick={() => { onReply(message); onDone(); }} />
       {text && <Action label={copied ? 'Copied' : 'Copy'} icon={<Copy size={19} />} onClick={() => void copy()} />}
-      <Action label="Forward" icon={<Forward size={19} />} onClick={() => { onForward(message); onDone(); }} />
-      <Action label="Pin" icon={<Pin size={19} />} onClick={run(quick.pin)} />
-      <Action label="Star" icon={<Star size={19} />} onClick={run(quick.star)} />
       {mine && text && <Action label="Edit" icon={<Pencil size={19} />} onClick={run(quick.edit)} />}
-      <Action label="Info" icon={<Info size={19} />} onClick={run(quick.info)} />
-      {text && <Action label="Translate" icon={<Languages size={19} />} onClick={run(quick.translate)} />}
-      <Action label="More" icon={<Ellipsis size={19} />} onClick={onMore} />
+      <Action label="Forward" icon={<Forward size={19} />} onClick={() => { onForward(message); onDone(); }} />
+      <Action label="More…" icon={<Ellipsis size={19} />} onClick={onMore} />
       <div aria-hidden className="h-[7px] bg-text-tertiary/15" />
-      {mine && (
-        <Action label="Delete for everyone" icon={<Trash2 size={19} />} danger onClick={run(quick.deleteForEveryone)} />
-      )}
-      <Action label="Delete for me" icon={<Trash size={19} />} danger onClick={run(quick.deleteForMe)} />
-      {!mine && <Action label="Report" icon={<Flag size={19} />} danger onClick={run(quick.report)} />}
+      {/* One red row, as iMessage and Telegram have it. The other delete, and Report, are under More. */}
+      <Action
+        label="Delete"
+        icon={<Trash2 size={19} />}
+        danger
+        onClick={run(mine ? quick.deleteForEveryone : quick.deleteForMe)}
+      />
     </div>
   );
 }
