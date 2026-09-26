@@ -133,36 +133,18 @@ export function quoteText(message: Message): string {
  */
 const SHAPE = {
   mine: {
-    single: 'rounded-[18px] rounded-br-none',
-    first: 'rounded-[18px]',
-    middle: 'rounded-[18px]',
-    last: 'rounded-[18px] rounded-br-none',
+    single: 'rounded-lg',
+    first: 'rounded-lg rounded-br-[6px]',
+    middle: 'rounded-lg rounded-r-[6px]',
+    last: 'rounded-lg rounded-tr-[6px]',
   },
   theirs: {
-    single: 'rounded-[18px] rounded-bl-none',
-    first: 'rounded-[18px]',
-    middle: 'rounded-[18px]',
-    last: 'rounded-[18px] rounded-bl-none',
+    single: 'rounded-lg',
+    first: 'rounded-lg rounded-bl-[6px]',
+    middle: 'rounded-lg rounded-l-[6px]',
+    last: 'rounded-lg rounded-tl-[6px]',
   },
 } as const;
-
-/** The curl iMessage puts on the last bubble of a run, drawn outside the squared corner. */
-const TAIL = "path('M0 0C0 6 2 11.5 8 15.5C5.5 16.2 2.5 16.2 0 16Z')";
-
-function Tail({ mine }: { mine: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={cn('pointer-events-none absolute bottom-0 h-4 w-2', mine ? '-right-2' : '-left-2 -scale-x-100')}
-      style={
-        mine
-          ? { clipPath: TAIL, background: 'color-mix(in srgb, var(--color-brand) 94%, black)' }
-          : // No blur of its own: inside the bubble's backdrop root it could only blur the bubble.
-            { clipPath: TAIL, background: 'var(--lq-fill)' }
-      }
-    />
-  );
-}
 
 /**
  * Stable name colours for group threads only (labels above glass, not the glass).
@@ -307,8 +289,9 @@ export function MessageBubble({
         <div
           id={`message-${message.id}`}
           className={cn(
-            'max-w-[76%] rounded-[18px] px-3 py-[7px]',
+            'max-w-[76%] px-3 py-[7px]',
             arrive,
+            SHAPE[mine ? 'mine' : 'theirs'][position],
             'lq-glass-water lq-read',
           )}
         >
@@ -522,7 +505,6 @@ export function MessageBubble({
             message.status === 'failed' && 'opacity-60 ring-1 ring-danger/40',
           )}
         >
-          {(position === 'last' || position === 'single') && <Tail mine={mine} />}
           {/* The sender's name opens the run, inside its first bubble - the approved group look. */}
           {!mine && authorName && (position === 'first' || position === 'single') && (
             <span
