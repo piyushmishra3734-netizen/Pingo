@@ -64,7 +64,7 @@ export interface ConversationMenuProps {
  * Only the four durations the sheet offers can get here, so this is a lookup
  * with a fallback rather than a duration formatter.
  */
-function disappearingLabel(seconds: number): string {
+export function disappearingLabel(seconds: number): string {
   if (seconds === 86_400) return '24h';
   if (seconds === 604_800) return '7d';
   if (seconds === 7_776_000) return '90d';

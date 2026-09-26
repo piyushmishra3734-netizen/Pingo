@@ -20,9 +20,7 @@ import {
   ImageIcon,
   ThreadSkeleton,
   MoreIcon,
-  PhoneIcon,
   PingoDot,
-  VideoIcon,
   cn,
 } from '@pingo/ui';
 import { CloseIcon } from '@pingo/ui';
@@ -49,10 +47,15 @@ import { AiProfileSheet } from '../ai/AiProfileSheet.js';
 import { VoiceCall } from '../ai/VoiceCall.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
+import { useT } from '../i18n/useT.js';
+import { AchievementMark } from '../achievements/AchievementArt.js';
+import { useAchievements } from '../achievements/useAchievements.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer, type MentionOption } from './Composer.js';
 import { GroupInfoSheet } from './GroupInfoSheet.js';
+import { ChatInfo } from './ChatInfo.js';
+import { connectionTitle, useConnectionStatus } from '../connection/useConnectionStatus.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 
@@ -85,7 +88,6 @@ import { SharedMediaSheet } from './SharedMediaSheet.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
-import { presenceMark } from '../presence/status.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 
 /**
@@ -227,7 +229,8 @@ export function ChatThread({
   showBack = false,
   className,
 }: ChatThreadProps) {
-  const { currentUser, users, service } = useChat();
+  const { currentUser, users, service, conversations } = useChat();
+  const t = useT();
   const confirm = useConfirm();
 
   /**
@@ -479,6 +482,9 @@ export function ChatThread({
 
   /** Group info: the roster, the roles and the invite link. */
   const [groupInfo, setGroupInfo] = useState(false);
+  /** The info page: the person or the group, and what can be done about this chat. */
+  const [infoOpen, setInfoOpen] = useState(false);
+  const netTitle = connectionTitle(useConnectionStatus(), t);
 
   // Cleared when the thread changes: a reply aimed at another conversation
   // would attach to whatever is open now.
@@ -1088,6 +1094,27 @@ export function ChatThread({
       ? formatPresence(partner)
       : `${members.length} members`;
 
+  /* ---- the header's three pieces ---- */
+  const headerAchievements = useAchievements([partner?.id]);
+  const onlineOthers = members.filter(
+    (m) => m.id !== currentUser?.id && m.presence.state === 'online',
+  ).length;
+  const headerLive = isAi || partner?.presence.state === 'online';
+  const headerStatus = isGroup
+    ? `${members.length} members${onlineOthers ? `, ${onlineOthers} online` : ''}`
+    : headerLive && !isAi
+      ? 'online'
+      : presenceLine;
+  /** Unread elsewhere, on the back button - Telegram's way of saying what is waiting. */
+  const otherUnread = conversations.reduce(
+    (sum, c) => (c.id === conversation.id || c.muted ? sum : sum + c.unreadCount),
+    0,
+  );
+  const openInfo = () => {
+    if (isAi) setAiProfileOpen(true);
+    else setInfoOpen(true);
+  };
+
   const PINGO_AI_ID = 'a1000000-0000-4000-8000-0000000000a1';
   /**
    * @ autocomplete for groups (and AI DMs).
@@ -1231,8 +1258,10 @@ export function ChatThread({
             The composer already floats. This is the header catching up, and
             it is most of what was still missing.
           */
-          'glass-water mx-2 mt-2 rounded-xl',
-          'px-3 py-2.5',
+          selection || searching
+            ? 'glass-water mx-2 mt-2 rounded-xl px-3 py-2.5'
+            : // Telegram's header, in glass: back, the name in a capsule, the face. Three objects, not a bar.
+              'mx-2 mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2',
           'mt-[max(0.5rem,env(safe-area-inset-top))]',
         )}
       >
@@ -1302,157 +1331,83 @@ export function ChatThread({
         />
       ) : (
         <>
-        {showBack && (
+        {showBack ? (
           <Link
             to="/chats"
             aria-label="Back to conversations"
             className={cn(
-              'grid size-10 shrink-0 place-items-center rounded-full',
-              'focus-ring text-text-secondary transition-colors duration-instant',
-              'hover:bg-hover hover:text-ink active:scale-[0.96]',
+              'glass-water relative grid size-11 shrink-0 place-items-center rounded-full',
+              'focus-ring text-ink transition-transform duration-instant active:scale-[0.94]',
             )}
           >
             <ChevronLeftIcon size={22} />
+            {otherUnread > 0 && (
+              <span className="absolute -top-1 -right-2 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold tabular-nums text-on-brand shadow-sm">
+                {otherUnread > 99 ? '99+' : otherUnread}
+              </span>
+            )}
           </Link>
+        ) : (
+          <span className="size-11" aria-hidden />
         )}
-
-        {/*
-          The identity block goes wherever "who is this?" is answered: a
-          person's profile in a direct chat, the group's own info in a group,
-          or AI prefs (name/vibe) for the AI person.
-          It used to be a link in both cases, and in a group it pointed at
-          `/chats` - so the one place a group's roster could plausibly be
-          reached bounced you back to the list you came from.
-        */}
-        <Identity
+        <button
+          type="button"
+          onClick={openInfo}
+          aria-label={`${conversation.title}, info`}
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-3 rounded-md px-1 py-1',
-            'focus-ring transition-colors duration-instant hover:bg-hover',
+            'glass-water mx-auto flex min-w-0 max-w-full flex-col items-center justify-center rounded-full px-5 py-1',
+            'focus-ring transition-transform duration-instant active:scale-[0.97]',
           )}
-          {...(conversation.kind === 'direct' && partner
-            ? { to: `/profile/${partner.handle}` }
-            : isAi
-              ? { onClick: () => setAiProfileOpen(true) }
-              : { onClick: () => setGroupInfo(true) })}
         >
-          {conversation.kind === 'direct' || isAi ? (
-            /*
-              inline-grid + fixed box: a bare inline wrapper becomes a line
-              box and the presence ring paints as an oval around the face.
-            */
-            <span
-              ref={headerAvatar}
-              className="inline-grid size-10 shrink-0 place-items-center"
-            >
+          <span className="flex max-w-full items-center gap-1.5 text-[16px] font-semibold leading-tight text-ink">
+            <span className="truncate">{conversation.title}</span>
+            {partner && <AchievementMark achievement={headerAchievements.lead(partner.id)} />}
+          </span>
+          {netTitle ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-text-secondary" role="status">
+              <span aria-hidden className="size-2.5 animate-spin rounded-full border-[1.5px] border-current border-r-transparent" />
+              {netTitle.toLowerCase()}
+            </span>
+          ) : isTyping ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-brand">
+              {aiStage ? (
+                <AiActivity label={`${AI_STAGES[aiStage]}…`} />
+              ) : (
+                <>
+                  {isRecording ? <RecordingPulse /> : <PingoDot state="typing" size={4} />}
+                  {typingLabel}
+                </>
+              )}
+            </span>
+          ) : (
+            <span className={cn('max-w-full truncate text-[12.5px]', headerLive ? 'text-brand' : 'text-text-secondary')}>
+              {headerStatus}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={openInfo}
+          aria-label={`${conversation.title}, photo`}
+          className="glass-water grid size-11 shrink-0 place-items-center rounded-full p-[3px] focus-ring active:scale-[0.94]"
+        >
+          <span ref={headerAvatar} className="inline-grid size-full place-items-center">
+            {isGroup && !conversation.avatarUrl ? (
+              <AvatarStack
+                people={members.map((m) => ({ id: m.id, name: m.name, src: m.avatarUrl }))}
+                size="xs"
+                max={2}
+              />
+            ) : (
               <Avatar
                 name={conversation.title}
                 id={partner?.id ?? conversation.id}
                 src={partner?.avatarUrl ?? conversation.avatarUrl}
                 size="sm"
-                presence={
-                  isAi
-                    ? 'online'
-                    : presenceMark(partner?.presence.state)
-                }
               />
-            </span>
-          ) : conversation.avatarUrl ? (
-            <Avatar
-              name={conversation.title}
-              id={conversation.id}
-              src={conversation.avatarUrl}
-              size="sm"
-            />
-          ) : (
-            <AvatarStack
-              people={members.map((m) => ({ id: m.id, name: m.name, src: m.avatarUrl }))}
-              size="sm"
-              max={2}
-            />
-          )}
-
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-body font-medium text-ink">
-              {conversation.title}
-            </span>
-            {/*
-              Typing replaces the presence line rather than sitting beside it  - 
-              same rule as the conversation list.
-            */}
-            {isTyping ? (
-              <span className="flex items-center gap-1.5 text-caption text-brand">
-                {/*
-                  A microphone, not the typing dots.
-
-                  The dots mean "words are coming"; a voice note is a different
-                  promise and a different wait. Reusing the same mark would make
-                  the receiver read it as text on the way.
-                */}
-                {aiStage ? (
-                  <AiActivity label={`${AI_STAGES[aiStage]}…`} />
-                ) : (
-                  <>
-                    {isRecording ? <RecordingPulse /> : <PingoDot state="typing" size={4} />}
-                    {typingLabel}
-                  </>
-                )}
-              </span>
-            ) : (
-              <span className="block truncate text-caption text-text-secondary">
-                {presenceLine}
-              </span>
             )}
           </span>
-        </Identity>
-
-        <div className="flex shrink-0 items-center gap-0.5">
-          {/*
-            Present and pressable even when calling is not available, because a
-            dimmed icon cannot say *why*. Pressing one states the reason where
-            there is room for a sentence - the menu - which is the difference
-            between "this app's calling is broken" and "you two do not follow
-            each other yet". Hiding them instead would make the feature look
-            absent rather than conditional.
-
-            AI gets the phone and not the camera. There is still nobody to ring -
-            pressing it opens the microphone and talks to the model - but there
-            is genuinely nothing to look at, and a video icon that produced an
-            audio call would be a promise the screen breaks.
-          */}
-          <IconButton
-            label={isAi ? 'Talk to PINGO' : 'Voice call'}
-            size="sm"
-            className={cn(!canCall && 'text-text-tertiary')}
-            onClick={() => placeCall('voice')}
-          >
-            <PhoneIcon size={20} />
-          </IconButton>
-          {!isAi && (
-            <IconButton
-              label="Video call"
-              size="sm"
-              className={cn(!canCall && 'text-text-tertiary')}
-              onClick={() => placeCall('video')}
-            >
-              <VideoIcon size={20} />
-            </IconButton>
-          )}
-          <ConversationMenu
-            conversation={conversation}
-            {...(canCall
-              ? {
-                  onCall: (kind: 'audio' | 'video') =>
-                    placeCall(kind === 'audio' ? 'voice' : 'video'),
-                }
-              : {})}
-            {...(callBlockedReason && !isAi ? { callBlockedReason } : {})}
-            {...(isAi ? { onAiSettings: () => setAiProfileOpen(true) } : {})}
-            onSelectMessages={() => setSelection(new Set())}
-            onSearchMessages={() => setSearching(true)}
-            onSharedMedia={() => setSharedMedia(true)}
-            onDisappearing={() => setDisappearing(true)}
-          />
-        </div>
+        </button>
         </>
       )}
       </header>
@@ -2156,6 +2111,56 @@ export function ChatThread({
         <GroupInfoSheet conversation={conversation} onClose={() => setGroupInfo(false)} />
       )}
 
+      {infoOpen && (
+        <ChatInfo
+          conversation={conversation}
+          {...(partner ? { partner } : {})}
+          members={members}
+          isGroup={isGroup}
+          messages={messages}
+          status={{
+            text: netTitle ? netTitle.toLowerCase() : headerStatus,
+            live: !netTitle && headerLive,
+            busy: Boolean(netTitle),
+          }}
+          canCall={canCall}
+          menu={
+            <ConversationMenu
+              conversation={conversation}
+              {...(canCall
+                ? {
+                    onCall: (kind: 'audio' | 'video') =>
+                      placeCall(kind === 'audio' ? 'voice' : 'video'),
+                  }
+                : {})}
+              {...(callBlockedReason && !isAi ? { callBlockedReason } : {})}
+              onSelectMessages={() => {
+                setInfoOpen(false);
+                setSelection(new Set());
+              }}
+              onSearchMessages={() => {
+                setInfoOpen(false);
+                setSearching(true);
+              }}
+              onSharedMedia={() => setSharedMedia(true)}
+              onDisappearing={() => setDisappearing(true)}
+            />
+          }
+          onClose={() => setInfoOpen(false)}
+          onSearch={() => {
+            setInfoOpen(false);
+            setSearching(true);
+          }}
+          onCall={(kind) => {
+            setInfoOpen(false);
+            placeCall(kind);
+          }}
+          onManageGroup={() => setGroupInfo(true)}
+          onDisappearing={() => setDisappearing(true)}
+          onJump={jumpTo}
+        />
+      )}
+
       {sharedMedia && (
         <SharedMediaSheet
           conversationId={conversation.id}
@@ -2199,40 +2204,6 @@ export function ChatThread({
  * differ only in what happens when you press them - everything visual, the
  * avatar, the name, the presence line, is shared, and duplicating it to change
  * the wrapper is how the two drift apart.
- */
-function Identity({
-  to,
-  onClick,
-  className,
-  children,
-}: {
-  to?: string;
-  onClick?: () => void;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  if (to) {
-    return (
-      <Link to={to} className={className}>
-        {children}
-      </Link>
-    );
-  }
-
-  return (
-    <button type="button" onClick={onClick} className={cn(className, 'text-left')}>
-      {children}
-    </button>
-  );
-}
-
-/**
- * Holds the object URL a trim sheet reads from, for exactly as long as it is open.
- *
- * The sheet takes a `src` and does not own it, because a component that creates
- * a blob URL in a render is a component that leaks one on every re-render. This
- * makes it once, hands it over, and revokes it on the way out - which is also
- * why the sheet is behind a wrapper rather than rendered inline.
  */
 function TrimGate({
   file,
