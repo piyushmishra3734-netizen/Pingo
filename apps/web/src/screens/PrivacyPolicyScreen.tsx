@@ -22,7 +22,7 @@ import { applyPageSeo } from '../lib/seo.js';
  * not as a generic template.
  */
 
-const UPDATED = '14 September 2026';
+const UPDATED = '26 September 2026';
 
 interface Section {
   id: string;
@@ -148,6 +148,7 @@ const SECTIONS: Section[] = [
       'Cloudflare: hosts the web app (and related edge delivery). Like any host, it sees connection metadata such as IP addresses for requests it serves. Cloudflare may also provide call relay (TURN) credentials so calls connect on hard networks.',
       'Google: only if you use Google sign-in, and/or if you enable push notifications that use Firebase Cloud Messaging / browser push libraries. Push content is kept minimal; we do not need FCM to store your full chat history.',
       'AI model provider: processes AI-chat prompts and context to generate assistant replies. Chats with people are not sent there, except a group message that @mentions PINGO AI.',
+      "Snap Inc. (Camera Kit): the camera's AR Lenses are powered by Snap's Camera Kit. When you use the camera or a Lens, Snap may receive device information, Lens usage and technical data it needs to deliver, secure and improve Lenses, under Snap's Privacy Policy (snap.com/privacy). Lenses run on your device; PINGO does not send your photos or videos to Snap or Snapchat, and using a Lens does not need a Snapchat account.",
       'App stores / OS vendors: if you install a native build, their normal install and update channels apply under their policies.',
     ],
   },
