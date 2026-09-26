@@ -1454,7 +1454,11 @@ export function ChatThread({
       {/* ---- Thread ------------------------------------------------------- */}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto"
+        // One pixel short of the screen, on purpose. A scroller that exactly fills
+        // the viewport is promoted by Chrome to the page's root scroller, and then
+        // scrolling it slides the address bar away - the screen grows, and the
+        // composer riding its bottom edge jumps up and down with every scroll.
+        className="mb-px min-h-0 flex-1 overflow-y-auto"
         style={{ paddingTop: chrome.top, paddingBottom: chrome.bottom }}
       >
         {loading ? (
