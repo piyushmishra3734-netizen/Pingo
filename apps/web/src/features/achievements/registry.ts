@@ -93,6 +93,16 @@ export const ACHIEVEMENTS: Achievement[] = [
  */
 export const CABINET_SLOTS = 6;
 
+/**
+ * "Mythic Pioneer" for a title stored as "MYTHIC PIONEER".
+ *
+ * The stored form is the emblem's lettering; in a sentence or under a badge it
+ * reads as shouting, so every caption uses this instead.
+ */
+export function displayTitle(achievement: Achievement): string {
+  return achievement.title.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function achievementById(id: string): Achievement | undefined {
   return ACHIEVEMENTS.find((a) => a.id === id);
 }

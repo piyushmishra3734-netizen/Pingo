@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
 import { AchievementArt } from './AchievementArt.js';
-import { CABINET_SLOTS, type Achievement } from './registry.js';
+import { CABINET_SLOTS, displayTitle, type Achievement } from './registry.js';
 
 /**
  * The collection, earned and not.
@@ -72,63 +72,72 @@ export function AchievementCabinet({
   const [open, setOpen] = useState<Achievement>();
   const empties = Math.max(0, CABINET_SLOTS - earned.length);
 
+  /*
+   * A shelf, three to a row.
+   *
+   * Tiles in boxes read as a settings grid; badges standing on a ledge read as
+   * things somebody owns. The ledge is the whole trick - one rounded bar under
+   * each row - and an empty place is a socket pressed into the card rather than
+   * an outline, for the reason the note above gives about dashes.
+   */
+  const slots: (Achievement | undefined)[] = [...earned, ...Array.from({ length: empties }, () => undefined)];
+  const rows: (Achievement | undefined)[][] = [];
+  for (let i = 0; i < slots.length; i += 3) rows.push(slots.slice(i, i + 3));
+
   return (
     <div className={className}>
-      <div className="grid grid-cols-3 gap-2">
-        {earned.map((achievement) => (
-          <button
-            key={achievement.id}
-            type="button"
-            onClick={() => setOpen(achievement)}
+      <div className="flex flex-col gap-4">
+        {rows.map((row, r) => (
+          <div
+            key={r}
             className={cn(
-              'focus-ring flex flex-col items-center gap-2 rounded-2xl px-2 py-4',
-              // The only motion in the cabinet, and it answers a finger.
-              'transition-transform duration-instant active:scale-[0.97]',
+              'relative grid grid-cols-3 gap-1.5 pb-3',
+              'after:absolute after:inset-x-[-4px] after:bottom-0 after:h-2 after:rounded-md after:bg-sunken',
             )}
           >
-            <AchievementArt achievement={achievement} size="small" aura={aura} className="size-[5.5rem]" />
-            {/*
-              A caption block of fixed height, matched by the empty slots
-              below. Without it a two-line name makes its row taller than the
-              rest and the grid steps - the kind of half-pixel wrongness that
-              reads as unfinished long before anybody can say why.
-
-              The date is the one thing that makes a tile a record of something
-              rather than an icon, and it is why the query started fetching
-              `unlocked_at`.
-            */}
-            <span className={CAPTION}>
-              <span className="line-clamp-2 font-medium text-ink">{achievement.title}</span>
-              {/*
-                The worn badge says so instead of showing its date. Both would
-                not fit in the two lines every tile reserves, and which one is
-                on show is the more useful of the two facts on this screen -
-                the date is a line away, in the sheet.
-              */}
-              {achievement.id === displayed ? (
-                <span className="inline-flex items-center gap-1 font-medium text-[color:var(--mythic-accent,var(--color-brand))]">
-                  <CheckIcon size={11} strokeWidth={3} />
-                  Displayed
-                </span>
+            {row.map((achievement, i) =>
+              achievement ? (
+                <button
+                  key={achievement.id}
+                  type="button"
+                  onClick={() => setOpen(achievement)}
+                  className={cn(
+                    'focus-ring flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-1 pt-1',
+                    // The only motion on the shelf, and it answers a finger.
+                    'transition-transform duration-instant active:scale-[0.97]',
+                  )}
+                >
+                  <span className="relative">
+                    <AchievementArt
+                      achievement={achievement}
+                      size="small"
+                      aura={aura}
+                      className="size-[5.25rem] drop-shadow-[0_8px_8px_rgba(0,0,0,0.18)]"
+                    />
+                    {achievement.id === displayed && (
+                      <span
+                        aria-label="Worn beside your name"
+                        className="absolute -right-1 top-0 grid size-5 place-items-center rounded-full border-2 border-surface bg-ink text-surface"
+                      >
+                        <CheckIcon size={10} strokeWidth={3.5} />
+                      </span>
+                    )}
+                  </span>
+                  <span className="w-full truncate text-center text-[12.5px] font-semibold text-ink">
+                    {displayTitle(achievement)}
+                  </span>
+                  <span className="-mt-1 text-[11px] text-text-tertiary">
+                    {shortDate(earnedAt?.(achievement.id)) ?? '\u00a0'}
+                  </span>
+                </button>
               ) : (
-                <span className="text-text-tertiary">{shortDate(earnedAt?.(achievement.id))}</span>
-              )}
-            </span>
-          </button>
-        ))}
-
-        {Array.from({ length: empties }, (_, i) => (
-          <div
-            key={`empty-${i}`}
-            className="flex flex-col items-center gap-2 rounded-2xl px-2 py-4"
-            /*
-              Not a button. There is nothing behind it, and a tappable slot that
-              does nothing teaches people the grid is not worth touching.
-            */
-          >
-            <span aria-hidden className="size-[5.5rem] rounded-full bg-hover" />
-            {/* No caption, and none coming - but the same reserved height. */}
-            <span aria-hidden className={CAPTION} />
+                // Not a button: there is nothing behind it, and a slot that
+                // does nothing teaches people the shelf is not worth touching.
+                <div key={`empty-${r}-${i}`} className="grid h-[5.75rem] place-items-end justify-center pb-1.5">
+                  <span aria-hidden className="size-14 rounded-full bg-sunken shadow-[inset_0_3px_8px_rgba(0,0,0,0.08)]" />
+                </div>
+              ),
+            )}
           </div>
         ))}
       </div>
@@ -146,16 +155,6 @@ export function AchievementCabinet({
     </div>
   );
 }
-
-/**
- * The block under every slot, filled or not.
- *
- * A fixed height rather than one driven by its contents: two lines for a name
- * that may wrap, one for a date that may not have arrived yet. Every tile
- * reserves it, so the six of them sit on two straight rows whatever is in them.
- */
-const CAPTION =
-  'text-caption flex h-11 w-full flex-col items-center justify-start gap-0.5 text-center leading-tight';
 
 /** "22 Aug 2026", in the reader's own locale, or nothing at all. */
 function shortDate(iso?: string): string | undefined {

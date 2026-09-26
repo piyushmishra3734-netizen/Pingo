@@ -1,10 +1,12 @@
 import { useProfile } from '@pingo/core';
 import type { MythicAccent, MythicAura } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import type { ReactNode } from 'react';
+import { CalendarDays } from 'lucide-react';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
+import { AchievementArt } from '../features/achievements/AchievementArt.js';
 import { AchievementCabinet } from '../features/achievements/AchievementCabinet.js';
+import { CABINET_SLOTS, displayTitle } from '../features/achievements/registry.js';
 import { mythicWashStyle } from '../features/achievements/MythicAura.js';
 import { useOwnAchievements } from '../features/achievements/useAchievements.js';
 import { setDisplayedBadge } from '../features/referrals/referrals-service.js';
@@ -89,6 +91,9 @@ export function AchievementsScreen() {
     refreshEarnedBadges(profile?.id);
   };
 
+  const lead = mine.lead();
+  const leadDate = lead ? shortDate(mine.earnedAt(lead.id)) : undefined;
+
   return (
     /* The wash is the root's own background - see `mythicWashStyle`. */
     <div
@@ -97,201 +102,149 @@ export function AchievementsScreen() {
     >
       <ScreenHeader title="Achievements" showBack />
 
-      <div className="relative min-h-0 mx-auto w-full max-w-md flex-1 overflow-y-auto px-5 pb-28">
-        {earned.length === 0 ? (
-          /*
-            An empty cabinet rather than a sentence where a cabinet would be.
-            The slots are what the screen is; showing them empty says "nothing
-            yet" in the shape of the thing that will hold it, and it means the
-            page does not change layout the day the first one arrives.
-          */
-          <>
-            <SectionLabel>Collection</SectionLabel>
-            <Card>
-              <AchievementCabinet earned={[]} aura={aura} />
-            </Card>
-            <p className="text-body mt-4 text-center text-text-secondary">
-              Nothing here yet. Achievements appear once they are earned.
-            </p>
-          </>
-        ) : (
-          <>
-            {/*
-              A heading, so the grid is a section rather than the first thing
-              that happens to be under the header. The two pickers below already
-              had one each, which is what made the collection look like an
-              unlabelled leftover.
-            */}
-            <SectionLabel>Collection</SectionLabel>
-            <Card>
-              <AchievementCabinet
-                earned={earned}
-                aura={aura}
-                earnedAt={mine.earnedAt}
-                {...(mine.displayed() ? { displayed: mine.displayed() } : {})}
-                onDisplay={(badgeId) => void chooseDisplayed(badgeId)}
-              />
-            </Card>
-          </>
+      <div className="relative mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col gap-2 overflow-y-auto px-2 pb-28 pt-2">
+        {/*
+          The worn badge, standing on your own cover.
+
+          The same card as the profile, so this reads as a room in the same
+          house: your picture at the top, fading into the card, and the badge
+          you chose standing where your face would be.
+        */}
+        {lead && (
+          <article className="rounded-[34px] bg-surface/70 p-[5px] ring-1 ring-line">
+            <div className="relative overflow-hidden rounded-[29px] bg-surface px-5 pb-5 pt-[176px] text-center">
+              {profile?.bannerUrl ? (
+                <img
+                  src={profile.bannerUrl}
+                  alt=""
+                  className="absolute inset-x-0 top-0 h-[150px] w-full object-cover"
+                  style={{ objectPosition: `50% ${profile.bannerOffset}%` }}
+                />
+              ) : (
+                <div className="absolute inset-x-0 top-0 h-[150px] bg-brand-wash" />
+              )}
+              <div className="absolute inset-x-0 top-[70px] h-20 bg-gradient-to-b from-transparent to-surface" />
+              <div className="absolute inset-x-0 top-[26px] flex justify-center">
+                <AchievementArt achievement={lead} size="large" aura={aura} className="size-[9.5rem] sm:size-[9.5rem]" />
+              </div>
+
+              <h2 className="relative text-[22px] font-bold leading-tight tracking-[-0.04em] text-ink">
+                {displayTitle(lead)}
+              </h2>
+              <p className="relative mt-1 text-body text-text-secondary">{lead.blurb}</p>
+              <p className="relative mt-3 flex flex-wrap justify-center gap-x-3.5 gap-y-1 text-[12.5px] text-text-tertiary">
+                <span className="inline-flex items-center gap-1.5">
+                  <AchievementArt achievement={lead} size="mark" className="size-4" />
+                  Beside your name
+                </span>
+                {leadDate && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarDays size={14} />
+                    {leadDate}
+                  </span>
+                )}
+              </p>
+            </div>
+          </article>
         )}
+
+        <section className="rounded-[28px] bg-surface p-[18px]">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-body font-semibold text-ink">Collection</h3>
+            <span className="text-caption text-text-secondary">
+              {earned.length} of {CABINET_SLOTS}
+            </span>
+          </div>
+          <AchievementCabinet
+            className="mt-4"
+            earned={earned}
+            aura={aura}
+            earnedAt={mine.earnedAt}
+            {...(mine.displayed() ? { displayed: mine.displayed() } : {})}
+            onDisplay={(badgeId) => void chooseDisplayed(badgeId)}
+          />
+          <p className="mt-3.5 text-caption text-text-secondary">
+            {earned.length > 0
+              ? 'Tap a badge to see it, and to wear it beside your name.'
+              : 'Nothing here yet. Achievements appear once they are earned.'}
+          </p>
+        </section>
 
         {/*
           The choices, and only for somebody they apply to.
 
-          Two decisions, three options each. A longer panel would turn a
-          collectible into a settings screen, and the point is the badge rather
-          than the configuring of it.
+          The glow is chosen on the badge itself - three copies of what you
+          wear, each in its own light - because "Iridescent" is an adjective
+          and the picture is the answer.
         */}
-        {isMythic && (
-          <div className="mt-8">
-            <SectionLabel>Badge aura</SectionLabel>
-            <ChoiceRow
-              options={AURAS}
-              value={aura}
-              onPick={(next) => update('mythic', { aura: next })}
-            />
+        {isMythic && lead && (
+          <section className="rounded-[28px] bg-surface p-[18px]">
+            <h3 className="text-body font-semibold text-ink">Look</h3>
 
-            <SectionLabel className="mt-7">Profile accent</SectionLabel>
-            <ChoiceRow
-              options={ACCENTS}
-              value={accent}
-              onPick={(next) => update('mythic', { accent: next })}
-            />
+            <p className="mt-3.5 text-caption font-medium text-text-secondary">Badge glow</p>
+            <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Badge glow">
+              {AURAS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={option.id === aura}
+                  onClick={() => update('mythic', { aura: option.id })}
+                  className={cn(
+                    'focus-ring flex h-[5.25rem] flex-col items-center justify-center gap-1.5 rounded-[18px] bg-sunken',
+                    'text-caption font-medium text-ink transition-[box-shadow,transform] duration-instant active:scale-[0.97]',
+                    option.id === aura && 'ring-[1.5px] ring-inset ring-ink',
+                  )}
+                >
+                  <AchievementArt achievement={lead} size="small" aura={option.id} className="size-10" />
+                  {option.label}
+                </button>
+              ))}
+            </div>
 
-            {/*
-              The footnote sits under both controls rather than inside either,
-              because it is true of both and repeating it would read as a
-              warning rather than a note.
-            */}
-            <p className="text-caption mt-4 px-1 text-text-tertiary">
+            <p className="mt-4 text-caption font-medium text-text-secondary">Profile accent</p>
+            <div className="mt-2 flex gap-3.5" role="radiogroup" aria-label="Profile accent">
+              {ACCENTS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={option.id === accent}
+                  onClick={() => update('mythic', { accent: option.id })}
+                  className={cn(
+                    'focus-ring flex flex-col items-center gap-1.5 rounded-lg text-[11.5px] font-medium',
+                    option.id === accent ? 'text-ink' : 'text-text-secondary',
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-[30px] rounded-full transition-shadow duration-quick',
+                      option.id === accent && 'ring-2 ring-ink ring-offset-2 ring-offset-surface',
+                    )}
+                    style={{ background: option.swatch }}
+                  />
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-4 text-caption text-text-tertiary">
               Only you choose how yours is drawn. Everyone sees the same badge.
             </p>
-          </div>
+          </section>
         )}
       </div>
     </div>
   );
 }
 
-/**
- * One heading, so all three sections are the same heading.
- *
- * They were three separate `h2` elements with the same six classes typed out
- * each time, which is how the collection ended up with none - it is easier to
- * forget a heading than to forget a component.
- *
- * The inset padding is not decoration: the card below it is inset from the
- * page, and a heading flush to the screen edge above an inset card is the
- * detail that makes a grouped list look assembled rather than stacked.
- */
-function SectionLabel({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <h2
-      className={cn(
-        'text-caption px-1 pb-2 font-medium text-text-secondary',
-        className,
-      )}
-    >
-      {children}
-    </h2>
-  );
-}
-
-/**
- * The grouped card the sections sit in.
- *
- * Borrowed from the inset-grouped list iOS has used since 13: content on a
- * filled surface, floating on a slightly darker page, with no border at all.
- * The border is the thing worth noticing - a hairline ring would draw the eye
- * to the container, and the container is not the point. Contrast between two
- * fills says "this is a group" quietly enough that nobody reads it as a box.
- */
-function Card({ children }: { children: ReactNode }) {
-  return <div className="rounded-[1.25rem] bg-surface p-4">{children}</div>;
-}
-
-/**
- * Three options, one chosen: a segmented control.
- *
- * ## The swatch, which the original argued against
- *
- * This file used to say a row of glowing swatches would compete with the emblem
- * for attention. That was written when the emblem was 56 pixels in a grid of
- * `???` circles - it was not winning anything to compete for. With the emblem
- * at 88 the balance is the other way round, and three identical pills reading
- * "Classic / Iridescent / Gold Glow" made somebody choose between adjectives
- * with no idea what any of them looked like.
- *
- * So each option carries a dot of the light it applies. It is the shortest
- * description of "Iridescent" there is, and it is still a dot - not a preview
- * panel, not an animation.
- *
- * ## One track, not three buttons
- *
- * Three separate pills, each with its own ring, is a web pattern: it says
- * "three things, one of which is highlighted". A segmented control says "one
- * setting with three positions", which is what this is - and it is the control
- * iOS has used for exactly this shape of choice for fifteen years.
- *
- * The mechanics are the ones that make it read as physical rather than styled.
- * A recessed track in the app's resting fill. One raised segment on the surface
- * colour with a soft shadow, so the selection looks lifted out of the track
- * instead of coloured in. Hairlines between the segments that are not touching
- * the selection, which is the small thing that keeps the unselected pair from
- * reading as one wide button. And the selected segment presses when tapped,
- * because on iOS everything you can move answers a finger.
- */
-function ChoiceRow<T extends string>({
-  options,
-  value,
-  onPick,
-}: {
-  options: { id: T; label: string; swatch: string }[];
-  value: T;
-  onPick: (next: T) => void;
-}) {
-  const chosen = options.findIndex((option) => option.id === value);
-
-  return (
-    <div className="flex gap-0.5 rounded-[0.85rem] bg-hover p-1" role="radiogroup">
-      {options.map((option, index) => {
-        const active = option.id === value;
-        /*
-         * A separator before this segment only when neither it nor the one
-         * before it is selected. Beside the raised segment the shadow already
-         * draws the edge, and a hairline there would double it.
-         */
-        const separated = index > 0 && index !== chosen && index - 1 !== chosen;
-
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onPick(option.id)}
-            className={cn(
-              // 44px of touch target, kept while the visible pill stays slim.
-              'focus-ring text-caption relative flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[0.6rem] px-2 font-medium',
-              'transition-[background-color,box-shadow,transform] duration-quick ease-standard',
-              active
-                ? 'bg-surface text-ink shadow-sm active:scale-[0.97]'
-                : 'text-text-secondary active:opacity-60',
-              separated &&
-                'before:absolute before:left-[-1px] before:h-4 before:w-px before:bg-line-strong',
-            )}
-          >
-            <span
-              aria-hidden
-              className="size-3.5 shrink-0 rounded-full"
-              style={{ background: option.swatch }}
-            />
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
+/** "22 Aug 2026", in the reader's own locale, or nothing at all. */
+function shortDate(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return undefined;
+  return at.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export default AchievementsScreen;

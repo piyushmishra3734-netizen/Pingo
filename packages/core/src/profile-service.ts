@@ -45,6 +45,10 @@ export interface Profile {
    * re-upload.
    */
   bannerOffset: number;
+  /** What they do, in their words. One short line under the bio; absent means not drawn. */
+  work?: string;
+  /** Where they are, in their words. Free text, never a coordinate. */
+  location?: string;
   /**
    * Whether this account has PINGO premium.
    *
@@ -65,6 +69,8 @@ export interface ProfileDraft {
   bio?: string;
   bannerUrl?: string;
   bannerOffset?: number;
+  work?: string;
+  location?: string;
 }
 
 export type ProfileErrorCode =
@@ -156,6 +162,17 @@ export interface SharedHistory {
   friendsSince?: number;
   mutualGroups: number;
   photosShared: number;
+}
+
+/**
+ * Which of the signed-in user's friends are also friends with somebody else.
+ *
+ * Only ever about the caller's own friends - it cannot list a stranger's. A few
+ * faces and the total, which is all the "Friends with ..." line draws.
+ */
+export interface MutualFriends {
+  total: number;
+  sample: { id: string; displayName: string; avatarUrl?: string }[];
 }
 
 /**
@@ -367,6 +384,9 @@ export interface ProfileService {
    * a profile cannot be used to inspect two other people's relationship.
    */
   sharedWith(userId: string): Promise<SharedHistory>;
+
+  /** The signed-in user's friends who are also friends with this person. */
+  mutualFriends(userId: string): Promise<MutualFriends>;
 
   // -- posts ----------------------------------------------------------------
 

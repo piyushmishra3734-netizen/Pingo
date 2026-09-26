@@ -1,6 +1,7 @@
 import { isValidUsername, normaliseUsername, useProfile } from '@pingo/core';
 import { Avatar, Button, CameraIcon, TextField, TrashIcon, cn } from '@pingo/ui';
-import { useEffect, useRef, useState } from 'react';
+import { AtSign, Briefcase, MapPin } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
@@ -10,9 +11,9 @@ import { ProfileCover } from '../features/profile/ProfileCover.js';
 import { prepareCover } from '../features/profile/cover-gif.js';
 
 /**
- * Editing your own profile: photo, name, username, bio.
+ * Editing your own profile: photo, cover, name, username, bio, work, place.
  *
- * Exactly the four things a profile is, and nothing else. Settings, privacy and
+ * Exactly the things a profile shows, and nothing else. Settings, privacy and
  * account controls live on the settings screen - putting one of them here
  * because it is "profile-ish" is how a form becomes a second settings screen.
  *
@@ -37,6 +38,10 @@ import { prepareCover } from '../features/profile/cover-gif.js';
  */
 
 const BIO_LIMIT = 200;
+/** A job title or a city, not a second bio. Matches the check constraint. */
+const DETAIL_LIMIT = 40;
+/** One tap for the common answers; anything else is typed. */
+const WORK_CHIPS = ['Student', 'Developer', 'Designer', 'Creator', 'Gamer', 'Founder'];
 
 export function EditProfileScreen() {
   const t = useT();
@@ -46,6 +51,8 @@ export function EditProfileScreen() {
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
+  const [work, setWork] = useState('');
+  const [place, setPlace] = useState('');
   /** Cropped file from the editor, held until form Save so nothing uploads early. */
   const [photo, setPhoto] = useState<File>();
   const [removePhoto, setRemovePhoto] = useState(false);
@@ -66,6 +73,8 @@ export function EditProfileScreen() {
     setDisplayName(profile.displayName);
     setUsername(profile.username);
     setBio(profile.bio ?? '');
+    setWork(profile.work ?? '');
+    setPlace(profile.location ?? '');
   }, [profile]);
 
   /*
@@ -168,6 +177,10 @@ export function EditProfileScreen() {
         displayName: displayName.trim(),
         username: handle,
         bio,
+        // Only when changed: a save that did not touch them should not write
+        // columns an older database may not have yet.
+        ...(work.trim() === (profile?.work ?? '') ? {} : { work }),
+        ...(place.trim() === (profile?.location ?? '') ? {} : { location: place }),
         ...(bannerUrl ? { bannerUrl } : {}),
         ...(coverOffset === undefined ? {} : { bannerOffset: coverOffset }),
         // Only sent when it actually changed, so an unrelated save cannot clear
@@ -192,16 +205,17 @@ export function EditProfileScreen() {
 
   const shownAvatar = removePhoto ? undefined : (preview ?? profile.avatarUrl);
   const hasPhoto = Boolean(shownAvatar);
+  const shownName = displayName.trim() || 'Your name';
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-page">
       {editorSrc && (
         <AvatarPhotoEditor
           src={editorSrc}
           onCancel={closeEditor}
           onChooseAnother={() => fileRef.current?.click()}
           onSave={(file) => {
-            // Editor flashes ✓ then calls onCancel to unmount.
+            // Editor flashes a tick then calls onCancel to unmount.
             setPhoto(file);
             setRemovePhoto(false);
           }}
@@ -219,15 +233,72 @@ export function EditProfileScreen() {
       {/* Header is navigation only - one primary Save lives at the form foot. */}
       <ScreenHeader title={t('profile.editTitle')} showBack />
 
-      <div className="mx-auto w-full max-w-md px-5 pb-12">
-        {/* ---- cover ---------------------------------------------------- */}
-        <ProfileCover
-          src={coverPreview ?? profile.bannerUrl}
-          offset={coverOffset ?? profile.bannerOffset}
-          editable
-          onPick={() => coverRef.current?.click()}
-          onOffsetChange={setCoverOffset}
-        />
+      <div className="mx-auto flex w-full max-w-md flex-col gap-2 px-2 pt-2">
+        {/*
+          The profile card itself, live.
+
+          Every field below writes into it as it is typed, so the form answers
+          "what will people see" without a round trip to the profile - the same
+          card, the same cover fade, the same lines under the bio.
+        */}
+        <article className="rounded-[34px] bg-surface/70 p-[5px] ring-1 ring-line">
+          <div className="relative overflow-hidden rounded-[29px] bg-surface">
+            <ProfileCover
+              src={coverPreview ?? profile.bannerUrl}
+              offset={coverOffset ?? profile.bannerOffset}
+              editable
+              onPick={() => coverRef.current?.click()}
+              onOffsetChange={setCoverOffset}
+            />
+
+            <div className="pointer-events-none relative px-[18px] pb-[18px] pt-[92px] [&>*]:pointer-events-auto">
+              <div className="flex items-end justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  aria-label={hasPhoto ? 'Change photo' : 'Add photo'}
+                  className="focus-ring relative inline-flex rounded-full ring-[3px] ring-surface transition-transform duration-instant active:scale-[0.97]"
+                >
+                  <Avatar name={shownName} id={profile.id} src={shownAvatar} size="xl" />
+                  <span className="absolute -bottom-0.5 -right-0.5 grid size-8 place-items-center rounded-full border-[3px] border-surface bg-brand text-on-brand">
+                    <CameraIcon size={14} />
+                  </span>
+                </button>
+
+                {hasPhoto && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhoto(undefined);
+                      setRemovePhoto(true);
+                    }}
+                    className={cn(
+                      'focus-ring mb-2 flex items-center gap-1.5 rounded-full bg-sunken px-3.5 py-2',
+                      'text-caption font-medium text-text-secondary',
+                      'transition-colors duration-150 ease-standard hover:text-danger',
+                    )}
+                  >
+                    <TrashIcon size={14} />
+                    Remove photo
+                  </button>
+                )}
+              </div>
+
+              <h2 className="mt-3 truncate text-[24px] font-bold leading-tight tracking-[-0.04em] text-ink">
+                {shownName}
+              </h2>
+              {bio.trim() && (
+                <p className="mt-1 line-clamp-2 text-body leading-snug text-text-secondary">{bio}</p>
+              )}
+              <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12.5px] text-text-secondary">
+                {handle && <Fact icon={<AtSign size={14} />}>{handle}</Fact>}
+                {work.trim() && <Fact icon={<Briefcase size={14} />}>{work.trim()}</Fact>}
+                {place.trim() && <Fact icon={<MapPin size={14} />}>{place.trim()}</Fact>}
+              </div>
+            </div>
+          </div>
+        </article>
+
         <input
           ref={coverRef}
           type="file"
@@ -252,83 +323,22 @@ export function EditProfileScreen() {
             });
           }}
         />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            // Cleared so choosing the same file twice still fires a change.
+            event.target.value = '';
+            if (file) openEditor(file);
+          }}
+        />
 
-        {/* ---- photo ---------------------------------------------------- */}
-        <div className="-mt-10 flex flex-col items-center pt-6">
-          <span className="rounded-full ring-[5px] ring-surface shadow-md">
-            <Avatar
-              name={displayName || profile.displayName}
-              id={profile.id}
-              src={shownAvatar}
-              size="xl"
-            />
-          </span>
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              // Cleared so choosing the same file twice still fires a change.
-              event.target.value = '';
-              if (file) openEditor(file);
-            }}
-          />
-
-          {/*
-            Change / Remove as one action family - same height, radius and
-            surface language as the Profile Photo Editor, not two random chips.
-          */}
-          <div
-            className={cn(
-              'mt-4 flex items-center gap-1 rounded-full p-1',
-              'border border-line/50 bg-surface/90 shadow-sm',
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className={cn(
-                'focus-ring flex items-center gap-1.5 rounded-full px-3.5 py-2',
-                'text-caption font-medium text-brand',
-                'transition-colors duration-150 ease-standard hover:bg-selected',
-              )}
-            >
-              <CameraIcon size={15} />
-              {hasPhoto ? 'Change photo' : 'Add photo'}
-            </button>
-
-            {hasPhoto && (
-              <>
-                <span className="h-4 w-px shrink-0 bg-line/70" aria-hidden />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhoto(undefined);
-                    setRemovePhoto(true);
-                  }}
-                  className={cn(
-                    'focus-ring flex items-center gap-1.5 rounded-full px-3.5 py-2',
-                    'text-caption font-medium text-text-secondary',
-                    'transition-colors duration-150 ease-standard',
-                    'hover:bg-hover hover:text-danger',
-                  )}
-                >
-                  <TrashIcon size={15} />
-                  Remove photo
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/*
-          Form hierarchy: Display name primary → Username secondary → Bio medium.
-          8pt rhythm between blocks (space-y-4 = 16).
-        */}
-        <div className="mt-8 space-y-4">
+        {/* Form hierarchy: display name primary, then username, then bio. */}
+        <section className="space-y-4 rounded-[28px] bg-surface p-[18px]">
+          <h3 className="text-body font-semibold text-ink">About you</h3>
           <TextField
             label={t('profile.displayName')}
             value={displayName}
@@ -336,13 +346,9 @@ export function EditProfileScreen() {
             maxLength={50}
             autoComplete="name"
             invalid={displayName.length > 0 && !nameValid}
-            labelClassName="text-body font-medium text-ink"
-            fieldClassName="h-12 border-line/50 bg-surface shadow-sm"
-            hint={
-              displayName.trim().length === 0
-                ? 'People need something to call you.'
-                : undefined
-            }
+            labelClassName="text-caption font-medium text-text-secondary"
+            fieldClassName="h-12"
+            hint={displayName.trim().length === 0 ? 'People need something to call you.' : undefined}
           />
 
           <TextField
@@ -357,7 +363,7 @@ export function EditProfileScreen() {
             autoComplete="username"
             invalid={username.length > 0 && (!handleValid || available === false)}
             labelClassName="text-caption font-medium text-text-secondary"
-            fieldClassName="h-11"
+            fieldClassName="h-12"
             hint={
               username.length === 0
                 ? undefined
@@ -378,7 +384,7 @@ export function EditProfileScreen() {
           <div>
             <label
               htmlFor="profile-bio"
-              className="mb-1.5 block text-caption font-medium text-text-tertiary"
+              className="mb-1.5 block text-caption font-medium text-text-secondary"
             >
               Bio
             </label>
@@ -393,7 +399,7 @@ export function EditProfileScreen() {
                 id="profile-bio"
                 value={bio}
                 onChange={(event) => setBio(event.target.value.slice(0, BIO_LIMIT))}
-                rows={4}
+                rows={3}
                 maxLength={BIO_LIMIT}
                 placeholder={t('profile.bioPlaceholder')}
                 className={cn(
@@ -412,13 +418,64 @@ export function EditProfileScreen() {
               </p>
             </div>
           </div>
-        </div>
+        </section>
+
+        <section className="space-y-4 rounded-[28px] bg-surface p-[18px]">
+          <div>
+            <h3 className="text-body font-semibold text-ink">Details</h3>
+            <p className="mt-0.5 text-caption text-text-secondary">
+              Shown under your bio. Leave one empty to hide it.
+            </p>
+          </div>
+
+          <div>
+            <TextField
+              label="Work"
+              value={work}
+              onChange={(event) => setWork(event.target.value.slice(0, DETAIL_LIMIT))}
+              leading={<Briefcase size={16} className="text-text-tertiary" />}
+              maxLength={DETAIL_LIMIT}
+              placeholder="What do you do?"
+              labelClassName="text-caption font-medium text-text-secondary"
+              fieldClassName="h-12"
+            />
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {WORK_CHIPS.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  aria-pressed={work.trim() === chip}
+                  onClick={() => setWork(chip)}
+                  className={cn(
+                    'focus-ring h-8 rounded-full px-3 text-caption font-medium',
+                    'transition-colors duration-instant active:scale-[0.97]',
+                    work.trim() === chip ? 'bg-brand text-on-brand' : 'bg-sunken text-ink hover:bg-hover',
+                  )}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <TextField
+            label="Location"
+            value={place}
+            onChange={(event) => setPlace(event.target.value.slice(0, DETAIL_LIMIT))}
+            leading={<MapPin size={16} className="text-text-tertiary" />}
+            maxLength={DETAIL_LIMIT}
+            placeholder="City, Country"
+            autoComplete="address-level2"
+            labelClassName="text-caption font-medium text-text-secondary"
+            fieldClassName="h-12"
+          />
+        </section>
 
         {error && (
           <p
             role="alert"
             className={cn(
-              'mt-4 rounded-xl border border-danger/20 bg-danger-soft/70',
+              'rounded-xl border border-danger/20 bg-danger-soft/70',
               'px-3.5 py-2.5 text-center text-caption text-danger/90',
             )}
           >
@@ -427,18 +484,30 @@ export function EditProfileScreen() {
         )}
 
         {/*
-          Single primary Save - after the last field, with calm breathing above
-          it. Keyboard: Tab through fields, then this button.
+          One primary Save, held at the foot of the screen so it is under the
+          thumb whichever field was touched last.
         */}
-        <Button
-          variant="primary"
-          className="mt-8 h-12 w-full"
-          onClick={() => void save()}
-          disabled={!canSave}
-        >
-          {saving ? 'Saving…' : 'Save changes'}
-        </Button>
+        <div className="sticky bottom-0 -mx-2 bg-gradient-to-b from-transparent to-page to-35% px-2 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+          <Button
+            variant="primary"
+            className="h-12 w-full rounded-full"
+            onClick={() => void save()}
+            disabled={!canSave}
+          >
+            {saving ? 'Saving…' : 'Save changes'}
+          </Button>
+        </div>
       </div>
     </div>
+  );
+}
+
+/** One short fact under the bio, the same as on the profile. */
+function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="shrink-0 text-text-tertiary">{icon}</span>
+      <span className="truncate">{children}</span>
+    </span>
   );
 }

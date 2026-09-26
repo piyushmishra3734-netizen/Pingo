@@ -3,10 +3,10 @@ import {
   useChat,
   useProfile,
   type ChatMediaItem,
+  type MutualFriends,
   type Post,
   type Profile,
   type ProfileStats,
-  type PublicJourney,
   type SharedHistory,
 } from '@pingo/core';
 import {
@@ -25,7 +25,8 @@ import {
   VideoIcon,
   cn,
 } from '@pingo/ui';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { AtSign, Briefcase, Compass, MapPin, Trophy } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -33,11 +34,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCall } from '../features/calls/CallProvider.js';
 import { useConversationActions } from '../features/conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../features/conversations/useUnmuteConfirm.js';
-import { AchievementArt, AchievementMark } from '../features/achievements/AchievementArt.js';
+import { AchievementMark } from '../features/achievements/AchievementArt.js';
+import { displayTitle } from '../features/achievements/registry.js';
 import { mythicAccentStyle, mythicWashStyle } from '../features/achievements/MythicAura.js';
 import { useAchievements } from '../features/achievements/useAchievements.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
-import { ProfileJourney } from '../features/journey/ProfileJourney.js';
 import { AnimatedCount } from '../features/profile/AnimatedCount.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { CaptionText } from '../features/profile/CaptionText.js';
@@ -60,7 +61,6 @@ import { ReportSheet } from '../features/profile/ReportSheet.js';
 import { Sheet, SheetCancel } from '../components/Sheet.js';
 import { profileLink } from '../features/profile/ShareProfileSheet.js';
 import { QrCodeSheet } from '../features/profile/QrCodeSheet.js';
-import { SharedWithPanel } from '../features/profile/SharedWithPanel.js';
 import { useMutuals } from '../features/profile/useMutuals.js';
 
 import { useConfirm } from '../components/ConfirmProvider.js';
@@ -154,8 +154,8 @@ export function ProfileScreen() {
   const [media, setMedia] = useState<ChatMediaItem[]>();
   const [shared, setShared] = useState<SharedHistory>();
   const [blocked, setBlocked] = useState(false);
-  /** The public half of their Journey. Absent until it loads, or for ever. */
-  const [journey, setJourney] = useState<PublicJourney | null>(null);
+  /** My friends who are also theirs. Absent until it loads, or when it cannot. */
+  const [mutualFriends, setMutualFriends] = useState<MutualFriends>();
 
   const [tab, setTab] = useState<Tab>('posts');
 
@@ -165,7 +165,7 @@ export function ProfileScreen() {
     setPosts(undefined);
     setStats(undefined);
     setShared(undefined);
-    setJourney(null);
+    setMutualFriends(undefined);
     setTab('posts');
   }, [handle]);
 
@@ -211,17 +211,10 @@ export function ProfileScreen() {
         .then((next) => { if (active) setBlocked(next); })
         .catch(() => undefined);
 
-      /*
-       * Their Journey, read once per profile.
-       *
-       * Never for your own — that screen is one tap away in full, and a summary
-       * of it here would be the same page twice. Never blocking either: a
-       * profile must open whether or not this answers, which is also what makes
-       * the migration safe to apply after the code ships.
-       */
+      // Quietly absent on failure: no line is truer than a wrong one.
       void profiles
-        .publicJourney(personId)
-        .then((next) => { if (active) setJourney(next); })
+        .mutualFriends(personId)
+        .then((next) => { if (active) setMutualFriends(next); })
         .catch(() => undefined);
     }
 
@@ -560,48 +553,163 @@ export function ProfileScreen() {
         }
       />
 
-      <div className="mx-auto w-full max-w-2xl px-5 pb-10">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-2 pb-10 pt-2">
         {/*
-          Hero as one composition: avatar → name → handle/bio → stats → actions.
-          8pt rhythm (8 / 16 / 24 / 32) keeps the identity block unified.
+          The whole person is one card.
+
+          The cover fades into the card rather than ending at an edge, and the
+          face, the button and every line about them sit on that fade - one
+          object with one edge, instead of a band, a circle and a column of text
+          that each end somewhere different.
+
+          The body ignores pointer events and only its rows take them back, so
+          the part of the cover the text does not cover still answers the drag
+          that repositions it.
         */}
-        {/*
-          The face sits *in* the cover, not under it.
+        <article className="rounded-[34px] bg-surface/70 p-[5px] ring-1 ring-line">
+          <div className="relative overflow-hidden rounded-[29px] bg-surface">
+            <ProfileCover
+              src={person.bannerUrl}
+              offset={person.bannerOffset}
+              editable={isSelf}
+              onPick={() => coverFileRef.current?.click()}
+              onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
+            />
 
-          Stacked the obvious way first - band, then avatar pulled up by a
-          negative margin - and it cost about a hundred and ten pixels of
-          nothing: the cover ended, the face began, and the name was pushed so
-          far down that a phone showed the cover and a chin and no posts.
+            <div className="pointer-events-none relative px-[18px] pb-5 pt-[92px] [&>*]:pointer-events-auto">
+              <div className="flex items-end justify-between gap-3">
+                {/* `flex`, not `block`: an inline-flex child on a text baseline sits off centre. */}
+                <div className="flex">
+                  <ProfileAvatar
+                    name={person.displayName}
+                    id={person.id}
+                    src={person.avatarUrl}
+                    presence={isSelf ? myStatus : othersMark}
+                    isSelf={isSelf}
+                    onChangePhoto={() => avatarFileRef.current?.click()}
+                    onRemovePhoto={() => {
+                      void (async () => {
+                        const go = await confirm({
+                          title: 'Remove your photo?',
+                          description: 'Your monogram takes its place. You can add a new one any time.',
+                          confirmLabel: 'Remove photo',
+                        });
+                        // The key is present and undefined, which the service reads as
+                        // "clear it" rather than as "not mentioned".
+                        if (go) await updateMine({ avatarUrl: undefined });
+                      })();
+                    }}
+                  />
+                </div>
 
-          Absolutely centred inside the band instead, so the two occupy one
-          block rather than two. The overlay ignores pointer events and only the
-          face takes them back, or the middle of the cover - which is most of it
-          - would stop answering the drag that repositions it.
-        */}
-        <ProfileCover
-            src={person.bannerUrl}
-            offset={person.bannerOffset}
-            editable={isSelf}
-            onPick={() => coverFileRef.current?.click()}
-            onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
-        />
+                {isSelf ? (
+                  <Link
+                    to="/profile/edit"
+                    className={cn(
+                      'focus-ring mb-2 inline-flex h-10 items-center gap-1.5 rounded-full px-5',
+                      'bg-brand text-caption font-medium text-on-brand',
+                      'transition-transform duration-instant active:scale-[0.96]',
+                    )}
+                  >
+                    <EditIcon size={15} />
+                    Edit profile
+                  </Link>
+                ) : (
+                  <FollowButton userId={person.id} name={person.displayName} className="mb-2 h-10" />
+                )}
+              </div>
 
-        {/*
-          Hanging off the bottom of the band, not centred inside it.
+              {/*
+                `h2`, not `h1`. `ScreenHeader` already contributes the page's one
+                `h1`, and two of them leave a screen reader with no single answer
+                to "what is this page".
+              */}
+              <h2 className="mt-3 flex items-center gap-1.5 text-[24px] font-bold leading-tight tracking-[-0.04em] text-ink">
+                <span className="min-w-0 truncate">{person.displayName}</span>
+                <AchievementMark achievement={achievements.lead(person.id)} />
+              </h2>
 
-          Centred, the cover had to be tall enough to hold a face with air
-          around it, and that made the top of the profile a picture of nothing:
-          a hundred and sixty pixels of sky to frame a circle. This is the
-          arrangement every profile uses, and the reason is that the cover only
-          has to be as tall as a cover.
+              {/* Two lines at most: a profile is an identity, not an information sheet. */}
+              {person.bio && (
+                <p className="mt-1 line-clamp-2 text-body leading-snug text-text-secondary">
+                  <CaptionText text={person.bio} />
+                </p>
+              )}
 
-          `flex` on the wrapper, not `block`. The avatar is an `inline-flex`
-          button and an inline child of a block sits on a text baseline with the
-          line-height's descender space beneath it, which measured four pixels
-          taller than the face - enough to put it off centre.
-        */}
-        <div className="-mt-[68px] flex justify-center">
-            <div className="flex">
+              <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12.5px] text-text-secondary">
+                <Fact icon={<AtSign size={14} />}>{person.username}</Fact>
+                {person.work && <Fact icon={<Briefcase size={14} />}>{person.work}</Fact>}
+                {person.location && <Fact icon={<MapPin size={14} />}>{person.location}</Fact>}
+              </div>
+
+              <dl className="mt-4 flex gap-4">
+                <Stat label="Posts" value={stats?.posts} />
+                <Stat
+                  label="Friends"
+                  value={stats?.friends}
+                  {...(isSelf ? { onOpen: () => setListing('friends') } : {})}
+                />
+                <Stat
+                  label="Groups"
+                  value={stats?.groups}
+                  {...(isSelf ? { onOpen: () => setListing('groups') } : {})}
+                />
+              </dl>
+
+              {/*
+                One quiet line each, in the same place on both kinds of profile.
+
+                Somebody else's: who you have in common, the way every social
+                app says it. Your own: the collection and the Journey - they used
+                to be two sections of their own at the foot of the page, and a
+                badge and a level are two facts, not two destinations.
+              */}
+              {isSelf ? (
+                <div className="mt-3.5 flex flex-col gap-2">
+                  <Line
+                    to={achievements.isMythic(person.id) ? '/profile/achievements' : '/profile/mission'}
+                    icon={
+                      achievements.lead(person.id) ? (
+                        <img
+                          src={achievements.lead(person.id)!.art.crest}
+                          alt=""
+                          className="size-[22px] shrink-0 object-contain"
+                        />
+                      ) : (
+                        <Disc><Trophy size={12} /></Disc>
+                      )
+                    }
+                  >
+                    {achievements.lead(person.id) ? (
+                      <>
+                        <b className="font-semibold text-ink">{displayTitle(achievements.lead(person.id)!)}</b>
+                        {' · '}
+                        {plural(achievements.all(person.id).length, 'badge')}
+                      </>
+                    ) : (
+                      <>
+                        <b className="font-semibold text-ink">Achievements</b> · Nothing earned yet
+                      </>
+                    )}
+                  </Line>
+                  <Line to="/profile/journey" icon={<Disc><Compass size={12} /></Disc>}>
+                    <b className="font-semibold text-ink">Journey</b> · Badges earned and what is next
+                  </Line>
+                </div>
+              ) : (
+                <InCommon
+                  friends={mutualFriends}
+                  groups={conversations.filter(
+                    (c) =>
+                      (c.kind === 'group' || c.kind === 'community') &&
+                      c.participantIds.includes(person.id),
+                  )}
+                  groupCount={shared?.mutualGroups}
+                />
+              )}
+            </div>
+          </div>
+        </article>
 
         <input
           ref={coverFileRef}
@@ -614,35 +722,6 @@ export function ProfileScreen() {
             if (file) void pickCover(file);
           }}
         />
-
-        {/*
-          Pulled up over the band, the way every profile does it. The negative
-          margin is on the identity block rather than the avatar so the name and
-          everything under it rise with it and the 8pt rhythm survives.
-        */}
-              <ProfileAvatar
-            name={person.displayName}
-            id={person.id}
-            src={person.avatarUrl}
-            presence={isSelf ? myStatus : othersMark}
-            isSelf={isSelf}
-            onChangePhoto={() => avatarFileRef.current?.click()}
-            onRemovePhoto={() => {
-              void (async () => {
-                const go = await confirm({
-                  title: 'Remove your photo?',
-                  description: 'Your monogram takes its place. You can add a new one any time.',
-                  confirmLabel: 'Remove photo',
-                });
-                // The key is present and undefined, which the service reads as
-                // "clear it" rather than as "not mentioned".
-                if (go) await updateMine({ avatarUrl: undefined });
-              })();
-            }}
-          />
-          </div>
-        </div>
-
         <input
           ref={avatarFileRef}
           type="file"
@@ -656,298 +735,75 @@ export function ProfileScreen() {
           }}
         />
 
-        {/*
-          The name starts here, immediately under the band.
-
-          `pt-3` and not the old `pt-6`: the air that used to be above the face
-          is now inside the cover, so keeping it would put the gap back in a
-          different place.
-        */}
-        <div className="flex flex-col items-center pt-3">
-
-          {/*
-            `h2`, not `h1`. `ScreenHeader` already contributes the page's one
-            `h1`, and measuring the rendered page turned up two of them - which
-            leaves a screen reader with no single answer to "what is this page".
-            Styled as `text-h1` because it is still the largest thing here.
-          */}
-          <h2 className="mt-2 flex items-center justify-center gap-1.5 text-h1 leading-tight tracking-tight text-ink">
-            {person.displayName}
+        {/* ---- actions -------------------------------------------------- */}
+        {isSelf ? (
+          <Button
+            variant="secondary"
+            className="h-12 w-full rounded-full"
+            leadingIcon={<QrIcon size={18} />}
+            onClick={() => setSharing(true)}
+          >
+            Share profile
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2">
             {/*
-              No size here any more.
-
-              This carried `size-6` to undo a mark that was fixed at sixteen
-              pixels and therefore wrong beside a `text-h1` name. `AchievementMark`
-              now sizes itself from the text it follows, which is the same answer
-              in both places and one this screen does not have to know.
+              Message keeps the accent and the width, because it is the reason
+              anybody opens somebody's profile. Calls are round and quiet:
+              obviously pressable, obviously not the point.
             */}
-            <AchievementMark achievement={achievements.lead(person.id)} />
-          </h2>
-
-          {/*
-            Handle + bio as one quiet identity group under the name.
-
-            The handle sits a hairline under the name rather than a full step:
-            they are one fact said twice, and the page's normal rhythm between
-            them read as two.
-
-            The bio stops at two lines. A profile is an identity, not an
-            information sheet, and a bio allowed to run pushes the stats and the
-            actions - the things people came for - below the fold. Clamped on a
-            line break rather than truncated mid-word, and on a narrower measure
-            than the group so it reads as a caption to the name.
-          */}
-          <div className="mt-0.5 flex max-w-sm flex-col items-center gap-2">
-            <p className="text-caption leading-tight text-text-tertiary">@{person.username}</p>
-            {person.bio && (
-              <p className="line-clamp-2 max-w-[17rem] text-center text-body leading-snug text-text-secondary">
-                <CaptionText text={person.bio} />
-              </p>
-            )}
-          </div>
-
-          {/*
-            Same width as the sections above and below it, which is the whole
-            reason the numbers stopped looking like they were floating: they
-            were the only thing on the page not lining up with anything.
-
-            Hairlines between them, and no box around them. A ring and a fill
-            would group the three correctly and then say "control" - a bordered,
-            filled rectangle is the shape of something you press, and these are
-            figures. Separators do the grouping and claim nothing.
-
-            `divide-line`, not `divide-line/60`. The token is already
-            `rgba(17,17,19,0.07)`; taking sixty per cent of it produced a
-            four-per-cent border, which compiled, shipped, and was invisible -
-            a change that verified green at every layer and looked to the person
-            using it like nothing had happened. An opacity modifier on a colour
-            that is already an alpha is a multiplication, and it is worth
-            remembering that before reaching for one.
-          */}
-          <dl className="mt-7 grid w-full max-w-sm grid-cols-3 divide-x divide-line py-1">
-            <Stat label="Posts" value={stats?.posts} />
-            <Stat
-              label="Friends"
-              value={stats?.friends}
-              {...(isSelf ? { onOpen: () => setListing('friends') } : {})}
-            />
-            <Stat
-              label="Groups"
-              value={stats?.groups}
-              {...(isSelf ? { onOpen: () => setListing('groups') } : {})}
-            />
-          </dl>
-
-          {/* ---- actions ------------------------------------------------ */}
-          {isSelf ? (
-            <div className="mt-5 flex w-full max-w-sm items-center gap-2.5">
-              {/*
-                One action, one control - the same grammar the other person's
-                profile uses one branch down.
-
-                These were two buttons of equal width and nearly equal weight,
-                which made the row ask a question instead of answering one.
-                Editing is what somebody opens their own profile to do; sharing
-                is a thing they occasionally reach for. So Edit takes the accent
-                and the width, and Share becomes a circular control: obviously
-                pressable, obviously not the point.
-              */}
-              <Button
-                variant="primary"
-                className="h-11 flex-1"
-                leadingIcon={<EditIcon size={16} />}
-                onClick={() => navigate('/profile/edit')}
-              >
-                Edit profile
-              </Button>
-              <IconButton
-                label="Share profile"
-                onClick={() => setSharing(true)}
-                className={cn(
-                  'size-11 shrink-0 rounded-full',
-                  'bg-sunken text-ink',
-                  'hover:bg-hover',
-                )}
-              >
-                <QrIcon size={18} />
-              </IconButton>
-            </div>
-          ) : null}
-
-          {!isSelf ? (
-            <div className="mt-4 flex w-full max-w-xs flex-col items-center gap-2">
-              {/*
-                Not friends yet, so the request comes first and is the primary
-                action. Messaging stays available regardless - PINGO's rule is
-                that anyone can message anyone, and a request you cannot send is
-                a product nobody can start using.
-              */}
-              {mutuals && !mutuals.has(person.id) && (
-                <FollowButton userId={person.id} name={person.displayName} className="w-full" />
-              )}
-
-              <div className="flex w-full items-center gap-2">
-                <Button
-                  variant="primary"
-                  className="h-11 flex-1"
-                  leadingIcon={<ChatIcon size={16} />}
-                  onClick={() => void openMessage()}
-                >
-                  Message
-                </Button>
-
-                {/*
-                  Circular, filled, and quiet.
-
-                  They used to be rounded squares with a border and a shadow -
-                  the same shape family as Message - which made three buttons
-                  competing to be pressed where there is one action and two
-                  controls. A circle on a plain fill reads as hardware: tactile,
-                  clearly pressable, and obviously not the primary.
-
-                  Message keeps the accent and the width, because it is the
-                  reason anybody opens somebody's profile.
-                */}
-                <IconButton
-                  label={
-                    canCall
-                      ? `Voice call ${person.displayName}`
-                      : `Voice calls open up once you and ${person.displayName} both follow each other`
-                  }
-                  disabled={!canCall}
-                  onClick={() => void startCall(person.id, person.displayName, 'voice')}
-                  className={cn(
-                    'size-11 shrink-0 rounded-full',
-                    'bg-sunken text-ink',
-                    'hover:bg-hover',
-                  )}
-                >
-                  <PhoneIcon size={18} />
-                </IconButton>
-
-                <IconButton
-                  label={
-                    canCall
-                      ? `Video call ${person.displayName}`
-                      : `Video calls open up once you and ${person.displayName} both follow each other`
-                  }
-                  disabled={!canCall}
-                  onClick={() => void startCall(person.id, person.displayName, 'video')}
-                  className={cn(
-                    'size-11 shrink-0 rounded-full',
-                    'bg-sunken text-ink',
-                    'hover:bg-hover',
-                  )}
-                >
-                  <VideoIcon size={18} />
-                </IconButton>
-              </div>
-
-              {blocked && (
-                <p className="text-caption text-danger">
-                  You have blocked {person.displayName}.
-                </p>
-              )}
-            </div>
-          ) : null}
-        </div>
-
-        {!isSelf && shared && <SharedWithPanel history={shared} />}
-
-        {/*
-          Achievements, at the foot, as a collection.
-
-          The badge used to be shown three times: a mark beside the name, a large
-          piece of art in the middle of the profile, and a row naming it. The
-          large one is gone. The mark beside the name is the identity - it is
-          doing the job a verified tick does - and this is the shelf it came off,
-          which is a different thing and belongs at the bottom with the other
-          things about the account rather than in the middle of who somebody is.
-
-          A profile in a messenger is mostly personality. Achievements are the
-          last five per cent of it and are placed accordingly.
-
-          Your own only. On somebody else's page a shelf of badges is a score
-          next to their name, and this product does not have scores - the mark
-          beside their name already says the one thing a visitor needs, the way
-          a verified tick does. The collection is for the person who keeps it.
-        */}
-        {isSelf ? (
-          <section className="mt-7 border-t border-line/60 pt-5">
-            <SectionHead
-              label="Achievements"
-              to={
-                achievements.isMythic(person.id)
-                  ? '/profile/achievements'
-                  : '/profile/mission'
+            <Button
+              variant="primary"
+              className="h-12 flex-1 rounded-full"
+              leadingIcon={<ChatIcon size={17} />}
+              onClick={() => void openMessage()}
+            >
+              Message
+            </Button>
+            <IconButton
+              label={
+                canCall
+                  ? `Voice call ${person.displayName}`
+                  : `Voice calls open up once you and ${person.displayName} both follow each other`
               }
-            />
-            {achievements.lead(person.id) ? (
-              <div className="mt-3 flex items-center gap-3">
-                <AchievementArt
-                  achievement={achievements.lead(person.id)!}
-                  size="small"
-                  aura={preferences.mythic.aura}
-                  className="size-14"
-                />
-                <p className="text-body font-medium text-ink">
-                  {achievements.lead(person.id)!.title}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-2 text-caption text-text-secondary">Nothing earned yet</p>
-            )}
-          </section>
-        ) : null}
+              disabled={!canCall}
+              onClick={() => void startCall(person.id, person.displayName, 'voice')}
+              className="size-12 shrink-0 rounded-full bg-surface text-ink hover:bg-hover"
+            >
+              <PhoneIcon size={19} />
+            </IconButton>
+            <IconButton
+              label={
+                canCall
+                  ? `Video call ${person.displayName}`
+                  : `Video calls open up once you and ${person.displayName} both follow each other`
+              }
+              disabled={!canCall}
+              onClick={() => void startCall(person.id, person.displayName, 'video')}
+              className="size-12 shrink-0 rounded-full bg-surface text-ink hover:bg-hover"
+            >
+              <VideoIcon size={19} />
+            </IconButton>
+          </div>
+        )}
 
-        {/*
-          Journey, and only your own - a collection is something you keep, not
-          something you show, and putting it on other people's profiles would
-          turn badges into a rank visible to strangers.
-
-          Same grammar as everything else down here. It was the only bordered
-          card on the page, and one card among plain sections does not read as
-          important; it reads as a dashboard widget that wandered into a private
-          messenger.
-        */}
-        {isSelf ? (
-          <section className="mt-7 border-t border-line/60 pt-5">
-            <SectionHead label="Journey" to="/profile/journey" />
-            <p className="mt-1 text-caption text-text-secondary">
-              Badges you have earned, and what is next
-            </p>
-          </section>
-        ) : null}
-
-        {!isSelf ? (
-          <ProfileJourney
-            {...(journey ? { badgeIds: journey.badgeIds } : {})}
-            className="mt-7"
-          />
-        ) : null}
+        {blocked && (
+          <p className="px-3 text-center text-caption text-danger">You have blocked {person.displayName}.</p>
+        )}
 
         {/* ---- tabs ----------------------------------------------------- */}
-        <div
-          role="tablist"
-          aria-label="Profile content"
-          className={cn(
-            'flex border-b border-line/60',
-            // 8pt: 32px from hero actions to content chrome.
-            isSelf ? 'mt-8' : 'mt-6',
-          )}
-        >
-          <TabButton id="posts" label="Posts" active={tab === 'posts'} onSelect={() => setTab('posts')} />
-          {showMediaTab && (
+        {showMediaTab && (
+          <div role="tablist" aria-label="Profile content" className="flex rounded-full bg-surface p-1">
+            <TabButton id="posts" label="Posts" active={tab === 'posts'} onSelect={() => setTab('posts')} />
             <TabButton id="media" label="Media" active={tab === 'media'} onSelect={() => setTab('media')} />
-          )}
-        </div>
+          </div>
+        )}
 
         <div
-          role="tabpanel"
-          id="panel-posts"
-          aria-labelledby="tab-posts"
+          {...(showMediaTab
+            ? { role: 'tabpanel', id: 'panel-posts', 'aria-labelledby': 'tab-posts' }
+            : {})}
           hidden={tab !== 'posts'}
-          className="pt-4"
         >
           {postsFailed ? (
             <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
@@ -982,7 +838,6 @@ export function ProfileScreen() {
             id="panel-media"
             aria-labelledby="tab-media"
             hidden={tab !== 'media'}
-            className="pt-4"
           >
             {!media ? <MediaSkeleton /> : media.length === 0 ? <MediaEmpty /> : <MediaGrid items={media} />}
           </div>
@@ -1166,107 +1021,211 @@ export function ProfileScreen() {
   );
 }
 
-/**
- * One of the three numbers.
- *
- * `dd` before `dt` in the markup so the number sits above its label visually,
- * while the pair still reads as one definition - "Posts, 3" - to a screen
- * reader, which walks the list in document order within each group.
- */
-/**
- * The one heading style the lower half of a profile uses.
- *
- * There were three before this: a badge with a caption under it, a bordered
- * card with a chevron, and a row with an icon - three visual systems for three
- * sections that are the same kind of thing. Nothing was wrong with any of them
- * individually, and together they made the page look assembled rather than
- * designed.
- *
- * A `Link` when there is somewhere to go, a plain heading when there is not -
- * somebody else's achievements are a fact about them, not a door.
- */
-function SectionHead({ label, to }: { label: string; to?: string }) {
-  const inside = (
-    <>
-      <span className="text-body font-medium text-ink">{label}</span>
-      {to ? <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" /> : null}
-    </>
-  );
+/** "1 badge", "2 badges". Only ever regular plurals here. */
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
 
-  if (!to) {
-    return <div className="flex items-center justify-between gap-3">{inside}</div>;
-  }
-
+/** One short fact under the bio: an icon and a few words. */
+function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <Link
-      to={to}
-      className="focus-ring -m-1 flex items-center justify-between gap-3 rounded-lg p-1"
-    >
-      {inside}
-    </Link>
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="shrink-0 text-text-tertiary">{icon}</span>
+      <span className="truncate">{children}</span>
+    </span>
   );
 }
 
+/** A small round holder for an icon, the size of a face in a line. */
+function Disc({ children }: { children: ReactNode }) {
+  return (
+    <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-sunken text-ink">
+      {children}
+    </span>
+  );
+}
+
+/** One line at the foot of the card: a picture, some words, and somewhere to go if there is one. */
+function Line({ icon, to, children }: { icon: ReactNode; to?: string; children: ReactNode }) {
+  const inside = (
+    <>
+      {icon}
+      <span className="min-w-0 truncate">{children}</span>
+      {to ? <ChevronRightIcon size={15} className="ml-auto shrink-0 text-text-tertiary" /> : null}
+    </>
+  );
+  const shape = 'flex min-w-0 items-center gap-2 text-[12.5px] text-text-secondary';
+  return to ? (
+    <Link to={to} className={cn(shape, 'focus-ring -m-1 rounded-lg p-1')}>
+      {inside}
+    </Link>
+  ) : (
+    <p className={shape}>{inside}</p>
+  );
+}
+
+/** Up to three overlapping faces - round for people, rounded squares for groups. */
+function Pile({ items, square = false }: { items: { key: string; src?: string; label: string }[]; square?: boolean }) {
+  return (
+    <span className="flex shrink-0">
+      {items.slice(0, 3).map((item, i) => (
+        <span
+          key={item.key}
+          className={cn(
+            'grid size-[22px] place-items-center overflow-hidden bg-sunken text-[10px] font-semibold text-ink ring-2 ring-surface',
+            square ? 'rounded-[7px]' : 'rounded-full',
+            i > 0 && '-ml-[7px]',
+          )}
+        >
+          {item.src ? (
+            <img src={item.src} alt="" className="size-full object-cover" />
+          ) : (
+            item.label.trim().charAt(0).toUpperCase()
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** "aarav, riya and 16 others", with the names in the ink colour. */
+function Names({ names, rest, unit }: { names: string[]; rest: number; unit: string }) {
+  const parts: ReactNode[] = names.map((name) => (
+    <b key={name} className="font-semibold text-ink">
+      {name}
+    </b>
+  ));
+  if (rest > 0) {
+    parts.push(
+      <b key="rest" className="font-semibold text-ink">
+        {rest} {rest === 1 ? unit : `${unit}s`}
+      </b>,
+    );
+  }
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i === 0 ? '' : i === parts.length - 1 ? ' and ' : ', '}
+          {part}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * What you and this person have in common, the way every social app says it.
+ *
+ * Friends come from the server, because who somebody else is friends with is
+ * not readable here - only which of *your* friends are also theirs. Groups
+ * come from your own chat list, which already knows their names; the server's
+ * count covers any that are not loaded. Neither line is drawn at zero.
+ */
+function InCommon({
+  friends,
+  groups,
+  groupCount,
+}: {
+  friends: MutualFriends | undefined;
+  groups: { id: string; title: string; avatarUrl?: string }[];
+  groupCount: number | undefined;
+}) {
+  const groupTotal = Math.max(groupCount ?? 0, groups.length);
+  if (!friends?.total && groupTotal === 0) return null;
+
+  const friendNames = (friends?.sample ?? []).slice(0, 2).map((f) => f.displayName);
+  const groupNames = groups.slice(0, 2).map((g) => g.title);
+
+  return (
+    <div className="mt-3.5 flex flex-col gap-2">
+      {friends && friends.total > 0 ? (
+        <Line
+          icon={
+            <Pile
+              items={friends.sample.map((f) => ({
+                key: f.id,
+                label: f.displayName,
+                ...(f.avatarUrl ? { src: f.avatarUrl } : {}),
+              }))}
+            />
+          }
+        >
+          Friends with <Names names={friendNames} rest={friends.total - friendNames.length} unit="other" />
+        </Line>
+      ) : null}
+      {groupTotal > 0 ? (
+        <Line
+          icon={
+            groups.length > 0 ? (
+              <Pile
+                square
+                items={groups.map((g) => ({
+                  key: g.id,
+                  label: g.title,
+                  ...(g.avatarUrl ? { src: g.avatarUrl } : {}),
+                }))}
+              />
+            ) : (
+              <Disc>
+                <UsersIcon size={12} />
+              </Disc>
+            )
+          }
+        >
+          {groupNames.length > 0 ? (
+            <>
+              Both in <Names names={groupNames} rest={groupTotal - groupNames.length} unit="more" />
+            </>
+          ) : (
+            <>
+              <b className="font-semibold text-ink">{plural(groupTotal, 'group')}</b> together
+            </>
+          )}
+        </Line>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One of the three numbers, said as words: "128 Posts".
+ *
+ * `dd` before `dt` so the figure leads visually while the pair still reads as
+ * one definition to a screen reader.
+ */
 function Stat({
   label,
   value,
   onOpen,
 }: {
-  /** Plural. The singular is this without its last letter - see below. */
+  /** Plural. The singular is this without its last letter. */
   label: string;
   value: number | undefined;
-  /** Present when this figure leads somewhere - see the stats block. */
+  /** Present when this figure leads somewhere. */
   onOpen?: () => void;
 }) {
-  /*
-   * "1 Friend", not "1 Friends".
-   *
-   * Three labels, all regular plurals, so the rule is the whole grammar engine
-   * this needs: at exactly one, drop the s. Anything cleverer would be a
-   * pluralisation library for three words, and anything less is the small
-   * wrongness that makes an interface feel machine-written.
-   */
+  // "1 Friend", not "1 Friends".
   const shown = value === 1 ? label.replace(/s$/, '') : label;
 
   const inside = (
     <>
-      <dt className="sr-only">{shown}</dt>
-      <dd className="text-h2 font-semibold tabular-nums leading-none text-ink">
-        {value === undefined ? (
-          <span className="text-text-tertiary"> - </span>
-        ) : (
-          <AnimatedCount value={value} />
-        )}
+      <dd className="font-semibold tabular-nums text-ink">
+        {value === undefined ? <span className="text-text-tertiary">-</span> : <AnimatedCount value={value} />}
       </dd>
-      {/* ~2–3px under the number; quieter so the figure stays primary. */}
-      <p aria-hidden className="mt-1 text-caption leading-none text-text-tertiary">
-        {shown}
-      </p>
+      <dt className="ml-1 text-text-secondary">{shown}</dt>
     </>
   );
 
-  if (!onOpen) {
-    return <div className="flex flex-col items-center text-center">{inside}</div>;
-  }
+  const shape = 'flex items-baseline text-[13px]';
+  if (!onOpen) return <div className={shape}>{inside}</div>;
 
-  /*
-   * A button that looks like the figure next to it.
-   *
-   * Making it look tappable - a chevron, a pill, a colour - would say that
-   * this number is a different kind of thing from Posts, which it is not. The
-   * press state is the whole affordance, which is what a stat row in every
-   * app of this shape does.
-   */
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={`${label}, see the list`}
-      className={cn(
-        'focus-ring flex flex-col items-center rounded-xl py-1 text-center',
-        'transition-[background-color,transform] duration-instant',
-        'hover:bg-hover active:scale-[0.97]',
-      )}
+      className={cn(shape, 'focus-ring -m-1 rounded-lg p-1 transition-colors duration-instant hover:bg-hover active:scale-[0.97]')}
     >
       {inside}
     </button>
@@ -1293,21 +1252,12 @@ function TabButton({
       aria-controls={`panel-${id}`}
       onClick={onSelect}
       className={cn(
-        'focus-ring relative flex-1 px-4 py-3 text-body font-medium',
+        'focus-ring h-10 flex-1 rounded-full text-body font-medium',
         'transition-colors duration-instant',
-        active ? 'text-ink' : 'text-text-tertiary hover:text-text-secondary',
+        active ? 'bg-brand text-on-brand' : 'text-text-secondary hover:text-ink',
       )}
     >
       {label}
-      <span
-        aria-hidden
-        className={cn(
-          'absolute inset-x-6 -bottom-px h-0.5 rounded-full bg-brand',
-          // Calmer active mark: softer and not edge-to-edge.
-          'transition-opacity duration-150 ease-standard',
-          active ? 'opacity-70' : 'opacity-0',
-        )}
-      />
     </button>
   );
 }

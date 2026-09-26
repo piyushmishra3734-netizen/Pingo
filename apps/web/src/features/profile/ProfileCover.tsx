@@ -104,7 +104,8 @@ export function ProfileCover({
          * profile became a picture of nothing. The face hangs off the bottom
          * again, so this is back to being a strip of somebody's photograph.
          */
-        'relative -mx-5 h-28 overflow-hidden bg-brand-wash sm:h-36',
+        // The top of the profile card: the card draws its edge, this fills it.
+        'absolute inset-x-0 top-0 h-[150px] overflow-hidden bg-brand-wash',
         canMove && (dragging ? 'cursor-grabbing' : 'cursor-grab'),
       )}
       onPointerDown={onPointerDown}
@@ -132,7 +133,7 @@ export function ProfileCover({
         behind a light monogram is unreadable and there is no way to know in
         advance. Cheap, and it also stops the band competing with the face.
       */}
-      <div className="absolute inset-0 bg-gradient-to-t from-page/70 via-page/10 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent from-35% to-surface" />
 
       {editable ? (
         <button
@@ -142,8 +143,9 @@ export function ProfileCover({
             onPick?.();
           }}
           className={cn(
-            'focus-ring absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full',
-            'bg-surface/85 px-3 py-1.5 text-caption font-medium text-ink shadow-sm',
+            // Top corner: the bottom of the band is under the face now.
+            'focus-ring absolute right-3 top-3 flex items-center gap-1.5 rounded-full',
+            'bg-black/35 px-3 py-1.5 text-caption font-medium text-white',
             'active:scale-[0.97]',
           )}
         >
@@ -153,7 +155,7 @@ export function ProfileCover({
       ) : null}
 
       {canMove && !dragging ? (
-        <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-surface/70 px-2.5 py-1 text-[11px] text-text-secondary">
+        <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/35 px-2.5 py-1 text-[11px] text-white">
           Drag to reposition
         </span>
       ) : null}

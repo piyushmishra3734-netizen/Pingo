@@ -34,6 +34,7 @@ import {
   type PublicJourneyDraft,
   type ReportInput,
   type SharedHistory,
+  type MutualFriends,
 } from '@pingo/core';
 
 import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
@@ -71,6 +72,9 @@ function toProfile(row: ProfileRow): Profile {
     bio: row.bio?.trim() ? row.bio : undefined,
     ...(row.banner_url ? { bannerUrl: row.banner_url } : {}),
     bannerOffset: row.banner_offset ?? 50,
+    // Absent until the migration adds the columns; either way, blank is not drawn.
+    ...(row.work?.trim() ? { work: row.work } : {}),
+    ...(row.location?.trim() ? { location: row.location } : {}),
     isPremium: row.is_premium ?? false,
     createdAt: Date.parse(row.created_at),
   };
@@ -338,6 +342,8 @@ export class SupabaseProfileService implements ProfileService {
     if ('avatarUrl' in changes) patch.avatar_url = changes.avatarUrl ?? null;
     if ('bio' in changes) patch.bio = changes.bio?.trim() || null;
     if ('bannerUrl' in changes) patch.banner_url = changes.bannerUrl ?? null;
+    if ('work' in changes) patch.work = changes.work?.trim() || null;
+    if ('location' in changes) patch.location = changes.location?.trim() || null;
     if ('bannerOffset' in changes && changes.bannerOffset !== undefined) {
       // Clamped here as well as in the check constraint: a drag that overshoots
       // should land at the edge, not come back as a failed save.
@@ -806,6 +812,22 @@ export class SupabaseProfileService implements ProfileService {
       friendsSince: row?.friends_since ? Date.parse(row.friends_since) : undefined,
       mutualGroups: row?.mutual_groups ?? 0,
       photosShared: row?.photos_shared ?? 0,
+    };
+  }
+
+  async mutualFriends(userId: string): Promise<MutualFriends> {
+    const { data, error } = await this.client.rpc('mutual_friends', { other: userId });
+
+    if (error) rethrow(error);
+
+    const rows = data ?? [];
+    return {
+      total: rows[0]?.total ?? 0,
+      sample: rows.map((row) => ({
+        id: row.id,
+        displayName: row.display_name,
+        ...(row.avatar_url ? { avatarUrl: row.avatar_url } : {}),
+      })),
     };
   }
 

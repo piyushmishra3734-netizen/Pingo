@@ -37,6 +37,10 @@ export type ProfileRow = {
   banner_url: string | null;
   /** Vertical percent of the cover to centre on. 50 unless they moved it. */
   banner_offset: number;
+  /** One short line under the bio, up to 40 characters. Null means not drawn. */
+  work?: string | null;
+  /** Free text, up to 40 characters. Null means not drawn. */
+  location?: string | null;
   /** Operator-granted. Not in the column grant a user holds over their row. */
   is_premium: boolean;
   /** Display-only offsets added inside profile_stats. Operator-set. */
@@ -734,6 +738,8 @@ export type Database = {
           bio?: string | null;
           banner_url?: string | null;
           banner_offset?: number;
+          work?: string | null;
+          location?: string | null;
         };
         Relationships: [];
       };
@@ -1409,6 +1415,11 @@ export type Database = {
           mutual_groups: number;
           photos_shared: number;
         }[];
+      };
+      /** The caller's friends who are also friends with `other`: three faces and the total. */
+      mutual_friends: {
+        Args: { other: string };
+        Returns: { total: number; id: string; display_name: string; avatar_url: string | null }[];
       };
       /**
        * Accept an incoming friend request and write the reverse accepted follow

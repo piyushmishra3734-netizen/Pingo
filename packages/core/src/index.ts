@@ -55,6 +55,7 @@ export type {
   PrivacySettings,
   PublicJourneyDraft,
   SharedHistory,
+  MutualFriends,
   ChatMediaItem,
   ReportReason,
   ReportInput,
