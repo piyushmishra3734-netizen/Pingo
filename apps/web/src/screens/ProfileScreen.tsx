@@ -289,21 +289,6 @@ export function ProfileScreen() {
 
   const postFileRef = useRef<HTMLInputElement>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
-  /*
-   * Up here with the others, and that placement is the whole point.
-   *
-   * This sat next to the cover handlers three hundred lines down - which is
-   * *after* the early returns for a profile that has not loaded yet. So the
-   * hook ran on the render where the person existed and not on the render
-   * before it, the count changed between renders, and React refused to
-   * continue: "Rendered more hooks than during the previous render", which
-   * arrives as a blank screen.
-   *
-   * Only on somebody else's profile, because that is the only one that is
-   * briefly undefined - your own is already loaded by the time you get here,
-   * so both renders had the same hooks and nothing ever went wrong locally.
-   */
-  const coverFileRef = useRef<HTMLInputElement>(null);
   /** Object URL for the avatar crop editor; nothing uploads until Save. */
   const [avatarEditorSrc, setAvatarEditorSrc] = useState<string>();
   /** Set when the file picker was opened to replace one specific post. */
@@ -470,23 +455,6 @@ export function ProfileScreen() {
     setAvatarEditorSrc(undefined);
   };
 
-  /*
-   * The cover goes into the same bucket as every other face, unshrunk.
-   *
-   * `uploadAvatar` puts a square through `encodeAvatar` at avatar pixels, which
-   * is exactly wrong for a band four times wider than it is tall - it would
-   * arrive soft. `uploadCover` is the same bucket and the same public URL, with
-   * the picture left at the size they chose.
-   */
-  const pickCover = async (file: File) => {
-    try {
-      const url = await profiles.uploadCover(file);
-      await updateMine({ bannerUrl: url });
-    } catch {
-      // Nothing saved; the old cover is still there.
-    }
-  };
-
   const saveAvatarCrop = async (file: File) => {
     try {
       const url = await profiles.uploadAvatar(file);
@@ -542,20 +510,11 @@ export function ProfileScreen() {
           face, the button and every line about them sit on that fade - one
           object with one edge, instead of a band, a circle and a column of text
           that each end somewhere different.
-
-          The body ignores pointer events and only its rows take them back, so
-          the part of the cover the text does not cover still answers the drag
-          that repositions it.
         */}
         <article className="rounded-[34px] bg-surface/70 p-[5px] ring-1 ring-line">
           <div className="relative overflow-hidden rounded-[29px] bg-surface">
-            <ProfileCover
-              src={person.bannerUrl}
-              offset={person.bannerOffset}
-              editable={isSelf}
-              onPick={() => coverFileRef.current?.click()}
-              onOffsetChange={(next) => void updateMine({ bannerOffset: next })}
-            />
+            {/* A picture here; it is changed and moved in Edit profile, next to the rest. */}
+            <ProfileCover src={person.bannerUrl} offset={person.bannerOffset} />
 
             {/*
               Back and the menu sit on the cover, not in a bar above it: the
@@ -580,7 +539,7 @@ export function ProfileScreen() {
               {isSelf ? <MenuIcon size={19} /> : <MoreIcon size={19} />}
             </button>
 
-            <div className="pointer-events-none relative px-[18px] pb-5 pt-[92px] [&>*]:pointer-events-auto">
+            <div className="relative px-[18px] pb-5 pt-[92px]">
               <div className="flex items-end justify-between gap-3">
                 {/* `flex`, not `block`: an inline-flex child on a text baseline sits off centre. */}
                 <div className="flex">
@@ -712,17 +671,6 @@ export function ProfileScreen() {
           </div>
         </article>
 
-        <input
-          ref={coverFileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = '';
-            if (file) void pickCover(file);
-          }}
-        />
         <input
           ref={avatarFileRef}
           type="file"
