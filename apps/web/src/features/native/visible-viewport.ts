@@ -27,13 +27,28 @@ export function trackVisibleViewport(): () => void {
   if (!view) return () => undefined;
   const root = document.documentElement;
 
+  let last = 0;
   const update = () => {
     // Pinch-zoom also shrinks the visual viewport; that is not a keyboard.
     if (view.scale > 1.01) return;
-    root.style.setProperty('--app-height', `${Math.round(view.height)}px`);
-    // Safari scrolls the whole page up to show the field; the layout already
-    // moved it, so that scroll only pushes the header off the top.
-    if (view.offsetTop > 0 || window.scrollY > 0) window.scrollTo(0, 0);
+    /*
+     * Never taller than the layout viewport.
+     *
+     * While a list scrolls, Chrome slides its address bar away and the visual
+     * viewport grows past the page by up to fifty pixels - every frame. Taking
+     * that as the app's height resized the whole layout on every frame of every
+     * scroll, which is the jiggle. Only something *shorter* than the page is a
+     * keyboard, and that is the only case this is for.
+     */
+    const height = Math.round(Math.min(view.height, window.innerHeight));
+    if (Math.abs(height - last) > 1) {
+      last = height;
+      root.style.setProperty('--app-height', `${height}px`);
+    }
+    // Safari scrolls the whole page up to show the field. Put it back - but only
+    // while a keyboard is actually up, never in the middle of an ordinary scroll.
+    const keyboard = window.innerHeight - view.height > 80;
+    if (keyboard && (view.offsetTop > 0 || window.scrollY > 0)) window.scrollTo(0, 0);
   };
 
   update();
