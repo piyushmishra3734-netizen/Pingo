@@ -824,3 +824,11 @@ video {
   flex: 0 0 auto;
   width: 4.2em;
 }
+
+/* Somebody typing, Instagram's three dots: each rises in turn. */
+.ig-typing { display: inline-flex; align-items: center; gap: 4px; }
+.ig-typing i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .55; animation: ig-typing 1.2s ease-in-out infinite; }
+.ig-typing i:nth-child(2) { animation-delay: .15s; }
+.ig-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes ig-typing { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .ig-typing i { animation: none; } }

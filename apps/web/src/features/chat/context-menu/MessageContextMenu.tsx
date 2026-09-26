@@ -49,6 +49,10 @@ export interface MessageContextMenuProps {
   children: ReactNode;
 }
 
+/** How many message menus are open. The thread holds still while any is. */
+let openMenus = 0;
+export const isMessageMenuOpen = () => openMenus > 0;
+
 export function MessageContextMenu({
   anchor,
   touch,
@@ -65,24 +69,25 @@ export function MessageContextMenu({
    * user has to aim at.
    */
   useEffect(() => {
-    const onScroll = (event: Event) => {
-      /*
-       * Scrolling the menu is not scrolling away from it.
-       *
-       * Level 2 is a scrolling sheet, and capture-phase listening sees its
-       * scroll too - so without this, reaching the bottom of the sheet closes
-       * the thing you were reaching into.
-       */
-      const target = event.target;
-      if (target instanceof Node && scrimRef.current?.contains(target)) return;
-      onDismiss();
+    /*
+     * A person scrolling closes it; the thread moving on its own does not.
+     *
+     * It used to close on any scroll at all, and the thread scrolls itself - a
+     * read receipt or somebody starting to type nudged it - so the menu jumped
+     * or vanished under the finger mid-choice. A wheel or a drag outside the
+     * menu is a person; a scroll event alone is not evidence of one.
+     */
+    const onIntent = (event: Event) => {
+      // Only on the dimmed chat behind: scrolling inside the menu is reaching into it.
+      if (event.target === scrimRef.current) onDismiss();
     };
-
-    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
-    window.addEventListener('resize', onDismiss);
+    window.addEventListener('wheel', onIntent, { passive: true, capture: true });
+    window.addEventListener('touchmove', onIntent, { passive: true, capture: true });
+    openMenus += 1;
     return () => {
-      window.removeEventListener('scroll', onScroll, { capture: true });
-      window.removeEventListener('resize', onDismiss);
+      openMenus -= 1;
+      window.removeEventListener('wheel', onIntent, { capture: true });
+      window.removeEventListener('touchmove', onIntent, { capture: true });
     };
   }, [onDismiss]);
 

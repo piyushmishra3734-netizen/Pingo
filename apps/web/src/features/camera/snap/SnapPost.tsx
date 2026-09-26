@@ -289,12 +289,12 @@ function LinkSheet({ onDone, onClose }: { onDone: (v: string) => void; onClose: 
 // The people you send to most come first, as on Snapchat.
 const SEND_KEY = 'pingo.sendUse';
 const readSends = (): Record<string, { n: number; t: number }> => { try { return JSON.parse(localStorage.getItem(SEND_KEY) ?? '{}') as Record<string, { n: number; t: number }>; } catch { return {}; } };
-function noteSends(ids: string[]) {
+export function noteSends(ids: string[]) {
   const u = readSends(); for (const id of ids) { const e = (u[id] ??= { n: 0, t: 0 }); e.n += 1; e.t = Date.now(); }
   try { localStorage.setItem(SEND_KEY, JSON.stringify(u)); } catch { /* order resets */ }
 }
 
-function SendTo({ views, locked, onClose, onSend }: {
+export function SendTo({ views, locked, onClose, onSend }: {
   views: 1 | 2 | null | undefined; locked?: string; onClose: () => void;
   onSend: (ids: string[], story: false | 'friends' | 'close') => void;
 }) {
@@ -363,7 +363,7 @@ function SendTo({ views, locked, onClose, onSend }: {
 }
 
 // ---- flattening a Ping ------------------------------------------------------------
-async function drawStickers(g: CanvasRenderingContext2D, list: StorySticker[]) {
+export async function drawStickers(g: CanvasRenderingContext2D, list: StorySticker[]) {
   const unit = W / 100; // one cqw
   await document.fonts?.ready;
   for (const s of list) {

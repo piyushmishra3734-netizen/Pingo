@@ -38,6 +38,8 @@ export interface StoryPlayer {
   paused: boolean;
   next: () => void;
   previous: () => void;
+  /** Straight to the next or previous person - the swipe. Past either end closes. */
+  jumpGroup: (dir: 1 | -1) => void;
   /** Adds one reason to stay paused; the returned function removes it. */
   hold: () => () => void;
   /** Videos drive their own clock - see `reportDuration`. */
@@ -113,6 +115,22 @@ export function useStoryPlayer({
       return 0;
     });
   }, [groups, groupIndex]);
+
+  const jumpGroup = useCallback(
+    (dir: 1 | -1) => {
+      progressRef.current = 0;
+      durationRef.current = STORY_PHOTO_MS;
+      const target = groupIndex + dir;
+      if (target < 0) return;
+      if (target >= groups.length) {
+        onClose();
+        return;
+      }
+      setGroupIndex(target);
+      setStoryIndex(0);
+    },
+    [groups.length, groupIndex, onClose],
+  );
 
   const hold = useCallback(() => {
     setHolds((count) => count + 1);
@@ -194,6 +212,7 @@ export function useStoryPlayer({
     paused,
     next,
     previous,
+    jumpGroup,
     hold,
     reportDuration,
   };

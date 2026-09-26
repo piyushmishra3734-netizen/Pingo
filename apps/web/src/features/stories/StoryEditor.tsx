@@ -11,6 +11,7 @@ import { Overlay } from '../../components/Overlay.js';
 import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
+import { SendTo, drawStickers, noteSends } from '../camera/snap/SnapPost.js';
 import { Blue, ClipSheet, Field, MusicSheet, Panel, type Song } from '../music/sheets.js';
 
 /**
@@ -56,7 +57,7 @@ export interface StoryEditorProps {
 }
 
 export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost }: StoryEditorProps) {
-  const { users } = useChat();
+  const { users, service: chat } = useChat();
   const { profile } = useProfile();
   const stage = useRef<HTMLDivElement>(null);
   const layer = useRef<HTMLDivElement>(null);
@@ -236,7 +237,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   };
 
   // ---- leaving ---------------------------------------------------------------------
-  const exportPhoto = async (): Promise<Blob> => {
+  const exportPhoto = async (withStickers = false): Promise<Blob> => {
     const c = document.createElement('canvas'); c.width = W; c.height = H; const g2 = c.getContext('2d')!;
     if (bg) {
       const colours = bg.match(/rgb\([^)]*\)|#[0-9a-f]{3,8}/gi) ?? ['#3a3a40', '#1c1c1e'];
@@ -250,6 +251,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       g2.filter = 'none';
     }
     if (ink.current && strokes.length) g2.drawImage(ink.current, 0, 0);
+    if (withStickers) await drawStickers(g2, stickers);
     return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Could not save the picture.'))), 'image/jpeg', 0.9));
   };
 
@@ -278,6 +280,26 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       setError(cause instanceof Error ? cause.message : 'Could not share that.');
       setBusy(undefined);
     }
+  };
+
+  const sendTo = async (chatIds: string[], story: false | 'friends' | 'close') => {
+    if (chatIds.length) {
+      setBusy('Sending…'); setError(undefined);
+      try {
+        if (kind === 'photo') {
+          const image = await exportPhoto(true);
+          await Promise.all(chatIds.map((conversationId) => chat.sendMessage({ conversationId, body: '', photo: { image } })));
+        } else {
+          const file = new File([media], `story.${media.type.includes('mp4') ? 'mp4' : 'webm'}`, { type: media.type || 'video/mp4' });
+          await Promise.all(chatIds.map((conversationId) => chat.sendMessage({ conversationId, body: '', document: { file } })));
+        }
+        noteSends(chatIds);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'That did not send.'); setBusy(undefined); return;
+      }
+    }
+    if (story) await post(story);
+    else { setBusy(undefined); player.current?.pause(); onClose(); }
   };
 
   const download = async () => {
@@ -389,7 +411,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
             kind={sheet} setKind={setSheet} kindOfMedia={kind} filterI={filterI} setFilterI={setFilterI} src={src}
             users={users} add={add} song={song} setSong={(s) => { setSong(s); if (s) playSong(s); }} chooseSong={chooseSong}
             countdown={countdownFor.current} onCountdown={(d) => { const c = countdownFor.current; countdownFor.current = undefined; if (c) update(c.id, { d }); else add({ type: 'countdown', y: 0.3, d }); }}
-            onPost={post} onDiscard={() => { player.current?.pause(); onClose(); }}
+            onPost={post} onDiscard={() => { player.current?.pause(); onClose(); }} onSend={sendTo}
             onPreview={(s) => { if (!s) player.current?.pause(); else playSong(s); }}
           />
         )}
@@ -516,6 +538,7 @@ interface SheetsProps {
   song?: Song; setSong: (s: Song | undefined) => void; chooseSong: (s: Song) => void;
   countdown?: StorySticker; onCountdown: (d: Record<string, unknown>) => void;
   onPost: (a: StoryAudience, ids?: string[]) => Promise<void>; onDiscard: () => void; onPreview: (s?: Song) => void;
+  onSend: (chatIds: string[], story: false | 'friends' | 'close') => Promise<void>;
 }
 
 function EditorSheets(p: SheetsProps) {
@@ -594,11 +617,12 @@ function EditorSheets(p: SheetsProps) {
     case 'more':
       return (
         <Panel onClose={close}>
-          <button type="button" onClick={() => { close(); p.setKind('share'); }} className="px-5 py-3.5 text-left text-[15px] font-semibold">Share with specific people…</button>
+          <button type="button" onClick={() => { close(); p.setKind('share'); }} className="px-5 py-3.5 text-left text-[15px] font-semibold">Send to…</button>
           <button type="button" onClick={() => { p.setKind('discard'); }} className="px-5 py-3.5 text-left text-[15px] font-semibold text-[#ff3040]">Discard</button>
         </Panel>
       );
-    case 'share': return <ShareSheet {...p} close={close} />;
+    case 'share':
+      return <SendTo views={undefined} onClose={close} onSend={(ids, story) => { close(); void p.onSend(ids, story); }} />;
   }
   return null;
 }
@@ -656,40 +680,6 @@ function CountdownSheet(p: SheetsProps & { close: () => void }) {
         <Field type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={{ colorScheme: 'dark' }} />
         <Blue type="submit">Done</Blue>
       </form>
-    </Panel>
-  );
-}
-
-function ShareSheet(p: SheetsProps & { close: () => void }) {
-  const [who, setWho] = useState<StoryAudience>('friends');
-  const [chosen, setChosen] = useState<Set<string>>(new Set());
-  const opts: [StoryAudience, string, string][] = [['friends', 'Your story', 'Friends'], ['close', 'Close friends', 'Only your list'], ['public', 'Everyone', 'Anyone on PINGO'], ['custom', 'Specific people', 'Only who you choose']];
-  return (
-    <Panel title="Share" onClose={p.close}>
-      <div className="overflow-y-auto px-2.5">
-        {opts.map(([k, label, hint]) => (
-          <button key={k} type="button" onClick={() => setWho(k)} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left active:bg-white/5">
-            <span className={cn('grid size-11 place-items-center rounded-full', k === 'close' ? 'bg-[#1fc15e]' : 'bg-white/10')}>{k === 'close' ? <Star size={18} fill="#fff" /> : <AtSign size={18} />}</span>
-            <span className="min-w-0 flex-1"><b className="block text-[14.5px]">{label}</b><span className="text-[13px] text-white/55">{hint}</span></span>
-            {who === k ? <CircleCheck size={22} className="text-[#0a84ff]" /> : <Circle size={22} className="text-white/35" />}
-          </button>
-        ))}
-        {who === 'custom' && (
-          <div className="pb-2">
-            {p.users.slice(0, 60).map((u) => (
-              <button key={u.id} type="button" onClick={() => setChosen((c) => { const n = new Set(c); if (n.has(u.id)) n.delete(u.id); else n.add(u.id); return n; })}
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left active:bg-white/5">
-                {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="size-10 rounded-full object-cover" /> : <span className="grid size-10 place-items-center rounded-full bg-white/10 font-bold">{u.name[0]}</span>}
-                <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">{u.name}</span>
-                {chosen.has(u.id) ? <CircleCheck size={22} className="text-[#0a84ff]" /> : <Circle size={22} className="text-white/35" />}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="shrink-0 px-4 pt-2.5">
-        <Blue disabled={who === 'custom' && chosen.size === 0} onClick={() => { p.close(); void p.onPost(who, who === 'custom' ? [...chosen] : undefined); }}>Share</Blue>
-      </div>
     </Panel>
   );
 }

@@ -782,6 +782,10 @@ export class SupabaseStoryService implements StoryService {
    * that breaks when the profile service changes shape is a worse coupling than
    * eight lines of set intersection.
    */
+  listFriends(): Promise<string[]> {
+    return this.#mutualIds();
+  }
+
   async #mutualIds(): Promise<string[]> {
     const me = await this.#userId();
 

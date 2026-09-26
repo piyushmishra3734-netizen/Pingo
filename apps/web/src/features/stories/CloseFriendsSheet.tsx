@@ -22,17 +22,19 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
   const { service } = useStories();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** Close friends are chosen from friends, and only from friends. */
+  const [friends, setFriends] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
     let active = true;
-    void service
-      .listCloseFriends()
-      .then((ids) => {
+    void Promise.all([service.listCloseFriends(), service.listFriends()])
+      .then(([ids, friendIds]) => {
         if (active) {
           setSelected(new Set(ids));
+          setFriends(new Set(friendIds));
           setLoaded(true);
         }
       })
@@ -81,7 +83,9 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
         <PeoplePicker
           selected={selected}
           onToggle={(userId, next) => void toggle(userId, next)}
-          emptyLabel={t('story.nobodyAdd')}
+          // Already on the list stays visible, so someone no longer a friend can be taken off.
+          only={(user) => friends.has(user.id) || selected.has(user.id)}
+          emptyLabel='Add friends first - close friends are chosen from them.'
           busy={busy}
         />
       )}

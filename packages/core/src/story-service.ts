@@ -300,6 +300,9 @@ export interface StoryService {
    */
   listCloseFriends(): Promise<string[]>;
 
+  /** The signed-in user's friends (mutual follows), as ids. Close friends are chosen from these. */
+  listFriends(): Promise<string[]>;
+
   setCloseFriend(userId: string, close: boolean): Promise<void>;
 
   // -- privacy --------------------------------------------------------------
@@ -336,9 +339,11 @@ export type StoryReaction = (typeof STORY_REACTIONS)[number];
 export const STORY_PHOTO_MS = 5000;
 
 /** Labels for the audience picker, in the order they are offered. */
+/*
+ * Two, as on Snapchat: your story, or your close friends. Everyone and Specific
+ * people are gone from the picker; stories already posted to them still play.
+ */
 export const STORY_AUDIENCES: { value: StoryAudience; label: string; hint: string }[] = [
-  { value: 'friends', label: 'Friends', hint: 'People you are friends with' },
+  { value: 'friends', label: 'My story', hint: 'Your friends on PINGO' },
   { value: 'close', label: 'Close friends', hint: 'Your list. They see a green ring' },
-  { value: 'public', label: 'Everyone', hint: 'Anyone on PINGO' },
-  { value: 'custom', label: 'Specific people', hint: 'Only who you choose' },
 ];

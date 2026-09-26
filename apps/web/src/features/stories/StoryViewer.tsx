@@ -1,5 +1,5 @@
-import { STORY_PHOTO_MS, type Story, type StoryGroup } from '@pingo/core';
-import { Avatar, CloseIcon, MoreIcon, cn } from '@pingo/ui';
+import { STORY_PHOTO_MS, type Story, type StoryGroup, type StoryViewer as Watcher } from '@pingo/core';
+import { Avatar, CloseIcon, MoreIcon, SendIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -252,6 +252,16 @@ export function StoryViewer({
     if (storyId) void markSeen(storyId);
   }, [storyId, markSeen]);
 
+  const [watchers, setWatchers] = useState<Watcher[]>([]);
+  const mine = story?.authorId === currentUserId;
+  useEffect(() => {
+    setWatchers([]);
+    if (!storyId || !mine) return;
+    let live = true;
+    service.listViewers(storyId).then((list) => { if (live) setWatchers(list); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [storyId, mine, service]);
+
   // ---- keyboard -----------------------------------------------------------
 
   useEffect(() => {
@@ -299,17 +309,69 @@ export function StoryViewer({
   // ---- one pointer surface ------------------------------------------------
 
   const gesture = useRef<
-    { x: number; y: number; at: number; release: () => void } | undefined
+    | { x: number; y: number; at: number; release: () => void; axis?: 'x' | 'y'; dx: number; holdTimer: number }
+    | undefined
   >(undefined);
+  /** A press held long enough to be a pause: the bars, the header and the reply bar step aside. */
+  const [held, setHeld] = useState(false);
+  const faceRef = useRef<HTMLDivElement>(null);
+  const turning = useRef<1 | -1 | 0>(0);
+
+  /*
+   * The cube, Instagram's way between people.
+   *
+   * One face is drawn at a time, turned about the edge it shares with the next
+   * one. Dragging sideways turns it with the finger; letting go past a quarter
+   * of the screen finishes the turn and the next person's face turns in from
+   * the other side. Under that, the same player as ever.
+   */
+  const width = () => rootRef.current?.clientWidth || window.innerWidth;
+  const faceAt = (dx: number) => {
+    const el = faceRef.current; if (!el) return;
+    const dir = dx < 0 ? 1 : -1;
+    el.style.transformOrigin = dir === 1 ? 'right center' : 'left center';
+    el.style.transform = `translateX(${dx}px) rotateY(${(-dx / width()) * 90}deg)`;
+  };
+  const turnOut = (dir: 1 | -1) => {
+    const el = faceRef.current;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!el || reduced) { player.jumpGroup(dir); return; }
+    turning.current = dir;
+    const from = el.style.transform || 'none';
+    el.style.transformOrigin = dir === 1 ? 'right center' : 'left center';
+    void el.animate([{ transform: from }, { transform: `translateX(${-dir * width()}px) rotateY(${dir * 90}deg)` }],
+      { duration: 280, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' }).finished.catch(() => undefined).then(() => {
+      player.jumpGroup(dir);
+    });
+  };
+  // Whenever the person changes - a swipe, or running off the end of someone - the new face turns in.
+  const lastGroup = useRef(player.groupIndex);
+  useEffect(() => {
+    const el = faceRef.current;
+    const dir = (player.groupIndex > lastGroup.current ? 1 : -1) as 1 | -1;
+    lastGroup.current = player.groupIndex;
+    if (!el) return;
+    el.getAnimations().forEach((a) => a.cancel());
+    el.style.transform = '';
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.style.transformOrigin = dir === 1 ? 'left center' : 'right center';
+    el.animate([{ transform: `translateX(${dir * width()}px) rotateY(${-dir * 90}deg)` }, { transform: 'none' }],
+      { duration: 340, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    turning.current = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.groupIndex]);
 
   const onPointerDown = (event: React.PointerEvent) => {
+    if (turning.current) return;
     gesture.current = {
       x: event.clientX,
       y: event.clientY,
       at: performance.now(),
+      dx: 0,
       // Pauses immediately: a finger on the story is a finger on the story,
       // whatever the gesture turns out to have been.
       release: player.hold(),
+      holdTimer: window.setTimeout(() => setHeld(true), HOLD_MS),
     };
     setDragging(true);
   };
@@ -317,29 +379,50 @@ export function StoryViewer({
   const onPointerMove = (event: React.PointerEvent) => {
     const start = gesture.current;
     if (!start) return;
-    // Only downward. There is nothing above a story to drag towards.
-    setDragY(Math.max(0, event.clientY - start.y));
+    const dx = event.clientX - start.x, dy = event.clientY - start.y;
+    if (!start.axis && Math.hypot(dx, dy) > 10) {
+      start.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      window.clearTimeout(start.holdTimer); setHeld(false);
+    }
+    if (start.axis === 'x') {
+      // Nothing to turn to past the first person; a little give, then stop.
+      const edge = (dx > 0 && player.groupIndex === 0) ? 0.2 : 1;
+      start.dx = dx * edge;
+      faceAt(start.dx);
+    } else if (start.axis === 'y') {
+      // Only downward. There is nothing above a story to drag towards.
+      setDragY(Math.max(0, dy));
+    }
   };
 
   const endGesture = (event: React.PointerEvent) => {
     const start = gesture.current;
     if (!start) return;
     gesture.current = undefined;
+    window.clearTimeout(start.holdTimer);
+    setHeld(false);
     start.release();
     setDragging(false);
 
     const movedY = event.clientY - start.y;
     const movedX = Math.abs(event.clientX - start.x);
-    const held = performance.now() - start.at;
+    const heldFor = performance.now() - start.at;
 
     setDragY(0);
 
+    if (start.axis === 'x') {
+      const dir = (start.dx < 0 ? 1 : -1) as 1 | -1;
+      if (Math.abs(start.dx) > width() * 0.25 && !(dir === -1 && player.groupIndex === 0)) { turnOut(dir); return; }
+      const el = faceRef.current;
+      if (el) void el.animate([{ transform: el.style.transform || 'none' }, { transform: 'none' }], { duration: 220, easing: 'ease-out' }).finished.catch(() => undefined).then(() => { el.style.transform = ''; });
+      return;
+    }
     if (movedY > DISMISS_DISTANCE) {
       requestClose();
       return;
     }
     // A pause, or a drag that came back. Either way it was not a tap.
-    if (held > HOLD_MS || movedY > 12 || movedX > 12) return;
+    if (heldFor > HOLD_MS || movedY > 12 || movedX > 12) return;
 
     const bounds = event.currentTarget.getBoundingClientRect();
     // The left third goes back and the rest advances - the proportion every
@@ -461,59 +544,13 @@ export function StoryViewer({
           // release then springs back.
           transition: dragging ? undefined : 'transform 240ms cubic-bezier(0.32,0.72,0,1)',
           borderRadius: dragY ? '1.5rem' : undefined,
+          perspective: '1100px',
         }}
       >
-        <StoryProgress count={group.stories.length} index={storyIndex} progressRef={progressRef} />
-
-        {/* ---- who, when, and the menu -------------------------------- */}
-        <div className="relative z-20 flex shrink-0 items-center gap-3 px-4 py-3">
-          <Avatar
-            name={group.authorName}
-            id={group.authorId}
-            src={group.authorAvatarUrl}
-            size="sm"
-          />
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2">
-              <span className="truncate text-body text-white">
-                {owned ? 'Your story' : group.authorName}
-              </span>
-              <span className="shrink-0 text-caption text-white/55">{ago(story.createdAt)}</span>
-            </span>
-            <span className="block truncate text-caption text-white/55">
-              {/*
-                "3 / 5" beside the handle as well as in the bars. The bars show
-                position graphically; this is the same fact for anyone who would
-                rather read it, and for a screen reader.
-              */}
-              @{group.authorUsername} · {storyIndex + 1} / {group.stories.length}
-              {story.audience === 'close' && ' · Close friends'}
-            </span>
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Story options"
-            className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
-          >
-            <MoreIcon size={22} />
-          </button>
-
-          <button
-            ref={closeRef}
-            type="button"
-            onClick={requestClose}
-            aria-label="Close"
-            className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
-          >
-            <CloseIcon size={22} />
-          </button>
-        </div>
-
+        <div ref={faceRef} className="flex min-h-0 flex-1 flex-col bg-backdrop [backface-visibility:hidden]">
         {/* ---- the story ---------------------------------------------- */}
         <div
-          className="relative min-h-0 flex-1"
+          className="relative min-h-0 flex-1 overflow-hidden rounded-b-2xl"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endGesture}
@@ -521,6 +558,57 @@ export function StoryViewer({
           // The browser must not also pan, zoom or pull-to-refresh underneath.
           style={{ touchAction: 'none' }}
         >
+          {/* The bars and who it is, over the picture, stepping aside while it is held. */}
+          <div className={cn('absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/45 to-transparent pb-6 transition-opacity duration-200', held && 'opacity-0')}>
+          <StoryProgress count={group.stories.length} index={storyIndex} progressRef={progressRef} />
+
+          {/* ---- who, when, and the menu -------------------------------- */}
+          <div className="relative z-20 flex shrink-0 items-center gap-3 px-4 py-3" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+            <Avatar
+              name={group.authorName}
+              id={group.authorId}
+              src={group.authorAvatarUrl}
+              size="sm"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="truncate text-body text-white">
+                  {owned ? 'Your story' : group.authorName}
+                </span>
+                <span className="shrink-0 text-caption text-white/55">{ago(story.createdAt)}</span>
+              </span>
+              <span className="block truncate text-caption text-white/55">
+                {/*
+                  "3 / 5" beside the handle as well as in the bars. The bars show
+                  position graphically; this is the same fact for anyone who would
+                  rather read it, and for a screen reader.
+                */}
+                @{group.authorUsername} · {storyIndex + 1} / {group.stories.length}
+                {story.audience === 'close' && ' · Close friends'}
+              </span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Story options"
+              className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
+            >
+              <MoreIcon size={22} />
+            </button>
+
+            <button
+              ref={closeRef}
+              type="button"
+              onClick={requestClose}
+              aria-label="Close"
+              className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
+            >
+              <CloseIcon size={22} />
+            </button>
+          </div>
+          </div>
+
           {story.kind === 'video' ? (
             <StoryVideo
               story={story}
@@ -556,34 +644,30 @@ export function StoryViewer({
           {story.audio && story.audio.length > 0 && (
             <StorySound storyId={story.id} tracks={story.audio} paused={player.paused} />
           )}
-
-          {player.paused && (
-            <span
-              className={cn(
-                'animate-fade-in pointer-events-none absolute top-3 left-1/2 -translate-x-1/2',
-                'rounded-full bg-backdrop/50 px-3 py-1 text-caption text-white backdrop-blur-glass',
-              )}
-            >
-              Paused
-            </span>
-          )}
         </div>
 
         {/* ---- what you can do about it -------------------------------- */}
-        <div className="relative z-20 shrink-0 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className={cn('relative z-20 shrink-0 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-200', held && 'opacity-0')}>
           <div className="mx-auto w-full max-w-xl">
             {owned ? (
-              <button
-                type="button"
-                onClick={() => setViewersOpen(true)}
-                className={cn(
-                  'focus-ring mx-auto flex items-center gap-2 rounded-full',
-                  'bg-white/12 px-4 py-2.5 text-caption text-white backdrop-blur-glass',
-                  'transition-colors duration-instant hover:bg-white/20',
-                )}
-              >
-                Seen by (tap for insights)
-              </button>
+              // Instagram's: who has seen it, as faces, and the ways to pass it on.
+              <div className="flex items-center gap-2 text-white">
+                <button type="button" onClick={() => setViewersOpen(true)} className="focus-ring flex min-w-0 items-center gap-2 rounded-full py-1.5 pr-2 text-[13px] font-semibold">
+                  {watchers.length > 0 && (
+                    <span className="flex">
+                      {watchers.slice(0, 3).map((w, i) => (
+                        <span key={w.userId} className={cn('rounded-full ring-2 ring-black', i > 0 && '-ml-2')}>
+                          <Avatar name={w.displayName} id={w.userId} src={w.avatarUrl} size="xs" />
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                  Activity{watchers.length > 0 ? ` · ${watchers.length}` : ''}
+                </button>
+                <span className="flex-1" />
+                <button type="button" aria-label="Share" onClick={shareStory} className="focus-ring grid size-10 place-items-center rounded-full hover:bg-white/10"><SendIcon size={22} /></button>
+                <button type="button" aria-label="More" onClick={() => setMenuOpen(true)} className="focus-ring grid size-10 place-items-center rounded-full hover:bg-white/10"><MoreIcon size={22} /></button>
+              </div>
             ) : (
               <StoryActions
                 story={story}
@@ -597,6 +681,7 @@ export function StoryViewer({
               />
             )}
           </div>
+        </div>
         </div>
       </div>
 

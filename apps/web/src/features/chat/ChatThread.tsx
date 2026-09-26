@@ -50,6 +50,7 @@ import { useMutuals } from '../profile/useMutuals.js';
 import { useT } from '../i18n/useT.js';
 import { AchievementMark } from '../achievements/AchievementArt.js';
 import { useAchievements } from '../achievements/useAchievements.js';
+import { isMessageMenuOpen } from './context-menu/MessageContextMenu.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer, type MentionOption } from './Composer.js';
@@ -1045,22 +1046,35 @@ export function ChatThread({
     openedRef.current = false;
   }, [conversation.id]);
 
+  /*
+   * Following the bottom, and only when there is something new down there.
+   *
+   * This used to run on every change to the message list - and a read receipt
+   * or a typing flag rebuilds that list without adding a line - so the thread
+   * lurched each time somebody read a message or started typing, and any menu
+   * or edit open on a message was carried off with it. It also used
+   * `scrollIntoView`, which scrolls every scrollable box up the tree, the page
+   * included. Now: the thread's own scroller, only when its content grew, and
+   * never while a message menu is open.
+   */
+  const lastHeightRef = useRef(0);
   useEffect(() => {
     if (loading) return;
+    const el = scrollRef.current;
+    if (!el) return;
 
     if (!openedRef.current) {
       openedRef.current = true;
-      bottomRef.current?.scrollIntoView({ block: 'end' });
+      el.scrollTop = el.scrollHeight;
+      lastHeightRef.current = el.scrollHeight;
       return;
     }
 
-    if (followingRef.current) {
-      bottomRef.current?.scrollIntoView({
-        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-        block: 'end',
-      });
-    }
-  }, [groups, loading, isTyping, prefersReducedMotion]);
+    const grew = el.scrollHeight > lastHeightRef.current + 1;
+    lastHeightRef.current = el.scrollHeight;
+    if (!grew || !followingRef.current || isMessageMenuOpen()) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }, [groups, loading, prefersReducedMotion]);
 
   const jumpChipMode =
     newSession && newSession.count > 0
@@ -1070,10 +1084,8 @@ export function ChatThread({
         : undefined;
 
   const jumpToLatest = useCallback(() => {
-    bottomRef.current?.scrollIntoView({
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-      block: 'end',
-    });
+    const el = scrollRef.current;
+    el?.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }, [prefersReducedMotion]);
 
   const jumpToNewMessages = useCallback(() => {
@@ -1460,7 +1472,7 @@ export function ChatThread({
         // scrolling it slides the address bar away - the screen grows, and the
         // composer riding its bottom edge jumps up and down with every scroll.
         className="mb-px min-h-0 flex-1 overflow-y-auto"
-        style={{ paddingTop: chrome.top, paddingBottom: chrome.bottom }}
+        style={{ paddingTop: chrome.top, paddingBottom: chrome.bottom + 44 }}
       >
         {loading ? (
           <ThreadSkeleton />
@@ -1733,9 +1745,10 @@ export function ChatThread({
               </div>
             ))}
 
-            {seen && (
+            {/* Its room is kept whenever the last word is mine, so 'Seen' arriving does not move anything. */}
+            {(seen || messages[messages.length - 1]?.authorId === currentUser?.id) && (
               <p
-                className="pr-1 pt-0.5 text-right text-caption text-text-tertiary"
+                className="min-h-[1.25rem] pr-1 pt-0.5 text-right text-caption text-text-tertiary"
                 /*
                  * Announced when it changes rather than on every render. A
                  * screen reader user gets told once that the message landed,
@@ -1743,45 +1756,9 @@ export function ChatThread({
                  */
                 aria-live="polite"
               >
-                {seen}
+                {seen ?? ' '}
               </p>
             )}
-
-            {isTyping &&
-              /*
-                Recording gets the mark alone: no bubble, no words.
-
-                A bubble is the shape of a message, and a bubble that says
-                "recording a voice note" is the app narrating itself - the
-                pulsing microphone already says the whole thing, and saying it
-                twice is what makes an interface feel padded. Typing keeps its
-                bubble because dots inside one read as a message being formed,
-                which is exactly what they mean.
-              */
-              (aiStage ? (
-                /*
-                  Inside a bubble, unlike the microphone.
-
-                  The microphone stands bare because the mark *is* the whole
-                  message. This is a sentence, and a sentence with no bubble
-                  behind it reads as part of the wallpaper.
-                */
-                <div className="flex justify-start pt-1">
-                  <div className="glass-water rounded-lg px-4 py-3 text-caption">
-                    <AiActivity label={`${AI_STAGES[aiStage]}…`} />
-                  </div>
-                </div>
-              ) : isRecording ? (
-                <div className="flex justify-start pt-1 pl-1">
-                  <RecordingPulse size={22} />
-                </div>
-              ) : (
-                <div className="flex justify-start pt-1">
-                  <div className="glass-water rounded-lg px-4 py-3">
-                    <PingoDot state="typing" size={7} label={typingLabel || 'typing'} />
-                  </div>
-                </div>
-              ))}
 
             {/*
               Sits under the typing indicator (never above it). AI gets honesty
@@ -1803,6 +1780,26 @@ export function ChatThread({
       */}
       <div aria-hidden className="lq-scrim-top pointer-events-none absolute inset-x-0 top-0 z-[90]" style={{ height: chrome.top + 36 }} />
       <div aria-hidden className="lq-scrim-bottom pointer-events-none absolute inset-x-0 bottom-0 z-[90]" style={{ height: chrome.bottom + 24 }} />
+
+      {/*
+        Somebody typing, as Instagram draws it: their face and a bubble of three
+        bouncing dots, just above the composer. Out of the thread on purpose - in
+        it, the thread grew and shrank each time somebody started or stopped, and
+        everything on screen moved with it. The thread keeps room for it always.
+      */}
+      {isTyping && (
+        <div className="animate-fade-in pointer-events-none absolute left-3 z-[96] flex items-end gap-2" style={{ bottom: chrome.bottom + 6 }} aria-live="polite">
+          {(() => {
+            const typer = users.find((u) => u.id === conversation.typingUserIds[0]);
+            return isAi ? null : <Avatar name={typer?.name ?? conversation.title} id={typer?.id ?? conversation.id} src={typer?.avatarUrl ?? conversation.avatarUrl} size="xs" />;
+          })()}
+          <div className="lq-glass-water lq-read flex h-9 items-center rounded-[18px] px-3.5 text-caption">
+            {aiStage ? <AiActivity label={`${AI_STAGES[aiStage]}…`} />
+              : isRecording ? <RecordingPulse size={18} />
+                : <span className="ig-typing" aria-label={typingLabel || 'typing'}><i /><i /><i /></span>}
+          </div>
+        </div>
+      )}
 
       {jumpChipMode && (
         <div

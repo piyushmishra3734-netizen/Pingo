@@ -1,4 +1,4 @@
-import { STORY_REACTIONS, useChat, type Story } from '@pingo/core';
+import { useChat, type Story } from '@pingo/core';
 import { HeartIcon, SendIcon, cn } from '@pingo/ui';
 import { useState } from 'react';
 
@@ -48,6 +48,7 @@ export function StoryActions({
   const [sent, setSent] = useState<string>();
   const [error, setError] = useState<string>();
   const [release, setRelease] = useState<(() => void) | undefined>();
+  const [typing, setTyping] = useState(false);
 
   /** Pauses on focus, resumes on blur. See `useStoryPlayer`. */
   const holdWhileTyping = (holding: boolean) => {
@@ -118,24 +119,23 @@ export function StoryActions({
         </p>
       )}
 
-      {/* ---- the five quick reactions ---------------------------------- */}
-      <div className="flex items-center justify-center gap-1.5">
-        {STORY_REACTIONS.map((emoji) => (
-          <button
-            key={emoji}
-            type="button"
-            onClick={() => void send(emoji)}
-            aria-label={`React with ${emoji}`}
-            className={cn(
-              'focus-ring grid size-11 place-items-center rounded-full text-[1.4rem]',
-              'transition-transform duration-instant ease-standard',
-              'hover:bg-white/10 active:scale-125',
-            )}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
+      {/*
+        Quick reactions, Instagram's way: a grid over the story while the reply
+        box is open, and a tapped one flies up the screen as it is sent.
+      */}
+      {typing && (
+        <div className="animate-fade-in fixed inset-x-0 top-0 bottom-[88px] z-30 flex flex-col items-center justify-center gap-4 bg-black/72"
+          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+          <p className="text-[15px] font-semibold text-white">Quick reactions</p>
+          <div className="grid grid-cols-4 gap-3.5">
+            {QUICK.map((emoji) => (
+              <button key={emoji} type="button" aria-label={`React with ${emoji}`}
+                onClick={(e) => { burst(emoji, e.currentTarget); void send(emoji); (document.activeElement as HTMLElement | null)?.blur(); setTyping(false); }}
+                className="grid size-16 place-items-center text-[40px] transition-transform active:scale-125">{emoji}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ---- reply, and the heart -------------------------------------- */}
       <form
@@ -148,8 +148,9 @@ export function StoryActions({
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          onFocus={() => holdWhileTyping(true)}
-          onBlur={() => holdWhileTyping(false)}
+          onFocus={() => { holdWhileTyping(true); setTyping(true); }}
+          // A tap on a reaction must land before the grid goes.
+          onBlur={() => { holdWhileTyping(false); window.setTimeout(() => setTyping(false), 150); }}
           placeholder={`Reply to ${story.authorName.split(' ')[0]}…`}
           aria-label={`Reply to ${story.authorName}`}
           maxLength={1000}
@@ -176,7 +177,7 @@ export function StoryActions({
         ) : (
           <button
             type="button"
-            onClick={() => onLike(!liked)}
+            onClick={(e) => { if (!liked) hearts(e.currentTarget); onLike(!liked); }}
             aria-label={liked ? 'Unlike this story' : 'Like this story'}
             aria-pressed={liked}
             className={cn(
@@ -191,4 +192,34 @@ export function StoryActions({
       </form>
     </div>
   );
+}
+
+const QUICK = ['😂', '😮', '😍', '😢', '👏', '🔥', '🎉', '💯'];
+
+/** A reaction sent: the emoji rises up the screen, a few at once. */
+function burst(emoji: string, from: HTMLElement) {
+  const r = from.getBoundingClientRect();
+  for (let i = 0; i < 9; i += 1) {
+    const n = document.createElement('span');
+    n.textContent = emoji;
+    n.style.cssText = `position:fixed;z-index:2000;left:${r.left + r.width / 2 + (Math.random() - 0.5) * 160}px;top:${r.top}px;font-size:38px;pointer-events:none`;
+    document.body.append(n);
+    void n.animate(
+      [{ transform: 'translateY(0) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.1 }, { transform: `translate(${(Math.random() - 0.5) * 120}px, -${window.innerHeight * 0.7}px) scale(1.2) rotate(${(Math.random() - 0.5) * 60}deg)`, opacity: 0 }],
+      { duration: 1600, delay: i * 70, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'both' },
+    ).finished.then(() => n.remove());
+  }
+}
+
+/** A like: small hearts lift off the button. */
+function hearts(from: HTMLElement) {
+  const r = from.getBoundingClientRect();
+  for (let i = 0; i < 6; i += 1) {
+    const n = document.createElement('span');
+    n.textContent = '♥';
+    n.style.cssText = `position:fixed;z-index:2000;left:${r.left + r.width / 2 - 6}px;top:${r.top}px;color:#ff3040;font-size:15px;pointer-events:none`;
+    document.body.append(n);
+    void n.animate([{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${(Math.random() - 0.5) * 60}px, -90px) scale(1.4)`, opacity: 0 }],
+      { duration: 900, delay: i * 60, easing: 'ease-out', fill: 'both' }).finished.then(() => n.remove());
+  }
 }
