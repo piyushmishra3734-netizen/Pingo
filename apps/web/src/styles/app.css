@@ -56,7 +56,8 @@
   html,
   body,
   #root {
-    height: 100%;
+    /* What is actually visible - shorter while the keyboard is open. See visible-viewport.ts. */
+    height: var(--app-height, 100%);
   }
 
   html {

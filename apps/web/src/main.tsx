@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 
 import { initNativeShell } from './features/native/shell.js';
+import { trackVisibleViewport } from './features/native/visible-viewport.js';
 import { requestPersistentStorage } from './lib/local/db.js';
 import { keepServiceWorkerFresh } from './lib/sw-refresh.js';
 
@@ -31,6 +32,13 @@ createRoot(container).render(
  * a sheet will claim it here rather than each binding their own listener.
  */
 void initNativeShell(() => false);
+
+/*
+ * The keyboard, in a mobile browser: keep the layout the height of what is on
+ * screen, so the composer sits above the keyboard instead of under it. The
+ * native app resizes its WebView itself and does not need this.
+ */
+if (!Capacitor.isNativePlatform()) trackVisibleViewport();
 
 /*
  * And notice when a new build exists.
