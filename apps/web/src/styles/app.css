@@ -143,6 +143,21 @@
   button.lq-glass-water:active,
   a.lq-glass-water:active { transform: scale(0.92); }
 
+  /* Menus are glass too, frosted enough to read a list off. */
+  .lq-menu { --lq-fill: rgb(255 255 255 / 0.62); }
+  :root[data-theme='dark'] .lq-menu { --lq-fill: rgb(28 28 34 / 0.62); }
+  /* What sits behind a held message: the chat, blurred and dimmed, iOS's way. */
+  .lq-dim {
+    background: rgb(0 0 0 / 0.18);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+  }
+  :root[data-theme='dark'] .lq-dim { background: rgb(0 0 0 / 0.38); }
+  @keyframes lq-lift { to { transform: scale(1.035); } }
+  @keyframes lq-pop { from { opacity: 0; transform: scale(0.55); } }
+  .lq-lift { animation: lq-lift 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .lq-pop { animation: lq-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+
   /* Progressive blur at both ends of the thread, so the glass sits on something calm. */
   .lq-scrim-top,
   .lq-scrim-bottom {

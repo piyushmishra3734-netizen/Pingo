@@ -1,5 +1,6 @@
 import type { Message } from '@pingo/core';
-import { ChatIcon, ChevronRightIcon, cn } from '@pingo/ui';
+import { cn } from '@pingo/ui';
+import { Copy, Ellipsis, Flag, Forward, Info, Languages, Pencil, Pin, Reply, Star, Trash, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 /**
@@ -21,6 +22,18 @@ export interface MessageActionsProps {
   onForward: (message: Message) => void;
   onMore: () => void;
   onDone: () => void;
+  mine: boolean;
+  /** The same actions the More sheet runs; the common ones are listed here directly. */
+  quick: {
+    pin: () => void;
+    star: () => void;
+    edit: () => void;
+    info: () => void;
+    translate: () => void;
+    deleteForMe: () => void;
+    deleteForEveryone: () => void;
+    report: () => void;
+  };
 }
 
 export function MessageActions({
@@ -29,6 +42,8 @@ export function MessageActions({
   onForward,
   onMore,
   onDone,
+  mine,
+  quick,
 }: MessageActionsProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -63,41 +78,40 @@ export function MessageActions({
     }
   };
 
+  const run = (fn: () => void) => () => {
+    fn();
+    onDone();
+  };
+  const text = message.body.trim().length > 0;
+
+  /*
+   * The approved list, iOS's shape: what you reach for most, one tap each,
+   * then the destructive ones set apart below a gap. The long tail - remind,
+   * share, save, speak, jump - is still one row away, under More.
+   */
   return (
     <div
       ref={listRef}
       role="menu"
       aria-label="Message actions"
       onKeyDown={onKeyDown}
-      className="bg-surface border border-line w-44 overflow-hidden rounded-xl py-1 shadow-lg"
+      className="lq-glass-water lq-menu w-[236px] overflow-hidden rounded-[22px] py-1"
     >
-      <Action
-        label="Reply"
-        icon={<ChatIcon size={17} />}
-        onClick={() => {
-          onReply(message);
-          onDone();
-        }}
-      />
-      <Action
-        label={copied ? 'Copied' : 'Copy'}
-        icon={<span className="text-[0.95rem] leading-none">📋</span>}
-        onClick={() => void copy()}
-      />
-      <Action
-        label="Forward"
-        icon={<span className="text-[0.95rem] leading-none">📤</span>}
-        onClick={() => {
-          onForward(message);
-          onDone();
-        }}
-      />
-      <Action
-        label="More"
-        icon={<span className="text-[0.95rem] leading-none">⋯</span>}
-        trailing={<ChevronRightIcon size={15} className="text-text-tertiary" />}
-        onClick={onMore}
-      />
+      <Action label="Reply" icon={<Reply size={19} />} onClick={() => { onReply(message); onDone(); }} />
+      {text && <Action label={copied ? 'Copied' : 'Copy'} icon={<Copy size={19} />} onClick={() => void copy()} />}
+      <Action label="Forward" icon={<Forward size={19} />} onClick={() => { onForward(message); onDone(); }} />
+      <Action label="Pin" icon={<Pin size={19} />} onClick={run(quick.pin)} />
+      <Action label="Star" icon={<Star size={19} />} onClick={run(quick.star)} />
+      {mine && text && <Action label="Edit" icon={<Pencil size={19} />} onClick={run(quick.edit)} />}
+      <Action label="Info" icon={<Info size={19} />} onClick={run(quick.info)} />
+      {text && <Action label="Translate" icon={<Languages size={19} />} onClick={run(quick.translate)} />}
+      <Action label="More" icon={<Ellipsis size={19} />} onClick={onMore} />
+      <div aria-hidden className="h-[7px] bg-text-tertiary/15" />
+      {mine && (
+        <Action label="Delete for everyone" icon={<Trash2 size={19} />} danger onClick={run(quick.deleteForEveryone)} />
+      )}
+      <Action label="Delete for me" icon={<Trash size={19} />} danger onClick={run(quick.deleteForMe)} />
+      {!mine && <Action label="Report" icon={<Flag size={19} />} danger onClick={run(quick.report)} />}
     </div>
   );
 }
@@ -105,12 +119,12 @@ export function MessageActions({
 function Action({
   label,
   icon,
-  trailing,
+  danger = false,
   onClick,
 }: {
   label: string;
   icon: React.ReactNode;
-  trailing?: React.ReactNode;
+  danger?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -119,16 +133,13 @@ function Action({
       role="menuitem"
       onClick={onClick}
       className={cn(
-        'focus-ring flex w-full items-center gap-2.5 px-3 py-2.5 text-left',
-        'text-body text-ink transition-colors duration-instant',
-        'hover:bg-hover active:bg-pressed',
+        'focus-ring flex w-full items-center justify-between gap-3 border-t border-text-tertiary/15 px-4 py-[11px] text-left first:border-t-0 [div+&]:border-t-0',
+        'text-[15.5px] font-medium transition-colors duration-instant active:bg-text-tertiary/15',
+        danger ? 'text-[#ff453a]' : 'text-ink',
       )}
     >
-      <span className="grid w-5 shrink-0 place-items-center text-text-secondary">
-        {icon}
-      </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      {trailing}
+      <span className="shrink-0">{icon}</span>
     </button>
   );
 }

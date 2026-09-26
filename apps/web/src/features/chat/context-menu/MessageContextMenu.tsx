@@ -129,8 +129,8 @@ export function MessageContextMenu({
         onPointerDown={onDismiss}
         className={cn(
           'fixed inset-0 z-400',
-          // 5-10% dim, and deliberately no blur. docs/13 § 2.
-          'bg-backdrop/[0.08]',
+          // The approved design: the chat blurred and dimmed behind the held message, as iOS does it.
+          'lq-dim',
           'animate-fade-in',
         )}
         style={{ animationDuration: `${ENTER_MS}ms` }}
@@ -143,11 +143,10 @@ export function MessageContextMenu({
         >
           <div
             ref={reactionsRef}
-            className="pointer-events-auto absolute origin-bottom animate-panel-in"
+            className="lq-pop pointer-events-auto absolute origin-bottom-left"
             style={{
               left: layout.reactionsLeft,
               top: layout.reactionsTop,
-              animationDuration: `${ENTER_MS}ms`,
             }}
           >
             {reactions}
@@ -159,14 +158,12 @@ export function MessageContextMenu({
             lift read as the bubble rising rather than as a copy appearing.
           */}
           <div
-            className="pointer-events-none absolute transition-transform"
+            className="lq-lift pointer-events-none absolute"
             style={{
               left: anchor.left,
-              top: anchor.top,
+              top: anchor.top - LIFT_PX,
               width: anchor.width,
-              transform: `translateY(-${LIFT_PX}px)`,
-              transitionDuration: '180ms',
-              filter: 'drop-shadow(0 6px 16px rgb(16 17 20 / 0.14))',
+              filter: 'drop-shadow(0 24px 30px rgb(0 0 0 / 0.35))',
             }}
           >
             {children}
@@ -174,11 +171,11 @@ export function MessageContextMenu({
 
           <div
             ref={actionsRef}
-            className="pointer-events-auto absolute origin-top animate-panel-in"
+            className="lq-pop pointer-events-auto absolute origin-top-left"
             style={{
               left: layout.left,
               top: layout.actionsTop,
-              animationDuration: `${ENTER_MS}ms`,
+              animationDelay: '30ms',
             }}
           >
             {actions}

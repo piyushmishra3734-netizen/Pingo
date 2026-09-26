@@ -163,6 +163,8 @@ export function MessageMenu({
                 onForward={onForward}
                 onMore={() => setLevel('more')}
                 onDone={close}
+                mine={mine}
+                quick={level2}
               />
             ) : (
               <MoreSheet

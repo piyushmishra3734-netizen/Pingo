@@ -134,7 +134,7 @@ export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetP
     <div
       role="menu"
       aria-label="More actions"
-      className="bg-surface border border-line max-h-[60vh] w-60 overflow-y-auto rounded-xl py-1 shadow-lg"
+      className="lq-glass-water lq-menu max-h-[60vh] w-60 overflow-y-auto rounded-[22px] py-1"
     >
       <button
         type="button"
