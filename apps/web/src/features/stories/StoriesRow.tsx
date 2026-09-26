@@ -1,6 +1,6 @@
 import type { StoryGroup } from '@pingo/core';
 import { Avatar, PlusIcon, cn } from '@pingo/ui';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 
 import type { LiveStream } from '../live/types.js';
 
@@ -53,6 +53,8 @@ export interface StoriesRowProps {
   onCreate: () => void;
   /** Holding your own circle. */
   onManageMine: () => void;
+  /** Rendered right after your own circle - the Arcade sits there. */
+  extra?: ReactNode;
 }
 
 export function StoriesRow({
@@ -66,6 +68,7 @@ export function StoriesRow({
   onOpen,
   onCreate,
   onManageMine,
+  extra,
 }: StoriesRowProps) {
   const mine = groups.find((group) => group.authorId === currentUserId);
   const others = groups.filter((group) => group.authorId !== currentUserId);
@@ -74,7 +77,7 @@ export function StoriesRow({
 
   return (
     <div className="px-1 pb-0.5">
-      <h2 className="px-3 pb-1.5 text-[0.6875rem] font-semibold text-text-tertiary">
+      <h2 className="sr-only">
         Stories
       </h2>
 
@@ -129,6 +132,7 @@ export function StoriesRow({
             onManage={onManageMine}
           />
         </li>
+        {extra && <li>{extra}</li>}
 
         {others.map((group) => (
           <li key={group.authorId}>

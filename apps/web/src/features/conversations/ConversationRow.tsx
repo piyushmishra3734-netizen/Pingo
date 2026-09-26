@@ -131,7 +131,7 @@ export function ConversationRow({
           had set a picture - the avatar was there, its source was not.
         */
         src={partner?.avatarUrl ?? conversation.avatarUrl}
-        size="md"
+        size="lg"
         // Presence only. Typing is already carried by the preview line below, and
         // saying it twice in one row is two signals competing for the same glance.
         presence={
@@ -144,12 +144,12 @@ export function ConversationRow({
       />
       </span>
 
-      <div className="min-w-0 flex-1">
+      {/* The hairline sits under the text, not under the face - Telegram's row. */}
+      <div className="flex min-w-0 flex-1 flex-col justify-center self-stretch border-b border-line py-2.5">
         <div className="flex items-baseline gap-2">
           <span
             className={cn(
-              'min-w-0 flex-1 truncate text-body',
-              hasUnread ? 'font-medium text-ink' : 'text-ink',
+              'min-w-0 flex-1 truncate text-body font-semibold text-ink',
             )}
           >
             {conversation.title}
@@ -214,7 +214,7 @@ export function ConversationRow({
           */}
           <span
             className={cn(
-              'shrink-0 text-caption tabular-nums',
+              'shrink-0 text-[13px] tabular-nums',
               hasUnread ? 'font-medium text-brand' : 'text-ink/45',
             )}
           >
@@ -222,9 +222,9 @@ export function ConversationRow({
           </span>
         </div>
 
-        <div className="mt-1 flex items-center gap-1.5">
+        <div className="mt-0.5 flex items-start gap-1.5">
           {isTyping ? (
-            <span className="min-w-0 flex-1 flex items-center gap-2 text-caption text-brand">
+            <span className="min-w-0 flex-1 flex items-center gap-2 text-[14.5px] text-brand">
               <PingoDot state="typing" size={5} />
               {formatTypingLabel(conversation.typingUserIds, users, conversation.typingActivity)}
             </span>
@@ -259,7 +259,8 @@ export function ConversationRow({
 
               <span
                 className={cn(
-                  'min-w-0 flex-1 truncate text-caption',
+                  // Two lines, as Telegram gives it: a preview that stops mid-thought reads as broken.
+                  'line-clamp-2 min-w-0 flex-1 text-[14.5px] leading-snug',
                   hasUnread ? 'text-ink' : 'text-text-secondary',
                 )}
               >
@@ -277,7 +278,7 @@ export function ConversationRow({
             <Badge
               count={conversation.unreadCount}
               tone={conversation.muted ? 'neutral' : 'brand'}
-              className="shrink-0"
+              className="mt-0.5 shrink-0"
               srSuffix="unread messages"
             />
           )}
@@ -287,7 +288,7 @@ export function ConversationRow({
   );
 
   const shell = cn(
-    'group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left',
+    'group flex w-full items-center gap-3 rounded-xl px-3 py-0 text-left',
     /*
       No system menu on a long press. Android only, and invisible everywhere else.
 

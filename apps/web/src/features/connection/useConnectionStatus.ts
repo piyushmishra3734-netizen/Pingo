@@ -155,3 +155,20 @@ export function useConnectionStatus(): ConnectionQuality {
 
   return quality;
 }
+
+/**
+ * The connection as a title says it, Telegram's way: nothing when all is well,
+ * otherwise the words that replace the title while it is not.
+ *
+ * This is the whole connection indicator now. The floating banner it replaces
+ * covered the top of whatever screen was open; a title that briefly reads
+ * "Connecting…" says the same thing in a place that was already there.
+ */
+export function connectionTitle(
+  quality: ConnectionQuality,
+  t: (key: 'connection.waiting' | 'connection.connecting') => string,
+): string | undefined {
+  if (quality === 'offline') return t('connection.waiting');
+  if (quality === 'connecting' || quality === 'poor') return t('connection.connecting');
+  return undefined;
+}

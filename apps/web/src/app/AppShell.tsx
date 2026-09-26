@@ -5,7 +5,6 @@ import { AppLoader } from '../features/loading/AppLoader.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
-import { ConnectionBanner } from '../features/connection/ConnectionBanner.js';
 import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
@@ -211,7 +210,6 @@ export function AppShell() {
         Above every screen, because losing the network is not a property of the
         one you happen to be on.
       */}
-      <ConnectionBanner />
 
       <main
         className={cn(

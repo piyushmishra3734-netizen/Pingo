@@ -14,21 +14,17 @@ import {
 import {
   Avatar,
   BellIcon,
-  Chip,
-  ChipGroup,
   IconButton,
   SearchField,
   PlusIcon,
-  SearchIcon,
-  SettingsIcon,
   cn,
 } from '@pingo/ui';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { AppWordmark } from '../../components/AppWordmark.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { canAccessCommunities } from '../../lib/community-access.js';
+import { connectionTitle, useConnectionStatus } from '../connection/useConnectionStatus.js';
 import { useT } from '../i18n/useT.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
@@ -247,6 +243,19 @@ export function ConversationList({
 
   const searching = query.trim().length > 0;
 
+  /*
+   * Telegram's fold: scroll the list and the story rail folds into a few faces
+   * beside the title; back at the top it opens again. Two thresholds so the
+   * header changing height can never flip it straight back.
+   */
+  const [folded, setFolded] = useState(false);
+  const netTitle = connectionTitle(useConnectionStatus(), t);
+  const showRail = !searching && filter === 'all' && !activeList && !selectionMode;
+  const railFaces = storyGroups
+    .filter((group) => group.authorId !== profile?.id)
+    .sort((a, b) => Number(a.allSeen) - Number(b.allSeen))
+    .slice(0, 3);
+
   /**
    * People who are not in this list yet.
    *
@@ -429,28 +438,68 @@ export function ConversationList({
           />
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              {/*
-                Whisper, not ghost. The mark was reading like a disabled control
-                (~20% presence); a gentle contrast lift and full opacity bring it
-                to about a third of the ink strength without competing with the
-                rows below.
-              */}
-              <AppWordmark
-                height={22}
-                as="h1"
-                className="[&_img]:opacity-[0.92] [&_img]:[filter:contrast(1.12)_saturate(1.08)]"
-              />
+            {/*
+              Telegram's header: start something on the left, the title in the
+              middle, and on the right the bell (only where the dock does not
+              already carry it) and the Arcade.
 
-              <div className="flex items-center gap-0.5">
+              The title is also the connection indicator. There is no banner:
+              while the socket is down the word "Chats" is replaced by what is
+              happening, with a small spinner, and comes back when it is over.
+            */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+              <div className="flex items-center justify-start">
                 <IconButton
-                  label={t('common.search')}
+                  label={t('chats.startSomething')}
                   variant="ghost"
-                  onClick={() => searchRef.current?.focus()}
+                  onClick={() => setStarting(true)}
+                  className="text-brand"
                 >
-                  <SearchIcon size={21} />
+                  <PlusIcon size={23} />
                 </IconButton>
+              </div>
 
+              <h1 className="flex min-w-0 items-center justify-center gap-2 text-[17px] font-semibold text-ink">
+                {netTitle ? (
+                  <span className="inline-flex items-center gap-2" role="status">
+                    <span
+                      aria-hidden
+                      className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent"
+                    />
+                    {netTitle}
+                  </span>
+                ) : (
+                  <>
+                    {folded && showRail && railFaces.length > 0 && (
+                      <span className="flex" aria-hidden>
+                        {railFaces.map((group, index) => (
+                          <span
+                            key={group.authorId}
+                            className={cn(
+                              'inline-flex rounded-full ring-2 ring-page',
+                              // The ring is the story's; unseen gets the brand, seen stays quiet.
+                              group.allSeen
+                                ? 'shadow-[0_0_0_3.5px_var(--color-line-strong)]'
+                                : 'shadow-[0_0_0_3.5px_var(--color-brand)]',
+                              index > 0 && '-ml-3',
+                            )}
+                          >
+                            <Avatar
+                              name={group.authorName}
+                              id={group.authorId}
+                              src={group.authorAvatarUrl}
+                              size="xs"
+                            />
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    {t('chats.title')}
+                  </>
+                )}
+              </h1>
+
+              <div className="flex items-center justify-end gap-0.5">
                 {showHeaderNotifications && (
                   <IconButton
                     label={
@@ -460,13 +509,13 @@ export function ConversationList({
                     }
                     variant="ghost"
                     onClick={() => navigate('/notifications')}
+                    className="text-brand"
                   >
                     <span className="relative">
                       <BellIcon size={22} />
                       <span
                         className={cn(
-                          'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-dot',
-                          'shadow-[0_0_0_3px_rgba(17,17,19,0.1)] ring-2 ring-page',
+                          'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-dot ring-2 ring-page',
                           'transition-opacity duration-quick',
                           unread > 0 ? 'opacity-100' : 'opacity-0',
                         )}
@@ -474,58 +523,83 @@ export function ConversationList({
                     </span>
                   </IconButton>
                 )}
-
-                <IconButton label="PINGO Arcade" variant="ghost" onClick={() => navigate('/arcade')}>
-                  <Gamepad2 size={22} strokeWidth={1.9} aria-hidden />
-                </IconButton>
-
                 <IconButton
-                  label={t('chats.startSomething')}
+                  label="PINGO Arcade"
                   variant="ghost"
-                  onClick={() => setStarting(true)}
+                  onClick={() => navigate('/arcade')}
+                  className="text-brand"
                 >
-                  <PlusIcon size={21} />
-                </IconButton>
-
-                <IconButton
-                  label={t('settings.title')}
-                  variant="ghost"
-                  onClick={() => navigate('/settings')}
-                >
-                  <SettingsIcon size={21} />
+                  <Gamepad2 size={23} strokeWidth={1.9} aria-hidden />
                 </IconButton>
               </div>
             </div>
 
-            {/*
-              Tighter rhythm between logo row → search → chips. Was ~14px gaps
-              (mt-3.5 / mt-3); ~6–8px keeps the top stack as one unit without
-              crowding the stories rail below.
-            */}
-            <div className="mt-2">
+            <div className="mt-1.5">
               <SearchField
                 inputRef={searchRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t('chats.search')}
                 aria-label={t('chats.searchAria')}
-                /*
-                  Border almost disappears: idle line ~8–10% softer than default
-                  line-strong, so the field is a recess rather than a box.
-                */
-                className="h-11 border-[rgba(16,17,20,0.045)] bg-sunken/90 focus-within:border-[rgba(16,17,20,0.08)]"
+                className="h-10 rounded-xl border-transparent bg-sunken focus-within:border-line"
               />
             </div>
 
-            <ChipGroup label={t('chats.filter')} className="mt-2">
+            {/*
+              Stories under the search, as Telegram does it, and the Arcade in
+              the seat beside your own circle. Folds away as the list scrolls.
+            */}
+            {showRail && (
+              <div
+                className={cn(
+                  'grid transition-[grid-template-rows,opacity] duration-300 ease-standard',
+                  folded ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
+                )}
+                aria-hidden={folded}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <div className="-mx-4 pt-2.5">
+                    <StoriesRow
+                      groups={storyGroups}
+                      currentUserId={profile?.id}
+                      currentUserName={profile?.displayName ?? 'You'}
+                      {...(profile?.avatarUrl
+                        ? { currentUserAvatarUrl: profile.avatarUrl }
+                        : {})}
+                      lives={lives}
+                      onWatchLive={(live) => navigate(`/live/${live.id}`)}
+                      onOpenMyLive={() => {
+                        if (myLive) navigate(`/live/host/${myLive.id}`);
+                      }}
+                      onOpen={(group, origin) =>
+                        setOpenStory({
+                          // The index, not the group: the viewer runs the whole
+                          // queue and needs to know where in it to start.
+                          index: storyGroups.indexOf(group),
+                          origin,
+                        })
+                      }
+                      onCreate={() => setChoosingCreate(true)}
+                      onManageMine={() => setManagingStory(true)}
+                      extra={<ArcadeCircle onOpen={() => navigate('/arcade')} />}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Folders as Telegram's tabs: the chosen one in the brand, underlined. */}
+            <nav
+              role="tablist"
+              aria-label={t('chats.filter')}
+              className="scrollbar-none -mx-4 mt-1.5 -mb-3 flex gap-5 overflow-x-auto px-5"
+            >
               {conversationFilters.map((f) => (
-                <Chip
+                <FolderTab
                   key={f}
                   selected={filter === f && !activeList}
                   onClick={() => {
                     setFilter(f);
-                    // The chips and the lists are one row of choices, so
-                    // picking a chip leaves whichever list was open.
                     setActiveList(undefined);
                   }}
                   count={f === 'all' ? undefined : counts[f]}
@@ -539,16 +613,10 @@ export function ConversationList({
                         : f === 'groups'
                           ? t('chats.filterGroups')
                           : conversationFilterLabels[f]}
-                </Chip>
+                </FolderTab>
               ))}
-
-              {/*
-                Custom lists continue the same row rather than getting their own.
-                They are filters - a second row would imply a second kind of
-                thing and spend permanent vertical space saying so.
-              */}
               {lists.map((list) => (
-                <Chip
+                <FolderTab
                   key={list.id}
                   selected={activeList?.id === list.id}
                   onClick={() => {
@@ -558,9 +626,9 @@ export function ConversationList({
                   count={list.count}
                 >
                   {list.name}
-                </Chip>
+                </FolderTab>
               ))}
-            </ChipGroup>
+            </nav>
           </>
         )}
       </header>
@@ -577,6 +645,11 @@ export function ConversationList({
 
       <div
         className="min-h-0 flex-1 overflow-y-auto px-2 pt-1 pb-2"
+        onScroll={(event) => {
+          const top = event.currentTarget.scrollTop;
+          if (top > 60) setFolded(true);
+          else if (top < 4) setFolded(false);
+        }}
         role={selectionMode ? 'listbox' : undefined}
         aria-multiselectable={selectionMode ? true : undefined}
         aria-label={selectionMode ? 'Conversations, selecting' : undefined}
@@ -615,29 +688,6 @@ export function ConversationList({
                   lives={lives}
                   currentUserId={profile?.id}
                   onWatch={(live) => navigate(`/live/${live.id}`)}
-                />
-                <StoriesRow
-                  groups={storyGroups}
-                  currentUserId={profile?.id}
-                  currentUserName={profile?.displayName ?? 'You'}
-                  {...(profile?.avatarUrl
-                    ? { currentUserAvatarUrl: profile.avatarUrl }
-                    : {})}
-                  lives={lives}
-                  onWatchLive={(live) => navigate(`/live/${live.id}`)}
-                  onOpenMyLive={() => {
-                    if (myLive) navigate(`/live/host/${myLive.id}`);
-                  }}
-                  onOpen={(group, origin) =>
-                    setOpenStory({
-                      // The index, not the group: the viewer runs the whole
-                      // queue and needs to know where in it to start.
-                      index: storyGroups.indexOf(group),
-                      origin,
-                    })
-                  }
-                  onCreate={() => setChoosingCreate(true)}
-                  onManageMine={() => setManagingStory(true)}
                 />
 
                 {/*
@@ -810,5 +860,79 @@ export function ConversationList({
 
       {starting && <NewChatMenu onClose={() => setStarting(false)} />}
     </div>
+  );
+}
+
+/** One folder, Telegram's way: text in the brand when chosen, with a bar under it. */
+function FolderTab({
+  selected,
+  count,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  count: number | undefined;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onClick}
+      className={cn(
+        'focus-ring relative flex shrink-0 items-center gap-1.5 pt-1.5 pb-2.5 text-[14.5px] font-semibold',
+        'transition-colors duration-instant',
+        selected ? 'text-brand' : 'text-text-secondary hover:text-ink',
+      )}
+    >
+      {children}
+      {count ? (
+        <span
+          className={cn(
+            'grid h-[18px] min-w-[18px] place-items-center rounded-full px-1.5 text-[11px] font-bold tabular-nums',
+            selected ? 'bg-brand text-on-brand' : 'bg-sunken text-text-secondary',
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
+      {selected && <span aria-hidden className="absolute inset-x-0 -bottom-px h-[3px] rounded-t-[3px] bg-brand" />}
+    </button>
+  );
+}
+
+/**
+ * The Arcade, in the seat beside your own story.
+ *
+ * Shaped like a story circle so the rail reads as one row, with a small note
+ * on top where a note would sit. It says "Play" rather than a count: nothing
+ * yet tells the app how many friends are in the Arcade, and a number it made
+ * up would be the first thing somebody noticed was wrong.
+ */
+function ArcadeCircle({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="PINGO Arcade"
+      className={cn(
+        'relative flex w-[68px] shrink-0 flex-col items-center gap-1.5 rounded-xl py-1',
+        'focus-ring transition-transform duration-[160ms] ease-standard active:scale-[0.96]',
+      )}
+    >
+      <span className="absolute top-0 left-1/2 z-[1] -translate-x-1/2 -translate-y-1.5 rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
+        Play
+      </span>
+      <span className="grid size-[68px] place-items-center rounded-full bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] p-[2.5px]">
+        <span className="grid size-full place-items-center rounded-full border-[2.5px] border-page bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] text-white">
+          <Gamepad2 size={26} strokeWidth={1.9} aria-hidden />
+        </span>
+      </span>
+      <span className="w-full truncate text-center text-[0.6875rem] font-medium leading-tight text-text-secondary">
+        Arcade
+      </span>
+    </button>
   );
 }
