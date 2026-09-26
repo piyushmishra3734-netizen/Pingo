@@ -133,18 +133,36 @@ export function quoteText(message: Message): string {
  */
 const SHAPE = {
   mine: {
-    single: 'rounded-lg',
-    first: 'rounded-lg rounded-br-[6px]',
-    middle: 'rounded-lg rounded-r-[6px]',
-    last: 'rounded-lg rounded-tr-[6px]',
+    single: 'rounded-[18px] rounded-br-none',
+    first: 'rounded-[18px]',
+    middle: 'rounded-[18px]',
+    last: 'rounded-[18px] rounded-br-none',
   },
   theirs: {
-    single: 'rounded-lg',
-    first: 'rounded-lg rounded-bl-[6px]',
-    middle: 'rounded-lg rounded-l-[6px]',
-    last: 'rounded-lg rounded-tl-[6px]',
+    single: 'rounded-[18px] rounded-bl-none',
+    first: 'rounded-[18px]',
+    middle: 'rounded-[18px]',
+    last: 'rounded-[18px] rounded-bl-none',
   },
 } as const;
+
+/** The curl iMessage puts on the last bubble of a run, drawn outside the squared corner. */
+const TAIL = "path('M0 0C0 6 2 11.5 8 15.5C5.5 16.2 2.5 16.2 0 16Z')";
+
+function Tail({ mine }: { mine: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn('pointer-events-none absolute bottom-0 h-4 w-2', mine ? '-right-2' : '-left-2 -scale-x-100')}
+      style={
+        mine
+          ? { clipPath: TAIL, background: 'color-mix(in srgb, var(--color-brand) 94%, black)' }
+          : // No blur of its own: inside the bubble's backdrop root it could only blur the bubble.
+            { clipPath: TAIL, background: 'var(--lq-fill)' }
+      }
+    />
+  );
+}
 
 /**
  * Stable name colours for group threads only (labels above glass, not the glass).
@@ -289,9 +307,8 @@ export function MessageBubble({
         <div
           id={`message-${message.id}`}
           className={cn(
-            'max-w-[68%] px-4 py-2.5',
+            'max-w-[76%] rounded-[18px] px-3 py-[7px]',
             arrive,
-            SHAPE[mine ? 'mine' : 'theirs'][position],
             'lq-glass-water lq-read',
           )}
         >
@@ -441,6 +458,22 @@ export function MessageBubble({
     );
   }
 
+  /*
+   * Time and ticks inside every bubble, floated onto the last line of text -
+   * the approved design. Ticks take the bubble's own ink so they read on the brand.
+   */
+  const stamp = (
+    <span
+      className={cn(
+        'float-right mt-1.5 ml-2.5 inline-flex items-center gap-[3px] text-[11px] leading-none whitespace-nowrap',
+        mine ? 'text-white/75 [&_*]:!text-current' : 'text-text-tertiary',
+      )}
+    >
+      {formatTime(message.createdAt)}
+      {mine && <DeliveryIndicator status={message.status} />}
+    </span>
+  );
+
   return (
     <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
       <div
@@ -452,7 +485,7 @@ export function MessageBubble({
         // Every way of opening the menu lands here: press, right-click, keyboard.
         {...trigger}
         className={cn(
-          'group relative max-w-[68%] min-w-0',
+          'group relative max-w-[76%] min-w-0',
           // Holding a bubble opens its menu; it must not also select text and summon the browser's search sheet.
           'select-none [-webkit-touch-callout:none]',
           arrive,
@@ -463,10 +496,9 @@ export function MessageBubble({
           (voiceNote || file) && 'max-w-[85%] sm:max-w-[22rem]',
         )}
       >
-        {nameLabel}
         <div
           className={cn(
-            'px-4 py-2.5',
+            'px-3 pt-[7px] pb-[5px] leading-[1.35]',
             SHAPE[mine ? 'mine' : 'theirs'][position],
             mine
               ? 'lq-brand-glass-water text-on-brand'
@@ -490,6 +522,19 @@ export function MessageBubble({
             message.status === 'failed' && 'opacity-60 ring-1 ring-danger/40',
           )}
         >
+          {(position === 'last' || position === 'single') && <Tail mine={mine} />}
+          {/* The sender's name opens the run, inside its first bubble - the approved group look. */}
+          {!mine && authorName && (position === 'first' || position === 'single') && (
+            <span
+              className={cn(
+                'flex items-center gap-1 text-[13px] font-bold',
+                authorNameClass(message.authorId || authorName),
+              )}
+            >
+              <span className="truncate">{authorName}</span>
+              <AchievementMark achievement={authorAchievements.lead(message.authorId)} />
+            </span>
+          )}
           {replyTo && (
             /*
              * The quote sits inside the bubble, tinted against it rather than
@@ -597,10 +642,12 @@ export function MessageBubble({
                   Edited {formatEventTime(message.editedAt)}
                 </span>
               )}
+              {stamp}
             </p>
           )}
+          {!hasBody && <span className="flex justify-end">{stamp}</span>}
           {/* Reactions inside the bubble, at its foot - once, as in the approved design. */}
-          {reactions}
+          <div className="clear-both">{reactions}</div>
         </div>
 
         {/*
@@ -619,21 +666,6 @@ export function MessageBubble({
         )}
 
 
-        {showMeta && (
-          <div
-            className={cn(
-              'mt-1 flex items-center gap-1 px-1',
-              mine ? 'justify-end' : 'justify-start',
-            )}
-          >
-            <span className="text-caption text-text-tertiary">
-              {formatTime(message.createdAt)}
-            </span>
-
-            {/* "Edited" lives in the bubble now - see above. */}
-            {mine && <DeliveryIndicator status={message.status} />}
-          </div>
-        )}
       </div>
     </div>
   );

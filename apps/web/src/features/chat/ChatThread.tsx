@@ -1414,9 +1414,10 @@ export function ChatThread({
             </span>
           )}
         </button>
+        {/* The capsule opens the info page; the face opens the person's profile. */}
         <button
           type="button"
-          onClick={openInfo}
+          onClick={partner && !isAi ? () => navigate(`/profile/${partner.handle}`) : openInfo}
           aria-label={`${conversation.title}, photo`}
           className="lq-glass-water grid size-[46px] shrink-0 place-items-center rounded-full p-[3px] focus-ring"
         >
@@ -1466,7 +1467,7 @@ export function ChatThread({
         ) : (
           <div
             className={cn(
-              'mx-auto flex w-full max-w-3xl flex-col gap-1 px-4 py-4',
+              'mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-4',
               // Anchors a short thread to the bottom, against the composer, rather
               // than leaving it stranded at the top under a large void. Long
               // threads overflow past `min-h-full` and scroll as normal.
