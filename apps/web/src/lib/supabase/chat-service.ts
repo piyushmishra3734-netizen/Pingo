@@ -3497,8 +3497,9 @@ export class SupabaseChatService implements ChatService {
     const base = await this.#messageRow(messageId);
     this.#emitFromCache(messageId, base);
 
-    // Somebody reacting to mine is news for the list row too.
-    if (userId === me || base.authorId !== me) return;
+    // Somebody reacting to mine, or me reacting to anything, is news for the
+    // list row too - WhatsApp and Instagram show both.
+    if (userId !== me && base.authorId !== me) return;
     const known = this.#known.get(base.conversationId);
     if (!known) return;
     let next: Conversation | undefined;
@@ -3524,19 +3525,26 @@ export class SupabaseChatService implements ChatService {
   async #withLastReactions(list: Conversation[]): Promise<Conversation[]> {
     try {
       const me = await this.#userId();
-      const { data, error } = await this.#client
-        .from('message_reactions')
-        .select('emoji, user_id, created_at, message_id, messages!inner(conversation_id, sender_id)')
-        .eq('messages.sender_id', me)
-        .neq('user_id', me)
-        .order('created_at', { ascending: false })
-        .limit(60);
-      if (error || !data) return list;
-      const newest = new Map<ConversationId, Conversation['lastReaction']>();
-      for (const row of data as unknown as {
+      const select = 'emoji, user_id, created_at, message_id, messages!inner(conversation_id, sender_id)';
+      // Theirs on my messages, and mine on anything: two small reads.
+      const [theirs, mine] = await Promise.all([
+        this.#client.from('message_reactions').select(select)
+          .eq('messages.sender_id', me).neq('user_id', me)
+          .order('created_at', { ascending: false }).limit(60),
+        this.#client.from('message_reactions').select(select)
+          .eq('user_id', me)
+          .order('created_at', { ascending: false }).limit(60),
+      ]);
+      if (theirs.error || mine.error) return list;
+      type Row = {
         emoji: string; user_id: string; created_at: string; message_id: string;
         messages: { conversation_id: string };
-      }[]) {
+      };
+      const rows = [...(theirs.data as unknown as Row[]), ...(mine.data as unknown as Row[])].sort(
+        (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
+      );
+      const newest = new Map<ConversationId, Conversation['lastReaction']>();
+      for (const row of rows) {
         const id = row.messages.conversation_id;
         if (!newest.has(id)) {
           newest.set(id, { emoji: row.emoji, userId: row.user_id, messageId: row.message_id, at: Date.parse(row.created_at) });

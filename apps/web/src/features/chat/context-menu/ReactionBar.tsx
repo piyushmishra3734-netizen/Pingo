@@ -33,7 +33,7 @@ const QUICK: { emoji: string; label: string }[] = [
  */
 const USE_KEY = 'pingo.reactionUse';
 
-function uses(): Record<string, number> {
+export function reactionUses(): Record<string, number> {
   try {
     return JSON.parse(localStorage.getItem(USE_KEY) ?? '{}') as Record<string, number>;
   } catch {
@@ -43,7 +43,7 @@ function uses(): Record<string, number> {
 
 export function noteReaction(emoji: string): void {
   try {
-    const counts = uses();
+    const counts = reactionUses();
     counts[emoji] = (counts[emoji] ?? 0) + 1;
     localStorage.setItem(USE_KEY, JSON.stringify(counts));
   } catch {
@@ -52,7 +52,7 @@ export function noteReaction(emoji: string): void {
 }
 
 function quick(): { emoji: string; label: string }[] {
-  const counts = uses();
+  const counts = reactionUses();
   const all = [...new Set([...Object.keys(counts), ...QUICK.map((q) => q.emoji)])];
   // Stable sort: ties keep the defaults' order.
   const top = all

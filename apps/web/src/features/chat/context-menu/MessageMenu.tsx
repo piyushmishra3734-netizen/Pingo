@@ -7,8 +7,7 @@ import { MessageInfoSheet } from './MessageInfoSheet.js';
 import { MessageContextMenu } from './MessageContextMenu.js';
 import { MoreSheet } from './MoreSheet.js';
 import { ReactionBar, noteReaction } from './ReactionBar.js';
-import { Overlay } from '../../../components/Overlay.js';
-import { EmojiPicker } from '../../emoji/EmojiPicker.js';
+import { ReactionPicker } from './ReactionPicker.js';
 import { useMessageMenu } from './useMenuTriggers.js';
 
 import { useConfirm } from '../../../components/ConfirmProvider.js';
@@ -206,24 +205,13 @@ export function MessageMenu({
       )}
 
       {picking && (
-        <Overlay onDismiss={() => setPicking(false)}>
-          <div className="fixed inset-0 z-1100 flex flex-col justify-end">
-            <div className="lq-dim animate-fade-in absolute inset-0" onPointerDown={() => setPicking(false)} />
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="Choose a reaction"
-              className="animate-panel-in relative mx-auto w-full max-w-md overflow-hidden rounded-t-[20px] bg-surface pb-[env(safe-area-inset-bottom)] [&_em-emoji-picker]:w-full"
-            >
-              <EmojiPicker
-                onSelect={(emoji) => {
-                  setPicking(false);
-                  void react(emoji);
-                }}
-              />
-            </div>
-          </div>
-        </Overlay>
+        <ReactionPicker
+          onClose={() => setPicking(false)}
+          onPick={(emoji) => {
+            setPicking(false);
+            void react(emoji);
+          }}
+        />
       )}
 
       {info && <MessageInfoSheet message={message} onClose={() => setInfo(false)} />}

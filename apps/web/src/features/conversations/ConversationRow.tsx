@@ -103,9 +103,14 @@ export function ConversationRow({
    */
   const reaction = conversation.lastReaction;
   const reacted = reaction && reaction.at > (lastMessage?.createdAt ?? 0) ? reaction : undefined;
-  const reactor = reacted && users.find((u) => u.id === reacted.userId)?.name.split(' ')[0];
   const preview = reacted
-    ? `${conversation.kind === 'direct' ? 'Reacted' : `${reactor ?? 'Someone'} reacted`} ${reacted.emoji} to your message`
+    ? reactionPreview(reacted, {
+        mine: reacted.userId === currentUser?.id,
+        direct: conversation.kind === 'direct',
+        reactor: users.find((u) => u.id === reacted.userId)?.name.split(' ')[0],
+        // The words when the reacted message is the one the row already holds.
+        text: reacted.messageId === lastMessage?.id && !lastMessage.deleted ? lastMessage.body : undefined,
+      })
     : messagePreview(lastMessage, {
         conversation,
         currentUserId: currentUser?.id ?? '',
@@ -399,4 +404,18 @@ export function ConversationRow({
       {body}
     </Link>
   );
+}
+
+/**
+ * WhatsApp's line for a reaction: "You reacted ❤️ to "see you"", or
+ * "Reacted 😂 to your message" when it was theirs - with the name in a group.
+ */
+function reactionPreview(
+  reaction: { emoji: string },
+  who: { mine: boolean; direct: boolean; reactor: string | undefined; text: string | undefined },
+): string {
+  const quoted = who.text?.trim() ? `"${who.text.trim().slice(0, 60)}"` : undefined;
+  if (who.mine) return `You reacted ${reaction.emoji} to ${quoted ?? 'a message'}`;
+  const subject = who.direct ? 'Reacted' : `${who.reactor ?? 'Someone'} reacted`;
+  return `${subject} ${reaction.emoji} to ${quoted ?? 'your message'}`;
 }
