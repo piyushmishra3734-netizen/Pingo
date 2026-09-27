@@ -1,14 +1,14 @@
 import { enrichVideoPreview, fileNameFrom, type VideoPreview } from '@pingo/core';
 import { PlayIcon, cn } from '@pingo/ui';
-import { ExternalLink, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
-import { Overlay } from '../../components/Overlay.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
 import { saveVideo, saveVideoBlob } from '../native/save-video.js';
 import { clock, VideoPlayer } from './VideoPlayer.js';
 import { keepVideo, storedVideo } from './video-vault.js';
+import { VideoLinkViewer } from './VideoLinkViewer.js';
 
 /**
  * A video link, drawn as the video it points at.
@@ -84,7 +84,6 @@ const swallow = {
 };
 
 export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCardProps) {
-  const [playing, setPlaying] = useState(false);
   const [details, setDetails] = useState(preview);
   /*
    * A thumbnail that 404s.
@@ -203,13 +202,17 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
   const aspect = ratio ?? preview.aspect ?? 16 / 9;
   // Upright videos narrower, wide ones wider - the size a phone shows each at.
   const width = aspect < 0.7 ? 'w-[min(60vw,236px)]' : aspect < 1 ? 'w-[min(68vw,272px)]' : 'w-[min(78vw,330px)]';
-  // Instagram's embed brings its own header and caption; it gets the whole screen rather than a squeeze.
-  const [viewer, setViewer] = useState(false);
-  const inlineFrame = playing && preview.embedUrl && preview.platform !== 'instagram';
+  /*
+   * Tapping goes into the video, full screen, growing out of this card - the
+   * way a reel opens on Instagram. The rectangle is where it grows from.
+   */
+  const card = useRef<HTMLDivElement>(null);
+  const [viewer, setViewer] = useState<DOMRect | null>(null);
 
   return (
     <>
       <div
+        ref={card}
         className={cn('relative max-w-full overflow-hidden rounded-[18px] bg-black', width, spaced && 'mb-2', bare && 'shadow-[0_1px_3px_rgba(16,17,20,0.12)]')}
         style={{ aspectRatio: String(aspect) }}
         {...swallow}
@@ -226,16 +229,6 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
             }}
             onError={() => setBroken(true)}
           />
-        ) : inlineFrame ? (
-          <iframe
-            src={preview.embedUrl}
-            title={details.title ?? platform.untitled}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            // The embed does not need to know which conversation this was in.
-            referrerPolicy="strict-origin-when-cross-origin"
-            className="absolute inset-0 size-full border-0"
-          />
         ) : (
           <Cover
             preview={preview}
@@ -245,7 +238,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
             busy={resolving}
             onPlay={() => {
               // Ask for the real video first; without a resolver, the platform's own player.
-              const fallback = () => (preview.platform === 'instagram' ? setViewer(true) : setPlaying(true));
+              const fallback = () => setViewer(card.current?.getBoundingClientRect() ?? null);
               if (!canResolveMedia()) {
                 fallback();
                 return;
@@ -262,7 +255,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
         )}
 
         {/* Over the picture while it waits: where it is from, what it is, how long. */}
-        {!file && !inlineFrame && (
+        {!file && (
           <>
             <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-black/45 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
               <span aria-hidden className={cn('size-2 rounded-full', platform.tint)} />
@@ -289,7 +282,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
               <SaveButton messageId={messageId} url={file} onKept={(blob) => setKept(URL.createObjectURL(blob))} />
             </span>
           ) : null
-        ) : !inlineFrame && seconds === undefined ? (
+        ) : seconds === undefined ? (
           <a
             href={details.canonicalUrl}
             target="_blank"
@@ -303,26 +296,14 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
       </div>
 
       {viewer && preview.embedUrl && (
-        <Overlay onDismiss={() => setViewer(false)}>
-          <div className="fixed inset-0 z-600 flex flex-col bg-black" role="dialog" aria-modal="true" aria-label={`${platform.label} video`}>
-            <div className="flex items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 text-white">
-              <button type="button" aria-label="Close" onClick={() => setViewer(false)} className="grid size-10 place-items-center rounded-full bg-white/12"><X size={20} /></button>
-              <a href={details.canonicalUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-white/12 px-3.5 py-2 text-[13px] font-semibold">
-                Open in {platform.label}<ExternalLink size={14} />
-              </a>
-            </div>
-            <div className="flex min-h-0 flex-1 justify-center overflow-y-auto">
-              <iframe
-                src={preview.embedUrl}
-                title={details.title ?? platform.untitled}
-                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
-                allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
-                className="h-full w-full max-w-[480px] border-0 bg-white"
-              />
-            </div>
-          </div>
-        </Overlay>
+        <VideoLinkViewer
+          preview={preview}
+          from={viewer}
+          label={platform.label}
+          {...(details.title ? { title: details.title } : {})}
+          {...(details.author ? { author: details.author } : {})}
+          onClose={() => setViewer(null)}
+        />
       )}
     </>
   );
