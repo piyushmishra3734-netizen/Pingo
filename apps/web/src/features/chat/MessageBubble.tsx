@@ -1,5 +1,6 @@
 import {
   detectVideoLink,
+  withoutVideoLink,
   formatEventTime,
   formatTime,
   linkify,
@@ -214,7 +215,6 @@ export function MessageBubble({
     () => (message.deleted ? undefined : parseArcadeInvite(message.body)),
     [message.body, message.deleted],
   );
-  const hasBody = !arcadeInvite && message.body.trim().length > 0;
   /*
    * Derived, not stored - see the note at the end of the `Message` type.
    *
@@ -226,6 +226,15 @@ export function MessageBubble({
     () => (message.deleted ? undefined : detectVideoLink(message.body)),
     [message.body, message.deleted],
   );
+  /*
+   * What is written, less the video link: the video is shown, so the URL under
+   * it would be the same thing twice. Copying the message still copies it.
+   */
+  const shownBody = useMemo(
+    () => (videoLink ? withoutVideoLink(message.body, videoLink) : message.body),
+    [message.body, videoLink],
+  );
+  const hasBody = !arcadeInvite && shownBody.trim().length > 0;
   /*
    * The first ordinary link, when there is no video card already.
    *
@@ -374,6 +383,26 @@ export function MessageBubble({
    * of its own underneath. Before the Ping branch because the two are mutually
    * exclusive and this is the commoner of the pair.
    */
+  /*
+   * A message that is only a video link is the video: no bubble, no URL, the
+   * clip at its own shape - the way a sent video looks. With words beside the
+   * link it stays a bubble, the video above them.
+   */
+  if (videoLink && !hasBody && !replyTo && !voiceNote && !file && !message.editedAt) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
+          {nameLabel}
+          <VideoLinkCard preview={videoLink} messageId={message.id} bare />
+          <span className="mt-0.5 flex items-center gap-1 text-caption text-text-tertiary">
+            {formatTime(message.createdAt)}
+          </span>
+          <div className="clear-both">{reactions}</div>
+        </div>
+      </div>
+    );
+  }
+
   if (message.photo) {
     return (
       // Wrapped rather than passed down: the trigger belongs to "this message",
@@ -600,7 +629,7 @@ export function MessageBubble({
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
             <p className="text-body break-words whitespace-pre-wrap">
-              <MessageText body={message.body} mine={mine} />
+              <MessageText body={shownBody} mine={mine} />
               {message.editedAt && (
                 /*
                  * Inside the bubble, on the edited message itself - not with

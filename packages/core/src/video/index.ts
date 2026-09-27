@@ -3,6 +3,7 @@ import { direct } from './providers/direct.js';
 import { instagram } from './providers/instagram.js';
 import { snapchat } from './providers/snapchat.js';
 import { youtube } from './providers/youtube.js';
+import { linkify } from '../linkify.js';
 import type { VideoPreview, VideoProvider } from './types.js';
 
 export type { VideoPreview, VideoProvider, VideoPlatform } from './types.js';
@@ -31,6 +32,24 @@ const PROVIDERS: VideoProvider[] = [youtube, instagram, snapchat, direct];
  * First rather than all: a message is one thing. Two links means the sender was
  * writing prose, and stacking two players inside a bubble reads as an error.
  */
+/**
+ * The message with its video link taken out, for when the video is shown.
+ *
+ * The card already is the link - the URL under it was the same thing twice,
+ * and a long one took the whole bubble. Whatever else was written stays, as
+ * the caption. The full text is still the message: copying it copies the link.
+ */
+export function withoutVideoLink(text: string, preview: VideoPreview): string {
+  let dropped = false;
+  const kept = linkify(text).filter((segment) => {
+    if (dropped || segment.kind !== 'link') return true;
+    const same = detectVideoLink(segment.href)?.canonicalUrl === preview.canonicalUrl;
+    if (same) dropped = true;
+    return !same;
+  });
+  return kept.map((segment) => segment.value).join('').replace(/[ \t]{2,}/g, ' ').trim();
+}
+
 export function detectVideoLink(text: string): VideoPreview | undefined {
   for (const url of findLinks(text)) {
     for (const provider of PROVIDERS) {

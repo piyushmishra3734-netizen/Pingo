@@ -1,7 +1,9 @@
 import { enrichVideoPreview, fileNameFrom, type VideoPreview } from '@pingo/core';
-import { LinkIcon, PlayIcon, cn } from '@pingo/ui';
+import { PlayIcon, cn } from '@pingo/ui';
+import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { Overlay } from '../../components/Overlay.js';
 import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
 import { saveVideo, saveVideoBlob } from '../native/save-video.js';
 import { clock, VideoPlayer } from './VideoPlayer.js';
@@ -45,6 +47,8 @@ export interface VideoLinkCardProps {
   messageId: string;
   /** Extra bottom margin when the message's own text follows. */
   spaced?: boolean;
+  /** Drawn on its own, with no bubble around it - the message is only the link. */
+  bare?: boolean;
 }
 
 /*
@@ -78,7 +82,7 @@ const swallow = {
   onPointerDown: (event: React.PointerEvent) => event.stopPropagation(),
 };
 
-export function VideoLinkCard({ preview, messageId, spaced }: VideoLinkCardProps) {
+export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCardProps) {
   const [playing, setPlaying] = useState(false);
   const [details, setDetails] = useState(preview);
   /*
@@ -175,60 +179,38 @@ export function VideoLinkCard({ preview, messageId, spaced }: VideoLinkCardProps
   /** Read off the file once it loads. No platform publishes this up front. */
   const [seconds, setSeconds] = useState<number>();
 
-  const frameAspect =
-    ratio === undefined
-      ? preview.platform === 'instagram'
-        ? 'aspect-[4/5]'
-        : 'aspect-video'
-      : undefined;
+  /*
+   * The shape it is drawn at: the file's own once it has played, else the one
+   * the link names (a Short is 9:16, a post 4:5), else 16:9. Clamped so a very
+   * tall file cannot take over the thread.
+   */
+  const aspect = ratio ?? preview.aspect ?? 16 / 9;
+  // Upright videos narrower, wide ones wider - the size a phone shows each at.
+  const width = aspect < 0.7 ? 'w-[min(60vw,236px)]' : aspect < 1 ? 'w-[min(68vw,272px)]' : 'w-[min(78vw,330px)]';
+  // Instagram's embed brings its own header and caption; it gets the whole screen rather than a squeeze.
+  const [viewer, setViewer] = useState(false);
+  const inlineFrame = playing && preview.embedUrl && preview.platform !== 'instagram';
 
   return (
-    <div
-      className={cn(
-        /*
-         * `bg-surface`, not `bg-sunken`.
-         *
-         * Sunken is translucent once a wallpaper is behind the thread, so the
-         * bubble's own colour came straight through the footer - on a sent
-         * message that meant a pink strip with a pink "Open" on it, which was
-         * legible only if you already knew it was there. Surface is the app's
-         * opaque panel, and it is the one the wallpaper-dark rule re-inks, so
-         * the card reads the same on either side of the thread and in either
-         * theme.
-         */
-        'w-full overflow-hidden rounded-lg border border-line bg-surface',
-        spaced && 'mb-2',
-      )}
-      {...swallow}
-    >
+    <>
       <div
-        className={cn('relative w-full bg-black', frameAspect)}
-        {...(ratio === undefined ? {} : { style: { aspectRatio: String(ratio) } })}
+        className={cn('relative max-w-full overflow-hidden rounded-[18px] bg-black', width, spaced && 'mb-2', bare && 'shadow-[0_1px_3px_rgba(16,17,20,0.12)]')}
+        style={{ aspectRatio: String(aspect) }}
+        {...swallow}
       >
         {file && !broken ? (
-          /*
-            Ours to play, and now ours to look at.
-
-            `VideoPlayer` replaces the browser's `controls`, which were correct
-            while this was a link preview and wrong the moment it became a
-            video message: Chrome's grey strip announces itself as the browser
-            every time, and a video somebody sent should sit in the thread the
-            way a photo does.
-          */
           <VideoPlayer
             src={file}
             // Resolved on tap means the person is already waiting for this one,
             // so it starts rather than needing a second press.
             autoPlay={resolved !== undefined}
             onShape={(shape, length) => {
-              // 9:16 at the tall end, 16:9 at the wide - past either the card
-              // stops being a card and starts being the screen.
               setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9));
               if (Number.isFinite(length)) setSeconds(length);
             }}
             onError={() => setBroken(true)}
           />
-        ) : playing && preview.embedUrl ? (
+        ) : inlineFrame ? (
           <iframe
             src={preview.embedUrl}
             title={details.title ?? platform.untitled}
@@ -246,92 +228,87 @@ export function VideoLinkCard({ preview, messageId, spaced }: VideoLinkCardProps
             onThumbnailError={() => setThumbFailed(true)}
             busy={resolving}
             onPlay={() => {
-              /*
-               * Ask for the real video first, fall back to the frame.
-               *
-               * With no resolver configured this is one synchronous check and
-               * the embed opens exactly as before - which is the behaviour
-               * every install has until somebody points it at an endpoint.
-               */
+              // Ask for the real video first; without a resolver, the platform's own player.
+              const fallback = () => (preview.platform === 'instagram' ? setViewer(true) : setPlaying(true));
               if (!canResolveMedia()) {
-                setPlaying(true);
+                fallback();
                 return;
               }
-
               setResolving(true);
               void resolveMedia(preview.canonicalUrl)
                 .then((found) => {
-                  // Nothing found is not a failure worth showing: the embed is
-                  // a working video, and it is what would have played anyway.
                   if (found) setResolved(found);
-                  else setPlaying(true);
+                  else fallback();
                 })
                 .finally(() => setResolving(false));
             }}
           />
         )}
 
-        {/*
-          Duration on the cover only.
-
-          Once the player is up it shows the real clock, counting; a static
-          badge beside a running one is two answers to the same question.
-        */}
-        {!file && seconds !== undefined && (
-          <span className="pointer-events-none absolute right-2 bottom-2 rounded-md bg-black/55 px-1.5 py-0.5 text-caption font-medium text-white tabular-nums">
-            {clock(seconds)}
-          </span>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
-        <span
-          aria-hidden
-          className={cn('size-2 shrink-0 rounded-full', platform.tint)}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-caption font-medium text-ink">
-            {details.title ?? platform.untitled}
-          </span>
-          {details.author && (
-            <span className="block truncate pt-0.5 text-caption text-text-secondary">
-              {details.author}
+        {/* Over the picture while it waits: where it is from, what it is, how long. */}
+        {!file && !inlineFrame && (
+          <>
+            <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-black/45 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+              <span aria-hidden className={cn('size-2 rounded-full', platform.tint)} />
+              {platform.label}
             </span>
-          )}
-        </span>
-        {/*
-          Save on a real file, Open on everything else.
+            {(details.title || details.author) && (
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pt-8 pb-2.5">
+                <span className="line-clamp-2 text-[13px] leading-snug font-semibold text-white">{details.title ?? platform.untitled}</span>
+                {details.author && <span className="mt-0.5 block truncate text-[11.5px] text-white/75">{details.author}</span>}
+              </span>
+            )}
+            {seconds !== undefined && (
+              <span className="pointer-events-none absolute top-2 right-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums">
+                {clock(seconds)}
+              </span>
+            )}
+          </>
+        )}
 
-          Not both. An embed is somebody else's page in a frame, so there is
-          nothing to write to storage and a Save on one would be a button that
-          cannot keep its promise. A file, conversely, does not need Open -
-          "open the video" is what the player already is.
-        */}
-        {/* Nothing to save once it is already kept - it is on the device. */}
-        {file && !broken && !kept ? (
-          <SaveButton
-            messageId={messageId}
-            url={file}
-            // Play from the kept copy straight away, so the video does not
-            // reload from the network the moment it stopped needing to.
-            onKept={(blob) => setKept(URL.createObjectURL(blob))}
-          />
-        ) : kept ? (
-          <span className="shrink-0 px-2 py-0.5 text-caption font-medium text-text-secondary">
-            Saved
-          </span>
-        ) : (
+        {/* Save a real file; open anything else on its platform. */}
+        {file && !broken ? (
+          !kept ? (
+            <span className="absolute top-2 right-2">
+              <SaveButton messageId={messageId} url={file} onKept={(blob) => setKept(URL.createObjectURL(blob))} />
+            </span>
+          ) : null
+        ) : !inlineFrame && seconds === undefined ? (
           <a
             href={details.canonicalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium text-brand"
+            aria-label={`Open on ${platform.label}`}
+            className="focus-ring absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm"
           >
-            Open
+            <ExternalLink size={14} />
           </a>
-        )}
+        ) : null}
       </div>
-    </div>
+
+      {viewer && preview.embedUrl && (
+        <Overlay onDismiss={() => setViewer(false)}>
+          <div className="fixed inset-0 z-600 flex flex-col bg-black" role="dialog" aria-modal="true" aria-label={`${platform.label} video`}>
+            <div className="flex items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 text-white">
+              <button type="button" aria-label="Close" onClick={() => setViewer(false)} className="grid size-10 place-items-center rounded-full bg-white/12"><X size={20} /></button>
+              <a href={details.canonicalUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-white/12 px-3.5 py-2 text-[13px] font-semibold">
+                Open in {platform.label}<ExternalLink size={14} />
+              </a>
+            </div>
+            <div className="flex min-h-0 flex-1 justify-center overflow-y-auto">
+              <iframe
+                src={preview.embedUrl}
+                title={details.title ?? platform.untitled}
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                className="h-full w-full max-w-[480px] border-0 bg-white"
+              />
+            </div>
+          </div>
+        </Overlay>
+      )}
+    </>
   );
 }
 
@@ -411,12 +388,8 @@ function SaveButton({
         });
       }}
       className={cn(
-        'focus-ring shrink-0 rounded-full px-2 py-0.5 text-caption font-medium',
-        state === 'failed'
-          ? 'text-danger'
-          : state === 'saved' || state === 'opened'
-            ? 'text-text-secondary'
-            : 'text-brand',
+        'focus-ring shrink-0 rounded-full bg-black/45 px-2.5 py-1 text-[11.5px] font-semibold text-white backdrop-blur-sm',
+        state === 'failed' && 'text-[#ff8a80]',
       )}
     >
       {SAVE_LABEL[state]}
@@ -464,12 +437,16 @@ function Cover({
          * A neutral field with the platform named on it is honest about that;
          * a grey box with a broken-image glyph would look like a failure.
          */
-        <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_35%,rgb(255_255_255/0.14),transparent_70%)]">
-          <span className="flex items-center gap-1.5 text-caption font-medium text-white/70">
-            <LinkIcon size={14} />
-            {label}
-          </span>
-        </span>
+        <span
+          aria-hidden
+          className={cn(
+            'absolute inset-0',
+            // The platform's own colours, dimmed - where it is from, before anything loads.
+            preview.platform === 'instagram'
+              ? 'bg-[radial-gradient(120%_90%_at_20%_110%,#f9ce34cc,transparent_55%),radial-gradient(120%_90%_at_90%_-10%,#6228d7cc,transparent_60%),linear-gradient(160deg,#ee2a7b,#6228d7)] opacity-80'
+              : 'bg-[radial-gradient(circle_at_50%_35%,rgb(255_255_255/0.14),transparent_70%)]',
+          )}
+        />
       )}
 
       {/* A scrim under the glyph, so it stays visible on a pale thumbnail. */}

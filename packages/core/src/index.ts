@@ -220,6 +220,7 @@ export {
 // Video links: detection, normalisation, and the per-platform adapters.
 export {
   detectVideoLink,
+  withoutVideoLink,
   enrichVideoPreview,
   fileNameFrom,
   findLinks,

@@ -92,6 +92,8 @@ export const youtube: VideoProvider = {
     const embed = new URL(`https://www.youtube-nocookie.com/embed/${id}`);
     embed.searchParams.set('autoplay', '1');
     embed.searchParams.set('rel', '0');
+    // Inline on iPhone, rather than jumping to the system player.
+    embed.searchParams.set('playsinline', '1');
     if (start !== undefined) embed.searchParams.set('start', String(start));
 
     const canonical = new URL(`https://www.youtube.com/watch?v=${id}`);
@@ -102,6 +104,8 @@ export const youtube: VideoProvider = {
       originalUrl: url.href,
       canonicalUrl: canonical.href,
       embedUrl: embed.href,
+      // A Short is upright; everything else YouTube serves is 16:9.
+      aspect: /^\/shorts\//i.test(url.pathname) ? 9 / 16 : 16 / 9,
       /*
        * `hqdefault` rather than `maxresdefault`: every video has one. The
        * maximum-resolution file is only generated for sources that were
