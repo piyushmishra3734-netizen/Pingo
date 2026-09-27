@@ -11,7 +11,7 @@ import {
   cn,
 } from '@pingo/ui';
 import { useMemo } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 
 import { AiPill } from './AiPill.js';
 import { useT } from '../features/i18n/useT.js';
@@ -56,6 +56,7 @@ export function Dock() {
   const { unread: unreadNotifications } = useNotifications();
   const communities = canAccessCommunities(profile?.username);
 
+  const { pathname } = useLocation();
   const items = useMemo<DockItem[]>(
     () => [
       { to: '/chats', label: t('nav.chats'), Icon: ChatIcon, matchPrefix: '/chats' },
@@ -68,6 +69,8 @@ export function Dock() {
     ],
     [communities, t],
   );
+  // Which tab the plate sits under.
+  const active = items.findIndex(({ to, matchPrefix }) => (matchPrefix ? pathname.startsWith(matchPrefix) : pathname === to));
 
   return (
     <nav
@@ -77,20 +80,35 @@ export function Dock() {
         // A column now: the dock, and the assistant's line under it.
         'flex flex-col items-center gap-1',
         // The dock clears the viewport edge, and the iOS home indicator.
-        'px-5 pb-5',
-        'pb-[max(1.25rem,env(safe-area-inset-bottom))]',
+        'px-3 pb-3',
+        'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
       )}
     >
       {/*
         Dock glow ~15% quieter than default `shadow-lg` brand haze - luxury
         chrome elevates without a purple halo. Layout and shape untouched.
       */}
+      {/*
+        One bar, five equal tabs, each an icon over its name - the shape iOS
+        and Telegram settled on, because a label is what makes an icon row a
+        map instead of a guessing game. Where you are is a soft plate that
+        slides from tab to tab, not a dot; the camera is a tab like the others
+        rather than a coloured key shouting over them.
+      */}
       <GlassPanel
         className={cn(
-          'glass-lit pointer-events-auto flex items-center gap-1 p-2',
+          'glass-lit pointer-events-auto relative flex w-full max-w-[420px] items-stretch p-1.5',
+          'rounded-[28px]',
           'shadow-[0_4px_12px_rgba(16,17,20,0.06),0_16px_40px_rgba(16,17,20,0.08)]',
         )}
       >
+        {active >= 0 && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-1.5 left-1.5 rounded-[22px] bg-brand/12 transition-transform duration-base ease-spring"
+            style={{ width: `calc((100% - 12px) / ${items.length})`, transform: `translateX(${active * 100}%)` }}
+          />
+        )}
         {items.map(({ to, label, Icon, matchPrefix }) => (
           <NavLink
             key={to}
@@ -98,134 +116,33 @@ export function Dock() {
             end={!matchPrefix}
             className={({ isActive }) =>
               cn(
-                'relative grid size-12 place-items-center rounded-lg',
-                /*
-                  `glass-press` rather than a bare scale: the item compresses,
-                  brightens along its lit edge and springs back, which is what
-                  makes it read as a piece of the glass panel rather than a
-                  button drawn on top of one.
-                */
-                'focus-ring glass-press',
-                to === '/camera'
-                  ? // No hover plate behind the key - it has its own surface.
-                    'text-white'
-                  : isActive
-                    ? 'text-brand'
-                    : 'text-text-secondary hover:bg-hover hover:text-ink',
+                'focus-ring glass-press relative flex h-[54px] flex-1 flex-col items-center justify-center gap-[3px] rounded-[22px]',
+                'transition-colors duration-quick',
+                isActive ? 'text-brand' : 'text-text-secondary hover:text-ink',
               )
             }
           >
             {({ isActive }) => (
               <>
-                {/*
-                  The camera is the one control here that makes something.
-
-                  As a grey glyph between four other grey glyphs it read as the
-                  fifth thing you could look at, and the bar as a row of
-                  placeholders - the demo-app look. So it wears the product's
-                  own gradient on a raised key: a filled squircle, lifted a
-                  couple of pixels off the glass, with a lit top edge and a
-                  shadow tinted with the gradient rather than plain black. That
-                  is the whole difference between chrome that was drawn and
-                  chrome that was placed.
-
-                  It carries no active dot: a filled brand key is already the
-                  loudest thing on the bar, and a mark underneath it would be
-                  saying the same thing twice.
-                */}
-                {to === '/camera' ? (
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'grid size-11 -translate-y-px place-items-center rounded-[15px]',
-                      'bg-brand-gradient text-on-brand',
-                      // Lit along the top, shaded along the bottom: the key has
-                      // a surface rather than being a flat swatch of colour.
-                      'shadow-[inset_0_1px_0_rgb(255_255_255/0.22),inset_0_-1px_0_rgb(0_0_0/0.12),0_6px_16px_-8px_color-mix(in_srgb,var(--gradient-from,#111113)_70%,transparent),0_2px_6px_-2px_color-mix(in_srgb,var(--gradient-from,#111113)_35%,transparent)]',
-                      'ring-1 ring-inset ring-white/12',
-                      'transition-[transform,box-shadow] duration-base ease-spring',
-                      isActive && 'scale-[1.04] -translate-y-0.5',
-                    )}
-                  >
-                    <Icon size={23} />
-                  </span>
-                ) : (
-                  /*
-                    Notifications gets a hair more weight optically: the bell's
-                    silhouette is lighter than chat/camera, so without this it
-                    reads as the cheap slot on the bar.
-                  */
-                  <Icon
-                    size={to === '/notifications' ? 27 : 26}
-                    className={cn(
-                      to === '/notifications' &&
-                        (isActive ? 'text-brand' : undefined),
-                    )}
-                  />
-                )}
-                <span className="sr-only">{label}</span>
-
-                {/*
-                  The brand dot as the active marker.
-
-                  It used to cross-fade: the old dot faded out while the new one
-                  faded in, so at the midpoint there were two half-dots and no
-                  sense of having gone anywhere. Now it also *arrives* - dropping
-                  the last couple of pixels into place and widening briefly, so
-                  the eye is pulled to where you now are rather than being left
-                  to notice which of two marks survived.
-
-                  A single indicator sliding along the bar would be better still,
-                  and needs the dock to measure its own items; this gets most of
-                  the effect for none of that.
-                */}
-                <span
-                  className={cn(
-                    'absolute bottom-1.5 h-1 rounded-full bg-dot',
-                    to === '/camera' && 'hidden',
-                    /*
-                      Spring, so the indicator arrives with weight. It widens
-                      past its resting size and settles, the way a bead of
-                      liquid does when it stops moving.
-                    */
-                    'transition-[opacity,width,transform] duration-base ease-spring',
-                    isActive
-                      ? 'w-3.5 translate-y-0 opacity-100'
-                      : 'w-1 translate-y-1 opacity-0',
+                <span className="relative">
+                  <Icon size={24} className={cn('transition-transform duration-base ease-spring', isActive && 'scale-105')} />
+                  {/* Unread chats: a count, hidden while you are on Chats. */}
+                  {to === '/chats' && !isActive && totalUnread > 0 && (
+                    <Badge
+                      count={totalUnread}
+                      className="absolute -top-1.5 -right-2.5 h-4 min-w-4 px-1 text-[0.625rem] ring-2 ring-surface"
+                      srSuffix="unread messages"
+                    />
                   )}
-                  aria-hidden
-                />
-
-                {/*
-                  Unread notifications sit on the Notifications tab when that
-                  tab is in the dock. Allowlisted accounts keep Communities
-                  there instead, so the dot still hangs off Profile for them
-                  (and the chats-header bell remains as the open path).
-                */}
-                {to === '/notifications' && !isActive && unreadNotifications > 0 && (
-                  <span
-                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(17,17,19,0.12)] ring-2 ring-surface"
-                    aria-label={`${unreadNotifications} unread notifications`}
-                  />
-                )}
-                {to === '/profile' && communities && unreadNotifications > 0 && (
-                  <span
-                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-dot shadow-[0_0_0_3px_rgba(17,17,19,0.12)] ring-2 ring-surface"
-                    aria-label={`${unreadNotifications} unread notifications`}
-                  />
-                )}
-
-                {/*
-                  Unread lives on Chats only. A count on a nav item the user is
-                  already looking at is noise, so it hides while Chats is active.
-                */}
-                {to === '/chats' && !isActive && totalUnread > 0 && (
-                  <Badge
-                    count={totalUnread}
-                    className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 text-[0.625rem]"
-                    srSuffix="unread messages"
-                  />
-                )}
+                  {/* Unread activity: a dot on Activity, or on Profile when Communities has the slot. */}
+                  {((to === '/notifications' && !isActive) || (to === '/profile' && communities)) && unreadNotifications > 0 && (
+                    <span
+                      className="bg-sweep absolute -top-0.5 -right-1 size-2.5 rounded-full ring-2 ring-surface"
+                      aria-label={`${unreadNotifications} unread notifications`}
+                    />
+                  )}
+                </span>
+                <span className={cn('text-[10.5px] leading-none tracking-[0.01em]', isActive ? 'font-semibold' : 'font-medium')}>{label}</span>
               </>
             )}
           </NavLink>
