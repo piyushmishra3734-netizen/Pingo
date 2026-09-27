@@ -16,18 +16,22 @@ import { Overlay } from '../../components/Overlay.js';
 
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
-export function VideoLinkViewer({ preview, from, title, author, label, onClose }: {
+export function VideoLinkViewer({ preview, from, title, author, label, poster, onClose }: {
   preview: VideoPreview;
   /** The card's rectangle, to grow out of and shrink back into. */
   from?: DOMRect;
   title?: string;
   author?: string;
   label: string;
+  /** The cover, shown behind the player until it has loaded. */
+  poster?: string;
   onClose: () => void;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState(false);
   const [drag, setDrag] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
   const start = useRef<number | undefined>(undefined);
   const aspect = preview.aspect ?? 16 / 9;
   const upright = aspect < 1;
@@ -95,7 +99,8 @@ export function VideoLinkViewer({ preview, from, title, author, label, onClose }
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
       allowFullScreen
       referrerPolicy="strict-origin-when-cross-origin"
-      className="size-full border-0"
+      onLoad={() => setLoaded(true)}
+      className={`relative size-full border-0 transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
     />
   ) : null;
 
@@ -124,7 +129,10 @@ export function VideoLinkViewer({ preview, from, title, author, label, onClose }
                 : { width: '100vw', maxWidth: `calc(100dvh * ${aspect})`, aspectRatio: String(aspect) }
           }
         >
-          {instagram ? <div className="size-full overflow-y-auto bg-white">{frame}</div> : frame}
+          {/* The cover holds the frame until the player has drawn, so the screen is never blank. */}
+          {poster && !loaded && !posterFailed && <img src={poster} alt="" onError={() => setPosterFailed(true)} className="absolute inset-0 size-full object-contain" />}
+          {!loaded && <span aria-hidden className="absolute top-1/2 left-1/2 size-9 -translate-1/2 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />}
+          {instagram ? <div className={`relative size-full overflow-y-auto ${loaded ? 'bg-white' : ''}`}>{frame}</div> : frame}
         </div>
       </div>
 

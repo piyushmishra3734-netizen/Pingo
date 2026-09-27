@@ -23,6 +23,9 @@
  *   GET /api/ig-thumb?path=reel/CODE&meta=1   -> { author?, title? }
  */
 
+/** The edge cache, which has no types installed here either. */
+declare const caches: { default: { match(request: Request): Promise<Response | undefined>; put(request: Request, response: Response): Promise<void> } };
+
 /** Pages' HTML parser, which has no types installed here. */
 declare const HTMLRewriter: {
   new (): {
@@ -75,20 +78,50 @@ const headers = (type: string, maxAge: number) => ({
 
 const nothing = (maxAge: number) => new Response(null, { status: 404, headers: headers('text/plain', maxAge) });
 
-export const onRequestGet = async (context: { request: Request }): Promise<Response> => {
-  const params = new URL(context.request.url).searchParams;
+/**
+ * Instagram turns the crawler away now and then, so a good answer is kept at
+ * the edge and served from there; the page is asked twice before giving up.
+ */
+export const onRequestGet = async (context: { request: Request; waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> => {
+  const key = new Request(new URL(context.request.url).toString(), { method: 'GET' });
+  const cache = typeof caches === 'undefined' ? undefined : caches.default;
+  const hit = await cache?.match(key).catch(() => undefined);
+  if (hit) return hit;
+  const response = await answer(context.request);
+  if (response.ok && cache) {
+    const kept = cache.put(key, response.clone()).catch(() => undefined);
+    if (context.waitUntil) context.waitUntil(kept);
+    else await kept;
+  }
+  return response;
+};
+
+async function crawl(path: string): Promise<Response | undefined> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const page = await fetch(`https://www.instagram.com/${path}/`, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        // The crawler Instagram answers with the post's card, as it does for link previews in chats.
+        headers: { 'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', Accept: 'text/html' },
+      });
+      if (page.ok) return page;
+    } catch {
+      /* try once more */
+    }
+  }
+  return undefined;
+}
+
+async function answer(request: Request): Promise<Response> {
+  const params = new URL(request.url).searchParams;
   const path = params.get('path') ?? '';
   if (!PATH.test(path)) return nothing(DAY);
 
   const found: Record<string, string> = {};
   try {
-    const page = await fetch(`https://www.instagram.com/${path}/`, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      // The crawler Instagram answers with the post's card, as it does for link previews in chats.
-      headers: { 'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', Accept: 'text/html' },
-    });
-    if (!page.ok) return nothing(300);
+    const page = await crawl(path);
+    if (!page) return nothing(300);
     const grab = (key: string) => ({
       element(element: { getAttribute(name: string): string | null }) {
         const value = element.getAttribute('content');
@@ -117,4 +150,4 @@ export const onRequestGet = async (context: { request: Request }): Promise<Respo
   } catch {
     return nothing(300);
   }
-};
+}

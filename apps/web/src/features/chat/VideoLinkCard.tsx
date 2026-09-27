@@ -94,6 +94,8 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
    * which looks like the feature is broken rather than like the video is gone.
    */
   const [thumbFailed, setThumbFailed] = useState(false);
+  // Instagram turns the cover away now and then; it is asked once more before the card gives up on it.
+  const [thumbRetried, setThumbRetried] = useState(false);
   /*
    * The file would not play.
    *
@@ -151,7 +153,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
    * link preview does and passes the picture on (see that function).
    */
   const igPath = preview.platform === 'instagram' ? /instagram\.com\/((?:p|reel|tv)\/[A-Za-z0-9_-]+)/.exec(preview.canonicalUrl)?.[1] : undefined;
-  const cover = details.thumbnailUrl ?? (igPath ? publicAppUrl(`/api/ig-thumb?path=${igPath}`) : undefined);
+  const cover = details.thumbnailUrl ?? (igPath ? publicAppUrl(`/api/ig-thumb?path=${igPath}${thumbRetried ? '&again=1' : ''}`) : undefined);
   const thumbnail = thumbFailed ? undefined : cover;
 
   useEffect(() => {
@@ -209,11 +211,15 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
   const card = useRef<HTMLDivElement>(null);
   const [viewer, setViewer] = useState<DOMRect | null>(null);
 
-  return (
-    <>
+  /*
+   * Instagram's own look for a shared post in a DM: who posted it on top, the
+   * picture, the caption underneath - the whole card opens it.
+   */
+  const ig = preview.platform === 'instagram' && !file;
+  const frame = (
       <div
         ref={card}
-        className={cn('relative max-w-full overflow-hidden rounded-[18px] bg-black', width, spaced && 'mb-2', bare && 'shadow-[0_1px_3px_rgba(16,17,20,0.12)]')}
+        className={cn('relative max-w-full overflow-hidden bg-black', ig ? 'w-full' : cn('rounded-[18px]', width, spaced && 'mb-2', bare && 'shadow-[0_1px_3px_rgba(16,17,20,0.12)]'))}
         style={{ aspectRatio: String(aspect) }}
         {...swallow}
       >
@@ -234,7 +240,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
             preview={preview}
             thumbnail={thumbnail}
             label={platform.label}
-            onThumbnailError={() => setThumbFailed(true)}
+            onThumbnailError={() => (igPath && !thumbRetried ? setThumbRetried(true) : setThumbFailed(true))}
             busy={resolving}
             onPlay={() => {
               // Ask for the real video first; without a resolver, the platform's own player.
@@ -255,7 +261,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
         )}
 
         {/* Over the picture while it waits: where it is from, what it is, how long. */}
-        {!file && (
+        {!file && !ig && (
           <>
             <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-black/45 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
               <span aria-hidden className={cn('size-2 rounded-full', platform.tint)} />
@@ -282,7 +288,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
               <SaveButton messageId={messageId} url={file} onKept={(blob) => setKept(URL.createObjectURL(blob))} />
             </span>
           ) : null
-        ) : seconds === undefined ? (
+        ) : seconds === undefined && !ig ? (
           <a
             href={details.canonicalUrl}
             target="_blank"
@@ -294,6 +300,32 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
           </a>
         ) : null}
       </div>
+  );
+
+  return (
+    <>
+      {ig ? (
+        <div className={cn('max-w-full overflow-hidden rounded-[18px] bg-surface ring-1 ring-line', width, spaced && 'mb-2', bare && 'shadow-[0_1px_3px_rgba(16,17,20,0.12)]')} {...swallow}>
+          <div className="flex items-center gap-2 px-3 py-2">
+            <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-full bg-[linear-gradient(45deg,#f9ce34,#ee2a7b_45%,#6228d7)] p-[2px]">
+              <span className="grid size-full place-items-center rounded-full bg-surface text-[11px] font-bold text-ink">{(details.author ?? 'I').replace(/^@/, '').slice(0, 1).toUpperCase()}</span>
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">{details.author ?? 'Instagram'}</span>
+            <a href={details.canonicalUrl} target="_blank" rel="noopener noreferrer" aria-label="Open on Instagram" className="focus-ring grid size-7 place-items-center rounded-full text-text-secondary"><ExternalLink size={14} /></a>
+          </div>
+          {frame}
+          {details.title && (
+            <div className="px-3 py-2">
+              <p className="line-clamp-2 text-[13px] leading-snug text-ink">
+                {details.author && <b className="mr-1 font-semibold">{details.author}</b>}
+                {details.title}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        frame
+      )}
 
       {viewer && preview.embedUrl && (
         <VideoLinkViewer
@@ -302,6 +334,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
           label={platform.label}
           {...(details.title ? { title: details.title } : {})}
           {...(details.author ? { author: details.author } : {})}
+          {...(thumbnail ? { poster: thumbnail } : {})}
           onClose={() => setViewer(null)}
         />
       )}
