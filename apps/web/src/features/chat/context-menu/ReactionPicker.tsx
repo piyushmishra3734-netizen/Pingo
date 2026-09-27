@@ -16,7 +16,40 @@ import { reactionUses } from './ReactionBar.js';
 
 interface EmojiData {
   categories: { id: string; emojis: string[] }[];
-  emojis: Record<string, { name: string; keywords: string[]; skins: { native: string }[] }>;
+  emojis: Record<string, { name: string; keywords: string[]; skins: { native: string }[]; version: number }>;
+}
+
+/*
+ * Whether this device can draw an emoji.
+ *
+ * The data runs to Unicode 15, and an older system font draws what it lacks
+ * as an empty box - or, for a joined sequence, as its parts side by side.
+ * Drawn once in black on a canvas: a real emoji comes out in colour and one
+ * glyph wide; a box does not. Only the newer ones are asked (version 11 on).
+ */
+const drawable = new Map<string, boolean>();
+let pen: CanvasRenderingContext2D | null | undefined;
+let oneWide = 0;
+function canDraw(emoji: string): boolean {
+  const known = drawable.get(emoji);
+  if (known !== undefined) return known;
+  pen ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  if (!pen) return true;
+  pen.canvas.width = pen.canvas.height = 32;
+  pen.font = '24px sans-serif';
+  pen.textBaseline = 'top';
+  oneWide ||= pen.measureText('😀').width;
+  pen.clearRect(0, 0, 32, 32);
+  pen.fillStyle = '#000';
+  pen.fillText(emoji, 0, 0);
+  const px = pen.getImageData(0, 0, 32, 32).data;
+  let colour = false;
+  for (let i = 0; i < px.length && !colour; i += 4) {
+    if (px[i + 3]! > 0 && (px[i]! > 40 || px[i + 1]! > 40 || px[i + 2]! > 40)) colour = true;
+  }
+  const ok = colour && pen.measureText(emoji).width < oneWide * 1.5;
+  drawable.set(emoji, ok);
+  return ok;
 }
 
 const TITLES: Record<string, string> = {
@@ -56,12 +89,17 @@ export function ReactionPicker({ onPick, onClose }: { onPick: (emoji: string) =>
 
   const sections = useMemo(() => {
     if (!data) return [];
-    const native = (id: string) => data.emojis[id]?.skins[0]?.native;
+    const native = (id: string) => {
+      const e = data.emojis[id];
+      const glyph = e?.skins[0]?.native;
+      return glyph && (e.version < 11 || canDraw(glyph)) ? glyph : undefined;
+    };
     const q = query.trim().toLowerCase();
     if (q) {
       const hits = Object.entries(data.emojis)
         .filter(([id, e]) => id.includes(q) || e.name.toLowerCase().includes(q) || e.keywords.some((k) => k.includes(q)))
-        .map(([, e]) => e.skins[0]!.native);
+        .map(([id]) => native(id))
+        .filter((e): e is string => Boolean(e));
       return [{ title: hits.length ? 'Results' : 'No emoji found', list: hits }];
     }
     return [
