@@ -3553,7 +3553,8 @@ export class SupabaseChatService implements ChatService {
       return list.map((conversation) => {
         const reaction = newest.get(conversation.id);
         if (!reaction) return conversation;
-        const next = { ...conversation, lastReaction: reaction };
+        // A reaction is activity: the chat rises to its moment, like a message.
+        const next = { ...conversation, lastReaction: reaction, updatedAt: Math.max(conversation.updatedAt, reaction!.at) };
         this.#known.set(next.id, next);
         return next;
       });
