@@ -84,35 +84,35 @@ export interface SoundDesign {
  * need to feel like it is opening, it needs to feel finished.
  */
 export const SENT: SoundDesign = {
+  /*
+   * G5 with its octave for a glassy edge and a quiet octave below for body -
+   * a small, finished "tok" rather than a beep. All harmonic, so it stays soft.
+   */
   partials: [
-    { from: 659, to: 659, gain: 0.46, delayMs: 0, attackMs: 9, decayMs: 118 },
-    // A quiet octave above, which reads as "clean" rather than as a second note.
-    { from: 1318, to: 1318, gain: 0.05, delayMs: 0, attackMs: 7, decayMs: 62 },
+    { from: 784, to: 784, gain: 0.4, delayMs: 0, attackMs: 6, decayMs: 115 },
+    { from: 1568, to: 1568, gain: 0.06, delayMs: 0, attackMs: 5, decayMs: 45 },
+    { from: 392, to: 392, gain: 0.06, delayMs: 0, attackMs: 8, decayMs: 90 },
   ],
-  air: { centreHz: 3000, q: 1.4, gain: 0.016, durationMs: 11, delayMs: 0 },
-  durationMs: 130,
+  air: { centreHz: 3000, q: 1.4, gain: 0.014, durationMs: 10, delayMs: 0 },
+  durationMs: 125,
 };
 
-/**
- * Received: warmer, and it opens.
- *
- * The body rises slightly, a fifth blooms in twenty milliseconds later, and a
- * sub-octave sits underneath for body. The bloom is the whole trick — arriving
- * *after* the attack is what makes it feel like something unfolding rather than
- * a chord, and twenty milliseconds is long enough to be felt and short enough
- * not to be heard as two events.
- */
 export const RECEIVED: SoundDesign = {
+  /*
+   * E5 then B5, a fifth up, each with a whisper of its own octave so the pair
+   * rings like a small marimba bar instead of two sine blips, over E4 for
+   * warmth. A third higher than it was, so it cuts through a room without
+   * getting any louder.
+   */
   partials: [
-    { from: 523, to: 523, gain: 0.42, delayMs: 0, attackMs: 9, decayMs: 92 },
-    // The second note: a perfect fifth above, far enough behind to be heard as
-    // a step up rather than as a chord.
-    { from: 784, to: 784, gain: 0.32, delayMs: 55, attackMs: 11, decayMs: 118 },
-    // Warmth. Felt more than heard, and the reason it does not sound thin.
-    { from: 261, to: 261, gain: 0.13, delayMs: 0, attackMs: 12, decayMs: 150 },
+    { from: 659, to: 659, gain: 0.34, delayMs: 0, attackMs: 6, decayMs: 150 },
+    { from: 988, to: 988, gain: 0.3, delayMs: 60, attackMs: 7, decayMs: 165 },
+    { from: 1318, to: 1318, gain: 0.06, delayMs: 0, attackMs: 5, decayMs: 55 },
+    { from: 1976, to: 1976, gain: 0.05, delayMs: 60, attackMs: 5, decayMs: 55 },
+    { from: 330, to: 330, gain: 0.12, delayMs: 0, attackMs: 10, decayMs: 180 },
   ],
-  air: { centreHz: 3200, q: 1.2, gain: 0.02, durationMs: 14, delayMs: 6 },
-  durationMs: 185,
+  air: { centreHz: 3200, q: 1.2, gain: 0.018, durationMs: 12, delayMs: 6 },
+  durationMs: 234,
 };
 
 export type MessageSound = 'sent' | 'received';
