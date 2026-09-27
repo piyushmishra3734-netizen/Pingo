@@ -1,6 +1,7 @@
 import { useAuth } from '@pingo/core';
 import { useCallback } from 'react';
 
+import { clearBlocks } from '../safety/blocks.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 
 /**
@@ -36,5 +37,6 @@ export function useSignOut(): () => Promise<void> {
     });
     if (!go) return;
     await signOut();
+    clearBlocks();
   }, [confirm, signOut]);
 }

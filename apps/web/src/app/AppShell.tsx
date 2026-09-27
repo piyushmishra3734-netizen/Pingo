@@ -3,6 +3,7 @@ import { useAuth, useChat, useProfile } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
 import { AppLoader } from '../features/loading/AppLoader.js';
 import { useSplashHold } from '../features/loading/splash.js';
+import { syncBlocks } from '../features/safety/blocks.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
@@ -95,6 +96,11 @@ export function AppShell() {
   useEffect(() => {
     if (staleAccount) window.location.assign('/chats');
   }, [staleAccount]);
+
+  // Who this account has blocked, fresh from the server each time it opens.
+  useEffect(() => {
+    if (signedInAs) void syncBlocks();
+  }, [signedInAs]);
 
   // The switcher shows accounts by their PINGO name and @username, not by the
   // sign-in email the session carries.

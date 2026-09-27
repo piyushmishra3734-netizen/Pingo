@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
+import { isBlocked, onBlocksChange } from '../safety/blocks.js';
 import { UploadToast, flyToRing, type StoryFrom, type UploadNote } from './StoryUpload.js';
 
 /**
@@ -108,7 +109,8 @@ export function StoryProvider({
         service.listStoryGroups(),
         service.listMutedAuthors(),
       ]);
-      setRaw(groups);
+      // Nobody this account has blocked (features/safety/blocks.ts).
+      setRaw(groups.filter((g) => !isBlocked(g.authorId)));
       setMutedAuthors(muted);
     } catch {
       // An empty rail is the right failure: the screen below it still works,
@@ -122,6 +124,8 @@ export function StoryProvider({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  // A block or an unblock takes effect in the tray at once.
+  useEffect(() => onBlocksChange(() => void refresh()), [refresh]);
 
   /*
    * Somebody's story going up or coming down, without a reload.

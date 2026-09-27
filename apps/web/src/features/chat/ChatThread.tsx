@@ -61,6 +61,7 @@ import { ConversationMenu } from './ConversationMenu.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { useIsBlocked } from '../safety/blocks.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { MessageSelectionBar } from './MessageSelectionBar.js';
 import { startRain } from './rain.js';
@@ -289,7 +290,7 @@ export function ChatThread({
   /** Pictures chosen but not yet sent - the composer owns them until then. */
   const [pending, setPending] = useState<File[]>();
   /** One chosen video, held while the sender decides where it starts and ends. */
-  const { profile: mine } = useProfile();
+  const { profile: mine, service: profileService } = useProfile();
   const [trimming, setTrimming] = useState<File>();
 
   /*
@@ -620,6 +621,8 @@ export function ChatThread({
           (u) => conversation.participantIds.includes(u.id) && u.id !== currentUser?.id,
         )
       : undefined;
+  // Blocked: no composer, and the way back (features/safety/blocks.ts).
+  const partnerBlocked = useIsBlocked(partner?.id);
 
   /**
    * PINGO AI is a person-shaped thread: no calls, no E2EE lock line, settings
@@ -1924,6 +1927,12 @@ export function ChatThread({
             </div>
           )}
 
+          {partnerBlocked && partner ? (
+            <div className="flex items-center justify-between gap-3 rounded-[16px] bg-surface px-4 py-3 shadow-sm ring-1 ring-line">
+              <span className="min-w-0 text-caption text-text-secondary">You blocked {partner.name}. They can't message or call you.</span>
+              <button type="button" onClick={() => void profileService.setBlocked(partner.id, false).catch(() => undefined)} className="focus-ring shrink-0 rounded-full bg-brand px-3.5 py-1.5 text-caption font-semibold text-on-brand">Unblock</button>
+            </div>
+          ) : (
           <Composer
             mentions={mentionOptions}
             onSend={async (body) => {
@@ -1980,6 +1989,7 @@ export function ChatThread({
             draftKey={conversation.id}
             ariaLabel={`Message ${conversation.title}`}
           />
+          )}
         </div>
       </div>
 

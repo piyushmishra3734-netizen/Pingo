@@ -22,6 +22,7 @@ import { usePreferences } from '../settings/SettingsContext.js';
 import { announce, stopAnnouncing, FAILURE_TEXT, type CallFailure } from './audio/announce.js';
 import { startRinging, type Ringer } from './audio/ringtone.js';
 import { useCallLog } from './useCallLog.js';
+import { isBlocked } from '../safety/blocks.js';
 import { useSpeaker } from './useSpeaker.js';
 
 /**
@@ -207,7 +208,16 @@ export function CallProvider({
     const unsubscribe = service.subscribe((event) => {
       switch (event.type) {
         case 'call:incoming':
+          /*
+           * Somebody this account has blocked: it never rings here. Not
+           * declined either - a decline tells them - so on their side it rings
+           * out, as a call to a phone that is off does.
+           */
+          if (isBlocked(event.call.peer.userId)) break;
+          setCall(event.call);
+          break;
         case 'call:updated':
+          if (event.call.direction === 'incoming' && isBlocked(event.call.peer.userId)) break;
           setCall(event.call);
           break;
 

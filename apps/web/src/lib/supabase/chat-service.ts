@@ -110,6 +110,7 @@ import { PresenceHub, type ChatActivity } from './presence.js';
 import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-intent.js';
 
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
+import { hiddenByBlock } from '../../features/safety/blocks.js';
 
 /**
  * Whether this draft carries bytes rather than only words.
@@ -1241,6 +1242,8 @@ export class SupabaseChatService implements ChatService {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const row = payload.new as MessageRow;
+          // Somebody this account has blocked: their message never arrives here.
+          if (hiddenByBlock(row.sender_id, parseTimestamp(row.created_at))) return;
           /*
            * A message landing is the thread becoming real. Whatever the list
            * rule thought of it before, there is something in it now - clear
@@ -2112,7 +2115,7 @@ export class SupabaseChatService implements ChatService {
            * arrives - `#bumpConversation` patches it on the incoming message,
            * ahead of any rebuild.
            */
-          ...(last
+          ...(last && !hiddenByBlock(last.sender_id, parseTimestamp(last.created_at))
             ? { lastMessage: toMessage(last, theirReadAt) }
             : this.#known.get(row.id)?.lastMessage
               ? { lastMessage: this.#known.get(row.id)!.lastMessage! }
@@ -2125,7 +2128,8 @@ export class SupabaseChatService implements ChatService {
            * nothing is unread, whatever the row says.
            */
           unreadCount:
-            heldRead(row.id) >= (last ? parseTimestamp(last.created_at) : 0)
+            heldRead(row.id) >= (last ? parseTimestamp(last.created_at) : 0) ||
+            (last && hiddenByBlock(last.sender_id, parseTimestamp(last.created_at)))
               ? 0
               : (preview?.unread_count ?? 0),
           pinned: mine?.pinned ?? false,
@@ -2807,7 +2811,21 @@ export class SupabaseChatService implements ChatService {
     return work;
   }
 
+  /** A thread, without what somebody blocked sent after the block (features/safety/blocks.ts). */
   async listMessages(
+    conversationId: ConversationId,
+    options?: { limit?: number; before?: MessageId; onEarly?: (messages: Message[]) => void },
+  ): Promise<Message[]> {
+    const shown = (list: Message[]) => list.filter((m) => !hiddenByBlock(m.authorId, m.createdAt));
+    const onEarly = options?.onEarly;
+    const all = await this.#listMessagesAll(conversationId, {
+      ...options,
+      ...(onEarly ? { onEarly: (early: Message[]) => onEarly(shown(early)) } : {}),
+    });
+    return shown(all);
+  }
+
+  async #listMessagesAll(
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId; onEarly?: (messages: Message[]) => void },
   ): Promise<Message[]> {

@@ -40,6 +40,7 @@ import {
 import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { toStandardQuality } from '../../features/chat/media-quality.js';
 import { cachePrivacyRules } from '../../features/settings/privacy-flags.js';
+import { setBlockedHere } from '../../features/safety/blocks.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import type { Database, PostCommentRow, PostRow, ProfileRow } from './types.js';
 
@@ -1262,6 +1263,7 @@ export class SupabaseProfileService implements ProfileService {
         .eq('blocker_id', me)
         .eq('blocked_id', userId);
       if (error) rethrow(error);
+      setBlockedHere(userId, false);
       return;
     }
 
@@ -1272,6 +1274,8 @@ export class SupabaseProfileService implements ProfileService {
         { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true },
       );
     if (error) rethrow(error);
+    // The device enforces it from here on - see features/safety/blocks.ts.
+    setBlockedHere(userId, true);
 
     /*
      * Blocking also drops the follow in both directions. Leaving it would mean
