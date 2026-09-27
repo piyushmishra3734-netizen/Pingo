@@ -405,9 +405,9 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
             {fname && <div className="pointer-events-none absolute inset-x-0 top-[40%] text-center text-3xl font-semibold drop-shadow-lg">{fname}</div>}
             {dragging?.gv && <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-white/80" />}
             {dragging?.gh && <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/80" />}
-            <label data-chrome className={cn('media-glass absolute inset-x-3 bottom-3 z-10 flex h-10 items-center rounded-[12px] px-3.5 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            <label data-chrome className={cn('absolute right-3.5 bottom-3.5 left-3.5 z-10 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
               <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} placeholder="Add a caption…"
-                className="w-full bg-transparent text-[14px] text-white outline-none placeholder:text-white/65" />
+                className="w-full bg-transparent text-[14px] text-white outline-none placeholder:text-white/85 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]" />
             </label>
           </div>
 
@@ -419,24 +419,25 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
 
           {/* top: back on the left, and every tool in one bar - the same bar as the camera's */}
           <div data-chrome className={cn('absolute inset-x-3 top-3 flex items-start justify-between gap-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="media-glass grid size-10 shrink-0 place-items-center rounded-full"><ChevronLeft size={22} /></button>
+            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="grid size-10 shrink-0 place-items-center [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.6))]"><ChevronLeft size={26} /></button>
             <div className="flex flex-col items-end gap-1.5">
-              <div className="media-glass flex items-center gap-0.5 rounded-full p-0.5">
+              {/* Bare icons on the picture, each with a shadow to read on any photo - no plate behind them. */}
+              <div className="flex items-center gap-1 [&>button]:[filter:drop-shadow(0_1px_3px_rgba(0,0,0,.6))]">
                 {railTools.map(([label, icon, act]) => (
-                  <button key={label} type="button" title={label} onClick={() => { act(); setRail('icons'); }} className="grid size-9 place-items-center rounded-full active:scale-90 active:bg-white/15 [&>svg]:size-[19px]">
+                  <button key={label} type="button" title={label} onClick={() => { act(); setRail('icons'); }} className="grid size-10 place-items-center active:scale-90 [&>svg]:size-[23px]">
                     {icon}<span className="sr-only">{label}</span>
                   </button>
                 ))}
                 <button type="button" aria-label="More tools" aria-expanded={rail === 'open'} onClick={() => setRail((r) => (r === 'open' ? 'icons' : 'open'))}
-                  className={cn('grid size-9 place-items-center rounded-full transition-colors [&>svg]:size-[19px]', rail === 'open' && 'bg-white text-black')}>
+                  className={cn('grid size-10 place-items-center transition-transform [&>svg]:size-[23px]', rail === 'open' && 'rotate-90')}>
                   <Ellipsis />
                 </button>
               </div>
               {rail === 'open' && (
-                <div className="media-glass animate-panel-in flex flex-col rounded-[16px] p-1">
+                <div className="animate-panel-in flex min-w-[168px] flex-col overflow-hidden rounded-[14px] bg-media-sheet shadow-[0_8px_30px_rgba(0,0,0,.45)] [&>button+button]:border-t [&>button+button]:border-white/[.08]">
                   {moreTools.map(([label, icon, act]) => (
-                    <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex h-10 items-center gap-3 rounded-[12px] px-3 text-[14px] font-medium active:bg-white/10 [&>svg]:size-[18px]">
-                      {icon}<span>{label}</span>
+                    <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex h-11 items-center justify-between gap-3 px-4 text-[15px] active:bg-white/10 [&>svg]:size-[19px]">
+                      <span>{label}</span>{icon}
                     </button>
                   ))}
                 </div>
