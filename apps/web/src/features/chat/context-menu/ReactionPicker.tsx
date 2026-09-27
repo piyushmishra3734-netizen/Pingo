@@ -80,7 +80,7 @@ export function ReactionPicker({ onPick, onClose }: { onPick: (emoji: string) =>
           role="dialog"
           aria-modal="true"
           aria-label="Choose a reaction"
-          className="animate-panel-in relative mx-auto flex h-[62dvh] w-full max-w-lg flex-col rounded-t-[22px] bg-page/95 shadow-2xl backdrop-blur-2xl"
+          className="animate-panel-in relative mx-auto flex h-[62dvh] w-full max-w-lg flex-col rounded-t-[22px] bg-page shadow-2xl"
         >
           <span className="mx-auto mt-2 h-[5px] w-10 shrink-0 rounded-full bg-line-strong" />
           <label className="mx-4 mt-3 mb-1 flex h-10 shrink-0 items-center gap-2 rounded-xl bg-sunken px-3 text-text-secondary">
@@ -103,8 +103,18 @@ export function ReactionPicker({ onPick, onClose }: { onPick: (emoji: string) =>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {!data && <p className="p-6 text-center text-caption text-text-tertiary">Loading emoji…</p>}
             {sections.map((section) => (
-              <section key={section.title}>
-                <h3 className="sticky top-0 z-1 bg-page/95 px-2 pt-3 pb-1.5 text-[13px] font-semibold text-text-secondary backdrop-blur-xl">
+              <section
+                key={section.title}
+                /*
+                 * Some 1,800 emoji. Laid out all at once they froze the page
+                 * for seconds; off-screen sections are skipped until scrolled to.
+                 */
+                style={{
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: `auto ${Math.ceil(section.list.length / 8) * 48 + 40}px`,
+                }}
+              >
+                <h3 className="px-2 pt-3 pb-1.5 text-[13px] font-semibold text-text-secondary">
                   {section.title}
                 </h3>
                 <div className="grid grid-cols-8">
