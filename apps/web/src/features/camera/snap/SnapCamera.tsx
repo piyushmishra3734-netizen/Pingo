@@ -443,12 +443,12 @@ function Tool({ label, on, onClick, children }: { label: string; on?: boolean; o
   );
 }
 
-/** A look's face: its Camera Kit icon, or the brand scene through its filter. */
+/** A look's face: its Camera Kit icon, or its initial until the looks have pictures. */
 function Tile({ l, big }: { l: Lens; big?: boolean }) {
   return (
     l.icon ? <img src={l.icon} alt="" className="size-full object-cover" />
       : l.key === 'none' ? <CircleOff size={big ? 22 : 20} className="text-white/85" />
-        : <span className="size-full bg-[url(/pingo-scene.jpg)] bg-cover bg-center" style={{ filter: l.css }} />
+        : <span className={cn('font-semibold text-white/90', big ? 'text-[20px] text-black/75' : 'text-[15px]')}>{l.name.slice(0, 2)}</span>
   );
 }
 
@@ -482,7 +482,7 @@ function LensSearch({ lenses, current, onPick, onClose }: { lenses: Lens[]; curr
         {hits.map(([l, i]) => (
           <button key={l.key} type="button" onClick={() => onPick(i)} className="flex min-w-0 flex-col items-center gap-1.5 text-[11.5px] font-semibold text-white/85">
             <span className={cn('relative grid size-[62px] place-items-center overflow-hidden rounded-[16px] bg-white/10', i === current ? 'ring-[2.5px] ring-white' : 'ring-1 ring-white/15')}>
-              {l.icon ? <img src={l.icon} alt="" className="size-full object-cover" /> : <span className="size-full bg-[url(/pingo-scene.jpg)] bg-cover bg-center" style={{ filter: l.css }} />}
+              {l.icon ? <img src={l.icon} alt="" className="size-full object-cover" /> : <span className="text-[18px] font-semibold text-white/90">{l.name.slice(0, 2)}</span>}
               {l.ar && <span className="bg-sweep absolute right-1 bottom-1 rounded-[5px] px-1 text-[8px] leading-[12px] font-extrabold">AR</span>}
             </span>
             <span className="w-full truncate text-center">{l.name}</span>

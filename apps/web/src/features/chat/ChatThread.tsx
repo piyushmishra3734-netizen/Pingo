@@ -454,7 +454,7 @@ export function ChatThread({
   const rainRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (!wallpaper.live || !rainRef.current) return;
-    const handle = startRain(rainRef.current, { image: wallpaper.scene });
+    const handle = startRain(rainRef.current, wallpaper.scene ? { image: wallpaper.scene } : {});
     // The sound belongs to the same lifetime: it starts with the rain and it
     // stops when you leave the conversation, not when you leave the app.
     const sound = startRainSound();
