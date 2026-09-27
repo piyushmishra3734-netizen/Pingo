@@ -86,10 +86,14 @@ export function AiProfileSheet({
   }, [profile]);
 
   const faceName = prefs.display_name?.trim() || pub?.displayName || 'PINGO';
-  const faceSrc = prefs.avatar_url || pub?.avatarUrl;
-  // Same fallback as the face: their own if they set one, the shared one if not.
-  const bannerSrc = prefs.banner_url ?? pub?.bannerUrl;
-  const bannerOffset = prefs.banner_url ? 50 : (pub?.bannerOffset ?? 50);
+  const faceSrc = prefs.avatar_url || pub?.avatarUrl || '/pingo-avatar.png';
+  /*
+   * Their own cover if they set one; otherwise PINGO's, drawn from the logo.
+   * The shared picture that used to fill this read as generated art, and a
+   * brand's own assistant should look like the brand.
+   */
+  const bannerSrc = prefs.banner_url ?? undefined;
+  const bannerOffset = 50;
   const faceBio =
     prefs.bio?.trim() ||
     pub?.bio?.trim() ||
@@ -316,7 +320,7 @@ export function AiProfileSheet({
         <div className="relative w-full">
           <div
             className={cn(
-              'relative w-full overflow-hidden bg-[#E8E8EA]',
+              'relative w-full overflow-hidden bg-surface',
               /* Tall full-bleed cover — not a thin strip. */
               'aspect-[2/1] min-h-[11.5rem] max-h-[14rem] sm:min-h-[12.5rem]',
             )}
@@ -335,15 +339,18 @@ export function AiProfileSheet({
                 draggable={false}
               />
             ) : (
-              <div
-                className="absolute inset-0 h-full w-full"
-                style={{
-                  background:
-                    'radial-gradient(90% 80% at 20% 0%, rgb(17 17 19 / 0.08), transparent 55%),' +
-                    'radial-gradient(70% 60% at 90% 40%, rgb(60 70 90 / 0.1), transparent 50%),' +
-                    'linear-gradient(160deg, #F0F0F2 0%, #E4E5E8 100%)',
-                }}
-              />
+              <div className="absolute inset-0 h-full w-full overflow-hidden bg-surface">
+                {/* The sweep, soft, with the mark large and off to one side - PINGO's own cover. */}
+                <div className="bg-sweep absolute inset-0 opacity-30" />
+                <div className="absolute inset-0 bg-[radial-gradient(80%_90%_at_15%_20%,var(--color-surface)_0%,transparent_70%)] opacity-60" />
+                <img
+                  src="/pingo-mark.svg"
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                  className="absolute -top-6 -right-8 size-56 rotate-[-8deg] opacity-90 drop-shadow-[0_18px_40px_rgba(139,93,255,0.35)]"
+                />
+              </div>
             )}
             {/* Soft bottom fade only — cover still reads full frame */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent" />
