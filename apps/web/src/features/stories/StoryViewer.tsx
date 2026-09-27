@@ -1,6 +1,6 @@
 import { STORY_PHOTO_MS, useChat, type Story, type StoryGroup, type StoryViewer as Watcher } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { BellOff, CirclePlus, Download, Link as LinkIcon, MoreHorizontal, MoreVertical, Music2, Send, Star, Trash2, X } from 'lucide-react';
+import { BellOff, CirclePlus, Download, Link as LinkIcon, MoreHorizontal, MoreVertical, Music2, Repeat2, Send, Star, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -377,6 +377,13 @@ export function StoryViewer({
                     <span className="inline-flex shrink-0 items-center gap-[3px] rounded-[5px] bg-close-friends px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap [&>svg]:size-[1em]"><Star />Close friends</span>
                   )}
                 </div>
+                {/* A story added from somebody's mention: theirs, credited under the name, as Instagram does. */}
+                {story.decor?.from && (
+                  <div className="flex max-w-[200px] items-center gap-[5px] text-[12px] opacity-[.92]">
+                    <Repeat2 size={13} className="shrink-0" />
+                    <span className="truncate">{story.decor.from.name}</span>
+                  </div>
+                )}
                 {song?.name && (
                   <div className="flex max-w-[190px] items-center gap-[5px] overflow-hidden text-[12px] opacity-[.92]">
                     <Music2 size={12} className="shrink-0" />

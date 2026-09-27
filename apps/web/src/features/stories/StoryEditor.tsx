@@ -69,9 +69,11 @@ export interface StoryEditorProps {
    * rather than an ordinary photo, and one chat may already be chosen.
    */
   ping?: { lockedChatId?: string };
+  /** Somebody's story being added to your own; the viewer credits them. */
+  from?: { id: string; name: string };
 }
 
-export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost, initialSong, ping, start }: StoryEditorProps) {
+export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost, initialSong, ping, start, from }: StoryEditorProps) {
   const { users, service: chat } = useChat();
   const { notify } = useStories();
   const { profile } = useProfile();
@@ -317,7 +319,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         const sound = await decodeSound(new File([bytes], song.name, { type: bytes.type || 'audio/mp4' }));
         audio = [{ blob: cutToWav(sound.buffer, song.start, Math.min(sound.buffer.duration, song.start + 15)), at: 0, duration: 15, volume: 1 }];
       }
-      const decor: StoryDecor = { v: 1, stickers, ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}), ...(kind === 'video' && boom !== 'off' ? { boom } : {}) };
+      const decor: StoryDecor = { v: 1, stickers, ...(from ? { from } : {}), ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}), ...(kind === 'video' && boom !== 'off' ? { boom } : {}) };
       const clip = kind === 'video' ? (mediaEl.current as HTMLVideoElement | null)?.duration : undefined;
       const trimmed = clip && (trim[0] > 0 || trim[1] < 1) ? { videoEdit: { trimStart: trim[0] * clip, trimEnd: trim[1] * clip } } : {};
       setBusy('Sharing…');
@@ -661,7 +663,7 @@ function EditorSheets(p: SheetsProps) {
           <SheetSearch value={q} onChange={setQ} autoFocus />
           <div className="overflow-y-auto px-3.5 pb-6">
             {people.map((u) => (
-              <button key={u.id} type="button" onClick={() => { p.add({ type: 'men', d: { text: u.handle ?? u.name } }); close(); }} className="flex w-full items-center gap-3 py-[9px] text-left">
+              <button key={u.id} type="button" onClick={() => { p.add({ type: 'men', d: { text: u.handle ?? u.name, uid: u.id } }); close(); }} className="flex w-full items-center gap-3 py-[9px] text-left">
                 {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="size-11 rounded-full object-cover" /> : <span className="grid size-11 place-items-center rounded-full bg-white/10 font-bold">{u.name[0]}</span>}
                 <span className="min-w-0"><b className="block truncate text-[14px]">{u.handle ?? u.name}</b><span className="text-[13px] text-[#8e8e8e]">{u.name}</span></span>
               </button>

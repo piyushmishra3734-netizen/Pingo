@@ -73,6 +73,12 @@ export interface StoryDecor {
    * the speed swelling and easing (`duo`). Absent or `off` plays it through.
    */
   boom?: StoryBoom;
+  /**
+   * Whose story this was, when it is somebody's story added to your own - a
+   * mention you were given. The viewer names them under your name, the way
+   * Instagram does.
+   */
+  from?: { id: string; name: string };
   stickers: StorySticker[];
 }
 

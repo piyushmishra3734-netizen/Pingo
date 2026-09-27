@@ -37,6 +37,8 @@ import { ArcadeInviteCard } from '../arcade/ArcadeInviteCard.js';
 import { parseArcadeInvite } from '../arcade/arcade-link.js';
 import { LinkPreviewCard } from './LinkPreviewCard.js';
 import { VideoLinkCard } from './VideoLinkCard.js';
+import { StoryMentionCard } from '../stories/StoryMentionCard.js';
+import { parseStoryMention } from '../stories/story-mentions.js';
 import { VoiceNote } from './VoiceNote.js';
 
 /**
@@ -226,6 +228,10 @@ export function MessageBubble({
     () => (message.deleted ? undefined : detectVideoLink(message.body)),
     [message.body, message.deleted],
   );
+  const storyMention = useMemo(
+    () => (message.deleted ? undefined : parseStoryMention(message.body)),
+    [message.body, message.deleted],
+  );
   /*
    * What is written, less the video link: the video is shown, so the URL under
    * it would be the same thing twice. Copying the message still copies it.
@@ -383,6 +389,20 @@ export function MessageBubble({
    * of its own underneath. Before the Ping branch because the two are mutually
    * exclusive and this is the commoner of the pair.
    */
+  /* "Mentioned you in their story": Instagram's card, in place of the text and link. */
+  if (storyMention) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
+          {nameLabel}
+          <StoryMentionCard mention={storyMention} mine={mine} otherName={authorName ?? 'them'} />
+          <span className="mt-0.5 text-caption text-text-tertiary">{formatTime(message.createdAt)}</span>
+          <div className="clear-both">{reactions}</div>
+        </div>
+      </div>
+    );
+  }
+
   /*
    * A message that is only a video link is the video: no bubble, no URL, the
    * clip at its own shape - the way a sent video looks. With words beside the

@@ -80,6 +80,15 @@ export function demoServices() {
   const chat = new MockChatService();
   const chatProxy = new Proxy(chat, {
     get: (target, key) => {
+      // A story mention from Rohit, so the card can be seen from the receiving side.
+      if (key === 'listMessages') {
+        return async (id: string, options?: unknown) => {
+          const list = await target.listMessages(id, options as never);
+          const like = list.find((m) => m.authorId !== ME_ID);
+          if (id !== 'c-rohit' || !like || (options as { before?: string } | undefined)?.before) return list;
+          return [...list, { ...like, id: 'demo-mention', body: '@baani mentioned you in their story\nhttps://pingochat.pages.dev/story?m=baani-0&a=baani', createdAt: Date.now() - 60_000, reactions: [] }];
+        };
+      }
       if (typeof key === 'string' && !(key in target)) return empty(key);
       const value: unknown = Reflect.get(target, key);
       // Bound, because the service keeps private fields a proxy cannot reach.

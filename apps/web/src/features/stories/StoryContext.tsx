@@ -13,6 +13,7 @@ import {
 
 import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
 import { isBlocked, onBlocksChange } from '../safety/blocks.js';
+import { announceStoryPosted } from './story-mentions.js';
 import { UploadToast, flyToRing, type StoryFrom, type UploadNote } from './StoryUpload.js';
 
 /**
@@ -242,7 +243,9 @@ export function StoryProvider({
         if (fly && from) await flyToRing(from, draft.kind === 'photo' ? draft.media : undefined);
         setUploading((n) => n + 1);
         try {
-          await service.post(draft);
+          const posted = await service.post(draft);
+          // Anybody mentioned in it hears about it in chat - see story-mentions.ts.
+          announceStoryPosted(posted);
           await refresh();
           say({ at: Date.now(), ok: true, text: draft.audience === 'close' ? 'Shared with close friends' : 'Shared to your story' });
         } catch {

@@ -7,6 +7,7 @@ import { syncBlocks } from '../features/safety/blocks.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
+import { StoryMentionRelay } from '../features/stories/StoryMentionRelay.js';
 import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
@@ -258,6 +259,7 @@ export function AppShell() {
       </main>
 
       {!fullscreen && <Dock />}
+      <StoryMentionRelay />
     </div>
   );
 }
