@@ -1042,9 +1042,51 @@ export function ChatThread({
 
   // Jump to the newest message when the thread opens, then follow smoothly.
   const openedRef = useRef(false);
+  /*
+   * Held at the bottom while the thread settles.
+   *
+   * Opening is not one render: the stored page paints, the network page
+   * replaces it, reactions arrive, photos and fonts load and grow their rows.
+   * One jump at the first paint, followed by a smooth scroll for each of the
+   * rest, raced - a later swap landed mid-animation, the half-way position
+   * read as "the reader scrolled up", and following stopped. Sometimes the
+   * chat opened at the top. So for the first moments every change of height
+   * snaps straight to the bottom, until the person touches the thread.
+   */
+  const pinUntilRef = useRef(0);
+  const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     openedRef.current = false;
+    pinUntilRef.current = 0;
   }, [conversation.id]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    const content = contentRef.current;
+    if (!el || !content) return;
+    const pin = () => {
+      if (Date.now() > pinUntilRef.current) return;
+      el.scrollTop = el.scrollHeight;
+      followingRef.current = true;
+    };
+    const release = () => {
+      pinUntilRef.current = 0;
+    };
+    const observer = new ResizeObserver(pin);
+    observer.observe(content);
+    observer.observe(el);
+    el.addEventListener('wheel', release, { passive: true });
+    el.addEventListener('touchstart', release, { passive: true });
+    el.addEventListener('pointerdown', release);
+    el.addEventListener('keydown', release);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('wheel', release);
+      el.removeEventListener('touchstart', release);
+      el.removeEventListener('pointerdown', release);
+      el.removeEventListener('keydown', release);
+    };
+  }, [loading]);
 
   /*
    * Following the bottom, and only when there is something new down there.
@@ -1064,7 +1106,10 @@ export function ChatThread({
     if (!el) return;
 
     if (!openedRef.current) {
+      // Not until there is something to stand at the bottom of.
+      if (groups.length === 0) return;
       openedRef.current = true;
+      pinUntilRef.current = Date.now() + 2500;
       el.scrollTop = el.scrollHeight;
       lastHeightRef.current = el.scrollHeight;
       return;
@@ -1072,6 +1117,10 @@ export function ChatThread({
 
     const grew = el.scrollHeight > lastHeightRef.current + 1;
     lastHeightRef.current = el.scrollHeight;
+    if (Date.now() < pinUntilRef.current) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
     if (!grew || !followingRef.current || isMessageMenuOpen()) return;
     el.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }, [groups, loading, prefersReducedMotion]);
@@ -1478,6 +1527,7 @@ export function ChatThread({
           <ThreadSkeleton />
         ) : (
           <div
+            ref={contentRef}
             className={cn(
               'mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-4',
               // Anchors a short thread to the bottom, against the composer, rather
