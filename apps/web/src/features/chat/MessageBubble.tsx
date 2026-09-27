@@ -39,6 +39,7 @@ import { LinkPreviewCard } from './LinkPreviewCard.js';
 import { VideoLinkCard } from './VideoLinkCard.js';
 import { StoryMentionCard } from '../stories/StoryMentionCard.js';
 import { parseStoryMention } from '../stories/story-mentions.js';
+import { parseNickname } from './nicknames.js';
 import { VoiceNote } from './VoiceNote.js';
 
 /**
@@ -187,7 +188,7 @@ export function MessageBubble({
    * tick, so the whole thread resolves in one query - see `useEarnedBadges`.
    */
   const authorAchievements = useAchievements([message.authorId]);
-  const { service } = useChat();
+  const { service, currentUser } = useChat();
 
   /*
    * The assistant's own text, and nothing else.
@@ -226,6 +227,10 @@ export function MessageBubble({
    */
   const videoLink = useMemo(
     () => (message.deleted ? undefined : detectVideoLink(message.body)),
+    [message.body, message.deleted],
+  );
+  const nicknameEvent = useMemo(
+    () => (message.deleted ? undefined : parseNickname(message.body)),
     [message.body, message.deleted],
   );
   const storyMention = useMemo(
@@ -332,6 +337,22 @@ export function MessageBubble({
 
   // System notices are not bubbles at all - they are centred captions.
   // Kept plain so they never compete with the thread's liquid glass surfaces.
+  /*
+   * A nickname being set is a line in the thread, like a system notice - from
+   * each reader's side: "You set Rohit's nickname", "Rohit set your nickname".
+   */
+  if (nicknameEvent) {
+    const who = mine ? 'You' : nicknameEvent.actorName;
+    const whose = nicknameEvent.userId === currentUser?.id ? 'your' : mine ? `${nicknameEvent.targetName}'s` : `${nicknameEvent.targetName}'s`;
+    return (
+      <div id={`message-${message.id}`} {...trigger} className="py-2 text-center outline-none">
+        <span className="text-caption text-text-tertiary">
+          {nicknameEvent.nick ? <>{who} set {whose} nickname to <b className="font-semibold text-text-secondary">{nicknameEvent.nick}</b></> : <>{who} removed {whose} nickname</>}
+        </span>
+      </div>
+    );
+  }
+
   if (message.system) {
     return (
       <div className="py-2 text-center">

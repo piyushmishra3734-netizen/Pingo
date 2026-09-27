@@ -158,6 +158,9 @@ export function messagePreview(
   let text = message.body.trim();
   // A PINGO Arcade invite is a Join card in the thread; its link is not a preview.
   if (/\/arcade\?room=/.test(text)) text = 'Game invite';
+  // A story mention and a nickname are cards and lines in the thread; their links are not a preview.
+  if (/\/story\?m=/.test(text)) return message.authorId === currentUserId ? 'You mentioned them in your story' : 'Mentioned you in their story';
+  if (/\/nick\?u=/.test(text)) return text.split('\n')[0] ?? 'Nickname changed';
   // Attachment kinds carry no body, so each says what it is.
   if (!text && message.photo) text = 'Photo';
   if (!text && message.location) text = message.location.label ?? 'Location';

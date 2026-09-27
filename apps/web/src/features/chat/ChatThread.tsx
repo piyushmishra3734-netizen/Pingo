@@ -62,6 +62,7 @@ import { mediaTooLarge, type MediaKind } from '@pingo/core';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { useIsBlocked } from '../safety/blocks.js';
+import { learnNicknames, nicknameOf, useNickname } from './nicknames.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { MessageSelectionBar } from './MessageSelectionBar.js';
 import { startRain } from './rain.js';
@@ -320,6 +321,8 @@ export function ChatThread({
     send,
     sendSticker,
   } = useMessages(conversation.id);
+  // Nicknames are messages; whatever this thread has loaded is learned (see nicknames.ts).
+  useEffect(() => learnNicknames(conversation.id, messages), [conversation.id, messages]);
   const { startCall, startGroupCall, joinGroupCall, call: activeCall } = useCall();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -600,7 +603,9 @@ export function ChatThread({
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
   const nameOf = (userId: string) =>
-    userId === currentUser?.id ? 'You' : users.find((u) => u.id === userId)?.name;
+    userId === currentUser?.id
+      ? 'You'
+      : nicknameOf(conversation.id, userId) ?? users.find((u) => u.id === userId)?.name;
 
   const personOf = (userId: string) => users.find((u) => u.id === userId);
 
@@ -655,6 +660,9 @@ export function ChatThread({
           (u) => conversation.participantIds.includes(u.id) && u.id !== currentUser?.id,
         )
       : undefined;
+  // A direct chat is titled by the nickname you gave them, if you did.
+  const partnerNickname = useNickname(conversation.id, partner?.id);
+  const headerTitle = partnerNickname ?? conversation.title;
   // Blocked: no composer, and the way back (features/safety/blocks.ts).
   const partnerBlocked = useIsBlocked(partner?.id);
 
@@ -1487,7 +1495,7 @@ export function ChatThread({
           )}
         >
           <span className="flex max-w-full items-center gap-1.5 text-[16px] font-semibold leading-tight text-ink">
-            <span className="truncate">{conversation.title}</span>
+            <span className="truncate">{headerTitle}</span>
             {partner && <AchievementMark achievement={headerAchievements.lead(partner.id)} />}
           </span>
           {netTitle ? (

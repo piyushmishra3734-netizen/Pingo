@@ -20,6 +20,7 @@ import {
   FileText,
   Image as ImageGlyph,
   Link2,
+  PenLine,
   LogOut,
   MapPin,
   Phone,
@@ -42,6 +43,8 @@ import { useConversationActions } from '../conversations/useConversationActions.
 import { useUnmuteConfirm } from '../conversations/useUnmuteConfirm.js';
 import { disappearingLabel } from './ConversationMenu.js';
 import { collectSharedMedia } from './shared-media.js';
+import { MAX_NICKNAME, nicknameBody, useNickname } from './nicknames.js';
+import { Sheet } from '../../components/Sheet.js';
 
 /**
  * What opens when the name at the top of a chat is tapped: the person, or the
@@ -124,6 +127,9 @@ function ChatInfoPage({
   }, [profiles, partner]);
 
   const [muting, setMuting] = useState(false);
+  const [naming, setNaming] = useState(false);
+  const theirNickname = useNickname(conversation.id, partner?.id);
+  const myNickname = useNickname(conversation.id, currentUser?.id);
   const toggleMute = () => {
     if (!conversation.muted) {
       setMuting(true);
@@ -338,6 +344,11 @@ function ChatInfoPage({
               Friends in common
             </Row>
           )}
+          {partner && (
+            <Row icon={<PenLine size={19} />} onClick={() => setNaming(true)} value={theirNickname ?? 'None'}>
+              Nicknames
+            </Row>
+          )}
           <Row
             icon={<ImageGlyph size={19} />}
             onClick={() => navigate(`/settings/wallpaper?c=${encodeURIComponent(conversation.id)}`)}
@@ -370,6 +381,25 @@ function ChatInfoPage({
         </section>
       </div>
 
+      {naming && partner && currentUser && (
+        <NicknameSheet
+          partnerName={partner.name}
+          theirs={theirNickname ?? ''}
+          mine={myNickname ?? ''}
+          onClose={() => setNaming(false)}
+          onSave={async (theirs, mineNext) => {
+            const me = currentUser.name;
+            // One line in the thread per change, so both people see it - Messenger's way.
+            if (theirs !== (theirNickname ?? '')) {
+              await chat.sendMessage({ conversationId: conversation.id, body: nicknameBody({ userId: partner.id, nick: theirs, actorName: me, targetName: partner.name }) });
+            }
+            if (mineNext !== (myNickname ?? '')) {
+              await chat.sendMessage({ conversationId: conversation.id, body: nicknameBody({ userId: currentUser.id, nick: mineNext, actorName: me, targetName: me }) });
+            }
+            setNaming(false);
+          }}
+        />
+      )}
       {muting && (
         <MuteSheet
           count={1}
@@ -536,4 +566,40 @@ function Shared({ messages, onOpen }: { messages: readonly Message[]; onOpen: (m
 
 function Empty({ children }: { children: ReactNode }) {
   return <p className="py-6 text-center text-caption text-text-tertiary">{children}</p>;
+}
+
+/** Messenger's nicknames sheet: theirs and yours, both seen by both of you. */
+function NicknameSheet({ partnerName, theirs, mine, onClose, onSave }: {
+  partnerName: string;
+  theirs: string;
+  mine: string;
+  onClose: () => void;
+  onSave: (theirs: string, mine: string) => Promise<void>;
+}) {
+  const [a, setA] = useState(theirs);
+  const [b, setB] = useState(mine);
+  const [busy, setBusy] = useState(false);
+  const field = 'mt-1 block w-full rounded-[12px] bg-sunken px-3.5 py-2.5 text-[16px] text-ink outline-none placeholder:text-text-tertiary';
+  return (
+    <Sheet title="Nicknames" description="Both of you see these, and the chat says when one changes." onClose={onClose}>
+      <div className="space-y-4 pb-2">
+        <label className="block text-caption text-text-secondary">
+          {partnerName.split(' ')[0]}
+          <input value={a} onChange={(e) => setA(e.target.value.slice(0, MAX_NICKNAME))} placeholder={partnerName} className={field} />
+        </label>
+        <label className="block text-caption text-text-secondary">
+          You
+          <input value={b} onChange={(e) => setB(e.target.value.slice(0, MAX_NICKNAME))} placeholder="Your nickname in this chat" className={field} />
+        </label>
+        <button
+          type="button"
+          disabled={busy || (a.trim() === theirs && b.trim() === mine)}
+          onClick={() => { setBusy(true); void onSave(a.trim(), b.trim()).catch(() => setBusy(false)); }}
+          className="bg-brand-gradient h-11 w-full rounded-full text-[15px] font-semibold text-on-brand disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </Sheet>
+  );
 }
