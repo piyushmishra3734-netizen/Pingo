@@ -109,8 +109,9 @@ export const PlusIcon = (props: IconProps) => (
 /** The composer's send control: a paper plane, matching the board. */
 export const SendIcon = (props: IconProps) => (
   <IconBase {...props}>
-    <path d="M20.2 4.3 3.9 10.1a.7.7 0 0 0 0 1.3l6.3 2.1 2.1 6.3a.7.7 0 0 0 1.3 0l5.8-16.3a.7.7 0 0 0-.9-.9Z" />
-    <path d="M10.2 13.5 20.2 4.3" />
+    {/* The nose is one clean corner: the old arc there turned the wrong way and drew a knob on the tip. */}
+    <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" />
+    <path d="m21.854 2.147-10.94 10.939" />
   </IconBase>
 );
 
