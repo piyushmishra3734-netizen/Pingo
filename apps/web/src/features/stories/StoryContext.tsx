@@ -54,6 +54,8 @@ interface StoryContextValue {
    * ring spins until it is up, and a toast says it went (or offers a retry).
    */
   upload: (draft: StoryDraft, from?: StoryFrom) => void;
+  /** The sample's toast: one line and an icon, for a moment. */
+  notify: (text: string, icon?: ReactNode) => void;
 }
 
 const StoryContext = createContext<StoryContextValue | undefined>(undefined);
@@ -250,6 +252,8 @@ export function StoryProvider({
     [service, refresh, say],
   );
 
+  const notify = useCallback((text: string, icon?: ReactNode) => say({ at: Date.now(), ok: true, text, ...(icon ? { icon } : {}) }), [say]);
+
   const value = useMemo<StoryContextValue>(
     () => ({
       service,
@@ -263,8 +267,9 @@ export function StoryProvider({
       setAuthorMuted,
       uploading,
       upload,
+      notify,
     }),
-    [service, groups, mine, loading, refresh, markSeen, setLiked, mutedAuthors, setAuthorMuted, uploading, upload],
+    [service, groups, mine, loading, refresh, markSeen, setLiked, mutedAuthors, setAuthorMuted, uploading, upload, notify],
   );
 
   return (

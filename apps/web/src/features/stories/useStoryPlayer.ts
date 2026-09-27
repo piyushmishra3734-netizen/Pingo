@@ -40,6 +40,7 @@ export interface StoryPlayer {
   previous: () => void;
   /** Straight to the next or previous person - the swipe. Past either end closes. */
   jumpGroup: (dir: 1 | -1) => void;
+  goTo: (index: number) => void;
   /** Adds one reason to stay paused; the returned function removes it. */
   hold: () => () => void;
   /** Videos drive their own clock - see `reportDuration`. */
@@ -56,7 +57,9 @@ export function useStoryPlayer({
   onClose: () => void;
 }): StoryPlayer {
   const [groupIndex, setGroupIndex] = useState(startGroupIndex);
-  const [storyIndex, setStoryIndex] = useState(0);
+  // Each person opens where you left off: their first story you have not seen, as the sample does.
+  const firstUnseen = (g: number) => Math.max(0, groups[g]?.stories.findIndex((s) => !s.seen) ?? 0);
+  const [storyIndex, setStoryIndex] = useState(() => firstUnseen(startGroupIndex));
   const [holds, setHolds] = useState(0);
 
   const progressRef = useRef(0);
@@ -75,46 +78,36 @@ export function useStoryPlayer({
    */
   const storyId = story?.id;
 
+  /*
+   * Moves are computed from the current position and then set, rather than
+   * one state setter being called inside another's updater: React runs
+   * updaters twice in development, and a nested setter ran twice with it -
+   * running off the end of one person skipped the next.
+   */
   const next = useCallback(() => {
     progressRef.current = 0;
     durationRef.current = STORY_PHOTO_MS;
-
-    setStoryIndex((index) => {
-      const current = groups[groupIndex];
-      if (current && index < current.stories.length - 1) return index + 1;
-
-      // Off the end of this person: start the next one, or leave.
-      if (groupIndex < groups.length - 1) {
-        setGroupIndex((g) => g + 1);
-        return 0;
-      }
-      onClose();
-      return index;
-    });
-  }, [groups, groupIndex, onClose]);
+    const current = groups[groupIndex];
+    if (current && storyIndex < current.stories.length - 1) { setStoryIndex(storyIndex + 1); return; }
+    if (groupIndex < groups.length - 1) {
+      setGroupIndex(groupIndex + 1);
+      setStoryIndex(firstUnseen(groupIndex + 1));
+      return;
+    }
+    onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, groupIndex, storyIndex, onClose]);
 
   const previous = useCallback(() => {
     progressRef.current = 0;
     durationRef.current = STORY_PHOTO_MS;
-
-    setStoryIndex((index) => {
-      if (index > 0) return index - 1;
-
-      /*
-       * Back past the first story goes to the *end* of the previous person,
-       * which is what "back" means in a queue - not to their first story, which
-       * would make going back feel like starting over.
-       */
-      if (groupIndex > 0) {
-        const earlier = groups[groupIndex - 1];
-        setGroupIndex((g) => g - 1);
-        return Math.max(0, (earlier?.stories.length ?? 1) - 1);
-      }
-      // Already at the very start. Restart this story rather than doing
-      // nothing, so the tap is never silently ignored.
-      return 0;
-    });
-  }, [groups, groupIndex]);
+    if (storyIndex > 0) { setStoryIndex(storyIndex - 1); return; }
+    if (groupIndex > 0) {
+      const earlier = groups[groupIndex - 1];
+      setGroupIndex(groupIndex - 1);
+      setStoryIndex(Math.max(0, (earlier?.stories.length ?? 1) - 1));
+    }
+  }, [groups, groupIndex, storyIndex]);
 
   const jumpGroup = useCallback(
     (dir: 1 | -1) => {
@@ -127,10 +120,18 @@ export function useStoryPlayer({
         return;
       }
       setGroupIndex(target);
-      setStoryIndex(0);
+      setStoryIndex(firstUnseen(target));
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [groups.length, groupIndex, onClose],
   );
+
+  /** Straight to one of this person's stories. */
+  const goTo = useCallback((index: number) => {
+    progressRef.current = 0;
+    durationRef.current = STORY_PHOTO_MS;
+    setStoryIndex(index);
+  }, []);
 
   const hold = useCallback(() => {
     setHolds((count) => count + 1);
@@ -213,6 +214,7 @@ export function useStoryPlayer({
     next,
     previous,
     jumpGroup,
+    goTo,
     hold,
     reportDuration,
   };

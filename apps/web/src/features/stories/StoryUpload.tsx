@@ -76,7 +76,7 @@ export function UploadToast({ note, onDone }: { note: UploadNote; onDone?: () =>
   return (
     <div
       role="status"
-      className={`fixed bottom-[100px] left-1/2 z-[1300] flex -translate-x-1/2 items-center gap-2 rounded-xl bg-[#262626] px-4 py-[11px] text-[14px] font-semibold whitespace-nowrap text-white [&>svg]:size-4 ${note.retry ? '' : 'pointer-events-none'}`}
+      className={`fixed bottom-[100px] left-1/2 z-[1300] flex -translate-x-1/2 items-center gap-2 rounded-[12px] bg-[#262626] px-4 py-[11px] text-[14px] font-semibold whitespace-nowrap text-white [&>svg]:size-4 ${note.retry ? '' : 'pointer-events-none'}`}
       style={{ animation: 'story-toast-in .3s' }}
     >
       <style>{'@keyframes story-toast-in { from { opacity: 0; translate: 0 20px } }'}</style>

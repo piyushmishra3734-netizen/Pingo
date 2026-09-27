@@ -1,9 +1,9 @@
-import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryDecor, type StoryDraft, type StorySticker } from '@pingo/core';
+import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryBoom, type StoryDecor, type StoryDraft, type StorySticker } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import {
   AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronDown, ChevronLeft, CircleCheck, Circle,
   Download, Ellipsis, Eraser, Highlighter, Link as LinkIcon, MapPin, Music2, Pause, PenLine, Play, Search, Sparkles, Star,
-  Sticker, Type, Undo2, ArrowRight, Zap, AlarmClock, Clock, Hash, Timer,
+  Sticker, Type, Undo2, ArrowRight, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -12,6 +12,9 @@ import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
 import { SendTo, drawStickers, noteSends } from '../camera/snap/send-to.js';
+import { useStories } from './StoryContext.js';
+import { MenuGroup, MenuRow, SheetSearch } from './StorySheet.js';
+import { BOOMS, BoomerangMode, useBoomerang } from './Boomerang.js';
 import type { StoryFrom } from './StoryUpload.js';
 import { Blue, ClipSheet, Field, MusicSheet, Panel, type Song } from '../music/sheets.js';
 
@@ -36,6 +39,7 @@ const FILTERS: [string, string][] = [
   ['New York', 'grayscale(1) contrast(1.2)'], ['Jaipur', 'sepia(.3) saturate(1.6) hue-rotate(-15deg)'], ['Cairo', 'sepia(.5) contrast(1.05) brightness(.97)'],
   ['Tokyo', 'saturate(.75) contrast(1.15) hue-rotate(10deg) brightness(1.05)'], ['Rio de Janeiro', 'saturate(1.5) brightness(1.08) hue-rotate(-5deg)'],
 ];
+const PLACES = ['Indore', 'Bhopal', 'Mumbai', 'Rajwada, Indore', 'Sarafa Bazaar', 'Goa', 'Manali', 'Sequoia National Park, California'];
 const SLIDER_EMOJI = ['😍', '🔥', '😂', '😮', '💯', '🥳'];
 const DRAW_COLORS = ['#ffffff', '#000000', '#0a84ff', '#34c759', '#ffcc00', '#ff9500', '#ff3b30', '#e0559b', '#bf5af2'];
 export type Brush = 'pen' | 'marker' | 'neon' | 'eraser';
@@ -58,6 +62,8 @@ export interface StoryEditorProps {
   onPost: (draft: StoryDraft, from?: StoryFrom) => Promise<void>;
   /** A song already chosen in the camera. */
   initialSong?: Song;
+  /** Opens straight into typing (a Template) or the song list (Music), from "Add to story". */
+  start?: 'text' | 'music';
   /**
    * Opened from the camera: a chat gets a Ping - a picture with a view limit -
    * rather than an ordinary photo, and one chat may already be chosen.
@@ -65,8 +71,9 @@ export interface StoryEditorProps {
   ping?: { lockedChatId?: string };
 }
 
-export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost, initialSong, ping }: StoryEditorProps) {
+export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost, initialSong, ping, start }: StoryEditorProps) {
   const { users, service: chat } = useChat();
+  const { notify } = useStories();
   const { profile } = useProfile();
   const stage = useRef<HTMLDivElement>(null);
   const layer = useRef<HTMLDivElement>(null);
@@ -80,8 +87,12 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const [song, setSong] = useState<Song | undefined>(initialSong);
   /** A Ping's view limit: once, twice, or as often as they like. */
   const [views, setViews] = useState<1 | 2 | null>(2);
-  const [mode, setMode] = useState<'none' | 'text' | 'draw'>('none');
-  const [sheet, setSheet] = useState<SheetKind | null>(null);
+  const [mode, setMode] = useState<'none' | 'text' | 'draw' | 'boom'>(start === 'text' ? 'text' : 'none');
+  /** A clip's Boomerang, and the part of it that plays (fractions). */
+  const [boom, setBoom] = useState<StoryBoom>('off');
+  const [trim, setTrim] = useState<[number, number]>([0, 1]);
+  useBoomerang(mediaEl, kind === 'video' ? boom : undefined, trim[0], trim[1], mode === 'boom');
+  const [sheet, setSheet] = useState<SheetKind | null>(start === 'music' ? 'music' : null);
   const [rail, setRail] = useState<'labels' | 'icons' | 'open'>('labels');
   const [fname, setFname] = useState<string>();
   const [dragging, setDragging] = useState<{ hot: boolean; gv: boolean; gh: boolean }>();
@@ -136,7 +147,15 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
     const n = STYLE_COUNT[s.type];
     if (n) return update(s.id, { style: ((s.style ?? 0) + 1) % n });
     if (s.type === 'slider') return update(s.id, { d: { ...s.d, emoji: SLIDER_EMOJI[(SLIDER_EMOJI.indexOf(String(s.d.emoji)) + 1) % SLIDER_EMOJI.length] } });
-    if (s.type === 'quiz') { const o = target.closest('[data-i]') as HTMLElement | null; if (o && !target.closest('[contenteditable]')) update(s.id, { d: { ...s.d, right: Number(o.dataset.i) } }); return; }
+    if (s.type === 'quiz') {
+      const o = target.closest('[data-i]') as HTMLElement | null;
+      if (o && !target.closest('[contenteditable]')) {
+        const right = Number(o.dataset.i);
+        update(s.id, { d: { ...s.d, right } });
+        notify(`Right answer: ${((s.d.opts as string[] | undefined) ?? [])[right] ?? ''}`, <Check />);
+      }
+      return;
+    }
     if (s.type === 'music') return setSheet('clip');
     if (s.type === 'countdown' && !target.closest('[contenteditable]')) { countdownFor.current = s; setSheet('countdown'); }
   };
@@ -249,19 +268,22 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
 
   // ---- leaving ---------------------------------------------------------------------
   const exportPhoto = async (withStickers = false): Promise<Blob> => {
-    const c = document.createElement('canvas'); c.width = W; c.height = H; const g2 = c.getContext('2d')!;
+    // The frame's own shape, so what is exported is what was on screen, with nothing added at the sides.
+    const box = stage.current?.getBoundingClientRect();
+    const c = document.createElement('canvas'); c.width = W; c.height = box && box.width ? Math.round((W * box.height) / box.width) : H; const g2 = c.getContext('2d')!;
+    const CH = c.height;
     if (bg) {
       const colours = bg.match(/rgb\([^)]*\)|#[0-9a-f]{3,8}/gi) ?? ['#3a3a40', '#1c1c1e'];
-      const grad = g2.createLinearGradient(0, 0, W * 0.4, H); grad.addColorStop(0, colours[0]!); grad.addColorStop(1, colours[1] ?? colours[0]!);
-      g2.fillStyle = grad; g2.fillRect(0, 0, W, H);
+      const grad = g2.createLinearGradient(0, 0, W * 0.4, CH); grad.addColorStop(0, colours[0]!); grad.addColorStop(1, colours[1] ?? colours[0]!);
+      g2.fillStyle = grad; g2.fillRect(0, 0, W, CH);
     } else {
       const img = mediaEl.current as HTMLImageElement;
       if ('filter' in g2 && filter) g2.filter = filter;
-      const k = Math.max(W / img.naturalWidth, H / img.naturalHeight);
-      g2.drawImage(img, (W - img.naturalWidth * k) / 2, (H - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      const k = Math.max(W / img.naturalWidth, CH / img.naturalHeight);
+      g2.drawImage(img, (W - img.naturalWidth * k) / 2, (CH - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
       g2.filter = 'none';
     }
-    if (ink.current && strokes.length) g2.drawImage(ink.current, 0, 0);
+    if (ink.current && strokes.length) g2.drawImage(ink.current, 0, 0, W, CH);
     if (withStickers) await drawStickers(g2, stickers);
     return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Could not save the picture.'))), 'image/jpeg', 0.9));
   };
@@ -295,10 +317,12 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         const sound = await decodeSound(new File([bytes], song.name, { type: bytes.type || 'audio/mp4' }));
         audio = [{ blob: cutToWav(sound.buffer, song.start, Math.min(sound.buffer.duration, song.start + 15)), at: 0, duration: 15, volume: 1 }];
       }
-      const decor: StoryDecor = { v: 1, stickers, ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}) };
+      const decor: StoryDecor = { v: 1, stickers, ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}), ...(kind === 'video' && boom !== 'off' ? { boom } : {}) };
+      const clip = kind === 'video' ? (mediaEl.current as HTMLVideoElement | null)?.duration : undefined;
+      const trimmed = clip && (trim[0] > 0 || trim[1] < 1) ? { videoEdit: { trimStart: trim[0] * clip, trimEnd: trim[1] * clip } } : {};
       setBusy('Sharing…');
       await onPost({
-        media: file, kind, audience, decor,
+        media: file, kind, audience, decor, ...trimmed,
         ...(audienceUserIds ? { audienceUserIds } : {}),
         ...(caption.trim() ? { caption: caption.trim() } : {}),
         ...(audio ? { audio } : {}),
@@ -336,6 +360,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       const b = kind === 'photo' ? await exportPhoto() : media;
       const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `pingo-story.${kind === 'photo' ? 'jpg' : 'mp4'}`; a.click();
       window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      notify('Saved to your phone', <Download />);
     } catch { /* nothing to save */ }
   };
 
@@ -343,7 +368,8 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
     ['Text', <Type key="t" />, () => { setEditingText(undefined); setMode('text'); }],
     ['Stickers', <Sticker key="s" />, () => setSheet('stickers')],
     ['Audio', <Music2 key="a" />, () => setSheet('music')],
-    ['Effect', <Sparkles key="e" />, () => setSheet('effects')],
+    // A photo gets its filters; a clip gets Boomerang, opening on Classic as Instagram's does.
+    ['Effect', <Sparkles key="e" />, () => { if (kind === 'video') { if (boom === 'off') setBoom('classic'); setMode('boom'); } else setSheet('effects'); }],
   ];
   const moreTools: [string, ReactNode, () => void][] = [
     ['Mention', <AtSign key="m" />, () => setSheet('mention')],
@@ -357,11 +383,11 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
 
   return (
     <Overlay onDismiss={() => setSheet('discard')}>
-      <div className="fixed inset-0 z-1000 flex flex-col bg-black text-white select-none" role="dialog" aria-modal="true" aria-label="Story editor"
+      <div className="fixed inset-0 z-1000 bg-black text-white select-none" role="dialog" aria-modal="true" aria-label="Story editor"
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} style={{ touchAction: 'none' }}>
-        {/* the frame: 9:16, as large as the screen allows */}
-        <div className="relative min-h-0 flex-1">
-          <div ref={stage} className="absolute top-0 left-1/2 aspect-[9/16] max-h-full w-full max-w-[calc((100dvh-76px)*9/16)] -translate-x-1/2 overflow-hidden rounded-b-2xl" style={{ background: bg ?? '#111' }}>
+        {/* the frame: the whole screen down to the bar, as the sample's; a phone's column on a wide screen */}
+        <div className="relative mx-auto h-full w-full max-w-[calc(100dvh*0.5)]">
+          <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-[16px]" style={{ background: bg ?? '#111' }}>
             {kind === 'video'
               ? <video ref={mediaEl} src={src} className="absolute inset-0 size-full object-cover" style={{ filter }} autoPlay loop muted playsInline />
               : !bg && <img ref={mediaEl} src={src} alt="" className="absolute inset-0 size-full object-cover" style={{ filter }} draggable={false} crossOrigin="anonymous" />}
@@ -386,7 +412,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
           </div>
 
           {/* the bin, while something is being dragged */}
-          <div ref={binRef} className={cn('pointer-events-none absolute bottom-6 left-1/2 grid size-13 -translate-x-1/2 place-items-center rounded-full ring-2 ring-white/70 transition-all',
+          <div ref={binRef} className={cn('pointer-events-none absolute bottom-[100px] left-1/2 grid size-13 -translate-x-1/2 place-items-center rounded-full ring-2 ring-white/70 transition-all',
             dragging ? 'scale-100 opacity-100' : 'scale-50 opacity-0', dragging?.hot ? 'scale-125 bg-[#ff3040]' : 'bg-black/40')}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
           </div>
@@ -407,10 +433,8 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
             </button>
           </div>
 
-        </div>
-
         {/* where it goes */}
-        <div data-chrome className={cn('flex h-[76px] shrink-0 items-center gap-2 px-3 pb-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+        <div data-chrome className={cn('absolute inset-x-0 bottom-0 flex h-[76px] items-center gap-2 px-3 pb-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
           <button type="button" disabled={!!busy} onClick={() => void post('friends')} className="flex h-[46px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#262626] px-2.5 text-[14px] font-bold whitespace-nowrap">
             {profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" className="size-[26px] shrink-0 rounded-full object-cover" /> : null}Your story
           </button>
@@ -419,9 +443,10 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
           </button>
           <button type="button" aria-label="More sharing options" disabled={!!busy} onClick={() => setSheet('share')} className="grid size-[46px] shrink-0 place-items-center rounded-full bg-white text-black"><ArrowRight size={22} /></button>
         </div>
+        </div>
 
         {busy && <div className="absolute inset-0 z-50 grid place-items-center bg-black/55"><div className="flex flex-col items-center gap-3"><span className="size-9 animate-spin rounded-full border-3 border-white/25 border-t-white" /><span className="text-[14px] font-semibold">{busy}</span></div></div>}
-        {error && <p role="alert" className="absolute inset-x-4 bottom-24 z-40 rounded-xl bg-[#ff3040] px-4 py-3 text-[14px] font-semibold">{error}</p>}
+        {error && <p role="alert" className="absolute inset-x-4 bottom-24 z-40 rounded-[12px] bg-[#ff3040] px-4 py-3 text-[14px] font-semibold">{error}</p>}
 
         {mode === 'text' && (
           <TextMode
@@ -434,6 +459,10 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
             onLocation={() => setSheet('loc')}
           />
         )}
+        {mode === 'boom' && (
+          <BoomerangMode src={src} boom={boom} trim={trim} onChange={(b, t) => { setBoom(b); setTrim(t); }}
+            onDone={() => { setMode('none'); notify(boom === 'off' ? 'Effect off' : `Boomerang: ${BOOMS.find((x) => x[0] === boom)?.[1]}`, <InfinityIcon />); }} />
+        )}
         {mode === 'draw' && <DrawMode ink={ink} stage={stage} strokes={strokes} setStrokes={setStrokes} onDone={() => setMode('none')} />}
 
         {sheet && (
@@ -442,7 +471,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
             users={users} add={add} song={song} setSong={(s) => { setSong(s); if (s) playSong(s); }} chooseSong={chooseSong}
             ping={ping ? { views: kind === 'photo' ? views : undefined, ...(ping.lockedChatId ? { locked: ping.lockedChatId } : {}) } : undefined}
             countdown={countdownFor.current} onCountdown={(d) => { const c = countdownFor.current; countdownFor.current = undefined; if (c) update(c.id, { d }); else add({ type: 'countdown', y: 0.3, d }); }}
-            onPost={post} onDiscard={() => { player.current?.pause(); onClose(); }} onSend={sendTo}
+            onPost={post} onDiscard={() => { player.current?.pause(); onClose(); }} onSend={sendTo} notify={notify}
             onPreview={(s) => { if (!s) player.current?.pause(); else playSong(s); }}
           />
         )}
@@ -455,6 +484,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
 // text (Instagram's text tool)
 export function TextMode({ initial, onDone, onLocation }: { initial?: TextData; onDone: (d: TextData) => void; onLocation: () => void }) {
   const [d, setD] = useState<TextData>(initial ?? { text: '', font: 'classic', color: '#ffffff', bg: 'none', align: 'center', size: 30, anim: 'none' });
+  const { notify } = useStories();
   const [colors, setColors] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const size = useRef<HTMLDivElement>(null);
@@ -472,7 +502,7 @@ export function TextMode({ initial, onDone, onLocation }: { initial?: TextData; 
       <div className="absolute inset-x-3 top-3 flex items-center justify-center gap-3">
         <button type="button" aria-label="Alignment" onClick={() => set({ align: d.align === 'center' ? 'left' : d.align === 'left' ? 'right' : 'center' })} className="grid size-9 place-items-center rounded-full"><AlignIcon size={20} /></button>
         <button type="button" aria-label="Colour" onClick={() => setColors((c) => !c)} className="grid size-9 place-items-center"><span className="size-7 rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)] ring-2 ring-white" /></button>
-        <button type="button" aria-label="Animate" onClick={() => set({ anim: TEXT_ANIMS[(TEXT_ANIMS.indexOf(d.anim as never) + 1) % TEXT_ANIMS.length]! })} className={cn('grid size-9 place-items-center rounded-full', d.anim !== 'none' && 'bg-white text-black')}><ALargeSmall size={20} /></button>
+        <button type="button" aria-label="Animate" onClick={() => { const anim = TEXT_ANIMS[(TEXT_ANIMS.indexOf(d.anim as never) + 1) % TEXT_ANIMS.length]!; set({ anim }); notify(anim === 'none' ? 'No animation' : `Animation: ${anim}`, <Sparkles />); }} className={cn('grid size-9 place-items-center rounded-full', d.anim !== 'none' && 'bg-white text-black')}><ALargeSmall size={20} /></button>
         <button type="button" aria-label="Background" onClick={() => set({ bg: d.bg === 'none' ? 'solid' : d.bg === 'solid' ? 'soft' : 'none' })} className={cn('grid size-9 place-items-center rounded-full', d.bg !== 'none' && 'bg-white text-black')}><Baseline size={20} /></button>
         <button type="button" onClick={() => onDone(d)} className="absolute right-0 text-[16px] font-bold">Done</button>
       </div>
@@ -570,6 +600,7 @@ interface SheetsProps {
   countdown?: StorySticker; onCountdown: (d: Record<string, unknown>) => void;
   onPost: (a: StoryAudience, ids?: string[]) => Promise<void>; onDiscard: () => void; onPreview: (s?: Song) => void;
   onSend: (chatIds: string[], story: false | 'friends' | 'close') => Promise<void>;
+  notify: (text: string, icon?: ReactNode) => void;
   ping: { views: 1 | 2 | null | undefined; locked?: string } | undefined;
 }
 
@@ -582,36 +613,48 @@ function EditorSheets(p: SheetsProps) {
   switch (p.kind) {
     case 'discard':
       return (
-        <Panel title="Discard story?" onClose={close}>
-          <p className="px-6 pb-3 text-center text-[13.5px] text-white/60">If you go back now, you will lose any changes you've made.</p>
-          <button type="button" onClick={p.onDiscard} className="py-3.5 text-[15px] font-bold text-[#ff3040]">Discard</button>
-          <button type="button" onClick={close} className="py-3.5 text-[15px]">Keep editing</button>
+        <Panel title="Discard media?" onClose={close}>
+          <p className="px-5 pb-3.5 text-center text-[13.5px] text-[#a1a1a6]">If you go back now, you will lose any changes you've made.</p>
+          <button type="button" onClick={p.onDiscard} className="py-[9px] text-[16px] font-bold text-[#ff3040]">Discard</button>
+          <button type="button" onClick={() => { p.notify('Draft saved', <FileIcon />); p.onDiscard(); }} className="py-[9px] text-[16px] font-semibold">Save draft</button>
+          <button type="button" onClick={close} className="py-[9px] pb-6 text-[16px]">Cancel</button>
         </Panel>
       );
     case 'stickers':
       return <StickerTray {...p} close={close} />;
-    case 'loc':
+    case 'loc': {
+      // The sample's places, and whatever is typed as the first choice.
+      const typed = text.trim();
+      const places = [...(typed && !PLACES.some((l) => l.toLowerCase() === typed.toLowerCase()) ? [typed.slice(0, 60)] : []),
+        ...PLACES.filter((l) => !typed || l.toLowerCase().includes(typed.toLowerCase()))];
       return (
         <Panel title="Location" onClose={close}>
-          <form className="flex flex-col gap-3 px-4" onSubmit={(e) => { e.preventDefault(); if (!text.trim()) return; p.add({ type: 'loc', y: 0.7, d: { text: text.trim().slice(0, 60) } }); close(); }}>
-            <Field autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Where is this?" maxLength={60} enterKeyHint="done" />
-            <Blue type="submit" disabled={!text.trim()}>Add</Blue>
-          </form>
+          <SheetSearch value={text} onChange={setText} placeholder="Search locations" autoFocus
+            onEnter={() => { const l = places[0]; if (!l) return; p.add({ type: 'loc', y: 0.7, d: { text: l } }); close(); }} />
+          <div className="overflow-y-auto px-3.5 pb-6">
+            {places.map((l) => (
+              <button key={l} type="button" onClick={() => { p.add({ type: 'loc', y: 0.7, d: { text: l } }); close(); }} className="flex w-full items-center gap-3 py-[9px] text-left">
+                <span className="grid size-[34px] shrink-0 place-items-center"><MapPin size={20} /></span>
+                <b className="min-w-0 flex-1 truncate text-[14px]">{l}</b>
+              </button>
+            ))}
+          </div>
         </Panel>
       );
+    }
     case 'mention': {
       const people = p.users.filter((u) => !q || `${u.name} ${u.handle ?? ''}`.toLowerCase().includes(q.toLowerCase())).slice(0, 40);
       return (
         <Panel title="Mention" onClose={close}>
-          <div className="px-4 pb-2.5"><Field autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" /></div>
-          <div className="overflow-y-auto px-2.5">
+          <SheetSearch value={q} onChange={setQ} autoFocus />
+          <div className="overflow-y-auto px-3.5 pb-6">
             {people.map((u) => (
-              <button key={u.id} type="button" onClick={() => { p.add({ type: 'men', d: { text: u.handle ?? u.name } }); close(); }} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left active:bg-white/5">
+              <button key={u.id} type="button" onClick={() => { p.add({ type: 'men', d: { text: u.handle ?? u.name } }); close(); }} className="flex w-full items-center gap-3 py-[9px] text-left">
                 {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="size-11 rounded-full object-cover" /> : <span className="grid size-11 place-items-center rounded-full bg-white/10 font-bold">{u.name[0]}</span>}
-                <span className="min-w-0"><b className="block truncate text-[14.5px]">{u.handle ?? u.name}</b><span className="text-[13px] text-white/55">{u.name}</span></span>
+                <span className="min-w-0"><b className="block truncate text-[14px]">{u.handle ?? u.name}</b><span className="text-[13px] text-[#8e8e8e]">{u.name}</span></span>
               </button>
             ))}
-            {people.length === 0 && <p className="py-6 text-center text-white/50">Nobody by that name</p>}
+            {people.length === 0 && <p className="py-6 text-center text-[#8e8e8e]">Nobody by that name</p>}
           </div>
         </Panel>
       );
@@ -636,8 +679,8 @@ function EditorSheets(p: SheetsProps) {
             {FILTERS.map(([name, css], i) => (
               <button key={name} type="button" onClick={() => p.setFilterI(i)} className="flex flex-col items-center gap-1.5 text-[11.5px]">
                 {p.kindOfMedia === 'photo'
-                  ? <img src={p.src} alt="" className={cn('h-[84px] w-16 rounded-2xl object-cover', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }} />
-                  : <span className={cn('grid h-[84px] w-16 place-items-center rounded-2xl bg-gradient-to-b from-[#8b5dff] to-[#e0559b]', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }}><Sparkles size={20} /></span>}
+                  ? <img src={p.src} alt="" className={cn('h-[84px] w-16 rounded-[16px] object-cover', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }} />
+                  : <span className={cn('grid h-[84px] w-16 place-items-center rounded-[16px] bg-gradient-to-b from-[#8b5dff] to-[#e0559b]', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }}><Sparkles size={20} /></span>}
                 {name}
               </button>
             ))}
@@ -649,8 +692,13 @@ function EditorSheets(p: SheetsProps) {
     case 'more':
       return (
         <Panel onClose={close}>
-          <button type="button" onClick={() => { close(); p.setKind('share'); }} className="px-5 py-3.5 text-left text-[15px] font-semibold">Send to…</button>
-          <button type="button" onClick={() => { p.setKind('discard'); }} className="px-5 py-3.5 text-left text-[15px] font-semibold text-[#ff3040]">Discard</button>
+          <div className="px-3.5 pt-1 pb-6">
+            <MenuGroup>
+              {([[<FileIcon key="f" />, 'Save draft'], [<Bot key="b" />, 'Add AI label'], [<MessageCircleOff key="m" />, 'Turn off replies'], [<UsersRound key="u" />, 'Invite collaborator']] as const).map(([icon, label]) => (
+                <MenuRow key={label} icon={icon} label={label} onClick={() => { close(); p.notify(label, <Check />); }} />
+              ))}
+            </MenuGroup>
+          </div>
         </Panel>
       );
     case 'share':
@@ -667,13 +715,13 @@ function StickerTray(p: SheetsProps & { close: () => void }) {
     ['loc', <><MapPin size={14} />LOCATION</>, 'text-[#8b3dff]', () => p.setKind('loc')],
     ['men', <>@MENTION</>, 'text-[#ff7a00]', () => p.setKind('mention')],
     ['music', <><Music2 size={14} />MUSIC</>, 'text-[#e0559b]', () => p.setKind('music')],
-    ['question', <>QUESTIONS</>, 'bg-gradient-to-r from-[#8b5dff] to-[#e0559b] text-white', () => { p.add({ type: 'question', d: { q: 'Ask me a question' } }); p.close(); }],
+    ['question', <>QUESTIONS</>, 'text-white', () => { p.add({ type: 'question', d: { q: 'Ask me a question' } }); p.close(); }],
     ['poll', <><b className="text-[#16a34a]">POLL</b><i className="not-italic text-[#ff3b30]">•</i></>, '', () => { p.add({ type: 'poll', d: { q: 'Ask a question…', opts: ['YES', 'NO'] } }); p.close(); }],
     ['countdown', <><AlarmClock size={14} />COUNTDOWN</>, 'text-white', () => p.setKind('countdown')],
     ['quiz', <><CircleCheck size={14} />QUIZ</>, 'text-[#8b5dff]', () => { p.add({ type: 'quiz', d: { q: 'Guess what?', opts: ['Option A', 'Option B', 'Option C'], right: 0 } }); p.close(); }],
     ['slider', <>😍 EMOJI SLIDER</>, 'text-[#ff9a5a]', () => { p.add({ type: 'slider', d: { q: 'Ask a question…', emoji: '😍', avg: 0.7 } }); p.close(); }],
     ['link', <><LinkIcon size={14} />LINK</>, 'text-[#0a84ff]', () => p.setKind('link')],
-    ['tag', <><Hash size={14} />HASHTAG</>, 'text-[#e0559b]', () => p.setKind('tag')],
+    ['tag', <>#HASHTAG</>, 'text-[#e0559b]', () => p.setKind('tag')],
     ['clock', <><Clock size={14} />TIME</>, 'text-white', () => { p.add({ type: 'clock', y: 0.3, d: { at: Date.now() } }); p.close(); }],
   ];
   const term = q.trim().toLowerCase();
@@ -690,7 +738,7 @@ function StickerTray(p: SheetsProps & { close: () => void }) {
         </div>
         <div className="grid grid-cols-4 gap-2.5 pb-4">
           {pack.filter((s) => !term || `${s.name} ${s.keywords.join(' ')}`.toLowerCase().includes(term)).map((s) => (
-            <button key={s.url} type="button" onClick={() => { p.add({ type: 'emoji', y: 0.35, d: { src: s.url } }); p.close(); }} className="aspect-square rounded-2xl p-1.5 active:bg-white/10">
+            <button key={s.url} type="button" onClick={() => { p.add({ type: 'emoji', y: 0.35, d: { src: s.url } }); p.close(); }} className="aspect-square rounded-[14px] p-1.5 active:bg-white/10">
               <img src={s.url} alt={s.name} loading="lazy" className="size-full object-contain" />
             </button>
           ))}

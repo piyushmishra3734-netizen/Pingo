@@ -2,7 +2,6 @@ import { useChat, type StickerAnswer, type StickerResult, type Story, type Story
 import { AtSign, ExternalLink, Hash, Image as ImageIcon, MapPin, Music2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { useContainBox } from '../../camera/VideoOverlay.js';
 import { useStories } from '../StoryContext.js';
 import { StickerView, stickerStyle } from './StickerView.js';
 
@@ -13,9 +12,9 @@ const ASKS = new Set<StorySticker['type']>(['poll', 'quiz', 'slider', 'countdown
 /**
  * A story's stickers, drawn over its picture and alive.
  *
- * The frame is 9:16 - the shape the editor exports - fitted into whatever room
- * the viewer has, so a sticker lands where it was put on every screen. Taps on
- * the interactive ones are theirs; they never also advance the story.
+ * Placed in fractions of the frame and sized in its width, as the editor
+ * places them, so a sticker lands where it was put. Taps on the interactive
+ * ones are theirs; they never also advance the story.
  */
 export function StoryStickerLayer({
   story,
@@ -31,7 +30,6 @@ export function StoryStickerLayer({
   const { users } = useChat();
   const stickers = story.decor?.stickers ?? [];
   const host = useRef<HTMLDivElement>(null);
-  const box = useContainBox(host, 9 / 16);
   const [results, setResults] = useState<StickerResult[]>([]);
   const [mine, setMine] = useState<Record<string, StickerAnswer>>({});
   /** Instagram's white bubble over a tapped sticker; `go` is what tapping it does. */
@@ -100,34 +98,30 @@ export function StoryStickerLayer({
 
   return (
     <div ref={host} className="pointer-events-none absolute inset-0 z-10">
-      {box && (
-        <div className="sk-layer" style={{ width: box.width, height: box.height, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
-          {stickers.map((s) => (
-            <div
-              key={s.id}
-              className="sk"
-              style={{ ...stickerStyle(s), pointerEvents: DECORATIVE.has(s.type) ? 'none' : 'auto' }}
-              // Its own taps: the story must not also advance or pause.
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerUp={(e) => e.stopPropagation()}
-            >
-              <StickerView
-                sticker={s}
-                mode="view"
-                {...(mine[s.id] ? { answer: mine[s.id]! } : {})}
-                results={results.filter((r) => r.stickerId === s.id)}
-                onAnswer={(a, el) => void answer(s, a, el)}
-                onTap={(el) => tapped(s, el)}
-                onBusy={(b) => { if (b) { const release = hold(); window.addEventListener('pointerup', release, { once: true }); } }}
-              />
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="sk-layer" style={{ inset: 0 }}>
+        {stickers.map((s) => (
+          <div
+            key={s.id}
+            className="sk"
+            style={{ ...stickerStyle(s), pointerEvents: DECORATIVE.has(s.type) ? 'none' : 'auto' }}
+            // A tap here is the sticker's; the viewer does not also advance (see StoryViewer).
+          >
+            <StickerView
+              sticker={s}
+              mode="view"
+              {...(mine[s.id] ? { answer: mine[s.id]! } : {})}
+              results={results.filter((r) => r.stickerId === s.id)}
+              onAnswer={(a, el) => void answer(s, a, el)}
+              onTap={(el) => tapped(s, el)}
+              onBusy={(b) => { if (b) { const release = hold(); window.addEventListener('pointerup', release, { once: true }); } }}
+            />
+          </div>
+        ))}
+      </div>
 
       {tip && (
         <button type="button"
-          className={`absolute z-20 flex -translate-x-1/2 -translate-y-full items-center gap-1.5 rounded-xl bg-white px-3.5 py-[9px] text-[13.5px] font-bold whitespace-nowrap text-[#111] shadow-[0_8px_24px_-8px_rgba(0,0,0,.4)] ${tip.go ? 'pointer-events-auto' : 'pointer-events-none'}`}
+          className={`absolute z-20 flex -translate-x-1/2 -translate-y-full items-center gap-1.5 rounded-[12px] bg-white px-3.5 py-[9px] text-[13.5px] font-bold whitespace-nowrap text-[#111] shadow-[0_8px_24px_-8px_rgba(0,0,0,.4)] ${tip.go ? 'pointer-events-auto' : 'pointer-events-none'}`}
           style={{ left: tip.x, top: tip.y, animation: 'sk-tip-pop .3s' }}
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
@@ -142,7 +136,7 @@ export function StoryStickerLayer({
           onPointerDown={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) setAsking(undefined); }}
           onPointerUp={(e) => e.stopPropagation()}>
           <form
-            className="w-full max-w-xs overflow-hidden rounded-2xl bg-gradient-to-br from-[#8b5dff] to-[#e0559b] p-3 text-center text-white"
+            className="w-full max-w-xs overflow-hidden rounded-[16px] bg-gradient-to-br from-[#8b5dff] to-[#e0559b] p-3 text-center text-white"
             onSubmit={(e) => {
               e.preventDefault();
               const text = reply.trim();
@@ -158,9 +152,9 @@ export function StoryStickerLayer({
               onChange={(e) => setReply(e.target.value)}
               maxLength={200}
               placeholder="Type something…"
-              className="w-full rounded-xl bg-white px-3 py-3 text-center text-[15px] text-black outline-none"
+              className="w-full rounded-[12px] bg-white px-3 py-3 text-center text-[15px] text-black outline-none"
             />
-            <button type="submit" className="mt-3 w-full rounded-xl bg-white/20 py-2.5 font-bold">Send</button>
+            <button type="submit" className="mt-3 w-full rounded-[12px] bg-white/20 py-2.5 font-bold">Send</button>
           </form>
         </div>
       )}

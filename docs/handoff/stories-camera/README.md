@@ -59,7 +59,21 @@ The camera sample is not included here because it is fully ported. The app's `fe
 
 Also: the viewer's sticker tips match the sample: icon, the sample's wording, and tapping the tip does the thing.
 
-Known difference kept on purpose: the sample's editor stage fills the phone (390×768), while the app's is a true 9:16 (390×693). This is so a sticker lands in the viewer exactly where it was placed.
+### Second pass: the app matched to the sample, screen by screen
+
+Each surface was screenshotted beside the sample at 390×844, and the differences were fixed:
+
+- **Stories row:** the sample's conic ring, 70px circles, the blue `+`, and the dashed ring spinning while the first story loads.
+- **Viewer:** the picture fills the frame down to the 64px foot. The header is the sample's: song line, Close friends badge, no "@handle · 1/2". The foot is "Send message", heart and send, or Activity with the highlight ⊕, send and ⋮ on yours. Quick reactions now hide the stickers. It grows out of the ring with the sample's circle clip.
+- **Viewer sheets:** Report/Mute/About/Copy link, Delete/Save/Highlight/Send to/Story settings, Send to with per-row Send, and Activity with thumbs, stats and viewers. All menus use one grouped style (icon beside the label, rounded group); the owner preferred it to the sample's centred labels.
+- **Editor:** the frame is full height, rounded 16px. More and Discard match the sample. Location is a list. Video gets Boomerang (Off/Echo/Classic/Slowmo/Duo) with a trim bar, played by the viewer.
+- **"Add to story":** the sample's gallery. A web page cannot read the camera roll, so the grid is camera, your photos, then photos from your chats. Templates, Music and Collage work; Live sits with them.
+- **Post view:** the sample's white "Posts" page.
+- **Stickers** are placed in fractions of the frame and sized in its width, in both editor and viewer.
+
+Bugs found on the way: moving to the next person skipped one in dev (a state setter inside another's updater), a text-selection drag cancelled viewer swipes, and the app's `rounded-xl/2xl` tokens are 28/36px, so exact pixels are used where the sample is exact.
+
+The sample's editor More items (Save draft, Add AI label, Turn off replies, Invite collaborator) only show a toast, as in the sample; nothing backs them yet.
 
 ## Still to do
 
@@ -82,7 +96,7 @@ These are Playwright scripts that drive real input. They need `playwright-core` 
 | Script | Target | Last result |
 |---|---|---|
 | `story-test.mjs` | the sample, on `http://localhost:5177/story.html` | 70/70 |
-| `app-lab2.mjs` | app editor + viewer stickers, on `https://127.0.0.1:5190/dev/story-lab` | 24/24 (in the cloud sandbox, 24/24 with the song step left out; see below) |
+| `app-lab2.mjs` | app editor + viewer stickers, on `https://127.0.0.1:5190/dev/story-lab` | 24/24 (in the cloud sandbox, with the song step left out; see below) |
 | `app-viewer.mjs` | viewer gestures | 9/9 |
 | `app-cam.mjs` | camera → editor → Send to, on `/dev/camera-lab` | 17/17 |
 | `app-post.mjs` | post → Share → Add to story → ring; editor and viewer sticker size | 7/7 |
@@ -93,6 +107,6 @@ Camera tests use Chrome's fake camera. Set `FAKE_CAM=/path/face.y4m` to feed a f
 
 With cleared storage, Camera Kit asks "adult or child?" and then shows its terms the first time a lens loads. `app-cam.mjs` answers both.
 
-Playwright's bundled Chromium cannot decode AAC. Posting a story with a song there fails with "That file has no sound this browser can read", so run `app-lab2.mjs` in Chrome or on a phone for that step. The labs need no backend: start Vite with any `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` if there is no `.env`.
+Playwright's bundled Chromium cannot decode AAC. Posting a story with a song there fails with "That file has no sound this browser can read", so run `app-lab2.mjs` in Chrome or on a phone for that step. `/dev/story-lab` mirrors the sample's people and stories, so the two can be screenshotted side by side. The labs need no backend: start Vite with any `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` if there is no `.env`.
 
 Camera Kit works with the Staging token. The Production token returns 401 until Snap approves the app, whose app ID is `chat.pingo.app`.

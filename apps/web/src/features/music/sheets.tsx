@@ -26,10 +26,10 @@ export function Panel({ children, title, onClose }: { children: ReactNode; title
   );
 }
 export const Field = (p: React.InputHTMLAttributes<HTMLInputElement>) => (
-  <input {...p} className="h-[46px] w-full rounded-xl bg-[#2c2c2e] px-3.5 text-[16px] text-white outline-none placeholder:text-white/45" />
+  <input {...p} className="h-[46px] w-full rounded-[12px] bg-[#2c2c2e] px-3.5 text-[16px] text-white outline-none placeholder:text-white/45" />
 );
 export const Blue = ({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-  <button type="button" {...p} className="h-[46px] w-full rounded-xl bg-[#0a84ff] text-[15px] font-bold text-white disabled:opacity-50">{children}</button>
+  <button type="button" {...p} className="h-[46px] w-full rounded-[12px] bg-[#0a84ff] text-[15px] font-bold text-white disabled:opacity-50">{children}</button>
 );
 
 export interface ApiSong { name: string; duration?: number; image?: { url: string }[]; downloadUrl?: { quality: string; url: string }[]; artists?: { primary?: { name: string }[] } }
@@ -67,9 +67,9 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
         {!list && <p className="py-6 text-center text-white/50">Loading…</p>}
         {list?.length === 0 && <p className="py-6 text-center text-white/50">Nothing found</p>}
         {list?.map((s) => (
-          <div key={s.url} className="flex items-center gap-3 rounded-xl px-2 py-2 active:bg-white/5">
+          <div key={s.url} className="flex items-center gap-3 rounded-[12px] px-2 py-2 active:bg-white/5">
             <button type="button" onClick={() => { p.onPreview(undefined); p.chooseSong(s); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-              <img src={s.img} alt="" className="size-12 shrink-0 rounded-lg object-cover" />
+              <img src={s.img} alt="" className="size-12 shrink-0 rounded-[8px] object-cover" />
               <span className="min-w-0"><b className="block truncate text-[14.5px]">{s.name}</b><span className="block truncate text-[13px] text-white/55">{s.artist}</span></span>
             </button>
             <button type="button" aria-label={playing === s.url ? 'Pause' : 'Preview'} onClick={() => { if (playing === s.url) { setPlaying(undefined); p.onPreview(undefined); } else { setPlaying(s.url); p.onPreview(s); } }} className="grid size-9 shrink-0 place-items-center">
@@ -78,7 +78,6 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
           </div>
         ))}
       </div>
-      <p className="shrink-0 pt-2 text-center text-[11px] text-white/35">Music via JioSaavn</p>
     </Panel>
   );
 }
@@ -91,7 +90,7 @@ export function ClipSheet(p: { close: () => void; song?: Song; setSong: (s: Song
   return (
     <Panel onClose={p.close}>
       <div className="flex items-center gap-2.5 px-4 pb-3">
-        <img src={s.img} alt="" className="size-11 rounded-lg" />
+        <img src={s.img} alt="" className="size-11 rounded-[8px]" />
         <div className="min-w-0 flex-1"><b className="block truncate">{s.name}</b><span className="text-[13px] text-white/60">{s.artist}</span></div>
         <button type="button" onClick={p.close} className="font-bold text-[#0a84ff]">Done</button>
       </div>

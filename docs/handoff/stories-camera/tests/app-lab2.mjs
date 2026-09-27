@@ -38,7 +38,8 @@ await check('tap location changes its style', async () => {
 });
 await check('drag moves a sticker', async () => {
   const el = page.locator('[data-stk]:has(.sk-tag)'); const b = await el.boundingBox(); const before = await el.getAttribute('style');
-  await drag(b.x + b.width / 2, b.y + b.height / 2, b.x + b.width / 2 + 30, b.y + b.height / 2 - 80); await w(200);
+  // by its left edge: a newer sticker may sit over its middle
+  await drag(b.x + 12, b.y + b.height / 2, b.x + 42, b.y + b.height / 2 - 80); await w(200);
   return (await el.getAttribute('style')) !== before;
 });
 await check('drop on the bin deletes', async () => {
@@ -68,11 +69,12 @@ await check('close friends shares it', async () => {
   // watch for the flight into your ring and the ring spinning, as it happens
   await page.evaluate(() => { window.__seen = { fly: false, spin: false }; new MutationObserver(() => {
     if ([...document.body.children].some((e) => e.style?.zIndex === '1200')) window.__seen.fly = true;
-    if (document.querySelector('[data-story-ring="me"] .animate-spin')) window.__seen.spin = true;
+    if (document.querySelector('[data-story-ring="me"] > span[aria-hidden]')) window.__seen.spin = true;
   }).observe(document.body, { childList: true, subtree: true }); });
   await btn('Close Friends').click(); await page.waitForFunction(() => !document.querySelector('[aria-label="Story editor"]'), null, { timeout: 60000 }); await page.waitForFunction(() => document.querySelector('[data-lab="watch"]').textContent.includes('(1)'), null, { timeout: 10000 }); return true; });
 await check('it flew into your ring, which spun while it went up', async () => {
   const seen = await page.evaluate(() => window.__seen);
+  if (!seen.fly || !seen.spin) console.log('   ', JSON.stringify(seen));
   return seen.fly && seen.spin && (await page.locator('[role=status]', { hasText: 'Shared with close friends' }).count()) === 1;
 });
 // five stories, one interactive sticker each, the way people actually post them
@@ -81,7 +83,7 @@ for (const label of ['POLL', 'QUIZ', 'EMOJI SLIDER', 'QUESTIONS', 'COUNTDOWN']) 
   await stickerTray(label);
   if (label === 'COUNTDOWN') { await page.keyboard.type('trip'); await page.locator(`${ed} button`, { hasText: 'Done' }).last().click(); await w(300); }
   await btn('Your story').click(); await page.waitForFunction(() => !document.querySelector('[aria-label="Story editor"]'), null, { timeout: 60000 });
-  await page.waitForFunction(() => !document.querySelector('[data-story-ring="me"] .animate-spin'), null, { timeout: 10000 });
+  await page.waitForFunction(() => !document.querySelector('[data-story-ring="me"] > span[aria-hidden]'), null, { timeout: 10000 });
 }
 await page.click('[data-lab="watch"]'); await w(1200); await page.keyboard.down('Space');
 const next = async () => { await page.keyboard.up('Space'); await page.keyboard.press('ArrowRight'); await w(900); await page.keyboard.down('Space'); };

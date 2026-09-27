@@ -619,7 +619,7 @@ export function ConversationList({
                           origin,
                         })
                       }
-                      onCreate={() => setChoosingCreate(true)}
+                      onCreate={() => setCreating(true)}
                       onManageMine={() => setManagingStory(true)}
                       uploading={storyUploading > 0}
                       extra={<ArcadeCircle onOpen={() => navigate('/arcade')} />}
@@ -820,7 +820,7 @@ export function ConversationList({
       )}
 
       {creating && (
-        <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} />
+        <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} onLive={() => navigate('/live/setup')} />
       )}
 
       {choosingCreate && (
@@ -954,19 +954,19 @@ function ArcadeCircle({ onOpen }: { onOpen: () => void }) {
       onClick={onOpen}
       aria-label="PINGO Arcade"
       className={cn(
-        'relative flex w-[68px] shrink-0 flex-col items-center gap-1.5 rounded-xl py-1',
+        'relative flex w-[74px] shrink-0 flex-col items-center gap-[5px] rounded-xl',
         'focus-ring transition-transform duration-[160ms] ease-standard active:scale-[0.96]',
       )}
     >
       <span className="absolute top-0 left-1/2 z-[1] -translate-x-1/2 -translate-y-1.5 rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
         Play
       </span>
-      <span className="grid size-[68px] place-items-center rounded-full bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] p-[2.5px]">
-        <span className="grid size-full place-items-center rounded-full border-[2.5px] border-page bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] text-white">
+      <span className="grid size-[70px] place-items-center rounded-full bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] p-[3px]">
+        <span className="grid size-full place-items-center rounded-full border-[3px] border-page bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] text-white">
           <Gamepad2 size={26} strokeWidth={1.9} aria-hidden />
         </span>
       </span>
-      <span className="w-full truncate text-center text-[0.6875rem] font-medium leading-tight text-text-secondary">
+      <span className="w-full truncate text-center text-[12px] text-ink">
         Arcade
       </span>
     </button>

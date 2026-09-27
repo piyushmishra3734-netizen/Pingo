@@ -16,6 +16,8 @@ import { toStandardQuality } from '../chat/media-quality.js';
 import { useT } from '../i18n/useT.js';
 import { PeoplePicker } from './PeoplePicker.js';
 import { StoryEditor } from './StoryEditor.js';
+import { StoryGallery } from './StoryGallery.js';
+import { StoryPrivacySheet } from './StoryPrivacySheet.js';
 import { useStories } from './StoryContext.js';
 
 /**
@@ -52,12 +54,18 @@ interface QueueItem {
 
 const MAX_BATCH = 20;
 
+/** A Template's or a Music story's colour, the sample's own. */
+const TEMPLATE_BG = 'linear-gradient(160deg,#8b5dff,#e0559b)';
+
 export function StoryComposer({
   onClose,
   onPosted,
+  onLive,
 }: {
   onClose: () => void;
   onPosted: () => void;
+  /** Going live, offered in "Add to story" when the caller has it. */
+  onLive?: () => void;
 }) {
   const t = useT();
   const { service, refresh, upload } = useStories();
@@ -79,7 +87,8 @@ export function StoryComposer({
 
   const [busy, setBusy] = useState(false);
   /** One picture or clip, open in the Instagram-style editor. */
-  const [ig, setIg] = useState<{ src: string; kind: StoryKind; media: Blob }>();
+  const [ig, setIg] = useState<{ src: string; kind: StoryKind; media: Blob; bg?: string; start?: 'text' | 'music' }>();
+  const [settings, setSettings] = useState(false);
   const [error, setError] = useState<string>();
   const [progress, setProgress] = useState<string>();
   /** Which queued clip is open in the video editor, by id. */
@@ -327,6 +336,8 @@ export function StoryComposer({
           src={ig.src}
           kind={ig.kind}
           media={ig.media}
+          {...(ig.bg ? { bg: ig.bg } : {})}
+          {...(ig.start ? { start: ig.start } : {})}
           onClose={() => {
             URL.revokeObjectURL(ig.src);
             setIg(undefined);
@@ -345,29 +356,25 @@ export function StoryComposer({
   // ---- step 1: source -----------------------------------------------------
 
   if (step === 'source') {
+    const blank = (start: 'text' | 'music') => setIg({ src: '', kind: 'photo', media: new Blob([], { type: 'image/jpeg' }), bg: TEMPLATE_BG, start });
     return (
       <>
         {galleryInput}
-        <Sheet title={t('story.composeTitle')} onClose={onClose}>
-          <div className="mt-3 flex flex-col gap-1">
-            <SheetItem
-              icon={<CameraIcon size={20} />}
-              label={t('story.camera')}
-              hint="Take a photo now"
-              onClick={() => {
-                onClose();
-                navigate('/camera');
-              }}
-            />
-            <SheetItem
-              icon={<ImageIcon size={20} />}
-              label={t('story.gallery')}
-              hint="One photo or several at once"
-              onClick={openGallery}
-            />
-            <SheetCancel onClick={onClose} />
-          </div>
-        </Sheet>
+        <StoryGallery
+          onClose={onClose}
+          onCamera={() => { onClose(); navigate('/camera'); }}
+          onGallery={openGallery}
+          onPick={(url) => {
+            void fetch(url).then((r) => r.blob()).then((blob) => setIg({ src: URL.createObjectURL(blob), kind: 'photo', media: blob }))
+              .catch(() => setError('That picture would not open.'));
+          }}
+          onTemplate={() => blank('text')}
+          onMusic={() => blank('music')}
+          onCollage={openGallery}
+          {...(onLive ? { onLive: () => { onClose(); onLive(); } } : {})}
+          onSettings={() => setSettings(true)}
+        />
+        {settings && <StoryPrivacySheet onClose={() => setSettings(false)} />}
       </>
     );
   }

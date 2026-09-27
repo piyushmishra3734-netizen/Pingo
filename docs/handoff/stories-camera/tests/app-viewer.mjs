@@ -23,7 +23,7 @@ await page.waitForFunction(() => !document.querySelector('[aria-label="Story edi
 await page.click('[data-lab="watch"]'); await w(1200);
 await page.screenshot({ path: './out/v-1open.png' });
 
-await check('opens on the first person', async () => (await who()) === "Story Lab's story");
+await check('opens on the first person', async () => (await who()) === "piuxxh's story");
 await check('holding hides the bars and the reply bar', async () => {
   await page.mouse.move(120, 200); await page.mouse.down(); await w(500);
   const hidden = await page.evaluate(() => [...document.querySelectorAll('[role=dialog] .transition-opacity')].filter((e) => getComputedStyle(e).opacity === '0').length);
@@ -34,10 +34,10 @@ await check('holding hides the bars and the reply bar', async () => {
 await check('swipe left turns to the next person', async () => {
   await drag(330, 250, 40, 255); await w(900);
   await page.screenshot({ path: './out/v-3turned.png' });
-  return (await who()) === "Baani's story";
+  return (await who()) === "baani's story";
 });
-await check('swipe right turns back', async () => { await drag(40, 250, 340, 255); await w(900); return (await who()) === "Story Lab's story"; });
-await check('a short swipe springs back', async () => { await drag(300, 250, 230, 252); await w(500); return (await who()) === "Story Lab's story"; });
+await check('swipe right turns back', async () => { await drag(40, 250, 340, 255); await w(900); return (await who()) === "piuxxh's story"; });
+await check('a short swipe springs back', async () => { await drag(300, 250, 230, 252); await w(500); return (await who()) === "piuxxh's story"; });
 await drag(330, 250, 40, 255); await w(900);
 await check('reply box brings up quick reactions', async () => {
   await page.locator('input[aria-label^="Reply to"]').click(); await w(400);
@@ -51,8 +51,8 @@ await check('a reaction flies and the grid goes', async () => {
   return flying > 0 && (await page.locator('text=Quick reactions').count()) === 0;
 });
 await check('like lifts hearts', async () => {
-  await page.locator('button[aria-label="Like this story"]').click(); await w(150);
-  return page.evaluate(() => [...document.body.children].filter((n) => n.textContent === '♥').length > 0);
+  await page.locator('button[aria-label="Like"]').click(); await w(150);
+  return page.evaluate(() => [...document.querySelectorAll('button[aria-label="Like"] span')].filter((n) => n.textContent === '♥').length > 0);
 });
 await check('swipe down closes', async () => { await drag(195, 300, 195, 700); await w(900); return (await page.locator('[role=dialog][aria-label$="story"]').count()) === 0; });
 console.log(`${results.filter(Boolean).length}/${results.length} passed`, errs.filter((e) => !/signed in/i.test(e)).slice(0, 5));

@@ -32,11 +32,14 @@ export function StoryProgress({
   count,
   index,
   progressRef,
+  hidden = false,
 }: {
   count: number;
   index: number;
   /** 0-1 for the story now playing. Written by `useStoryPlayer`. */
   progressRef: React.RefObject<number>;
+  /** Held: the bars step aside with the rest of the chrome. */
+  hidden?: boolean;
 }) {
   const fillRef = useRef<HTMLSpanElement>(null);
 
@@ -57,15 +60,15 @@ export function StoryProgress({
 
   return (
     <div
-      className="flex gap-1 px-3 pt-3"
+      className={`absolute inset-x-2 top-2.5 z-[5] flex gap-[3px] transition-opacity duration-200 ${hidden ? 'opacity-0' : ''}`}
       // One live region for the position, not one per segment - a screen reader
       // should hear "3 of 5", not five separate progress bars.
       role="group"
       aria-label={`Story ${index + 1} of ${count}`}
     >
       {Array.from({ length: count }, (_, i) => (
-        <span key={i} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/25">
-          {i < index && <span className="block h-full w-full bg-white/80" />}
+        <span key={i} className="h-[2.5px] flex-1 overflow-hidden rounded-[2px] bg-white/35">
+          {i < index && <span className="block h-full w-full bg-white" />}
           {i === index && (
             <span
               ref={fillRef}

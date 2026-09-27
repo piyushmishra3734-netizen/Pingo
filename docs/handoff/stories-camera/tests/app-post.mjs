@@ -41,7 +41,7 @@ await check('tapping the card switches its look', async () => {
 await check('Your story: it flies into your ring, the ring spins, then the toast', async () => {
   await page.evaluate(() => { window.__seen = { fly: false, spin: false }; new MutationObserver(() => {
     if ([...document.body.children].some((e) => e.style?.zIndex === '1200')) window.__seen.fly = true;
-    if (document.querySelector('[data-story-ring="me"] .animate-spin')) window.__seen.spin = true;
+    if (document.querySelector('[data-story-ring="me"] > span[aria-hidden]')) window.__seen.spin = true;
   }).observe(document.body, { childList: true, subtree: true }); });
   await page.locator(`${ed} button`, { hasText: 'Your story' }).click();
   await page.locator('[role=status]', { hasText: 'Shared to your story' }).waitFor({ timeout: 10000 });

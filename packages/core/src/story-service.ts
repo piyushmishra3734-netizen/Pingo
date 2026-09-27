@@ -67,8 +67,16 @@ export interface StoryDecor {
   filter?: string;
   /** Behind a shared post, which sits on the photo's own colours. */
   bg?: string;
+  /**
+   * A video's Boomerang, played by the viewer: forwards then back within the
+   * trim (`classic`), at half speed (`slowmo`), with a trail (`echo`), or with
+   * the speed swelling and easing (`duo`). Absent or `off` plays it through.
+   */
+  boom?: StoryBoom;
   stickers: StorySticker[];
 }
+
+export type StoryBoom = 'off' | 'echo' | 'classic' | 'slowmo' | 'duo';
 
 /** What one viewer did with one sticker. */
 export interface StickerAnswer {

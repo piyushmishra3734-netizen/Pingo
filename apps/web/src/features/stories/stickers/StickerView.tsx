@@ -168,7 +168,10 @@ export function StickerView({ sticker: s, mode, answer, results = [], onAnswer, 
     case 'countdown':
       return (
         <div className="sk-card sk-countdown" onClick={!view ? tap : undefined}>
-          {edit('q', str(d.q, 'Countdown'), 'sk-q')}
+          <div className="sk-q sk-cdq">
+            {edit('q', str(d.q, 'Countdown'), '', 'span')}
+            <svg viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" aria-hidden><circle cx="12" cy="12" r="10" /><path d="m10 8 4 4-4 4" /></svg>
+          </div>
           <Countdown to={str(d.to, new Date().toISOString())} />
           {view && (
             <button type="button" className={`sk-remind ${answer?.remind ? 'sk-on' : ''}`}

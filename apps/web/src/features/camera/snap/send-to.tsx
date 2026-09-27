@@ -95,6 +95,8 @@ export function SendTo({ views, locked, onClose, onSend }: {
 
 // ---- flattening a Ping ------------------------------------------------------------
 export async function drawStickers(g: CanvasRenderingContext2D, list: StorySticker[]) {
+  // Fractions of whatever frame is being drawn - the editor exports at its stage's shape.
+  const W = g.canvas.width, H = g.canvas.height;
   const unit = W / 100; // one cqw
   await document.fonts?.ready;
   for (const s of list) {
