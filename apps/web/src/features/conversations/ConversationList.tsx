@@ -961,8 +961,8 @@ function ArcadeCircle({ onOpen }: { onOpen: () => void }) {
       <span className="absolute top-0 left-1/2 z-[1] -translate-x-1/2 -translate-y-1.5 rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
         Play
       </span>
-      <span className="grid size-[70px] place-items-center rounded-full bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] p-[3px]">
-        <span className="grid size-full place-items-center rounded-full border-[3px] border-page bg-gradient-to-br from-[#ff8a3d] to-[#ff3d77] text-white">
+      <span className="bg-sweep-ring grid size-[70px] place-items-center rounded-full p-[3px]">
+        <span className="bg-sweep grid size-full place-items-center rounded-full border-[3px] border-page text-white">
           <Gamepad2 size={26} strokeWidth={1.9} aria-hidden />
         </span>
       </span>

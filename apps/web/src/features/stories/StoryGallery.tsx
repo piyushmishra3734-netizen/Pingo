@@ -35,7 +35,7 @@ export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate,
     return () => { live = false; };
   }, [service]);
 
-  const tab = 'inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-[#262626] px-3 py-[7px] text-[13px] font-semibold [&>svg]:size-[14px]';
+  const tab = 'inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-white/10 px-3 py-[7px] text-[13px] font-semibold [&>svg]:size-[14px]';
   return (
     <Overlay onDismiss={onClose}>
       <div role="dialog" aria-modal="true" aria-label="Add to story" className="fixed inset-0 z-1000 flex flex-col bg-black text-white" style={{ animation: 'gal-up .3s cubic-bezier(.2,.8,.2,1)' }}>
@@ -51,13 +51,13 @@ export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate,
             <button type="button" onClick={onTemplate} className={tab}><LayoutTemplate />Templates</button>
             <button type="button" onClick={onMusic} className={tab}><Music2 />Music</button>
             <button type="button" onClick={onCollage} className={tab}><Images />Collage</button>
-            {onLive && <button type="button" onClick={onLive} className={tab}><Radio className="text-[#ff3040]" />Live</button>}
+            {onLive && <button type="button" onClick={onLive} className={tab}><Radio className="text-danger" />Live</button>}
           </div>
           <div className="scrollbar-none grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-0.5 overflow-y-auto">
-            <button type="button" aria-label="Camera" onClick={onCamera} className="grid aspect-[9/16] place-items-center bg-[#1c1c1e] [&>svg]:size-[30px]"><Camera /></button>
-            <button type="button" aria-label="Your photos" onClick={onGallery} className="grid aspect-[9/16] place-items-center bg-[#1c1c1e] [&>svg]:size-[30px]"><Images /></button>
+            <button type="button" aria-label="Camera" onClick={onCamera} className="grid aspect-[9/16] place-items-center bg-media-sheet [&>svg]:size-[30px]"><Camera /></button>
+            <button type="button" aria-label="Your photos" onClick={onGallery} className="grid aspect-[9/16] place-items-center bg-media-sheet [&>svg]:size-[30px]"><Images /></button>
             {photos.map((p) => (
-              <button key={p.id} type="button" onClick={() => onPick(p.url)} className="relative aspect-[9/16] overflow-hidden bg-[#1c1c1e]">
+              <button key={p.id} type="button" onClick={() => onPick(p.url)} className="relative aspect-[9/16] overflow-hidden bg-media-sheet">
                 <img src={p.url} alt="" loading="lazy" className="size-full object-cover" />
               </button>
             ))}

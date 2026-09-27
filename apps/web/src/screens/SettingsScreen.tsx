@@ -51,10 +51,11 @@ import { SecurePhoneRow } from '../features/auth/SecurePhoneSheet.js';
  */
 
 const ACCENT_LABEL: Record<string, string> = {
-  blue: 'Ink',
-  purple: 'Purple',
+  purple: 'PINGO',
+  pink: 'Rose',
+  orange: 'Sunset',
   green: 'Green',
-  pink: 'Pink',
+  blue: 'Ink',
   custom: 'Custom',
 };
 
@@ -140,7 +141,7 @@ export function SettingsScreen() {
                 to="/settings/appearance"
                 // The summary answers "what is it set to" without a tap.
                 value={`${resolvedTheme === 'dark' ? 'Dark' : 'Light'} · ${
-                  ACCENT_LABEL[appearance.accent] ?? 'Blue'
+                  ACCENT_LABEL[appearance.accent] ?? 'PINGO'
                 }`}
               />
               <SettingsRow

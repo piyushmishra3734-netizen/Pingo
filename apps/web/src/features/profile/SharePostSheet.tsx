@@ -109,11 +109,11 @@ export function SharePostSheet({ post, author, onClose, onAddToStory, onNote }: 
           {picked.size ? (
             <>
               <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Write a message…" className="h-11 min-w-0 flex-1 rounded-[10px] bg-[#efefef] px-3 text-[15px] outline-none" />
-              <button type="button" data-a="send" onClick={send} className="h-11 shrink-0 rounded-[10px] bg-[#0a84ff] px-[18px] font-bold text-white">Send</button>
+              <button type="button" data-a="send" onClick={send} className="h-11 shrink-0 rounded-[10px] bg-media-accent px-[18px] font-bold text-on-media-accent">Send</button>
             </>
           ) : ACTS.map(([a, label, icon]) => (
             <button key={a} type="button" data-a={a} onClick={() => void act(a)} className="flex w-16 shrink-0 flex-col items-center gap-1.5 text-center text-[11.5px] leading-tight">
-              <span className={a === 'cf' ? 'grid size-[52px] place-items-center rounded-full bg-[#1fc15e] text-white' : 'grid size-[52px] place-items-center rounded-full bg-[#efefef]'}>{icon}</span>
+              <span className={a === 'cf' ? 'grid size-[52px] place-items-center rounded-full bg-close-friends text-white' : 'grid size-[52px] place-items-center rounded-full bg-[#efefef]'}>{icon}</span>
               {label}
             </button>
           ))}

@@ -1,9 +1,9 @@
 import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryBoom, type StoryDecor, type StoryDraft, type StorySticker } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import {
-  AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronDown, ChevronLeft, CircleCheck, Circle,
+  AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronLeft, CircleCheck, Circle,
   Download, Ellipsis, Eraser, Highlighter, Link as LinkIcon, MapPin, Music2, Pause, PenLine, Play, Search, Sparkles, Star,
-  Sticker, Type, Undo2, ArrowRight, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
+  Sticker, Type, Undo2, Send, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -375,8 +375,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
     ['Mention', <AtSign key="m" />, () => setSheet('mention')],
     ...(kind === 'photo' ? [['Draw', <Brush key="d" />, () => setMode('draw')] as [string, ReactNode, () => void]] : []),
     ...(ping && kind === 'photo' ? [[views === null ? 'Views: ∞' : `Views: ${views}`, <Timer key="v" />, () => setViews((v) => (v === 1 ? 2 : v === 2 ? null : 1))] as [string, ReactNode, () => void]] : []),
-    ['Download', <Download key="dl" />, () => void download()],
-    ['More', <Ellipsis key="mo" />, () => setSheet('more')],
+    ['Options', <Ellipsis key="mo" />, () => setSheet('more')],
   ];
 
   const hideChrome = mode !== 'none' || !!dragging;
@@ -387,7 +386,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} style={{ touchAction: 'none' }}>
         {/* the frame: the whole screen down to the bar, as the sample's; a phone's column on a wide screen */}
         <div className="relative mx-auto h-full w-full max-w-[calc(100dvh*0.5)]">
-          <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-[16px]" style={{ background: bg ?? '#111' }}>
+          <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-b-[16px]" style={{ background: bg ?? '#111' }}>
             {kind === 'video'
               ? <video ref={mediaEl} src={src} className="absolute inset-0 size-full object-cover" style={{ filter }} autoPlay loop muted playsInline />
               : !bg && <img ref={mediaEl} src={src} alt="" className="absolute inset-0 size-full object-cover" style={{ filter }} draggable={false} crossOrigin="anonymous" />}
@@ -403,50 +402,64 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
               ))}
             </div>
             {fname && <div className="pointer-events-none absolute inset-x-0 top-[40%] text-center text-3xl font-semibold drop-shadow-lg">{fname}</div>}
-            {dragging?.gv && <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-[#3ea6ff]" />}
-            {dragging?.gh && <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-[#3ea6ff]" />}
-            <label data-chrome className={cn('absolute right-[70px] bottom-3.5 left-3.5 z-10 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            {dragging?.gv && <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-white/80" />}
+            {dragging?.gh && <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/80" />}
+            <label data-chrome className={cn('media-glass absolute inset-x-3 bottom-[72px] z-10 flex h-10 items-center rounded-[12px] px-3.5 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
               <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} placeholder="Add a caption…"
-                className="w-full bg-transparent text-[14px] text-white outline-none placeholder:text-white/85 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]" />
+                className="w-full bg-transparent text-[14px] text-white outline-none placeholder:text-white/65" />
             </label>
           </div>
 
           {/* the bin, while something is being dragged */}
           <div ref={binRef} className={cn('pointer-events-none absolute bottom-[100px] left-1/2 grid size-13 -translate-x-1/2 place-items-center rounded-full ring-2 ring-white/70 transition-all',
-            dragging ? 'scale-100 opacity-100' : 'scale-50 opacity-0', dragging?.hot ? 'scale-125 bg-[#ff3040]' : 'bg-black/40')}>
+            dragging ? 'scale-100 opacity-100' : 'scale-50 opacity-0', dragging?.hot ? 'scale-125 bg-danger' : 'bg-black/40')}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
           </div>
 
-          {/* back, and the rail */}
-          <div data-chrome className={cn('absolute top-3 left-3 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="grid size-10 place-items-center rounded-full bg-black/35"><ChevronLeft size={22} /></button>
+          {/* top: back on the left; saving, and a Ping's view limit, on the right */}
+          <div data-chrome className={cn('absolute inset-x-3 top-3 flex items-start justify-between transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="media-glass grid size-10 place-items-center rounded-full"><ChevronLeft size={22} /></button>
+            <button type="button" aria-label="Download" onClick={() => void download()} className="media-glass grid size-10 place-items-center rounded-full"><Download size={19} /></button>
           </div>
-          <div data-chrome className={cn('absolute top-3 right-2.5 flex flex-col items-end gap-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-            {[...railTools, ...(rail !== 'icons' ? moreTools : [])].map(([label, icon, act]) => (
-              <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex items-center gap-2.5 text-[13.5px] font-semibold [text-shadow:0_1px_3px_rgba(0,0,0,.75)]">
-                <span className={cn('transition-all duration-300', rail === 'icons' ? 'translate-x-2 opacity-0' : 'opacity-100')}>{label}</span>
-                <span className="grid size-[38px] place-items-center rounded-full bg-black/35 [&>svg]:size-5">{icon}</span>
+
+          {/* the tools: a dock along the bottom of the picture, the more-used first */}
+          <div data-chrome className={cn('absolute inset-x-3 bottom-[200px] flex justify-center transition-opacity', (hideChrome || rail !== 'open') && 'pointer-events-none opacity-0')}>
+            <div className={cn('media-glass flex max-w-full gap-0.5 overflow-x-auto rounded-[16px] p-1 transition-transform duration-200', rail === 'open' ? 'translate-y-0' : 'translate-y-2')}>
+              {moreTools.map(([label, icon, act]) => (
+                <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex w-[62px] shrink-0 flex-col items-center gap-1 rounded-[12px] py-1.5 text-[10.5px] font-medium text-white/85 active:bg-white/10 [&>svg]:size-5">
+                  {icon}<span className="max-w-full truncate">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div data-chrome className={cn('absolute inset-x-3 bottom-[88px] flex justify-center transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            <div className="media-glass flex gap-0.5 rounded-[16px] p-1">
+              {railTools.map(([label, icon, act]) => (
+                <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex w-[58px] flex-col items-center gap-1 rounded-[12px] py-1.5 text-[10.5px] font-medium text-white/85 active:bg-white/10 [&>svg]:size-5">
+                  {icon}<span>{label}</span>
+                </button>
+              ))}
+              <button type="button" aria-label="More tools" aria-expanded={rail === 'open'} onClick={() => setRail((r) => (r === 'open' ? 'icons' : 'open'))}
+                className={cn('flex w-[58px] flex-col items-center gap-1 rounded-[12px] py-1.5 text-[10.5px] font-medium text-white/85 [&>svg]:size-5', rail === 'open' && 'bg-white text-black')}>
+                <Ellipsis /><span>More</span>
               </button>
-            ))}
-            <button type="button" aria-label="More tools" onClick={() => setRail((r) => (r === 'icons' ? 'open' : 'icons'))} className="grid h-[22px] w-[30px] place-items-center rounded-full bg-black/35">
-              <ChevronDown size={16} className={cn('transition-transform', rail !== 'icons' && 'rotate-180')} />
-            </button>
+            </div>
           </div>
 
         {/* where it goes */}
         <div data-chrome className={cn('absolute inset-x-0 bottom-0 flex h-[76px] items-center gap-2 px-3 pb-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-          <button type="button" disabled={!!busy} onClick={() => void post('friends')} className="flex h-[46px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#262626] px-2.5 text-[14px] font-bold whitespace-nowrap">
-            {profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" className="size-[26px] shrink-0 rounded-full object-cover" /> : null}Your story
+          <button type="button" disabled={!!busy} onClick={() => void post('friends')} className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-white/10 px-2.5 text-[14px] font-semibold whitespace-nowrap ring-1 ring-white/10 active:bg-white/15">
+            {profile?.avatarUrl ? <span className="bg-sweep-ring shrink-0 rounded-full p-[1.5px]"><img src={profile.avatarUrl} alt="" className="size-6 rounded-full border border-black object-cover" /></span> : null}Your story
           </button>
-          <button type="button" disabled={!!busy} onClick={() => void post('close')} className="flex h-[46px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#262626] px-2.5 text-[14px] font-bold whitespace-nowrap">
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#1fc15e]"><Star size={13} fill="#fff" /></span>Close Friends
+          <button type="button" disabled={!!busy} onClick={() => void post('close')} className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-white/10 px-2.5 text-[14px] font-semibold whitespace-nowrap ring-1 ring-white/10 active:bg-white/15">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-close-friends"><Star size={13} fill="#fff" /></span>Close friends
           </button>
-          <button type="button" aria-label="More sharing options" disabled={!!busy} onClick={() => setSheet('share')} className="grid size-[46px] shrink-0 place-items-center rounded-full bg-white text-black"><ArrowRight size={22} /></button>
+          <button type="button" aria-label="More sharing options" disabled={!!busy} onClick={() => setSheet('share')} className="bg-brand-gradient grid size-12 shrink-0 place-items-center rounded-[14px] text-on-brand shadow-[0_6px_18px_color-mix(in_srgb,var(--gradient-from)_40%,transparent)]"><Send size={20} /></button>
         </div>
         </div>
 
         {busy && <div className="absolute inset-0 z-50 grid place-items-center bg-black/55"><div className="flex flex-col items-center gap-3"><span className="size-9 animate-spin rounded-full border-3 border-white/25 border-t-white" /><span className="text-[14px] font-semibold">{busy}</span></div></div>}
-        {error && <p role="alert" className="absolute inset-x-4 bottom-24 z-40 rounded-[12px] bg-[#ff3040] px-4 py-3 text-[14px] font-semibold">{error}</p>}
+        {error && <p role="alert" className="absolute inset-x-4 bottom-24 z-40 rounded-[12px] bg-danger px-4 py-3 text-[14px] font-semibold">{error}</p>}
 
         {mode === 'text' && (
           <TextMode
@@ -529,7 +542,7 @@ export function TextMode({ initial, onDone, onLocation }: { initial?: TextData; 
           <div className="flex gap-2.5 overflow-x-auto px-3">
             {FONTS.map((f) => (
               <button key={f.k} type="button" onClick={() => set({ font: f.k })}
-                className={cn('grid size-11 shrink-0 place-items-center rounded-full text-[17px] ring-1 ring-white/25', d.font === f.k ? 'bg-white text-[#e0559b]' : 'bg-black/45')}>
+                className={cn('grid size-11 shrink-0 place-items-center rounded-full text-[17px] ring-1 ring-white/25', d.font === f.k ? 'bg-white text-black' : 'bg-black/45')}>
                 <span className={`sk-f-${f.k}`} style={{ textShadow: 'none' }}>Aa</span>
               </button>
             ))}
@@ -614,8 +627,8 @@ function EditorSheets(p: SheetsProps) {
     case 'discard':
       return (
         <Panel title="Discard media?" onClose={close}>
-          <p className="px-5 pb-3.5 text-center text-[13.5px] text-[#a1a1a6]">If you go back now, you will lose any changes you've made.</p>
-          <button type="button" onClick={p.onDiscard} className="py-[9px] text-[16px] font-bold text-[#ff3040]">Discard</button>
+          <p className="px-5 pb-3.5 text-center text-[13.5px] text-white/55">If you go back now, you will lose any changes you've made.</p>
+          <button type="button" onClick={p.onDiscard} className="py-[9px] text-[16px] font-bold text-danger">Discard</button>
           <button type="button" onClick={() => { p.notify('Draft saved', <FileIcon />); p.onDiscard(); }} className="py-[9px] text-[16px] font-semibold">Save draft</button>
           <button type="button" onClick={close} className="py-[9px] pb-6 text-[16px]">Cancel</button>
         </Panel>
@@ -679,8 +692,8 @@ function EditorSheets(p: SheetsProps) {
             {FILTERS.map(([name, css], i) => (
               <button key={name} type="button" onClick={() => p.setFilterI(i)} className="flex flex-col items-center gap-1.5 text-[11.5px]">
                 {p.kindOfMedia === 'photo'
-                  ? <img src={p.src} alt="" className={cn('h-[84px] w-16 rounded-[16px] object-cover', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }} />
-                  : <span className={cn('grid h-[84px] w-16 place-items-center rounded-[16px] bg-gradient-to-b from-[#8b5dff] to-[#e0559b]', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }}><Sparkles size={20} /></span>}
+                  ? <img src={p.src} alt="" className={cn('h-[84px] w-16 rounded-[16px] object-cover', i === p.filterI && 'ring-3 ring-media-accent')} style={{ filter: css }} />
+                  : <span className={cn('grid h-[84px] w-16 place-items-center rounded-[16px] bg-sweep', i === p.filterI && 'ring-3 ring-media-accent')} style={{ filter: css }}><Sparkles size={20} /></span>}
                 {name}
               </button>
             ))}
@@ -727,13 +740,13 @@ function StickerTray(p: SheetsProps & { close: () => void }) {
   const term = q.trim().toLowerCase();
   return (
     <Panel onClose={p.close}>
-      <label className="mx-3.5 mb-3 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-[#2c2c2e] px-3 text-white/55">
+      <label className="mx-3.5 mb-3 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-media-field px-3 text-white/55">
         <Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none" />
       </label>
       <div className="overflow-y-auto px-3.5">
         <div className="flex flex-wrap justify-center gap-2.5 pb-3.5">
           {chips.filter(([k]) => !term || k.includes(term)).map(([k, label, cls, act]) => (
-            <button key={k} type="button" onClick={act} className={cn('inline-flex items-center gap-1.5 rounded-[10px] bg-[#2c2c2e] px-3 py-2 text-[13px] font-extrabold', cls)}>{label}</button>
+            <button key={k} type="button" onClick={act} className={cn('inline-flex items-center gap-1.5 rounded-[10px] bg-media-field px-3 py-2 text-[13px] font-extrabold', cls)}>{label}</button>
           ))}
         </div>
         <div className="grid grid-cols-4 gap-2.5 pb-4">

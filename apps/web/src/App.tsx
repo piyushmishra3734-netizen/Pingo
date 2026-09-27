@@ -20,6 +20,7 @@ import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync
 import { RouteBoundary } from './components/RouteBoundary.js';
 import { AppLoader } from './features/loading/AppLoader.js';
 import { releaseSplash, useSplashHold } from './features/loading/splash.js';
+import { demoOn, demoServices } from './screens/dev/demo-services.js';
 import { LiveProvider } from './features/live/LiveContext.js';
 import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
@@ -185,6 +186,10 @@ export function App() {
    */
   const [services] = useState(() => {
     try {
+      if (import.meta.env.DEV && demoOn()) return { ...(demoServices() as unknown as {
+        auth: SupabaseAuthService; profile: SupabaseProfileService; chat: SupabaseChatService;
+        story: SupabaseStoryService; call: SupabaseCallService;
+      }), error: undefined };
       return {
         auth: new SupabaseAuthService(),
         profile: new SupabaseProfileService(),

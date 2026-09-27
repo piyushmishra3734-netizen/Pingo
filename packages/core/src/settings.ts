@@ -19,7 +19,7 @@
  */
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
-export type AccentName = 'blue' | 'purple' | 'green' | 'pink' | 'custom';
+export type AccentName = 'blue' | 'purple' | 'green' | 'pink' | 'orange' | 'custom';
 export type MotionLevel = 'smooth' | 'balanced' | 'minimal';
 /** Percentages, matching the labels the user sees. */
 export type GlassLevel = 0 | 25 | 50 | 75 | 100;
@@ -59,12 +59,31 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   glass: 50,
 };
 
+/**
+ * The accents, and the gradient each one paints primary actions and sent
+ * bubbles with.
+ *
+ * Purple, Rose and Sunset are cut from the logo's sweep (#8B5DFF → #E0559B →
+ * #FF9A5A → #FFCC4D): purple runs into pink, pink into orange, orange into
+ * gold. So whichever of them somebody picks, the app still reads as the same
+ * brand as its icon. Green and Ink stay for the people who chose them. The
+ * orange is a step deeper than the logo's so white text on it stays readable.
+ */
 export const ACCENT_SWATCHES: Record<Exclude<AccentName, 'custom'>, string> = {
-  /** Default product accent — ink. */
-  blue: '#111113',
   purple: '#8b5dff',
-  green: '#17a67a',
   pink: '#e0559b',
+  orange: '#ef6a33',
+  green: '#17a67a',
+  /** Ink. Stored as `blue` for older installs. */
+  blue: '#111113',
+};
+
+export const ACCENT_GRADIENTS: Record<Exclude<AccentName, 'custom'>, [string, string]> = {
+  purple: ['#8b5dff', '#e0559b'],
+  pink: ['#e0559b', '#f47a4d'],
+  orange: ['#ef6a33', '#f5a13a'],
+  green: ['#14a377', '#3ecf8e'],
+  blue: ['#111113', '#2a2a2e'],
 };
 
 // ---------------------------------------------------------------------------
@@ -112,7 +131,7 @@ export const SETTINGS_REGISTRY: SettingsEntry[] = [
     label: 'Accent',
     section: 'Appearance',
     path: '/settings/appearance',
-    keywords: ['color', 'colour', 'accent', 'blue', 'purple', 'green', 'pink', 'custom', 'brand'],
+    keywords: ['color', 'colour', 'accent', 'blue', 'purple', 'green', 'pink', 'rose', 'orange', 'sunset', 'ink', 'custom', 'brand'],
     live: true,
   },
   {

@@ -1,5 +1,5 @@
 import {
-  ACCENT_SWATCHES,
+  ACCENT_GRADIENTS,
   type AccentName,
   type GlassLevel,
   type MotionLevel,
@@ -38,10 +38,11 @@ export function AppearanceScreen() {
   ];
 
   const accents: { value: AccentName; label: string }[] = [
-    { value: 'blue', label: t('appear.ink') },
     { value: 'purple', label: t('appear.purple') },
-    { value: 'green', label: t('appear.green') },
     { value: 'pink', label: t('appear.pink') },
+    { value: 'orange', label: t('appear.orange') },
+    { value: 'green', label: t('appear.green') },
+    { value: 'blue', label: t('appear.ink') },
     { value: 'custom', label: t('appear.custom') },
   ];
 
@@ -81,13 +82,14 @@ export function AppearanceScreen() {
         </Group>
 
         <Group title={t('appear.accent')}>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-6 gap-1">
             {accents.map((accent) => {
               const selected = appearance.accent === accent.value;
+              // The gradient the accent paints buttons and sent bubbles with, not just its colour.
               const swatch =
                 accent.value === 'custom'
                   ? (appearance.customAccent ?? '#5c6cff')
-                  : ACCENT_SWATCHES[accent.value as keyof typeof ACCENT_SWATCHES];
+                  : `linear-gradient(135deg, ${ACCENT_GRADIENTS[accent.value].join(', ')})`;
 
               return (
                 <button
@@ -95,15 +97,15 @@ export function AppearanceScreen() {
                   type="button"
                   onClick={() => updateAppearance({ accent: accent.value })}
                   aria-pressed={selected}
-                  className="focus-ring flex w-16 flex-col items-center gap-2 rounded-lg py-1"
+                  className="focus-ring flex min-w-0 flex-col items-center gap-2 rounded-lg py-1"
                 >
                   <span
                     className={cn(
-                      'grid size-11 place-items-center rounded-full',
+                      'grid size-10 place-items-center rounded-full',
                       'transition-transform duration-quick ease-standard',
                       selected && 'scale-110',
                     )}
-                    style={{ backgroundColor: swatch }}
+                    style={{ background: swatch }}
                   >
                     {selected && <CheckIcon size={18} className="text-white" strokeWidth={3} />}
                   </span>
@@ -306,8 +308,8 @@ function ThemePreview({ mode, resolved }: { mode: ThemeMode; resolved: 'light' |
         style={{ backgroundColor: dark ? '#16171d' : '#ffffff' }}
       />
       <span
-        className="ml-auto block h-2.5 w-10 rounded"
-        style={{ backgroundImage: 'linear-gradient(135deg, #6d7cff, #a16eff)' }}
+        // The sent bubble, in whatever accent is chosen.
+        className="bg-brand-gradient ml-auto block h-2.5 w-10 rounded"
       />
     </span>
   );

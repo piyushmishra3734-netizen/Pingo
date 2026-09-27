@@ -17,8 +17,8 @@ export function Panel({ children, title, onClose }: { children: ReactNode; title
   return (
     <div data-chrome className="absolute inset-0 z-40" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/45" onPointerDown={onClose} />
-      <div className="animate-panel-in absolute inset-x-0 bottom-0 flex max-h-[86%] flex-col rounded-t-[18px] bg-[#1c1c1e] pb-[max(1rem,env(safe-area-inset-bottom))] text-white">
-        <div className="mx-auto mt-2 mb-2.5 h-1 w-10 shrink-0 rounded-full bg-[#48484a]" />
+      <div className="animate-panel-in absolute inset-x-0 bottom-0 flex max-h-[86%] flex-col rounded-t-[18px] bg-media-sheet pb-[max(1rem,env(safe-area-inset-bottom))] text-white">
+        <div className="mx-auto mt-2 mb-2.5 h-1 w-10 shrink-0 rounded-full bg-white/25" />
         {title && <h3 className="shrink-0 px-4 pb-2.5 text-center text-[16px] font-bold">{title}</h3>}
         {children}
       </div>
@@ -26,10 +26,10 @@ export function Panel({ children, title, onClose }: { children: ReactNode; title
   );
 }
 export const Field = (p: React.InputHTMLAttributes<HTMLInputElement>) => (
-  <input {...p} className="h-[46px] w-full rounded-[12px] bg-[#2c2c2e] px-3.5 text-[16px] text-white outline-none placeholder:text-white/45" />
+  <input {...p} className="h-[46px] w-full rounded-[12px] bg-media-field px-3.5 text-[16px] text-white outline-none placeholder:text-white/45" />
 );
 export const Blue = ({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-  <button type="button" {...p} className="h-[46px] w-full rounded-[12px] bg-[#0a84ff] text-[15px] font-bold text-white disabled:opacity-50">{children}</button>
+  <button type="button" {...p} className="h-[46px] w-full rounded-[12px] bg-media-accent text-[15px] font-bold text-on-media-accent disabled:opacity-50">{children}</button>
 );
 
 export interface ApiSong { name: string; duration?: number; image?: { url: string }[]; downloadUrl?: { quality: string; url: string }[]; artists?: { primary?: { name: string }[] } }
@@ -57,11 +57,11 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
   const tabs: [string, string][] = [['For you', ''], ['Trending', 'trending hits'], ['Hindi', 'latest hindi songs'], ['Punjabi', 'punjabi hits']];
   return (
     <Panel onClose={p.close}>
-      <label className="mx-3.5 mb-2.5 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-[#2c2c2e] px-3 text-white/55">
+      <label className="mx-3.5 mb-2.5 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-media-field px-3 text-white/55">
         <Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search music" className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none" />
       </label>
       <div className="flex shrink-0 gap-2 overflow-x-auto px-3.5 pb-2.5">
-        {tabs.map(([l, v]) => <button key={l} type="button" onClick={() => { setQ(''); setTab(v); }} className={cn('shrink-0 rounded-[10px] px-3 py-1.5 text-[13px] font-bold', tab === v ? 'bg-white text-black' : 'bg-[#2c2c2e]')}>{l}</button>)}
+        {tabs.map(([l, v]) => <button key={l} type="button" onClick={() => { setQ(''); setTab(v); }} className={cn('shrink-0 rounded-[10px] px-3 py-1.5 text-[13px] font-bold', tab === v ? 'bg-white text-black' : 'bg-media-field')}>{l}</button>)}
       </div>
       <div className="overflow-y-auto px-2">
         {!list && <p className="py-6 text-center text-white/50">Loading…</p>}
@@ -92,10 +92,10 @@ export function ClipSheet(p: { close: () => void; song?: Song; setSong: (s: Song
       <div className="flex items-center gap-2.5 px-4 pb-3">
         <img src={s.img} alt="" className="size-11 rounded-[8px]" />
         <div className="min-w-0 flex-1"><b className="block truncate">{s.name}</b><span className="text-[13px] text-white/60">{s.artist}</span></div>
-        <button type="button" onClick={p.close} className="font-bold text-[#0a84ff]">Done</button>
+        <button type="button" onClick={p.close} className="font-bold text-media-accent">Done</button>
       </div>
       <div className="relative mx-4 flex h-14 items-center gap-0.5">
-        {bars.map((h, i) => <i key={i} className="flex-1 rounded-sm bg-[#48484a]" style={{ height: `${h}%` }} />)}
+        {bars.map((h, i) => <i key={i} className="flex-1 rounded-sm bg-white/25" style={{ height: `${h}%` }} />)}
         <span className="pointer-events-none absolute -inset-y-1 rounded-[10px] ring-3 ring-white" style={{ left: `${(s.start / Math.max(1, s.secs)) * 100}%`, width: `${(15 / Math.max(1, s.secs)) * 100}%` }} />
       </div>
       <input type="range" min={0} max={max} step={1} value={s.start} aria-label="Which part of the song"

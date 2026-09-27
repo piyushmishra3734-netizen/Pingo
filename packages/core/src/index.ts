@@ -123,6 +123,7 @@ export {
   DEFAULT_APPEARANCE,
   DEFAULT_MYTHIC,
   ACCENT_SWATCHES,
+  ACCENT_GRADIENTS,
   SETTINGS_REGISTRY,
   searchSettings,
 } from './settings.js';

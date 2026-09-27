@@ -374,7 +374,7 @@ export function StoryViewer({
                   <span className="truncate">{owned ? 'Your story' : group.authorName}</span>
                   <span className="shrink-0 font-normal opacity-70">{ago(story.createdAt)}</span>
                   {story.audience === 'close' && (
-                    <span className="inline-flex shrink-0 items-center gap-[3px] rounded-[5px] bg-[#1fc15e] px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap [&>svg]:size-[1em]"><Star />Close friends</span>
+                    <span className="inline-flex shrink-0 items-center gap-[3px] rounded-[5px] bg-close-friends px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap [&>svg]:size-[1em]"><Star />Close friends</span>
                   )}
                 </div>
                 {song?.name && (
@@ -477,7 +477,7 @@ const VIEWER_CSS = `
 function Face({ src, name, className }: { src?: string | undefined; name: string; className?: string }) {
   return src
     ? <img src={src} alt="" className={cn('size-8 shrink-0 rounded-full object-cover', className)} />
-    : <span className={cn('grid size-8 shrink-0 place-items-center rounded-full bg-[#3a3a3c] text-[13px] font-bold text-white', className)}>{name[0]?.toUpperCase()}</span>;
+    : <span className={cn('grid size-8 shrink-0 place-items-center rounded-full bg-white/15 text-[13px] font-bold text-white', className)}>{name[0]?.toUpperCase()}</span>;
 }
 
 /** Until the picture arrives: the sample's spinner, and the clock holds. */

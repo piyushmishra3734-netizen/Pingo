@@ -76,14 +76,14 @@ export function UploadToast({ note, onDone }: { note: UploadNote; onDone?: () =>
   return (
     <div
       role="status"
-      className={`fixed bottom-[100px] left-1/2 z-[1300] flex -translate-x-1/2 items-center gap-2 rounded-[12px] bg-[#262626] px-4 py-[11px] text-[14px] font-semibold whitespace-nowrap text-white [&>svg]:size-4 ${note.retry ? '' : 'pointer-events-none'}`}
+      className={`fixed bottom-[100px] left-1/2 z-[1300] flex -translate-x-1/2 items-center gap-2 rounded-[12px] bg-white/10 px-4 py-[11px] text-[14px] font-semibold whitespace-nowrap text-white [&>svg]:size-4 ${note.retry ? '' : 'pointer-events-none'}`}
       style={{ animation: 'story-toast-in .3s' }}
     >
       <style>{'@keyframes story-toast-in { from { opacity: 0; translate: 0 20px } }'}</style>
-      {note.icon ?? (note.ok ? <CircleCheck /> : <CircleAlert className="text-[#ff453a]" />)}
+      {note.icon ?? (note.ok ? <CircleCheck /> : <CircleAlert className="text-danger" />)}
       {note.text}
       {note.retry && (
-        <button type="button" onClick={() => { onDone?.(); note.retry?.(); }} className="ml-1 font-bold text-[#0a84ff]">
+        <button type="button" onClick={() => { onDone?.(); note.retry?.(); }} className="ml-1 font-bold text-media-accent">
           Retry
         </button>
       )}
