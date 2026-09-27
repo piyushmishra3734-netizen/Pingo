@@ -2162,7 +2162,18 @@ export class SupabaseChatService implements ChatService {
           ...(this.#liveTyping.get(row.id)?.activity
             ? { typingActivity: this.#liveTyping.get(row.id)!.activity }
             : {}),
-          updatedAt: Date.parse(row.last_message_at),
+          /*
+           * A rebuilt row keeps the reaction this device already knows about -
+           * the rebuild reads the conversation, which a reaction never touches,
+           * so without this opening a chat wiped "You reacted" off its row.
+           */
+          ...(this.#known.get(row.id)?.lastReaction
+            ? { lastReaction: this.#known.get(row.id)!.lastReaction! }
+            : {}),
+          updatedAt: Math.max(
+            Date.parse(row.last_message_at),
+            this.#known.get(row.id)?.lastReaction?.at ?? 0,
+          ),
           // Omitted entirely when there is no streak, so the row renders nothing.
           ...(streakByConversation.has(row.id)
             ? { streak: streakByConversation.get(row.id) }
