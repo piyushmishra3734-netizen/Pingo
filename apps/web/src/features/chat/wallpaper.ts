@@ -429,7 +429,7 @@ export function wallpaperIsLive(scope: string | WallpaperScope): boolean {
  * a window with nothing behind it is just a grey rectangle with dots.
  */
 export function rainScene(scope: string | WallpaperScope): string {
-  return customWallpaperPhoto(scope) ?? '/pingo-splash.jpg';
+  return customWallpaperPhoto(scope) ?? '/pingo-scene.jpg';
 }
 
 /** Local (DM/AI) wallpaper pick. Groups use `setGroupWallpaper` on the service. */

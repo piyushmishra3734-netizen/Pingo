@@ -68,9 +68,6 @@ import { encodeQr, type QrLevel } from './qr.js';
  * version 3 - twenty-nine across - and every module gets nearly twice the area.
  * The code is plainer and enormously easier to look at, and to scan.
  *
- * `make-qr-mark.mjs` still cuts the mark out of the artwork if it is ever
- * wanted back; nothing here imports it, so nothing ships in the bundle for it.
- *
  * Verified rather than reasoned: `pnpm verify:qr` decodes the real output with
  * jsQR, at both levels and with the centre blanked, and the preview that chose
  * this decoded the rendered SVG itself.

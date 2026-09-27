@@ -75,7 +75,7 @@ run('pnpm', ['--filter', '@pingo/web', 'build'], { cwd: '../..', shell: true });
  *
  * `cap sync` copies `dist`, so everything the browser gets, the APK gets. The
  * launch splash is not in `dist`: it is a set of PNGs under `android/res`,
- * generated from `assets/splash-mobile.png` by a script somebody has to
+ * generated from `brand/pingo-mark.svg` by `scripts/icons.mjs`, which somebody has to
  * remember to run. Nobody remembers, and the failure is invisible from the
  * outside - the app just opens on artwork from whenever it was last generated.
  *
@@ -83,7 +83,7 @@ run('pnpm', ['--filter', '@pingo/web', 'build'], { cwd: '../..', shell: true });
  * changed, and the one time it is not a no-op is the time it matters.
  */
 console.log(`\n▸ regenerating the launch splash`);
-run('node', ['apps/web/scripts/make-splash.mjs'], { cwd: '../..', shell: true });
+run('node', ['scripts/icons.mjs'], { shell: true });
 
 console.log(`\n▸ syncing into Android`);
 run('npx', ['cap', 'sync', 'android'], { shell: true });

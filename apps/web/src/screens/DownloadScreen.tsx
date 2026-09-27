@@ -332,6 +332,7 @@ export function DownloadScreen() {
           <AppLogo
             size={96}
             alt=""
+            tile
             fetchPriority="high"
             className="motion-safe:animate-qr-in"
           />

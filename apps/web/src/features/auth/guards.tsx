@@ -2,6 +2,7 @@ import { useAuth } from '@pingo/core';
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
+import { useSplashHold } from '../loading/splash.js';
 import { isAddingAccount } from './adding-account.js';
 import { guestAuthPath, hasIntroSeen } from './intro-seen.js';
 import { PRIVATE_ACCESS, isAllowedAddress, isOpenPath } from './private-access.js';
@@ -33,6 +34,7 @@ import { PRIVATE_ACCESS, isAllowedAddress, isOpenPath } from './private-access.j
  * before the bundle arrived, so on a cold start the handover is invisible.
  */
 function Resolving() {
+  useSplashHold();
   return <div className="h-full bg-page" />;
 }
 

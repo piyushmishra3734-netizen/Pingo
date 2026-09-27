@@ -19,6 +19,7 @@ import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
 import { RouteBoundary } from './components/RouteBoundary.js';
 import { AppLoader } from './features/loading/AppLoader.js';
+import { releaseSplash, useSplashHold } from './features/loading/splash.js';
 import { LiveProvider } from './features/live/LiveContext.js';
 import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
@@ -167,7 +168,15 @@ const UsernameScreen = lazyScreen(() => import('./screens/setup/UsernameScreen.j
  * it shows the list or the thread, on a desktop both. One component, because
  * they are one experience.
  */
+/** A lazy screen in flight. At launch that is still opening, so it keeps the splash up. */
+function RouteFallback() {
+  useSplashHold();
+  return <ScreenSkeleton />;
+}
+
 export function App() {
+  // Once mounted, the splash goes as soon as nothing is holding it.
+  useEffect(() => releaseSplash(), []);
   /*
    * Constructed once, lazily. A module-scope `new SupabaseAuthService()` would
    * run `getSupabaseClient()` at import time and take the whole bundle down on a
@@ -356,7 +365,7 @@ export function App() {
             2G it is the same blank page the app used to start on, arriving
             when somebody taps Settings.
           */}
-          <Suspense fallback={<ScreenSkeleton />}>
+          <Suspense fallback={<RouteFallback />}>
           {/*
             Open to one address while the move is being checked over. Wraps the
             whole router because the question is whether somebody may see the

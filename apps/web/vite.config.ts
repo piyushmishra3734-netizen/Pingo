@@ -88,24 +88,16 @@ export default defineConfig({
       registerType: 'autoUpdate',
       /*
        * `globPatterns` below covers js, css, html and fonts, so every image the
-       * app needs offline has to be named here.
-       *
-       * The two splash files were not, and they are the one asset a launch
-       * cannot proceed without: the splash paints before anything else, and
-       * with no connection there was nothing behind either the operator's
-       * Supabase URL - deliberately never cached, see the runtime rule below -
-       * or the bundled file that was supposed to be the safety net. The
-       * operator's own artwork is now kept as bytes on the device
-       * (`onboarding-slides.ts`); these are what a device paints before it has
-       * ever had a chance to store those.
+       * app needs offline has to be named here. The splash is not among them:
+       * it is drawn inside index.html and needs nothing.
        */
       includeAssets: [
+        'pingo-mark.svg',
         'pingo-icon.png',
         'pingo-favicon.png',
+        'pingo-favicon-32.png',
         'pingo-maskable.png',
-        'pingo-wordmark.png',
-        'pingo-splash.png',
-        'pingo-splash-mobile.png',
+        'apple-touch-icon.png',
       ],
 
       manifest: {

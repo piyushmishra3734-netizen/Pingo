@@ -19,37 +19,19 @@
     <!--
         Two eras of splash screen, both of which have to be right.
 
-        Below Android 12, the window background is the splash, and it is
-        stretched to fill whatever shape the screen is. That is why the assets
-        are now generated per orientation and per density from the portrait
-        artwork: the previous default was a 480x320 landscape image, which a
-        portrait phone pulled to more than twice its height.
+        Before Android 12 the window background is the splash: `splash.png`,
+        generated per orientation and density (and per theme, under -night) by
+        scripts/icons.mjs. From Android 12, Theme.SplashScreen ignores that and
+        draws its own from the two attributes below.
 
-        From Android 12, Theme.SplashScreen ignores android:background entirely
-        and composes its own screen from the two attributes below. Setting only
-        the old one left newer devices showing a system default, which is the
-        other half of the same bug.
-
-        The background colour is sampled from the artwork rather than picked,
-        so whichever path a device takes, the colour underneath is the colour
-        the image starts with.
-
-        ## Why the system splash shows nothing
-
-        On Android 12 and up there were *two* splash screens: the system one,
-        with the launcher icon in the middle of it, and then PINGO's own. The
-        first was never designed — it appeared because
-        `windowSplashScreenAnimatedIcon` pointed at the launcher foreground.
-
-        The system splash cannot be skipped, so it is made to disappear instead.
-        A transparent icon over the same colour the official artwork starts with
-        leaves one continuous field of lavender that resolves into the real
-        splash — one splash, as far as anybody looking at it can tell.
+        Both show the same thing index.html does: the PINGO mark, alone, on the
+        app's ground. So the system splash, Capacitor's and the web one read as
+        one screen that opens into the app.
     -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/splashBackground</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_none</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuth, useChat, useProfile } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
 import { AppLoader } from '../features/loading/AppLoader.js';
+import { useSplashHold } from '../features/loading/splash.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
@@ -160,6 +161,8 @@ export function AppShell() {
    * invisible locally because a warm load is ready on the first render.
    */
   const back = useNavigationType() === 'POP';
+  // The launch splash stays over this until there is something to show.
+  useSplashHold(!ready || staleAccount);
 
   if (!ready || staleAccount) {
     return (
