@@ -3,7 +3,7 @@ import { cn } from '@pingo/ui';
 import {
   AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronLeft, CircleCheck, Circle,
   Download, Ellipsis, Eraser, Highlighter, Link as LinkIcon, MapPin, Music2, Pause, PenLine, Play, Search, Sparkles, Star,
-  Sticker, Type, Undo2, Send, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
+  Sticker, Type, Undo2, Send, Settings2, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -370,12 +370,13 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
     ['Audio', <Music2 key="a" />, () => setSheet('music')],
     // A photo gets its filters; a clip gets Boomerang, opening on Classic as Instagram's does.
     ['Effect', <Sparkles key="e" />, () => { if (kind === 'video') { if (boom === 'off') setBoom('classic'); setMode('boom'); } else setSheet('effects'); }],
+    ...(kind === 'photo' ? [['Draw', <Brush key="d" />, () => setMode('draw')] as [string, ReactNode, () => void]] : []),
+    ['Mention', <AtSign key="m" />, () => setSheet('mention')],
   ];
   const moreTools: [string, ReactNode, () => void][] = [
-    ['Mention', <AtSign key="m" />, () => setSheet('mention')],
-    ...(kind === 'photo' ? [['Draw', <Brush key="d" />, () => setMode('draw')] as [string, ReactNode, () => void]] : []),
     ...(ping && kind === 'photo' ? [[views === null ? 'Views: ∞' : `Views: ${views}`, <Timer key="v" />, () => setViews((v) => (v === 1 ? 2 : v === 2 ? null : 1))] as [string, ReactNode, () => void]] : []),
-    ['Options', <Ellipsis key="mo" />, () => setSheet('more')],
+    ['Save', <Download key="dl" />, () => void download()],
+    ['Options', <Settings2 key="mo" />, () => setSheet('more')],
   ];
 
   const hideChrome = mode !== 'none' || !!dragging;
@@ -404,7 +405,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
             {fname && <div className="pointer-events-none absolute inset-x-0 top-[40%] text-center text-3xl font-semibold drop-shadow-lg">{fname}</div>}
             {dragging?.gv && <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-white/80" />}
             {dragging?.gh && <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/80" />}
-            <label data-chrome className={cn('media-glass absolute inset-x-3 bottom-[72px] z-10 flex h-10 items-center rounded-[12px] px-3.5 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            <label data-chrome className={cn('media-glass absolute inset-x-3 bottom-3 z-10 flex h-10 items-center rounded-[12px] px-3.5 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
               <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} placeholder="Add a caption…"
                 className="w-full bg-transparent text-[14px] text-white outline-none placeholder:text-white/65" />
             </label>
@@ -416,33 +417,30 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
           </div>
 
-          {/* top: back on the left; saving, and a Ping's view limit, on the right */}
-          <div data-chrome className={cn('absolute inset-x-3 top-3 flex items-start justify-between transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="media-glass grid size-10 place-items-center rounded-full"><ChevronLeft size={22} /></button>
-            <button type="button" aria-label="Download" onClick={() => void download()} className="media-glass grid size-10 place-items-center rounded-full"><Download size={19} /></button>
-          </div>
-
-          {/* the tools: a dock along the bottom of the picture, the more-used first */}
-          <div data-chrome className={cn('absolute inset-x-3 bottom-[200px] flex justify-center transition-opacity', (hideChrome || rail !== 'open') && 'pointer-events-none opacity-0')}>
-            <div className={cn('media-glass flex max-w-full gap-0.5 overflow-x-auto rounded-[16px] p-1 transition-transform duration-200', rail === 'open' ? 'translate-y-0' : 'translate-y-2')}>
-              {moreTools.map(([label, icon, act]) => (
-                <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex w-[62px] shrink-0 flex-col items-center gap-1 rounded-[12px] py-1.5 text-[10.5px] font-medium text-white/85 active:bg-white/10 [&>svg]:size-5">
-                  {icon}<span className="max-w-full truncate">{label}</span>
+          {/* top: back on the left, and every tool in one bar - the same bar as the camera's */}
+          <div data-chrome className={cn('absolute inset-x-3 top-3 flex items-start justify-between gap-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="media-glass grid size-10 shrink-0 place-items-center rounded-full"><ChevronLeft size={22} /></button>
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="media-glass flex items-center gap-0.5 rounded-full p-0.5">
+                {railTools.map(([label, icon, act]) => (
+                  <button key={label} type="button" title={label} onClick={() => { act(); setRail('icons'); }} className="grid size-9 place-items-center rounded-full active:scale-90 active:bg-white/15 [&>svg]:size-[19px]">
+                    {icon}<span className="sr-only">{label}</span>
+                  </button>
+                ))}
+                <button type="button" aria-label="More tools" aria-expanded={rail === 'open'} onClick={() => setRail((r) => (r === 'open' ? 'icons' : 'open'))}
+                  className={cn('grid size-9 place-items-center rounded-full transition-colors [&>svg]:size-[19px]', rail === 'open' && 'bg-white text-black')}>
+                  <Ellipsis />
                 </button>
-              ))}
-            </div>
-          </div>
-          <div data-chrome className={cn('absolute inset-x-3 bottom-[88px] flex justify-center transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-            <div className="media-glass flex gap-0.5 rounded-[16px] p-1">
-              {railTools.map(([label, icon, act]) => (
-                <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex w-[58px] flex-col items-center gap-1 rounded-[12px] py-1.5 text-[10.5px] font-medium text-white/85 active:bg-white/10 [&>svg]:size-5">
-                  {icon}<span>{label}</span>
-                </button>
-              ))}
-              <button type="button" aria-label="More tools" aria-expanded={rail === 'open'} onClick={() => setRail((r) => (r === 'open' ? 'icons' : 'open'))}
-                className={cn('flex w-[58px] flex-col items-center gap-1 rounded-[12px] py-1.5 text-[10.5px] font-medium text-white/85 [&>svg]:size-5', rail === 'open' && 'bg-white text-black')}>
-                <Ellipsis /><span>More</span>
-              </button>
+              </div>
+              {rail === 'open' && (
+                <div className="media-glass animate-panel-in flex flex-col rounded-[16px] p-1">
+                  {moreTools.map(([label, icon, act]) => (
+                    <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex h-10 items-center gap-3 rounded-[12px] px-3 text-[14px] font-medium active:bg-white/10 [&>svg]:size-[18px]">
+                      {icon}<span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
