@@ -2339,7 +2339,7 @@ export class SupabaseChatService implements ChatService {
     const inFlight = this.#conversationListRead;
     if (inFlight && Date.now() - inFlight.at < CONVERSATION_COALESCE_MS) return inFlight.work;
 
-    const work = this.#listConversationsOnce(key);
+    const work = this.#listConversationsOnce(key).then((list) => this.#withLastReactions(list));
     this.#conversationListRead = { at: Date.now(), work };
     void work
       .catch(() => undefined)
@@ -2871,12 +2871,14 @@ export class SupabaseChatService implements ChatService {
            * URL - a thread of broken images, from the one path that returned
            * without signing anything.
            */
-          return this.#signPhotos([], cached);
+          return this.#signPhotos([], await this.#withReactions(cached));
         }
 
         const decrypted = await openRows(changed);
         if (decrypted) {
-          const merged = mergeMessages(cached, changed.map((row) => toMessage(row, undefined)));
+          const merged = await this.#withReactions(
+            mergeMessages(cached, changed.map((row) => toMessage(row, undefined))),
+          );
           this.#deltaStats.hits += 1;
           this.#deltaStats.rowsFetched += changed.length;
 
@@ -3404,7 +3406,9 @@ export class SupabaseChatService implements ChatService {
     // Whether every row opened decides whether this page may be cached. See
     // openRows: caching a page that failed to decrypt makes the placeholder
     // permanent.
-    const reactionsRead = this.#reactionsFor(rows.map((row) => row.id));
+    const reactionsRead = this.#reactionsFor(rows.map((row) => row.id)).catch(
+      () => new Map<MessageId, Reaction[]>(),
+    );
     const [fullyDecrypted, rosterResult] = await Promise.all([openRows(rows), rosterRead]);
     const theirReadAt = (rosterResult.data ?? [])
       .filter((m) => m.user_id !== me)
@@ -3490,7 +3494,64 @@ export class SupabaseChatService implements ChatService {
     }
 
     this.#applyLocal(messageId, userId, emoji);
-    this.#emitFromCache(messageId, await this.#messageRow(messageId));
+    const base = await this.#messageRow(messageId);
+    this.#emitFromCache(messageId, base);
+
+    // Somebody reacting to mine is news for the list row too.
+    if (userId === me || base.authorId !== me) return;
+    const known = this.#known.get(base.conversationId);
+    if (!known) return;
+    let next: Conversation | undefined;
+    if (emoji) {
+      const at = Date.now();
+      next = { ...known, lastReaction: { emoji, userId, messageId, at }, updatedAt: Math.max(known.updatedAt, at) };
+    } else if (known.lastReaction?.messageId === messageId && known.lastReaction.userId === userId) {
+      const { lastReaction: _gone, ...rest } = known;
+      next = rest;
+    }
+    if (!next) return;
+    this.#known.set(next.id, next);
+    this.#emit({ type: 'conversation:updated', conversation: next });
+  }
+
+  /**
+   * The newest reaction to one of my messages, per conversation.
+   *
+   * One small query beside the list rather than a column on it: a reaction
+   * does not touch the conversation row, so the cached list and its
+   * fingerprint never see one. A failure leaves the list as it was.
+   */
+  async #withLastReactions(list: Conversation[]): Promise<Conversation[]> {
+    try {
+      const me = await this.#userId();
+      const { data, error } = await this.#client
+        .from('message_reactions')
+        .select('emoji, user_id, created_at, message_id, messages!inner(conversation_id, sender_id)')
+        .eq('messages.sender_id', me)
+        .neq('user_id', me)
+        .order('created_at', { ascending: false })
+        .limit(60);
+      if (error || !data) return list;
+      const newest = new Map<ConversationId, Conversation['lastReaction']>();
+      for (const row of data as unknown as {
+        emoji: string; user_id: string; created_at: string; message_id: string;
+        messages: { conversation_id: string };
+      }[]) {
+        const id = row.messages.conversation_id;
+        if (!newest.has(id)) {
+          newest.set(id, { emoji: row.emoji, userId: row.user_id, messageId: row.message_id, at: Date.parse(row.created_at) });
+        }
+      }
+      return list.map((conversation) => {
+        const reaction = newest.get(conversation.id);
+        if (!reaction) return conversation;
+        const next = { ...conversation, lastReaction: reaction };
+        this.#known.set(next.id, next);
+        return next;
+      });
+    } catch {
+      return list;
+    }
   }
 
   /** Applies one person's choice to a message's grouped reactions. */
@@ -3533,15 +3594,41 @@ export class SupabaseChatService implements ChatService {
     });
   }
 
+  /**
+   * A stored page, with its reactions as they are now.
+   *
+   * A reaction does not move a message's `updated_at`, so the delta path -
+   * which asks only what changed since last time - never sees one, and served
+   * the page with whatever reactions it had when it was stored. React, leave,
+   * come back: the emoji was gone. One small query per open puts it back.
+   */
+  async #withReactions(messages: Message[]): Promise<Message[]> {
+    const me = await this.#userId().catch(() => undefined);
+    // The newest end only: that is what is on screen, and it keeps the id list
+    // well inside a URL.
+    const tail = new Set(messages.slice(-80).map((m) => m.id));
+    const fresh = await this.#reactionsFor([...tail]).catch(() => undefined);
+    if (!fresh) return messages;
+    return messages.map((m) => {
+      if (!tail.has(m.id)) return m;
+      this.#reactions.set(m.id, fresh.get(m.id) ?? []);
+      const pending = this.#pending.get(m.id);
+      if (pending && me) this.#applyLocal(m.id, me, pending.emoji);
+      return { ...m, reactions: this.#reactions.get(m.id) ?? [] };
+    });
+  }
+
   /** Grouped by emoji, in the shape `Message.reactions` already expects. */
   async #reactionsFor(messageIds: MessageId[]): Promise<Map<MessageId, Reaction[]>> {
     const grouped = new Map<MessageId, Reaction[]>();
     if (messageIds.length === 0) return grouped;
 
-    const { data } = await this.#client
+    const { data, error } = await this.#client
       .from('message_reactions')
       .select('message_id, user_id, emoji')
       .in('message_id', messageIds);
+    // Thrown, not read as "no reactions": an empty answer would wipe them.
+    if (error) throw error;
 
     for (const row of data ?? []) {
       const list = grouped.get(row.message_id) ?? [];

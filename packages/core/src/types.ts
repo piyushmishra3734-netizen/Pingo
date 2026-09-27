@@ -410,6 +410,12 @@ export interface Conversation {
   adminIds?: UserId[];
   /** Denormalised for the list view, so rendering never needs the full thread. */
   lastMessage?: Message;
+  /**
+   * Somebody's newest reaction to one of my messages. The list shows it in
+   * place of the preview while it is newer than `lastMessage`, as Instagram
+   * and WhatsApp do.
+   */
+  lastReaction?: { emoji: string; userId: UserId; messageId: MessageId; at: number };
   unreadCount: number;
   /** Pinned conversations sort above everything else. */
   pinned: boolean;

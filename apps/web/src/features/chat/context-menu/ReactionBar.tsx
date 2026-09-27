@@ -11,9 +11,8 @@ import { useRef, useState } from 'react';
  *
  * ## Six, and the sixth is always `➕`
  *
- * Five is what people actually reach for; the sixth slot is the door to
- * everything else. Fixing `➕` in last position means the five that matter never
- * move, which is the whole argument for a quick bar over a picker.
+ * Five is what people actually reach for - your five most used, see `quick` -
+ * and the sixth slot is the door to every emoji.
  */
 
 /** docs/13 § 3. `➕` is not in this list - it is the button after it. */
@@ -24,6 +23,44 @@ const QUICK: { emoji: string; label: string }[] = [
   { emoji: '😮', label: 'React with surprised face' },
   { emoji: '😢', label: 'React with crying face' },
 ];
+
+/*
+ * The five in the bar are the five you use most.
+ *
+ * Counted per device, in localStorage, from every reaction you add - the bar
+ * or the picker. Until something has been used the defaults hold their places,
+ * and a new favourite only moves in once it has been used more than one of them.
+ */
+const USE_KEY = 'pingo.reactionUse';
+
+function uses(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(USE_KEY) ?? '{}') as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+export function noteReaction(emoji: string): void {
+  try {
+    const counts = uses();
+    counts[emoji] = (counts[emoji] ?? 0) + 1;
+    localStorage.setItem(USE_KEY, JSON.stringify(counts));
+  } catch {
+    // Private mode: the bar just keeps its defaults.
+  }
+}
+
+function quick(): { emoji: string; label: string }[] {
+  const counts = uses();
+  const all = [...new Set([...Object.keys(counts), ...QUICK.map((q) => q.emoji)])];
+  // Stable sort: ties keep the defaults' order.
+  const top = all
+    .map((emoji, i) => ({ emoji, n: counts[emoji] ?? 0, i: QUICK.findIndex((q) => q.emoji === emoji) }))
+    .sort((a, b) => b.n - a.n || (a.i < 0 ? 99 : a.i) - (b.i < 0 ? 99 : b.i))
+    .slice(0, 5);
+  return top.map(({ emoji }) => QUICK.find((q) => q.emoji === emoji) ?? { emoji, label: `React with ${emoji}` });
+}
 
 export interface ReactionBarProps {
   /** The viewer's current reaction, so the bar can show what is already chosen. */
@@ -36,6 +73,7 @@ export function ReactionBar({ mine, onReact, onOpenPicker }: ReactionBarProps) {
   const listRef = useRef<HTMLDivElement>(null);
   /** Which emoji is mid-press, so only that one scales. */
   const [pressed, setPressed] = useState<string>();
+  const [row] = useState(quick);
 
   /*
    * Horizontal arrows move between reactions. A row of buttons that only
@@ -71,7 +109,7 @@ export function ReactionBar({ mine, onReact, onOpenPicker }: ReactionBarProps) {
         'lq-glass-water lq-menu flex items-center gap-0.5 rounded-full px-1.5 py-[5px]',
       )}
     >
-      {QUICK.map(({ emoji, label }) => (
+      {row.map(({ emoji, label }) => (
         <button
           key={emoji}
           type="button"

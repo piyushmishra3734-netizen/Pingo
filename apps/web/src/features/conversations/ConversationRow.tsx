@@ -97,11 +97,20 @@ export function ConversationRow({
       ? users.find((u) => conversation.participantIds.includes(u.id) && u.id !== currentUser?.id)
       : undefined;
 
-  const preview = messagePreview(lastMessage, {
-    conversation,
-    currentUserId: currentUser?.id ?? '',
-    users,
-  });
+  /*
+   * Somebody reacting to yours, Instagram's way - in place of the preview for
+   * as long as it is the newest thing in the chat.
+   */
+  const reaction = conversation.lastReaction;
+  const reacted = reaction && reaction.at > (lastMessage?.createdAt ?? 0) ? reaction : undefined;
+  const reactor = reacted && users.find((u) => u.id === reacted.userId)?.name.split(' ')[0];
+  const preview = reacted
+    ? `${conversation.kind === 'direct' ? 'Reacted' : `${reactor ?? 'Someone'} reacted`} ${reacted.emoji} to your message`
+    : messagePreview(lastMessage, {
+        conversation,
+        currentUserId: currentUser?.id ?? '',
+        users,
+      });
 
   /*
    * A hold enters selection mode; once in it, a tap toggles instead of opening.
@@ -190,6 +199,7 @@ export function ConversationRow({
           {/* Delivery beside the time, as in the approved row. Read only while receipts are on. */}
               {lastMessageIsMine &&
                 lastMessage &&
+                !reacted &&
                 (lastMessage.status === 'read' && readReceiptsOn() ? (
                   <CheckDoubleIcon size={14} className="shrink-0 text-brand" title="Read" />
                 ) : lastMessage.status === 'delivered' && readReceiptsOn() ? (

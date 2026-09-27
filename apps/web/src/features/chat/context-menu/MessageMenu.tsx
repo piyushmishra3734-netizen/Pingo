@@ -6,7 +6,9 @@ import { MessageActions } from './MessageActions.js';
 import { MessageInfoSheet } from './MessageInfoSheet.js';
 import { MessageContextMenu } from './MessageContextMenu.js';
 import { MoreSheet } from './MoreSheet.js';
-import { ReactionBar } from './ReactionBar.js';
+import { ReactionBar, noteReaction } from './ReactionBar.js';
+import { Overlay } from '../../../components/Overlay.js';
+import { EmojiPicker } from '../../emoji/EmojiPicker.js';
 import { useMessageMenu } from './useMenuTriggers.js';
 
 import { useConfirm } from '../../../components/ConfirmProvider.js';
@@ -55,6 +57,8 @@ export function MessageMenu({
   const [editing, setEditing] = useState(false);
   /** The in-app info sheet, which replaced `window.alert`. */
   const [info, setInfo] = useState(false);
+  /** Every emoji, from the bar's `➕`. */
+  const [picking, setPicking] = useState(false);
 
   const react = useCallback(
     async (emoji: string) => {
@@ -62,6 +66,8 @@ export function MessageMenu({
       if (busy) return;
       setBusy(true);
       setError(undefined);
+      // Adding, not taking back, is what counts towards the bar's order.
+      if (!message.reactions.some((r) => r.emoji === emoji && r.userIds.includes(currentUser?.id ?? ''))) noteReaction(emoji);
       try {
         await service.toggleReaction(message.id, emoji);
         // Light, and only once it landed - a haptic on tap would confirm
@@ -76,7 +82,7 @@ export function MessageMenu({
         setBusy(false);
       }
     },
-    [busy, service, message.id],
+    [busy, service, message.id, message.reactions, currentUser?.id],
   );
 
   const menu = useMessageMenu();
@@ -146,11 +152,9 @@ export function MessageMenu({
                   close();
                 }}
                 onOpenPicker={() => {
-                  // From a tap, `➕` reveals the actions the tap did not ask
-                  // for; from a hold they are already there, so it goes on to
-                  // Level 2.
-                  if (reactionsOnly) setPromoted(true);
-                  else setLevel('more');
+                  // Every emoji, WhatsApp's way: the menu gives way to the picker.
+                  close();
+                  setPicking(true);
                 }}
               />
             ) : null
@@ -199,6 +203,27 @@ export function MessageMenu({
               });
           }}
         />
+      )}
+
+      {picking && (
+        <Overlay onDismiss={() => setPicking(false)}>
+          <div className="fixed inset-0 z-1100 flex flex-col justify-end">
+            <div className="lq-dim animate-fade-in absolute inset-0" onPointerDown={() => setPicking(false)} />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Choose a reaction"
+              className="animate-panel-in relative mx-auto w-full max-w-md overflow-hidden rounded-t-[20px] bg-surface pb-[env(safe-area-inset-bottom)] [&_em-emoji-picker]:w-full"
+            >
+              <EmojiPicker
+                onSelect={(emoji) => {
+                  setPicking(false);
+                  void react(emoji);
+                }}
+              />
+            </div>
+          </div>
+        </Overlay>
       )}
 
       {info && <MessageInfoSheet message={message} onClose={() => setInfo(false)} />}
