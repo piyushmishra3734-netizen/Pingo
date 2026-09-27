@@ -603,6 +603,7 @@ const en = {
   'disappearing.title': 'Disappearing messages',
   'disappearing.blurb': 'New messages here go away on their own.',
   'disappearing.off': 'Off',
+  'disappearing.hour': '1 hour',
   'disappearing.day': '24 hours',
   'disappearing.week': '7 days',
   'disappearing.ninetyDays': '90 days',
