@@ -2001,14 +2001,15 @@ export function ChatThread({
         ref={galleryRef}
         type="file"
         /*
-          Audio is here because it is in the gallery.
+          Pictures and clips only, so the phone opens its photo picker.
 
-          A song, a recording, a voice memo saved from somewhere else: on a
-          phone those live alongside the photos, and leaving them out of the
-          filter did not stop people picking them - some pickers ignore the
-          accept list entirely - it only meant they arrived unannounced.
+          Audio used to be in this list too, and a list with anything but
+          images and videos in it sends Android to the old file browser
+          instead of the photo grid (see MainActivity). A song or a recording
+          goes through Document now. Some pickers ignore the list and hand
+          audio back anyway; `probeKind` below still sorts that out.
         */
-        accept="image/*,video/*,audio/*"
+        accept="image/*,video/*"
         multiple
         hidden
         onChange={(event) => {
