@@ -98,6 +98,7 @@ export default defineConfig({
         'pingo-favicon-32.png',
         'pingo-maskable.png',
         'apple-touch-icon.png',
+        'pingo-avatar.png',
       ],
 
       manifest: {

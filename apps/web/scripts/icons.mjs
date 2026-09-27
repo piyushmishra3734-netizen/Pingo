@@ -83,6 +83,8 @@ await write('public/pingo-icon.png', await tile(512, 0.72, PAPER, 0.225));
 // The mark stays inside the 80% circle a maskable icon is guaranteed.
 await write('public/pingo-maskable.png', await tile(512, 0.58, PAPER));
 await write('public/apple-touch-icon.png', await tile(180, 0.68, PAPER));
+// The PINGO assistant's face in a chat list, until the operator gives it another.
+await write('public/pingo-avatar.png', await tile(256, 0.6, PAPER));
 
 console.log('android:');
 const RES = 'android/app/src/main/res';

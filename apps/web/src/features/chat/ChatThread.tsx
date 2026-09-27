@@ -1493,7 +1493,7 @@ export function ChatThread({
               <Avatar
                 name={conversation.title}
                 id={partner?.id ?? conversation.id}
-                src={partner?.avatarUrl ?? conversation.avatarUrl}
+                src={partner?.avatarUrl ?? conversation.avatarUrl ?? (conversation.kind === 'ai' ? '/pingo-avatar.png' : undefined)}
                 size="sm"
               />
             )}

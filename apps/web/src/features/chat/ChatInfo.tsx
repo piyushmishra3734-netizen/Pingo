@@ -203,7 +203,7 @@ function ChatInfoPage({
           <Avatar
             name={name}
             id={partner?.id ?? conversation.id}
-            src={partner?.avatarUrl ?? conversation.avatarUrl}
+            src={partner?.avatarUrl ?? conversation.avatarUrl ?? (conversation.kind === 'ai' ? '/pingo-avatar.png' : undefined)}
             size="hero"
           />
         </span>

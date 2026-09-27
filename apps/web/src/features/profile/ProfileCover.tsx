@@ -122,7 +122,8 @@ export function ProfileCover({
           draggable={false}
         />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/25 to-brand/5" />
+        // No photo: a wash of the PINGO sweep, the logo's own colours, at a whisper.
+        <div className="bg-sweep absolute inset-0 opacity-[.24]" />
       )}
 
       {/*

@@ -147,7 +147,7 @@ export function ConversationRow({
           story &&
             (story.allSeen
               ? 'bg-line-strong'
-              : 'bg-[conic-gradient(from_210deg,#e0559b,#ff9a5a,#8b5dff,#e0559b)]'),
+              : 'bg-sweep-ring'),
         )}
       >
       <Avatar
@@ -158,7 +158,7 @@ export function ConversationRow({
           group. Without this every row rendered a monogram even for people who
           had set a picture - the avatar was there, its source was not.
         */
-        src={partner?.avatarUrl ?? conversation.avatarUrl}
+        src={partner?.avatarUrl ?? conversation.avatarUrl ?? (conversation.kind === 'ai' ? '/pingo-avatar.png' : undefined)}
         size="lg"
         // Presence only. Typing is already carried by the preview line below, and
         // saying it twice in one row is two signals competing for the same glance.
