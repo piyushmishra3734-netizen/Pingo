@@ -125,7 +125,13 @@ export function useContainBox(
     }
 
     const measure = () => {
-      const { width, height } = element.getBoundingClientRect();
+      /*
+       * Layout size, not `getBoundingClientRect`: the story viewer grows out of
+       * the ring it was opened from under a scale transform, and a measure
+       * taken mid-grow stuck - a transform never fires the ResizeObserver - so
+       * every sticker was drawn at the size of the ring's first frame.
+       */
+      const width = element.offsetWidth, height = element.offsetHeight;
       if (width < 1 || height < 1) return;
       setBox({
         width: Math.min(width, height * ratio),

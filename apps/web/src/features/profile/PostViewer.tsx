@@ -12,7 +12,8 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { CaptionText } from './CaptionText.js';
-import { ShareLinkButton, profileLink } from './ShareProfileSheet.js';
+import { SharePostSheet } from './SharePostSheet.js';
+import { UploadToast, type UploadNote } from '../stories/StoryUpload.js';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
@@ -49,6 +50,8 @@ export interface PostViewerProps {
   onReplace: () => void;
   onDelete: () => void;
   onReport: () => void;
+  /** Share → Add to story: the post, as a sticker, in the story editor. */
+  onAddToStory?: (audience: 'friends' | 'close') => void;
 }
 
 export function PostViewer({
@@ -61,6 +64,7 @@ export function PostViewer({
   onReplace,
   onDelete,
   onReport,
+  onAddToStory,
 }: PostViewerProps) {
   const t = useT();
   const { service } = useProfile();
@@ -72,6 +76,13 @@ export function PostViewer({
   const [commentError, setCommentError] = useState<string>();
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [note, setNote] = useState<UploadNote>();
+  useEffect(() => {
+    if (!note) return;
+    const t = window.setTimeout(() => setNote(undefined), 1900);
+    return () => window.clearTimeout(t);
+  }, [note]);
 
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -93,13 +104,14 @@ export function PostViewer({
       if (event.key !== 'Escape') return;
       // Escape closes the innermost thing first, which is what every nested
       // surface in the product does.
-      if (menuOpen) setMenuOpen(false);
+      if (sharing) setSharing(false);
+      else if (menuOpen) setMenuOpen(false);
       else if (showComments) setShowComments(false);
       else onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, menuOpen, showComments]);
+  }, [onClose, menuOpen, showComments, sharing]);
 
   const openComments = () => {
     setShowComments(true);
@@ -332,7 +344,14 @@ export function PostViewer({
               <CommentIcon size={24} />
             </button>
 
-            <ShareLinkButton link={profileLink(author.username)} label="Share this profile" />
+            <button
+              type="button"
+              onClick={() => setSharing(true)}
+              aria-label="Share"
+              className="focus-ring rounded-full p-2 transition-transform duration-instant active:scale-90"
+            >
+              <SendIcon size={24} />
+            </button>
 
             <span className="flex-1" />
 
@@ -416,6 +435,17 @@ export function PostViewer({
             onClose={() => setShowComments(false)}
           />
         )}
+
+        {sharing && (
+          <SharePostSheet
+            post={post}
+            author={author}
+            onClose={() => setSharing(false)}
+            onAddToStory={(audience) => onAddToStory?.(audience)}
+            onNote={(text, icon) => setNote({ at: Date.now(), ok: true, text, icon })}
+          />
+        )}
+        {note && <UploadToast key={note.at} note={note} />}
       </div>
     </Overlay>
   );

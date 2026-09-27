@@ -1,5 +1,6 @@
-import type { StickerAnswer, StickerResult, Story, StorySticker } from '@pingo/core';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useChat, type StickerAnswer, type StickerResult, type Story, type StorySticker } from '@pingo/core';
+import { AtSign, ExternalLink, Hash, Image as ImageIcon, MapPin, Music2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { useContainBox } from '../../camera/VideoOverlay.js';
 import { useStories } from '../StoryContext.js';
@@ -27,12 +28,14 @@ export function StoryStickerLayer({
   onOpenProfile: (username: string) => void;
 }) {
   const { service } = useStories();
+  const { users } = useChat();
   const stickers = story.decor?.stickers ?? [];
   const host = useRef<HTMLDivElement>(null);
   const box = useContainBox(host, 9 / 16);
   const [results, setResults] = useState<StickerResult[]>([]);
   const [mine, setMine] = useState<Record<string, StickerAnswer>>({});
-  const [tip, setTip] = useState<{ text: string; x: number; y: number }>();
+  /** Instagram's white bubble over a tapped sticker; `go` is what tapping it does. */
+  const [tip, setTip] = useState<{ text: string; icon: ReactNode; x: number; y: number; go?: () => void }>();
   const [asking, setAsking] = useState<StorySticker>();
   const [reply, setReply] = useState('');
   const [burst, setBurst] = useState<{ at: number; x: number; y: number }>();
@@ -78,17 +81,20 @@ export function StoryStickerLayer({
     const at = h ? { x: r.left - h.left + r.width / 2, y: r.top - h.top - 8 } : { x: 0, y: 0 };
     const d = s.d as Record<string, string>;
     switch (s.type) {
-      case 'men': return onOpenProfile(d.text ?? '');
+      case 'men': {
+        const who = users.find((u) => u.handle === d.text);
+        const face = who?.avatarUrl ? <img src={who.avatarUrl} alt="" className="size-[22px] rounded-full object-cover" /> : <AtSign size={16} />;
+        return setTip({ text: 'View profile', icon: face, go: () => onOpenProfile(d.text ?? ''), ...at });
+      }
       case 'link': {
         const url = /^https?:\/\//.test(d.text ?? '') ? d.text! : `https://${d.text}`;
-        window.open(url, '_blank', 'noopener');
-        return;
+        return setTip({ text: `Open ${d.text}`, icon: <ExternalLink size={16} />, go: () => window.open(url, '_blank', 'noopener'), ...at });
       }
       case 'question': setReply(''); return setAsking(s);
-      case 'loc': return setTip({ text: d.text ?? '', ...at });
-      case 'tag': return setTip({ text: `#${d.text}`, ...at });
-      case 'music': return setTip({ text: `${d.name} · ${d.artist}`, ...at });
-      case 'post': return setTip({ text: `Post by ${d.user}`, ...at });
+      case 'loc': return setTip({ text: `See ${d.text} on the map`, icon: <MapPin size={16} />, go: () => window.open(`https://www.google.com/maps/search/${encodeURIComponent(d.text ?? '')}`, '_blank', 'noopener'), ...at });
+      case 'tag': return setTip({ text: `See #${d.text}`, icon: <Hash size={16} />, ...at });
+      case 'music': return setTip({ text: `${d.name} · Play full song`, icon: <Music2 size={16} />, ...at });
+      case 'post': return setTip({ text: 'View post', icon: <ImageIcon size={16} />, ...(d.user ? { go: () => onOpenProfile(d.user!) } : {}), ...at });
     }
   };
 
@@ -120,8 +126,13 @@ export function StoryStickerLayer({
       )}
 
       {tip && (
-        <div className="animate-fade-in pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-xl bg-white px-3.5 py-2 text-[13.5px] font-bold whitespace-nowrap text-black shadow-lg"
-          style={{ left: tip.x, top: tip.y }}>{tip.text}</div>
+        <button type="button"
+          className={`absolute z-20 flex -translate-x-1/2 -translate-y-full items-center gap-1.5 rounded-xl bg-white px-3.5 py-[9px] text-[13.5px] font-bold whitespace-nowrap text-[#111] shadow-[0_8px_24px_-8px_rgba(0,0,0,.4)] ${tip.go ? 'pointer-events-auto' : 'pointer-events-none'}`}
+          style={{ left: tip.x, top: tip.y, animation: 'sk-tip-pop .3s' }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={() => { const go = tip.go; setTip(undefined); go?.(); }}
+        >{tip.icon}{tip.text}</button>
       )}
 
       {burst && <Confetti key={burst.at} x={burst.x} y={burst.y} />}

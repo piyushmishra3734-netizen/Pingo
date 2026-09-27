@@ -96,7 +96,7 @@ export function ConversationList({
    */
   const journey = useJourneyProgress();
   const { profile, service: profiles } = useProfile();
-  const { groups: storyGroups } = useStories();
+  const { groups: storyGroups, uploading: storyUploading } = useStories();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const { unread } = useNotifications();
@@ -621,6 +621,7 @@ export function ConversationList({
                       }
                       onCreate={() => setChoosingCreate(true)}
                       onManageMine={() => setManagingStory(true)}
+                      uploading={storyUploading > 0}
                       extra={<ArcadeCircle onOpen={() => navigate('/arcade')} />}
                     />
                   </div>

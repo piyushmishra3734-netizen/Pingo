@@ -12,6 +12,7 @@ import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
 import { SendTo, drawStickers, noteSends } from '../camera/snap/send-to.js';
+import type { StoryFrom } from './StoryUpload.js';
 import { Blue, ClipSheet, Field, MusicSheet, Panel, type Song } from '../music/sheets.js';
 
 /**
@@ -53,7 +54,8 @@ export interface StoryEditorProps {
   /** A background behind the media, for a shared post. */
   bg?: string;
   onClose: () => void;
-  onPost: (draft: StoryDraft) => Promise<void>;
+  /** `from` is where the frame sits and a still of it, for the flight into your ring. */
+  onPost: (draft: StoryDraft, from?: StoryFrom) => Promise<void>;
   /** A song already chosen in the camera. */
   initialSong?: Song;
   /**
@@ -264,6 +266,22 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
     return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Could not save the picture.'))), 'image/jpeg', 0.9));
   };
 
+  /** What flies into your ring: the frame's place, and a still of it. */
+  const flightFrom = (): StoryFrom | undefined => {
+    const rect = stage.current?.getBoundingClientRect(); if (!rect) return undefined;
+    // A shared post flies as the post, as Instagram's does.
+    const card = bg ? stickers.find((x) => x.type === 'post') : undefined;
+    if (card) return { rect, poster: String(card.d.src ?? '') };
+    if (kind === 'photo') return { rect };
+    try {
+      const v = mediaEl.current as HTMLVideoElement; const c = document.createElement('canvas');
+      c.width = 270; c.height = 480; const g = c.getContext('2d')!;
+      const k = Math.max(c.width / v.videoWidth, c.height / v.videoHeight);
+      g.drawImage(v, (c.width - v.videoWidth * k) / 2, (c.height - v.videoHeight * k) / 2, v.videoWidth * k, v.videoHeight * k);
+      return { rect, poster: c.toDataURL('image/jpeg', 0.8), ...(filter ? { filter } : {}) };
+    } catch { return { rect }; }
+  };
+
   const post = async (audience: StoryAudience, audienceUserIds?: string[]) => {
     if (busy) return;
     setBusy('Sharing…'); setError(undefined);
@@ -277,14 +295,14 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         const sound = await decodeSound(new File([bytes], song.name, { type: bytes.type || 'audio/mp4' }));
         audio = [{ blob: cutToWav(sound.buffer, song.start, Math.min(sound.buffer.duration, song.start + 15)), at: 0, duration: 15, volume: 1 }];
       }
-      const decor: StoryDecor = { v: 1, stickers, ...(kind === 'video' && filter ? { filter } : {}) };
+      const decor: StoryDecor = { v: 1, stickers, ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}) };
       setBusy('Sharing…');
       await onPost({
         media: file, kind, audience, decor,
         ...(audienceUserIds ? { audienceUserIds } : {}),
         ...(caption.trim() ? { caption: caption.trim() } : {}),
         ...(audio ? { audio } : {}),
-      });
+      }, flightFrom());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not share that.');
       setBusy(undefined);

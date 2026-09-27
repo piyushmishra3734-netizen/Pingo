@@ -109,3 +109,6 @@
 .sk-postcard.s1 { background: none; box-shadow: none; }
 .sk-postcard.s1 header { display: none; }
 .sk-postcard.s1 > img { border-radius: 3.6cqw; box-shadow: 0 4cqw 10cqw -3cqw rgba(0,0,0,.55); }
+/* watching: the card says what a tap does, as Instagram's does */
+.sk-postcard.sk-view::after { content: "Tap to see post"; position: absolute; left: 50%; bottom: -7.7cqw; transform: translateX(-50%); font: 600 3.1cqw 'Manrope', system-ui, sans-serif; color: #fff; white-space: nowrap; opacity: .9; }
+@keyframes sk-tip-pop { 0% { scale: .4 } 60% { scale: 1.3 } 100% { scale: 1 } }

@@ -1,4 +1,4 @@
-import type { Story, StoryGroup, StoryService } from '@pingo/core';
+import type { Story, StoryDraft, StoryGroup, StoryService } from '@pingo/core';
 import { useAuth } from '@pingo/core';
 import {
   createContext,
@@ -6,11 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
 import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
+import { UploadToast, flyToRing, type StoryFrom, type UploadNote } from './StoryUpload.js';
 
 /**
  * Story state, shared by the rail, the viewer and the creator.
@@ -44,6 +46,14 @@ interface StoryContextValue {
   /** Ids the signed-in user has muted. The rail already excludes them. */
   mutedAuthors: string[];
   setAuthorMuted: (userId: string, muted: boolean) => Promise<void>;
+  /** Stories on their way up. Your ring spins while this is above zero. */
+  uploading: number;
+  /**
+   * Posts in the background, the way Instagram does: the caller closes its
+   * editor straight away, the picture flies into your ring from `from`, the
+   * ring spins until it is up, and a toast says it went (or offers a retry).
+   */
+  upload: (draft: StoryDraft, from?: StoryFrom) => void;
 }
 
 const StoryContext = createContext<StoryContextValue | undefined>(undefined);
@@ -210,6 +220,36 @@ export function StoryProvider({
     [service, refresh],
   );
 
+  const [uploading, setUploading] = useState(0);
+  const [note, setNote] = useState<UploadNote>();
+  const noteTimer = useRef<number | undefined>(undefined);
+  const say = useCallback((next: UploadNote | undefined) => {
+    window.clearTimeout(noteTimer.current);
+    setNote(next);
+    if (next) noteTimer.current = window.setTimeout(() => setNote(undefined), next.ok ? 1900 : 6000);
+  }, []);
+
+  const upload = useCallback(
+    (draft: StoryDraft, from?: StoryFrom) => {
+      const go = async (fly: boolean) => {
+        // The ring only starts to spin once the picture has landed in it.
+        if (fly && from) await flyToRing(from, draft.kind === 'photo' ? draft.media : undefined);
+        setUploading((n) => n + 1);
+        try {
+          await service.post(draft);
+          await refresh();
+          say({ at: Date.now(), ok: true, text: draft.audience === 'close' ? 'Shared with close friends' : 'Shared to your story' });
+        } catch {
+          say({ at: Date.now(), ok: false, text: 'Your story did not post', retry: () => void go(false) });
+        } finally {
+          setUploading((n) => Math.max(0, n - 1));
+        }
+      };
+      void go(true);
+    },
+    [service, refresh, say],
+  );
+
   const value = useMemo<StoryContextValue>(
     () => ({
       service,
@@ -221,11 +261,18 @@ export function StoryProvider({
       setLiked,
       mutedAuthors,
       setAuthorMuted,
+      uploading,
+      upload,
     }),
-    [service, groups, mine, loading, refresh, markSeen, setLiked, mutedAuthors, setAuthorMuted],
+    [service, groups, mine, loading, refresh, markSeen, setLiked, mutedAuthors, setAuthorMuted, uploading, upload],
   );
 
-  return <StoryContext.Provider value={value}>{children}</StoryContext.Provider>;
+  return (
+    <StoryContext.Provider value={value}>
+      {children}
+      {note && <UploadToast key={note.at} note={note} onDone={() => say(undefined)} />}
+    </StoryContext.Provider>
+  );
 }
 
 export function useStories(): StoryContextValue {

@@ -60,7 +60,7 @@ export function StoryComposer({
   onPosted: () => void;
 }) {
   const t = useT();
-  const { service, refresh } = useStories();
+  const { service, refresh, upload } = useStories();
   const navigate = useNavigate();
   const galleryInputId = useId();
 
@@ -332,10 +332,9 @@ export function StoryComposer({
             setIg(undefined);
             onClose();
           }}
-          onPost={async (draft) => {
-            await service.post(draft);
+          onPost={async (draft, from) => {
+            upload(draft, from);
             URL.revokeObjectURL(ig.src);
-            await refresh();
             onPosted();
           }}
         />

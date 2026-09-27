@@ -14,6 +14,7 @@ import { PingViewLimit, type PingViews } from '../features/camera/PingViewLimit.
 import { saveImage } from '../features/native/save-image.js';
 import { useBackStep } from '../features/navigation/useBackStep.js';
 import { useT } from '../features/i18n/useT.js';
+import type { Song } from '../features/music/sheets.js';
 import { usePreferences } from '../features/settings/SettingsContext.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
@@ -55,7 +56,7 @@ export function CameraScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { service: chat } = useChat();
-  const { service: stories, refresh } = useStories();
+  const { service: stories, refresh, upload } = useStories();
   const { preferences } = usePreferences();
 
   /*
@@ -85,6 +86,8 @@ export function CameraScreen() {
 
   /** What the Snap camera took, on its way to Save, My story or Send to. */
   const [snapShot, setSnapShot] = useState<SnapShot>();
+  /** The camera's song, kept here so it survives the camera unmounting under the editor. */
+  const [song, setSong] = useState<Song>();
   useBackStep(!!snapShot, () => setSnapShot(undefined));
   const [grid, setGrid] = useState(false);
   const [timer, setTimer] = useState<(typeof TIMERS)[number]>(0);
@@ -336,10 +339,10 @@ export function CameraScreen() {
           // From a chat: back to it. From the dock: stay on the camera, as Snapchat does.
           if (lockedChatId) navigate(`/chats/${lockedChatId}`, { replace: true });
         }}
-        onPost={async (draft) => {
-          await stories.post(draft);
+        onPost={async (draft, from) => {
+          // Up in the background: straight back to the camera, as Snapchat does.
+          upload(draft, from);
           if (preferences.camera.saveSnaps && snapShot.kind === 'photo') void saveImage(draft.media, 'pingo-story.jpg');
-          await refresh();
         }}
       />
     );
@@ -574,6 +577,8 @@ export function CameraScreen() {
       onShot={setSnapShot}
       onGallery={(file) => setSnapShot({ kind: file.type.startsWith('video/') ? 'video' : 'photo', blob: file })}
       onClose={() => navigate(lockedChatId ? `/chats/${lockedChatId}` : '/chats', { replace: true })}
+      {...(song ? { song } : {})}
+      onSong={setSong}
     />
   );
 }

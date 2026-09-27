@@ -64,13 +64,24 @@ await check('music: list, pick, part picker', async () => {
 });
 await check('caption', async () => { await page.locator(`${ed} input[placeholder="Add a caption…"]`).fill('weekend vibes'); return true; });
 await check('Send to opens', async () => { await page.locator(`${ed} [aria-label="More sharing options"]`).click(); await w(400); const ok = await page.locator('text=Post to…').count() === 1; await page.locator('[aria-label="Back"]').last().click(); await w(300); return ok; });
-await check('close friends shares it', async () => { await btn('Close Friends').click(); await page.waitForFunction(() => !document.querySelector('[aria-label="Story editor"]'), null, { timeout: 60000 }); return (await page.locator('[data-lab="watch"]').textContent()).includes('(1)'); });
+await check('close friends shares it', async () => {
+  // watch for the flight into your ring and the ring spinning, as it happens
+  await page.evaluate(() => { window.__seen = { fly: false, spin: false }; new MutationObserver(() => {
+    if ([...document.body.children].some((e) => e.style?.zIndex === '1200')) window.__seen.fly = true;
+    if (document.querySelector('[data-story-ring="me"] .animate-spin')) window.__seen.spin = true;
+  }).observe(document.body, { childList: true, subtree: true }); });
+  await btn('Close Friends').click(); await page.waitForFunction(() => !document.querySelector('[aria-label="Story editor"]'), null, { timeout: 60000 }); await page.waitForFunction(() => document.querySelector('[data-lab="watch"]').textContent.includes('(1)'), null, { timeout: 10000 }); return true; });
+await check('it flew into your ring, which spun while it went up', async () => {
+  const seen = await page.evaluate(() => window.__seen);
+  return seen.fly && seen.spin && (await page.locator('[role=status]', { hasText: 'Shared with close friends' }).count()) === 1;
+});
 // five stories, one interactive sticker each, the way people actually post them
 for (const label of ['POLL', 'QUIZ', 'EMOJI SLIDER', 'QUESTIONS', 'COUNTDOWN']) {
   await page.click('[data-lab="edit"]'); await page.waitForSelector(ed); await w(900);
   await stickerTray(label);
   if (label === 'COUNTDOWN') { await page.keyboard.type('trip'); await page.locator(`${ed} button`, { hasText: 'Done' }).last().click(); await w(300); }
   await btn('Your story').click(); await page.waitForFunction(() => !document.querySelector('[aria-label="Story editor"]'), null, { timeout: 60000 });
+  await page.waitForFunction(() => !document.querySelector('[data-story-ring="me"] .animate-spin'), null, { timeout: 10000 });
 }
 await page.click('[data-lab="watch"]'); await w(1200); await page.keyboard.down('Space');
 const next = async () => { await page.keyboard.up('Space'); await page.keyboard.press('ArrowRight'); await w(900); await page.keyboard.down('Space'); };

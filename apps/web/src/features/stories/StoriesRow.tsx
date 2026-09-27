@@ -53,6 +53,8 @@ export interface StoriesRowProps {
   onCreate: () => void;
   /** Holding your own circle. */
   onManageMine: () => void;
+  /** A story of yours is on its way up: your ring spins, Instagram's dashes. */
+  uploading?: boolean;
   /** Rendered right after your own circle - the Arcade sits there. */
   extra?: ReactNode;
 }
@@ -68,6 +70,7 @@ export function StoriesRow({
   onOpen,
   onCreate,
   onManageMine,
+  uploading = false,
   extra,
 }: StoriesRowProps) {
   const mine = groups.find((group) => group.authorId === currentUserId);
@@ -130,6 +133,7 @@ export function StoriesRow({
             onOpen={onOpen}
             onCreate={onCreate}
             onManage={onManageMine}
+            uploading={uploading}
           />
         </li>
         {extra && <li>{extra}</li>}
@@ -189,6 +193,7 @@ function MyCircle({
   onOpen,
   onCreate,
   onManage,
+  uploading,
 }: {
   group: StoryGroup | undefined;
   name: string;
@@ -197,6 +202,7 @@ function MyCircle({
   onOpen: (group: StoryGroup, origin: DOMRect) => void;
   onCreate: () => void;
   onManage: () => void;
+  uploading: boolean;
 }) {
   const timer = useRef<number | undefined>(undefined);
   const held = useRef(false);
@@ -277,8 +283,11 @@ function MyCircle({
             if (group) onOpen(group, event.currentTarget.getBoundingClientRect());
             else onCreate();
           }}
+          aria-busy={uploading || undefined}
           aria-label={
-            group
+            uploading
+              ? 'Your story, posting'
+              : group
               ? `Your story, ${group.stories.length} ${
                   group.stories.length === 1 ? 'item' : 'items'
                 }. Tap to view, hold to manage.`
@@ -293,6 +302,8 @@ function MyCircle({
             seen={group?.allSeen ?? true}
             close={group?.closeFriends ?? false}
             hasStory={Boolean(group)}
+            uploading={uploading}
+            mine
           >
             <Avatar name={name} id={userId} src={avatarUrl} size="lg" />
           </StoryRing>
@@ -393,15 +404,38 @@ function StoryRing({
   seen,
   close,
   hasStory,
+  uploading = false,
+  mine = false,
   children,
 }: {
   seen: boolean;
   close: boolean;
   hasStory: boolean;
+  /** Instagram's dashed ring, turning, while a story of yours goes up. */
+  uploading?: boolean;
+  /** Your own circle: where a story you post flies to. */
+  mine?: boolean;
   children: React.ReactNode;
 }) {
+  if (uploading) {
+    return (
+      <span {...(mine ? { 'data-story-ring': 'me' } : {})} className="relative grid shrink-0 place-items-center rounded-full p-[2.5px]">
+        <span
+          aria-hidden
+          className="absolute inset-0 animate-spin rounded-full bg-brand-gradient [animation-duration:1.1s]"
+          style={{
+            mask: 'repeating-conic-gradient(#000 0 8deg, transparent 8deg 14deg) intersect, radial-gradient(closest-side, transparent calc(100% - 4px), #000 calc(100% - 3px))',
+            WebkitMask: 'repeating-conic-gradient(#000 0 8deg, transparent 8deg 14deg), radial-gradient(closest-side, transparent calc(100% - 4px), #000 calc(100% - 3px))',
+            WebkitMaskComposite: 'source-in',
+          }}
+        />
+        <span className="grid rounded-full bg-page p-[2px]">{children}</span>
+      </span>
+    );
+  }
   return (
     <span
+      {...(mine ? { 'data-story-ring': 'me' } : {})}
       className={cn(
         /*
           Ring is the signal: slightly thicker band, soft outer glow for
