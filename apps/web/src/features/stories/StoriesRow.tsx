@@ -1,35 +1,27 @@
 import type { StoryGroup } from '@pingo/core';
-import { Avatar, PlusIcon, cn } from '@pingo/ui';
+import { Avatar, cn } from '@pingo/ui';
+import { Plus } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 
 import type { LiveStream } from '../live/types.js';
 
 /**
- * The story rail at the top of the chat list.
+ * The story tray at the top of the chat list, the stories sample's
+ * (`docs/handoff/stories-camera/sample/story.html`, `.tray`).
  *
- * Horizontal, scrollable, people not posts - five stories from one person is
- * one circle that opens as a sequence. Order is decided in `StoryContext`: you,
- * then friends, then everybody else.
- *
- * ## The ring carries the state
- *
- * Three of them, and each says something different:
+ * People, not posts: five stories from one person are one circle. You come
+ * first, then the rest in the order `StoryContext` decides (unseen first).
  *
  * | Ring | Means |
  * | --- | --- |
- * | Accent gradient | unseen |
- * | Neutral grey | seen |
- * | Green | posted to close friends |
+ * | The coloured sweep | unseen |
+ * | Green | close friends only |
+ * | Grey | seen |
+ * | Dashes, turning | loading, or a story of yours going up |
  *
- * Green outranks the other two, because it is about *who the story is for*
- * rather than whether you have watched it - being let into somebody's close
- * friends is the more interesting fact and it survives being seen. A watched
- * close story dims to a softer green rather than dropping to grey, so the band
- * still reads while the "already seen" signal still lands.
- *
- * "You" is always first and always present. With no story of your own it is a
- * `+` that opens the creator, so posting is never a feature you have to go
- * looking for; with one, a long press reaches delete and the archive.
+ * "Your story" is always there. With nothing posted it is your face and a blue
+ * `+`; tapping it makes one. With a story up, the face opens it, the `+` makes
+ * another, and a hold manages them.
  */
 
 /** How long a press has to last to mean "manage this" rather than "open it". */
@@ -37,7 +29,7 @@ const HOLD_MS = 480;
 
 export interface StoriesRowProps {
   groups: StoryGroup[];
-  /** The signed-in user, so their own circle can lead and read "You". */
+  /** The signed-in user, so their own circle can lead and read "Your story". */
   currentUserId: string | undefined;
   currentUserName: string;
   currentUserAvatarUrl?: string;
@@ -49,10 +41,12 @@ export interface StoriesRowProps {
   onOpenMyLive?: () => void;
   /** The second argument is where the circle was, so the viewer can grow from it. */
   onOpen: (group: StoryGroup, origin: DOMRect) => void;
-  /** Tapping `+` with no story of your own. */
+  /** The `+`, or your circle with nothing posted. */
   onCreate: () => void;
   /** Holding your own circle. */
   onManageMine: () => void;
+  /** A story of yours is on its way up: your ring turns to dashes and spins. */
+  uploading?: boolean;
   /** Rendered right after your own circle - the Arcade sits there. */
   extra?: ReactNode;
 }
@@ -68,6 +62,7 @@ export function StoriesRow({
   onOpen,
   onCreate,
   onManageMine,
+  uploading = false,
   extra,
 }: StoriesRowProps) {
   const mine = groups.find((group) => group.authorId === currentUserId);
@@ -75,49 +70,40 @@ export function StoriesRow({
   const myLive = lives.find((live) => live.hostId === currentUserId);
   const liveOthers = lives.filter((live) => live.hostId !== currentUserId);
 
-  return (
-    <div className="px-1 pb-0.5">
-      <h2 className="sr-only">
-        Stories
-      </h2>
+  /*
+   * Instagram's dashed ring turns while the first story loads, then the viewer
+   * grows out of the circle - never a blank viewer waiting on the network.
+   */
+  const [loading, setLoading] = useState<string>();
+  const open = async (group: StoryGroup, el: HTMLElement) => {
+    if (loading) return;
+    setLoading(group.authorId);
+    const first = group.stories.find((s) => !s.seen) ?? group.stories[0];
+    const ready = first?.kind === 'photo'
+      ? new Promise<void>((r) => { const i = new Image(); i.onload = i.onerror = () => r(); i.src = first.mediaUrl; })
+      : Promise.resolve();
+    await Promise.race([ready, new Promise((r) => setTimeout(r, 1000))]);
+    await new Promise((r) => setTimeout(r, 260));
+    setLoading(undefined);
+    onOpen(group, (el.querySelector('[data-ring]') ?? el).getBoundingClientRect());
+  };
 
-      {/*
-        `scrollbar-none` because a horizontal scrollbar under six circles is
-        louder than the circles. Momentum scrolling still works, and
-        `overscroll-x-contain` stops a flick past the end of the rail from
-        triggering the browser's own back gesture.
-      */}
-      <ul
-        className="scrollbar-none flex gap-3 overflow-x-auto overscroll-x-contain px-3 pb-1"
-        aria-label="Stories"
-      >
+  return (
+    <div>
+      <h2 className="sr-only">Stories</h2>
+      <ul className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pt-1.5 pb-3" aria-label="Stories">
         {(myLive || liveOthers.length > 0) && <LiveHaloStyle />}
         {myLive && (
           <li key={`live-${myLive.id}`}>
-            <button
-              type="button"
-              onClick={onOpenMyLive}
-              aria-label="Your live video, tap to open"
-              className="focus-ring block rounded-full transition-transform duration-[160ms] ease-standard active:scale-[0.96]"
-            >
+            <button type="button" onClick={onOpenMyLive} aria-label="Your live video, tap to open" className="focus-ring block rounded-full">
               <LiveCircle name="You" id={myLive.hostId} avatarUrl={myLive.hostAvatarUrl} label="You" />
             </button>
           </li>
         )}
         {liveOthers.map((live) => (
           <li key={`live-${live.id}`}>
-            <button
-              type="button"
-              onClick={() => onWatchLive?.(live)}
-              aria-label={`${live.hostName} is live, tap to watch`}
-              className="focus-ring block rounded-full transition-transform duration-[160ms] ease-standard active:scale-[0.96]"
-            >
-              <LiveCircle
-                name={live.hostName}
-                id={live.hostId}
-                avatarUrl={live.hostAvatarUrl}
-                label={live.hostName.split(' ')[0] ?? live.hostName}
-              />
+            <button type="button" onClick={() => onWatchLive?.(live)} aria-label={`${live.hostName} is live, tap to watch`} className="focus-ring block rounded-full">
+              <LiveCircle name={live.hostName} id={live.hostId} avatarUrl={live.hostAvatarUrl} label={live.hostName.split(' ')[0] ?? live.hostName} />
             </button>
           </li>
         ))}
@@ -127,9 +113,10 @@ export function StoriesRow({
             name={currentUserName}
             userId={currentUserId}
             avatarUrl={currentUserAvatarUrl}
-            onOpen={onOpen}
+            onOpen={(el) => mine && void open(mine, el)}
             onCreate={onCreate}
             onManage={onManageMine}
+            state={uploading || loading === currentUserId ? 'loading' : !mine ? 'none' : mine.allSeen ? 'seen' : 'unseen'}
           />
         </li>
         {extra && <li>{extra}</li>}
@@ -138,34 +125,15 @@ export function StoriesRow({
           <li key={group.authorId}>
             <button
               type="button"
-              onClick={(event) => onOpen(group, event.currentTarget.getBoundingClientRect())}
-              aria-label={`${group.authorName}'s story, ${group.stories.length} ${
-                group.stories.length === 1 ? 'item' : 'items'
-              }, ${group.allSeen ? 'already seen' : 'not seen yet'}${
-                group.closeFriends ? ', close friends' : ''
-              }`}
-              className={cn(
-                'flex w-[68px] shrink-0 flex-col items-center gap-1.5 rounded-xl py-1',
-                'focus-ring transition-transform duration-[160ms] ease-standard',
-                'active:scale-[0.96]',
-              )}
+              onClick={(event) => void open(group, event.currentTarget)}
+              aria-label={`${group.authorName}'s story, ${group.stories.length} ${group.stories.length === 1 ? 'item' : 'items'}, ${
+                group.allSeen ? 'already seen' : 'not seen yet'}${group.closeFriends ? ', close friends' : ''}`}
+              className="focus-ring flex w-[74px] shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink"
             >
-              <StoryRing seen={group.allSeen} close={group.closeFriends} hasStory>
-                <Avatar
-                  name={group.authorName}
-                  id={group.authorId}
-                  src={group.authorAvatarUrl}
-                  size="lg"
-                />
-              </StoryRing>
-              <span
-                className={cn(
-                  'w-full truncate text-center text-[0.6875rem] leading-tight',
-                  group.allSeen ? 'text-text-tertiary' : 'font-medium text-text-secondary',
-                )}
-              >
-                {group.authorName.split(' ')[0]}
-              </span>
+              <Ring state={loading === group.authorId ? 'loading' : group.allSeen ? 'seen' : group.closeFriends ? 'cf' : 'unseen'}>
+                <RingFace name={group.authorName} id={group.authorId} src={group.authorAvatarUrl} />
+              </Ring>
+              <span className="w-full truncate text-center">{group.authorUsername || group.authorName}</span>
             </button>
           </li>
         ))}
@@ -174,12 +142,54 @@ export function StoriesRow({
   );
 }
 
+type RingState = 'unseen' | 'cf' | 'seen' | 'none' | 'loading';
+
 /**
- * Your own circle: open it, start one, or manage what is there.
- *
- * The hold is only offered when there is something to manage. With no story the
- * circle has exactly one job, and a hold that opened a menu of things you
- * cannot do yet would be worse than no hold at all.
+ * The sample's `.ring`: 70px, the band as a padded background, the face inside
+ * a white edge. Loading is the same sweep, cut into turning dashes.
+ */
+function Ring({ state, mine, children }: { state: RingState; mine?: boolean; children: ReactNode }) {
+  return (
+    <span
+      data-ring
+      {...(mine ? { 'data-story-ring': 'me' } : {})}
+      className={cn('relative grid size-[70px] shrink-0 place-items-center rounded-full', state === 'seen' ? 'p-[2px]' : 'p-[3px]')}
+      style={state === 'unseen' ? { background: RING } : state === 'cf' ? { background: '#1fc15e' } : state === 'seen' ? { background: '#dbdbdb' } : undefined}
+    >
+      {state === 'loading' && (
+        <span
+          aria-hidden
+          className="absolute inset-0 rounded-full"
+          style={{
+            background: RING,
+            WebkitMask: 'repeating-conic-gradient(#000 0 8deg, transparent 8deg 14deg), radial-gradient(circle, transparent 31px, #000 32px)',
+            WebkitMaskComposite: 'source-in',
+            mask: 'repeating-conic-gradient(#000 0 8deg, transparent 8deg 14deg) intersect, radial-gradient(circle, transparent 31px, #000 32px)',
+            animation: 'tray-spin 1.1s linear infinite',
+          }}
+        />
+      )}
+      {children}
+      <style>{'@keyframes tray-spin { to { transform: rotate(360deg) } }'}</style>
+    </span>
+  );
+}
+/** The sample's ring colours, swept round from the lower left. */
+const RING = 'conic-gradient(from 210deg, #e0559b, #ff9a5a, #ffcc4d, #ff9a5a, #8b5dff, #e0559b)';
+
+function RingFace({ name, id, src }: { name: string; id: string | undefined; src?: string | undefined }) {
+  return (
+    <span className="relative block size-full overflow-hidden rounded-full border-[3px] border-page bg-page">
+      {src
+        ? <img src={src} alt="" className="block size-full rounded-full object-cover" draggable={false} />
+        : <Avatar name={name} id={id} size="lg" className="!size-full" />}
+    </span>
+  );
+}
+
+/**
+ * Your own circle: open it, start one, or manage what is there. The hold is
+ * only offered when there is something to manage.
  */
 function MyCircle({
   group,
@@ -189,242 +199,90 @@ function MyCircle({
   onOpen,
   onCreate,
   onManage,
+  state,
 }: {
   group: StoryGroup | undefined;
   name: string;
   userId: string | undefined;
   avatarUrl?: string;
-  onOpen: (group: StoryGroup, origin: DOMRect) => void;
+  onOpen: (el: HTMLElement) => void;
   onCreate: () => void;
   onManage: () => void;
+  state: RingState;
 }) {
   const timer = useRef<number | undefined>(undefined);
   const held = useRef(false);
   const origin = useRef<{ x: number; y: number } | undefined>(undefined);
-
   const clear = () => {
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = undefined;
-    setHolding(false);
   };
-
-  /** True while a press is being held. Drives the squeeze. */
-  const [holding, setHolding] = useState(false);
-
-  const onPointerDown = (event: React.PointerEvent) => {
-    if (!group) return;
-    held.current = false;
-    setHolding(true);
-    origin.current = { x: event.clientX, y: event.clientY };
-    timer.current = window.setTimeout(() => {
-      held.current = true;
-      onManage();
-      // The press has become a different gesture; say so the way a phone does.
-      navigator.vibrate?.(8);
-    }, HOLD_MS);
-  };
-
-  const onPointerMove = (event: React.PointerEvent) => {
-    if (!origin.current) return;
-    // A hold that drifts is the rail being scrolled, not a hold.
-    const moved = Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y);
-    if (moved > 10) clear();
-  };
-
-  /*
-   * Instagram-style add chip: sits on the bottom-right of the face, white ring
-   * cutting it out of the photo. Shared classes so empty and “already posted”
-   * land on the same dock point.
-   */
-  const plusChip = cn(
-    'absolute right-0 bottom-0 z-10 grid size-[1.35rem] place-items-center',
-    'rounded-full bg-brand-gradient text-on-brand',
-    'ring-[2.5px] ring-page',
-    'shadow-[0_1px_4px_color-mix(in_srgb,var(--gradient-from,#111113)_35%,transparent)]',
-  );
 
   return (
-    /*
-      Wrapper so the plus can be its own control once a story exists (a button
-      cannot nest a button). The chip is always a child of the avatar frame so
-      it sticks to the circle the way Instagram does - not floating free, not
-      upper-right.
-    */
-    <span className="relative inline-flex w-[68px] shrink-0 flex-col items-center gap-1.5 py-1">
-      <span
-        className={cn(
-          'relative block',
-          holding
-            ? 'motion-safe:animate-press-hold'
-            : 'transition-transform duration-[160ms] ease-standard',
-        )}
+    <span className="relative flex w-[74px] shrink-0 flex-col items-center gap-[5px] text-[12px] text-ink">
+      <button
+        type="button"
+        onPointerDown={(event) => {
+          if (!group) return;
+          held.current = false;
+          origin.current = { x: event.clientX, y: event.clientY };
+          timer.current = window.setTimeout(() => { held.current = true; onManage(); navigator.vibrate?.(8); }, HOLD_MS);
+        }}
+        onPointerMove={(event) => {
+          // A hold that drifts is the rail being scrolled.
+          if (origin.current && Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y) > 10) clear();
+        }}
+        onPointerUp={clear}
+        onPointerCancel={clear}
+        onContextMenu={(event) => { if (group) event.preventDefault(); }}
+        onClick={(event) => {
+          clear();
+          if (held.current) { held.current = false; return; }
+          if (group) onOpen(event.currentTarget);
+          else onCreate();
+        }}
+        aria-busy={state === 'loading' || undefined}
+        aria-label={group ? `Your story, ${group.stories.length} ${group.stories.length === 1 ? 'item' : 'items'}. Tap to view, hold to manage.` : 'Add to your story'}
+        className="focus-ring block rounded-full"
       >
-        <button
-          type="button"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={clear}
-          onPointerCancel={clear}
-          onContextMenu={(event) => {
-            if (group) event.preventDefault();
-          }}
-          onClick={(event) => {
-            clear();
-            if (held.current) {
-              held.current = false;
-              return;
-            }
-            if (group) onOpen(group, event.currentTarget.getBoundingClientRect());
-            else onCreate();
-          }}
-          aria-label={
-            group
-              ? `Your story, ${group.stories.length} ${
-                  group.stories.length === 1 ? 'item' : 'items'
-                }. Tap to view, hold to manage.`
-              : 'Add to your story'
-          }
-          className={cn(
-            'block rounded-full',
-            'focus-ring transition-transform duration-[160ms] ease-standard active:scale-[0.96]',
-          )}
-        >
-          <StoryRing
-            seen={group?.allSeen ?? true}
-            close={group?.closeFriends ?? false}
-            hasStory={Boolean(group)}
-          >
-            <Avatar name={name} id={userId} src={avatarUrl} size="lg" />
-          </StoryRing>
-        </button>
-
-        {group ? (
-          <button
-            type="button"
-            onClick={onCreate}
-            aria-label="Add another story"
-            className={cn(
-              plusChip,
-              'focus-ring transition-transform duration-quick ease-standard',
-              'hover:scale-110 active:scale-95',
-              // Hit area without stealing taps from the ring itself.
-              'after:absolute after:-inset-2 after:content-[""]',
-            )}
-          >
-            <PlusIcon size={12} strokeWidth={2.5} />
-          </button>
-        ) : (
-          /*
-            Decorative only: the face button already creates a story, so a
-            second control would be two targets for one job.
-          */
-          <span className={plusChip} aria-hidden>
-            <PlusIcon size={12} strokeWidth={2.5} />
-          </span>
-        )}
-      </span>
-
-      <span className="w-full truncate text-center text-[0.6875rem] font-medium leading-tight text-text-secondary">
-        Your story
-      </span>
+        <Ring state={state} mine>
+          <RingFace name={name} id={userId} src={avatarUrl} />
+        </Ring>
+      </button>
+      {/* The sample's blue +: its own control once a story is up, part of the circle before. */}
+      <button
+        type="button"
+        onClick={onCreate}
+        aria-label={group ? 'Add another story' : 'Add to your story'}
+        tabIndex={group ? 0 : -1}
+        className="absolute top-12 left-[50px] grid size-[22px] place-items-center rounded-full bg-[#0a84ff] text-white shadow-[0_0_0_3px_var(--color-page,#fff)] after:absolute after:-inset-2 after:content-['']"
+      >
+        <Plus size={14} strokeWidth={3} />
+      </button>
+      <span className="w-full truncate text-center">Your story</span>
     </span>
   );
 }
 
-/**
- * A live circle inside the story tray.
- *
- * Instagram's exact seat: first in the tray, red band, breathing halo,
- * LIVE pill pinning the bottom. Same 68px column as every story circle, so
- * the tray reads as one row that happens to start with someone on air.
- */
-function LiveCircle({
-  name,
-  id,
-  avatarUrl,
-  label,
-}: {
-  name: string;
-  id: string | undefined;
-  avatarUrl?: string;
-  label: string;
-}) {
+/** A live circle inside the tray: red band, breathing halo, LIVE pinned to the bottom. */
+function LiveCircle({ name, id, avatarUrl, label }: { name: string; id: string | undefined; avatarUrl?: string; label: string }) {
   return (
-    <span className="flex w-[68px] shrink-0 flex-col items-center gap-1.5">
+    <span className="flex w-[74px] shrink-0 flex-col items-center gap-[5px] text-[12px] text-ink">
       <span className="relative">
-        <span
-          aria-hidden
-          className="live-halo absolute -inset-[3px] rounded-full bg-danger/60"
-          style={{ animation: 'live-halo 2.2s ease-in-out infinite' }}
-        />
-        <span className="relative grid shrink-0 place-items-center rounded-full bg-danger p-[2.5px] shadow-[0_0_12px_rgba(220,38,38,0.45)]">
-          <span className="grid rounded-full bg-page p-[2px]">
-            <Avatar name={name} id={id} {...(avatarUrl ? { src: avatarUrl } : {})} size="lg" />
-          </span>
+        <span aria-hidden className="live-halo absolute -inset-[3px] rounded-full bg-danger/60" style={{ animation: 'live-halo 2.2s ease-in-out infinite' }} />
+        <span className="relative grid size-[70px] place-items-center rounded-full bg-danger p-[3px]">
+          <RingFace name={name} id={id} src={avatarUrl} />
         </span>
-        <span
-          aria-hidden
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md bg-danger px-1.5 py-px text-[0.5625rem] font-bold tracking-wide text-white shadow-sm"
-        >
-          LIVE
-        </span>
+        <span aria-hidden className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md bg-danger px-1.5 py-px text-[0.5625rem] font-bold tracking-wide text-white">LIVE</span>
       </span>
-      <span className="w-full truncate text-center text-[0.6875rem] leading-tight font-medium text-text-secondary">
-        {label}
-      </span>
+      <span className="w-full truncate text-center">{label}</span>
     </span>
   );
 }
 
-/** The breathing halo: swells, fades, squeezes back. Silent under reduced motion. */
+/** The breathing halo. Silent under reduced motion. */
 function LiveHaloStyle() {
   return (
     <style>{`@keyframes live-halo { 0% { opacity: 0.85; transform: scale(1); } 45% { opacity: 0; transform: scale(1.28); } 55% { opacity: 0; transform: scale(0.96); } 100% { opacity: 0.85; transform: scale(1); } } @media (prefers-reduced-motion: reduce) { .live-halo { animation: none !important; opacity: 0.5 !important; } }`}</style>
-  );
-}
-
-/**
- * The ring around an avatar.
- *
- * A gradient border is drawn as a padded round background rather than a
- * `border-image`, which no browser renders reliably on a circle.
- */
-function StoryRing({
-  seen,
-  close,
-  hasStory,
-  children,
-}: {
-  seen: boolean;
-  close: boolean;
-  hasStory: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <span
-      className={cn(
-        /*
-          Ring is the signal: slightly thicker band, soft outer glow for
-          unseen, quiet grey for seen. Avatar stays the same size so the rail
-          does not shout.
-        */
-        'grid shrink-0 place-items-center rounded-full p-[2.5px]',
-        !hasStory
-          ? 'bg-transparent ring-[1.5px] ring-line/80'
-          : close
-            ? seen
-              ? 'bg-online/35'
-              : 'bg-online shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-online,#22c55e)_18%,transparent)]'
-            : seen
-              ? 'bg-line-strong/90'
-              : 'bg-brand-gradient shadow-[0_0_0_3px_color-mix(in_srgb,var(--gradient-from,#111113)_14%,transparent),0_2px_10px_color-mix(in_srgb,var(--gradient-from,#111113)_22%,transparent)]',
-      )}
-    >
-      {/*
-        Inner cutout separates the face from the band. `grid` kills the
-        inline baseline box that used to oval the ring.
-      */}
-      <span className="grid rounded-full bg-page p-[2px]">{children}</span>
-    </span>
   );
 }

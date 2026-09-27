@@ -95,6 +95,8 @@ export function SendTo({ views, locked, onClose, onSend }: {
 
 // ---- flattening a Ping ------------------------------------------------------------
 export async function drawStickers(g: CanvasRenderingContext2D, list: StorySticker[]) {
+  // Fractions of whatever frame is being drawn - the editor exports at its stage's shape.
+  const W = g.canvas.width, H = g.canvas.height;
   const unit = W / 100; // one cqw
   await document.fonts?.ready;
   for (const s of list) {
@@ -115,6 +117,22 @@ export async function drawStickers(g: CanvasRenderingContext2D, list: StoryStick
       const px = 4.1 * unit; g.font = `800 ${px}px Manrope, sans-serif`; const text = String(d.text).replace(/^https?:\/\//, '');
       const w = g.measureText(text).width + px * 1.4; g.fillStyle = '#fff'; roundRect(g, -w / 2, -px * 0.9, w, px * 1.8, px * 0.55);
       g.fillStyle = '#0a84ff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 0, 0);
+    } else if (s.type === 'post') {
+      // The card as `.sk-postcard` draws it: 54cqw wide, a 4:5 picture, the author above it.
+      const w = 54 * unit, r = 3.6 * unit, head = (s.style ?? 0) % 2 === 0 ? 9.6 * unit : 0, ph = w * 1.25, h = head + ph;
+      const img = await loadImage(String(d.src ?? ''));
+      g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 10 * unit; g.shadowOffsetY = 4 * unit;
+      g.fillStyle = head ? '#fff' : '#000'; roundRect(g, -w / 2, -h / 2, w, h, r);
+      g.shadowColor = 'transparent';
+      g.save(); g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, r); g.clip();
+      if (img) { const k = Math.max(w / img.naturalWidth, ph / img.naturalHeight); g.drawImage(img, -img.naturalWidth * k / 2, -h / 2 + head + ph / 2 - img.naturalHeight * k / 2, img.naturalWidth * k, img.naturalHeight * k); }
+      g.restore();
+      if (head) {
+        const av = await loadImage(String(d.avatar ?? '')); const a = 5.6 * unit, ax = -w / 2 + 2.6 * unit, ay = -h / 2 + (head - a) / 2;
+        if (av) { g.save(); g.beginPath(); g.arc(ax + a / 2, ay + a / 2, a / 2, 0, Math.PI * 2); g.clip(); g.drawImage(av, ax, ay, a, a); g.restore(); }
+        g.fillStyle = '#111'; g.font = `700 ${3.1 * unit}px Manrope, sans-serif`; g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.fillText(String(d.user ?? ''), ax + a + 1.8 * unit, -h / 2 + head / 2);
+      }
     } else if (s.type === 'clock') {
       const at = new Date(Number(d.at) || Date.now());
       const hm = at.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });

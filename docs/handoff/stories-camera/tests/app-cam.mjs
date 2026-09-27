@@ -13,7 +13,16 @@ const page = await ctx.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/\[camera\]/.test(m.text())) errs.push(m.text().slice(0, 200)); });
 const w = (ms) => page.waitForTimeout(ms);
 const results = []; let fails = 0;
+// With storage cleared, Camera Kit asks "adult or child?" and then its terms, over everything, once a lens loads.
+async function answerAgeGate() {
+  for (let i = 0; i < 4; i++) {
+    const b = page.getByText(/^(Adult|I Agree)$/).first();
+    if (!(await b.isVisible().catch(() => false))) return;
+    await b.click({ timeout: 3000 }).catch(() => undefined); await page.waitForTimeout(800);
+  }
+}
 async function check(name, fn) {
+  await answerAgeGate();
   let ok = false; try { ok = await fn(); } catch (e) { console.log('   ', e.message.split('\n')[0]); }
   results.push(ok); console.log(ok ? 'PASS' : 'FAIL', name);
   if (!ok && fails++ < 3) await page.screenshot({ path: `./out/cf${fails}.png` });
@@ -28,6 +37,7 @@ await check('Camera Kit starts and lenses load', async () => {
 await w(2000); await shot('1live');
 await check('pick an AR lens from the row', async () => {
   const lens = page.locator('button[aria-label="CamKit Distort"]'); await lens.click(); await w(4000); await shot('2lens');
+  await page.getByText(/^(Adult|I Agree)$/).first().waitFor({ timeout: 10000 }).catch(() => undefined);
   return (await page.locator('text=CamKit Distort · Camera Kit').count()) >= 0;
 });
 await check('lens search finds a lens', async () => {
@@ -63,11 +73,13 @@ await check('discard goes back to the camera', async () => {
   await page.locator('button', { hasText: 'Discard' }).first().click(); await w(2500);
   return (await page.locator('[aria-label="Take a snap, hold to record"]').count()) === 1;
 });
+await check('the song is still chosen after the shot', async () => (await page.locator('[aria-label="Remove song"]').count()) === 1);
 await check('tap for a photo opens the story editor', async () => {
   await page.locator('[aria-label="Take a snap, hold to record"]').click();
   await page.waitForSelector('[aria-label="Story editor"] img', { timeout: 15000 }); await w(800); await shot('4photo');
   return true;
 });
+await check('the next shot carries the song too', async () => (await page.locator('[data-stk] .sk-music').count()) === 1);
 const ed = '[aria-label="Story editor"]';
 await check('photo: text', async () => { await page.locator(`${ed} button`, { hasText: 'Text' }).first().click(); await w(300); await page.keyboard.type('kal milte hai'); await page.locator('button', { hasText: 'Done' }).click(); await w(300); return (await page.locator('[data-stk] .sk-txt').count()) === 1; });
 await check('photo: a poll', async () => { await page.locator(`${ed} button`, { hasText: 'Stickers' }).first().click(); await w(500); await page.locator(`${ed} button`, { hasText: 'POLL' }).click(); await w(400); return (await page.locator('[data-stk] .sk-poll').count()) === 1; });

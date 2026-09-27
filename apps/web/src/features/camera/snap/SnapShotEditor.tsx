@@ -2,6 +2,7 @@ import type { StoryDraft } from '@pingo/core';
 import { useEffect, useMemo } from 'react';
 
 import { StoryEditor } from '../../stories/StoryEditor.js';
+import type { StoryFrom } from '../../stories/StoryUpload.js';
 import type { SnapShot } from './SnapCamera.js';
 
 /**
@@ -14,7 +15,7 @@ export function SnapShotEditor({ shot, lockedChatId, onDone, onPost }: {
   shot: SnapShot;
   lockedChatId?: string;
   onDone: () => void;
-  onPost: (draft: StoryDraft) => Promise<void>;
+  onPost: (draft: StoryDraft, from?: StoryFrom) => Promise<void>;
 }) {
   const src = useMemo(() => URL.createObjectURL(shot.blob), [shot.blob]);
   useEffect(() => () => URL.revokeObjectURL(src), [src]);
@@ -29,7 +30,7 @@ export function SnapShotEditor({ shot, lockedChatId, onDone, onPost }: {
       } : {})}
       ping={lockedChatId ? { lockedChatId } : {}}
       onClose={onDone}
-      onPost={async (draft) => { await onPost(draft); onDone(); }}
+      onPost={async (draft, from) => { await onPost(draft, from); onDone(); }}
     />
   );
 }

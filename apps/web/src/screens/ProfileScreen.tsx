@@ -55,6 +55,8 @@ import {
   PostsEmpty,
 } from '../features/profile/PostGrid.js';
 import { PostViewer } from '../features/profile/PostViewer.js';
+import { PostToStory } from '../features/profile/PostToStory.js';
+import { useStories } from '../features/stories/StoryContext.js';
 import { MyProfileMenu, PersonMenu } from '../features/profile/ProfileMenus.js';
 import { ProfileAvatar } from '../features/profile/ProfileAvatar.js';
 import { ProfileCover } from '../features/profile/ProfileCover.js';
@@ -283,6 +285,9 @@ export function ProfileScreen() {
   const [sharing, setSharing] = useState(false);
   const [reporting, setReporting] = useState<{ postId?: string } | undefined>();
   const [viewing, setViewing] = useState<Post>();
+  /** Share → Add to story: the post being put on your story, and to whom. */
+  const [toStory, setToStory] = useState<{ post: Post; audience: 'friends' | 'close' }>();
+  const { upload } = useStories();
   const [replacing, setReplacing] = useState(false);
   /** The file chosen for a new or replacement post, before the editor opens. */
   const [pending, setPending] = useState<{ file: File; replaces?: Post }>();
@@ -974,6 +979,29 @@ export function ProfileScreen() {
           }}
           onDelete={() => void removePost(viewing)}
           onReport={() => setReporting({ postId: viewing.id })}
+          onAddToStory={(audience) => setToStory({ post: viewing, audience })}
+        />
+      )}
+
+      {toStory && person && (
+        <PostToStory
+          post={toStory.post}
+          author={person}
+          audience={toStory.audience}
+          onClose={() => setToStory(undefined)}
+          onPost={(draft, from) => {
+            /*
+             * Home, where your circle is, and the story flies into it - the
+             * sample's way. The overlays close first so their Back entries are
+             * gone before the route changes.
+             */
+            setToStory(undefined);
+            setViewing(undefined);
+            window.setTimeout(() => {
+              navigate('/chats');
+              upload(draft, from);
+            }, 60);
+          }}
         />
       )}
 

@@ -55,11 +55,18 @@ const ranked = (list: Lens[]) => {
 
 type CK = typeof import('@snap/camera-kit');
 
-export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user' }: {
+export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', song: keptSong, onSong }: {
   onShot: (shot: SnapShot) => void;
   onGallery: (file: File) => void;
   onClose: () => void;
   preferred?: 'user' | 'environment';
+  /**
+   * The chosen song, held by the screen. The camera unmounts while a shot is
+   * being edited, and a song kept only in here was gone when it came back -
+   * Snapchat keeps it from one snap to the next.
+   */
+  song?: Song;
+  onSong?: (song: Song | undefined) => void;
 }) {
   const view = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -86,7 +93,9 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user' }: {
   const [tip, setTip] = useState<string>();
   const [recording, setRecording] = useState(false);
   const [sheet, setSheet] = useState<'music' | 'clip' | 'search' | null>(null);
-  const [song, setSong] = useState<Song>();
+  const [ownSong, setOwnSong] = useState<Song>();
+  const song = onSong ? keptSong : ownSong;
+  const setSong = onSong ?? setOwnSong;
   const [flash, setFlash] = useState(0);
   const [nameShown, setNameShown] = useState<string>();
   const second = useRef<MediaStream | undefined>(undefined);
@@ -294,6 +303,12 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user' }: {
     a.currentTime = s.start; void a.play().catch(() => undefined);
     a.ontimeupdate = () => { if (a.currentTime > s.start + 15) a.currentTime = s.start; };
   };
+
+  // Back from a shot with a song still chosen: it carries on playing, as it was.
+  useEffect(() => {
+    if (song) playSong(song);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const glass = 'bg-black/28 backdrop-blur-md ring-1 ring-white/15';
   const RailBtn = ({ label, on, onClick, children }: { label: string; on?: boolean; onClick: () => void; children: React.ReactNode }) => (

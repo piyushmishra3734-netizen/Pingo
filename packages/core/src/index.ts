@@ -85,6 +85,7 @@ export type {
   StorySticker,
   StoryStickerType,
   StoryDecor,
+  StoryBoom,
   StickerAnswer,
   StickerResult,
   StickerResponse,

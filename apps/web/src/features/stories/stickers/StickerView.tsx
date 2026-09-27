@@ -1,4 +1,4 @@
-import type { StickerAnswer, StickerResult, StorySticker } from '@pingo/core';
+import { useProfile, type Post, type StickerAnswer, type StickerResult, type StorySticker } from '@pingo/core';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import './stickers.css';
@@ -168,7 +168,10 @@ export function StickerView({ sticker: s, mode, answer, results = [], onAnswer, 
     case 'countdown':
       return (
         <div className="sk-card sk-countdown" onClick={!view ? tap : undefined}>
-          {edit('q', str(d.q, 'Countdown'), 'sk-q')}
+          <div className="sk-q sk-cdq">
+            {edit('q', str(d.q, 'Countdown'), '', 'span')}
+            <svg viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" aria-hidden><circle cx="12" cy="12" r="10" /><path d="m10 8 4 4-4 4" /></svg>
+          </div>
           <Countdown to={str(d.to, new Date().toISOString())} />
           {view && (
             <button type="button" className={`sk-remind ${answer?.remind ? 'sk-on' : ''}`}
@@ -216,14 +219,44 @@ export function StickerView({ sticker: s, mode, answer, results = [], onAnswer, 
     case 'emoji':
       return <div className="sk-emoji"><img src={str(d.src)} alt="" /></div>;
     case 'post':
-      return (
-        <div className={`sk-postcard s${style}`} onClick={tap}>
-          <header>{str(d.avatar) && <img src={str(d.avatar)} alt="" />}{str(d.user)}</header>
-          <img src={str(d.src)} alt="" />
-        </div>
-      );
+      return <PostCard d={d} style={style} view={view} onClick={tap} />;
   }
   return null;
+}
+
+/**
+ * A shared profile post. Its picture's URL is signed for an hour and a story
+ * lasts a day, so the card asks for a fresh one by the post's id, and falls
+ * back to the one it was made with.
+ */
+function PostCard({ d, style, view, onClick }: { d: Record<string, unknown>; style: number; view: boolean; onClick: (e: React.MouseEvent<HTMLElement>) => void }) {
+  const fresh = useFreshPostSrc(str(d.authorId), str(d.postId));
+  return (
+    <div className={`sk-postcard s${style}${view ? ' sk-view' : ''}`} onClick={onClick}>
+      <header>{str(d.avatar) && <img src={str(d.avatar)} alt="" />}{str(d.user)}</header>
+      <img src={fresh ?? str(d.src)} alt="" />
+    </div>
+  );
+}
+
+/** One read of a person's posts serves every card of theirs for most of the URLs' hour. */
+const postReads = new Map<string, { at: number; posts: Promise<Post[]> }>();
+function useFreshPostSrc(authorId: string, postId: string): string | undefined {
+  const { service } = useProfile();
+  const [src, setSrc] = useState<string>();
+  useEffect(() => {
+    if (!authorId || !postId) return;
+    let live = true;
+    let read = postReads.get(authorId);
+    if (!read || Date.now() - read.at > 45 * 60_000) {
+      read = { at: Date.now(), posts: service.listPosts(authorId) };
+      postReads.set(authorId, read);
+      read.posts.catch(() => postReads.delete(authorId));
+    }
+    read.posts.then((posts) => { const p = posts.find((x) => x.id === postId); if (live && p) setSrc(p.imageUrl); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [service, authorId, postId]);
+  return src;
 }
 
 function Slider({ s, view, answer, results, onAnswer, onBusy, edit }: {

@@ -1,211 +1,117 @@
 import { useChat, type Story } from '@pingo/core';
-import { HeartIcon, SendIcon, cn } from '@pingo/ui';
-import { useState } from 'react';
+import { cn } from '@pingo/ui';
+import { Heart, Send } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+import { useStories } from './StoryContext.js';
 
 /**
- * The row under a story: like it, react to it, or say something.
- *
- * ## All three are private, and that is the product decision
- *
- * A story has no comments. A like tells the author and nobody else; a reaction
- * and a reply both arrive as ordinary messages in the thread between the two of
- * you. There is deliberately nowhere for a third person to see any of it,
- * because a thing posted for a day should not grow a public conversation
- * attached to it that outlives it.
- *
- * So a reaction is not a new concept - it is a one-emoji message, sent the way
- * every other message is sent, tagged with the story so the thread can say what
- * it is answering.
- *
- * ## Why replying happens here rather than in the chat
- *
- * Sending from inside the viewer keeps the story on screen while you type,
- * which is the whole reason you are replying. The spec's "reply opens the
- * existing chat" is honoured by the message landing in exactly that chat, and
- * a confirmation offers to go there, rather than the viewer throwing you into
- * a different screen mid-story.
+ * The foot of somebody else's story, the stories sample's: "Send message", the
+ * heart, and Send. Focusing the reply holds the story and lays the quick
+ * reactions over it; a reply or a reaction goes to your chat with them.
  */
-
 export function StoryActions({
   story,
   liked,
   onLike,
   onHold,
-  onOpenChat,
+  onTyping,
+  onSend,
+  overlayHost,
 }: {
   story: Story;
   liked: boolean;
   onLike: (liked: boolean) => void;
-  /** Pauses playback while the composer has focus. Returns the release. */
   onHold: () => () => void;
-  /** Offered after a reply lands, so the author's thread is one tap away. */
-  onOpenChat: (conversationId: string) => void;
+  /** The reply box is open: the viewer steps its stickers back. */
+  onTyping: (typing: boolean) => void;
+  /** The paper plane: Send to. */
+  onSend: () => void;
+  /** Where the quick reactions are laid: over the whole story, above the foot. */
+  overlayHost: HTMLElement | null;
 }) {
   const { service, conversations } = useChat();
-
+  const { notify } = useStories();
   const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState<string>();
-  const [error, setError] = useState<string>();
-  const [release, setRelease] = useState<(() => void) | undefined>();
   const [typing, setTyping] = useState(false);
+  const release = useRef<(() => void) | undefined>(undefined);
+  const input = useRef<HTMLInputElement>(null);
 
-  /** Pauses on focus, resumes on blur. See `useStoryPlayer`. */
-  const holdWhileTyping = (holding: boolean) => {
-    if (holding) {
-      if (!release) setRelease(() => onHold());
-      return;
-    }
-    release?.();
-    setRelease(undefined);
+  const type = (on: boolean) => {
+    if (on) release.current ??= onHold();
+    else { release.current?.(); release.current = undefined; }
+    setTyping(on); onTyping(on);
   };
 
-  const send = async (body: string) => {
-    if (!body.trim() || sending) return;
-    setSending(true);
-    setError(undefined);
-    try {
-      /*
-       * The existing chat if there is one, a new one if there is not. A story
-       * reply is the most common way two people who have never spoken start
-       * speaking, so refusing to reply without a prior thread would block the
-       * exact case that matters.
-       */
-      const existing = conversations.find(
-        (c) => c.kind === 'direct' && c.participantIds.includes(story.authorId),
-      );
-      const conversationId = existing?.id ?? (await service.startDirectConversation(story.authorId));
-
-      await service.sendMessage({
-        conversationId,
-        body: body.trim(),
-        storyReply: { storyId: story.id },
-      });
-
-      setDraft('');
-      setSent(conversationId);
-      window.setTimeout(() => setSent(undefined), 4000);
-    } catch {
-      setError('That did not send. Try again.');
-    } finally {
-      setSending(false);
-    }
+  const deliver = async (body: string) => {
+    const existing = conversations.find((c) => c.kind === 'direct' && c.participantIds.includes(story.authorId));
+    const conversationId = existing?.id ?? (await service.startDirectConversation(story.authorId));
+    await service.sendMessage({ conversationId, body, storyReply: { storyId: story.id } });
+  };
+  const reply = () => {
+    const body = draft.trim(); if (!body) return;
+    setDraft(''); input.current?.blur(); type(false);
+    deliver(body).then(() => notify(`Reply sent to ${story.authorName}`, <Send />), () => notify('That did not send', <Send />));
+  };
+  const react = (emoji: string) => {
+    burst(emoji);
+    setDraft(''); input.current?.blur(); type(false);
+    deliver(emoji).then(() => notify('Reaction sent', <Send />), () => notify('That did not send', <Send />));
   };
 
   return (
-    <div className="space-y-2">
-      {sent && (
-        <div
-          role="status"
-          className={cn(
-            'animate-fade-in flex items-center justify-between gap-3 rounded-full',
-            'bg-white/15 px-4 py-2 backdrop-blur-glass',
-          )}
-        >
-          <span className="text-caption text-white">Sent to {story.authorName}</span>
-          <button
-            type="button"
-            onClick={() => onOpenChat(sent)}
-            className="focus-ring rounded-full px-2 py-0.5 text-caption font-medium text-white underline"
-          >
-            Open chat
-          </button>
-        </div>
-      )}
-
-      {error && (
-        <p role="alert" className="text-center text-caption text-white">
-          {error}
-        </p>
-      )}
-
-      {/*
-        Quick reactions, Instagram's way: a grid over the story while the reply
-        box is open, and a tapped one flies up the screen as it is sent.
-      */}
-      {typing && (
-        <div className="animate-fade-in fixed inset-x-0 top-0 bottom-[88px] z-30 flex flex-col items-center justify-center gap-4 bg-black/72"
-          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-          <p className="text-[15px] font-semibold text-white">Quick reactions</p>
-          <div className="grid grid-cols-4 gap-3.5">
+    <>
+      {typing && overlayHost && createPortal(
+        <div className="absolute inset-x-0 top-0 bottom-16 z-[6] flex flex-col items-center justify-center gap-4 bg-black/72 text-white"
+          style={{ animation: 'sv-fade .2s' }}
+          onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onPointerUp={(e) => e.stopPropagation()}>
+          <h5 className="mb-1 text-[15px] font-semibold">Quick reactions</h5>
+          <div className="grid grid-cols-[repeat(4,64px)] gap-3.5">
             {QUICK.map((emoji) => (
-              <button key={emoji} type="button" aria-label={`React with ${emoji}`}
-                onClick={(e) => { burst(emoji, e.currentTarget); void send(emoji); (document.activeElement as HTMLElement | null)?.blur(); setTyping(false); }}
-                className="grid size-16 place-items-center text-[40px] transition-transform active:scale-125">{emoji}</button>
+              <button key={emoji} type="button" aria-label={`React with ${emoji}`} onClick={() => react(emoji)}
+                className="text-[40px] transition-transform duration-150 active:scale-125">{emoji}</button>
             ))}
           </div>
-        </div>
+        </div>,
+        overlayHost,
       )}
-
-      {/* ---- reply, and the heart -------------------------------------- */}
-      <form
-        className="flex items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(draft);
-        }}
-      >
+      <label className="flex h-11 min-w-0 flex-1 items-center rounded-[22px] px-4 text-[14.5px] shadow-[inset_0_0_0_1px_rgba(255,255,255,.55)]">
         <input
+          ref={input}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onFocus={() => { holdWhileTyping(true); setTyping(true); }}
-          // A tap on a reaction must land before the grid goes.
-          onBlur={() => { holdWhileTyping(false); window.setTimeout(() => setTyping(false), 150); }}
-          placeholder={`Reply to ${story.authorName.split(' ')[0]}…`}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={() => type(true)}
+          onBlur={() => window.setTimeout(() => { if (!input.current?.value) type(false); }, 120)}
+          onKeyDown={(e) => { if (e.key === 'Enter') reply(); }}
+          placeholder="Send message"
+          enterKeyHint="send"
           aria-label={`Reply to ${story.authorName}`}
           maxLength={1000}
-          className={cn(
-            'focus-ring min-w-0 flex-1 rounded-full border border-white/25 bg-white/10',
-            'px-4 py-2.5 text-body text-white placeholder:text-white/60 backdrop-blur-glass',
-          )}
+          className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-white/85"
         />
-
-        {draft.trim() ? (
-          <button
-            type="submit"
-            disabled={sending}
-            aria-label="Send reply"
-            className={cn(
-              'focus-ring grid size-11 shrink-0 place-items-center rounded-full',
-              'bg-brand-gradient text-on-brand shadow-brand',
-              'transition-transform duration-instant active:scale-95',
-              sending && 'opacity-50',
-            )}
-          >
-            <SendIcon size={20} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => { if (!liked) hearts(e.currentTarget); onLike(!liked); }}
-            aria-label={liked ? 'Unlike this story' : 'Like this story'}
-            aria-pressed={liked}
-            className={cn(
-              'focus-ring grid size-11 shrink-0 place-items-center rounded-full',
-              'transition-transform duration-instant ease-standard active:scale-125',
-              liked ? 'text-danger' : 'text-white hover:bg-white/10',
-            )}
-          >
-            <HeartIcon size={26} fill={liked ? 'currentColor' : 'none'} />
-          </button>
-        )}
-      </form>
-    </div>
+      </label>
+      <button type="button" aria-label="Like" aria-pressed={liked}
+        onClick={(e) => { if (!liked) hearts(e.currentTarget); onLike(!liked); }}
+        className={cn('relative grid size-[38px] shrink-0 place-items-center [&>svg]:size-[26px]', liked && 'text-[#ff3040]')}>
+        <Heart fill={liked ? '#ff3040' : 'none'} style={liked ? { animation: 'sv-pop .45s cubic-bezier(.34,1.56,.64,1)' } : undefined} />
+      </button>
+      <button type="button" aria-label="Send" onClick={onSend} className="grid size-[38px] shrink-0 place-items-center [&>svg]:size-[26px]"><Send /></button>
+    </>
   );
 }
 
 const QUICK = ['😂', '😮', '😍', '😢', '👏', '🔥', '🎉', '💯'];
 
 /** A reaction sent: the emoji rises up the screen, a few at once. */
-function burst(emoji: string, from: HTMLElement) {
-  const r = from.getBoundingClientRect();
+function burst(emoji: string) {
   for (let i = 0; i < 9; i += 1) {
     const n = document.createElement('span');
     n.textContent = emoji;
-    n.style.cssText = `position:fixed;z-index:2000;left:${r.left + r.width / 2 + (Math.random() - 0.5) * 160}px;top:${r.top}px;font-size:38px;pointer-events:none`;
+    n.style.cssText = `position:fixed;z-index:2000;left:${10 + Math.random() * 75}%;bottom:60px;font-size:38px;pointer-events:none`;
     document.body.append(n);
     void n.animate(
-      [{ transform: 'translateY(0) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.1 }, { transform: `translate(${(Math.random() - 0.5) * 120}px, -${window.innerHeight * 0.7}px) scale(1.2) rotate(${(Math.random() - 0.5) * 60}deg)`, opacity: 0 }],
+      [{ transform: 'translate(0,0) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.1 }, { transform: `translate(${(Math.random() - 0.5) * 120}px, -620px) scale(1.2) rotate(${(Math.random() - 0.5) * 60}deg)`, opacity: 0 }],
       { duration: 1600, delay: i * 70, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'both' },
     ).finished.then(() => n.remove());
   }
@@ -213,12 +119,11 @@ function burst(emoji: string, from: HTMLElement) {
 
 /** A like: small hearts lift off the button. */
 function hearts(from: HTMLElement) {
-  const r = from.getBoundingClientRect();
   for (let i = 0; i < 6; i += 1) {
     const n = document.createElement('span');
     n.textContent = '♥';
-    n.style.cssText = `position:fixed;z-index:2000;left:${r.left + r.width / 2 - 6}px;top:${r.top}px;color:#ff3040;font-size:15px;pointer-events:none`;
-    document.body.append(n);
+    n.style.cssText = 'position:absolute;left:50%;top:0;color:#ff3040;font-size:14px;pointer-events:none';
+    from.append(n);
     void n.animate([{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${(Math.random() - 0.5) * 60}px, -90px) scale(1.4)`, opacity: 0 }],
       { duration: 900, delay: i * 60, easing: 'ease-out', fill: 'both' }).finished.then(() => n.remove());
   }

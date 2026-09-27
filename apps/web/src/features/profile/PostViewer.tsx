@@ -1,18 +1,11 @@
 import { useProfile, type Post, type PostComment, type Profile } from '@pingo/core';
-import {
-  Avatar,
-  BookmarkIcon,
-  CloseIcon,
-  CommentIcon,
-  HeartIcon,
-  MoreIcon,
-  SendIcon,
-  cn,
-} from '@pingo/ui';
+import { Avatar, CloseIcon, SendIcon, cn } from '@pingo/ui';
+import { Bookmark, ChevronLeft, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { CaptionText } from './CaptionText.js';
-import { ShareLinkButton, profileLink } from './ShareProfileSheet.js';
+import { SharePostSheet } from './SharePostSheet.js';
+import { UploadToast, type UploadNote } from '../stories/StoryUpload.js';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
@@ -49,6 +42,8 @@ export interface PostViewerProps {
   onReplace: () => void;
   onDelete: () => void;
   onReport: () => void;
+  /** Share → Add to story: the post, as a sticker, in the story editor. */
+  onAddToStory?: (audience: 'friends' | 'close') => void;
 }
 
 export function PostViewer({
@@ -61,6 +56,7 @@ export function PostViewer({
   onReplace,
   onDelete,
   onReport,
+  onAddToStory,
 }: PostViewerProps) {
   const t = useT();
   const { service } = useProfile();
@@ -72,6 +68,13 @@ export function PostViewer({
   const [commentError, setCommentError] = useState<string>();
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [note, setNote] = useState<UploadNote>();
+  useEffect(() => {
+    if (!note) return;
+    const t = window.setTimeout(() => setNote(undefined), 1900);
+    return () => window.clearTimeout(t);
+  }, [note]);
 
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -93,13 +96,14 @@ export function PostViewer({
       if (event.key !== 'Escape') return;
       // Escape closes the innermost thing first, which is what every nested
       // surface in the product does.
-      if (menuOpen) setMenuOpen(false);
+      if (sharing) setSharing(false);
+      else if (menuOpen) setMenuOpen(false);
       else if (showComments) setShowComments(false);
       else onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, menuOpen, showComments]);
+  }, [onClose, menuOpen, showComments, sharing]);
 
   const openComments = () => {
     setShowComments(true);
@@ -207,36 +211,32 @@ export function PostViewer({
         role="dialog"
         aria-modal="true"
         aria-label={`Post by ${author.displayName}`}
-        className="animate-fade-in fixed inset-0 z-1000 flex flex-col bg-backdrop"
+        className="fixed inset-0 z-1000 overflow-y-auto bg-page text-ink"
+        style={{ animation: 'pv-in .32s cubic-bezier(.2,.8,.2,1)' }}
       >
-        {/* ---- header ------------------------------------------------ */}
-        <div className="mx-auto flex w-full max-w-xl shrink-0 items-center gap-3 px-3 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
-          <button
-            ref={closeRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
-          >
-            <CloseIcon size={22} />
-          </button>
-
-          <Avatar name={author.displayName} id={author.id} src={author.avatarUrl} size="xs" />
-          <span className="min-w-0 flex-1 truncate text-body text-white">
-            {author.displayName}
-          </span>
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              aria-label={t('post.options')}
-              aria-expanded={menuOpen}
-              className="focus-ring grid size-10 place-items-center rounded-full text-white hover:bg-white/10"
-            >
-              <MoreIcon size={22} />
+        <style>{'@keyframes pv-in { from { transform: translateX(100%) } }'}</style>
+        {/* The sample's post page: "Posts", then the post as a feed shows it. */}
+        <div className="mx-auto w-full max-w-xl pb-24">
+          <div className="sticky top-0 z-[2] flex items-center gap-2 bg-page/92 px-2.5 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md">
+            <button ref={closeRef} type="button" onClick={onClose} aria-label="Back" className="focus-ring grid size-9 place-items-center rounded-full [&>svg]:size-[22px]">
+              <ChevronLeft />
             </button>
+            <b className="flex-1 text-[16px]">Posts</b>
+          </div>
 
+          <article>
+            <header className="flex items-center gap-2.5 px-3 py-2.5">
+              <Avatar name={author.displayName} id={author.id} src={author.avatarUrl} size="xs" />
+              <div className="min-w-0 flex-1">
+                <b className="block truncate text-[14px]">{author.username}</b>
+                <span className="block text-[12px] text-text-tertiary">
+                  <time dateTime={posted.toISOString()}>{posted.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</time>
+                  {post.editedAt && ' · edited'}
+                </span>
+              </div>
+              <div className="relative">
+                <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label={t('post.options')} aria-expanded={menuOpen}
+                  className="focus-ring grid size-9 place-items-center rounded-full [&>svg]:size-5"><MoreHorizontal /></button>
             {menuOpen && (
               <>
                 {/*
@@ -290,117 +290,39 @@ export function PostViewer({
                 </div>
               </>
             )}
-          </div>
-        </div>
+              </div>
+            </header>
 
-        {/* ---- picture ----------------------------------------------- */}
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-          <img
-            src={post.imageUrl}
-            alt={post.caption ?? `Post by ${author.displayName}`}
-            className="max-h-full max-w-full object-contain"
-          />
-        </div>
+            <img src={post.imageUrl} alt={post.caption ?? `Post by ${author.displayName}`} className="block aspect-[4/5] w-full object-cover" />
 
-        {/* ---- actions and caption ----------------------------------- */}
-        {/*
-          Held to a column rather than the window's full width. On a phone this
-          is the same layout; on a desktop the alternative is a save button a
-          metre from the like button with the picture stranded between them.
-        */}
-        <div className="mx-auto w-full max-w-xl shrink-0 space-y-2 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="flex items-center gap-1 text-white">
-            <button
-              type="button"
-              onClick={toggleLike}
-              aria-label={post.likedByMe ? t('post.unlike') : t('post.like')}
-              aria-pressed={post.likedByMe}
-              className={cn(
-                'focus-ring rounded-full p-2 transition-transform duration-instant active:scale-90',
-                post.likedByMe && 'text-danger',
-              )}
-            >
-              <HeartIcon size={24} fill={post.likedByMe ? 'currentColor' : 'none'} />
-            </button>
+            <footer className="flex items-center gap-1 px-2 pt-1.5 pb-0.5">
+              <button type="button" onClick={toggleLike} aria-label={post.likedByMe ? t('post.unlike') : t('post.like')} aria-pressed={post.likedByMe}
+                className={cn('grid size-[38px] place-items-center [&>svg]:size-6', post.likedByMe && 'text-[#ff3040]')}>
+                <Heart fill={post.likedByMe ? '#ff3040' : 'none'} style={post.likedByMe ? { animation: 'pv-pop .35s cubic-bezier(.34,1.56,.64,1)' } : undefined} />
+              </button>
+              {(!post.hideLikeCount || isMine) && <span className="mr-2 text-[14px] font-semibold">{post.likeCount}</span>}
+              <button type="button" onClick={openComments} aria-label={`Comments (${post.commentCount})`} className="grid size-[38px] place-items-center [&>svg]:size-6"><MessageCircle /></button>
+              {(!post.hideCommentCount || isMine) && <span className="mr-2 text-[14px] font-semibold">{post.commentCount}</span>}
+              <button type="button" onClick={() => setSharing(true)} aria-label="Share" className="grid size-[38px] place-items-center [&>svg]:size-6"><Send /></button>
+              <span className="flex-1" />
+              <button type="button" onClick={toggleSave} aria-label={t('post.save')} aria-pressed={post.savedByMe} className="grid size-[38px] place-items-center [&>svg]:size-6">
+                <Bookmark fill={post.savedByMe ? 'currentColor' : 'none'} />
+              </button>
+            </footer>
+            <style>{'@keyframes pv-pop { 0% { transform: scale(.4) } 60% { transform: scale(1.3) } 100% { transform: scale(1) } }'}</style>
 
-            <button
-              type="button"
-              onClick={openComments}
-              aria-label={`Comments (${post.commentCount})`}
-              className="focus-ring rounded-full p-2 transition-transform duration-instant active:scale-90"
-            >
-              <CommentIcon size={24} />
-            </button>
-
-            <ShareLinkButton link={profileLink(author.username)} label="Share this profile" />
-
-            <span className="flex-1" />
-
-            <button
-              type="button"
-              onClick={toggleSave}
-              aria-label={post.savedByMe ? t('post.save') : t('post.save')}
-              aria-pressed={post.savedByMe}
-              className="focus-ring rounded-full p-2 transition-transform duration-instant active:scale-90"
-            >
-              <BookmarkIcon size={24} fill={post.savedByMe ? 'currentColor' : 'none'} />
-            </button>
-          </div>
-
-          {/*
-            The totals, unless the author took them off.
-
-            Hidden from everybody but the author, who still sees theirs with a
-            line saying so - a switch whose effect you cannot see is a switch
-            nobody trusts, and the number was never the thing being hidden from
-            the person who posted it.
-          */}
-          {post.likeCount > 0 && (!post.hideLikeCount || isMine) && (
-            <p className="text-body font-medium text-white">
-              {post.likeCount} {post.likeCount === 1 ? 'like' : 'likes'}
-              {post.hideLikeCount && (
-                <span className="ml-2 text-caption font-normal text-white/50">
-                  Only you can see this
-                </span>
-              )}
-            </p>
-          )}
-
-          {post.caption && (
-            <p className="text-body text-white/90">
-              <span className="font-medium text-white">{author.username} </span>
-              <CaptionText text={post.caption} tone="onDark" />
-            </p>
-          )}
-
-          {post.commentCount > 0 && !showComments && (
-            <button
-              type="button"
-              onClick={openComments}
-              className="focus-ring rounded-sm text-caption text-white/60 hover:text-white/90"
-            >
-              {/*
-                The way in stays; only the number goes. "View comments" is the
-                same door, and hiding the door as well would be hiding the
-                conversation, which is not what was asked for.
-              */}
-              {post.hideCommentCount && !isMine
-                ? 'View comments'
-                : `View ${post.commentCount === 1 ? '1 comment' : `all ${post.commentCount} comments`}`}
-            </button>
-          )}
-
-          <p className="text-caption text-white/50">
-            {/*
-              The full date, not "3 days ago". A post is permanent and there are
-              only three of them - when it was put up is a fact about the person,
-              and a relative time hides it behind arithmetic.
-            */}
-            <time dateTime={posted.toISOString()}>
-              {posted.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
-            </time>
-            {post.editedAt && ' · edited'}
-          </p>
+            {post.caption && (
+              <p className="px-3.5 pt-0.5 text-[14px]">
+                <b>{author.username} </b>
+                <CaptionText text={post.caption} />
+              </p>
+            )}
+            {post.commentCount > 0 && !showComments && (
+              <button type="button" onClick={openComments} className="focus-ring mt-1 px-3.5 text-[13px] text-text-tertiary">
+                {post.hideCommentCount && !isMine ? 'View comments' : `View ${post.commentCount === 1 ? '1 comment' : `all ${post.commentCount} comments`}`}
+              </button>
+            )}
+          </article>
         </div>
 
         {showComments && (
@@ -416,6 +338,17 @@ export function PostViewer({
             onClose={() => setShowComments(false)}
           />
         )}
+
+        {sharing && (
+          <SharePostSheet
+            post={post}
+            author={author}
+            onClose={() => setSharing(false)}
+            onAddToStory={(audience) => onAddToStory?.(audience)}
+            onNote={(text, icon) => setNote({ at: Date.now(), ok: true, text, icon })}
+          />
+        )}
+        {note && <UploadToast key={note.at} note={note} />}
       </div>
     </Overlay>
   );

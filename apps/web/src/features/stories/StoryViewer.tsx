@@ -1,9 +1,9 @@
-import { STORY_PHOTO_MS, type Story, type StoryGroup, type StoryViewer as Watcher } from '@pingo/core';
-import { Avatar, CloseIcon, MoreIcon, SendIcon, cn } from '@pingo/ui';
+import { STORY_PHOTO_MS, useChat, type Story, type StoryGroup, type StoryViewer as Watcher } from '@pingo/core';
+import { cn } from '@pingo/ui';
+import { BellOff, CirclePlus, Download, Link as LinkIcon, MoreHorizontal, MoreVertical, Music2, Send, Star, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
 import {
   VideoOverlayLayer,
@@ -12,59 +12,46 @@ import {
   videoGeometry,
 } from '../camera/VideoOverlay.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
-import { ShareStorySheet } from './ShareStorySheet.js';
 import { StoryActions } from './StoryActions.js';
 import { useStories } from './StoryContext.js';
-import { MyStoryMenu, OtherStoryMenu } from './StoryMenus.js';
 import { StoryOverlay } from './StoryOverlay.js';
+import { StoryPrivacySheet } from './StoryPrivacySheet.js';
 import { StoryStickerLayer } from './stickers/StoryStickerLayer.js';
 import { StoryProgress } from './StoryProgress.js';
 import { StorySound, soundLength } from './StorySound.js';
 import { MAX_STORY_SECONDS } from './story-audio.js';
-import { StoryViewersSheet } from './StoryViewersSheet.js';
 import { useStoryPlayer } from './useStoryPlayer.js';
+import { useBoomerang } from './Boomerang.js';
+import { ActivitySheet, MyMenu, OtherMenu, SendStorySheet } from './ViewerSheets.js';
 
 /**
- * Fullscreen story playback.
+ * Watching stories, the stories sample's way (`docs/handoff/stories-camera/
+ * sample/story.html`).
  *
- * Tap right to advance, tap left to go back, hold to pause, swipe down to
- * close, and a segmented bar shows where you are - the grammar everyone already
- * knows, so there is nothing to learn. Running off the end of one person starts
- * the next, which is what makes a rail feel like a rail rather than a set of
- * separate things you keep having to go back to.
+ * The picture fills the frame down to the bar at the foot, which is the reply
+ * box and the heart on somebody else's story and Activity on yours. Tap right
+ * to advance and left (the first 30%) to go back, hold to pause - the bars, the
+ * header and the foot step aside - swipe sideways to turn to the next person
+ * round a cube, down to close and up for the reply (or your Activity). It grows
+ * out of the circle it was opened from and shrinks back into it.
  *
- * ## Why one pointer surface rather than tap zones
- *
- * The first version used two invisible buttons over the media. That cannot
- * express hold-to-pause or swipe-to-close: a button fires on release and knows
- * nothing about how long it was held or how far the finger moved. So the media
- * is a single pointer surface and the gesture is classified on release - far
- * enough down and it was a dismissal, held long enough and it was a pause and
- * never a tap, otherwise which third it landed on decides.
- *
- * The keyboard is served separately and properly: arrows move, space pauses,
- * Escape closes. A pointer-only viewer would be unusable without a touchscreen.
+ * The keyboard is served too: arrows move, space pauses, Escape closes.
  */
 
-/** Past this, letting go closes the viewer. Roughly a thumb's travel. */
-const DISMISS_DISTANCE = 110;
-
-/** A press longer than this was a pause, so releasing must not also advance. */
-const HOLD_MS = 220;
+/** Past this, letting go closes the viewer. */
+const DISMISS_DISTANCE = 120;
+/** How long a press has to last to be a pause rather than a tap. */
+const HOLD_MS = 200;
 
 export interface StoryViewerProps {
   /** Every group in rail order, so the queue can run past one author. */
   groups: StoryGroup[];
   /** Which circle was tapped. */
   startGroupIndex: number;
-  /** Decides whose story shows insights rather than a reply box. */
+  /** Decides whose story shows Activity rather than a reply box. */
   currentUserId: string | undefined;
   onClose: () => void;
-  /**
-   * Where the tapped circle was, so the viewer can grow out of it.
-   *
-   * Optional: opened without an origin, it simply fades in.
-   */
+  /** Where the tapped circle was, so the viewer can grow out of it and shrink back. */
   origin?: DOMRect;
 }
 
@@ -75,729 +62,437 @@ export function StoryViewer({
   onClose,
   origin,
 }: StoryViewerProps) {
-  const { markSeen, setLiked, service, refresh, mutedAuthors, setAuthorMuted } = useStories();
+  const { markSeen, setLiked, service, refresh, setAuthorMuted, notify } = useStories();
+  const { conversations, service: chat } = useChat();
   const navigate = useNavigate();
-  const confirm = useConfirm();
 
   const player = useStoryPlayer({ groups, startGroupIndex, onClose });
   const { group, storyIndex, progressRef } = player;
   const story = group.stories[storyIndex];
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
+  const faceRef = useRef<HTMLDivElement>(null);
 
-  /*
-   * A picture with music on it stays up long enough to hear it.
-   *
-   * A photo story runs on a fixed five seconds, which is the right length for a
-   * photo and the wrong one for a photo with a twelve-second piece of music -
-   * the story would leave in the middle of the first line. Videos are untouched:
-   * they already report their own length, and a clip is the thing being
-   * watched.
-   */
+  // A picture with a song on it stays up long enough to hear it (capped).
   const photoSound = story && story.kind === 'photo' ? soundLength(story.audio) : 0;
   const { reportDuration } = player;
   useEffect(() => {
     if (photoSound <= 0) return;
-    // Capped: a story is something you watch, not something you sit through,
-    // and the composer says so before anybody posts one this long.
-    const seconds = Math.min(photoSound, MAX_STORY_SECONDS);
-    reportDuration(Math.max(STORY_PHOTO_MS, seconds * 1000));
+    reportDuration(Math.max(STORY_PHOTO_MS, Math.min(photoSound, MAX_STORY_SECONDS) * 1000));
   }, [photoSound, reportDuration, story?.id]);
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  /*
-   * Sound is off until somebody asks for it, and then stays on.
-   *
-   * It has to start off - every browser refuses to autoplay audio, so an
-   * unmuted story would simply not begin, and a story that needs a tap before
-   * it plays is a story most people never see.
-   *
-   * But asking once should be enough. Held here rather than inside the video
-   * so it survives moving between stories: having turned sound on for one, you
-   * meant it for the rest of the sitting, not for that single clip.
-   */
-  const [soundOn, setSoundOn] = useState(false);
-  const [viewersOpen, setViewersOpen] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const [sheet, setSheet] = useState<'more' | 'send' | 'activity' | 'settings'>();
+  const [typing, setTyping] = useState(false);
+  /** A press held long enough to be a pause: the chrome steps aside. */
+  const [held, setHeld] = useState(false);
 
-  /*
-   * FLIP: the viewer is already full-screen, and we animate *back* from where
-   * the circle was to where it now is.
-   *
-   * Animating width and height instead would relayout every frame and drop the
-   * whole thing to single figures on a phone. A transform is composited, so it
-   * stays smooth, and morphing `border-radius` alongside it is what sells the
-   * circle becoming a rectangle rather than a card sliding up.
-   */
+  // Any sheet holds the story, as the sample's do.
+  const { hold } = player;
+  useEffect(() => (sheet ? hold() : undefined), [sheet, hold]);
+
+  // ---- growing out of the ring, and back ------------------------------------
+  const circle = (r: number) => {
+    const o = origin!;
+    return `circle(${r}px at ${o.left + o.width / 2}px ${o.top + o.height / 2}px)`;
+  };
   useEffect(() => {
-    const element = rootRef.current;
-    if (!element || !origin) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    const target = element.getBoundingClientRect();
-    if (target.width === 0 || target.height === 0) return;
-
-    const scaleX = origin.width / target.width;
-    const scaleY = origin.height / target.height;
-    const dx = origin.left + origin.width / 2 - (target.left + target.width / 2);
-    const dy = origin.top + origin.height / 2 - (target.top + target.height / 2);
-
-    element.animate(
-      [
-        {
-          transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
-          borderRadius: '9999px',
-          opacity: 0,
-        },
-        { transform: 'none', borderRadius: '0px', opacity: 1 },
-      ],
-      {
-        duration: 340,
-        // The app's standard curve: quick to leave, slow to settle.
-        easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
-        fill: 'both',
-      },
-    );
+    const root = rootRef.current, face = faceRef.current;
+    if (!root || !face || !origin || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const R = Math.hypot(innerWidth, innerHeight), at = `${origin.left + origin.width / 2}px ${origin.top + origin.height / 2}px`;
+    const ease = { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' };
+    root.animate([{ clipPath: circle(origin.width / 2) }, { clipPath: circle(R) }], ease);
+    face.animate([{ transform: 'scale(.35)', transformOrigin: at }, { transform: 'scale(1)', transformOrigin: at }], ease);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin]);
 
-  /*
-   * And the way back out.
-   *
-   * The open above was only half a morph: the viewer grew out of the story
-   * circle and then, on every close path, vanished - `Overlay` is a bare
-   * portal, so `onClose` unmounts the tree on the same tick. Growing from
-   * somewhere and then not going back there is the case Apple's motion
-   * guidance names directly: feedback should follow the gesture, and a view
-   * revealed one way is expected to leave the same way.
-   *
-   * No re-measure is needed on the way out, unlike `ImageViewer`, and for a
-   * pleasant reason: this element is `fixed inset-0`, so its untransformed box
-   * is exactly the viewport. Reading `getBoundingClientRect()` here would
-   * return the *dragged* box during a swipe dismiss and quietly compute the
-   * wrong delta.
-   *
-   * The first keyframe is the element's current inline transform, so a dismiss
-   * that began as a drag continues from wherever the finger left it instead of
-   * snapping back to centre before it leaves.
-   */
   const closingRef = useRef(false);
   const requestClose = useCallback(() => {
     if (closingRef.current) return;
-
-    const element = rootRef.current;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!element || !origin || reduced) {
-      onClose();
-      return;
-    }
-
+    const root = rootRef.current, face = faceRef.current;
+    if (!root || !face || !origin || matchMedia('(prefers-reduced-motion: reduce)').matches) { onClose(); return; }
     closingRef.current = true;
-
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const scaleX = origin.width / width;
-    const scaleY = origin.height / height;
-    const dx = origin.left + origin.width / 2 - width / 2;
-    const dy = origin.top + origin.height / 2 - height / 2;
-
-    const animation = element.animate(
-      [
-        {
-          transform: element.style.transform || 'none',
-          borderRadius: element.style.borderRadius || '0px',
-          opacity: 1,
-        },
-        {
-          transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
-          borderRadius: '9999px',
-          opacity: 0,
-        },
-      ],
-      // Shorter than the open: leaving should feel decided, arriving unhurried.
-      { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'both' },
-    );
-
-    // `finished` rejects if the animation is cancelled by an unmount from
-    // elsewhere; the viewer still has to close either way.
-    void animation.finished.catch(() => undefined).then(() => onClose());
+    const R = Math.hypot(innerWidth, innerHeight), at = `${origin.left + origin.width / 2}px ${origin.top + origin.height / 2}px`;
+    const ease = { duration: 340, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' as const };
+    face.animate([{ transform: face.style.transform || 'none', transformOrigin: at }, { transform: 'scale(.3)', transformOrigin: at }], ease);
+    void root.animate([{ clipPath: circle(R) }, { clipPath: circle(origin.width / 2) }], ease).finished.catch(() => undefined).then(() => onClose());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, onClose]);
-
-  /*
-   * Read at keypress time rather than bound into the effect below, which is set
-   * up long before this function exists and must not re-run to see the newest
-   * one - the same arrangement `ImageViewer` uses for its key handler.
-   */
   const latestClose = useRef(requestClose);
   latestClose.current = requestClose;
 
-  // Focus lands on Close once, on open. Anything that re-ran this would take
-  // focus off the reply box a beat after the user tapped into it.
-  useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
-
-  /*
-   * Marked on display rather than on close, so leaving halfway still records
-   * exactly what was actually looked at.
-   *
-   * Keyed on the id, never the object. A story object is rebuilt whenever
-   * anything about the rail changes - including by this very call - so
-   * depending on its identity means marking the same story seen forever.
-   */
+  // Marked on display, keyed on the id - see StoryContext's note on why not the object.
   const storyId = story?.id;
   useEffect(() => {
     if (storyId) void markSeen(storyId);
   }, [storyId, markSeen]);
 
+  const owned = story?.authorId === currentUserId;
   const [watchers, setWatchers] = useState<Watcher[]>([]);
-  const mine = story?.authorId === currentUserId;
   useEffect(() => {
     setWatchers([]);
-    if (!storyId || !mine) return;
+    if (!storyId || !owned) return;
     let live = true;
     service.listViewers(storyId).then((list) => { if (live) setWatchers(list); }).catch(() => undefined);
     return () => { live = false; };
-  }, [storyId, mine, service]);
+  }, [storyId, owned, service]);
 
   // ---- keyboard -----------------------------------------------------------
-
   useEffect(() => {
     let spaceRelease: (() => void) | undefined;
-
-    const typing = (event: KeyboardEvent) => {
+    const typingIn = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       return target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA';
     };
-
     const onDown = (event: KeyboardEvent) => {
-      // Anything typed into the reply box belongs to the reply box.
-      if (typing(event)) {
+      if (typingIn(event)) {
         if (event.key === 'Escape') (event.target as HTMLElement).blur();
         return;
       }
-
       if (event.key === 'Escape') latestClose.current();
       else if (event.key === 'ArrowRight') player.next();
       else if (event.key === 'ArrowLeft') player.previous();
       else if (event.key === ' ') {
-        // Space is the universal pause, and it would otherwise scroll.
         event.preventDefault();
         if (!event.repeat && !spaceRelease) spaceRelease = player.hold();
       }
     };
-
     const onUp = (event: KeyboardEvent) => {
-      if (event.key === ' ') {
-        spaceRelease?.();
-        spaceRelease = undefined;
-      }
+      if (event.key === ' ') { spaceRelease?.(); spaceRelease = undefined; }
     };
-
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
-      // Unmounting mid-press must not leave playback paused forever.
       spaceRelease?.();
     };
-  }, [onClose, player]);
+  }, [player]);
 
-  // ---- one pointer surface ------------------------------------------------
-
+  // ---- one pointer surface: tap, hold, swipe ----------------------------------
   const gesture = useRef<
-    | { x: number; y: number; at: number; release: () => void; axis?: 'x' | 'y'; dx: number; holdTimer: number }
+    | { x: number; y: number; at: number; release: () => void; axis?: 'x' | 'y'; dx: number; dy: number; holdTimer: number; held: boolean }
     | undefined
   >(undefined);
-  /** A press held long enough to be a pause: the bars, the header and the reply bar step aside. */
-  const [held, setHeld] = useState(false);
-  const faceRef = useRef<HTMLDivElement>(null);
   const turning = useRef<1 | -1 | 0>(0);
+  const width = () => faceRef.current?.clientWidth || innerWidth;
 
-  /*
-   * The cube, Instagram's way between people.
-   *
-   * One face is drawn at a time, turned about the edge it shares with the next
-   * one. Dragging sideways turns it with the finger; letting go past a quarter
-   * of the screen finishes the turn and the next person's face turns in from
-   * the other side. Under that, the same player as ever.
-   */
-  const width = () => rootRef.current?.clientWidth || window.innerWidth;
+  // The cube: the face turns about the edge it shares with the next person's.
   const faceAt = (dx: number) => {
     const el = faceRef.current; if (!el) return;
-    const dir = dx < 0 ? 1 : -1;
-    el.style.transformOrigin = dir === 1 ? 'right center' : 'left center';
+    el.style.transformOrigin = dx < 0 ? 'right center' : 'left center';
     el.style.transform = `translateX(${dx}px) rotateY(${(-dx / width()) * 90}deg)`;
   };
   const turnOut = (dir: 1 | -1) => {
     const el = faceRef.current;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!el || reduced) { player.jumpGroup(dir); return; }
+    if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) { player.jumpGroup(dir); return; }
     turning.current = dir;
-    const from = el.style.transform || 'none';
     el.style.transformOrigin = dir === 1 ? 'right center' : 'left center';
-    void el.animate([{ transform: from }, { transform: `translateX(${-dir * width()}px) rotateY(${dir * 90}deg)` }],
-      { duration: 280, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' }).finished.catch(() => undefined).then(() => {
-      player.jumpGroup(dir);
-    });
+    void el.animate([{ transform: el.style.transform || 'none' }, { transform: `translateX(${-dir * width()}px) rotateY(${dir * 90}deg)` }],
+      { duration: 280, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' }).finished.catch(() => undefined).then(() => player.jumpGroup(dir));
   };
-  // Whenever the person changes - a swipe, or running off the end of someone - the new face turns in.
+  // Whenever the person changes, the new face turns in.
   const lastGroup = useRef(player.groupIndex);
   useEffect(() => {
     const el = faceRef.current;
+    if (player.groupIndex === lastGroup.current) return; // opening, not turning
     const dir = (player.groupIndex > lastGroup.current ? 1 : -1) as 1 | -1;
     lastGroup.current = player.groupIndex;
     if (!el) return;
     el.getAnimations().forEach((a) => a.cancel());
     el.style.transform = '';
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    turning.current = 0;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     el.style.transformOrigin = dir === 1 ? 'left center' : 'right center';
     el.animate([{ transform: `translateX(${dir * width()}px) rotateY(${-dir * 90}deg)` }, { transform: 'none' }],
-      { duration: 340, easing: 'cubic-bezier(.2,.7,.2,1)' });
-    turning.current = 0;
+      { duration: 420, easing: 'cubic-bezier(.3,.7,.2,1)' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.groupIndex]);
 
+  // The chrome's own controls, a sticker's buttons and the slider's knob are not the story.
+  const outside = (e: React.PointerEvent) => !!(e.target as HTMLElement).closest('[data-chrome], button, input, a, .sk-knob');
+
   const onPointerDown = (event: React.PointerEvent) => {
-    if (turning.current) return;
-    gesture.current = {
-      x: event.clientX,
-      y: event.clientY,
-      at: performance.now(),
-      dx: 0,
-      // Pauses immediately: a finger on the story is a finger on the story,
-      // whatever the gesture turns out to have been.
+    if (turning.current || closingRef.current || outside(event)) return;
+    const g = {
+      x: event.clientX, y: event.clientY, at: performance.now(), dx: 0, dy: 0, held: false,
+      // A finger on the story holds it, whatever the gesture turns out to be.
       release: player.hold(),
-      holdTimer: window.setTimeout(() => setHeld(true), HOLD_MS),
+      holdTimer: window.setTimeout(() => { g.held = true; setHeld(true); }, HOLD_MS),
     };
-    setDragging(true);
+    gesture.current = g;
+    // Stickers keep their own taps; anywhere else the surface follows the finger.
+    if (!(event.target as HTMLElement).closest('.sk')) event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onPointerMove = (event: React.PointerEvent) => {
-    const start = gesture.current;
-    if (!start) return;
-    const dx = event.clientX - start.x, dy = event.clientY - start.y;
-    if (!start.axis && Math.hypot(dx, dy) > 10) {
-      start.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-      window.clearTimeout(start.holdTimer); setHeld(false);
+    const g = gesture.current;
+    if (!g) return;
+    g.dx = event.clientX - g.x; g.dy = event.clientY - g.y;
+    if (!g.axis && Math.hypot(g.dx, g.dy) > 10) {
+      g.axis = Math.abs(g.dx) > Math.abs(g.dy) ? 'x' : 'y';
+      window.clearTimeout(g.holdTimer);
     }
-    if (start.axis === 'x') {
-      // Nothing to turn to past the first person; a little give, then stop.
-      const edge = (dx > 0 && player.groupIndex === 0) ? 0.2 : 1;
-      start.dx = dx * edge;
-      faceAt(start.dx);
-    } else if (start.axis === 'y') {
-      // Only downward. There is nothing above a story to drag towards.
-      setDragY(Math.max(0, dy));
+    if (g.axis === 'x') {
+      const edge = (g.dx > 0 && player.groupIndex === 0) || (g.dx < 0 && player.groupIndex === groups.length - 1) ? 0.2 : 1;
+      faceAt(g.dx * edge);
+    } else if (g.axis === 'y' && g.dy > 0) {
+      const k = Math.min(1, g.dy / 500), face = faceRef.current, root = rootRef.current;
+      if (face) face.style.transform = `translateY(${g.dy}px) scale(${1 - k * 0.35})`;
+      if (root) root.style.background = `rgba(0,0,0,${1 - k})`;
     }
   };
 
   const endGesture = (event: React.PointerEvent) => {
-    const start = gesture.current;
-    if (!start) return;
+    const g = gesture.current;
+    if (!g) return;
     gesture.current = undefined;
-    window.clearTimeout(start.holdTimer);
+    window.clearTimeout(g.holdTimer);
     setHeld(false);
-    start.release();
-    setDragging(false);
+    g.release();
+    const face = faceRef.current, root = rootRef.current;
 
-    const movedY = event.clientY - start.y;
-    const movedX = Math.abs(event.clientX - start.x);
-    const heldFor = performance.now() - start.at;
-
-    setDragY(0);
-
-    if (start.axis === 'x') {
-      const dir = (start.dx < 0 ? 1 : -1) as 1 | -1;
-      if (Math.abs(start.dx) > width() * 0.25 && !(dir === -1 && player.groupIndex === 0)) { turnOut(dir); return; }
-      const el = faceRef.current;
-      if (el) void el.animate([{ transform: el.style.transform || 'none' }, { transform: 'none' }], { duration: 220, easing: 'ease-out' }).finished.catch(() => undefined).then(() => { el.style.transform = ''; });
+    if (g.axis === 'x') {
+      const dir = (g.dx < 0 ? 1 : -1) as 1 | -1;
+      const room = dir === 1 ? player.groupIndex < groups.length - 1 : player.groupIndex > 0;
+      if (Math.abs(g.dx) > width() * 0.25 && room) { turnOut(dir); return; }
+      if (face) void face.animate([{ transform: face.style.transform || 'none' }, { transform: 'none' }], { duration: 300, easing: 'ease' }).finished.catch(() => undefined).then(() => { face.style.transform = ''; });
       return;
     }
-    if (movedY > DISMISS_DISTANCE) {
-      requestClose();
+    if (g.axis === 'y') {
+      if (g.dy > DISMISS_DISTANCE) { requestClose(); return; }
+      if (face) void face.animate([{ transform: face.style.transform || 'none' }, { transform: 'none' }], { duration: 300, easing: 'ease' }).finished.catch(() => undefined).then(() => { face.style.transform = ''; });
+      if (root) root.style.background = '';
+      // Up: your Activity, or the reply box on theirs.
+      if (g.dy < -70) {
+        if (owned) setSheet('activity');
+        else rootRef.current?.querySelector<HTMLInputElement>('input[enterkeyhint="send"]')?.focus({ preventScroll: true });
+      }
       return;
     }
-    // A pause, or a drag that came back. Either way it was not a tap.
-    if (heldFor > HOLD_MS || movedY > 12 || movedX > 12) return;
-
+    // A pause, or a tap on a sticker: neither is a tap on the story.
+    if (g.held || (event.target as HTMLElement).closest('.sk')) return;
     const bounds = event.currentTarget.getBoundingClientRect();
-    // The left third goes back and the rest advances - the proportion every
-    // thumb already expects.
-    if (event.clientX - bounds.left < bounds.width / 3) player.previous();
+    if (event.clientX - bounds.left < bounds.width * 0.3) player.previous();
     else player.next();
   };
 
   if (!story) return null;
 
-  const owned = story.authorId === currentUserId;
-  const muted = mutedAuthors.includes(story.authorId);
-  const dragProgress = Math.min(1, dragY / (DISMISS_DISTANCE * 2));
-  const storyUrl = publicAppUrl(`/profile/${story.authorUsername}`);
-
   // ---- actions ------------------------------------------------------------
+  const storyUrl = publicAppUrl(`/profile/${story.authorUsername}`);
+  const leaveTo = (path: string) => { onClose(); navigate(path); };
 
   const removeStory = async () => {
-    setMenuOpen(false);
-    const go = await confirm({
-      title: 'Delete this story?',
-      description:
-        'It goes now rather than at the end of the day, along with its views and likes.',
-      confirmLabel: 'Delete',
-    });
-    if (!go) return;
-    await service.remove(story.id);
-    await refresh();
-    onClose();
+    try {
+      await service.remove(story.id);
+      notify('Story deleted', <Trash2 />);
+      await refresh();
+      if (group.stories.length <= 1) onClose();
+    } catch {
+      notify('That did not delete', <Trash2 />);
+    }
   };
-
   const saveStory = () => {
-    setMenuOpen(false);
     const link = document.createElement('a');
     link.href = story.mediaUrl;
     link.download = `pingo-story-${story.id}.${story.kind === 'video' ? 'mp4' : 'jpg'}`;
     link.rel = 'noopener';
     link.click();
+    notify('Saved to your phone', <Download />);
   };
-
   const copyLink = async () => {
-    setMenuOpen(false);
+    try { await navigator.clipboard.writeText(storyUrl); notify('Link copied', <LinkIcon />); } catch { /* clipboard refused */ }
+  };
+  const mute = async () => {
+    await setAuthorMuted(story.authorId, true);
+    notify(`Muted ${group.authorName}'s story`, <BellOff />);
+    onClose();
+  };
+  const messageWatcher = async (w: Watcher) => {
+    const existing = conversations.find((c) => c.kind === 'direct' && c.participantIds.includes(w.userId));
+    const id = existing?.id ?? (await chat.startDirectConversation(w.userId));
+    leaveTo(`/chats/${id}`);
+  };
+  const insights = async () => {
     try {
-      await navigator.clipboard.writeText(storyUrl);
-    } catch {
-      // Clipboard refused. Nothing worth interrupting playback over.
-    }
+      const n = await service.insights(story.id);
+      notify(`${n.views} views · ${n.likes} likes · ${n.replies} replies`);
+    } catch { /* nothing to show */ }
   };
 
-  /*
-   * Sharing goes to a chat, not to the OS.
-   *
-   * The spec's destinations are a friend and a group, which are both inside the
-   * product, handing the URL to the system share sheet would be a different
-   * feature that happens to share the word. The sheet also enforces the rule
-   * that a close-friends or specific-people story cannot be passed on at all.
-   */
-  const shareStory = () => {
-    setMenuOpen(false);
-    setSharing(true);
-  };
-
-  const toggleMute = async () => {
-    setMenuOpen(false);
-
-    /*
-     * Asked first, because the consequence is not visible from the button.
-     *
-     * Muting closes the story and takes that person's circle off the rail, so
-     * the tap that does it is also the last time you see them there - and until
-     * Settings grew a list there was no way back at all. A menu item that
-     * quietly removes somebody is worth one question.
-     *
-     * `normal` rather than `danger`: nothing is destroyed and they are never
-     * told, so red would overstate it. The description says where the undo
-     * lives, which is the one fact somebody needs and cannot guess.
-     */
-    const ok = await confirm(
-      muted
-        ? {
-            title: `Unmute ${group.authorName}?`,
-            description: 'Their stories will appear in your list again.',
-            confirmLabel: 'Unmute',
-            tone: 'normal',
-          }
-        : {
-            title: `Mute ${group.authorName}?`,
-            description:
-              'Their stories stop appearing in your list. They are not told, and you can undo this in Settings → Muted stories.',
-            confirmLabel: 'Mute',
-            tone: 'normal',
-          },
-    );
-    if (!ok) return;
-
-    await setAuthorMuted(story.authorId, !muted);
-    // A muted author's circle leaves the rail, so there is nothing to go back to.
-    if (!muted) onClose();
-  };
+  const chromeOff = held;
+  const song = story.decor?.stickers.find((s) => s.type === 'music')?.d as { name?: string; artist?: string } | undefined;
 
   return (
-    <Overlay onDismiss={onClose}>
+    <Overlay onDismiss={requestClose}>
+      <style>{VIEWER_CSS}</style>
       <div
         ref={rootRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${group.authorName}'s story`}
-        className={cn(
-          'fixed inset-0 z-1000 flex flex-col overflow-hidden bg-backdrop',
-          // Only when there is no circle to grow out of; the FLIP above owns
-          // the motion whenever there is one, and two would fight.
-          !origin && 'animate-fade-in',
-        )}
-        style={{
-          transform: dragY
-            ? `translateY(${dragY}px) scale(${1 - dragProgress * 0.06})`
-            : undefined,
-          // Absent while the finger is down, so the drag tracks it exactly; the
-          // release then springs back.
-          transition: dragging ? undefined : 'transform 240ms cubic-bezier(0.32,0.72,0,1)',
-          borderRadius: dragY ? '1.5rem' : undefined,
-          perspective: '1100px',
-        }}
+        className={cn('fixed inset-0 z-1000 overflow-hidden bg-black select-none', !origin && 'animate-fade-in')}
+        // A drag must never become the browser's own drag of a selection: that cancels the swipe.
+        onDragStart={(e) => e.preventDefault()}
+        style={{ perspective: '1100px' }}
       >
-        <div ref={faceRef} className="flex min-h-0 flex-1 flex-col bg-backdrop [backface-visibility:hidden]">
-        {/* ---- the story ---------------------------------------------- */}
-        <div
-          className="relative min-h-0 flex-1 overflow-hidden rounded-b-2xl"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endGesture}
-          onPointerCancel={endGesture}
-          // The browser must not also pan, zoom or pull-to-refresh underneath.
-          style={{ touchAction: 'none' }}
-        >
-          {/* The bars and who it is, over the picture, stepping aside while it is held. */}
-          <div className={cn('absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/45 to-transparent pb-6 transition-opacity duration-200', held && 'opacity-0')}>
-          <StoryProgress count={group.stories.length} index={storyIndex} progressRef={progressRef} />
-
-          {/* ---- who, when, and the menu -------------------------------- */}
-          <div className="relative z-20 flex shrink-0 items-center gap-3 px-4 py-3" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
-            <Avatar
-              name={group.authorName}
-              id={group.authorId}
-              src={group.authorAvatarUrl}
-              size="sm"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2">
-                <span className="truncate text-body text-white">
-                  {owned ? 'Your story' : group.authorName}
-                </span>
-                <span className="shrink-0 text-caption text-white/55">{ago(story.createdAt)}</span>
-              </span>
-              <span className="block truncate text-caption text-white/55">
-                {/*
-                  "3 / 5" beside the handle as well as in the bars. The bars show
-                  position graphically; this is the same fact for anyone who would
-                  rather read it, and for a screen reader.
-                */}
-                @{group.authorUsername} · {storyIndex + 1} / {group.stories.length}
-                {story.audience === 'close' && ' · Close friends'}
-              </span>
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Story options"
-              className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
-            >
-              <MoreIcon size={22} />
-            </button>
-
-            <button
-              ref={closeRef}
-              type="button"
-              onClick={requestClose}
-              aria-label="Close"
-              className="touch-target focus-ring grid size-10 shrink-0 place-items-center rounded-full text-white hover:bg-white/10"
-            >
-              <CloseIcon size={22} />
-            </button>
-          </div>
-          </div>
-
-          {story.kind === 'video' ? (
-            <StoryVideo
-              story={story}
-              paused={player.paused}
-              onDuration={player.reportDuration}
-              hold={player.hold}
-              sound={soundOn}
-              onSound={() => setSoundOn(true)}
-            />
-          ) : (
-            <StoryImage
-              story={story}
-              alt={story.caption ?? `Story by ${group.authorName}`}
-              hold={player.hold}
-            />
-          )}
-
-          <StoryOverlay story={story} />
-
-          <StoryStickerLayer
-            story={story}
-            hold={player.hold}
-            onOpenProfile={(username) => {
-              onClose();
-              navigate(`/profile/${username}`);
-            }}
-          />
-
-          {/*
-            The sound the author laid on it, on the story's own clock. Renders
-            nothing - see `StorySound` for why it has no control of its own.
-          */}
-          {story.audio && story.audio.length > 0 && (
-            <StorySound storyId={story.id} tracks={story.audio} paused={player.paused} />
-          )}
-        </div>
-
-        {/* ---- what you can do about it -------------------------------- */}
-        <div className={cn('relative z-20 shrink-0 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-200', held && 'opacity-0')}>
-          <div className="mx-auto w-full max-w-xl">
-            {owned ? (
-              // Instagram's: who has seen it, as faces, and the ways to pass it on.
-              <div className="flex items-center gap-2 text-white">
-                <button type="button" onClick={() => setViewersOpen(true)} className="focus-ring flex min-w-0 items-center gap-2 rounded-full py-1.5 pr-2 text-[13px] font-semibold">
-                  {watchers.length > 0 && (
-                    <span className="flex">
-                      {watchers.slice(0, 3).map((w, i) => (
-                        <span key={w.userId} className={cn('rounded-full ring-2 ring-black', i > 0 && '-ml-2')}>
-                          <Avatar name={w.displayName} id={w.userId} src={w.avatarUrl} size="xs" />
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                  Activity{watchers.length > 0 ? ` · ${watchers.length}` : ''}
-                </button>
-                <span className="flex-1" />
-                <button type="button" aria-label="Share" onClick={shareStory} className="focus-ring grid size-10 place-items-center rounded-full hover:bg-white/10"><SendIcon size={22} /></button>
-                <button type="button" aria-label="More" onClick={() => setMenuOpen(true)} className="focus-ring grid size-10 place-items-center rounded-full hover:bg-white/10"><MoreIcon size={22} /></button>
+        {/* A phone's column on a wide screen; the whole screen on a phone. */}
+        <div className="relative mx-auto h-full w-full max-w-[calc(100dvh*0.5)] [transform-style:preserve-3d]">
+          <div
+            ref={faceRef}
+            className="absolute inset-0 overflow-hidden bg-black [backface-visibility:hidden]"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endGesture}
+            onPointerCancel={endGesture}
+            style={{ touchAction: 'none' }}
+          >
+            {/* the picture, down to the bar */}
+            <div className="absolute inset-x-0 top-0 bottom-16 overflow-hidden rounded-b-[14px] bg-[#111]">
+              {story.kind === 'video' ? (
+                <StoryVideo story={story} paused={player.paused} onDuration={player.reportDuration} hold={player.hold} />
+              ) : (
+                <StoryImage story={story} alt={story.caption ?? `Story by ${group.authorName}`} hold={player.hold} />
+              )}
+              <div className={cn('pointer-events-none absolute inset-x-0 top-0 z-[2] h-[120px] bg-gradient-to-b from-black/45 to-transparent transition-opacity duration-200', chromeOff && 'opacity-0')} />
+              <div className={cn('absolute inset-0 z-[4] transition-opacity duration-200', typing && 'pointer-events-none opacity-0')}>
+                <StoryStickerLayer story={story} hold={player.hold} onOpenProfile={(username) => leaveTo(`/profile/${username}`)} />
               </div>
-            ) : (
-              <StoryActions
-                story={story}
-                liked={story.likedByMe}
-                onLike={(liked) => void setLiked(story.id, liked)}
-                onHold={player.hold}
-                onOpenChat={(conversationId) => {
-                  onClose();
-                  navigate(`/chats/${conversationId}`);
-                }}
-              />
-            )}
+              <StoryOverlay story={story} />
+              {story.audio && story.audio.length > 0 && (
+                <StorySound storyId={story.id} tracks={story.audio} paused={player.paused} />
+              )}
+            </div>
+
+            <StoryProgress count={group.stories.length} index={storyIndex} progressRef={progressRef} hidden={chromeOff} />
+
+            {/* who, when, the song, and the two buttons */}
+            <div data-chrome className={cn('absolute top-[22px] right-1.5 left-3 z-[5] flex items-center gap-[9px] text-white transition-opacity duration-200', chromeOff && 'opacity-0')}>
+              <Face src={group.authorAvatarUrl} name={group.authorName} />
+              <div className="flex min-w-0 flex-col">
+                <div className="flex min-w-0 items-center gap-1.5 text-[14px] font-semibold">
+                  <span className="truncate">{owned ? 'Your story' : group.authorName}</span>
+                  <span className="shrink-0 font-normal opacity-70">{ago(story.createdAt)}</span>
+                  {story.audience === 'close' && (
+                    <span className="inline-flex shrink-0 items-center gap-[3px] rounded-[5px] bg-[#1fc15e] px-1.5 py-0.5 text-[10.5px] font-bold whitespace-nowrap [&>svg]:size-[1em]"><Star />Close friends</span>
+                  )}
+                </div>
+                {song?.name && (
+                  <div className="flex max-w-[190px] items-center gap-[5px] overflow-hidden text-[12px] opacity-[.92]">
+                    <Music2 size={12} className="shrink-0" />
+                    <span className="sv-marquee whitespace-nowrap">{song.name} · {song.artist}</span>
+                  </div>
+                )}
+              </div>
+              <span className="flex-1" />
+              <button type="button" aria-label="More" onClick={() => setSheet('more')} className="grid size-9 shrink-0 place-items-center [&>svg]:size-[22px]"><MoreHorizontal /></button>
+              <button type="button" aria-label="Close" onClick={requestClose} className="grid size-9 shrink-0 place-items-center [&>svg]:size-[22px]"><X /></button>
+            </div>
+
+            {/* the foot: the reply box on theirs, Activity on yours */}
+            <div data-chrome className={cn('absolute inset-x-0 bottom-0 z-[5] flex h-16 items-center gap-2.5 px-3 text-white transition-opacity duration-200', chromeOff && 'opacity-0')}>
+              {owned ? (
+                <>
+                  <button type="button" onClick={() => setSheet('activity')} className="flex items-center gap-2 text-[13px] font-semibold">
+                    {watchers.length > 0 && (
+                      <span className="flex">
+                        {watchers.slice(0, 3).map((w, i) => (
+                          <Face key={w.userId} src={w.avatarUrl} name={w.displayName} className={cn('size-6 border-2 border-black', i > 0 && '-ml-2')} />
+                        ))}
+                      </span>
+                    )}
+                    Activity
+                  </button>
+                  <span className="flex-1" />
+                  <button type="button" aria-label="Highlight" onClick={() => leaveTo('/stories/archive')} className="grid size-[38px] place-items-center [&>svg]:size-[26px]"><CirclePlus /></button>
+                  <button type="button" aria-label="Send" onClick={() => setSheet('send')} className="grid size-[38px] place-items-center [&>svg]:size-[26px]"><Send /></button>
+                  <button type="button" aria-label="More" onClick={() => setSheet('more')} className="grid size-[38px] place-items-center [&>svg]:size-[26px]"><MoreVertical /></button>
+                </>
+              ) : (
+                <StoryActions
+                  story={story}
+                  liked={story.likedByMe}
+                  onLike={(liked) => void setLiked(story.id, liked)}
+                  onHold={player.hold}
+                  onTyping={setTyping}
+                  onSend={() => setSheet('send')}
+                  overlayHost={faceRef.current}
+                />
+              )}
+            </div>
           </div>
-        </div>
         </div>
       </div>
 
-      {menuOpen &&
-        (owned ? (
-          <MyStoryMenu
-            onDelete={() => void removeStory()}
-            onSave={saveStory}
-            onArchive={() => {
-              setMenuOpen(false);
-              onClose();
-              navigate('/stories/archive');
-            }}
-            onInsights={() => {
-              setMenuOpen(false);
-              setViewersOpen(true);
-            }}
-            onShare={shareStory}
-            onClose={() => setMenuOpen(false)}
-          />
-        ) : (
-          <OtherStoryMenu
-            story={story}
-            muted={muted}
-            onShare={() => void shareStory()}
-            onCopyLink={() => void copyLink()}
-            onMute={() => void toggleMute()}
-            onReport={() => {
-              /*
-               * Reporting lives on the profile, where the sheet, the reasons
-               * and the block-as-well follow-up already exist. A second
-               * reporting flow here would be a second set of reasons to keep
-               * in step with the first.
-               */
-              setMenuOpen(false);
-              onClose();
-              navigate(`/profile/${story.authorUsername}`);
-            }}
-            onClose={() => setMenuOpen(false)}
-          />
-        ))}
-
-      {viewersOpen && <StoryViewersSheet story={story} onClose={() => setViewersOpen(false)} />}
-
-      {sharing && <ShareStorySheet story={story} onClose={() => setSharing(false)} />}
+      {sheet === 'more' && (owned ? (
+        <MyMenu
+          onClose={() => setSheet(undefined)}
+          onDelete={() => void removeStory()}
+          onSave={saveStory}
+          onHighlight={() => leaveTo('/stories/archive')}
+          onSend={() => setSheet('send')}
+          onSettings={() => setSheet('settings')}
+        />
+      ) : (
+        <OtherMenu
+          onClose={() => setSheet(undefined)}
+          // Reporting lives on the profile, where the reasons already are.
+          onReport={() => leaveTo(`/profile/${story.authorUsername}`)}
+          onMute={() => void mute()}
+          onAbout={() => leaveTo(`/profile/${story.authorUsername}`)}
+          onCopy={() => void copyLink()}
+        />
+      ))}
+      {sheet === 'send' && <SendStorySheet story={story} onClose={() => setSheet(undefined)} />}
+      {sheet === 'activity' && (
+        <ActivitySheet
+          stories={group.stories}
+          current={storyIndex}
+          watchers={watchers}
+          onPick={player.goTo}
+          onCamera={() => leaveTo('/camera')}
+          onInsights={() => void insights()}
+          onSend={() => setSheet('send')}
+          onSave={saveStory}
+          onDelete={() => void removeStory()}
+          onMessage={(w) => void messageWatcher(w)}
+          onClose={() => setSheet(undefined)}
+        />
+      )}
+      {sheet === 'settings' && <StoryPrivacySheet onClose={() => setSheet(undefined)} />}
     </Overlay>
   );
 }
 
+const VIEWER_CSS = `
+@keyframes sv-fade { from { opacity: 0 } }
+@keyframes sv-pop { 0% { transform: scale(.4) } 60% { transform: scale(1.3) } 100% { transform: scale(1) } }
+@keyframes sv-marquee { 0%, 15% { transform: translateX(0) } 100% { transform: translateX(-60%) } }
+@keyframes sv-spin { to { transform: rotate(360deg) } }
+.sv-marquee { animation: sv-marquee 7s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .sv-marquee { animation: none; } }
+`;
+
+/** A face in the viewer: the photo, or the first letter. */
+function Face({ src, name, className }: { src?: string | undefined; name: string; className?: string }) {
+  return src
+    ? <img src={src} alt="" className={cn('size-8 shrink-0 rounded-full object-cover', className)} />
+    : <span className={cn('grid size-8 shrink-0 place-items-center rounded-full bg-[#3a3a3c] text-[13px] font-bold text-white', className)}>{name[0]?.toUpperCase()}</span>;
+}
+
+/** Until the picture arrives: the sample's spinner, and the clock holds. */
+function Spinner() {
+  return <span aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 z-[6] -mt-[17px] -ml-[17px] size-[34px] rounded-full border-3 border-white/25 border-t-white" style={{ animation: 'sv-spin .8s linear infinite' }} />;
+}
+
 /**
- * A video story, driving the progress bar from its own length.
- *
- * A five-second timer over a twenty-second video would cut it off mid-sentence,
- * so the clock defers: the element reports its duration once metadata arrives
- * and the player uses that instead.
+ * A photo story, filling the frame. The clock is held from the first render
+ * until the picture has decoded, so a slow one is never marked seen unseen.
  */
-/**
- * A story photo that holds the clock until it is actually on screen.
- *
- * ## The bug this exists to fix
- *
- * The progress bar started the moment the story was selected, not the moment
- * its picture arrived. On a fast connection those are the same instant and
- * nothing looks wrong. On a slow one the five seconds run out while the image
- * is still downloading, the viewer advances, and the story is marked seen and
- * gone - the user watched an empty screen and then lost the story entirely.
- *
- * The player already had the mechanism: `hold()` is the counted pause that
- * long-press uses. Loading is simply another reason to wait, and because the
- * count is shared, a finger held down during a slow load keeps it paused
- * afterwards rather than the two fighting over one boolean.
- *
- * ## Held before the first frame, not after
- *
- * The hold is taken during render - in a ref, synchronously - rather than in an
- * effect. An effect runs after paint, which leaves one frame where the clock is
- * already ticking, and that frame is exactly when a cached image would have
- * resolved. Taking it late also means a story that loads instantly briefly
- * shows the spinner.
- *
- * ## `decode()` rather than `onLoad`
- *
- * `onLoad` fires when the bytes are in, which is before the browser has
- * decoded them into something it can paint. A large photo can take another
- * beat, and the bar would start moving over a blank frame. `decode()` resolves
- * when it is genuinely ready to draw.
- */
-function StoryImage({
-  story,
-  alt,
-  hold,
-}: {
-  story: Story;
-  alt: string;
-  hold: () => () => void;
-}) {
+function StoryImage({ story, alt, hold }: { story: Story; alt: string; hold: () => () => void }) {
   const release = useRef<(() => void) | undefined>(undefined);
   const [ready, setReady] = useState(false);
-
-  /**
-   * Whether the filter can be dropped entirely. See `ImageViewer`, same trap:
-   * `blur(0px)` keeps the picture on a filtered layer and Chrome stops
-   * animating a GIF that sits on one, so a moving story froze on one frame.
-   */
-  const [sharp, setSharp] = useState(false);
-
-  useEffect(() => {
-    if (!ready) {
-      setSharp(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setSharp(true), 460);
-    return () => window.clearTimeout(timer);
-  }, [ready, story.id]);
-
-  // Taken synchronously, once per story. See the note above.
+  // Taken during render, not in an effect: an effect runs after paint, a frame too late.
   if (!release.current && !ready) release.current = hold();
 
   const done = useCallback(() => {
@@ -807,11 +502,8 @@ function StoryImage({
   }, []);
 
   useEffect(() => {
-    // A new story means a new wait. Any hold from the previous one is released
-    // by the cleanup below, so the count cannot drift upward across stories.
     setReady(false);
     release.current ??= hold();
-
     return () => {
       release.current?.();
       release.current = undefined;
@@ -825,89 +517,48 @@ function StoryImage({
         src={story.mediaUrl}
         alt={alt}
         draggable={false}
-        onLoad={(event) => {
-          /*
-           * Resolved either way. `decode()` rejects on a detached or replaced
-           * image, and treating that as "never ready" would hang the story
-           * forever behind a spinner - which is a worse failure than starting
-           * the clock a frame early.
-           */
-          void event.currentTarget.decode().catch(() => undefined).finally(done);
-        }}
+        onLoad={(event) => { void event.currentTarget.decode().catch(() => undefined).finally(done); }}
         onError={done}
-        className={cn(
-          'absolute inset-0 size-full object-contain select-none',
-          'transition-[filter,transform] duration-slow ease-standard',
-        )}
-        style={{
-          /*
-            Blurred, then sharp — never hidden behind a loader.
-
-            The story used to sit at zero opacity with a spinner over it, so a
-            slow one was a black screen with a wheel on it. The picture is drawn
-            from the first frame the browser can paint anything at all and comes
-            into focus as it decodes. The slight overscale keeps the blur from
-            showing soft edges against the frame.
-          */
-          filter: sharp ? 'none' : ready ? 'blur(0px)' : 'blur(26px)',
-          transform: ready ? 'scale(1)' : 'scale(1.06)',
-        }}
+        className="absolute inset-0 size-full object-cover select-none"
+        style={story.decor?.filter ? { filter: story.decor.filter } : undefined}
       />
+      {!ready && <Spinner />}
     </>
   );
 }
 
+/**
+ * A video story, filling the frame and playing with its sound - opening a
+ * story is a tap, which is what a browser asks before it plays sound. Where it
+ * still refuses, the clip plays muted rather than not at all. A song laid over
+ * it plays instead of the clip's own sound, as the sample's does.
+ */
 function StoryVideo({
   story,
   paused,
   onDuration,
   hold,
-  sound,
-  onSound,
 }: {
   story: Story;
   paused: boolean;
   onDuration: (ms: number) => void;
-  /** Keeps the progress ring still until there is something to watch. */
   hold: () => () => void;
-  sound: boolean;
-  onSound: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
-  /** The area the clip is fitted into, and the clip's own proportions. */
+  const echo = useRef<HTMLVideoElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const [ratio, setRatio] = useState<number>();
-
-  /*
-   * A video arrives the same way a photo does: blurred, then sharp.
-   *
-   * Before this the element was simply mounted, so a story on a slow
-   * connection showed the browser's own idea of an unloaded video - a black
-   * box with native furniture on it - and only became a story once the file
-   * had arrived. That reads as PINGO handing the screen to the browser at the
-   * exact moment somebody is waiting.
-   *
-   * `canplay` rather than `loadeddata`: it means playback can actually start,
-   * which is the moment the blur has earned the right to lift.
-   */
+  const [length, setLength] = useState(0);
+  // A Boomerang plays forwards and back within the trim, on the viewer's clock.
+  const boom = story.decor?.boom && story.decor.boom !== 'off' ? story.decor.boom : undefined;
+  const from = length ? (story.videoEdit?.trimStart ?? 0) / length : 0;
+  const to = length ? (story.videoEdit?.trimEnd ?? length) / length : 1;
+  useBoomerang(ref, length ? boom : undefined, from, to, paused, echo);
   const [ready, setReady] = useState(false);
-  const [sharp, setSharp] = useState(false);
-  /** The clip's own playing length, once it is known. */
   const [clipMs, setClipMs] = useState(0);
   const release = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
-    if (!ready) {
-      setSharp(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setSharp(true), 460);
-    return () => window.clearTimeout(timer);
-  }, [ready, story.id]);
-
-  useEffect(() => {
-    // A new story is a new wait, and the cleanup releases the previous hold so
-    // the count cannot drift upward across stories.
     setReady(false);
     release.current ??= hold();
     return () => {
@@ -922,249 +573,92 @@ function StoryVideo({
     release.current = undefined;
   }, []);
 
+  const quiet = story.videoEdit?.muted === true || (story.audio?.length ?? 0) > 0;
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    if (paused) element.pause();
-    else void element.play().catch(() => undefined);
-  }, [paused]);
+    if (paused) { element.pause(); return; }
+    element.play().catch(() => { element.muted = true; void element.play().catch(() => undefined); });
+  }, [paused, story.id]);
 
+  // Older clips were turned, cropped or drawn on as marks; those keep their frame.
   const edit = story.videoEdit;
   const overlay = edit?.overlay ?? [];
   const strokes = edit?.strokes ?? [];
-  /*
-   * A clip that was turned, cropped or decorated is played inside a box shaped
-   * like the *edited* picture; a plain one is left exactly as it was, straight
-   * against the frame, so nothing about the common case goes through this.
-   */
   const framed = Boolean(edit?.rotate || edit?.crop || overlay.length > 0 || strokes.length > 0);
-  const box = useContainBox(
-    stage,
-    framed && ratio ? pictureRatio(ratio, edit?.rotate ?? 0, edit?.crop) : undefined,
-  );
+  const box = useContainBox(stage, framed && ratio ? pictureRatio(ratio, edit?.rotate ?? 0, edit?.crop) : undefined);
   const geometry = box ? videoGeometry(box, edit?.rotate ?? 0, edit?.crop) : undefined;
-
-  /*
-   * The arrival - a blur that lifts and a hair of overscale - has to ride on
-   * top of whatever framing the sender chose, not instead of it. A turned clip
-   * carries a rotation in the same property, so the two are composed rather
-   * than one quietly winning.
-   */
-  const arriving = ready ? 'scale(1)' : 'scale(1.06)';
-  /**
-   * The picture runs out before the sound does, so it goes round again.
-   *
-   * Only then: a clip with a short piece of sound on it ends when it ends, the
-   * way it always has. The clip's own length is not known until it can play,
-   * which is where this is answered from.
-   */
   const loops = soundLength(story.audio) * 1000 > clipMs + 150;
+
   const media = (
-      <video
-        ref={ref}
-        key={story.id}
-        src={story.mediaUrl}
-        autoPlay
-        playsInline
-        /*
-         * Starts muted, and has to. Autoplay with sound is refused by every
-         * browser, so an unmuted story would simply not begin - and a story
-         * that needs a tap before it plays is a story most people never see.
-         *
-         * The tap below is what buys the sound, and once bought it stays: the
-         * flag lives in the viewer, not here.
-         */
-        /*
-         * A clip the sender silenced stays silent, whatever the viewer has
-         * turned on. "Sound off" in the trimmer was a decision about the story,
-         * not a default for the person watching it - and until now the viewer
-         * simply ignored it.
-         */
-        muted={!sound || story.videoEdit?.muted === true}
-        /*
-         * The sender's marks, applied here and nowhere else.
-         *
-         * A story trimmed to start at 0:12 begins there on a file that still
-         * holds everything before it - see the migration for why the file is
-         * never cut. The progress bar is told the trimmed length, not the
-         * file's, or the ring would run on after the picture stopped.
-         */
-        onLoadedMetadata={(event) => {
-          const media = event.currentTarget;
-          if (media.videoWidth > 0 && media.videoHeight > 0) {
-            setRatio(media.videoWidth / media.videoHeight);
-          }
-          const from = story.videoEdit?.trimStart ?? 0;
-          if (from > 0) media.currentTime = from;
-        }}
-        /*
-         * The ring starts here, not at `loadedmetadata`.
-         *
-         * Metadata arrives long before the video can play - it is the header,
-         * not the footage - so a ring started there ran while the file was
-         * still buffering and reached the end several seconds early. That is
-         * the "last bit of the video gets cut" on a first watch, and it went
-         * away on a second one only because the file was already cached.
-         *
-         * `canplay` is the browser saying playback can actually begin, so the
-         * clock and the picture start together. The blur lifts on the same
-         * event for the same reason.
-         */
-        /*
-         * The story lasts as long as the longer of the two.
-         *
-         * A three-second clip with a fifteen-second song on it used to end at
-         * three seconds and take the song with it - the sound was cut off mid
-         * bar and looked broken rather than deliberate. When the sound outlasts
-         * the picture the clip loops underneath it, which is what everyone else
-         * does and what makes a short clip worth putting music on at all.
-         */
-        onCanPlay={(event) => {
-          const media = event.currentTarget;
-          const from = story.videoEdit?.trimStart ?? 0;
-          const to = story.videoEdit?.trimEnd ?? media.duration;
-          const clip = Math.max(0, to - from) * 1000;
-          setClipMs(clip);
-          onDuration(Math.max(clip, soundLength(story.audio) * 1000));
-          done();
-        }}
-        // A file that will not play must not hold the ring forever.
-        onError={done}
-        onTimeUpdate={(event) => {
-          const media = event.currentTarget;
-          const to = story.videoEdit?.trimEnd;
-          if (to === undefined || media.currentTime < to) return;
-          // Back to the opening frame while the sound is still running;
-          // otherwise the clip is over and the story is over with it.
-          if (loops) media.currentTime = story.videoEdit?.trimStart ?? 0;
-          else media.pause();
-        }}
-        onEnded={(event) => {
-          if (!loops) return;
-          const media = event.currentTarget;
-          media.currentTime = story.videoEdit?.trimStart ?? 0;
-          void media.play().catch(() => undefined);
-        }}
-        className={cn(
-          'select-none transition-[filter,transform] duration-slow ease-standard',
-          !geometry && 'absolute inset-0 size-full object-contain',
-        )}
-        style={{
-          ...(geometry ? geometry.video : {}),
-          // The same arrival a photo gets - see `StoryImage`. The slight
-          // overscale keeps the blur from showing soft edges at the frame.
-          // A video's look from the editor is played, not re-encoded.
-          filter: sharp ? story.decor?.filter || 'none' : `${ready ? 'blur(0px)' : 'blur(26px)'} ${story.decor?.filter ?? ''}`,
-          transform: geometry
-            ? `${String(geometry.video.transform)} ${arriving}`
-            : arriving,
-        }}
-      />
+    <video
+      ref={ref}
+      key={story.id}
+      src={story.mediaUrl}
+      autoPlay
+      playsInline
+      muted={quiet}
+      onLoadedMetadata={(event) => {
+        const m = event.currentTarget;
+        if (m.videoWidth > 0 && m.videoHeight > 0) setRatio(m.videoWidth / m.videoHeight);
+        if (Number.isFinite(m.duration)) setLength(m.duration);
+        const from = story.videoEdit?.trimStart ?? 0;
+        if (from > 0) m.currentTime = from;
+      }}
+      onCanPlay={(event) => {
+        const m = event.currentTarget;
+        const from = story.videoEdit?.trimStart ?? 0;
+        const to = story.videoEdit?.trimEnd ?? m.duration;
+        const clip = Math.max(0, to - from) * 1000;
+        setClipMs(clip);
+        // There and back again takes twice as long, and twice that again slowed down.
+        const shown = boom ? Math.min(15000, Math.max(3000, clip * (boom === 'slowmo' ? 4 : 2))) : clip;
+        onDuration(Math.max(shown, soundLength(story.audio) * 1000));
+        done();
+      }}
+      onError={done}
+      onTimeUpdate={(event) => {
+        if (boom) return;
+        const m = event.currentTarget;
+        const to = story.videoEdit?.trimEnd;
+        if (to === undefined || m.currentTime < to) return;
+        if (loops) m.currentTime = story.videoEdit?.trimStart ?? 0;
+        else m.pause();
+      }}
+      onEnded={(event) => {
+        if (!loops || boom) return;
+        const m = event.currentTarget;
+        m.currentTime = story.videoEdit?.trimStart ?? 0;
+        void m.play().catch(() => undefined);
+      }}
+      className={cn('select-none', !geometry && 'absolute inset-0 size-full object-cover')}
+      style={{
+        ...(geometry ? geometry.video : {}),
+        ...(story.decor?.filter ? { filter: story.decor.filter } : {}),
+      }}
+    />
   );
 
   return (
     <>
-      {/*
-        The clip, in the shape the sender left it.
-
-        Everything is measured against the picture rather than the screen: a
-        portrait clip on a wide phone has black either side, and a sticker
-        placed beside somebody belongs beside them, not out in the black. The
-        stage is the whole area; the box inside it is the edited picture - after
-        the turn and the crop - and the clip and everything on it are children
-        of that box, so they move and scale together and nothing else does.
-
-        A clip nobody edited skips all of it and sits straight against the
-        frame, exactly as before.
-      */}
       <div ref={stage} className="pointer-events-none absolute inset-0 grid place-items-center">
         {geometry && box ? (
-          <div
-            className="relative overflow-hidden"
-            style={{ width: box.width, height: box.height }}
-          >
+          <div className="relative overflow-hidden" style={{ width: box.width, height: box.height }}>
             <div style={geometry.picture}>{media}</div>
-            <VideoOverlayLayer
-              items={overlay}
-              strokes={strokes}
-              width={box.width}
-              height={box.height}
-            />
+            <VideoOverlayLayer items={overlay} strokes={strokes} width={box.width} height={box.height} />
           </div>
         ) : (
           media
         )}
+        {boom === 'echo' && !geometry && (
+          <video ref={echo} src={story.mediaUrl} muted playsInline autoPlay className="absolute inset-0 size-full scale-[1.02] object-cover opacity-40 mix-blend-screen" />
+        )}
       </div>
-
-      {/*
-        The offer, once, in the middle.
-
-        A story is watched with a thumb already resting on the screen, so this
-        cannot be a small control in a corner - it has to be the thing under
-        the thumb. It sits above the tap targets that page between stories,
-        which is the whole reason it is worth a large soft pill rather than an
-        icon: at this size nobody advances the story by accident while
-        reaching for it.
-
-        It leaves for good on the first tap. An affordance that keeps coming
-        back is a notice, and this is an offer.
-      */}
-      {!sound && story.videoEdit?.muted !== true && (
-        <button
-          type="button"
-          /*
-           * The story pager listens on the surface underneath, so without
-           * this the tap turned the sound on and skipped to the next story in
-           * the same movement - which reads as the button doing the wrong
-           * thing entirely. Pointer down is where the pager starts, so that is
-           * where it has to be stopped; the click is stopped too so nothing
-           * downstream sees a second chance.
-           */
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onSound();
-          }}
-          aria-label="Turn on sound"
-          className={cn(
-            'absolute top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2',
-            // Just the speaker. The words were a label on a control whose
-            // meaning is already the icon, and at pill size it read as a
-            // notice sitting on top of the story rather than part of it.
-            'grid size-14 place-items-center rounded-full',
-            'bg-black/45 text-white backdrop-blur-glass',
-            'animate-fade-in transition-transform duration-instant ease-standard active:scale-95',
-          )}
-        >
-          <MutedSpeaker />
-        </button>
-      )}
+      {!ready && <Spinner />}
     </>
   );
 }
 
-/** A speaker with a slash. Only ever shown while a story is silent. */
-function MutedSpeaker() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={24}
-      height={24}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
-      <path d="m17 9 4 6M21 9l-4 6" />
-    </svg>
-  );
-}
-
-/** "now", "3m", "5h" - a story never lives long enough to need more. */
 function ago(createdAt: number): string {
   const minutes = Math.floor((Date.now() - createdAt) / 60_000);
   if (minutes < 1) return 'now';
