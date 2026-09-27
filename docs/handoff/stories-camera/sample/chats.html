@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat List</title>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  /* the app's own face and tokens, so building this into PINGO changes nothing */
+  @font-face { font-family: 'Space Grotesk'; font-weight: 300 700; font-display: swap; src: url('space-grotesk-latin.woff2') format('woff2'); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { min-height: 100vh; background: #e6e5ea; font-family: 'Space Grotesk', system-ui, sans-serif; padding: 28px 16px 64px; }
+  button { font: inherit; border: 0; background: none; color: inherit; cursor: pointer; }
+  [hidden] { display: none !important; }
+  svg.lucide { width: 1em; height: 1em; stroke-width: 1.9; flex: none; }
+
+  /* page chrome */
+  .controls { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+  .seg { display: inline-flex; background: #fff; border-radius: 999px; padding: 4px; }
+  .seg button { height: 36px; padding: 0 16px; border-radius: 999px; font-weight: 600; font-size: 13.5px; color: #7f7f7f; }
+  .seg button[aria-pressed="true"] { background: #2e2e2e; color: #fff; }
+  .phones { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+  .label { text-align: center; font-size: 13px; font-weight: 600; color: #7f7f7f; margin-bottom: 12px; }
+  .phone { position: relative; width: 390px; height: 844px; border-radius: 54px; overflow: hidden; border: 10px solid #111;
+           background: var(--page); color: var(--ink); box-shadow: 0 30px 60px -30px rgba(0,0,0,.35); }
+  @media (max-width: 480px) { body { padding: 16px 0 48px; } .phone { width: 100%; border: 0; border-radius: 0; } }
+
+  .theme { --page: #f7f7f8; --surface: #fff; --sunken: #efeff3; --ink: #111113; --text2: #6f7282; --text3: rgba(16,17,20,.38);
+           --line: rgba(17,17,19,.07); --brand: #e0559b; --on-brand: #fff; --online: #34c77b; --glass: rgba(247,247,248,.86); }
+  .theme.dark { --page: #0c0d11; --surface: #16171d; --sunken: #1c1e25; --ink: #f4f5f9; --text2: #9a9dab; --text3: rgba(244,245,249,.4);
+                --line: rgba(255,255,255,.08); --glass: rgba(12,13,17,.86); }
+
+  .screen { height: 100%; overflow-y: auto; scrollbar-width: none; padding-bottom: 110px; overflow-anchor: none; }
+  .screen::-webkit-scrollbar { display: none; }
+
+  /* header: sticky glass, title in the middle with the story faces that collapse into it */
+  .top { position: sticky; top: 0; z-index: 5; background: var(--glass); backdrop-filter: saturate(1.4) blur(18px); -webkit-backdrop-filter: saturate(1.4) blur(18px); }
+  .status { height: 44px; padding: 0 26px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; }
+  .status span { display: flex; gap: 5px; font-size: 16px; }
+  .bar { height: 44px; padding: 0 14px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .bar .edit { justify-self: start; font-size: 16px; font-weight: 500; color: var(--brand); padding: 6px 4px; }
+  .title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; }
+  /* padded so the clip that hides them never cuts into the rings */
+  .title .faces { display: flex; max-width: 0; padding: 2px; margin: -2px; opacity: 0; overflow: hidden; transition: max-width .25s, opacity .2s; }
+  .collapsed .title .faces.has { max-width: 120px; opacity: 1; }
+  .title .faces img { flex: none; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--page); box-shadow: 0 0 0 1.5px var(--brand); margin-left: -12px; }
+  .title .faces img:first-child { margin-left: 0; }
+  .bar .acts { justify-self: end; display: flex; gap: 4px; }
+  .ib { position: relative; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 21px; color: var(--brand); }
+  .ib .dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); border: 2px solid var(--page); }
+  .search { margin: 4px 14px 8px; height: 38px; border-radius: 12px; background: var(--sunken); display: flex; align-items: center; justify-content: center;
+            gap: 7px; font-size: 16px; color: var(--text3); }
+  .search svg.lucide { font-size: 17px; }
+
+  /* stories: under the search, collapsing into the title on scroll */
+  .stories { display: flex; gap: 14px; padding: 6px 14px 10px; overflow-x: auto; scrollbar-width: none; max-height: 120px; transition: max-height .25s, opacity .2s, padding .25s; }
+  .stories::-webkit-scrollbar { display: none; }
+  .collapsed .stories { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; }
+  .st { flex: none; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text2); }
+  .st .ring { position: relative; width: 62px; height: 62px; border-radius: 50%; padding: 2.5px; background: var(--line); }
+  .st.new .ring { background: conic-gradient(from 210deg, #e0559b, #ff9a5a, #8b5dff, #e0559b); }
+  .st .ring img, .st .ring .in { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2.5px solid var(--page); display: block; background: var(--sunken); }
+  .st .plus { position: absolute; right: -1px; bottom: -1px; width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: var(--on-brand);
+              border: 2.5px solid var(--page); display: grid; place-items: center; font-size: 12px; }
+  .st .plus svg.lucide { stroke-width: 3; }
+  .st b { font-weight: 600; color: var(--ink); max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* the Arcade, where a note would be: a tile with who is playing on it */
+  .st.game .ring { background: linear-gradient(135deg, #ff8a3d, #ff3d77); }
+  .st.game .in { display: grid; place-items: center; font-size: 26px; color: #fff; background: linear-gradient(135deg, #ff8a3d, #ff3d77); }
+  .st .note { position: absolute; left: 50%; top: -8px; transform: translateX(-50%); z-index: 1; white-space: nowrap; font-size: 10px; font-weight: 700;
+              color: var(--ink); background: var(--surface); padding: 3px 7px; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.12); display: flex; gap: 4px; align-items: center; }
+  .st .note i { width: 6px; height: 6px; border-radius: 50%; background: var(--online); }
+  .st.game { padding-top: 0; }
+
+  /* folders */
+  .folders { display: flex; gap: 20px; padding: 0 18px; border-bottom: 1px solid var(--line); font-size: 14.5px; font-weight: 600; color: var(--text2); }
+  .folders button { position: relative; padding: 9px 0 10px; display: flex; gap: 6px; align-items: center; }
+  .folders button small { font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--sunken); color: var(--text2); display: grid; place-items: center; }
+  .folders button[aria-selected="true"] { color: var(--brand); }
+  .folders button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--brand); }
+  .folders button[aria-selected="true"] small { background: var(--brand); color: var(--on-brand); }
+
+  /* nudge card (Night Owl) */
+  .nudge { margin: 10px 12px 2px; padding: 11px 14px; border-radius: 16px; background: var(--surface); display: flex; gap: 12px; align-items: center; }
+  .nudge .ic { width: 34px; height: 34px; border-radius: 50%; background: var(--sunken); display: grid; place-items: center; font-size: 17px; color: var(--text2); }
+  .nudge b { display: block; font-size: 14px; font-weight: 600; }
+  .nudge small { font-size: 12px; color: var(--text2); }
+  .nudge .bar2 { margin-top: 6px; height: 4px; border-radius: 4px; background: var(--sunken); overflow: hidden; }
+  .nudge .bar2 i { display: block; width: 58%; height: 100%; background: var(--brand); border-radius: inherit; }
+
+  /* rows, Telegram-style: big face, two lines, time and badges right, hairline inset under the text */
+  .row { display: flex; gap: 12px; padding: 0 12px 0 12px; align-items: center; cursor: pointer; }
+  .row:active { background: var(--sunken); }
+  .av { position: relative; width: 58px; height: 58px; flex: none; }
+  .av img, .av .mono { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: grid; place-items: center; font-size: 21px; font-weight: 600; color: #fff; }
+  .av.story { padding: 2.5px; border-radius: 50%; background: conic-gradient(from 210deg, #e0559b, #ff9a5a, #8b5dff, #e0559b); }
+  .av.story img, .av.story .mono { border: 2px solid var(--page); }
+  .av .on { position: absolute; right: 1px; bottom: 1px; width: 15px; height: 15px; border-radius: 50%; background: var(--online); border: 2.5px solid var(--page); }
+  .body { flex: 1; min-width: 0; padding: 10px 0 11px; border-bottom: 1px solid var(--line); align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+  .row:last-child .body { border-bottom: 0; }
+  .l1, .l2 { display: flex; align-items: center; gap: 6px; }
+  .name { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .name img.crest { width: 17px; height: 17px; object-fit: contain; }
+  .name svg.lucide { font-size: 14px; color: var(--text3); }
+  .l1 .meta { margin-left: auto; display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text2); white-space: nowrap; flex: none; }
+  .meta .ticks { color: var(--brand); font-size: 16px; }
+  .meta .fire { font-size: 12px; color: #f97316; display: inline-flex; align-items: center; gap: 2px; margin-right: 4px; }
+  .l2 { margin-top: 2px; align-items: flex-start; }
+  .prev { flex: 1; min-width: 0; font-size: 14.5px; line-height: 1.35; color: var(--text2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .prev b { color: var(--ink); font-weight: 500; }
+  .prev .typing { color: var(--brand); }
+  .badge { flex: none; margin-top: 4px; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--brand); color: var(--on-brand);
+           font-size: 12.5px; font-weight: 700; display: grid; place-items: center; }
+  .badge.muted { background: var(--text3); }
+  .pin { flex: none; margin-top: 4px; color: var(--text3); font-size: 16px; transform: rotate(45deg); }
+  .row.arch .av .mono { background: var(--text3); font-size: 24px; }
+  .row.arch .name { color: var(--text2); }
+
+  /* the app's dock, unchanged */
+  .dock { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; padding: 8px 10px;
+          border-radius: 22px; background: var(--surface); box-shadow: 0 10px 30px -10px rgba(0,0,0,.25), 0 0 0 1px var(--line); }
+  .dock button { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-size: 21px; color: var(--text2); position: relative; }
+  .dock button.on { color: var(--brand); }
+  .dock button.cam { background: linear-gradient(135deg, #e0559b, #ff7eb6); color: #fff; }
+  .dock button .dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+
+  /* network, Telegram's way: the title itself says it, with a small spinner */
+  .spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .title .net { display: inline-flex; align-items: center; gap: 7px; font-size: 16px; font-weight: 600; }
+  .offline .title .faces { display: none; }
+
+  /* inside a chat */
+  .chat { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; background: var(--page); }
+  .chat .top { position: relative; }
+  .cbar { height: 52px; padding: 0 10px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .back { justify-self: start; display: flex; align-items: center; gap: 2px; color: var(--brand); font-size: 16px; font-weight: 500; }
+  .back svg.lucide { font-size: 26px; stroke-width: 2.2; }
+  .back small { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--brand); color: var(--on-brand); font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+  .who { text-align: center; line-height: 1.2; }
+  .who b { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 16.5px; font-weight: 700; }
+  .who b img { width: 17px; height: 17px; object-fit: contain; }
+  .who .sub { margin-top: 2px; font-size: 13px; color: var(--text2); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .who .sub.online { color: var(--brand); }
+  .who .sub .spin { width: 11px; height: 11px; border-width: 1.8px; }
+  .cav { justify-self: end; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+  .thread { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px; justify-content: flex-end;
+            background: radial-gradient(120% 60% at 20% 0%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 60%), var(--page); }
+  .day { align-self: center; font-size: 12px; font-weight: 600; color: var(--text2); background: var(--surface); padding: 4px 10px; border-radius: 999px; margin: 4px 0 8px; }
+  .msg { max-width: 76%; padding: 8px 12px 6px; border-radius: 18px; font-size: 15px; line-height: 1.35; background: var(--surface); }
+  .msg small { float: right; margin: 6px 0 0 10px; font-size: 11px; color: var(--text3); display: inline-flex; gap: 3px; align-items: center; }
+  .msg.me { align-self: flex-end; background: var(--brand); color: var(--on-brand); border-bottom-right-radius: 6px; }
+  .msg.me small { color: rgba(255,255,255,.75); }
+  .msg.them { border-bottom-left-radius: 6px; }
+  .msg.pending small svg.lucide { animation: spin 1.6s linear infinite; }
+  .composer { display: flex; align-items: center; gap: 8px; padding: 8px 10px 26px; background: var(--glass); border-top: 1px solid var(--line); }
+  .composer .ib { color: var(--text2); flex: none; }
+  .composer .field { flex: 1; height: 40px; border-radius: 20px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); display: flex; align-items: center; padding: 0 14px; color: var(--text3); font-size: 15px; }
+
+  /* ---- liquid glass over a wallpaper ---- */
+  .phone {
+    --glass-fill: rgba(255,255,255,.16); --glass-hair: rgba(255,255,255,.2);
+    --glass-spec: rgba(255,255,255,.95); --glass-spec2: rgba(255,255,255,.5);
+    --glass-sheen: .38; --rim: .95; --glass-ink: #111113; --glass-ink2: rgba(17,17,19,.62);
+    --scrim: rgba(255,255,255,.28);
+  }
+  .phone.wall-dark {
+    --glass-fill: rgba(16,16,22,.3); --glass-hair: rgba(255,255,255,.1);
+    --glass-spec: rgba(255,255,255,.6); --glass-spec2: rgba(255,255,255,.22);
+    --glass-sheen: .16; --rim: .55; --glass-ink: #fff; --glass-ink2: rgba(255,255,255,.74);
+    --scrim: rgba(0,0,0,.32);
+  }
+  .phone .glass {
+    position: relative; isolation: isolate;
+    background: var(--glass-fill);
+    /* PINGO's water glass: 5px and 160%. The lens (zoom + bent rim) is added per element by lens() below. */
+    -webkit-backdrop-filter: blur(var(--water-blur, 5px)) saturate(160%);
+    backdrop-filter: blur(var(--water-blur, 5px)) saturate(160%);
+    box-shadow:
+      inset 0 0 0 1px var(--glass-hair),
+      inset 1.5px 1.5px .5px -1px var(--glass-spec),
+      inset -1px -1px .5px -.5px var(--glass-spec2),
+      inset 0 -10px 18px -14px rgba(0,0,0,.28),
+      0 14px 30px -16px rgba(0,0,0,.5),
+      0 2px 6px -2px rgba(0,0,0,.18);
+    color: var(--glass-ink);
+    transition: transform .45s cubic-bezier(.34,1.56,.64,1);
+  }
+  /* the sheen: a soft light that sits where the finger (or cursor) is */
+  .phone .glass::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(120px 70px at var(--mx, 28%) var(--my, 0%), rgba(255,255,255,var(--glass-sheen)), transparent 70%),
+      linear-gradient(180deg, rgba(255,255,255,calc(var(--glass-sheen) * .5)), transparent 48%);
+  }
+  /* the rim: bright top-left, quiet in the middle, a second catch-light bottom-right */
+  .phone .glass::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: var(--rim);
+    background: linear-gradient(135deg, rgba(255,255,255,.9), rgba(255,255,255,0) 38%, rgba(255,255,255,0) 62%, rgba(255,255,255,.5));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  }
+  .phone button.glass:active { transform: scale(.92); }
+
+  .wall .chat { background: var(--wall) center / cover no-repeat; }
+  /* content runs under the header and the composer, the way it does on iOS */
+  .wall .chat .top { position: absolute; inset: 0 0 auto; z-index: 3; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .wall .composer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: none; border: 0; padding: 8px 10px 26px; }
+  .wall .thread { padding: 116px 12px 96px; background: transparent; }
+  /* progressive blur at both ends, so the glass sits on something calm */
+  .wall .chat::before, .wall .chat::after {
+    content: ""; position: absolute; left: 0; right: 0; z-index: 2; pointer-events: none;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  .wall .chat::before { top: 0; height: 128px; background: linear-gradient(var(--scrim), transparent);
+    -webkit-mask: linear-gradient(#000 45%, transparent); mask: linear-gradient(#000 45%, transparent); }
+  .wall .chat::after { bottom: 0; height: 110px; background: linear-gradient(transparent, var(--scrim));
+    -webkit-mask: linear-gradient(transparent, #000 55%); mask: linear-gradient(transparent, #000 55%); }
+
+  .wall .chat .status { color: var(--glass-ink); }
+  .wall .cbar { height: 58px; gap: 8px; }
+  .wall .back { width: 46px; height: 46px; border-radius: 50%; justify-content: center; }
+  .wall .back small { position: absolute; top: -4px; right: -8px; z-index: 1; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+  .wall .who { padding: 6px 20px; border-radius: 999px; }
+  .wall .who .sub { color: var(--glass-ink2); }
+  .wall .who .sub.online { color: var(--glass-ink); }
+  .cav { justify-self: end; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; }
+  .cav img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+  .wall .cav { width: 46px; height: 46px; padding: 3px; }
+
+  /* incoming messages are frosted a little more, so words stay words */
+  .wall .msg.them { --glass-fill: rgba(255,255,255,.5); }
+  .wall-dark .msg.them { --glass-fill: rgba(16,16,22,.5); }
+  .wall .msg.them small { color: var(--glass-ink2); }
+  .wall .day { --glass-fill: rgba(255,255,255,.3); padding: 5px 12px; }
+  .wall-dark .day { --glass-fill: rgba(16,16,22,.35); }
+  /* yours are tinted glass: the brand, lit from above */
+  .wall .msg.me {
+    position: relative; isolation: isolate;
+    background: linear-gradient(180deg, rgba(236,98,168,.94), rgba(212,68,143,.9));
+    -webkit-backdrop-filter: blur(5px) saturate(160%); backdrop-filter: blur(5px) saturate(160%);
+    box-shadow: inset 1.5px 1.5px .5px -1px rgba(255,255,255,.75), inset -1px -1px .5px -.5px rgba(255,255,255,.3),
+                inset 0 -8px 14px -10px rgba(120,0,60,.35), 0 14px 28px -14px rgba(224,85,155,.75);
+  }
+  .wall .msg.me::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1; pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,255,255,.22), transparent 55%); }
+  .wall .composer .ib { width: 46px; height: 46px; border-radius: 50%; color: var(--glass-ink); }
+  .wall .composer .field { height: 46px; border-radius: 23px; color: var(--glass-ink2); }
+
+  /* dark theme with no wallpaper still gets dark glass (menus are glass everywhere) */
+  .theme.dark:not(.wall) {
+    --glass-fill: rgba(22,23,29,.45); --glass-hair: rgba(255,255,255,.1); --glass-spec: rgba(255,255,255,.55);
+    --glass-spec2: rgba(255,255,255,.2); --glass-sheen: .14; --rim: .5; --glass-ink: #fff; --glass-ink2: rgba(255,255,255,.72);
+  }
+  .msg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+  /* ---- group thread ---- */
+  .gline { display: flex; align-items: flex-end; gap: 6px; max-width: 86%; }
+  .gline .msg { max-width: 100%; }
+  .gav { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: none; }
+  .gav.blank { visibility: hidden; }
+  .from { display: block; font-size: 13px; font-weight: 700; margin-bottom: 1px; }
+  .sys { align-self: center; font-size: 12.5px; font-weight: 600; color: var(--text2); background: var(--surface); padding: 4px 11px; border-radius: 999px; margin: 2px 0 6px; }
+  .wall .sys { --glass-fill: rgba(255,255,255,.3); }
+  .wall-dark .sys { --glass-fill: rgba(16,16,22,.35); }
+  .quote { display: block; padding: 3px 9px; margin: 1px 0 5px; border-radius: 8px; border-left: 3px solid currentColor; font-size: 13px; line-height: 1.3; background: rgba(255,255,255,.18); }
+  .quote b { display: block; font-size: 12.5px; }
+  .msg.them .quote { color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); }
+  .msg.them .quote span { color: var(--glass-ink, var(--ink)); opacity: .8; }
+  .photo { display: block; width: 220px; height: 150px; object-fit: cover; border-radius: 14px; margin: -4px -8px 6px; }
+  .reacts { display: flex; gap: 4px; margin-top: 5px; clear: both; }
+  .reacts span { font-size: 12.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.08); display: inline-flex; gap: 4px; align-items: center; }
+  .msg.me .reacts span { background: rgba(255,255,255,.22); }
+  .who { cursor: pointer; }
+
+  /* ---- profile / group info ---- */
+  .info { position: absolute; inset: 0; z-index: 12; overflow: hidden; background: var(--page); }
+  .info-bg { position: absolute; inset: -40px; background: var(--page); }
+  .info-top { position: absolute; inset: 0 0 auto; z-index: 3; }
+  .info-top .cbar { grid-template-columns: auto 1fr auto; }
+  .info-top { background: color-mix(in srgb, var(--page) 88%, transparent); }
+  .info .back { width: 40px; height: 40px; border-radius: 50%; justify-content: center; background: var(--surface); color: var(--ink); }
+  .info-scroll { position: absolute; inset: 0; overflow-y: auto; scrollbar-width: none; padding: 100px 8px 40px; display: flex; flex-direction: column; gap: 8px; }
+  .info-scroll::-webkit-scrollbar { display: none; }
+  /* a scrolling column: nothing in it may be squeezed to fit */
+  .info-scroll > * { flex: none; }
+  .icard { border-radius: 28px; padding: 16px; background: var(--surface); }
+  .ihero { padding: 0; overflow: hidden; }
+  .ihero .cover { height: 120px; background-size: cover; background-position: center; position: relative; }
+  /* the cover fades out rather than into a colour, so it melts into glass or card alike */
+  .ihero .cover { -webkit-mask: linear-gradient(#000 40%, transparent); mask: linear-gradient(#000 40%, transparent); }
+  .ihero .inner { padding: 0 18px 18px; margin-top: -44px; position: relative; }
+  .ihero .big { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 3px solid var(--surface); display: block; }
+  .ihero h2 { margin-top: 10px; font-size: 23px; font-weight: 700; letter-spacing: -0.03em; display: flex; align-items: center; gap: 6px; }
+  .ihero h2 img { width: 20px; height: 20px; object-fit: contain; }
+  .ihero .st2 { font-size: 13.5px; color: var(--brand); font-weight: 600; margin-top: 1px; display: flex; gap: 6px; align-items: center; }
+  .ihero .st2.off { color: var(--text2); }
+  .ihero p.bio { margin-top: 8px; font-size: 14.5px; color: var(--text2); line-height: 1.4; }
+  .facts { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px 14px; font-size: 12.5px; color: var(--text2); }
+  .facts span { display: inline-flex; gap: 5px; align-items: center; }
+  .iacts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .iact { height: 66px; border-radius: 20px; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+          font-size: 12px; font-weight: 600; color: var(--brand); }
+  .iact svg.lucide { font-size: 21px; }
+  .ihead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .ihead h3 { font-size: 15px; font-weight: 700; }
+  .ihead span { font-size: 12.5px; color: var(--text2); font-weight: 600; }
+  .tabs3 { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(128,128,128,.12); margin-bottom: 10px; }
+  .tabs3 button { flex: 1; height: 32px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text2); }
+  .tabs3 button.on { background: var(--brand); color: var(--on-brand); }
+  .mgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; border-radius: 16px; overflow: hidden; }
+  .mgrid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .mem { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+  .mem + .mem { border-top: 1px solid rgba(128,128,128,.14); }
+  .mem img, .mem .addc { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex: none; }
+  .mem .addc { display: grid; place-items: center; background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); font-size: 20px; }
+  .mem .t { flex: 1; min-width: 0; }
+  .mem b { display: block; font-size: 15px; font-weight: 600; }
+  .mem small { font-size: 12.5px; color: var(--text2); }
+  .mem small.on { color: var(--brand); }
+  .role { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
+  .irow { display: flex; align-items: center; gap: 12px; padding: 12px 2px; font-size: 15px; font-weight: 500; }
+  .irow + .irow { border-top: 1px solid rgba(128,128,128,.14); }
+  .irow svg.lucide { font-size: 19px; color: var(--text2); }
+  .irow .v { margin-left: auto; font-size: 13.5px; color: var(--text2); }
+  .irow.danger, .irow.danger svg.lucide { color: #ef4444; }
+
+  /* ---- hold menu: iOS, in glass ---- */
+  .hold { position: absolute; inset: 0; z-index: 30; }
+  .hold .dim { position: absolute; inset: 0; background: rgba(0,0,0,.18); -webkit-backdrop-filter: blur(14px) saturate(150%); backdrop-filter: blur(14px) saturate(150%); animation: fadein .22s ease-out; }
+  .dark .hold .dim, .wall-dark .hold .dim { background: rgba(0,0,0,.38); }
+  .hold .lift { position: absolute; margin: 0; max-width: none; z-index: 1; animation: lift .42s cubic-bezier(.34,1.56,.64,1) forwards;
+                box-shadow: 0 24px 50px -18px rgba(0,0,0,.55) !important; }
+  .hold .rbar { position: absolute; z-index: 2; display: flex; gap: 2px; padding: 5px 6px; border-radius: 999px; transform-origin: 20% 100%;
+                animation: pop .45s cubic-bezier(.34,1.56,.64,1) backwards; }
+  .hold .rbar.mine { transform-origin: 80% 100%; }
+  .rbar button { width: 42px; height: 42px; border-radius: 50%; font-size: 26px; display: grid; place-items: center;
+                 transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+  .rbar button:hover, .rbar button:active { transform: scale(1.3) translateY(-5px); }
+  .rbar button.chosen { background: rgba(128,128,128,.22); }
+  .rbar .more { font-size: 20px; color: var(--glass-ink2); }
+  .hold .menu { position: absolute; z-index: 2; width: 236px; border-radius: 22px; padding: 4px 0; overflow: hidden; transform-origin: 20% 0%;
+                animation: pop .4s cubic-bezier(.34,1.56,.64,1) .03s backwards; }
+  .hold .menu.mine { transform-origin: 80% 0%; }
+  .phone .hold .glass { --glass-fill: rgba(255,255,255,.62); }
+  .dark .hold .glass, .wall-dark .hold .glass { --glass-fill: rgba(28,28,34,.62); }
+  .menu button { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; font-size: 15.5px; font-weight: 500; }
+  .menu button svg.lucide { font-size: 19px; }
+  .menu button + button { border-top: 1px solid rgba(128,128,128,.18); }
+  .menu .gap { height: 7px; background: rgba(128,128,128,.14); }
+  .menu .gap + button { border-top: 0; }
+  .menu .danger { color: #ff453a; }
+  .menu button:active { background: rgba(128,128,128,.14); }
+  @keyframes fadein { from { opacity: 0; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.55); } }
+  @keyframes lift { to { transform: scale(1.035); } }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <div class="seg" role="group" aria-label="Stories">
+    <button data-stories="yes" aria-pressed="true">Friends posted stories</button>
+    <button data-stories="no" aria-pressed="false">No stories</button>
+  </div>
+  <div class="seg" role="group" aria-label="Network">
+    <button data-net="online" aria-pressed="true">Online</button>
+    <button data-net="connecting" aria-pressed="false">Connecting</button>
+    <button data-net="waiting" aria-pressed="false">No internet</button>
+    <button data-net="updating" aria-pressed="false">Updating</button>
+  </div>
+  <div class="seg" role="group" aria-label="Screen">
+    <button data-view="list" aria-pressed="true">Chat list</button>
+    <button data-view="chat" aria-pressed="false">Inside a chat</button>
+    <button data-view="info" aria-pressed="false">Profile / info</button>
+  </div>
+  <div class="seg" role="group" aria-label="Which chat">
+    <button data-kind="dm" aria-pressed="true">1:1 chat</button>
+    <button data-kind="group" aria-pressed="false">Group</button>
+  </div>
+  <div class="seg" role="group" aria-label="Hold menu">
+    <button data-hold="1" aria-pressed="false">Show hold menu</button>
+  </div>
+  <div class="seg" role="group" aria-label="Wallpaper">
+    <button data-wall="none" aria-pressed="true">No wallpaper</button>
+    <button data-wall="light" aria-pressed="false">Light photo</button>
+    <button data-wall="dark" aria-pressed="false">Dark photo</button>
+  </div>
+  <div class="seg" role="group" aria-label="Who">
+    <button data-role="user" aria-pressed="true">Everyone</button>
+    <button data-role="operator" aria-pressed="false">You (operator)</button>
+  </div>
+</div>
+
+<div class="phones">
+  <div><p class="label">Light</p><div class="phone theme"></div></div>
+  <div><p class="label">Dark</p><div class="phone theme dark"></div></div>
+</div>
+
+<template id="t">
+  <div class="screen">
+    <div class="top">
+      <div class="status">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="bar">
+        <button class="edit">Edit</button>
+        <div class="title"><span class="faces"></span><span class="t-text">Chats</span></div>
+        <div class="acts">
+          <button class="ib only-operator" aria-label="Notifications"><i data-lucide="bell"></i><span class="dot"></span></button>
+          <button class="ib" aria-label="New chat"><i data-lucide="square-pen"></i></button>
+        </div>
+      </div>
+      <div class="search"><i data-lucide="search"></i>Search</div>
+      <div class="stories"></div>
+      <nav class="folders" role="tablist">
+        <button role="tab" aria-selected="true">All</button>
+        <button role="tab" aria-selected="false">Unread <small>1</small></button>
+        <button role="tab" aria-selected="false">Groups <small>2</small></button>
+        <button role="tab" aria-selected="false">Favourites</button>
+      </nav>
+    </div>
+
+    <div class="nudge">
+      <span class="ic"><i data-lucide="moon-star"></i></span>
+      <div style="flex:1;min-width:0"><b>35 more messages after midnight</b><small>until Night Owl</small><div class="bar2"><i></i></div></div>
+    </div>
+
+    <div class="list"></div>
+  </div>
+
+  <section class="chat" hidden>
+    <div class="top">
+      <div class="status">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="cbar">
+        <button class="back" data-back data-glass><i data-lucide="chevron-left"></i><small>12</small></button>
+        <div class="who" data-glass><b class="c-name"></b><div class="sub"></div></div>
+        <span class="cav" data-glass><img class="c-av" alt=""></span>
+      </div>
+    </div>
+    <div class="thread"></div>
+    <div class="composer">
+      <button class="ib" data-glass aria-label="Attach"><i data-lucide="paperclip"></i></button>
+      <div class="field" data-glass>Message</div>
+      <button class="ib" data-glass aria-label="Voice"><i data-lucide="mic"></i></button>
+    </div>
+  </section>
+
+  <section class="info" hidden>
+    <div class="info-bg"></div>
+    <div class="info-top">
+      <div class="status">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="cbar">
+        <button class="back" data-info-back data-glass><i data-lucide="chevron-left"></i></button>
+        <span></span>
+        <button class="back" data-glass aria-label="More"><i data-lucide="ellipsis"></i></button>
+      </div>
+    </div>
+    <div class="info-scroll"></div>
+  </section>
+
+  <nav class="dock">
+    <button class="on" aria-label="Chats"><i data-lucide="message-circle"></i><span class="dot"></span></button>
+    <button aria-label="Calls"><i data-lucide="phone"></i></button>
+    <button class="cam" aria-label="Camera"><i data-lucide="camera"></i></button>
+    <button class="not-operator" aria-label="Notifications"><i data-lucide="bell"></i><span class="dot"></span></button>
+    <button class="only-operator" aria-label="Community"><i data-lucide="users"></i></button>
+    <button aria-label="Profile"><i data-lucide="user"></i></button>
+  </nav>
+</template>
+
+<script>
+  const face = (n) => `https://i.pravatar.cc/120?img=${n}`;
+  const STORIES = [
+    { name: 'Sneha', img: face(47), fresh: true },
+    { name: 'Kashish', img: face(32), fresh: true },
+    { name: 'Aryan', img: face(12), fresh: true },
+    { name: 'Baani', img: face(45), fresh: false },
+    { name: 'Hadiya', img: face(20), fresh: false },
+  ];
+  const CHATS = [
+    { arch: true, name: 'Archived', prev: '<b>Harsh | Unpaid Intern</b>, Riya, Design Crew', time: 'Aug 3' },
+    { name: 'Eddy', img: face(8), prev: 'Ki haal chaal', time: '10:51', unread: 2, muted: true, online: true, story: true },
+    { name: 'PINGO AI', img: 'mythic-crest-96.png', prev: '<b>PINGO:</b> arre baat to chalti rahi bas farak padta hai kaun sun raha hai', time: 'Yesterday', pinned: true, muted: true },
+    { name: 'Baani', img: face(45), crest: true, prev: '😂', time: '10:27', fire: 17, ticks: true, muted: true, story: true },
+    { name: 'Chichora gang', img: face(60), prev: '<b>Eddy:</b> Bella Chao', time: '10:21', muted: true, unread: 5, mutedBadge: true },
+    { name: 'Axhxxh', mono: 'A', color: '#e0559b', prev: 'Hmm', time: 'Yesterday', fire: 9, ticks: true },
+    { name: 'Kashish Sharma', img: face(32), crest: true, prev: '<span class="typing">typing…</span>', time: '09:14', online: true, story: true },
+    { name: 'Design Crew', img: face(66), prev: '<b>Riya:</b> sent a photo', time: 'Mon', unread: 12 },
+    { name: 'Sneha Mishra', img: face(47), prev: 'see you tomorrow then!', time: 'Sun', ticks: true, story: true },
+  ];
+
+  const storyHTML = (withOthers) => `
+    <div class="st"><div class="ring"><img src="avatar.jpg" alt=""><span class="plus"><i data-lucide="plus"></i></span></div><b>Your story</b></div>
+    <div class="st game"><div class="ring"><span class="note"><i></i>2 playing</span><span class="in"><i data-lucide="gamepad-2"></i></span></div><b>Arcade</b></div>
+    ${withOthers ? STORIES.map((s) => `<div class="st ${s.fresh ? 'new' : ''}"><div class="ring"><img src="${s.img}" alt=""></div><b>${s.name}</b></div>`).join('') : ''}`;
+
+  const rowHTML = (c) => `
+    <div class="row ${c.arch ? 'arch' : ''}">
+      <div class="av ${c.story ? 'story' : ''}">
+        ${c.arch ? '<span class="mono"><i data-lucide="archive"></i></span>' : c.img ? `<img src="${c.img}" alt="">` : `<span class="mono" style="background:${c.color}">${c.mono}</span>`}
+        ${c.online ? '<span class="on"></span>' : ''}
+      </div>
+      <div class="body">
+        <div class="l1">
+          <span class="name">${c.name}${c.crest ? '<img class="crest" src="mythic-crest-96.png" alt="">' : ''}${c.muted ? '<i data-lucide="volume-x"></i>' : ''}</span>
+          <span class="meta">${c.fire ? `<span class="fire"><i data-lucide="flame"></i>${c.fire}</span>` : ''}${c.ticks ? '<i class="ticks" data-lucide="check-check"></i>' : ''}${c.time}</span>
+        </div>
+        <div class="l2">
+          <span class="prev">${c.prev}</span>
+          ${c.unread ? `<span class="badge ${c.muted ? 'muted' : ''}">${c.unread}</span>` : c.pinned ? '<i class="pin" data-lucide="pin"></i>' : ''}
+        </div>
+      </div>
+    </div>`;
+
+  // ---- lens: a straight port of PINGO's features/glass/lens.ts (water sizes) ----
+  const WATER_MIN_AREA = 2000, WATER_MIN_HEIGHT = 32, STEP_W = 32, STEP_H = 8;
+  const MAGNIFY_PX = 6, BEVEL = 0.45, BEVEL_FALLOFF = 2;
+  const bucket = (v, step) => Math.max(step, Math.round(v / step) * step);
+  const lensMaps = new Map(), lensFilters = new Map();
+  let lensDefs, lensId = 0;
+  function ensureDefs() {
+    if (lensDefs?.isConnected) return lensDefs;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '0'); svg.setAttribute('height', '0'); svg.setAttribute('aria-hidden', 'true');
+    svg.style.cssText = 'position:absolute;pointer-events:none';
+    lensDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    svg.append(lensDefs); document.body.append(svg);
+    return lensDefs;
+  }
+  function lensMap(w, h, edge) {
+    const key = `${w}x${h}x${edge}`;
+    if (lensMaps.has(key)) return lensMaps.get(key);
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const halfW = Math.max(1, w / 2), halfH = Math.max(1, h / 2);
+    const span = MAGNIFY_PX + edge * BEVEL;
+    const image = ctx.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const nx = (x - halfW) / halfW, ny = (y - halfH) / halfH;
+      let vx = -nx * MAGNIFY_PX, vy = -ny * MAGNIFY_PX;          // zoom: pull toward the middle
+      const dx = Math.min(x, w - 1 - x), dy = Math.min(y, h - 1 - y);
+      if (dx < edge) vx += (x < halfW ? -1 : 1) * (1 - dx / edge) ** BEVEL_FALLOFF * edge * BEVEL;  // bent rim
+      if (dy < edge) vy += (y < halfH ? -1 : 1) * (1 - dy / edge) ** BEVEL_FALLOFF * edge * BEVEL;
+      const i = (y * w + x) * 4;
+      image.data[i] = Math.max(0, Math.min(255, 128 + (vx / span) * 127));
+      image.data[i + 1] = Math.max(0, Math.min(255, 128 + (vy / span) * 127));
+      image.data[i + 2] = 128; image.data[i + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+    const url = canvas.toDataURL(); lensMaps.set(key, url); return url;
+  }
+  function filterFor(width, height) {
+    const w = bucket(width, STEP_W), h = bucket(height, STEP_H);
+    const edge = Math.max(6, Math.min(20, Math.min(w, h) * 0.32));
+    const scale = (MAGNIFY_PX + edge * BEVEL) * 2;
+    const key = `${w}x${h}`;
+    if (lensFilters.has(key)) return lensFilters.get(key);
+    const id = `pingo-lens-${lensId++}`;
+    const f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+    f.setAttribute('id', id); f.setAttribute('x', '0%'); f.setAttribute('y', '0%'); f.setAttribute('width', '100%'); f.setAttribute('height', '100%');
+    f.setAttribute('color-interpolation-filters', 'sRGB');
+    f.innerHTML = `<feImage href="${lensMap(w, h, edge)}" x="0%" y="0%" width="100%" height="100%" preserveAspectRatio="none" result="m"/>` +
+      `<feDisplacementMap in="SourceGraphic" in2="m" scale="${scale}" xChannelSelector="R" yChannelSelector="G"/>`;
+    ensureDefs().append(f); lensFilters.set(key, id); return id;
+  }
+  const lensSupported = CSS.supports('backdrop-filter', 'url(#x)');
+  function lens(el) {
+    if (!lensSupported) return;
+    const surface = el.dataset.glass === 'surface';
+    const r = el.getBoundingClientRect(), w = Math.round(r.width), h = Math.round(r.height);
+    // PINGO: glass-surface needs 14000px² and 40px; glass-water 2000px² and 32px
+    if (w * h < (surface ? 14000 : WATER_MIN_AREA) || h < (surface ? 40 : WATER_MIN_HEIGHT)) { el.style.removeProperty('backdrop-filter'); return; }
+    const v = `url(#${filterFor(w, h)}) ${surface ? 'blur(16px) saturate(175%)' : 'blur(5px) saturate(160%)'}`;
+    el.style.setProperty('backdrop-filter', v); el.style.setProperty('-webkit-backdrop-filter', v);
+  }
+
+  const phones = [...document.querySelectorAll('.phone')];
+  const tpl = document.getElementById('t');
+  let withStories = true;
+  let net = 'online';
+  let view = 'list';
+  let role = 'user';
+  let wall = 'none';
+  let kind = 'dm';
+
+  // ---- the two chats ----
+  const PEOPLE = {
+    riya: { name: 'Riya', img: face(44), color: '#e0559b' },
+    aarav: { name: 'Aarav', img: face(15), color: '#0ea5e9' },
+    eddy: { name: 'Eddy', img: face(8), color: '#16a34a' },
+  };
+  const CHAT = {
+    dm: {
+      name: 'Kashish Sharma', crest: true, img: face(32), online: 'online',
+      thread: [
+        { day: 'Today' },
+        { text: 'bro profile dekha naya? 👀', time: '09:10' },
+        { me: true, text: 'haan ekdum clean lag raha 🔥', time: '09:11' },
+        { text: 'arcade me aaja fir, 2 log already hai', time: '09:13', reacts: [['🔥', 1]] },
+        { me: true, pending: true, text: 'aa raha 5 min', time: '09:14' },
+      ],
+    },
+    group: {
+      name: 'Design Crew', img: face(66), online: '8 members, 3 online',
+      thread: [
+        { day: 'Today' },
+        { sys: 'Riya added Aarav' },
+        { by: 'riya', text: 'guys friday plan?', time: '10:02' },
+        { by: 'riya', text: 'goa ya manali 😄', time: '10:02' },
+        { by: 'aarav', text: 'manali pakka', time: '10:04', reacts: [['❤️', 3], ['👍', 2]] },
+        { me: true, reply: { name: 'Aarav', text: 'manali pakka' }, text: 'main bhi in 🙌', time: '10:05' },
+        { by: 'eddy', photo: 'https://picsum.photos/id/1036/500/340', text: 'last time wala 😂', time: '10:07' },
+        { me: true, pending: true, text: 'haha yaad hai', time: '10:08' },
+      ],
+    },
+  };
+
+  function threadHTML(c) {
+    const out = [];
+    c.thread.forEach((m, i) => {
+      if (m.day) return out.push(`<span class="day" data-glass>${m.day}</span>`);
+      if (m.sys) return out.push(`<span class="sys" data-glass>${m.sys}</span>`);
+      const tick = m.me ? (m.pending ? ' <i data-lucide="clock-3"></i>' : ' <i data-lucide="check-check"></i>') : '';
+      const reacts = m.reacts ? `<span class="reacts">${m.reacts.map(([e, n]) => `<span>${e} ${n}</span>`).join('')}</span>` : '';
+      const quote = m.reply ? `<span class="quote"><b>${m.reply.name}</b><span>${m.reply.text}</span></span>` : '';
+      const photo = m.photo ? `<img class="photo" src="${m.photo}" alt="">` : '';
+      const who = m.by ? PEOPLE[m.by] : null;
+      const first = who && c.thread[i - 1]?.by !== m.by;
+      const last = who && c.thread[i + 1]?.by !== m.by;
+      const bubble = `<div class="msg ${m.me ? 'me' : 'them'} ${m.pending ? 'pending' : ''}" ${m.me ? '' : 'data-glass'}>` +
+        `${first ? `<span class="from" style="color:${who.color}">${who.name}</span>` : ''}${quote}${photo}${m.text}<small>${m.time}${tick}</small>${reacts}</div>`;
+      out.push(who ? `<div class="gline">${last ? `<img class="gav" src="${who.img}" alt="">` : '<span class="gav blank"></span>'}${bubble}</div>` : bubble);
+    });
+    return out.join('');
+  }
+
+  const GRID = [1015, 1018, 1036, 1039, 1043, 1050].map((id) => `<img src="https://picsum.photos/id/${id}/200" alt="">`).join('');
+  function infoHTML(c) {
+    const status = net === 'online' ? `<div class="st2">${c.online}</div>` : `<div class="st2 off"><span class="spin"></span>${NET_TEXT[net]}</div>`;
+    if (kind === 'dm') return `
+      <article class="icard ihero" data-glass="surface">
+        <div class="cover" style="background-image:url(cover-light.jpg)"></div>
+        <div class="inner">
+          <img class="big" src="${c.img}" alt="">
+          <h2>${c.name} <img src="mythic-crest-96.png" alt=""></h2>${status}
+          <p class="bio">design + code. mostly pixels, sometimes people.</p>
+          <div class="facts"><span><i data-lucide="at-sign"></i>kashish_</span><span><i data-lucide="briefcase"></i>Designer</span><span><i data-lucide="map-pin"></i>Pune</span></div>
+        </div>
+      </article>
+      <div class="iacts">
+        <button class="iact" data-glass><i data-lucide="bell-off"></i>Mute</button>
+        <button class="iact" data-glass><i data-lucide="search"></i>Search</button>
+        <button class="iact" data-glass><i data-lucide="phone"></i>Call</button>
+        <button class="iact" data-glass><i data-lucide="video"></i>Video</button>
+      </div>
+      <section class="icard" data-glass="surface">
+        <div class="tabs3"><button class="on">Media</button><button>Links</button><button>Files</button></div>
+        <div class="mgrid">${GRID}</div>
+      </section>
+      <section class="icard" data-glass="surface">
+        <div class="irow"><i data-lucide="users"></i>Friends in common<span class="v">18</span></div>
+        <div class="irow"><i data-lucide="image"></i>Wallpaper<span class="v">Custom</span></div>
+        <div class="irow"><i data-lucide="timer"></i>Disappearing messages<span class="v">Off</span></div>
+        <div class="irow danger"><i data-lucide="ban"></i>Block Kashish</div>
+      </section>`;
+    const members = [
+      ['You', 'avatar.jpg', 'online', 'owner'], ['Riya', face(44), 'online', 'admin'], ['Aarav', face(15), 'online', ''],
+      ['Eddy', face(8), 'last seen 10 min ago', ''], ['Sneha Mishra', face(47), 'last seen yesterday', ''],
+    ];
+    return `
+      <article class="icard ihero" data-glass="surface">
+        <div class="cover" style="background-image:url(https://picsum.photos/id/1036/800/300)"></div>
+        <div class="inner">
+          <img class="big" src="${c.img}" alt="">
+          <h2>${c.name}</h2>${status}
+          <p class="bio">friday plans, memes, and the occasional design review.</p>
+        </div>
+      </article>
+      <div class="iacts">
+        <button class="iact" data-glass><i data-lucide="bell-off"></i>Mute</button>
+        <button class="iact" data-glass><i data-lucide="search"></i>Search</button>
+        <button class="iact" data-glass><i data-lucide="audio-lines"></i>Voice chat</button>
+        <button class="iact" data-glass><i data-lucide="user-plus"></i>Add</button>
+      </div>
+      <section class="icard" data-glass="surface">
+        <div class="ihead"><h3>8 members</h3><span>3 online</span></div>
+        <div class="mem"><span class="addc"><i data-lucide="user-plus"></i></span><div class="t"><b style="color:var(--brand)">Add members</b></div></div>
+        ${members.map(([n, img, st, role]) => `<div class="mem"><img src="${img}" alt=""><div class="t"><b>${n}</b><small class="${st === 'online' ? 'on' : ''}">${st}</small></div>${role ? `<span class="role">${role}</span>` : ''}</div>`).join('')}
+      </section>
+      <section class="icard" data-glass="surface">
+        <div class="tabs3"><button class="on">Media</button><button>Links</button><button>Files</button></div>
+        <div class="mgrid">${GRID}</div>
+      </section>
+      <section class="icard" data-glass="surface">
+        <div class="irow"><i data-lucide="image"></i>Wallpaper<span class="v">Custom</span></div>
+        <div class="irow danger"><i data-lucide="log-out"></i>Leave group</div>
+      </section>`;
+  }
+
+  // ---- hold menu ----
+  const QUICK = ['❤️', '👍', '😂', '😮', '😢'];
+  function openHold(phone, msg) {
+    phone.querySelector('.hold')?.remove();
+    const mine = msg.classList.contains('me');
+    const pr = phone.getBoundingClientRect(), r = msg.getBoundingClientRect();
+    const W = phone.clientWidth, H = phone.clientHeight;
+    const x = r.left - pr.left - phone.clientLeft, y = r.top - pr.top - phone.clientTop;
+    const hold = document.createElement('div');
+    hold.className = 'hold';
+    const items = [['Reply', 'reply'], ['Copy', 'copy'], ['Forward', 'forward'], ['Pin', 'pin'], ['Star', 'star'],
+      ...(mine ? [['Edit', 'pencil']] : []), ['Info', 'info'], ['Translate', 'languages']];
+    hold.innerHTML = `<div class="dim"></div>
+      <div class="rbar ${mine ? 'mine' : ''}" data-glass>${QUICK.map((e) => `<button>${e}</button>`).join('')}<button class="more" aria-label="More reactions"><i data-lucide="plus"></i></button></div>
+      <div class="menu ${mine ? 'mine' : ''}" data-glass="surface">
+        ${items.map(([t, ic]) => `<button>${t}<i data-lucide="${ic}"></i></button>`).join('')}
+        <div class="gap"></div>
+        ${mine ? '<button class="danger">Delete for everyone<i data-lucide="trash-2"></i></button>' : ''}
+        <button class="danger">${mine ? 'Delete for me' : 'Report'}<i data-lucide="${mine ? 'trash' : 'flag'}"></i></button>
+      </div>`;
+    const lift = msg.cloneNode(true);
+    lift.classList.add('lift');
+    lift.style.width = `${r.width}px`;
+    hold.appendChild(lift);
+    phone.appendChild(hold);
+    lucide.createIcons();
+
+    const bar = hold.querySelector('.rbar'), menu = hold.querySelector('.menu');
+    hold.querySelectorAll('[data-glass]').forEach((el) => el.classList.add('glass'));
+    const bw = bar.offsetWidth, mh = menu.offsetHeight, mw = menu.offsetWidth;
+    // iOS moves the message up when the menu would not fit under it
+    let top = y;
+    const overflow = y + r.height + 10 + mh - (H - 24);
+    if (overflow > 0) top -= overflow;
+    top = Math.max(118, top);
+    const clampX = (v, w) => Math.min(Math.max(10, v), W - w - 10);
+    lift.style.left = `${x}px`; lift.style.top = `${top}px`;
+    bar.style.top = `${top - bar.offsetHeight - 8}px`;
+    bar.style.left = `${clampX(mine ? x + r.width - bw : x, bw)}px`;
+    menu.style.top = `${top + r.height + 10}px`;
+    menu.style.left = `${clampX(mine ? x + r.width - mw : x, mw)}px`;
+    requestAnimationFrame(() => [bar, menu].forEach(lens));
+
+    const close = () => hold.remove();
+    hold.querySelector('.dim').onclick = close;
+    menu.querySelectorAll('button').forEach((b) => b.onclick = close);
+    bar.querySelectorAll('button:not(.more)').forEach((b) => b.onclick = () => {
+      let reacts = msg.querySelector('.reacts');
+      if (!reacts) { reacts = document.createElement('span'); reacts.className = 'reacts'; msg.appendChild(reacts); }
+      reacts.innerHTML = `<span>${b.textContent} 1</span>` + reacts.innerHTML;
+      close();
+    });
+  }
+
+  const WALLS = { light: 'https://picsum.photos/id/1016/900/1600', dark: 'https://picsum.photos/id/1022/900/1600' };
+  // Telegram's own words, in the place the title or the "online" line sits
+  const NET_TEXT = { connecting: 'Connecting…', waiting: 'Waiting for network…', updating: 'Updating…' };
+
+  function render() {
+    for (const phone of phones) {
+      phone.innerHTML = '';
+      phone.appendChild(tpl.content.cloneNode(true));
+      phone.querySelector('.stories').innerHTML = storyHTML(withStories);
+      phone.querySelector('.list').innerHTML = CHATS.map(rowHTML).join('');
+      const faces = phone.querySelector('.title .faces');
+      const fresh = STORIES.filter((s) => s.fresh).slice(0, 3);
+      if (withStories && fresh.length) {
+        faces.classList.add('has');
+        faces.innerHTML = fresh.map((s) => `<img src="${s.img}" alt="">`).join('');
+      }
+      // Telegram: scroll down and the story row folds into the faces beside the title
+      const screen = phone.querySelector('.screen');
+      // hysteresis, so the header changing height cannot flip it back
+      screen.addEventListener('scroll', () => {
+        if (screen.scrollTop > 60) phone.classList.add('collapsed');
+        else if (screen.scrollTop < 4) phone.classList.remove('collapsed');
+      });
+      phone.querySelectorAll('.folders button').forEach((b, _, all) => b.onclick = () => all.forEach((x) => x.setAttribute('aria-selected', x === b)));
+
+      // network: the title becomes the status
+      const offline = net !== 'online';
+      phone.classList.toggle('offline', offline);
+      phone.querySelector('.t-text').innerHTML = offline ? `<span class="net"><span class="spin"></span>${NET_TEXT[net]}</span>` : 'Chats';
+      const sub = phone.querySelector('.who .sub');
+      sub.className = 'sub' + (offline ? '' : ' online');
+      sub.innerHTML = offline ? `<span class="spin"></span>${NET_TEXT[net].replace('…', '').toLowerCase()}…` : CHAT[kind].online;
+
+      // the chat and its info page, for whichever chat is open
+      const c = CHAT[kind];
+      phone.querySelector('.c-name').innerHTML = c.name + (c.crest ? ' <img src="mythic-crest-96.png" alt="">' : '');
+      phone.querySelector('.c-av').src = c.img;
+      phone.querySelector('.thread').innerHTML = threadHTML(c);
+      phone.querySelector('.info-scroll').innerHTML = infoHTML(c);
+      phone.querySelector('.info').hidden = view !== 'info';
+      phone.querySelector('.who').onclick = () => setView('info');
+      phone.querySelector('[data-info-back]').onclick = () => setView('chat');
+
+      // which screen, and whose dock
+      phone.querySelector('.chat').hidden = view !== 'chat' && view !== 'info';
+      phone.querySelector('.dock').hidden = view !== 'list';
+      phone.querySelectorAll('.only-operator').forEach((el) => el.hidden = role !== 'operator');
+      phone.querySelectorAll('.not-operator').forEach((el) => el.hidden = role === 'operator');
+      phone.querySelectorAll('.row').forEach((r) => r.onclick = () => setView('chat'));
+      phone.querySelector('[data-back]').onclick = () => setView('list');
+
+      // wallpaper: every chat surface turns to glass over it
+      phone.classList.toggle('wall', wall !== 'none');
+      phone.classList.toggle('wall-dark', wall === 'dark');
+      if (wall !== 'none') phone.style.setProperty('--wall', `url(${WALLS[wall]})`);
+      phone.querySelectorAll('[data-glass]').forEach((el) => {
+        // liquid glass is for the chat itself; the info page stays the plain profile design
+        el.classList.toggle('glass', wall !== 'none' && !el.closest('.info'));
+        el.onpointermove = (e) => {
+          const r = el.getBoundingClientRect();
+          el.style.setProperty('--mx', `${((e.clientX - r.left) / r.width) * 100}%`);
+          el.style.setProperty('--my', `${((e.clientY - r.top) / r.height) * 100}%`);
+        };
+        el.onpointerleave = () => { el.style.removeProperty('--mx'); el.style.removeProperty('--my'); };
+      });
+      // after layout, so each piece gets a lens cut to its own size
+      if (wall !== 'none') requestAnimationFrame(() => phone.querySelectorAll('.glass, .msg.me').forEach(lens));
+
+      phone.querySelectorAll('.thread .msg').forEach((m) => {
+        let timer;
+        m.onpointerdown = () => { timer = setTimeout(() => openHold(phone, m), 420); };
+        m.onpointerup = m.onpointerleave = m.onpointercancel = () => clearTimeout(timer);
+        m.oncontextmenu = (e) => { e.preventDefault(); openHold(phone, m); };
+      });
+    }
+    lucide.createIcons();
+  }
+  const press = (attr, value) => document.querySelectorAll(`[data-${attr}]`).forEach((x) => x.setAttribute('aria-pressed', x.dataset[attr] === value));
+  const setView = (v) => { view = v; press('view', v); render(); };
+  document.querySelectorAll('[data-stories]').forEach((b) => b.onclick = () => { withStories = b.dataset.stories === 'yes'; press('stories', b.dataset.stories); render(); });
+  document.querySelectorAll('[data-net]').forEach((b) => b.onclick = () => { net = b.dataset.net; press('net', net); render(); });
+  document.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => setView(b.dataset.view));
+  document.querySelectorAll('[data-role]').forEach((b) => b.onclick = () => { role = b.dataset.role; press('role', role); render(); });
+  document.querySelectorAll('[data-kind]').forEach((b) => b.onclick = () => {
+    kind = b.dataset.kind; press('kind', kind);
+    if (view === 'list') { view = 'chat'; press('view', 'chat'); }
+    render();
+  });
+  document.querySelector('[data-hold]').onclick = () => {
+    if (view !== 'chat') setView('chat');
+    requestAnimationFrame(() => phones.forEach((ph) => {
+      const all = [...ph.querySelectorAll('.thread .msg')];
+      openHold(ph, all[all.length - 3]);
+    }));
+  };
+  document.querySelectorAll('[data-wall]').forEach((b) => b.onclick = () => {
+    wall = b.dataset.wall; press('wall', wall);
+    if (wall !== 'none') { view = 'chat'; press('view', 'chat'); }
+    render();
+  });
+  render();
+</script>
+</body>
+</html>

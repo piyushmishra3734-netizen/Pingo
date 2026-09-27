@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* every size is measured off the reference (1266px-wide card) and expressed in cqw of the card */
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    min-height: 100vh; background: #e6e5ea;
+    font-family: Manrope, system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 77px;
+    padding: 81px 16px;
+  }
+  .wrap { container-type: inline-size; width: min(620px, 100%); }
+
+  .card {
+    --bg: #fff; --rim: #fafafa; --ink: #1a1a1a; --bio: #474747; --muted: #7f7f7f;
+    --btn-bg: #2e2e2e; --btn-ink: #fff;
+    background: var(--rim); padding: 0.95cqw; border-radius: 5.7cqw;
+  }
+  .card.dark {
+    --bg: #1a1a1a; --rim: #1a1a1a; --ink: #fff; --bio: #ececec; --muted: #a3a3a3;
+    --btn-bg: #fff; --btn-ink: #1a1a1a;
+  }
+  .inner {
+    position: relative; height: 59.7cqw; overflow: hidden;
+    background: var(--bg); border-radius: 4.75cqw; color: var(--ink);
+  }
+  .cover { display: block; width: 100%; }
+  .inner::before { /* seal the cover's bottom edge into the card colour */
+    content: ""; position: absolute; left: 0; right: 0; top: 30cqw; height: 9.6cqw;
+    background: linear-gradient(transparent, var(--bg));
+  }
+
+  .avatar {
+    position: absolute; left: 4.34cqw; top: 23.5cqw; width: 12.95cqw; aspect-ratio: 1;
+    border-radius: 50%; object-fit: cover; background: #efefef;
+  }
+  .btn {
+    position: absolute; right: 4.34cqw; top: 30cqw; width: 20.7cqw; height: 6.56cqw;
+    border: 0; border-radius: 999px; background: var(--btn-bg); color: var(--btn-ink);
+    font: 600 2.5cqw/1 Manrope, sans-serif; letter-spacing: -0.01em; cursor: pointer;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn.off { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+  /* text lines sit on the reference baselines: top = baseline - 0.883em (Manrope, line-height 1) */
+  .line { position: absolute; left: 4.3cqw; line-height: 1; white-space: nowrap; }
+  .name  { top: 39.48cqw; font-size: 3.95cqw; font-weight: 700; letter-spacing: -0.045em; }
+  .bio   { top: 44.57cqw; font-size: 2.3cqw; font-weight: 500; letter-spacing: -0.03em; color: var(--bio); }
+  .meta  { top: 48.55cqw; font-size: 1.73cqw; font-weight: 500; letter-spacing: -0.03em; color: var(--muted);
+           display: flex; gap: 2.6cqw; }
+  .meta span { display: inline-flex; align-items: center; gap: 0.87cqw; }
+  .meta svg { width: 2.1cqw; height: 2.1cqw; margin-top: -0.3cqw; }
+  .stats { top: 53.52cqw; font-size: 2.0cqw; font-weight: 500; letter-spacing: -0.03em; color: var(--muted);
+           display: flex; gap: 2.5cqw; }
+  .stats b { color: var(--ink); font-weight: 700; margin-right: 0.15em; }
+</style>
+</head>
+<body>
+
+<template id="card">
+  <div class="wrap">
+    <article class="card">
+      <div class="inner">
+        <img class="cover" alt="">
+        <img class="avatar" src="avatar.jpg" alt="tayo">
+        <button class="btn">Friends</button>
+        <h1 class="line name">tayo.</h1>
+        <p class="line bio">i build stuff.</p>
+        <div class="line meta">
+          <span><!-- lucide: briefcase -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+            product engineer &amp; designer.</span>
+          <span><!-- lucide: map-pin -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+            NaN.</span>
+        </div>
+        <div class="line stats">
+          <span><b>128</b>Posts</span>
+          <span><b class="fc">994</b>Friends</span>
+          <span><b>12</b>Groups</span>
+        </div>
+      </div>
+    </article>
+  </div>
+</template>
+
+<script>
+  const tpl = document.getElementById('card');
+  for (const dark of [false, true]) {
+    const node = tpl.content.cloneNode(true);
+    if (dark) node.querySelector('.card').classList.add('dark');
+    node.querySelector('.cover').src = dark ? 'cover-dark.jpg' : 'cover-light.jpg';
+    document.body.appendChild(node);
+  }
+  document.querySelectorAll('.card').forEach(card => {
+    const btn = card.querySelector('.btn'), fc = card.querySelector('.fc');
+    btn.onclick = () => {
+      const off = btn.classList.toggle('off');
+      btn.textContent = off ? 'Add friend' : 'Friends';
+      fc.textContent = off ? 993 : 994;
+    };
+  });
+</script>
+</body>
+</html>

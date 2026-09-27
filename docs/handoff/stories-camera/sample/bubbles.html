@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble Colours</title>
+<style>
+  @font-face { font-family: 'Space Grotesk'; font-weight: 300 700; font-display: swap; src: url('space-grotesk-latin.woff2') format('woff2'); }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #e6e5ea; font-family: 'Space Grotesk', system-ui, sans-serif; padding: 24px 16px 60px; color: #111113; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .hint { color: #555; font-size: 14px; margin-bottom: 20px; }
+  .row { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 26px; }
+  .col { flex: none; width: 300px; }
+  .col h2 { font-size: 15px; margin-bottom: 2px; }
+  .col p { font-size: 12.5px; color: #666; margin-bottom: 8px; min-height: 32px; }
+  .phone { position: relative; height: 520px; border-radius: 34px; overflow: hidden; background: var(--wall) center / cover; box-shadow: 0 20px 40px -20px rgba(0,0,0,.5); }
+  .light { --wall: url(https://picsum.photos/id/1016/900/1600); --ink: #111113; --ink2: rgba(17,17,19,.55); }
+  .dark  { --wall: url(https://picsum.photos/id/1022/900/1600); --ink: #fff; --ink2: rgba(255,255,255,.65); }
+  .thread { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; padding: 16px 12px 22px; font-size: 15px; line-height: 1.35; }
+  .gap { height: 8px; }
+  .msg { max-width: 76%; padding: 7px 12px 5px; border-radius: 20px; position: relative; isolation: isolate; }
+  .msg small { float: right; margin: 6px 0 0 10px; font-size: 11px; opacity: .7; }
+  .me { align-self: flex-end; }
+  .them { align-self: flex-start; }
+  .me.f { border-bottom-right-radius: 6px; } .me.m { border-top-right-radius: 6px; border-bottom-right-radius: 6px; } .me.l { border-top-right-radius: 6px; }
+  .them.f { border-bottom-left-radius: 6px; } .them.l { border-top-left-radius: 6px; }
+  .from { display: block; font-size: 13px; font-weight: 700; color: #5B6FE8; }
+  .dark .from { color: #8fa0ff; }
+
+  /* ---- NOW: what is live ---- */
+  .now .them { color: var(--ink); background: rgba(255,255,255,.5); backdrop-filter: blur(5px) saturate(160%);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), inset 1.5px 1.5px .5px -1px rgba(255,255,255,.95), inset -1px -1px .5px -.5px rgba(255,255,255,.5), inset 0 -10px 18px -14px rgba(0,0,0,.28), 0 14px 30px -16px rgba(0,0,0,.5); }
+  .dark.now .them { background: rgba(16,16,22,.5); }
+  .now .me { color: #fff; background: linear-gradient(180deg, #e46aa8, #d3508f);
+    box-shadow: inset 1.5px 1.5px .5px -1px rgba(255,255,255,.75), inset -1px -1px .5px -.5px rgba(255,255,255,.3), inset 0 -8px 14px -10px rgba(0,0,0,.3), 0 8px 16px -10px rgba(224,85,155,.45); }
+  .now .me::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1; background: linear-gradient(180deg, rgba(255,255,255,.22), transparent 55%); }
+
+  /* ---- A: iMessage flat ---- */
+  .flat .me { color: #fff; background: #e0559b; }
+  .flat .them { color: #111113; background: #e9e9eb; }
+  .dark.flat .them { color: #fff; background: #26252a; }
+
+  /* ---- B: hold-menu frost ---- */
+  .frost .them, .mix .them { color: var(--ink); background: rgba(255,255,255,.72); backdrop-filter: blur(22px) saturate(180%); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.5); }
+  .dark.frost .them, .dark.mix .them { background: rgba(30,30,36,.72); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12); }
+  .frost .me { color: #fff; background: rgba(224,85,155,.8); backdrop-filter: blur(22px) saturate(180%); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.35); }
+
+  /* ---- C: mix ---- */
+  .mix .me { color: #fff; background: #e0559b; }
+</style>
+</head>
+<body>
+<h1>Bubble colours</h1>
+<p class="hint">Same shape as live. Only the colour changes. Scroll sideways on a phone. Top row: light wallpaper. Bottom row: dark.</p>
+<div id="rows"></div>
+<script>
+  const OPTIONS = [
+    ['now', 'Now (live)', 'Glossy: gradient pink, rim and sheen on the glass.'],
+    ['flat', 'A · iMessage flat', 'Solid, matte. Pink for you, grey for them. No gloss.'],
+    ['frost', 'B · Hold-menu frost', 'Both thick frosted glass like the hold menu. No sheen.'],
+    ['mix', 'C · Mix', 'Yours solid pink. Theirs frosted glass.'],
+  ];
+  const THREAD = `
+    <span class="msg them f"><span class="from">Riya</span>guys friday plan?<small>10:02</small></span>
+    <span class="msg them l">goa ya manali 😄<small>10:02</small></span>
+    <div class="gap"></div>
+    <span class="msg me f">manali pakka 🙌<small>10:05 ✓✓</small></span>
+    <span class="msg me l">main bhi in, ticket dekh leta hu aaj raat<small>10:05 ✓✓</small></span>
+    <div class="gap"></div>
+    <span class="msg them"><span class="from">Aarav</span>done bro, 3 log confirm<small>10:07</small></span>
+    <div class="gap"></div>
+    <span class="msg me">haha perfect<small>10:08 ✓</small></span>`;
+  document.getElementById('rows').innerHTML = ['light', 'dark'].map((wall) =>
+    `<div class="row">${OPTIONS.map(([k, name, note]) =>
+      `<div class="col"><h2>${name}</h2><p>${note}</p><div class="phone ${wall} ${k}"><div class="thread">${THREAD}</div></div></div>`
+    ).join('')}</div>`).join('');
+</script>
+</body>
+</html>

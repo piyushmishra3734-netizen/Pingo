@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile Sample</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; background: #e6e5ea; color: #1a1a1a;
+    font-family: Manrope, system-ui, sans-serif; letter-spacing: -0.02em;
+    padding: 32px 16px 64px;
+  }
+  button { font: inherit; letter-spacing: inherit; border: 0; cursor: pointer; background: none; color: inherit; }
+  svg.lucide { width: 1em; height: 1em; stroke-width: 1.8; flex: none; }
+
+  /* ---- page chrome (not part of the design) ---- */
+  .switch { display: flex; justify-content: center; margin-bottom: 28px; }
+  .seg { display: inline-flex; background: #fff; border-radius: 999px; padding: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  .seg button { height: 38px; padding: 0 18px; border-radius: 999px; font-weight: 600; font-size: 14px; color: #7f7f7f; }
+  .seg button[aria-pressed="true"] { background: #2e2e2e; color: #fff; }
+  .phones { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+  .label { text-align: center; font-size: 13px; font-weight: 600; color: #7f7f7f; margin-bottom: 12px; }
+  .phone {
+    width: 390px; height: 844px; border-radius: 54px; overflow: hidden;
+    border: 10px solid #111; background: var(--page); box-shadow: 0 30px 60px -30px rgba(0,0,0,.35);
+  }
+  .screen { height: 100%; overflow-y: auto; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+  @media (max-width: 480px) {
+    body { padding: 16px 0 48px; }
+    .phone { width: 100%; height: auto; border: 0; border-radius: 0; box-shadow: none; }
+    .screen { height: auto; }
+  }
+
+  /* ---- the design ---- */
+  .theme {
+    --page: #efeff2; --card: #fff; --rim: #fafafa; --ink: #1a1a1a; --bio: #474747; --muted: #7f7f7f;
+    --sunken: #f1f1f3; --line: rgba(17,17,19,.07); --primary: #2e2e2e; --on-primary: #fff; --online: #22c55e;
+    color: var(--ink);
+  }
+  .theme.dark {
+    --page: #0e0e0f; --card: #1a1a1a; --rim: #1a1a1a; --ink: #fff; --bio: #ececec; --muted: #a3a3a3;
+    --sunken: #262626; --line: rgba(255,255,255,.08); --primary: #fff; --on-primary: #1a1a1a;
+  }
+  .status { height: 44px; padding: 0 26px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; }
+  .status span { display: flex; gap: 5px; font-size: 16px; }
+  .stack { padding: 0 8px 24px; display: flex; flex-direction: column; gap: 8px; }
+
+  /* hero: the reference card */
+  .hero { background: var(--rim); padding: 5px; border-radius: 34px; }
+  .hero-in { position: relative; background: var(--card); border-radius: 29px; overflow: hidden; }
+  .hero-cover { position: absolute; inset: 0 0 auto; width: 100%; }
+  .hero-in::before { content: ""; position: absolute; z-index: 1; left: 0; right: 0; top: 96px; height: 52px; background: linear-gradient(transparent, var(--card)); }
+  .fab {
+    position: absolute; top: 12px; width: 36px; height: 36px; border-radius: 50%; z-index: 2;
+    display: grid; place-items: center; font-size: 19px; color: #fff; background: rgba(0,0,0,.28);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .fab.back { left: 12px; } .fab.more { right: 12px; }
+  .hero-body { position: relative; z-index: 2; padding: 92px 18px 20px; }
+  .hero-top { display: flex; align-items: flex-end; justify-content: space-between; }
+  .ava { position: relative; width: 76px; height: 76px; }
+  .ava img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #efefef; }
+  .ava i { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--online); border: 3px solid var(--card); }
+  .pill {
+    height: 38px; padding: 0 20px; border-radius: 999px; font-size: 14px; font-weight: 600;
+    background: var(--primary); color: var(--on-primary); display: inline-flex; align-items: center; gap: 7px;
+    margin-bottom: 10px; transition: transform .12s;
+  }
+  .pill:active, .act:active, .round:active { transform: scale(.96); }
+  .pill.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line), inset 0 0 0 1.5px var(--muted); }
+  .name { margin-top: 12px; font-size: 24px; font-weight: 700; letter-spacing: -0.045em; display: flex; align-items: center; gap: 6px; }
+  .bio { margin-top: 3px; font-size: 15px; font-weight: 500; letter-spacing: -0.03em; color: var(--bio); }
+  .meta { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .meta span { display: inline-flex; align-items: center; gap: 5px; }
+  .meta svg.lucide { font-size: 14px; }
+  .stats { margin-top: 16px; display: flex; gap: 16px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .stats button { color: inherit; }
+  .stats b { color: var(--ink); font-weight: 700; margin-right: 3px; }
+
+  /* actions */
+  .acts { display: flex; gap: 8px; }
+  .act { flex: 1; height: 50px; border-radius: 999px; background: var(--primary); color: var(--on-primary);
+         font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .12s; }
+  .act.soft { background: var(--card); color: var(--ink); }
+  .round { width: 50px; height: 50px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-size: 19px; transition: transform .12s; }
+
+  /* section cards */
+  .sec { background: var(--card); border-radius: 28px; padding: 18px; }
+
+  /* mutuals: one quiet line each, the Instagram / X "Followed by" pattern */
+  .mutuals { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .mline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--muted); text-align: left; min-width: 0; }
+  .mline > span:not(.pile) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mline b { color: var(--ink); font-weight: 600; }
+  .pile { display: flex; flex: none; }
+  .pile > * { width: 22px; height: 22px; margin-left: -7px; border: 2px solid var(--card); object-fit: cover;
+              display: grid; place-items: center; font-size: 11px; color: #fff; }
+  .pile > :first-child { margin-left: 0; }
+  .pile.people > * { border-radius: 50%; background: var(--sunken); }
+  .pile.groups > * { border-radius: 7px; }
+
+  /* own profile: achievements + journey as two lines, same grammar as the mutual lines */
+  .pile .crest { width: 22px; height: 22px; border: 0; }
+  .pile .ring { width: 22px; height: 22px; border: 0; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 4; }
+  .ring .track { stroke: var(--muted); opacity: .25; }
+  .ring .fill { stroke: var(--ink); stroke-linecap: round; stroke-dasharray: 58.4 94.25; }
+  .mline .go { margin-left: auto; font-size: 15px; color: var(--muted); flex: none; }
+
+  /* tabs + grid */
+  .tabs { display: flex; background: var(--card); border-radius: 999px; padding: 4px; }
+  .tabs button { flex: 1; height: 40px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted);
+                 display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .tabs button[aria-selected="true"] { background: var(--primary); color: var(--on-primary); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; border-radius: 24px; overflow: hidden; }
+  .grid > * { aspect-ratio: 1; width: 100%; object-fit: cover; display: block; background: var(--sunken); }
+  .grid .new { display: grid; place-items: center; align-content: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--card); }
+  .grid .new svg.lucide { font-size: 22px; color: var(--ink); }
+
+  .meta [hidden], .bio[hidden] { display: none; }
+
+  /* ---- edit profile ---- */
+  .ebar { display: flex; align-items: center; justify-content: space-between; padding: 2px 12px 10px; }
+  .ebar h2 { font-size: 17px; font-weight: 700; }
+  .ebar .round { width: 40px; height: 40px; font-size: 18px; }
+  .ebar .spacer { width: 40px; }
+  .cover-btn { position: absolute; top: 12px; right: 12px; z-index: 2; height: 34px; padding: 0 12px; border-radius: 999px;
+               color: #fff; background: rgba(0,0,0,.32); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+               font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+  .cover-btn svg.lucide { font-size: 15px; }
+  .cam { position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; border-radius: 50%; font-size: 14px;
+         background: var(--primary); color: var(--on-primary); display: grid; place-items: center; border: 3px solid var(--card); }
+  .edit-hero .hero-body { padding-bottom: 18px; }
+  .form h3 { font-size: 15px; font-weight: 700; }
+  .form .sub { margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .field { margin-top: 14px; }
+  .field > label { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  .field > label em { font-style: normal; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .box { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; border-radius: 16px;
+         background: var(--sunken); box-shadow: inset 0 0 0 1.5px transparent; transition: background .15s, box-shadow .15s; }
+  .box:focus-within { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--muted); }
+  .box input, .box textarea { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink);
+         font: 500 15px/1.4 Manrope, sans-serif; letter-spacing: -0.02em; }
+  .box textarea { padding: 12px 0; resize: none; }
+  .box input::placeholder, .box textarea::placeholder { color: var(--muted); opacity: .8; }
+  .box .lead { color: var(--muted); font-size: 17px; }
+  .hint { margin-top: 6px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; color: var(--online); }
+  .hint.bad { color: #ef4444; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { height: 32px; padding: 0 12px; border-radius: 999px; background: var(--sunken); font-size: 12.5px; font-weight: 600; }
+  .chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
+  .locate { margin-top: 10px; height: 34px; padding: 0 12px; border-radius: 999px; background: var(--sunken);
+            display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+  .savebar { position: sticky; bottom: 0; padding: 14px 0 12px; background: linear-gradient(transparent, var(--page) 35%); }
+  .savebar .act { width: 100%; }
+
+  .mode-mine .only-other, .mode-other .only-mine { display: none !important; }
+  body:not(.mode-edit) .screen.edit, body:not(.mode-ach) .screen.ach,
+  .mode-edit .screen.profile, .mode-ach .screen.profile { display: none; }
+
+  /* ---- achievements: a trophy shelf ---- */
+  .crest { width: 24px; height: 24px; object-fit: contain; filter: var(--glow, none); }
+  .phone { --a1: #7c5cff;
+           --glow: drop-shadow(0 0 3px rgba(124,92,255,.7));
+           --glow-big: drop-shadow(0 14px 22px rgba(124,92,255,.45)); }
+  .phone[data-aura="iridescent"] { --glow: drop-shadow(0 0 3px rgba(120,190,255,.8)) drop-shadow(0 0 2px rgba(255,170,220,.7));
+                                   --glow-big: drop-shadow(-8px 12px 20px rgba(120,190,255,.5)) drop-shadow(8px 12px 20px rgba(255,170,220,.45)); }
+  .phone[data-aura="gold"] { --glow: drop-shadow(0 0 3px rgba(255,190,90,.9)); --glow-big: drop-shadow(0 14px 22px rgba(255,190,90,.55)); }
+  .phone[data-accent="gold"]  { --a1: #e2aa46; }
+  .phone[data-accent="prism"] { --a1: #e889c0; }
+  .screen.ach, .mode-mine .screen.profile { background: linear-gradient(to bottom, color-mix(in srgb, var(--a1) 7%, var(--page)), var(--page) 300px); }
+  .sec-t { display: flex; justify-content: space-between; align-items: baseline; }
+  .sec-t h3 { font-size: 15px; font-weight: 700; }
+  .sec-t span { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+
+  /* the worn one, standing on your own cover */
+  .feat-in { position: relative; background: var(--card); border-radius: 29px; overflow: hidden; text-align: center; padding: 176px 20px 22px; }
+  .feat-in .hero-cover { position: absolute; inset: 0 0 auto; width: 100%; }
+  .feat-in::before { content: ""; position: absolute; left: 0; right: 0; top: 70px; height: 80px; z-index: 1; background: linear-gradient(transparent, var(--card)); }
+  .feat-emblem { position: absolute; z-index: 2; left: 50%; top: 30px; width: 150px; height: 150px; margin-left: -75px; object-fit: contain; filter: var(--glow-big); }
+  .feat-in h2, .feat-in p { position: relative; z-index: 2; }
+  .feat-in h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.04em; }
+  .feat-in .blurb { margin-top: 4px; font-size: 14px; font-weight: 500; color: var(--bio); }
+  .feat-in .facts { margin-top: 12px; display: flex; justify-content: center; gap: 14px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .feat-in .facts span { display: inline-flex; align-items: center; gap: 5px; }
+  .feat-in .facts svg.lucide { font-size: 14px; }
+
+  /* the shelf: badges stand on a ledge, empty places are sockets */
+  .shelf { margin-top: 16px; display: flex; flex-direction: column; gap: 18px; }
+  .row3 { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding-bottom: 12px; }
+  .row3::after { content: ""; position: absolute; left: -4px; right: -4px; bottom: 0; height: 8px; border-radius: 6px;
+                 background: linear-gradient(var(--sunken), color-mix(in srgb, var(--sunken) 60%, var(--ink) 6%)); }
+  .piece { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+  .piece .obj { height: 92px; width: 100%; display: grid; place-items: end center; }
+  .piece .obj img { width: 84px; height: 84px; object-fit: contain; filter: drop-shadow(0 8px 8px rgba(0,0,0,.18)); transition: transform .15s; }
+  button.piece:active .obj img { transform: scale(.94); }
+  .piece[aria-pressed="true"] .obj img { filter: var(--glow-big); }
+  .piece .socket { width: 58px; height: 58px; margin-bottom: 6px; border-radius: 50%; background: var(--sunken);
+                   box-shadow: inset 0 3px 8px color-mix(in srgb, var(--ink) 10%, transparent); }
+  .piece .obj { position: relative; }
+  .piece b { max-width: 100%; font-size: 12.5px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .piece .on { display: none; position: absolute; top: 2px; left: calc(50% + 24px); width: 20px; height: 20px; border-radius: 50%;
+               background: var(--ink); color: var(--card); border: 2px solid var(--card); font-size: 10px; place-items: center; }
+  .piece .on svg.lucide { stroke-width: 3.5; }
+  .piece[aria-pressed="true"] .on { display: grid; }
+  .piece small { font-size: 11px; font-weight: 500; color: var(--muted); margin-top: -4px; }
+  .piece.empty b, .piece.empty small { display: none; }
+  .tip { margin-top: 14px; font-size: 12px; font-weight: 500; color: var(--muted); }
+
+  /* look: the glow is chosen on the badge itself */
+  .look-h { margin-top: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .glows { margin-top: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .glow-opt { height: 84px; border-radius: 18px; background: var(--sunken); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+              font-size: 12px; font-weight: 600; transition: box-shadow .15s, transform .12s; }
+  .glow-opt:active { transform: scale(.96); }
+  .glow-opt img { width: 40px; height: 40px; object-fit: contain; }
+  .glow-opt[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .sws { margin-top: 8px; display: flex; gap: 14px; }
+  .sw { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+  .sw i { width: 30px; height: 30px; border-radius: 50%; transition: box-shadow .15s; }
+  .sw[aria-pressed="true"] { color: var(--ink); }
+  .sw[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ink); }
+</style>
+</head>
+<body class="mode-other">
+
+<div class="switch">
+  <div class="seg" role="group" aria-label="Whose profile">
+    <button data-mode="other" aria-pressed="true">Someone else</button>
+    <button data-mode="mine" aria-pressed="false">My profile</button>
+    <button data-mode="edit" aria-pressed="false">Edit profile</button>
+    <button data-mode="ach" aria-pressed="false">Achievements</button>
+  </div>
+</div>
+
+<div class="phones">
+  <div><p class="label">Light</p><div class="phone theme" data-cover="cover-light.jpg"></div></div>
+  <div><p class="label">Dark</p><div class="phone theme dark" data-cover="cover-dark.jpg"></div></div>
+</div>
+
+<template id="profile">
+  <div class="screen profile">
+    <div class="status">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+    <div class="stack">
+
+      <article class="hero">
+        <div class="hero-in">
+          <img class="hero-cover" alt="">
+          <button class="fab back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <button class="fab more" aria-label="More"><i data-lucide="ellipsis"></i></button>
+          <div class="hero-body">
+            <div class="hero-top">
+              <div class="ava"><img src="avatar.jpg" alt="tayo"><i title="Online"></i></div>
+              <button class="pill only-other friend"><i data-lucide="user-check"></i><span>Friends</span></button>
+              <button class="pill only-mine" data-go="edit"><i data-lucide="pencil"></i>Edit profile</button>
+            </div>
+            <h1 class="name"><span class="v-name">tayo.</span> <img class="crest" src="mythic-crest-96.png" alt="Mythic Pioneer"></h1>
+            <p class="bio v-bio">i build stuff.</p>
+            <div class="meta">
+              <span><i data-lucide="at-sign"></i><span class="v-user">tayo</span></span>
+              <span><i data-lucide="briefcase"></i><span class="v-work">product engineer &amp; designer.</span></span>
+              <span><i data-lucide="map-pin"></i><span class="v-loc">NaN.</span></span>
+            </div>
+            <div class="stats">
+              <span><b>128</b>Posts</span>
+              <button><b class="fc">994</b>Friends</button>
+              <button><b>12</b>Groups</button>
+            </div>
+            <div class="mutuals only-mine">
+              <button class="mline" data-go="ach">
+                <span class="pile"><img class="crest" src="mythic-crest-96.png" alt=""></span>
+                <span><b>Mythic Pioneer</b> · 2 badges</span>
+                <i class="go" data-lucide="chevron-right"></i>
+              </button>
+              <button class="mline">
+                <span class="pile"><svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15"/><circle class="fill" cx="18" cy="18" r="15"/></svg></span>
+                <span><b>Level 4</b> Explorer · 3 badges to Level 5</span>
+                <i class="go" data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div class="mutuals only-other">
+              <button class="mline">
+                <span class="pile people"><img src="https://i.pravatar.cc/80?img=12" alt=""><img src="https://i.pravatar.cc/80?img=47" alt=""><img src="https://i.pravatar.cc/80?img=33" alt=""></span>
+                <span>Friends with <b>aarav</b>, <b>riya</b> and <b>16 others</b></span>
+              </button>
+              <button class="mline">
+                <span class="pile groups"><span style="background:linear-gradient(135deg,#8b5cf6,#6366f1)"><i data-lucide="pen-tool"></i></span><span style="background:linear-gradient(135deg,#fb923c,#f43f5e)"><i data-lucide="gamepad-2"></i></span><span style="background:linear-gradient(135deg,#22d3ee,#0ea5e9)"><i data-lucide="plane"></i></span></span>
+                <span>Both in <b>Design Crew</b>, <b>Gamers</b> and <b>1 more</b></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div class="acts only-other">
+        <button class="act"><i data-lucide="message-circle"></i>Message</button>
+        <button class="round" aria-label="Voice call"><i data-lucide="phone"></i></button>
+        <button class="round" aria-label="Video call"><i data-lucide="video"></i></button>
+      </div>
+      <div class="acts only-mine">
+        <button class="act soft"><i data-lucide="share-2"></i>Share profile</button>
+        <button class="round" aria-label="QR code"><i data-lucide="qr-code"></i></button>
+      </div>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true"><i data-lucide="layout-grid"></i>Posts</button>
+        <button role="tab" aria-selected="false"><i data-lucide="image"></i>Media</button>
+      </div>
+      <div class="grid"></div>
+    </div>
+  </div>
+  <div class="screen edit">
+    <div class="status">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+    <header class="ebar">
+      <button class="round" data-go="mine" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+      <h2>Edit profile</h2><span class="spacer"></span>
+    </header>
+    <div class="stack">
+      <article class="hero edit-hero">
+        <div class="hero-in">
+          <img class="hero-cover" alt="">
+          <button class="cover-btn"><i data-lucide="image-plus"></i>Change cover</button>
+          <div class="hero-body">
+            <div class="hero-top">
+              <div class="ava"><img src="avatar.jpg" alt="tayo"><button class="cam" aria-label="Change photo"><i data-lucide="camera"></i></button></div>
+            </div>
+            <h1 class="name"><span class="v-name">tayo.</span> <img class="crest" src="mythic-crest-96.png" alt="Mythic Pioneer"></h1>
+            <p class="bio v-bio">i build stuff.</p>
+            <div class="meta">
+              <span><i data-lucide="at-sign"></i><span class="v-user">tayo</span></span>
+              <span><i data-lucide="briefcase"></i><span class="v-work">product engineer &amp; designer.</span></span>
+              <span><i data-lucide="map-pin"></i><span class="v-loc">NaN.</span></span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <section class="sec form">
+        <h3>About you</h3>
+        <div class="field">
+          <label>Name <em data-count="name">5/50</em></label>
+          <div class="box"><input data-f="name" value="tayo." maxlength="50" autocomplete="name"></div>
+        </div>
+        <div class="field">
+          <label>Username</label>
+          <div class="box"><span class="lead">@</span><input data-f="user" value="tayo" maxlength="20" autocapitalize="none" spellcheck="false"></div>
+          <p class="hint" data-hint="user"><i data-lucide="check"></i><span>This is your current username</span></p>
+        </div>
+        <div class="field">
+          <label>Bio <em data-count="bio">14/150</em></label>
+          <div class="box"><textarea data-f="bio" rows="3" maxlength="150" placeholder="A line about you">i build stuff.</textarea></div>
+        </div>
+      </section>
+
+      <section class="sec form">
+        <h3>Details</h3>
+        <p class="sub">Shown under your bio. Leave one empty to hide it.</p>
+        <div class="field">
+          <label>Work</label>
+          <div class="box"><i class="lead" data-lucide="briefcase"></i><input data-f="work" value="product engineer &amp; designer." maxlength="40" placeholder="What do you do?"></div>
+          <div class="chips">
+            <button class="chip">Student</button><button class="chip">Developer</button><button class="chip">Designer</button>
+            <button class="chip">Creator</button><button class="chip">Gamer</button><button class="chip">Founder</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Location</label>
+          <div class="box"><i class="lead" data-lucide="map-pin"></i><input data-f="loc" value="NaN." maxlength="40" placeholder="City, Country"></div>
+          <button class="locate"><i data-lucide="locate-fixed"></i>Use current location</button>
+        </div>
+      </section>
+
+      <div class="savebar"><button class="act" data-go="mine"><i data-lucide="check"></i>Save changes</button></div>
+    </div>
+  </div>
+  <div class="screen ach">
+    <div class="status">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+    <header class="ebar">
+      <button class="round" data-go="mine" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+      <h2>Achievements</h2><span class="spacer"></span>
+    </header>
+    <div class="stack">
+      <article class="hero">
+        <div class="feat-in">
+          <img class="hero-cover" alt="">
+          <img class="feat-emblem" src="mythic-pioneer-512.png" alt="">
+          <h2 class="f-name">Mythic Pioneer</h2>
+          <p class="blurb f-blurb">A rare PINGO achievement.</p>
+          <p class="facts"><span><img class="crest" src="mythic-crest-96.png" alt="" style="width:16px;height:16px">Beside your name</span><span><i data-lucide="calendar"></i><span class="f-date">12 Mar 2026</span></span></p>
+        </div>
+      </article>
+
+      <section class="sec">
+        <div class="sec-t"><h3>Collection</h3><span>2 of 6</span></div>
+        <div class="shelf">
+          <div class="row3">
+            <button class="piece" aria-pressed="true" data-badge="mythic">
+              <span class="obj"><img src="mythic-pioneer-512.png" alt=""><i class="on"><i data-lucide="check"></i></i></span>
+              <b>Mythic Pioneer</b><small>12 Mar 2026</small>
+            </button>
+            <button class="piece" aria-pressed="false" data-badge="founder">
+              <span class="obj"><img src="founder-512.png" alt=""><i class="on"><i data-lucide="check"></i></i></span>
+              <b>Founder</b><small>2 Jan 2026</small>
+            </button>
+            <div class="piece empty"><span class="obj"><i class="socket"></i></span><b>-</b><small>-</small></div>
+          </div>
+          <div class="row3"><div class="piece empty"><span class="obj"><i class="socket"></i></span><b>-</b><small>-</small></div><div class="piece empty"><span class="obj"><i class="socket"></i></span><b>-</b><small>-</small></div><div class="piece empty"><span class="obj"><i class="socket"></i></span><b>-</b><small>-</small></div></div>
+        </div>
+        <p class="tip">Tap a badge to wear it beside your name.</p>
+      </section>
+
+      <section class="sec">
+        <div class="sec-t"><h3>Look</h3></div>
+        <p class="look-h">Badge glow</p>
+        <div class="glows" data-pick="aura">
+            <button class="glow-opt" aria-pressed="true" data-v="classic"><img src="mythic-crest-96.png" alt="" style="filter:drop-shadow(0 4px 10px rgba(124,92,255,.8))">Classic</button>
+            <button class="glow-opt" aria-pressed="false" data-v="iridescent"><img src="mythic-crest-96.png" alt="" style="filter:drop-shadow(-3px 4px 8px rgba(120,190,255,.9)) drop-shadow(3px 4px 8px rgba(255,170,220,.8))">Iridescent</button>
+            <button class="glow-opt" aria-pressed="false" data-v="gold"><img src="mythic-crest-96.png" alt="" style="filter:drop-shadow(0 4px 10px rgba(255,190,90,.95))">Gold</button>
+        </div>
+        <p class="look-h">Profile accent</p>
+        <div class="sws" data-pick="accent">
+          <button class="sw" aria-pressed="true" data-v="aurora"><i style="background:linear-gradient(135deg,#7c5cff,#50b4ff)"></i>Aurora</button>
+          <button class="sw" aria-pressed="false" data-v="gold"><i style="background:linear-gradient(135deg,#e2aa46,#ffd68c)"></i>Gold</button>
+          <button class="sw" aria-pressed="false" data-v="prism"><i style="background:linear-gradient(135deg,#ff96c8,#8cc8ff 50%,#be96ff)"></i>Prism</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>
+
+<script>
+  const tpl = document.getElementById('profile');
+  document.querySelectorAll('.phone').forEach((phone) => {
+    phone.appendChild(tpl.content.cloneNode(true));
+    phone.querySelector('.hero-cover').src = phone.dataset.cover;
+
+    const grid = phone.querySelector('.grid');
+    grid.insertAdjacentHTML('beforeend', '<button class="new only-mine"><i data-lucide="plus"></i>New post</button>');
+    for (let i = 1; i <= 12; i++) grid.insertAdjacentHTML('beforeend', `<img src="https://picsum.photos/seed/pingo-p${i}/300" alt="">`);
+
+    const btn = phone.querySelector('.friend'), fc = phone.querySelector('.fc');
+    btn.onclick = () => {
+      const off = btn.classList.toggle('ghost');
+      btn.querySelector('span').textContent = off ? 'Add friend' : 'Friends';
+      fc.textContent = off ? 993 : 994;
+    };
+    phone.querySelectorAll('[role=tab]').forEach((tab, i, all) => tab.onclick = () =>
+      all.forEach((t) => t.setAttribute('aria-selected', t === tab)));
+  });
+
+  const segs = document.querySelectorAll('.seg button');
+  const go = (mode) => {
+    segs.forEach((x) => x.setAttribute('aria-pressed', x.dataset.mode === mode));
+    document.body.className = 'mode-' + mode;
+  };
+  segs.forEach((b) => b.onclick = () => go(b.dataset.mode));
+  if (location.hash) go(location.hash.slice(1)); // e.g. full.html#ach opens straight on a screen
+  document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
+
+  // edit form: every field writes straight into both the preview and the profile
+  document.querySelectorAll('.phone').forEach((phone) => {
+    const $ = (sel) => phone.querySelectorAll(sel);
+    const input = (f) => phone.querySelector(`[data-f="${f}"]`);
+    const sync = () => {
+      const v = (f) => input(f).value.trim();
+      $('.v-name').forEach((el) => el.textContent = v('name') || 'Your name');
+      $('.v-bio').forEach((el) => { el.textContent = v('bio'); el.hidden = !v('bio'); });
+      for (const f of ['user', 'work', 'loc'])
+        $('.v-' + f).forEach((el) => { el.textContent = v(f); el.parentElement.hidden = !v(f); });
+      $('[data-count]').forEach((el) => { const i = input(el.dataset.count); el.textContent = `${i.value.length}/${i.maxLength}`; });
+      const u = v('user'), hint = phone.querySelector('[data-hint="user"]'), ok = /^[a-z0-9_]{3,20}$/i.test(u);
+      hint.classList.toggle('bad', !ok);
+      hint.querySelector('span').textContent = !ok ? '3 to 20 letters, numbers or underscores' : u === 'tayo' ? 'This is your current username' : 'Available';
+      $('.chip').forEach((c) => c.setAttribute('aria-pressed', c.textContent === v('work')));
+    };
+    $('[data-f]').forEach((el) => el.addEventListener('input', sync));
+    $('.chip').forEach((c) => c.onclick = () => { input('work').value = c.textContent; sync(); });
+    phone.querySelector('.locate').onclick = () => { input('loc').value = 'Mumbai, India'; sync(); };
+    phone.querySelector('.screen.edit .hero-cover').src = phone.dataset.cover;
+
+    // achievements: wear a badge, pick a glow / accent - each shows up everywhere the crest does
+    const ach = phone.querySelector('.screen.ach');
+    ach.querySelector('.hero-cover').src = phone.dataset.cover;
+    const BADGES = {
+      mythic:  { art: 'mythic-pioneer-512.png', crest: 'mythic-crest-96.png', name: 'Mythic Pioneer', blurb: 'A rare PINGO achievement.', date: '12 Mar 2026' },
+      founder: { art: 'founder-512.png', crest: 'founder-crest-96.png', name: 'Founder', blurb: 'One of the two who started PINGO.', date: '2 Jan 2026' },
+    };
+    ach.querySelectorAll('.piece[data-badge]').forEach((piece, _, all) => piece.onclick = () => {
+      const b = BADGES[piece.dataset.badge];
+      phone.querySelectorAll('img.crest').forEach((img) => { img.src = b.crest; img.alt = b.name; });
+      phone.querySelectorAll('[data-go="ach"] b').forEach((el) => el.textContent = b.name);
+      ach.querySelector('.feat-emblem').src = b.art;
+      ach.querySelectorAll('.glow-opt img').forEach((img) => img.src = b.crest);
+      ach.querySelector('.f-name').textContent = b.name;
+      ach.querySelector('.f-blurb').textContent = b.blurb;
+      ach.querySelector('.f-date').textContent = b.date;
+      all.forEach((x) => x.setAttribute('aria-pressed', x === piece));
+    });
+    ach.querySelectorAll('[data-pick]').forEach((group) => group.querySelectorAll('button').forEach((opt, _, all) => opt.onclick = () => {
+      all.forEach((x) => x.setAttribute('aria-pressed', x === opt));
+      phone.dataset[group.dataset.pick] = opt.dataset.v;
+    }));
+  });
+  lucide.createIcons();
+</script>
+</body>
+</html>

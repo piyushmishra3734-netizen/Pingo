@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PINGO Stories</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Oswald:wght@600&family=Yellowtail&family=Courier+Prime:wght@700&family=Anton&family=Playfair+Display:ital,wght@1,700&family=Poppins:ital,wght@1,800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<link rel="stylesheet" href="story.css?v=16">
+</head>
+<body><script>/* a real phone's size, scaled to fit the window - never squeezed */ const fit = () => document.documentElement.style.setProperty("--fit", Math.min(1, (innerHeight - 24) / 844, (innerWidth - 24) / 390)); fit(); addEventListener("resize", fit);</script>
+<div class="ctl"><b>Stories sample</b><br>Tap a ring to watch. Tap sides, hold to pause, swipe between people, swipe down to close. "Your story" + to make one. Tap a chat's photo for the profile; open a post → Share → Add to story.</div>
+
+<div class="phone" id="phone">
+  <!-- home: PINGO's chat list, stories under the search -->
+  <section class="home" id="home">
+    <header class="chead"><button class="cedit">Edit</button><b>Chats</b><span class="cic"><i data-lucide="bell"></i><i data-lucide="gamepad-2"></i></span></header>
+    <div class="csearch"><i data-lucide="search"></i>Search</div>
+    <div class="tray" id="tray"></div>
+    <div class="chats" id="chats"></div>
+    <nav class="dock"><i data-lucide="message-circle"></i><i data-lucide="phone"></i><span class="cam"><i data-lucide="camera"></i></span><i data-lucide="users"></i><i data-lucide="user"></i></nav>
+  </section>
+
+  <!-- someone's profile, and one of their posts -->
+  <section class="profile" id="profile"></section>
+  <section class="postview" id="postview"></section>
+
+  <!-- watching -->
+  <section class="viewer" id="viewer"><div class="cube" id="cube"></div></section>
+
+  <!-- making -->
+  <section class="editor" id="editor"></section>
+
+  <!-- sheets -->
+  <div class="scrim" id="scrim"></div>
+  <section class="sheet" id="sheet"></section>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script type="module" src="story.js?v=18"></script>
+</body>
+</html>

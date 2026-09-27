@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { min-height: 100vh; background: #e6e5ea; color: #1a1a1a; font-family: Manrope, system-ui, sans-serif; letter-spacing: -0.02em; padding: 32px 16px 64px; }
+  button { font: inherit; letter-spacing: inherit; border: 0; cursor: pointer; background: none; color: inherit; }
+  svg.lucide { width: 1em; height: 1em; stroke-width: 1.8; flex: none; }
+
+  /* page chrome */
+  .switch { display: flex; justify-content: center; margin-bottom: 28px; }
+  .seg { display: inline-flex; background: #fff; border-radius: 999px; padding: 4px; }
+  .seg button { height: 38px; padding: 0 18px; border-radius: 999px; font-weight: 600; font-size: 14px; color: #7f7f7f; }
+  .seg button[aria-pressed="true"] { background: #2e2e2e; color: #fff; }
+  .phones { display: flex; justify-content: center; gap: 36px; flex-wrap: wrap; }
+  .label { text-align: center; margin-bottom: 14px; }
+  .label b { display: block; font-size: 15px; }
+  .label span { font-size: 12.5px; color: #7f7f7f; font-weight: 500; }
+  .phone { width: 390px; height: 844px; border-radius: 54px; overflow: hidden; border: 10px solid #111; background: var(--page); box-shadow: 0 30px 60px -30px rgba(0,0,0,.35); color: var(--ink); }
+  .screen { position: relative; height: 100%; overflow-y: auto; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+  @media (max-width: 480px) {
+    body { padding: 16px 0 48px; }
+    .phone { width: 100%; height: auto; border: 0; border-radius: 0; box-shadow: none; }
+    .screen { height: auto; }
+  }
+
+  /* shared tokens */
+  body {
+    --page: #efeff2; --card: #fff; --ink: #1a1a1a; --bio: #474747; --muted: #7f7f7f;
+    --sunken: #f1f1f3; --line: rgba(17,17,19,.07); --primary: #2e2e2e; --on-primary: #fff; --online: #22c55e;
+  }
+  body.dark {
+    --page: #0e0e0f; --card: #1a1a1a; --ink: #fff; --bio: #ececec; --muted: #a3a3a3;
+    --sunken: #262626; --line: rgba(255,255,255,.08); --primary: #fff; --on-primary: #1a1a1a;
+  }
+  .status { height: 44px; padding: 0 26px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; position: relative; z-index: 3; }
+  .status span { display: flex; gap: 5px; font-size: 16px; }
+  .on-photo { color: #fff; }
+  .fab { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; color: #fff; background: rgba(0,0,0,.28); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .topbar { position: absolute; top: 48px; left: 16px; right: 16px; display: flex; justify-content: space-between; z-index: 3; }
+  .ava { position: relative; border-radius: 50%; }
+  .ava img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #efefef; display: block; }
+  .dot { position: absolute; right: 4%; bottom: 4%; width: 22%; height: 22%; border-radius: 50%; background: var(--online); border: 3px solid var(--page); }
+  .mark { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 12px; color: #fff; background: conic-gradient(from 200deg, #7c5cff, #3ec5ff, #ff6ad5, #7c5cff); }
+  .act { height: 48px; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .round { width: 48px; height: 48px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-size: 19px; flex: none; }
+  .act:active, .round:active, .tile:active { transform: scale(.97); }
+  .muted { color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .grid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--sunken); }
+  .faces { display: flex; }
+  .faces span { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--card); margin-left: -8px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .faces span:first-child { margin-left: 0; }
+
+  /* ===== A: Immersive (Spotify artist / Apple Music) ===== */
+  .A .hero { position: relative; height: 500px; margin-top: -44px; }
+  .A .hero img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .A .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.25) 0%, transparent 25%, transparent 45%, var(--page) 100%); }
+  .A .who { position: absolute; left: 20px; right: 20px; bottom: 6px; z-index: 2; }
+  .A .who .ava { width: 60px; height: 60px; box-shadow: 0 0 0 3px var(--page); }
+  .A h1 { margin-top: 12px; font-size: 40px; font-weight: 800; letter-spacing: -0.055em; line-height: 1; display: flex; align-items: center; gap: 8px; }
+  .A .bio { margin-top: 8px; font-size: 15px; font-weight: 500; color: var(--bio); }
+  .A .body { padding: 14px 20px 0; }
+  .A .chips { display: flex; gap: 8px; }
+  .A .chip { flex: 1; background: var(--card); border-radius: 18px; padding: 12px 14px; }
+  .A .chip b { display: block; font-size: 20px; font-weight: 800; letter-spacing: -0.04em; }
+  .A .chip span { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .A .acts { display: flex; gap: 8px; margin-top: 12px; }
+  .A .acts .act { flex: 1; }
+  .A h2 { font-size: 17px; font-weight: 700; margin: 24px 0 12px; }
+  .A .rings { display: flex; gap: 14px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 0 20px; }
+  .A .ring { flex: none; width: 66px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+  .A .ring img { width: 66px; height: 66px; border-radius: 50%; object-fit: cover; padding: 3px; background: var(--page); box-shadow: 0 0 0 2px var(--line), 0 0 0 2px var(--muted); margin-bottom: 6px; }
+  .A .grid { margin: 20px -0px 0; border-radius: 22px; overflow: hidden; }
+
+  /* ===== B: Bento (bento.me / read.cv) ===== */
+  .B .head { padding: 16px 20px 0; }
+  .B .row { display: flex; align-items: center; justify-content: space-between; }
+  .B .ava { width: 84px; height: 84px; }
+  .B .friend { height: 38px; padding: 0 16px; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+  .B h1 { margin-top: 16px; font-size: 28px; font-weight: 800; letter-spacing: -0.05em; display: flex; align-items: center; gap: 7px; }
+  .B .handle { font-size: 13.5px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+  .B .bio { margin-top: 10px; font-size: 15px; font-weight: 500; color: var(--bio); line-height: 1.45; }
+  .B .bento { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 20px 14px 0; }
+  .B .tile { position: relative; background: var(--card); border-radius: 26px; padding: 16px; min-height: 150px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
+  .B .tile.wide { grid-column: span 2; min-height: 190px; }
+  .B .tile .ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: var(--sunken); }
+  .B .tile b { font-size: 26px; font-weight: 800; letter-spacing: -0.05em; display: block; }
+  .B .tile small { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .B .tile.photo { padding: 0; color: #fff; }
+  .B .tile.photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .B .tile.photo .cap { position: relative; margin-top: auto; padding: 40px 16px 14px; background: linear-gradient(transparent, rgba(0,0,0,.6)); font-size: 13.5px; font-weight: 600; }
+  .B .tile.photo .cap small { color: rgba(255,255,255,.75); display: block; font-weight: 500; }
+  .B .tile.map { background: linear-gradient(135deg, #cfe7d6, #b9d8f0); color: #1a1a1a; }
+  body.dark .B .tile.map { background: linear-gradient(135deg, #1f3a2c, #1b2f45); color: #fff; }
+  .B .tile.map .pin { width: 44px; height: 44px; border-radius: 50%; background: #fff; color: #1a1a1a; display: grid; place-items: center; font-size: 20px; box-shadow: 0 6px 16px -6px rgba(0,0,0,.4); }
+  .B .tile.map small { color: inherit; opacity: .7; }
+  .B .tile.myth { background: #14121f; color: #fff; }
+  .B .tile.myth .orb { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; background: conic-gradient(from 200deg, #7c5cff, #3ec5ff, #ff6ad5, #7c5cff); box-shadow: 0 0 30px -4px #7c5cff; }
+  .B .tile.myth small { color: rgba(255,255,255,.6); }
+  .B .tile.play { flex-direction: row; align-items: center; gap: 14px; min-height: 0; }
+  .B .tile.play .ic { width: 52px; height: 52px; border-radius: 16px; font-size: 24px; background: linear-gradient(135deg, #ff8a3d, #ff3d77); color: #fff; }
+  .B .tile.play .grow { flex: 1; }
+  .B .tile.play strong { font-size: 15px; display: block; }
+  .B .live { font-size: 11px; font-weight: 700; color: var(--online); display: inline-flex; align-items: center; gap: 5px; }
+  .B .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .B h2 { font-size: 17px; font-weight: 700; margin: 26px 20px 12px; }
+  .B .grid { margin: 0 14px; border-radius: 22px; overflow: hidden; }
+
+  /* ===== C: Discord-style layered card ===== */
+  .C .banner { position: relative; height: 160px; margin-top: -44px; }
+  .C .banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .C .banner::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.3), transparent 45%); }
+  .C .top { position: relative; padding: 0 16px; margin-top: -50px; display: flex; align-items: flex-end; justify-content: space-between; }
+  .C .ava { width: 100px; height: 100px; box-shadow: 0 0 0 6px var(--page); }
+  .C .dot { border-width: 5px; }
+  .C .badges { display: flex; gap: 4px; background: var(--card); border-radius: 12px; padding: 6px 8px; margin-bottom: 6px; }
+  .C .badges i, .C .badges svg { font-size: 17px; }
+  .C .badges .g { color: #7c5cff; } .C .badges .o { color: #f59e0b; } .C .badges .b { color: #0ea5e9; }
+  .C .status-bubble { position: absolute; left: 124px; top: 12px; background: var(--card); border-radius: 16px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+  .C .status-bubble::before { content: ""; position: absolute; left: -5px; top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--card); }
+  .C .cards { padding: 12px 12px 0; display: flex; flex-direction: column; gap: 10px; }
+  .C .card { background: var(--card); border-radius: 22px; padding: 16px; }
+  .C h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.045em; display: flex; gap: 7px; align-items: center; }
+  .C .handle { font-size: 13.5px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+  .C .acts { display: flex; gap: 8px; margin-top: 14px; }
+  .C .acts .act { flex: 1; height: 42px; font-size: 14px; }
+  .C .acts .act.soft { background: var(--sunken); color: var(--ink); }
+  .C .acts .round { width: 42px; height: 42px; background: var(--sunken); font-size: 17px; }
+  .C .card h3 { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .C .card p { font-size: 14.5px; font-weight: 500; color: var(--bio); line-height: 1.45; }
+  .C .facts { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .C .facts span { display: flex; align-items: center; gap: 8px; }
+  .C .since { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+  .C .since .logo { width: 28px; height: 28px; border-radius: 9px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+  .C .list { padding: 4px 0; }
+  .C .li { display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-size: 14.5px; font-weight: 600; }
+  .C .li + .li { border-top: 1px solid var(--line); }
+  .C .li .grow { flex: 1; }
+  .C .li .chev { color: var(--muted); font-size: 18px; }
+  .C .stats3 { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+  .C .stats3 b { display: block; font-size: 18px; font-weight: 800; letter-spacing: -0.04em; }
+  .C .stats3 span { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .C .stats3 > div + div { border-left: 1px solid var(--line); }
+  .C .grid { margin: 10px 12px 0; border-radius: 22px; overflow: hidden; }
+  .pad { height: 28px; }
+</style>
+</head>
+<body>
+
+<div class="switch">
+  <div class="seg" role="group" aria-label="Theme">
+    <button data-theme="light" aria-pressed="true">Light</button>
+    <button data-theme="dark" aria-pressed="false">Dark</button>
+  </div>
+</div>
+
+<div class="phones">
+
+  <!-- A -->
+  <div>
+    <p class="label"><b>A · Immersive</b><span>Spotify artist page, Apple Music</span></p>
+    <div class="phone A"><div class="screen">
+      <div class="status on-photo">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="topbar"><button class="fab"><i data-lucide="chevron-left"></i></button><button class="fab"><i data-lucide="ellipsis"></i></button></div>
+      <div class="hero">
+        <img class="bg" src="https://picsum.photos/id/1018/800/1000" alt="">
+        <div class="who">
+          <div class="ava"><img src="avatar.jpg" alt=""><i class="dot"></i></div>
+          <h1>tayo. <span class="mark"><i data-lucide="sparkles"></i></span></h1>
+          <p class="bio">i build stuff. <span class="muted">· product engineer &amp; designer</span></p>
+        </div>
+      </div>
+      <div class="body">
+        <div class="chips">
+          <div class="chip"><b>128</b><span>Posts</span></div>
+          <div class="chip"><b>994</b><span>Friends</span></div>
+          <div class="chip"><b>12</b><span>Groups</span></div>
+        </div>
+        <div class="acts">
+          <button class="act"><i data-lucide="message-circle"></i>Message</button>
+          <button class="round"><i data-lucide="user-check"></i></button>
+          <button class="round"><i data-lucide="phone"></i></button>
+        </div>
+        <h2>Moments</h2>
+        <div class="rings">
+          <div class="ring"><img src="https://picsum.photos/seed/pr1/150" alt="">Goa</div>
+          <div class="ring"><img src="https://picsum.photos/seed/pr2/150" alt="">Builds</div>
+          <div class="ring"><img src="https://picsum.photos/seed/pr3/150" alt="">Arcade</div>
+          <div class="ring"><img src="https://picsum.photos/seed/pr4/150" alt="">Friends</div>
+          <div class="ring"><img src="https://picsum.photos/seed/pr5/150" alt="">Food</div>
+        </div>
+        <div class="grid" data-seed="a"></div>
+        <div class="pad"></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- B -->
+  <div>
+    <p class="label"><b>B · Bento</b><span>bento.me, read.cv</span></p>
+    <div class="phone B"><div class="screen">
+      <div class="status">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="head">
+        <div class="row">
+          <div class="ava"><img src="avatar.jpg" alt=""><i class="dot"></i></div>
+          <button class="friend"><i data-lucide="user-check"></i>Friends</button>
+        </div>
+        <h1>tayo. <span class="mark"><i data-lucide="sparkles"></i></span></h1>
+        <p class="handle">@tayo · product engineer &amp; designer</p>
+        <p class="bio">i build stuff. mostly apps, sometimes games, occasionally a mess.</p>
+      </div>
+      <div class="bento">
+        <div class="tile wide photo">
+          <img src="https://picsum.photos/id/1036/800/500" alt="">
+          <div class="cap">Latest post<small>2h ago · 48 likes</small></div>
+        </div>
+        <div class="tile"><div class="ic"><i data-lucide="users"></i></div><div><b>994</b><small>Friends</small></div>
+          <div class="faces" style="position:absolute;right:14px;top:18px"><span style="background:#7c5cff">A</span><span style="background:#f97316">R</span><span style="background:#0ea5e9">K</span></div></div>
+        <div class="tile"><div class="ic"><i data-lucide="users-round"></i></div><div><b>12</b><small>Groups</small></div></div>
+        <div class="tile map"><div class="pin"><i data-lucide="map-pin"></i></div><div><b style="font-size:20px">NaN.</b><small>Based in</small></div></div>
+        <div class="tile myth"><div class="orb"><i data-lucide="gem"></i></div><div><b style="font-size:18px">MYTHIC</b><small>Founder · 1 of 50</small></div></div>
+        <div class="tile wide play">
+          <div class="ic"><i data-lucide="gamepad-2"></i></div>
+          <div class="grow"><span class="live">Playing now</span><strong>Rogue Eden</strong><small class="muted">in PINGO Arcade · 42 min</small></div>
+          <button class="round" style="background:var(--sunken)"><i data-lucide="arrow-up-right"></i></button>
+        </div>
+      </div>
+      <h2>Posts <span class="muted" style="font-weight:600">128</span></h2>
+      <div class="grid" data-seed="b"></div>
+      <div class="pad"></div>
+    </div></div>
+  </div>
+
+  <!-- C -->
+  <div>
+    <p class="label"><b>C · Layered card</b><span>Discord profile, Bluesky</span></p>
+    <div class="phone C"><div class="screen">
+      <div class="status on-photo">9:41 <span><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span></div>
+      <div class="topbar"><button class="fab"><i data-lucide="chevron-left"></i></button><button class="fab"><i data-lucide="ellipsis"></i></button></div>
+      <div class="banner"><img src="cover-dark.jpg" alt=""></div>
+      <div class="top">
+        <div class="ava"><img src="avatar.jpg" alt=""><i class="dot"></i></div>
+        <div class="badges"><i class="g" data-lucide="gem"></i><i class="o" data-lucide="flag"></i><i class="b" data-lucide="zap"></i></div>
+        <div class="status-bubble"><i data-lucide="hammer"></i>shipping v2 tonight</div>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <h1>tayo. <span class="mark"><i data-lucide="sparkles"></i></span></h1>
+          <p class="handle">@tayo · he/him</p>
+          <div class="acts">
+            <button class="act"><i data-lucide="message-circle"></i>Message</button>
+            <button class="act soft"><i data-lucide="user-check"></i>Friends</button>
+            <button class="round"><i data-lucide="phone"></i></button>
+          </div>
+        </div>
+        <div class="card stats3">
+          <div><b>128</b><span>Posts</span></div><div><b>994</b><span>Friends</span></div><div><b>12</b><span>Groups</span></div>
+        </div>
+        <div class="card">
+          <h3>About me</h3>
+          <p>i build stuff.</p>
+          <div class="facts">
+            <span><i data-lucide="briefcase"></i>product engineer &amp; designer.</span>
+            <span><i data-lucide="map-pin"></i>NaN.</span>
+          </div>
+          <h3 style="margin-top:16px">PINGO member since</h3>
+          <div class="since"><span class="logo">P</span>12 Mar 2026</div>
+        </div>
+        <div class="card list" style="padding:4px 0">
+          <div class="li"><div class="faces"><span style="background:#7c5cff">A</span><span style="background:#f97316">R</span><span style="background:#0ea5e9">K</span></div><span class="grow">18 mutual friends</span><i class="chev" data-lucide="chevron-right"></i></div>
+          <div class="li"><div class="faces"><span style="background:#10b981">D</span><span style="background:#ef4444">G</span></div><span class="grow">3 groups together</span><i class="chev" data-lucide="chevron-right"></i></div>
+        </div>
+      </div>
+      <div class="grid" data-seed="c"></div>
+      <div class="pad"></div>
+    </div></div>
+  </div>
+
+</div>
+
+<script>
+  document.querySelectorAll('.grid[data-seed]').forEach((g) => {
+    for (let i = 1; i <= 9; i++) g.insertAdjacentHTML('beforeend', `<img src="https://picsum.photos/seed/pingo-${g.dataset.seed}${i}/300" alt="">`);
+  });
+  document.querySelectorAll('.seg button').forEach((b, _, all) => b.onclick = () => {
+    all.forEach((x) => x.setAttribute('aria-pressed', x === b));
+    document.body.classList.toggle('dark', b.dataset.theme === 'dark');
+  });
+  lucide.createIcons();
+</script>
+</body>
+</html>
