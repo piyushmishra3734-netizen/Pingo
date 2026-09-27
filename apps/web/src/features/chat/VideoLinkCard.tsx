@@ -165,7 +165,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
     const path = preview.platform === 'instagram' ? /instagram\.com\/((?:p|reel|tv)\/[A-Za-z0-9_-]+)/.exec(preview.canonicalUrl)?.[1] : undefined;
     if (path) {
       void fetch(publicAppUrl(`/api/ig-thumb?path=${path}&meta=1`))
-        .then((r) => (r.ok ? (r.json() as Promise<{ author?: string; title?: string }>) : {}))
+        .then(async (r) => (r.ok ? ((await r.json()) as { author?: string; title?: string }) : {}) as { author?: string; title?: string })
         .then((meta) => { if (live && (meta.author || meta.title)) setDetails((d) => ({ ...d, ...meta })); })
         .catch(() => undefined);
     }

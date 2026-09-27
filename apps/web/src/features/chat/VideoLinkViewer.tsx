@@ -28,7 +28,7 @@ export function VideoLinkViewer({ preview, from, title, author, label, onClose }
   const stage = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState(false);
   const [drag, setDrag] = useState(0);
-  const start = useRef<number>();
+  const start = useRef<number | undefined>(undefined);
   const aspect = preview.aspect ?? 16 / 9;
   const upright = aspect < 1;
   // Instagram's player carries its own header and caption, so it gets a phone-wide column and may scroll.
