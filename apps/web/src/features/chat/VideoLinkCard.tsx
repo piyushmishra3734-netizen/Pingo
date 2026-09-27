@@ -4,6 +4,7 @@ import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
+import { publicAppUrl } from '../../lib/public-origin.js';
 import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
 import { saveVideo, saveVideoBlob } from '../native/save-video.js';
 import { clock, VideoPlayer } from './VideoPlayer.js';
@@ -145,15 +146,30 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
   const file = kept ?? preview.fileUrl ?? resolved;
 
   const platform = PLATFORM[preview.platform];
-  const thumbnail = thumbFailed ? undefined : details.thumbnailUrl;
+  /*
+   * Instagram publishes no thumbnail a client can build, so its cover comes
+   * through `/api/ig-thumb`, which reads the post's card the way a chat app's
+   * link preview does and passes the picture on (see that function).
+   */
+  const igPath = preview.platform === 'instagram' ? /instagram\.com\/((?:p|reel|tv)\/[A-Za-z0-9_-]+)/.exec(preview.canonicalUrl)?.[1] : undefined;
+  const cover = details.thumbnailUrl ?? (igPath ? publicAppUrl(`/api/ig-thumb?path=${igPath}`) : undefined);
+  const thumbnail = thumbFailed ? undefined : cover;
 
   useEffect(() => {
     let live = true;
     // Resolves to the preview either way, so there is no failure branch: a
     // platform that publishes nothing simply leaves the card as it was.
     void enrichVideoPreview(preview).then((full) => {
-      if (live) setDetails(full);
+      if (live) setDetails((was) => ({ ...full, ...(was.author ? { author: was.author } : {}), ...(was.title ? { title: was.title } : {}) }));
     });
+    // Instagram's author and caption, from the same card as its cover.
+    const path = preview.platform === 'instagram' ? /instagram\.com\/((?:p|reel|tv)\/[A-Za-z0-9_-]+)/.exec(preview.canonicalUrl)?.[1] : undefined;
+    if (path) {
+      void fetch(publicAppUrl(`/api/ig-thumb?path=${path}&meta=1`))
+        .then((r) => (r.ok ? (r.json() as Promise<{ author?: string; title?: string }>) : {}))
+        .then((meta) => { if (live && (meta.author || meta.title)) setDetails((d) => ({ ...d, ...meta })); })
+        .catch(() => undefined);
+    }
     return () => {
       live = false;
     };
