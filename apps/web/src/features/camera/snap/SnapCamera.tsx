@@ -1,7 +1,7 @@
 import { cn } from '@pingo/ui';
 import {
   CircleOff, Grid3x3, ImagePlus, Moon, Music2, PictureInPicture2, Plus, ScanLine, Search, Sparkles, SwitchCamera, Timer, X, Zap, ZapOff,
-  Rows2, Columns2, Clapperboard, Cloud, Coffee, Contrast, Droplets, Flower2, Snowflake, Sun,
+  Rows2, Columns2,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
@@ -472,38 +472,20 @@ function Tool({ label, on, onClick, children }: { label: string; on?: boolean; o
 /**
  * A look's face, round like Snapchat's.
  *
- * A lens shows its Camera Kit icon. A filter shows its own small picture - a
- * colour and a mark that say what it does (Warm is a sun, Cool a snowflake) -
- * so the row reads as a set of looks rather than a set of names. They used to
- * be the camera's own frame refreshed every second and a half, which cost a
- * re-render of the whole camera each time and made every tile look the same.
+ * A lens shows its Camera Kit icon. A filter shows a photograph through that
+ * very filter - a face for Smooth, a city for Cinematic, snow for Cool - so a
+ * tile is a picture of what the filter does, the way Snapchat's are, rather
+ * than a name or a symbol. The photos are small and ship with the app
+ * (public/camera/looks); the filter is the same CSS the camera uses, so the
+ * tile cannot promise a look the camera does not give.
  */
 function Tile({ l, big }: { l: Lens; big?: boolean }) {
   if (l.icon) return <img src={l.icon} alt="" className="size-full object-cover" draggable={false} />;
   if (l.key === 'none') return <CircleOff size={big ? 22 : 20} className={big ? 'text-black/70' : 'text-white/85'} />;
-  const art = FILTER_ART[l.key];
-  if (!art) return <span className="text-[15px] font-semibold text-white/90">{l.name.slice(0, 2)}</span>;
-  const { bg, Icon } = art;
-  return (
-    <span className="relative grid size-full place-items-center" style={{ background: bg }}>
-      {/* A soft light from the top left, so each reads as a little lit object, not a flat swatch. */}
-      <span aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,.45),transparent_55%)]" />
-      <Icon size={big ? 26 : 22} strokeWidth={2.2} className="relative text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.35)]" />
-    </span>
-  );
+  const photo = l.key.startsWith('look:') ? `/camera/looks/${l.key.slice(5)}.webp` : undefined;
+  if (!photo) return <span className="text-[15px] font-semibold text-white/90">{l.name.slice(0, 2)}</span>;
+  return <img src={photo} alt="" className="size-full object-cover" style={{ filter: l.css }} draggable={false} decoding="async" />;
 }
-
-const FILTER_ART: Record<string, { bg: string; Icon: typeof Sun }> = {
-  'look:smooth': { bg: 'linear-gradient(145deg,#ffb3c7,#ff8fa3 55%,#f7a072)', Icon: Sparkles },
-  'look:cinematic': { bg: 'linear-gradient(145deg,#1f6f78,#2d3a4a 50%,#f28c38)', Icon: Clapperboard },
-  'look:dreamy': { bg: 'linear-gradient(145deg,#c9b6ff,#9fb8ff 55%,#ffd1f0)', Icon: Cloud },
-  'look:warm': { bg: 'linear-gradient(145deg,#ffcc4d,#ff8a3d 55%,#e2553b)', Icon: Sun },
-  'look:cool': { bg: 'linear-gradient(145deg,#7fe3ff,#3a8dff 55%,#4a4ad6)', Icon: Snowflake },
-  'look:mono': { bg: 'linear-gradient(135deg,#f2f2f2 0 50%,#1b1b1f 50% 100%)', Icon: Contrast },
-  'look:bloom': { bg: 'linear-gradient(145deg,#ff7eb6,#ffb86b 55%,#ffe56b)', Icon: Flower2 },
-  'look:sepia': { bg: 'linear-gradient(145deg,#d8b48a,#a47148 55%,#6b4226)', Icon: Coffee },
-  'look:fade': { bg: 'linear-gradient(145deg,#cfd8dc,#a8c0b8 55%,#9aa5b1)', Icon: Droplets },
-};
 
 /** Applies the look and the software zoom to whatever is rendering the feed. */
 function LookStyle({ host, look, zoom }: { host: React.RefObject<HTMLDivElement | null>; look: string; zoom: number }) {
