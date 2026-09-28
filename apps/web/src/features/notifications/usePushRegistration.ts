@@ -151,6 +151,21 @@ export function usePushRegistration(): void {
           vibration: true,
           lights: true,
         }).catch(() => undefined);
+        /*
+         * Calls, apart from messages. A ring is the one push that should
+         * interrupt - MAX importance, heads-up on the lock screen - and having it on
+         * its own channel lets somebody silence group chats without silencing
+         * the people who call them.
+         */
+        await PushNotifications.createChannel({
+          id: 'pingo_calls',
+          name: 'Calls',
+          description: 'Somebody calling you right now.',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+          lights: true,
+        }).catch(() => undefined);
       }
 
       const current = await PushNotifications.checkPermissions();

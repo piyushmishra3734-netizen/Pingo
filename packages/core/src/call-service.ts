@@ -297,6 +297,16 @@ export interface CallService {
     kind?: CallKind,
     options?: CallServiceOptions,
   ): Promise<void>;
+  /**
+   * Picks up a ring this device missed while it was not listening.
+   *
+   * A call rings over a live channel that only exists while the app is open.
+   * Somebody opening PINGO from a "calling you" push - or just opening it
+   * while a call to them is still ringing - gets that call shown as incoming,
+   * as if the ring had arrived normally. A no-op when a call is already up or
+   * nothing is ringing.
+   */
+  resumeRing?(): Promise<void>;
   decline(callId: string): Promise<void>;
   hangUp(callId: string): Promise<void>;
 

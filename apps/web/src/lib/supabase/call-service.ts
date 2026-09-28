@@ -1353,6 +1353,24 @@ export class SupabaseCallService implements CallService {
           participants: [this.#userId!, peerUserId],
           direct: true,
         });
+        /*
+         * And a push, for a phone whose app is not open to hear the invite.
+         *
+         * The broadcast above reaches only a running app. Without this, calling
+         * somebody whose PINGO was closed rang nowhere, and the call ended by
+         * itself after 45 seconds. See `20261012000000_call_ring_push.sql`.
+         * Never allowed to fail the call: the ring already went out the fast way.
+         */
+        void this.#client
+          .rpc('ring_call', {
+            target: peerUserId,
+            conversation: options!.conversationId!,
+            call: callId,
+            call_media: kind,
+          })
+          .then(({ error }) => {
+            if (error) console.warn('[call] ring push not sent', error.message);
+          });
       } else {
         const link = this.#link(peerUserId, callId);
         const offer = await link.connection.createOffer();
@@ -1480,6 +1498,7 @@ export class SupabaseCallService implements CallService {
 
   async answer(callId: string, options?: CallServiceOptions): Promise<void> {
     if (!this.#call || this.#call.id !== callId) return;
+    this.#endRing(callId);
 
     /*
      * No offer means a room, not a person.
@@ -2052,8 +2071,66 @@ export class SupabaseCallService implements CallService {
     this.#ringTimer = undefined;
   }
 
+  /** Closes this call's push ring, from whichever end. Best effort. */
+  #endRing(callId: string): void {
+    void this.#client
+      .rpc('end_call_ring', { call: callId })
+      .then(() => undefined, () => undefined);
+  }
+
+  /**
+   * Shows a call that rang while this device was not listening.
+   *
+   * Only a room-backed direct call can be joined this way - there is no offer
+   * to answer, just a room the caller is already in - and that is what
+   * `ring_call` is sent for. Rings past their expiry, or closed by the caller
+   * hanging up, are not returned by the query and so are never shown.
+   */
+  async resumeRing(): Promise<void> {
+    if (this.#call) return;
+    await this.connect().catch(() => undefined);
+    if (!this.#userId || this.#call) return;
+
+    const { data, error } = await this.#client
+      .from('call_rings')
+      .select('call_id, conversation_id, caller_id, media, expires_at')
+      .eq('callee_id', this.#userId)
+      .is('ended_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data || this.#call) return;
+
+    const ring = data as {
+      call_id: string;
+      conversation_id: string;
+      caller_id: string;
+      media: CallKind;
+      expires_at: string;
+    };
+
+    this.#call = {
+      id: ring.call_id,
+      peer: { userId: ring.caller_id, name: 'Incoming call' },
+      conversationId: ring.conversation_id,
+      direction: 'incoming',
+      kind: ring.media === 'video' ? 'video' : 'voice',
+      state: 'ringing',
+      muted: false,
+      cameraOff: true,
+    };
+    this.#emit({ type: 'call:incoming', call: this.#call });
+
+    // Rings out when the caller's does, not a fresh 45 seconds from now.
+    this.#clearRingTimeout();
+    const left = Math.max(1000, Date.parse(ring.expires_at) - Date.now());
+    this.#ringTimer = setTimeout(() => this.#teardown('unanswered'), left);
+  }
+
   #teardown(reason: CallEndReason): void {
     this.#clearRingTimeout();
+    if (this.#call) this.#endRing(this.#call.id);
     clearTimeout(this.#peerGone);
     this.#peerGone = undefined;
     this.#closeOutbound();

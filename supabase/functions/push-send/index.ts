@@ -212,6 +212,9 @@ function copyFor(request: PushRequest): { title: string; body: string } {
       return { title: who, body: many ? `${many} voice notes` : 'Sent a voice note' };
     case 'call':
       return { title: who, body: 'Missed call' };
+    case 'call_ring':
+      // Somebody is calling right now. The app opens straight onto the call.
+      return { title: who, body: 'Calling you on PINGO. Tap to answer.' };
     case 'mention':
       return {
         title: who,
@@ -417,6 +420,12 @@ Deno.serve(async (request) => {
                 android: {
                   priority: 'HIGH',
                   /*
+                   * A ring is only worth delivering while it rings. A phone that
+                   * was offline for the call must not light up with it a minute
+                   * later, when nobody is on the other end.
+                   */
+                  ...(target.kind === 'call_ring' ? { ttl: '45s' } : {}),
+                  /*
                    * One tray entry per conversation, updated in place.
                    *
                    * `tag` is what makes Android replace rather than append, and
@@ -426,7 +435,8 @@ Deno.serve(async (request) => {
                    */
                   collapseKey: `${target.kind}:${target.actorId ?? 'system'}`,
                   notification: {
-                    channelId: 'pingo_messages',
+                    // Calls have their own channel, created by the app with ringing importance.
+                    channelId: target.kind === 'call_ring' ? 'pingo_calls' : 'pingo_messages',
                     sound: 'default',
                     tag: `${target.kind}:${target.actorId ?? 'system'}`,
                     notificationCount: target.count && target.count > 1 ? target.count : 1,

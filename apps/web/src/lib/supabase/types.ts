@@ -316,6 +316,22 @@ export type Database = {
         };
         Relationships: [];
       };
+      // A call ringing a phone whose app may be closed. See 20261012000000_call_ring_push.sql.
+      call_rings: {
+        Row: {
+          call_id: string;
+          conversation_id: string;
+          caller_id: string;
+          callee_id: string;
+          media: 'voice' | 'video';
+          created_at: string;
+          expires_at: string;
+          ended_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       update_notice: {
         Row: {
           // Always true - the primary key that keeps this table to one row.
@@ -1563,6 +1579,14 @@ export type Database = {
       phone_registered: {
         Args: { p_phone: string };
         Returns: boolean;
+      };
+      ring_call: {
+        Args: { target: string; conversation: string; call: string; call_media?: string };
+        Returns: undefined;
+      };
+      end_call_ring: {
+        Args: { call: string };
+        Returns: undefined;
       };
     };
     Enums: { [_ in never]: never };

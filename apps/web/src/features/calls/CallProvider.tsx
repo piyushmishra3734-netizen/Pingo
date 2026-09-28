@@ -201,9 +201,25 @@ export function CallProvider({
       return;
     }
 
-    void service.connect().catch(() => {
-      setError('Could not connect to the call service.');
-    });
+    void service
+      .connect()
+      .then(() => service.resumeRing?.())
+      .catch(() => {
+        setError('Could not connect to the call service.');
+      });
+
+    /*
+     * A call that rang while this device was not listening.
+     *
+     * The invite is a live broadcast, so a phone whose app was closed or in the
+     * background never heard it. Opening PINGO - from the "calling you" push or
+     * on its own - asks whether a call to this person is still ringing, and if
+     * one is it is shown exactly as if the ring had just arrived.
+     */
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void service.resumeRing?.().catch(() => undefined);
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     const unsubscribe = service.subscribe((event) => {
       switch (event.type) {
@@ -298,7 +314,10 @@ export function CallProvider({
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [service, signedIn]);
 
   const startCall = useCallback(
