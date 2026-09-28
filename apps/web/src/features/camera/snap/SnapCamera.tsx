@@ -50,9 +50,14 @@ const noteUse = (l: Lens) => {
   const u = readUse(); const e = (u[l.key] ??= { n: 0, t: 0 }); e.n += 1; e.t = Date.now();
   try { localStorage.setItem(USE_KEY, JSON.stringify(u)); } catch { /* private mode: order just resets */ }
 };
+/*
+ * Filters first, then AR lenses - Snapchat's order - each by how much this
+ * person uses them. A filter is what most shots want; a lens is a choice.
+ */
 const ranked = (list: Lens[]) => {
   const u = readUse(); const sc = (l: Lens) => u[l.key] ?? { n: 0, t: 0 };
-  return [NONE, ...list.map((l, i) => [l, i] as const).sort(([a, ai], [b, bi]) => sc(b).n - sc(a).n || sc(b).t - sc(a).t || ai - bi).map(([l]) => l)];
+  const order = (group: Lens[]) => group.map((l, i) => [l, i] as const).sort(([a, ai], [b, bi]) => sc(b).n - sc(a).n || sc(b).t - sc(a).t || ai - bi).map(([l]) => l);
+  return [NONE, ...order(list.filter((l) => !l.ar)), ...order(list.filter((l) => l.ar))];
 };
 
 type CK = typeof import('@snap/camera-kit');
@@ -106,6 +111,32 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
 
   const lens = lenses[current] ?? NONE;
   const look = [lens.css, night ? NIGHT : ''].filter(Boolean).join(' ') || 'none';
+
+  /*
+   * A small still of what the camera sees, refreshed every second and a half,
+   * so each filter's tile shows you through that filter - the way Snapchat's
+   * do - rather than two letters of its name.
+   */
+  const [thumb, setThumb] = useState<string>();
+  useEffect(() => {
+    if (recording) return;
+    const take = () => {
+      const src = kit.current ? ckCanvas.current : videoRef.current;
+      if (!src) return;
+      const w = src instanceof HTMLVideoElement ? src.videoWidth : src.width;
+      const h = src instanceof HTMLVideoElement ? src.videoHeight : src.height;
+      if (!w || !h) return;
+      try {
+        const c = document.createElement('canvas'); c.width = 96; c.height = 96;
+        const side = Math.min(w, h);
+        c.getContext('2d')?.drawImage(src, (w - side) / 2, (h - side) / 2, side, side, 0, 0, 96, 96);
+        setThumb(c.toDataURL('image/jpeg', 0.6));
+      } catch { /* a frame that cannot be read: the tiles keep the sample */ }
+    };
+    take();
+    const timer = window.setInterval(take, 1500);
+    return () => window.clearInterval(timer);
+  }, [recording, kitOn]);
 
   const say = (text: string) => { setTip(text); window.setTimeout(() => setTip((t) => (t === text ? undefined : t)), 1200); };
 
@@ -390,7 +421,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
           {lenses.map((l, i) => (
             <button key={l.key} type="button" onClick={() => goTo(i)} aria-label={l.name} aria-pressed={i === current}
               className={cn('relative grid size-12 shrink-0 snap-center place-items-center overflow-hidden rounded-[14px] bg-white/12 transition-transform duration-200', i === current ? 'scale-100' : 'scale-[.86] opacity-80')}>
-              <Tile l={l} />
+              <Tile l={l} thumb={thumb} />
               {l.ar && <span className="bg-sweep absolute right-1 bottom-1 rounded-[5px] px-1 text-[8px] leading-[12px] font-extrabold">AR</span>}
             </button>
           ))}
@@ -408,7 +439,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
           onPointerDown={onShutterDown} onPointerUp={onShutterUp} onPointerCancel={onShutterUp} onContextMenu={(e) => e.preventDefault()}
           className={cn('bg-sweep-ring relative size-[80px] shrink-0 rounded-full p-[4px] shadow-[0_6px_24px_rgba(139,93,255,.35)] transition-transform duration-200', recording && 'scale-[1.14]')}>
           <span className={cn('grid size-full place-items-center overflow-hidden rounded-full border-[3px] border-black bg-white transition-all duration-200', recording && 'scale-[.62] rounded-[14px] border-0 bg-danger')}>
-            {!recording && lens.key !== 'none' && <Tile l={lens} big />}
+            {!recording && lens.key !== 'none' && <Tile l={lens} thumb={thumb} big />}
           </span>
           {recording && (
             <svg viewBox="0 0 100 100" className="absolute -inset-[8px] size-[96px] -rotate-90">
@@ -443,13 +474,17 @@ function Tool({ label, on, onClick, children }: { label: string; on?: boolean; o
   );
 }
 
-/** A look's face: its Camera Kit icon, or its initial until the looks have pictures. */
-function Tile({ l, big }: { l: Lens; big?: boolean }) {
-  return (
-    l.icon ? <img src={l.icon} alt="" className="size-full object-cover" />
-      : l.key === 'none' ? <CircleOff size={big ? 22 : 20} className="text-white/85" />
-        : <span className={cn('font-semibold text-white/90', big ? 'text-[20px] text-black/75' : 'text-[15px]')}>{l.name.slice(0, 2)}</span>
-  );
+/**
+ * A look's face. A lens shows its Camera Kit icon. A filter shows the camera's
+ * own picture through that filter, or - before the first frame - a sample
+ * scene through it, so every filter tile is a preview rather than a label.
+ */
+function Tile({ l, thumb, big }: { l: Lens; thumb?: string | undefined; big?: boolean }) {
+  if (l.icon) return <img src={l.icon} alt="" className="size-full object-cover" />;
+  if (l.key === 'none') return <CircleOff size={big ? 22 : 20} className={big ? 'text-black/70' : 'text-white/85'} />;
+  return thumb
+    ? <img src={thumb} alt="" className="size-full object-cover" style={{ filter: l.css }} />
+    : <span className="size-full bg-[linear-gradient(160deg,#9fd3ff_0%,#f6c89f_42%,#e07a5f_68%,#3d405b_100%)]" style={{ filter: l.css }} />;
 }
 
 /** Applies the look and the software zoom to whatever is rendering the feed. */

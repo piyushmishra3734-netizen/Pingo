@@ -1,5 +1,5 @@
 import type { StoryDraft } from '@pingo/core';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
 import { StoryEditor } from '../../stories/StoryEditor.js';
 import type { StoryFrom } from '../../stories/StoryUpload.js';
@@ -17,8 +17,21 @@ export function SnapShotEditor({ shot, lockedChatId, onDone, onPost }: {
   onDone: () => void;
   onPost: (draft: StoryDraft, from?: StoryFrom) => Promise<void>;
 }) {
-  const src = useMemo(() => URL.createObjectURL(shot.blob), [shot.blob]);
-  useEffect(() => () => URL.revokeObjectURL(src), [src]);
+  /*
+   * Made and let go by the same effect.
+   *
+   * It was made in a memo and revoked in an effect's cleanup, and React runs
+   * effects twice when checking a component in development: the cleanup
+   * revoked the address, the memo kept handing out the dead one, and the video
+   * failed to load. Owning both ends in one effect cannot come apart.
+   */
+  const [src, setSrc] = useState<string>();
+  useEffect(() => {
+    const url = URL.createObjectURL(shot.blob);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [shot.blob]);
+  if (!src) return null;
   return (
     <StoryEditor
       src={src}
