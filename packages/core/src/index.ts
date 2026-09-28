@@ -200,6 +200,7 @@ export {
   formatPresence,
   formatTypingLabel,
   messagePreview,
+  cardLine,
   groupMessages,
 } from './format.js';
 

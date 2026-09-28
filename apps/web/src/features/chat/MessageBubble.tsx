@@ -1,4 +1,5 @@
 import {
+  cardLine,
   detectVideoLink,
   withoutVideoLink,
   formatEventTime,
@@ -126,6 +127,9 @@ export function quoteText(message: Message): string {
   if (message.ping) return 'Ping';
   if (message.sticker) return 'Sticker';
   if (message.attachments.some((a) => a.kind === 'audio')) return 'Voice message';
+  // A song or story card: its name, not its link.
+  const card = cardLine(message.body, false);
+  if (card) return card;
   return message.body.trim() || 'Attachment';
 }
 

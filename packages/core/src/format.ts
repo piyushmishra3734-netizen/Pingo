@@ -131,6 +131,29 @@ export function formatPresence(user: User, now = Date.now()): string {
 }
 
 /**
+ * What a card message reads as in one line, or undefined for ordinary text.
+ *
+ * A song, a shared story and a story mention are sent as a sentence and a long
+ * link, and drawn as cards in the thread. Everywhere that shows a message as a
+ * line - the chat list, a reply quote - showed that link in full; this is the
+ * short name to use there instead.
+ */
+export function cardLine(body: string, mine: boolean): string | undefined {
+  const song = /https?:\/\/\S+\/song\?(\S+)/.exec(body);
+  if (song) {
+    const name = new URLSearchParams(song[1]).get('n')?.trim();
+    return name ? `Song: ${name}` : 'Song';
+  }
+  const story = /https?:\/\/\S+\/story\?(\S+)/.exec(body);
+  if (story) {
+    const shared = new URLSearchParams(story[1]).get('k') === 'share';
+    if (shared) return mine ? 'You sent a story' : 'Sent you a story';
+    return mine ? 'You mentioned them in your story' : 'Mentioned you in their story';
+  }
+  return undefined;
+}
+
+/**
  * The one-line preview under a conversation title.
  *
  * Attachment-only messages get a description rather than blank space, and group
@@ -159,7 +182,8 @@ export function messagePreview(
   // A PINGO Arcade invite is a Join card in the thread; its link is not a preview.
   if (/\/arcade\?room=/.test(text)) text = 'Game invite';
   // A story mention and a nickname are cards and lines in the thread; their links are not a preview.
-  if (/\/story\?m=/.test(text)) return message.authorId === currentUserId ? 'You mentioned them in your story' : 'Mentioned you in their story';
+  const card = cardLine(text, message.authorId === currentUserId);
+  if (card) return card;
   if (/\/nick\?u=/.test(text)) return text.split('\n')[0] ?? 'Nickname changed';
   // Attachment kinds carry no body, so each says what it is.
   if (!text && message.photo) text = 'Photo';

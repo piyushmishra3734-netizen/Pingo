@@ -1,7 +1,6 @@
 import { cn } from '@pingo/ui';
 import { Music2, Pause, Play, RotateCcw, RotateCw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-
+import { musicPlayer, useMusicPlayer } from './player.js';
 import { fmt } from './sheets.js';
 import type { SharedSong } from './song-share.js';
 
@@ -10,74 +9,37 @@ import type { SharedSong } from './song-share.js';
  *
  * The cover, blurred, is the card's own background, so every song gets its own
  * colour without anyone choosing one. Play, drag the bar to any point, skip ten
- * seconds either way, and change the speed; the song plays right here in the
- * thread.
+ * seconds either way, and change the speed.
  *
- * One song at a time across the whole app: starting a second card pauses the
- * first, as it would in any music app.
+ * The card does not own the sound: `musicPlayer` does, once for the whole app,
+ * so leaving the chat does not stop the song (Telegram's way), and starting a
+ * second card simply switches what that one player is playing.
  */
 
-const SPEEDS = [1, 1.25, 1.5, 2, 0.75] as const;
+export const SPEEDS = [1, 1.25, 1.5, 2, 0.75] as const;
 
-let playing: HTMLAudioElement | undefined;
+export function nextSpeed(speed: number): number {
+  const i = SPEEDS.indexOf(speed as (typeof SPEEDS)[number]);
+  return SPEEDS[(i + 1) % SPEEDS.length]!;
+}
 
 export function SongCard({ song, mine }: { song: SharedSong; mine: boolean }) {
-  const audio = useRef<HTMLAudioElement | null>(null);
-  const [on, setOn] = useState(false);
-  const [at, setAt] = useState(0);
-  const [length, setLength] = useState(song.secs);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const player = useMusicPlayer();
+  // This card is live only while its song is the one loaded.
+  const current = player.song?.url === song.url;
+  const on = current && player.playing;
+  const loading = current && player.loading;
+  const failed = current && player.failed;
+  const at = current ? player.at : 0;
+  const speed = player.speed;
 
-  // Created on first play, not on render: a thread full of songs must not fetch them all.
-  const player = () => {
-    if (!audio.current) {
-      const a = new Audio();
-      a.preload = 'none';
-      a.src = song.url;
-      a.addEventListener('timeupdate', () => setAt(a.currentTime));
-      a.addEventListener('loadedmetadata', () => { if (Number.isFinite(a.duration)) setLength(a.duration); });
-      a.addEventListener('playing', () => { setLoading(false); setOn(true); });
-      a.addEventListener('waiting', () => setLoading(true));
-      a.addEventListener('pause', () => setOn(false));
-      a.addEventListener('ended', () => { setOn(false); setAt(0); a.currentTime = 0; });
-      a.addEventListener('error', () => { setLoading(false); setOn(false); setFailed(true); });
-      audio.current = a;
-    }
-    return audio.current;
-  };
-
-  useEffect(() => () => {
-    const a = audio.current;
-    if (a) { a.pause(); a.src = ''; if (playing === a) playing = undefined; }
-  }, []);
-
-  const toggle = () => {
-    const a = player();
-    if (!a.paused) { a.pause(); return; }
-    if (playing && playing !== a) playing.pause();
-    playing = a;
-    setFailed(false);
-    setLoading(true);
-    a.playbackRate = speed;
-    void a.play().catch(() => { setLoading(false); setFailed(true); });
-  };
-
+  const toggle = () => musicPlayer.toggle(song);
   const seek = (to: number) => {
-    const a = player();
-    const t = Math.min(Math.max(0, to), length || a.duration || 0);
-    a.currentTime = t;
-    setAt(t);
+    if (!current) void musicPlayer.play(song);
+    musicPlayer.seek(to);
   };
 
-  const nextSpeed = () => {
-    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]!;
-    setSpeed(next);
-    if (audio.current) audio.current.playbackRate = next;
-  };
-
-  const total = length || song.secs || 0;
+  const total = (current ? player.length : 0) || song.secs || 0;
   const pct = total ? Math.min(100, (at / total) * 100) : 0;
 
   return (
@@ -128,7 +90,7 @@ export function SongCard({ song, mine }: { song: SharedSong; mine: boolean }) {
         </div>
 
         <div className="flex items-center justify-between">
-          <button type="button" onClick={nextSpeed} aria-label={`Speed ${speed}x`} className="focus-ring grid h-8 min-w-12 place-items-center rounded-full bg-white/15 px-2.5 text-[12px] font-bold tabular-nums">
+          <button type="button" onClick={() => musicPlayer.setSpeed(nextSpeed(speed))} aria-label={`Speed ${speed}x`} className="focus-ring grid h-8 min-w-12 place-items-center rounded-full bg-white/15 px-2.5 text-[12px] font-bold tabular-nums">
             {speed}x
           </button>
           <div className="flex items-center gap-3">
