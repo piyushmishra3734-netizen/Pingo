@@ -108,8 +108,8 @@ for (const [density, dp] of DENSITIES) {
   await write(`${RES}/drawable-${density}/splash_mark.png`, await tile(288 * dp, 0.4, CLEAR));
   // Before Android 12, and the Capacitor splash on every version: a whole screen, centre-cropped.
   for (const [night, ground] of [['', LIGHT], ['-night', DARK]]) {
-    await write(`${RES}/drawable${night}-port-${density}/splash.png`, await splash(Math.round(320 * dp), Math.round(699 * dp), ground, dp));
-    await write(`${RES}/drawable${night}-land-${density}/splash.png`, await splash(Math.round(480 * dp), Math.round(270 * dp), ground, dp));
+    await write(`${RES}/drawable-port${night}-${density}/splash.png`, await splash(Math.round(320 * dp), Math.round(699 * dp), ground, dp));
+    await write(`${RES}/drawable-land${night}-${density}/splash.png`, await splash(Math.round(480 * dp), Math.round(270 * dp), ground, dp));
   }
 }
 await write(`${RES}/drawable/splash.png`, await splash(1080, 2359, LIGHT, 2.625));
