@@ -1,6 +1,8 @@
 import { useChat } from '@pingo/core';
 import { useEffect, useRef, useState } from 'react';
 
+import { dataSaverOn } from './data-saver.js';
+
 /**
  * Whether the app can currently reach anything, and how well.
  *
@@ -66,12 +68,13 @@ export function linkIsPoor(): boolean {
 /**
  * Whether to hold back anything that is merely nice to have in advance.
  *
- * A poor link, or the person having asked their phone to save data. Used to
+ * A poor link, or the person having asked their phone - or PINGO, under
+ * Settings → Chats - to save data. Used to
  * skip warming chunks and media nobody has asked for yet, so what they did ask
  * for gets the whole of a thin connection.
  */
 export function spareNothing(): boolean {
-  return networkInfo()?.saveData === true || linkIsPoor();
+  return dataSaverOn() || networkInfo()?.saveData === true || linkIsPoor();
 }
 
 /**

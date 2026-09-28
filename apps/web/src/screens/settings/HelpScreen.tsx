@@ -1,6 +1,7 @@
 import { useAuth } from '@pingo/core';
 
 import { useT } from '../../features/i18n/useT.js';
+import { useAppVersion } from '../../features/updates/useAppVersion.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
 
 /**
@@ -17,9 +18,10 @@ import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.j
 export function HelpScreen() {
   const t = useT();
   const { session } = useAuth();
+  const app = useAppVersion();
 
   const diagnostics = [
-    `PINGO web · ${import.meta.env.MODE}`,
+    `PINGO ${app.version} (${app.build})`,
     `User: ${session?.user.id ?? 'signed out'}`,
     `Browser: ${navigator.userAgent}`,
   ].join('\n');
@@ -27,8 +29,8 @@ export function HelpScreen() {
   return (
     <SettingsPage title={t('page.help')}>
       <Group title="About">
-        <InfoRow label="Version" value="0.1.0" />
-        <InfoRow label="Build" value={import.meta.env.MODE} />
+        <InfoRow label="Version" value={app.version} />
+        <InfoRow label="Build" value={app.build} />
       </Group>
 
       <Group

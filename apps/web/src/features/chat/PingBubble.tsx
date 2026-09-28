@@ -3,10 +3,10 @@ import { CameraIcon, StorageIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { lazySuspended } from '../../lib/lazy-named.js';
-
-const ImageViewer = lazySuspended(() => import('../profile/ImageViewer.js'), 'ImageViewer');
 import { useT } from '../i18n/useT.js';
 import { secureScreen } from '../native/secure-screen.js';
+
+const ImageViewer = lazySuspended(() => import('../profile/ImageViewer.js'), 'ImageViewer');
 
 /**
  * A Ping in the thread: closed, open, or gone.

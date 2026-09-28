@@ -8,13 +8,13 @@ import {
 import { FileIcon, PlayIcon, cn } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
 
+import { lazySuspended } from '../../lib/lazy-named.js';
 import { saveImage } from '../native/save-image.js';
 import { saveVideoBlob } from '../native/save-video.js';
 import { makeVideoPoster } from './media-variants.js';
 import { keepMedia, keepVideo, putPoster, storedPoster, storedVideo } from './video-vault.js';
 import { VideoPlayer } from './VideoPlayer.js';
 import { VoiceNote } from './VoiceNote.js';
-import { lazySuspended } from '../../lib/lazy-named.js';
 
 const ImageViewer = lazySuspended(() => import('../profile/ImageViewer.js'), 'ImageViewer');
 

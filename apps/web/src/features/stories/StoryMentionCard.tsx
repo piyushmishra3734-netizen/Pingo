@@ -3,10 +3,10 @@ import { CirclePlus } from 'lucide-react';
 import { Suspense, useMemo, useState } from 'react';
 
 import { lazyNamed } from '../../lib/lazy-named.js';
-
-const StoryEditor = lazyNamed(() => import('./StoryEditor.js'), 'StoryEditor');
 import { useStories } from './StoryContext.js';
 import type { StoryMention } from './story-mentions.js';
+
+const StoryEditor = lazyNamed(() => import('./StoryEditor.js'), 'StoryEditor');
 
 /**
  * "Mentioned you in their story", in the chat - Instagram's card.

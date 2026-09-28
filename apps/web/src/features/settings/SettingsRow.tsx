@@ -20,9 +20,45 @@ import { useNavigate } from 'react-router-dom';
  * does not accept a tap it cannot honour.
  */
 
+/**
+ * The colour of a row's icon tile.
+ *
+ * Settings is a list people scan for a shape, not read, and a column of
+ * identical purple glyphs gave the eye nothing to land on. A colour per kind
+ * of thing - the way iOS and Telegram do it - is what makes "the green one"
+ * findable without reading a word. White glyph on a saturated tile, the same
+ * in both themes.
+ */
+export type RowTone =
+  | 'blue'
+  | 'indigo'
+  | 'purple'
+  | 'pink'
+  | 'red'
+  | 'orange'
+  | 'green'
+  | 'teal'
+  | 'sky'
+  | 'gray';
+
+const TONE: Record<RowTone, string> = {
+  blue: 'bg-[#2f7cf6]',
+  indigo: 'bg-[#5b5bd6]',
+  purple: 'bg-[#8b5dff]',
+  pink: 'bg-[#e0559b]',
+  red: 'bg-[#ef4444]',
+  orange: 'bg-[#f5871f]',
+  green: 'bg-[#22b35e]',
+  teal: 'bg-[#14a3a3]',
+  sky: 'bg-[#1ea0e6]',
+  gray: 'bg-[#8a8d9a]',
+};
+
 export interface SettingsRowProps {
   icon: ReactNode;
   label: string;
+  /** A coloured tile behind the icon. Without it, the plain tinted one. */
+  tone?: RowTone;
   /** Absent means the page does not exist yet. */
   to?: string;
   /** Right-hand summary, e.g. the current accent name. */
@@ -44,6 +80,7 @@ export function SettingsRow({
   value,
   destructive = false,
   onClick,
+  tone,
 }: SettingsRowProps) {
   const navigate = useNavigate();
   const [ripples, setRipples] = useState<Ripple[]>([]);
@@ -98,8 +135,9 @@ export function SettingsRow({
 
       <span
         className={cn(
-          'relative grid size-9 shrink-0 place-items-center rounded-md',
-          destructive ? 'bg-danger-soft text-danger' : 'bg-sunken text-brand',
+          'relative grid shrink-0 place-items-center',
+          tone ? 'size-8 rounded-[9px] text-white' : 'size-9 rounded-md',
+          tone ? TONE[tone] : destructive ? 'bg-danger-soft text-danger' : 'bg-sunken text-brand',
           !available && 'opacity-45',
         )}
         aria-hidden

@@ -3,12 +3,12 @@ import { PlayIcon, cn } from '@pingo/ui';
 import { ExternalLink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { lazySuspended } from '../../lib/lazy-named.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
 import { saveVideo, saveVideoBlob } from '../native/save-video.js';
 import { clock, VideoPlayer } from './VideoPlayer.js';
 import { keepVideo, storedVideo } from './video-vault.js';
-import { lazySuspended } from '../../lib/lazy-named.js';
 
 const VideoLinkViewer = lazySuspended(() => import('./VideoLinkViewer.js'), 'VideoLinkViewer');
 

@@ -62,7 +62,7 @@ export function PrivacyScreen() {
     void profiles
       .privacySettings()
       .then((found) => {
-        if (active) setRules(found);
+        if (active) setRules(found ?? OPEN_PRIVACY);
       })
       .catch(() => undefined);
     void profiles
