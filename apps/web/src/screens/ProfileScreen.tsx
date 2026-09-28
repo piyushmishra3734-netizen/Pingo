@@ -668,12 +668,7 @@ export function ProfileScreen() {
                 {!detailsHidden && person.location && <Fact icon={<MapPin size={14} />}>{person.location}</Fact>}
               </div>
 
-              {locked === true ? (
-                <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-sunken px-3 py-1.5 text-[12.5px] font-medium text-text-secondary">
-                  <Lock size={13} />
-                  Private account
-                </p>
-              ) : (
+              {locked === true ? null : (
               <dl className={cn('mt-4 flex gap-4', detailsHidden && 'invisible')}>
                 <Stat label="Posts" value={stats?.posts} />
                 <Stat

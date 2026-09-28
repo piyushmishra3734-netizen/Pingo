@@ -160,14 +160,13 @@ export function PostsEmpty({ name }: { name: string }) {
  */
 export function PrivatePosts({ name }: { name: string }) {
   return (
-    <div className="relative overflow-hidden rounded-[28px] bg-surface px-6 py-12 text-center">
-      <span aria-hidden className="bg-sweep pointer-events-none absolute -top-20 left-1/2 size-56 -translate-x-1/2 rounded-full opacity-15 blur-3xl" />
-      <span className="relative mx-auto grid size-14 place-items-center rounded-full border-2 border-ink/80 text-ink">
+    <div className="rounded-[28px] bg-surface px-6 py-14 text-center">
+      <span className="mx-auto grid size-14 place-items-center rounded-full border-[1.5px] border-ink text-ink">
         <Lock size={24} />
       </span>
-      <p className="relative mt-4 text-[17px] font-semibold text-ink">This account is private</p>
-      <p className="relative mx-auto mt-1.5 max-w-xs text-caption text-text-secondary">
-        Follow {name} to see their posts. They will get your request and decide.
+      <p className="mt-4 text-body font-semibold text-ink">This account is private</p>
+      <p className="mx-auto mt-1.5 max-w-xs text-caption text-text-secondary">
+        Follow {name} to see their posts and profile.
       </p>
     </div>
   );
