@@ -123,7 +123,13 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
   // ---- the camera --------------------------------------------------------------
   const openStream = useCallback(async (f: 'user' | 'environment') => {
     stream.current?.getTracks().forEach((t) => t.stop());
-    stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: f, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    /*
+     * 1080p asked for, not 720p. The shot is 1080x1920, and a 1280x720 frame
+     * cropped to portrait leaves a strip 405 pixels wide - stretched nearly three
+     * times over, which is what made every photo look soft. Phones hand back
+     * their 1080p mode for this, in whichever orientation they are held.
+     */
+    stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: f, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
     return stream.current;
   }, []);
 
@@ -136,6 +142,8 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
         const source = k.mod.createMediaStreamSource(s, { cameraType: f === 'user' ? 'user' : 'environment', ...(f === 'user' ? { transform: k.mod.Transform2D.MirrorX } : {}) });
         await k.session.setSource(source);
         await source.setRenderSize(720, 1280).catch(() => undefined);
+        // The plain picture keeps running underneath - see `surface`.
+        if (videoRef.current) { videoRef.current.srcObject = s; void videoRef.current.play().catch(() => undefined); }
         setStarted(true);
       } else if (videoRef.current) {
         const v = videoRef.current;
@@ -250,13 +258,29 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
   const cssZoom = (() => { const zc = caps().zoom; return zc && zoom >= zc.min && zoom <= zc.max ? 1 : Math.max(1, zoom); })();
 
   // ---- the shutter ----------------------------------------------------------------
-  const surface = (): HTMLCanvasElement | HTMLVideoElement | undefined => (kit.current ? ckCanvas.current ?? undefined : videoRef.current ?? undefined);
+  /*
+   * What the shutter reads from: the camera itself, unless an AR lens is on.
+   *
+   * Camera Kit renders at 720x1280, so every shot taken through its canvas was
+   * a 720p picture blown up to 1080p - even with no lens at all, just a colour
+   * look that a CSS filter applies equally well to the raw frame. Only an AR
+   * lens needs Camera Kit's pixels; everything else is taken at the camera's
+   * full resolution from the plain video, which keeps running underneath.
+   */
+  const surface = (): HTMLCanvasElement | HTMLVideoElement | undefined => {
+    const v = videoRef.current;
+    if (kit.current && lens.ck) return ckCanvas.current ?? undefined;
+    if (v && v.readyState >= 2 && v.videoWidth) return v;
+    return (kit.current ? ckCanvas.current : v) ?? undefined;
+  };
   const drawFrame = (g: CanvasRenderingContext2D, W: number, H: number) => {
     const src = surface(); if (!src) return;
     const w = (src as HTMLVideoElement).videoWidth || src.width, h = (src as HTMLVideoElement).videoHeight || src.height; if (!w || !h) return;
     const k = Math.max(W / w, H / h) * cssZoom;
     g.save(); g.filter = look;
-    if (!kit.current && facing === 'user') { g.translate(W, 0); g.scale(-1, 1); }
+    g.imageSmoothingQuality = 'high';
+    // Camera Kit mirrors the front camera itself; the plain video does not.
+    if (src instanceof HTMLVideoElement && facing === 'user') { g.translate(W, 0); g.scale(-1, 1); }
     g.drawImage(src, (W - w * k) / 2, (H - h * k) / 2, w * k, h * k);
     g.restore();
   };
@@ -375,7 +399,8 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
           shot and editing it happen in one frame. */}
       <div ref={view} className="absolute inset-x-0 top-0 bottom-[132px] overflow-hidden rounded-b-[16px] bg-[#111]"
         onDoubleClick={() => void flip()} onClick={() => setDualOpen(false)}>
-        {!kitOn && <video ref={videoRef} className={cn('absolute inset-0 size-full object-cover', facing === 'user' && '-scale-x-100')} muted playsInline autoPlay />}
+        {/* Always mounted: with Camera Kit on it is hidden but still the full-resolution source for the shutter. */}
+        <video ref={videoRef} className={cn('absolute inset-0 size-full object-cover', facing === 'user' && '-scale-x-100', kitOn && 'pointer-events-none opacity-0')} muted playsInline autoPlay />
         {!started && !noCamera && (
           <div role="status" className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 text-[13px] font-medium text-white/65">
             <span aria-hidden className="size-7 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />

@@ -515,7 +515,8 @@ const en = {
 
   // calls settings
   'callSet.groupAudio': 'Audio',
-  'callSet.noise': 'Noise cancellation',
+  'callSet.noise': 'Extra noise filter',
+  'callSet.noiseHint': 'For loud places. Your phone already removes background noise; this adds a stronger pass that can clip quiet words.',
   'callSet.echo': 'Echo cancellation',
   'callSet.hdAudio': 'HD audio',
   'callSet.hdAudioHint': 'Better sound, more data.',
@@ -1290,7 +1291,8 @@ const enGenz: Catalog = {
     'everything here is live except upload quality (saved for when transcoding lands).',
 
   'callSet.groupAudio': 'audio',
-  'callSet.noise': 'noise cancellation',
+  'callSet.noise': 'extra noise filter',
+  'callSet.noiseHint': 'for loud places. your phone already removes background noise; this adds a stronger pass that can clip quiet words.',
   'callSet.echo': 'echo cancellation',
   'callSet.hdAudio': 'hd audio',
   'callSet.hdAudioHint': 'better sound, more data.',

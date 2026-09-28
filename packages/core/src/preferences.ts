@@ -216,7 +216,17 @@ export const DEFAULT_PREFERENCES: Preferences = {
     uploadQuality: 'auto',
   },
   calls: {
-    noiseCancellation: true,
+    /*
+     * Off: this is the *extra* RNNoise pass, not noise suppression itself.
+     *
+     * The browser's and the phone's own suppression always run. Stacking
+     * RNNoise on top of them by default meant every call went through two
+     * noise gates, and the second one - which attenuates anything it does not
+     * judge to be speech - clipped soft words out of the middle of sentences.
+     * It also ran in its own AudioContext, and a suspended context sent
+     * silence. For a loud street it is worth it; for every call it was not.
+     */
+    noiseCancellation: false,
     echoCancellation: true,
     hdAudio: true,
     /*

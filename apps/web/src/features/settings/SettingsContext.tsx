@@ -68,6 +68,27 @@ const LEGACY_APPEARANCE_KEY = 'pingo:appearance';
  */
 const ACCENT_MIGRATION_KEY = 'pingo:accent-purple-v2';
 
+/**
+ * Turn the extra call noise filter off, once per install.
+ *
+ * It defaulted on, and the whole preferences blob is saved, so every existing
+ * install has `true` stored whether or not anybody chose it - changing the
+ * default alone would fix only new phones. It is what clipped words out of
+ * calls (see `DEFAULT_PREFERENCES.calls`). Anybody who turns it back on after
+ * this keeps it: the marker makes it a one-time move.
+ */
+const NOISE_FILTER_MIGRATION_KEY = 'pingo:calls-noise-filter-off-v1';
+
+function migrateCalls(calls: Preferences['calls']): Preferences['calls'] {
+  try {
+    if (localStorage.getItem(NOISE_FILTER_MIGRATION_KEY)) return calls;
+    localStorage.setItem(NOISE_FILTER_MIGRATION_KEY, '1');
+    return { ...calls, noiseCancellation: false };
+  } catch {
+    return calls;
+  }
+}
+
 interface SettingsContextValue {
   preferences: Preferences;
   /** Shorthand - appearance is read far more often than anything else. */
@@ -160,7 +181,7 @@ function read(): Preferences {
         privacy: { ...DEFAULT_PREFERENCES.privacy, ...stored.privacy },
         chats: { ...DEFAULT_PREFERENCES.chats, ...stored.chats },
         camera: { ...DEFAULT_PREFERENCES.camera, ...stored.camera },
-        calls: { ...DEFAULT_PREFERENCES.calls, ...stored.calls },
+        calls: migrateCalls({ ...DEFAULT_PREFERENCES.calls, ...stored.calls }),
         advanced: { ...DEFAULT_PREFERENCES.advanced, ...stored.advanced },
         mythic: { ...DEFAULT_PREFERENCES.mythic, ...stored.mythic },
       };

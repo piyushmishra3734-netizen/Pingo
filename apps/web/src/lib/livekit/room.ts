@@ -428,8 +428,20 @@ export class CallRoom {
        * identity is the PINGO user id, because that is what the token was
        * minted with.
        */
-      const stream = this.#remote.get(participant.identity) ?? new MediaStream();
-      stream.addTrack(track.mediaStreamTrack);
+      /*
+       * A new stream object on every change, never the old one grown in place.
+       *
+       * The same object with a track added or swapped looks unchanged to
+       * everything holding it: React skips the update, the `<audio>` element
+       * keeps playing what it had, and a Web Audio source stays bound to the
+       * track it was built from. After a reconnect LiveKit re-subscribes with a
+       * *new* audio track, so the call went silent at the first network blip
+       * while every screen still said Connected. A new identity is what makes
+       * each of them look again.
+       */
+      const previous = this.#remote.get(participant.identity);
+      const kept = previous?.getTracks().filter((t) => t.kind !== track.kind && t.readyState === 'live') ?? [];
+      const stream = new MediaStream([...kept, track.mediaStreamTrack]);
       this.#remote.set(participant.identity, stream);
       this.#handlers.onRemoteStream(participant.identity, stream);
     });
@@ -441,12 +453,18 @@ export class CallRoom {
         return;
       }
 
-      const stream = this.#remote.get(participant.identity);
-      stream?.removeTrack(track.mediaStreamTrack);
-      if (stream && stream.getTracks().length === 0) {
+      const previous = this.#remote.get(participant.identity);
+      if (!previous) return;
+      const rest = previous.getTracks().filter((t) => t !== track.mediaStreamTrack);
+      if (rest.length === 0) {
         this.#remote.delete(participant.identity);
         this.#handlers.onRemoteGone(participant.identity);
+        return;
       }
+      // What is left, as a new stream - see the note on subscribe.
+      const stream = new MediaStream(rest);
+      this.#remote.set(participant.identity, stream);
+      this.#handlers.onRemoteStream(participant.identity, stream);
     });
 
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {

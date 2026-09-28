@@ -66,6 +66,9 @@ import { startCallAudio, stopCallAudio } from '../../features/native/call-audio.
 /** How long an unanswered call rings before it gives up. */
 const RING_TIMEOUT_MS = 45_000;
 
+/** How long a call waits for the other person to come back after their network drops. */
+const PEER_RETURN_GRACE_MS = 15_000;
+
 /*
  * The longest line the in-call chat will carry, shared with the composer.
  *
@@ -186,6 +189,8 @@ export class SupabaseCallService implements CallService {
   #localStream: MediaStream | undefined;
   #cleanupAudio: (() => void) | undefined;
   #ringTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The other person dropped out of the room; the call ends if they are not back. */
+  #peerGone: ReturnType<typeof setTimeout> | undefined;
 
   /**
    * One connection per other person, keyed by their id.
@@ -957,6 +962,29 @@ export class SupabaseCallService implements CallService {
 
     const group = Boolean(this.#call.participants);
 
+    if (state === 'connected') {
+      clearTimeout(this.#peerGone);
+      this.#peerGone = undefined;
+    }
+
+    /*
+     * A direct call's route failing is a route to find again, not a call over.
+     *
+     * `failed` is what ICE says when the path it was using stopped working -
+     * which is what switching from wifi to mobile data does to every call. The
+     * caller asks for fresh candidates with an ICE restart (the callee answers
+     * it through the ordinary mid-call offer path), the call says Reconnecting,
+     * and it ends only if nothing comes back within the grace period.
+     */
+    if (state === 'failed' && !group) {
+      this.#update({ state: 'reconnecting' });
+      if (!this.#peerGone) {
+        this.#peerGone = setTimeout(() => this.#teardown('failed'), PEER_RETURN_GRACE_MS);
+      }
+      if (this.#call.direction === 'outgoing') void this.#restartIce(peerUserId);
+      return;
+    }
+
     if (state === 'failed' || state === 'closed') {
       if (!group) {
         this.#teardown('failed');
@@ -994,6 +1022,26 @@ export class SupabaseCallService implements CallService {
       ...(next === 'connected' && !this.#call.connectedAt ? { connectedAt: Date.now() } : {}),
     });
     if (next === 'connected') this.#clearRingTimeout();
+  }
+
+  /** A fresh offer asking both ends to gather new candidates. See `#onLegStateChange`. */
+  async #restartIce(peerUserId: string): Promise<void> {
+    const callId = this.#call?.id;
+    const link = this.#peers.get(peerUserId);
+    if (!callId || !link || link.connection.signalingState !== 'stable') return;
+    try {
+      const offer = await link.connection.createOffer({ iceRestart: true });
+      await link.connection.setLocalDescription(offer);
+      await this.#send(peerUserId, {
+        kind: 'offer',
+        callId,
+        from: this.#userId!,
+        sdp: offer.sdp ?? '',
+        media: this.#call?.kind,
+      });
+    } catch {
+      // The grace timer ends the call if this could not help.
+    }
   }
 
   #anyoneConnected(): boolean {
@@ -1128,8 +1176,22 @@ export class SupabaseCallService implements CallService {
          */
         this.#setParticipantState(userId, 'left');
 
+        /*
+         * Not ended on the spot: held open for a moment first.
+         *
+         * Somebody who presses the red button sends `hangup`, and that still
+         * ends the call instantly - it arrives beside this event. What reaches
+         * here *without* one is almost always a network: a phone moving from
+         * wifi to mobile data, a lift, a tunnel. LiveKit brings them back into
+         * the room a few seconds later, and ending the call at the first blip
+         * is what "kabhi bhi kat jata hai" was. So the call says Reconnecting
+         * and waits; if they are back in time it carries on, and only if they
+         * are not does it end.
+         */
         if (this.#call && !this.#call.participants && userId === this.#call.peer.userId) {
-          this.#teardown('hung-up');
+          this.#update({ state: 'reconnecting' });
+          clearTimeout(this.#peerGone);
+          this.#peerGone = setTimeout(() => this.#teardown('failed'), PEER_RETURN_GRACE_MS);
         }
       },
       onScreenStream: (userId, stream) =>
@@ -1155,6 +1217,9 @@ export class SupabaseCallService implements CallService {
         // that connection must not be what stops the phone ringing.
         if (isScreenIdentity(userId)) return;
 
+        // Back within the grace period - see `onParticipantLeft`.
+        clearTimeout(this.#peerGone);
+        this.#peerGone = undefined;
         this.#setParticipantState(userId, 'connected');
         this.#clearRingTimeout();
         if (this.#call && this.#call.state !== 'connected') {
@@ -1989,6 +2054,8 @@ export class SupabaseCallService implements CallService {
 
   #teardown(reason: CallEndReason): void {
     this.#clearRingTimeout();
+    clearTimeout(this.#peerGone);
+    this.#peerGone = undefined;
     this.#closeOutbound();
 
     /*
