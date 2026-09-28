@@ -1,6 +1,6 @@
-import { useChat, type User } from '@pingo/core';
+import { useChat, useProfile, type User } from '@pingo/core';
 import { Avatar, CheckIcon, SearchField, cn } from '@pingo/ui';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
  * A searchable list of people with ticks.
@@ -23,17 +23,54 @@ export function PeoplePicker({
   onToggle,
   /** Narrows the list; absent shows everybody the user knows. */
   only,
+  ids,
   emptyLabel,
   busy,
 }: {
   selected: Set<string>;
   onToggle: (userId: string, next: boolean) => void;
   only?: (user: User) => boolean;
+  /**
+   * Exactly these people, looked up by id.
+   *
+   * The chat's own list of users only holds people this device has chatted
+   * with and loaded, so a friend you have never messaged was missing - and on
+   * a fresh install the story settings showed nobody at all. Given the ids,
+   * anybody the chat does not know is fetched from their profile.
+   */
+  ids?: readonly string[];
   emptyLabel: string;
   busy?: boolean;
 }) {
-  const { users } = useChat();
+  const { users: known } = useChat();
+  const { service: profiles } = useProfile();
   const [query, setQuery] = useState('');
+  const [fetched, setFetched] = useState<User[]>([]);
+
+  const idsKey = ids?.join(',') ?? '';
+  useEffect(() => {
+    if (!ids) return;
+    let active = true;
+    const missing = ids.filter((id) => !known.some((u) => u.id === id));
+    void Promise.all(missing.map((id) => profiles.find(id).catch(() => null))).then((found) => {
+      if (!active) return;
+      setFetched(
+        found
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+          .map((p) => ({ id: p.id, name: p.displayName || p.username, handle: p.username, presence: { state: 'offline', lastSeenAt: 0 }, ...(p.avatarUrl ? { avatarUrl: p.avatarUrl } : {}) })),
+      );
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids
+  }, [idsKey, profiles]);
+
+  const users = useMemo(() => {
+    if (!ids) return known;
+    const wanted = new Set(ids);
+    const byId = new Map<string, User>();
+    for (const user of [...fetched, ...known]) if (wanted.has(user.id)) byId.set(user.id, user);
+    return [...byId.values()];
+  }, [ids, known, fetched]);
 
   const people = useMemo(() => {
     const term = query.trim().toLowerCase();

@@ -1,7 +1,8 @@
 import { cn } from '@pingo/ui';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { useReturnFocus } from '../features/conversations/focus-restore.js';
+import { dimJustClosed } from '../lib/dim-handoff.js';
 
 import { Overlay } from './Overlay.js';
 
@@ -60,6 +61,8 @@ export function Sheet({
   useReturnFocus();
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // Opened straight from a menu that was dimming the screen: stay dim, no fade.
+  const [handoff] = useState(dimJustClosed);
 
   /*
    * Focus goes to the panel, unless something inside asked for it first.
@@ -113,7 +116,7 @@ export function Sheet({
         )}
         onPointerDown={onClose}
       >
-        <div className="absolute inset-0 animate-fade-in bg-backdrop/[0.18]" />
+        <div className={cn('absolute inset-0 bg-backdrop/[0.18]', !handoff && 'animate-fade-in')} />
 
         <div
           ref={panelRef}

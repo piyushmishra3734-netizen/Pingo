@@ -3,6 +3,7 @@ import { Avatar, CheckDoubleIcon, CheckIcon, LoadingState } from '@pingo/ui';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { Overlay } from '../../../components/Overlay.js';
+import { dimJustClosed } from '../../../lib/dim-handoff.js';
 import { readReceiptsOn } from '../../settings/privacy-flags.js';
 
 /**
@@ -22,6 +23,8 @@ import { readReceiptsOn } from '../../settings/privacy-flags.js';
 export function MessageInfoSheet({ message, onClose }: { message: Message; onClose: () => void }) {
   const { service, users } = useChat();
   const [receipts, setReceipts] = useState<MessageReceipt[]>();
+  // Opened from the message menu: its dim carries straight on, no flash between.
+  const [handoff] = useState(dimJustClosed);
 
   useEffect(() => {
     let active = true;
@@ -43,7 +46,7 @@ export function MessageInfoSheet({ message, onClose }: { message: Message; onClo
   return (
     <Overlay onDismiss={onClose}>
       <div className="fixed inset-0 z-1100 flex flex-col justify-end">
-        <div className="animate-fade-in absolute inset-0 bg-black/35" onPointerDown={onClose} />
+        <div className={handoff ? 'absolute inset-0 bg-black/35' : 'animate-fade-in absolute inset-0 bg-black/35'} onPointerDown={onClose} />
         <section
           role="dialog"
           aria-modal="true"

@@ -19,13 +19,14 @@ const StoryEditor = lazyNamed(() => import('./StoryEditor.js'), 'StoryEditor');
 export function StoryMentionCard({ mention, mine, otherName }: { mention: StoryMention; mine: boolean; otherName: string }) {
   const { groups, mine: myGroup, upload } = useStories();
   const found = useMemo(() => {
-    const pool = mine ? (myGroup ? [myGroup] : []) : groups;
+    // A shared story can be anybody's, so both trays are searched; a mention is the sender's own.
+    const pool = mention.shared ? [...(myGroup ? [myGroup] : []), ...groups] : mine ? (myGroup ? [myGroup] : []) : groups;
     for (const group of pool) {
       const story = group.stories.find((s) => s.id === mention.storyId);
       if (story) return { story, group };
     }
     return undefined;
-  }, [groups, myGroup, mine, mention.storyId]);
+  }, [groups, myGroup, mine, mention.storyId, mention.shared]);
 
   const [editing, setEditing] = useState<{ src: string; kind: 'photo' | 'video'; media: Blob }>();
   const [busy, setBusy] = useState(false);
@@ -50,7 +51,9 @@ export function StoryMentionCard({ mention, mine, otherName }: { mention: StoryM
   return (
     <div className={cn('flex flex-col gap-1.5', mine ? 'items-end' : 'items-start')}>
       <p className="px-1 text-caption text-text-tertiary">
-        {mine ? 'Mentioned in your story' : 'Mentioned you in their story'}
+        {mention.shared
+          ? (mine ? 'You sent a story' : 'Sent you a story')
+          : (mine ? 'Mentioned in your story' : 'Mentioned you in their story')}
       </p>
       <div className="relative h-[240px] w-[135px] overflow-hidden rounded-[16px] bg-sunken ring-1 ring-line">
         {found ? (
@@ -69,7 +72,7 @@ export function StoryMentionCard({ mention, mine, otherName }: { mention: StoryM
           </span>
         )}
       </div>
-      {!mine && found && (
+      {!mine && found && !mention.shared && (
         <button
           type="button"
           disabled={busy}

@@ -2,6 +2,7 @@ import { cn } from '@pingo/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Overlay } from '../../../components/Overlay.js';
+import { holdDim } from '../../../lib/dim-handoff.js';
 
 /**
  * The context menu shell: dim, lift, and where things sit.
@@ -90,6 +91,9 @@ export function MessageContextMenu({
       window.removeEventListener('touchmove', onIntent, { capture: true });
     };
   }, [onDismiss]);
+
+  // A sheet opened from here (Delete, Info, Edit) takes over this dim without a flash.
+  useEffect(() => holdDim(), []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

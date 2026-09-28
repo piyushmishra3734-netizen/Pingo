@@ -40,11 +40,25 @@ export function mentionedIn(story: Story): string[] {
 export interface StoryMention {
   storyId: string;
   authorId: string;
+  /** Passed on with "Send to" rather than a mention: the card says so, and offers no re-post. */
+  shared?: boolean;
 }
 
 export function mentionBody(story: Story, authorName: string): string {
   const q = new URLSearchParams({ m: story.id, a: story.authorId });
   return `${authorName} mentioned you in their story\n${publicAppUrl(`/story?${q.toString()}`)}`;
+}
+
+/**
+ * A story sent to a chat with "Send to".
+ *
+ * The same link as a mention, marked as a share, so it draws the same card.
+ * It used to be "Name's story - <profile link>", which no build could turn
+ * back into a story, so the chat showed a line of text where a card belonged.
+ */
+export function shareBody(story: Story): string {
+  const q = new URLSearchParams({ m: story.id, a: story.authorId, k: 'share' });
+  return `${story.authorName}'s story\n${publicAppUrl(`/story?${q.toString()}`)}`;
 }
 
 const ID = /^[\w.-]{1,64}$/;
@@ -54,5 +68,6 @@ export function parseStoryMention(body: string): StoryMention | undefined {
   if (!match) return undefined;
   const q = new URLSearchParams(match[1]);
   const storyId = q.get('m') ?? '', authorId = q.get('a') ?? '';
-  return ID.test(storyId) && ID.test(authorId) ? { storyId, authorId } : undefined;
+  if (!ID.test(storyId) || !ID.test(authorId)) return undefined;
+  return q.get('k') === 'share' ? { storyId, authorId, shared: true } : { storyId, authorId };
 }

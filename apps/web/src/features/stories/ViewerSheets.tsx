@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { publicAppUrl } from '../../lib/public-origin.js';
+import { shareBody } from './story-mentions.js';
 import { MenuGroup, MenuRow, PersonRow, SendButton, SheetBody, SheetSearch, StorySheet, useSheetClose } from './StorySheet.js';
 
 /*
@@ -74,7 +74,7 @@ export function SendStorySheet({ story, onClose }: { story: Story; onClose: () =
   const locked = story.audience === 'close' || story.audience === 'custom';
   const send = (id: string) => {
     setSent((s) => new Set(s).add(id));
-    void service.sendMessage({ conversationId: id, body: `${story.authorName}'s story - ${publicAppUrl(`/profile/${story.authorUsername}`)}` })
+    void service.sendMessage({ conversationId: id, body: shareBody(story) })
       .catch(() => setSent((s) => { const n = new Set(s); n.delete(id); return n; }));
   };
   return (

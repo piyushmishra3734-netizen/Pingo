@@ -1,12 +1,21 @@
+import { Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { Sheet, SheetCancel } from '../../components/Sheet.js';
+import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import { useT } from '../i18n/useT.js';
+import { CloseFriendsSheet } from './CloseFriendsSheet.js';
 import { PeoplePicker } from './PeoplePicker.js';
 import { useStories } from './StoryContext.js';
 
 /**
- * Hide my stories from these people.
+ * Story settings: the close friends list, and who never sees your stories.
+ *
+ * It used to be the hide list alone, drawn from the people the chat had loaded
+ * - which on most accounts was nobody, so the sheet opened empty. It now lists
+ * your friends (only friends can see a story in the first place) and puts the
+ * close friends list, the other story setting, at the top.
+ *
+ * ## Hide my stories from these people
  *
  * An account-level list rather than a per-story one, which is what the control
  * actually means: you do not decide afresh every time whether a colleague sees
@@ -28,27 +37,30 @@ export function StoryPrivacySheet({ onClose }: { onClose: () => void }) {
   const { service } = useStories();
 
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [friends, setFriends] = useState<string[]>([]);
+  const [closeCount, setCloseCount] = useState<number>();
+  const [closeOpen, setCloseOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
     let active = true;
-    void service
-      .listHiddenFrom()
-      .then((ids) => {
-        if (active) {
-          setHidden(new Set(ids));
-          setLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (active) setLoaded(true);
-      });
+    void Promise.all([
+      service.listHiddenFrom().catch(() => [] as string[]),
+      service.listFriends().catch(() => [] as string[]),
+      service.listCloseFriends().catch(() => [] as string[]),
+    ]).then(([hiddenIds, friendIds, closeIds]) => {
+      if (!active) return;
+      setHidden(new Set(hiddenIds));
+      setFriends(friendIds);
+      setCloseCount(closeIds.length);
+      setLoaded(true);
+    });
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [service, closeOpen]);
 
   const toggle = async (userId: string, next: boolean) => {
     setHidden((previous) => {
@@ -74,14 +86,29 @@ export function StoryPrivacySheet({ onClose }: { onClose: () => void }) {
     }
   };
 
+  if (closeOpen) return <CloseFriendsSheet onClose={() => setCloseOpen(false)} />;
+
   return (
-    <Sheet title={t('story.hideTitle')} description={t('story.hideDesc')} onClose={onClose}>
+    <Sheet title="Story settings" onClose={onClose} elevated>
+      <div className="mt-3">
+        <SheetItem
+          icon={<Star size={18} />}
+          label={t('story.closeFriendsTitle')}
+          hint={closeCount === undefined ? t('common.loading') : closeCount === 1 ? '1 person' : `${closeCount} people`}
+          onClick={() => setCloseOpen(true)}
+        />
+      </div>
+
+      <h3 className="mt-4 px-1 text-body font-semibold text-ink">{t('story.hideTitle')}</h3>
+      <p className="px-1 pt-0.5 text-caption text-text-secondary">{t('story.hideDesc')}</p>
+
       {!loaded ? (
         <p className="py-8 text-center text-caption text-text-tertiary">{t('common.loading')}</p>
       ) : (
         <PeoplePicker
           selected={hidden}
           onToggle={(userId, next) => void toggle(userId, next)}
+          ids={[...new Set([...friends, ...hidden])]}
           emptyLabel={t('story.nobodyHide')}
           busy={busy}
         />

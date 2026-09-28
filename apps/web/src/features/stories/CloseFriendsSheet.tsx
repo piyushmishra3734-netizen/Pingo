@@ -76,6 +76,8 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
       title={t('story.closeFriendsTitle')}
       description={t('story.closeFriendsDesc')}
       onClose={onClose}
+      // Above the story gallery and viewer, which sit at z-1000.
+      elevated
     >
       {!loaded ? (
         <p className="py-8 text-center text-caption text-text-tertiary">{t('common.loading')}</p>
@@ -85,6 +87,7 @@ export function CloseFriendsSheet({ onClose }: { onClose: () => void }) {
           onToggle={(userId, next) => void toggle(userId, next)}
           // Already on the list stays visible, so someone no longer a friend can be taken off.
           only={(user) => friends.has(user.id) || selected.has(user.id)}
+          ids={[...new Set([...friends, ...selected])]}
           emptyLabel='Add friends first - close friends are chosen from them.'
           busy={busy}
         />
