@@ -138,14 +138,20 @@
       `skipWaiting`), so this was fifteen flashes a day for anybody on dark.
 
       Reads the same key and the same rule the app does: an explicit choice
-      wins, `auto` follows the system. Wrapped because a browser refusing
+      wins, nothing chosen is light, and `auto` follows the system only for
+      somebody who picked it. Wrapped because a browser refusing
       localStorage must cost the flash, not the app.
     -->
     <script>
       (function () {
         try {
           var raw = localStorage.getItem('pingo:preferences');
-          var theme = raw ? (JSON.parse(raw) || {}).theme : 'auto';
+          var prefs = raw ? JSON.parse(raw) || {} : {};
+          // Nested under `appearance`; the top-level read only ever found nothing.
+          var theme = (prefs.appearance && prefs.appearance.theme) || prefs.theme || 'light';
+          // Light until somebody picks dark: an `auto` saved before this was the
+          // old default, not a choice (see migrateTheme in SettingsContext).
+          if (theme === 'auto' && !localStorage.getItem('pingo:theme-light-default-v1')) theme = 'light';
           if (theme !== 'light' && theme !== 'dark') {
             theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
           }

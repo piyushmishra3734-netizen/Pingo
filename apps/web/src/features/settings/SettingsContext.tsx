@@ -77,6 +77,27 @@ const ACCENT_MIGRATION_KEY = 'pingo:accent-purple-v2';
  * calls (see `DEFAULT_PREFERENCES.calls`). Anybody who turns it back on after
  * this keeps it: the marker makes it a one-time move.
  */
+/**
+ * Light by default, once per install.
+ *
+ * The default used to be `auto`, and the whole blob is saved, so every install
+ * that never touched Appearance has `auto` stored - which follows a dark phone
+ * into dark without anybody having asked. Moved to light once; anybody who
+ * picks dark or auto afterwards keeps it. `index.html` reads the same marker so
+ * the first frame agrees.
+ */
+const THEME_MIGRATION_KEY = 'pingo:theme-light-default-v1';
+
+function migrateTheme(appearance: AppearanceSettings): AppearanceSettings {
+  try {
+    if (localStorage.getItem(THEME_MIGRATION_KEY)) return appearance;
+    localStorage.setItem(THEME_MIGRATION_KEY, '1');
+    return appearance.theme === 'auto' ? { ...appearance, theme: 'light' } : appearance;
+  } catch {
+    return appearance;
+  }
+}
+
 const NOISE_FILTER_MIGRATION_KEY = 'pingo:calls-noise-filter-off-v1';
 
 function migrateCalls(calls: Preferences['calls']): Preferences['calls'] {
@@ -176,7 +197,7 @@ function read(): Preferences {
       return {
         ...DEFAULT_PREFERENCES,
         ...stored,
-        appearance: migrateAccent({ ...DEFAULT_PREFERENCES.appearance, ...stored.appearance }),
+        appearance: migrateTheme(migrateAccent({ ...DEFAULT_PREFERENCES.appearance, ...stored.appearance })),
         notifications: { ...DEFAULT_PREFERENCES.notifications, ...stored.notifications },
         privacy: { ...DEFAULT_PREFERENCES.privacy, ...stored.privacy },
         chats: { ...DEFAULT_PREFERENCES.chats, ...stored.chats },
@@ -195,14 +216,21 @@ function read(): Preferences {
         // Migrated here too: an install still on the v1 key is the oldest one
         // there is, and skipping it would leave exactly the people who have
         // been here longest on the old colour.
-        appearance: migrateAccent({
+        appearance: migrateTheme(migrateAccent({
           ...DEFAULT_PREFERENCES.appearance,
           ...(JSON.parse(legacy) as Partial<AppearanceSettings>),
-        }),
+        })),
       };
     }
   } catch {
     // Unreadable or malformed. Defaults are always a valid place to start.
+  }
+  // A fresh install starts light by default, so there is no old `auto` to move -
+  // mark it done, or a later deliberate `auto` would be read as the old default.
+  try {
+    localStorage.setItem(THEME_MIGRATION_KEY, '1');
+  } catch {
+    /* no storage: nothing to migrate either */
   }
   return DEFAULT_PREFERENCES;
 }

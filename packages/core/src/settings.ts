@@ -36,11 +36,12 @@ export interface AppearanceSettings {
 /**
  * The board's defaults, exactly.
  *
- * `auto` follows the OS rather than assuming light: the product should arrive
- * already matching the device it was opened on.
+ * Light, until the person chooses otherwise. PINGO arrives on its paper-white
+ * ground whatever the phone is set to; dark (or following the system) is
+ * something somebody picks in Appearance, and then it sticks.
  */
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  theme: 'auto',
+  theme: 'light',
   /**
    * Purple.
    *
