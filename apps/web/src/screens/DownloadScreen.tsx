@@ -1,11 +1,15 @@
-import { Button, CheckIcon, ChevronLeftIcon, IconButton, cn } from '@pingo/ui';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ChevronLeftIcon, IconButton, cn } from '@pingo/ui';
+import { ArrowDownToLine, Check, Copy, PackageCheck, RefreshCw, ShieldCheck } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
 import { PlatformLogo, type PlatformLogoId } from '../features/install/PlatformLogo.js';
-import { useInstall, type Platform } from '../features/install/useInstall.js';
+import { useInstall } from '../features/install/useInstall.js';
+import { versionName } from '../features/updates/notice-rules.js';
+import { publicAppUrl } from '../lib/public-origin.js';
 import { applyPageSeo } from '../lib/seo.js';
+import { loadUpdateNotice } from '../lib/supabase/update-notice.js';
 
 /**
  * The official Android download.
@@ -25,205 +29,41 @@ import { applyPageSeo } from '../lib/seo.js';
 const ANDROID_APK = 'https://pingo-download.dubesminecraft.workers.dev/android';
 
 /**
- * Asked of GitHub rather than written here.
+ * The page PINGO sends people to for the app, and back to for every update.
  *
- * The size was a hardcoded "2 MB", and it was wrong within a day - the APK
- * changes with every release and a number typed into a page does not. Reading
- * it from the release means the page cannot drift from what it is offering.
+ * ## Two visitors, one page
  *
- * Public repository, so no token and no auth. If the call fails the size line
- * is simply absent, which is better than a stale figure presented as current.
- */
-// The size comes from the endpoint that serves the file, so the two can never
-// disagree. A HEAD, so asking costs nothing.
-const RELEASE_API = ANDROID_APK;
-
-/** The release page itself, for anyone who wants the notes and the history. */
-/** Where each platform's app will come from. Named, so the button can say it. */
-const STORE_NAME: Record<Platform, string> = {
-  android: 'Play Store',
-  ios: 'the App Store',
-  windows: 'Windows',
-  macos: 'macOS',
-  other: 'your platform',
-};
-
-/**
- * Where PINGO explains that it is an app.
+ * Somebody new, who wants the app, and somebody on an old APK whom the app's
+ * update prompt sent here (`?update=1`). The second has one extra thing to
+ * know and it is the thing most likely to go wrong: install *over* the app
+ * they have. Uninstalling first takes every chat kept on the phone with it.
+ * So their page leads with "Update" and says that before anything else.
  *
- * ## Every claim on this page is one the product can keep
+ * ## Every claim is one the product keeps
  *
- * A download page is marketing, and marketing about software is the easiest
- * place in a product to write something untrue by accident. Everything here was
- * checked against what actually ships: the service worker precaches the shell,
- * so "opens offline" is a fact; there is no native binary for any platform, so
- * nothing here offers a `.exe` or an `.apk`; push notifications are not wired
- * up, so the page does not promise them.
- *
- * The one thing it will not do is describe a native app that does not exist.
- * The Android and iOS builds are real store applications produced from the
- * shared engine, and until they are published this page says so rather than
- * teaching anybody to bookmark a website instead.
- *
- * ## Why the status on each card is honest
- *
- * "Available now" only for what somebody can use this minute - which today is
- * the web. Everything else says "In development", because a store badge that
- * links nowhere is worse than a sentence explaining where things stand.
+ * The Android app is a real installable app, sideloaded until there is a Play
+ * listing. iPhone has no equivalent of an APK, so its road is Add to Home
+ * Screen, which works today. Windows and Mac say "Later" because there is
+ * nothing to download for them yet.
  */
 
-interface PlatformCard {
-  key: Platform | 'web';
-  name: string;
-  /** Official mark, not an emoji. */
+interface OtherDevice {
   logo: PlatformLogoId;
-  status: 'available' | 'soon';
-  method: string;
-  requirements: string;
+  name: string;
+  how: string;
+  ready: boolean;
 }
 
-const PLATFORMS: PlatformCard[] = [
+const OTHER_DEVICES: OtherDevice[] = [
   {
-    key: 'android',
-    name: 'Android',
-    logo: 'android',
-    status: 'available',
-    method: 'A real installable app: its own icon, no browser, full screen. Download the APK below and install it directly; the Play Store listing comes later.',
-    requirements: 'Android 7 or newer. Allow install from unknown sources once.',
-  },
-  /*
-   * Available, and by a different road, because Apple does not have the one
-   * Android has.
-   *
-   * There is no iPhone equivalent of downloading an APK: no sideloading, no
-   * link that installs an app. The App Store is the only route to a normal
-   * user, and TestFlight the only route before that - both behind a developer
-   * account and a review.
-   *
-   * Add to Home Screen is not a consolation prize here. PINGO is already a
-   * progressive web app, so an installed icon opens full screen with no browser
-   * bar, keeps its own storage, and takes push notifications on iOS 16.4 and up
-   * - which only work once it *is* installed. Saying "in development" while
-   * that works today was the card lying to the only people it was for.
-   */
-  {
-    key: 'ios',
-    name: 'iPhone & iPad',
     logo: 'ios',
-    status: 'available',
-    method:
-      'Open pingo.chat in Safari, then Share → Add to Home Screen. It opens full screen with its own icon, like any other app.',
-    requirements:
-      'iOS or iPadOS 16.4 or newer for notifications. Safari — Chrome on iPhone cannot install it.',
+    name: 'iPhone & iPad',
+    how: 'Open PINGO in Safari, then Share → Add to Home Screen.',
+    ready: true,
   },
-  {
-    key: 'windows',
-    name: 'Windows',
-    logo: 'windows',
-    status: 'soon',
-    method: 'A signed desktop installer with its own window, taskbar icon and notifications.',
-    requirements: 'Windows 10 or 11.',
-  },
-  {
-    key: 'macos',
-    name: 'macOS',
-    logo: 'macos',
-    status: 'soon',
-    method: 'A signed .dmg that installs to Applications like any Mac app.',
-    requirements: 'macOS 12 or newer.',
-  },
-  {
-    key: 'web',
-    name: 'Web',
-    logo: 'web',
-    status: 'available',
-    method: 'Nothing to install. The full product runs in any modern browser, right now.',
-    requirements: 'Any browser from the last two years.',
-  },
-];
-
-/**
- * Why installing beats a tab.
- *
- * Each of these is something the installed app measurably does and the tab does
- * not. Deliberately absent: push notifications, which are not implemented, and
- * "better battery life", which nothing here would let us prove.
- */
-const BENEFITS = [
-  {
-    title: 'Opens instantly',
-    body: 'The app shell is stored on your device, so PINGO starts without waiting for the network.',
-  },
-  {
-    title: 'Works offline',
-    body: 'Open it on a plane or in a lift and the app still loads. Messages sync when you are back.',
-  },
-  {
-    title: 'Its own window',
-    body: 'No address bar, no tabs, no browser chrome. Alt-Tab and Cmd-Tab find it like any app.',
-  },
-  {
-    title: 'Full screen on a phone',
-    body: 'The whole display, with the status bar tinted to match. Not a page inside a browser.',
-  },
-  {
-    title: 'Camera and microphone',
-    body: 'Pings, stories and calls use your hardware directly, with permission asked once.',
-  },
-  {
-    title: 'Native sharing',
-    body: 'Share a profile or a link through the system share sheet you already use.',
-  },
-];
-
-/**
- * What is actually happening, per platform.
- *
- * These used to be "Add to Home Screen" instructions. PINGO is not a Progressive
- * Web App and must never ask anybody to bookmark it - the native builds are real
- * store applications produced from the same engine, and a page teaching people
- * to save a shortcut instead would undercut the thing being built.
- *
- * Until a listing exists, saying so is the only honest option. A store badge
- * that links nowhere is worse than a sentence explaining where things stand.
- */
-const GUIDES: { key: Platform; title: string; steps: string[] }[] = [
-  {
-    key: 'android',
-    title: 'Android: install it now',
-    steps: [
-      'Tap “Download for Android” at the top of this page, on the phone itself. It comes from PINGO’s GitHub releases.',
-      'Open the file on the phone. Android will ask permission to install from this source. Allow it once.',
-      'Tap Install. PINGO appears in your app drawer with its own icon.',
-      'Open it. No browser, no address bar. Sign in and everything works exactly as it does on the web.',
-      'The Play Store listing comes later; nothing about the app changes when it does.',
-    ],
-  },
-  {
-    key: 'ios',
-    title: 'iPhone & iPad',
-    steps: [
-      'The iOS app ships through the App Store, downloaded and installed like any other app.',
-      'It is not published yet. This page will carry the App Store link when it is.',
-      'PINGO runs fully in Safari in the meantime.',
-    ],
-  },
-  {
-    key: 'windows',
-    title: 'Windows',
-    steps: [
-      'A signed desktop installer is in development.',
-      'It will install to your Start menu with its own window and notifications.',
-    ],
-  },
-  {
-    key: 'macos',
-    title: 'macOS',
-    steps: [
-      'A signed .dmg is in development.',
-      'It will install to Applications like any other Mac app.',
-    ],
-  },
+  { logo: 'web', name: 'Web', how: 'Nothing to install. Open it in any modern browser.', ready: true },
+  { logo: 'windows', name: 'Windows', how: 'A desktop app is being built. The web works meanwhile.', ready: false },
+  { logo: 'macos', name: 'Mac', how: 'A desktop app is being built. The web works meanwhile.', ready: false },
 ];
 
 const FAQ = [
@@ -232,52 +72,41 @@ const FAQ = [
     a: 'Yes. There is no paid tier, no trial and nothing to buy.',
   },
   {
-    q: 'Does it work offline?',
-    a: 'The app opens and shows what it already had. Sending and receiving need a connection, and anything you send while offline goes out when you reconnect.',
+    q: 'How do I update the Android app?',
+    a: 'When a new version is out, PINGO tells you when you open it and brings you to this page. Download it and install it over the app you have. Do not uninstall first: the chats kept on your phone go with the old app.',
+  },
+  {
+    q: 'Why does Android ask about installing from Chrome?',
+    a: 'Apps that do not come from the Play Store need your permission once. Allow it for your browser, install PINGO, and you can switch it off again afterwards. The Play Store listing comes later.',
   },
   {
     q: 'Is my data encrypted?',
     a: 'In transit and at rest, yes: chats travel over HTTPS, are stored encrypted by our database provider, and only the people in a conversation can read them. They are not end-to-end encrypted - that is what lets your history follow you to a new phone - and an end-to-end encrypted Private mode is being built. Calls use WebRTC encryption between devices. Full detail is in the Privacy Policy.',
   },
   {
-    q: 'How do I update the app?',
-    a: 'It updates itself. The installed app checks for a new version each time you open it and applies it in the background.',
-  },
-  {
-    q: 'Can I uninstall anytime?',
-    a: 'Yes, the same way as any other app on your device. Uninstalling removes the local copy; your account and messages are untouched.',
-  },
-  {
-    q: 'Is this a real app or a website shortcut?',
-    a: 'The Android and iOS versions are real applications, downloaded from the Play Store and App Store and installed like any other. They have their own icon, splash screen, native permissions and notifications, and they run full screen with no browser anywhere. They share one engine with the web version, which is why a fix lands everywhere at once rather than three times.',
+    q: 'Is the Android app a website in disguise?',
+    a: 'No. It installs like any app, with its own icon, splash screen, permissions and notifications, and runs full screen with no browser anywhere. It shares its engine with the web version, which is why a fix lands everywhere at once.',
   },
 ];
 
 export function DownloadScreen() {
   const navigate = useNavigate();
   const { platform } = useInstall();
+  const [params] = useSearchParams();
+  const updating = params.has('update');
+  const android = platform === 'android';
 
-  /** The published build: how big it is, and which version. Undefined until known. */
-  const [release, setRelease] = useState<{ size: string; tag: string }>();
-
+  /** The version on offer, from the build number the operator last published. */
+  const [version, setVersion] = useState<string>();
   useEffect(() => {
-    // Android only. Nobody else's card shows a size, so nobody else's visit
-    // should cost a request.
-    if (platform !== 'android') return;
-
-    let active = true;
-    void fetch(RELEASE_API, { method: 'HEAD' })
-      .then((response) => {
-        const length = Number(response.headers.get('content-length'));
-        if (!active || !Number.isFinite(length) || length <= 0) return;
-        setRelease({ size: `${(length / 1048576).toFixed(1)} MB`, tag: '' });
-      })
-      .catch(() => undefined);
-
+    let live = true;
+    void loadUpdateNotice().then((row) => {
+      if (live) setVersion(versionName(row?.min_build));
+    });
     return () => {
-      active = false;
+      live = false;
     };
-  }, [platform]);
+  }, []);
 
   /*
    * This page is the one part of PINGO meant to be found by search, so it sets
@@ -296,269 +125,239 @@ export function DownloadScreen() {
     [],
   );
 
-  /*
-   * There is no store listing yet, so the button explains rather than lies.
-   *
-   * It used to raise the browser's install prompt, which is exactly the
-   * "Add to Home Screen" behaviour PINGO is not built on. Scrolling to the
-   * platform's own section is the honest action until a real link exists.
-   */
-  const primaryAction = () => {
-    document.getElementById(`guide-${platform}`)?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
     <div className="h-full overflow-y-auto bg-page">
       <header
         className={cn(
           'sticky top-0 z-100 flex items-center gap-1',
           'glass-surface border-x-0 border-t-0 border-b-line',
-          'px-3 pt-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))]',
+          'px-3 pb-2.5 pt-[max(0.75rem,env(safe-area-inset-top))]',
         )}
       >
         <IconButton label="Back" variant="ghost" onClick={() => navigate(-1)}>
           <ChevronLeftIcon size={22} />
         </IconButton>
-        {/* Chrome label only - the document H1 lives in the hero below. */}
-        <p className="text-h2 text-ink">Download</p>
+        <AppLogo size={26} alt="" />
+        <p className="ml-1.5 text-[17px] font-semibold text-ink">PINGO</p>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-5 pb-24">
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 pb-24 pt-5">
         {/* ---- hero ---------------------------------------------------- */}
         <section
-          className="flex flex-col items-center gap-5 pt-12 pb-14 text-center"
-          aria-labelledby="download-hero-title"
+          aria-labelledby="download-title"
+          className="relative overflow-hidden rounded-[32px] bg-surface px-6 pb-7 pt-9 text-center shadow-[0_1px_3px_rgba(16,17,20,0.06),0_12px_40px_rgba(16,17,20,0.06)]"
         >
-          <AppLogo
-            size={96}
-            alt=""
-            tile
-            fetchPriority="high"
-            className="motion-safe:animate-qr-in"
-          />
-
-          <div>
-            <h1 id="download-hero-title" className="text-h1 text-ink">
-              Download PINGO
+          <span aria-hidden className="bg-sweep pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl" />
+          <div className="relative flex flex-col items-center">
+            <AppLogo size={92} alt="" tile fetchPriority="high" className="motion-safe:animate-qr-in" />
+            <h1 id="download-title" className="mt-5 text-balance text-[28px] leading-tight font-bold tracking-[-0.01em] text-ink">
+              {updating ? 'Update PINGO' : android ? 'PINGO for Android' : 'Get PINGO'}
             </h1>
-            <p className="mx-auto mt-3 max-w-md text-body text-text-secondary">
-              Private messaging that lives on your device. Pings that disappear, stories
-              that expire, and a profile that holds three posts - no feed, no follower
-              count, nothing to scroll.
+            <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-text-secondary">
+              {updating
+                ? 'Download the new version and install it over the one you have. Your chats stay right where they are.'
+                : 'Private messaging with Pings that disappear, stories that expire, and no feed to scroll.'}
             </p>
-          </div>
 
-          <div className="flex flex-col items-center gap-2">
-            {platform === 'android' ? (
-              /*
-                A real file, not a prompt.
-
-                An anchor rather than a button with a click handler: `download`
-                is what makes Android treat it as a file to save instead of a
-                page to navigate to, and it is an attribute only an anchor has.
-              */
-              <a
-                href={ANDROID_APK}
-                /*
-                  No `download` attribute: it only works same-origin, and the
-                  file lives on a separate download origin. Android downloads
-                  an APK by content type, which the Worker serves correctly.
-                */
-                rel="noopener noreferrer"
-                className={cn(
-                  'glass-press inline-flex items-center justify-center rounded-full',
-                  'bg-brand-gradient px-6 py-3 text-body font-medium text-on-brand',
-                  'focus-ring',
-                )}
-              >
-                Download for Android
-              </a>
+            {android ? (
+              <>
+                {/*
+                  A plain link to the file. No `download` attribute: that only
+                  works same-origin, and the Worker is another origin. Android
+                  saves an APK by its content type, which the Worker sets.
+                */}
+                <a
+                  href={ANDROID_APK}
+                  rel="noopener noreferrer"
+                  className="focus-ring bg-sweep mt-6 flex h-13 w-full max-w-xs items-center justify-center gap-2 rounded-full text-[16px] font-semibold text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)] active:scale-[0.98]"
+                >
+                  <ArrowDownToLine size={20} />
+                  {updating ? 'Download update' : 'Download for Android'}
+                </a>
+                <ul className="mt-4 flex flex-wrap justify-center gap-1.5" aria-label="About this download">
+                  <Chip>Free</Chip>
+                  {version && <Chip>Version {version}</Chip>}
+                  <Chip>Android 7 and up</Chip>
+                </ul>
+              </>
             ) : (
-              <Button variant="primary" size="lg" onClick={primaryAction} className="glass-press">
-                {platform === 'other' ? 'See the platforms' : `Coming to ${STORE_NAME[platform]}`}
-              </Button>
+              <NotOnAndroid />
             )}
-            <p className="text-caption text-text-tertiary">
-              {platform === 'android' ? (
-                <>Free{release ? ` · ${release.size}` : ''} · Android 7 and up</>
-              ) : (
-                'Free, and the full product runs in your browser today.'
-              )}
-            </p>
           </div>
         </section>
 
-        {/* ---- platforms ----------------------------------------------- */}
-        <Section title="Every device you use" id="platforms">
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {PLATFORMS.map((card) => (
-              <li
-                key={card.key}
-                className={cn(
-                  'rounded-2xl border border-line bg-surface/90 p-4 shadow-sm',
-                  'transition-[transform,box-shadow] duration-quick ease-spring',
-                  'hover:-translate-y-0.5 hover:shadow-md',
-                  // The visitor's own platform, marked. It is the only card that
-                  // is about them.
-                  card.key === platform && 'ring-2 ring-brand shadow-md',
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <PlatformLogo platform={card.logo} size={40} />
-                  <h3 className="flex-1 text-body font-medium text-ink">{card.name}</h3>
-                  <span
-                    className={cn(
-                      'rounded-full px-2 py-0.5 text-caption',
-                      card.status === 'available'
-                        ? 'bg-brand-subtle text-brand'
-                        : 'bg-sunken text-text-secondary',
-                    )}
-                  >
-                    {card.status === 'available' ? 'Available now' : 'In development'}
-                  </span>
-                </div>
-                <p className="mt-2 text-caption text-text-secondary">{card.method}</p>
-                <p className="mt-2 text-caption text-text-tertiary">{card.requirements}</p>
-              </li>
+        {/* ---- install steps (Android) ------------------------------------ */}
+        {android && (
+          <Section title={updating ? 'Update in three steps' : 'Install in three steps'} id="steps">
+            <ol className="grid gap-3 sm:grid-cols-3">
+              <Step n={1} icon={<ArrowDownToLine size={20} />} title="Download">
+                Tap the button above. The file lands in your downloads.
+              </Step>
+              <Step n={2} icon={<ShieldCheck size={20} />} title="Allow once">
+                Open it. If Android asks, let your browser install apps.
+              </Step>
+              <Step n={3} icon={<PackageCheck size={20} />} title={updating ? 'Update' : 'Install'}>
+                {updating ? 'Tap Update. PINGO opens with everything as you left it.' : 'Tap Install, open PINGO and sign in.'}
+              </Step>
+            </ol>
+
+            {/* The one mistake that loses something. Said plainly, where it is needed. */}
+            <div className="mt-3 flex gap-3 rounded-2xl bg-brand/8 p-4">
+              <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-surface text-brand">
+                <RefreshCw size={18} />
+              </span>
+              <p className="text-[14px] leading-relaxed text-ink">
+                <b className="font-semibold">Already have PINGO?</b> Install the new one over it. Do not uninstall
+                first: chats kept on this phone would go with the old app.
+              </p>
+            </div>
+          </Section>
+        )}
+
+        {/* ---- other devices -------------------------------------------- */}
+        <Section title={android ? 'On your other devices' : 'Every device'} id="devices">
+          <ul className="overflow-hidden rounded-2xl bg-surface shadow-[0_1px_3px_rgba(16,17,20,0.06)]">
+            {!android && (
+              <DeviceRow logo="android" name="Android" how="A real app. Open this page on the phone to download it." ready />
+            )}
+            {OTHER_DEVICES.map((device) => (
+              <DeviceRow key={device.name} {...device} />
             ))}
           </ul>
-        </Section>
-
-        {/* ---- why install --------------------------------------------- */}
-        <Section title="Why install it" id="why-install">
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {BENEFITS.map((benefit) => (
-              <li key={benefit.title} className="flex gap-3">
-                <span
-                  aria-hidden
-                  className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand-subtle text-brand"
-                >
-                  <CheckIcon size={13} />
-                </span>
-                <div>
-                  <h3 className="text-body font-medium text-ink">{benefit.title}</h3>
-                  <p className="text-caption text-text-secondary">{benefit.body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        {/* ---- guides --------------------------------------------------- */}
-        <Section title="How to install" id="how-to-install">
-          <div className="flex flex-col gap-4">
-            {GUIDES.map((guide) => (
-              <article
-                key={guide.key}
-                id={`guide-${guide.key}`}
-                className={cn(
-                  'rounded-2xl border border-line bg-surface p-4',
-                  guide.key === platform && 'ring-2 ring-brand',
-                )}
-                aria-labelledby={`guide-title-${guide.key}`}
-              >
-                <h3 id={`guide-title-${guide.key}`} className="text-body font-medium text-ink">
-                  {guide.title}
-                </h3>
-                <ol className="mt-2 flex flex-col gap-1.5">
-                  {guide.steps.map((step, index) => (
-                    <li key={step} className="flex gap-2.5 text-caption text-text-secondary">
-                      <span
-                        aria-hidden
-                        className="grid size-5 shrink-0 place-items-center rounded-full bg-sunken text-text-tertiary tabular-nums"
-                      >
-                        {index + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </article>
-            ))}
-          </div>
         </Section>
 
         {/* ---- faq ------------------------------------------------------ */}
         <Section title="Questions" id="faq">
-          <div className="flex flex-col gap-2">
-            {FAQ.map((item) => (
-              <details
-                key={item.q}
-                className={cn(
-                  'group rounded-xl border border-line bg-surface px-4 py-3',
-                  'transition-colors duration-quick ease-standard hover:bg-surface-hover',
-                )}
-              >
-                <summary
-                  className={cn(
-                    'cursor-pointer list-none text-body text-ink',
-                    'flex items-center justify-between gap-3 focus-ring rounded-md',
-                  )}
-                >
-                  <span className="font-medium">{item.q}</span>
-                  <span
-                    aria-hidden
-                    className="shrink-0 text-text-tertiary transition-transform duration-quick ease-spring group-open:rotate-45"
-                  >
+          <div className="overflow-hidden rounded-2xl bg-surface shadow-[0_1px_3px_rgba(16,17,20,0.06)]">
+            {FAQ.map((item, index) => (
+              <details key={item.q} className={cn('group', index > 0 && 'border-t border-line')} open={updating && index === 1}>
+                <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-[15px] font-medium text-ink">
+                  {item.q}
+                  <span aria-hidden className="shrink-0 text-[20px] leading-none text-text-tertiary transition-transform duration-quick ease-spring group-open:rotate-45">
                     +
                   </span>
                 </summary>
-                <p className="mt-2 text-caption text-text-secondary">{item.a}</p>
+                <p className="px-4 pb-4 text-[14px] leading-relaxed text-text-secondary">{item.a}</p>
               </details>
             ))}
           </div>
         </Section>
 
         {/* ---- footer ---------------------------------------------------- */}
-        <footer className="mt-16 border-t border-line pt-6">
+        <footer className="border-t border-line pt-6">
           {/*
             Public links only. Terms and Privacy are readable without a
-            session. Support used to point at /settings/help, which is
-            auth-gated and a soft 404 for crawlers and signed-out visitors.
+            session; the help screen is behind sign-in and would be a dead end.
           */}
           <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-2">
-            <Link
-              to="/terms"
-              className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
-            >
-              Terms of Use
-            </Link>
-            <Link
-              to="/privacy"
-              className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
-            >
-              Privacy Policy
-            </Link>
-            <Link
-              to="/terms#data"
-              className="text-caption text-text-secondary transition-colors duration-quick ease-standard hover:text-ink"
-            >
-              How data is handled
-            </Link>
+            {[
+              ['/terms', 'Terms of Use'],
+              ['/privacy', 'Privacy Policy'],
+              ['/terms#data', 'How data is handled'],
+            ].map(([to, label]) => (
+              <Link key={to} to={to!} className="text-caption text-text-secondary transition-colors duration-quick hover:text-ink">
+                {label}
+              </Link>
+            ))}
           </nav>
-          <p className="mt-4 text-caption text-text-tertiary">
-            One engine, five platforms. The web version is live now; the store
-            applications are in development.
-          </p>
         </footer>
       </main>
     </div>
   );
 }
 
-function Section({
-  title,
-  id,
-  children,
-}: {
-  title: string;
-  id: string;
-  children: React.ReactNode;
-}) {
+/**
+ * The hero's action anywhere but an Android phone.
+ *
+ * There is no file to offer an iPhone or a computer, so it offers the two
+ * things that work: PINGO in this browser now, and the address to open on a
+ * phone for the Android app.
+ */
+function NotOnAndroid() {
+  const address = publicAppUrl('/download').replace(/^https?:\/\//, '');
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard
+      ?.writeText(`https://${address}`)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1800);
+      })
+      .catch(() => undefined);
+  };
+
+  return (
+    <div className="mt-6 flex w-full max-w-xs flex-col items-stretch gap-3">
+      <Link
+        to="/chats"
+        className="focus-ring bg-sweep flex h-13 items-center justify-center rounded-full text-[16px] font-semibold text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)] active:scale-[0.98]"
+      >
+        Open PINGO in your browser
+      </Link>
+      <div className="rounded-2xl bg-sunken p-3 text-left">
+        <p className="text-[13px] text-text-secondary">For the Android app, open this on your phone:</p>
+        <div className="mt-1.5 flex items-center gap-2">
+          <code className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">{address}</code>
+          <button
+            type="button"
+            onClick={copy}
+            aria-label={copied ? 'Copied' : 'Copy the address'}
+            className="focus-ring grid size-9 shrink-0 place-items-center rounded-full bg-surface text-ink active:scale-95"
+          >
+            {copied ? <Check size={16} className="text-brand" /> : <Copy size={16} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Chip({ children }: { children: ReactNode }) {
+  return <li className="rounded-full bg-sunken px-3 py-1 text-[12.5px] font-medium text-text-secondary tabular-nums">{children}</li>;
+}
+
+function Step({ n, icon, title, children }: { n: number; icon: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <li className="flex gap-3 rounded-2xl bg-surface p-4 shadow-[0_1px_3px_rgba(16,17,20,0.06)] sm:flex-col">
+      <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-brand/10 text-brand">
+        {icon}
+        <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-brand text-[11px] font-bold text-white tabular-nums">
+          {n}
+        </span>
+      </span>
+      <div>
+        <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
+        <p className="mt-0.5 text-[13.5px] leading-snug text-text-secondary">{children}</p>
+      </div>
+    </li>
+  );
+}
+
+function DeviceRow({ logo, name, how, ready }: OtherDevice) {
+  return (
+    <li className="flex items-center gap-3 border-b border-line px-4 py-3.5 last:border-b-0">
+      <PlatformLogo platform={logo} size={36} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-medium text-ink">{name}</p>
+        <p className="text-[13px] leading-snug text-text-secondary">{how}</p>
+      </div>
+      <span
+        className={cn(
+          'shrink-0 rounded-full px-2.5 py-1 text-[12px] font-medium',
+          ready ? 'bg-brand/10 text-brand' : 'bg-sunken text-text-tertiary',
+        )}
+      >
+        {ready ? 'Ready' : 'Later'}
+      </span>
+    </li>
+  );
+}
+
+function Section({ title, id, children }: { title: string; id: string; children: ReactNode }) {
   const headingId = `${id}-heading`;
   return (
-    <section className="pt-10" id={id} aria-labelledby={headingId}>
-      <h2 id={headingId} className="mb-4 text-h2 text-ink">
+    <section id={id} aria-labelledby={headingId}>
+      <h2 id={headingId} className="mb-3 px-1 text-[20px] font-semibold text-ink">
         {title}
       </h2>
       {children}

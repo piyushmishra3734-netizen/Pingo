@@ -12,7 +12,7 @@
  *
  * Run with `pnpm verify:update-notice`.
  */
-import { isBehind, shouldShow } from '../src/features/updates/notice-rules.js';
+import { isBehind, shouldShow, versionName } from '../src/features/updates/notice-rules.js';
 
 /** The build shipped as 2.26.35.3 - YYWWBB, the scheme in build.gradle. */
 const SHIPPED = 2603503;
@@ -68,6 +68,22 @@ check(
   shouldShow(false, '2026-08-01T00:00:00.000Z', PUBLISHED),
   true,
 );
+
+/*
+ * The version the prompt and the download page print, from the same number
+ * build.gradle writes both of. Wrong here means telling somebody to update to
+ * a version that does not match what they install.
+ */
+function same(what: string, got: string | undefined, want: string | undefined): void {
+  if (got === want) return;
+  console.error(`✗ ${what}: expected ${want}, got ${got}`);
+  failures += 1;
+}
+same('the shipped build reads as its versionName', versionName(2603701), '2.26.37.1');
+same('a two-digit build within the week', versionName(2603512), '2.26.35.12');
+same('a typo is not a version', versionName(4664), undefined);
+same('week zero is not a week', versionName(2600001), undefined);
+same('nothing published, nothing shown', versionName(undefined), undefined);
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed`);

@@ -48,3 +48,20 @@ export function shouldShow(behind: boolean, seen: string | null, updatedAt: stri
   if (behind) return true;
   return seen !== updatedAt;
 }
+
+/**
+ * A versionCode as the version people read, or undefined if it is not one.
+ *
+ * The two are the same facts written twice (see `build.gradle`): 2603701 is
+ * year 26, ISO week 37, the first build that week, shown as "2.26.37.1". Worked
+ * out here rather than published separately so the update prompt and the
+ * download page cannot name a version the build number disagrees with.
+ */
+export function versionName(build: number | undefined): string | undefined {
+  if (build === undefined || !Number.isInteger(build) || build < 1_000_000 || build > 9_999_999) return undefined;
+  const year = Math.floor(build / 100_000);
+  const week = Math.floor(build / 100) % 1000;
+  const within = build % 100;
+  if (week < 1 || week > 53 || within < 1) return undefined;
+  return `2.${year}.${week}.${within}`;
+}
