@@ -3,14 +3,13 @@ import { PlayIcon, cn } from '@pingo/ui';
 import { ExternalLink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { lazySuspended } from '../../lib/lazy-named.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
-import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js';
+import { canResolveMedia } from '../../lib/video/resolve-media.js';
 import { saveVideo, saveVideoBlob } from '../native/save-video.js';
 import { clock, VideoPlayer } from './VideoPlayer.js';
+import { VideoLinkViewer } from './VideoLinkViewer.js';
 import { keepVideo, storedVideo } from './video-vault.js';
 
-const VideoLinkViewer = lazySuspended(() => import('./VideoLinkViewer.js'), 'VideoLinkViewer');
 
 /**
  * A video link, drawn as the video it points at.
@@ -109,16 +108,6 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
    */
   const [broken, setBroken] = useState(false);
 
-  /*
-   * The media behind a platform link, once a resolver has found it.
-   *
-   * Separate from `preview.fileUrl`, which the `direct` provider fills from the
-   * URL alone. Both end up in the same place - `file` below - so everything
-   * downstream stops caring where a playable video came from, which is what
-   * lets a YouTube link and an `.mp4` link render as the same thing.
-   */
-  const [resolved, setResolved] = useState<string>();
-  const [resolving, setResolving] = useState(false);
 
   /*
    * The copy this device already keeps, if Save was pressed before.
@@ -146,7 +135,8 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
     };
   }, [messageId]);
 
-  const file = kept ?? preview.fileUrl ?? resolved;
+  // A platform link's own file is found by the viewer, full screen; the card plays only what it already has.
+  const file = kept ?? preview.fileUrl;
 
   const platform = PLATFORM[preview.platform];
   /*
@@ -228,9 +218,6 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
         {file && !broken ? (
           <VideoPlayer
             src={file}
-            // Resolved on tap means the person is already waiting for this one,
-            // so it starts rather than needing a second press.
-            autoPlay={resolved !== undefined}
             onShape={(shape, length) => {
               setRatio(Math.min(Math.max(shape, 9 / 16), 16 / 9));
               if (Number.isFinite(length)) setSeconds(length);
@@ -243,21 +230,15 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
             thumbnail={thumbnail}
             label={platform.label}
             onThumbnailError={() => (igPath && !thumbRetried ? setThumbRetried(true) : setThumbFailed(true))}
-            busy={resolving}
             onPlay={() => {
-              // Ask for the real video first; without a resolver, the platform's own player.
-              const fallback = () => setViewer(card.current?.getBoundingClientRect() ?? null);
-              if (!canResolveMedia()) {
-                fallback();
-                return;
-              }
-              setResolving(true);
-              void resolveMedia(preview.canonicalUrl)
-                .then((found) => {
-                  if (found) setResolved(found);
-                  else fallback();
-                })
-                .finally(() => setResolving(false));
+              /*
+               * Straight into the full-screen viewer, growing out of this card.
+               * It used to ask the resolver first and wait here with a spinner,
+               * then play inside the card; the viewer now does the asking,
+               * behind the cover, so the tap answers at once.
+               */
+              if (preview.embedUrl || canResolveMedia()) setViewer(card.current?.getBoundingClientRect() ?? null);
+              else window.open(details.canonicalUrl, '_blank', 'noopener');
             }}
           />
         )}
@@ -329,7 +310,7 @@ export function VideoLinkCard({ preview, messageId, spaced, bare }: VideoLinkCar
         frame
       )}
 
-      {viewer && preview.embedUrl && (
+      {viewer && (preview.embedUrl || canResolveMedia()) && (
         <VideoLinkViewer
           preview={preview}
           from={viewer}
