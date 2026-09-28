@@ -9,6 +9,7 @@ import {
   SettingsPage,
   ToggleRow,
 } from '../../features/settings/controls.js';
+import { PrivateAccountCard } from '../../features/settings/PrivateAccountCard.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useT } from '../../features/i18n/useT.js';
 import { refreshPresenceStatus, savePresenceStatus } from '../../features/presence/status.js';
@@ -146,6 +147,8 @@ export function PrivacyScreen() {
 
   return (
     <SettingsPage title={t('page.privacy')}>
+      <PrivateAccountCard isPrivate={rules.privateAccount} onChange={(privateAccount) => save({ privateAccount })} />
+
       <Group title={t('privacy.groupReach')}>
         <ChoiceRow
           label={t('privacy.whoCanCall')}

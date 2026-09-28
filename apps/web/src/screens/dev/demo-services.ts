@@ -75,7 +75,17 @@ function stub<T extends object>(own: Record<string, unknown>): T {
   }) as T;
 }
 
+/** People from the story tray, as profiles, so their pages open. */
+function personProfile(handle: string): Profile | null {
+  const row = PEOPLE.find(([id]) => id === handle);
+  if (!row) return null;
+  const [id, full, f] = row;
+  return { id, username: id, displayName: full, avatarUrl: face(f), bio: '', bannerOffset: 50, isPremium: false, createdAt: Date.now() - 90 * 864e5 } as Profile;
+}
+
 export function demoServices() {
+  // Privacy rules kept in memory; Baani's account is private, to show that page.
+  let privacy = { whoCanCall: 'everyone', whoCanAdd: 'everyone', profileVisibility: 'everyone', onlineStatus: true, privateAccount: false };
   const session = { user: { id: ME_ID, email: 'demo@pingo.local', methods: ['email'], createdAt: ME.createdAt } };
   const chat = new MockChatService();
   const chatProxy = new Proxy(chat, {
@@ -104,9 +114,13 @@ export function demoServices() {
     }),
     profile: stub({
       getMine: async () => ME,
-      find: async (h: string) => (h === ME.username || h === ME_ID ? ME : null),
-      peek: (h: string) => (h === ME.username || h === ME_ID ? ME : undefined),
+      find: async (h: string) => (h === ME.username || h === ME_ID ? ME : personProfile(h)),
+      peek: (h: string) => (h === ME.username || h === ME_ID ? ME : personProfile(h) ?? undefined),
       followState: async () => 'none',
+      privacySettings: async () => privacy,
+      updatePrivacySettings: async (changes: object) => { privacy = { ...privacy, ...changes }; },
+      isPrivateAccount: async (id: string) => id === 'baani',
+      stats: async () => ({ posts: 3, friends: 12, groups: 2 }),
     }),
     chat: chatProxy,
     story: stub({ listStoryGroups: async () => storyGroups(), listFriends: async () => PEOPLE.map((p) => p[0]) }),

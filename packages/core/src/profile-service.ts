@@ -231,6 +231,13 @@ export interface PrivacySettings {
   whoCanAdd: 'everyone' | 'friends-of-friends' | 'nobody';
   profileVisibility: 'everyone' | 'friends' | 'nobody';
   onlineStatus: boolean;
+  /**
+   * Posts only for followers you have accepted.
+   *
+   * Everybody can still find the account and ask to follow; the post policies
+   * in the database are what keep the posts from anyone not let in.
+   */
+  privateAccount: boolean;
 }
 
 export const OPEN_PRIVACY: PrivacySettings = {
@@ -238,6 +245,7 @@ export const OPEN_PRIVACY: PrivacySettings = {
   whoCanAdd: 'everyone',
   profileVisibility: 'everyone',
   onlineStatus: true,
+  privateAccount: false,
 };
 
 export interface ProfileService {
@@ -474,6 +482,13 @@ export interface ProfileService {
    */
   privacySettings(): Promise<PrivacySettings>;
   updatePrivacySettings(changes: Partial<PrivacySettings>): Promise<void>;
+
+  /**
+   * Whether somebody else's account is private - the one privacy rule shown to
+   * other people, because their profile has to say why there are no posts.
+   * False when it cannot be told.
+   */
+  isPrivateAccount?(userId: string): Promise<boolean>;
 
   /**
    * Files a report. Fire and forget by design - nothing in the product reads

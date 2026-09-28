@@ -27,7 +27,7 @@ import {
   VideoIcon,
   cn,
 } from '@pingo/ui';
-import { AtSign, Briefcase, Compass, Image as ImageGlyph, LayoutGrid, MapPin, Trophy } from 'lucide-react';
+import { AtSign, Briefcase, Compass, Image as ImageGlyph, LayoutGrid, Lock, MapPin, Trophy } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
@@ -53,6 +53,7 @@ import {
   PostGrid,
   PostGridSkeleton,
   PostsEmpty,
+  PrivatePosts,
 } from '../features/profile/PostGrid.js';
 import { PostViewer } from '../features/profile/PostViewer.js';
 import { PostToStory } from '../features/profile/PostToStory.js';
@@ -160,6 +161,10 @@ export function ProfileScreen() {
   const [blocked, setBlocked] = useState(false);
   /** My friends who are also theirs. Absent until it loads, or when it cannot. */
   const [mutualFriends, setMutualFriends] = useState<MutualFriends>();
+  /** This account is private - shown as a lock beside the handle, to anyone. */
+  const [accountPrivate, setAccountPrivate] = useState(false);
+  /** Private, and the viewer is not an accepted follower: no posts for them. */
+  const [locked, setLocked] = useState(false);
 
   const [tab, setTab] = useState<Tab>('posts');
 
@@ -170,6 +175,8 @@ export function ProfileScreen() {
     setStats(undefined);
     setShared(undefined);
     setMutualFriends(undefined);
+    setAccountPrivate(false);
+    setLocked(false);
     setTab('posts');
   }, [handle]);
 
@@ -199,6 +206,26 @@ export function ProfileScreen() {
       .listPosts(personId)
       .then((next) => { if (active) setPosts(next); })
       .catch(() => { if (active) setPostsFailed(true); });
+
+    /*
+     * Whether the posts are behind a follow. The database already withholds
+     * them, so an empty list is all a stranger gets either way; this is what
+     * lets the screen say why instead of claiming nothing was ever posted.
+     */
+    if (isSelf) {
+      void profiles
+        .privacySettings()
+        .then((rules) => { if (active) setAccountPrivate(rules.privateAccount); })
+        .catch(() => undefined);
+    } else if (profiles.isPrivateAccount) {
+      void Promise.all([profiles.isPrivateAccount(personId), profiles.followState(personId)])
+        .then(([isPrivate, state]) => {
+          if (!active) return;
+          setAccountPrivate(isPrivate);
+          setLocked(isPrivate && state !== 'following' && state !== 'mutual');
+        })
+        .catch(() => undefined);
+    }
 
     if (isSelf) {
       void profiles
@@ -617,7 +644,12 @@ export function ProfileScreen() {
               )}
 
               <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[12.5px] text-text-secondary">
-                <Fact icon={<AtSign size={14} />}>{person.username}</Fact>
+                <Fact icon={<AtSign size={14} />}>
+                  {person.username}
+                  {accountPrivate && (
+                    <Lock size={12} className="ml-1 inline-block align-[-1px] text-text-tertiary" aria-label="Private account" />
+                  )}
+                </Fact>
                 {person.work && <Fact icon={<Briefcase size={14} />}>{person.work}</Fact>}
                 {person.location && <Fact icon={<MapPin size={14} />}>{person.location}</Fact>}
               </div>
@@ -794,6 +826,8 @@ export function ProfileScreen() {
                 Try again
               </Button>
             </div>
+          ) : locked ? (
+            <PrivatePosts name={person.displayName} />
           ) : !posts ? (
             <PostGridSkeleton />
           ) : posts.length === 0 && !isSelf ? (

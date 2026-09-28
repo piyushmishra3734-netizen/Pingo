@@ -758,6 +758,7 @@ export class SupabaseProfileService implements ProfileService {
       whoCanAdd: data.who_can_add as PrivacySettings['whoCanAdd'],
       profileVisibility: data.profile_visibility as PrivacySettings['profileVisibility'],
       onlineStatus: data.online_status,
+      privateAccount: await this.readPrivateAccount(userId),
     };
     /*
      * Kept where the heartbeat can reach it: that runs every minute, outside
@@ -780,7 +781,13 @@ export class SupabaseProfileService implements ProfileService {
         who_can_add: next.whoCanAdd,
         profile_visibility: next.profileVisibility,
         online_status: next.onlineStatus,
-      },
+        /*
+         * Written only when it is the thing being changed, so a database that
+         * has not had the private-accounts migration yet still saves every
+         * other switch on this page.
+         */
+        ...('privateAccount' in changes ? { private_account: next.privateAccount } : {}),
+      } as never,
       { onConflict: 'user_id' },
     );
     if (error) rethrow(error);
@@ -788,6 +795,34 @@ export class SupabaseProfileService implements ProfileService {
     // The heartbeat reads this copy. Without it, turning the switch off would
     // not take effect until something else happened to re-read the rules.
     cachePrivacyRules(next);
+  }
+
+  async isPrivateAccount(userId: string): Promise<boolean> {
+    return this.readPrivateAccount(userId);
+  }
+
+  /**
+   * The private-account flag, read on its own.
+   *
+   * Separate from the rest of the row because it is newer than it: before the
+   * migration that adds the column, asking for it fails, and that must cost
+   * only this answer - false, the open default - not the whole privacy page.
+   */
+  private async readPrivateAccount(userId: string): Promise<boolean> {
+    const table = this.client.from('privacy_settings') as unknown as {
+      select(columns: string): {
+        eq(column: string, value: string): {
+          maybeSingle(): PromiseLike<{ data: { private_account?: boolean } | null; error: unknown }>;
+        };
+      };
+    };
+    try {
+      const { data, error } = await table.select('private_account').eq('user_id', userId).maybeSingle();
+      if (error || !data) return false;
+      return data.private_account === true;
+    } catch {
+      return false;
+    }
   }
 
   async stats(userId: string): Promise<ProfileStats> {
