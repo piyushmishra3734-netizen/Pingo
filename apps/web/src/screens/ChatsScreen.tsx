@@ -8,7 +8,8 @@ import { InstallBanner } from '../features/install/InstallBanner.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
 import { useT } from '../features/i18n/useT.js';
 import { DailyJourneyCard } from '../features/journey/DailyJourneyCard.js';
-import { DUMMY_DAILY_NOTE, DUMMY_MISSIONS } from '../features/journey/dummy-journey.js';
+import { useDailyMissions } from '../features/journey/daily-missions.js';
+import { DUMMY_DAILY_NOTE } from '../features/journey/dummy-journey.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { lazyNamed } from '../lib/lazy-named.js';
 
@@ -46,6 +47,7 @@ export function ChatsScreen() {
   const { profile } = useProfile();
   const { conversations, ready } = useChat();
   const isDesktop = useIsDesktop();
+  const missions = useDailyMissions();
   /*
    * Fetch the thread once the list has settled - on any link, since opening a
    * chat is the one thing nearly every launch leads to. Not `whenIdle`, which
@@ -84,7 +86,7 @@ export function ChatsScreen() {
         it is disabled and it leaves on its own after five seconds.
       */}
       <DailyJourneyCard
-        missions={DUMMY_MISSIONS}
+        missions={missions}
         note={DUMMY_DAILY_NOTE}
         {...(profile?.displayName ? { name: profile.displayName.split(" ")[0] } : {})}
       />

@@ -27,7 +27,10 @@
 import { useChat, useProfile } from '@pingo/core';
 import { useEffect, useMemo, useState } from 'react';
 
-import { evaluateMessages, type CountableMessage } from '../badges/metrics.js';
+import { messageEvents, type CountableMessage } from '../badges/metrics.js';
+import { useStories } from '../stories/StoryContext.js';
+import { evaluateJourney } from './evaluate.js';
+import type { JourneyEvent } from './events.js';
 import { libraryFor, type BadgeMetrics, type BadgeProgress } from '../badges/registry.js';
 import type { PulseEntry } from './dummy-journey.js';
 import {
@@ -39,8 +42,11 @@ import {
 } from './noticing.js';
 import {
   EMPTY_PROGRESS,
+  foldMoments,
   levelFor,
+  loadLedger,
   loadProgress,
+  saveLedger,
   mergeProgress,
   saveProgress,
   type JourneyProgress,
@@ -89,6 +95,7 @@ const lastPublishedFor = new Map<string, string>();
 export function useJourneyProgress(): JourneyState {
   const { service, currentUser, conversations, ready } = useChat();
   const { profile, service: profiles } = useProfile();
+  const { service: stories } = useStories();
   const [progress, setProgress] = useState<JourneyProgress>(EMPTY_PROGRESS);
   const [metrics, setMetrics] = useState<BadgeMetrics>({});
   const [pulse, setPulse] = useState<PulseEntry[]>([]);
@@ -111,6 +118,18 @@ export function useJourneyProgress(): JourneyState {
     () => conversations.map((c) => c.id).sort().join(','),
     [conversations],
   );
+
+  /*
+   * Counted again when somebody comes back to the app, not only when the set
+   * of chats changes - otherwise a night of talking in the same chats never
+   * reached the badges until the list happened to remount.
+   */
+  const [recount, setRecount] = useState(0);
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') setRecount((n) => n + 1); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   useEffect(() => {
     if (!userId || !ready) return;
@@ -144,6 +163,13 @@ export function useJourneyProgress(): JourneyState {
       }
 
       const messages: CountableMessage[] = [];
+      /*
+       * What the message list can say beyond the text: your photos and voice
+       * notes the other side has read. A read receipt is the nearest thing to
+       * "opened" and "played" that exists, and without these the photo and
+       * voice badges could never move at all.
+       */
+      const extra: JourneyEvent[] = [];
       for (const conversation of conversations) {
         const cached = await service.cachedMessages(conversation.id);
         if (!cached) continue;
@@ -159,11 +185,46 @@ export function useJourneyProgress(): JourneyState {
             createdAt: message.createdAt,
             attachmentKinds: message.attachments.map((a) => a.kind),
           });
+          if (message.authorId !== userId || message.status !== 'read') continue;
+          for (const [i, attachment] of message.attachments.entries()) {
+            if (attachment.kind === 'image') {
+              extra.push({ kind: 'photo.opened', id: `photo:${message.id}:${i}`, at: message.createdAt, edited: false });
+            } else if (attachment.kind === 'audio') {
+              extra.push({ kind: 'voice.played', id: `voice:${message.id}:${i}`, at: message.createdAt, conversationId: message.conversationId, seconds: attachment.duration });
+            }
+          }
         }
+      }
+
+      /*
+       * Calls and friends, which never reached the badges before: the only
+       * source was messages, so every call and friend badge sat at zero.
+       */
+      const [calls, friendIds] = await Promise.all([
+        service.listCalls().catch(() => []),
+        stories.listFriends().catch(() => [] as string[]),
+      ]);
+      for (const call of calls) {
+        extra.push({
+          kind: 'call.ended',
+          id: `call:${call.id}`,
+          at: call.startedAt,
+          seconds: call.duration,
+          answered: call.outcome === 'answered',
+          participants: 2,
+          ...(call.withUserId ? { with: call.withUserId } : {}),
+        });
+      }
+      for (const friend of friendIds) {
+        extra.push({ kind: 'friend.established', id: `friend:${friend}`, at: 0, with: friend });
       }
       if (cancelled) return;
 
-      const { metrics: counts, momentsEarned } = evaluateMessages(messages, userId);
+      const evaluation = evaluateJourney([...messageEvents(messages, userId), ...extra]);
+      const folded = foldMoments(loadLedger(userId), evaluation.moments);
+      saveLedger(userId, folded.ledger);
+      const counts = folded.metrics as BadgeMetrics;
+      const momentsEarned = folded.momentsEarned;
 
       const rows = pulseFrom(conversations, messages, userId);
       if (!cancelled) {
@@ -262,7 +323,7 @@ export function useJourneyProgress(): JourneyState {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids
     // rather than the array, deliberately; see `conversationKey`.
-  }, [service, userId, ready, conversationKey]);
+  }, [service, stories, userId, ready, conversationKey, recount]);
 
   const library = useMemo(
     () => libraryFor(metrics, new Set(progress.unlockedIds)),

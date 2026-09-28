@@ -148,6 +148,64 @@ export function saveProgress(userId: string, progress: JourneyProgress): void {
   }
 }
 
+/**
+ * Every moment this device has ever counted, by event and metric.
+ *
+ * ## Why the counters need a memory of their own
+ *
+ * The count is taken from the message cache, and the cache is a window: the
+ * newest page or so of each thread. Recounting from nothing each time meant a
+ * badge like "50 messages after midnight" could never fill - by the time the
+ * fiftieth was sent the first ones had scrolled out of the window, and the bar
+ * sat where it was however much anybody talked. `momentsEarned` had a floor;
+ * the counters behind the badges did not.
+ *
+ * So each counted moment is written down once, keyed by the event that earned
+ * it. A later count adds what is new and cannot lose what is old, and the same
+ * event seen twice is still one entry, so a recount never double-counts.
+ */
+export type MomentLedger = Record<string, [metric: string, count: number, weight: number]>;
+
+const LEDGER_KEY = 'pingo.journey.ledger';
+
+export function loadLedger(userId: string): MomentLedger {
+  try {
+    const raw = localStorage.getItem(`${LEDGER_KEY}.${userId}`);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    return typeof parsed === 'object' && parsed !== null ? (parsed as MomentLedger) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveLedger(userId: string, ledger: MomentLedger): void {
+  try {
+    localStorage.setItem(`${LEDGER_KEY}.${userId}`, JSON.stringify(ledger));
+  } catch {
+    // Full or blocked: this count still shows, it is only not remembered.
+  }
+}
+
+/** Adds newly counted moments to the ledger and reads the totals back out. */
+export function foldMoments(
+  ledger: MomentLedger,
+  moments: readonly { eventId: string; metric?: string | undefined; count: number; weight: number }[],
+): { ledger: MomentLedger; metrics: Record<string, number>; momentsEarned: number } {
+  const next: MomentLedger = { ...ledger };
+  for (const moment of moments) {
+    next[`${moment.eventId}|${moment.metric ?? ''}`] = [moment.metric ?? '', moment.count, moment.weight];
+  }
+  const metrics: Record<string, number> = {};
+  let momentsEarned = 0;
+  for (const entry of Object.values(next)) {
+    if (!Array.isArray(entry)) continue;
+    const [metric, count, weight] = entry;
+    if (metric && typeof count === 'number') metrics[metric] = (metrics[metric] ?? 0) + count;
+    if (typeof weight === 'number') momentsEarned += weight;
+  }
+  return { ledger: next, metrics, momentsEarned };
+}
+
 function isRecordOfNumbers(value: unknown): value is Record<string, number> {
   return (
     typeof value === 'object' &&
