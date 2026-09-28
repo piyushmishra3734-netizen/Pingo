@@ -703,7 +703,7 @@ const en = {
   'install.dismiss': 'Dismiss',
   'install.android': 'The Android app is on its way to the Play Store.',
   'install.ios': 'The iPhone app is on its way to the App Store.',
-  'install.windows': 'A desktop app for Windows is in development.',
+  'install.windows': 'PINGO for Windows is here. Get the desktop app.',
   'install.macos': 'A desktop app for macOS is in development.',
   'install.other': 'Native apps for every platform are in development.',
 
@@ -1439,7 +1439,7 @@ const enGenz: Catalog = {
   'install.dismiss': 'dismiss',
   'install.android': 'android app is heading to the Play Store.',
   'install.ios': 'iphone app is heading to the App Store.',
-  'install.windows': 'windows desktop app is cooking.',
+  'install.windows': 'windows app is here. grab it.',
   'install.macos': 'macOS desktop app is cooking.',
   'install.other': 'native apps for every platform are cooking.',
 

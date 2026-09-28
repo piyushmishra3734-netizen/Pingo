@@ -56,7 +56,8 @@ export function InstallBanner() {
    * `display-mode: standalone` does not reliably match in a Capacitor WebView  - 
    * so the platform is asked directly rather than inferred from a media query.
    */
-  if (isNative() || dismissed || method === 'installed') return null;
+  // Nor in PINGO for Windows, which is the app it would be announcing.
+  if (isNative() || /Electron\//.test(navigator.userAgent) || dismissed || method === 'installed') return null;
 
   const blurbKey =
     platform === 'android'
