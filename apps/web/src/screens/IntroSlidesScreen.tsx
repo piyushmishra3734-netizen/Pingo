@@ -1,7 +1,7 @@
 import { useAuth } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 import {
   guestAuthPath,
@@ -22,6 +22,19 @@ import { loadIntroSlideUrls, SLIDE_COUNT } from '../lib/supabase/onboarding-slid
  */
 
 const SWIPE_THRESHOLD_PX = 48;
+
+/**
+ * `/intro`, now that the slides no longer open the app.
+ *
+ * A first visit goes from the splash straight to Welcome. The slides are kept
+ * for Controlling's preview (`?replay=1`), where the operator checks the art
+ * they uploaded; anybody else arriving here is sent on to sign in.
+ */
+export function IntroRoute() {
+  const [params] = useSearchParams();
+  if (params.get('replay') === '1') return <IntroSlidesScreen />;
+  return <Navigate to={guestAuthPath()} replace />;
+}
 
 export function IntroSlidesScreen() {
   const navigate = useNavigate();

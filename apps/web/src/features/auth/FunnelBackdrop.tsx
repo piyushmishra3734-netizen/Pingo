@@ -2,6 +2,7 @@ import { cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 
 import './funnel-motion.css';
+import './paper.css';
 
 /**
  * The ground the identity funnel stands on.
@@ -31,27 +32,12 @@ export function FunnelBackdrop({
   children: ReactNode;
   className?: string;
 }) {
+  /*
+   * PINGO paper now - see `paper.css`. Warm ground, a faint wash and grain,
+   * themed for dark as well, and still stopping short of competing with the form.
+   */
   return (
-    <div
-      className={cn(
-        'relative flex h-full min-h-0 flex-col overflow-hidden',
-        'bg-page',
-        className,
-      )}
-    >
-      {/*
-        One wash. Mixed from ink so it inverts, and stopping well short of the
-        bottom so the primary button never sits on a gradient.
-      */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            'radial-gradient(90% 55% at 50% 0%, color-mix(in srgb, var(--color-ink) 5%, transparent), transparent 62%)',
-        }}
-        aria-hidden
-      />
-
+    <div className={cn('paper-ground relative flex h-full min-h-0 flex-col overflow-hidden', className)}>
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );

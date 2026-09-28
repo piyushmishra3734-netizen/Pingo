@@ -105,7 +105,7 @@ const PushDebugScreen = lazyScreen(() => import('./screens/settings/PushDebugScr
 const DevicesScreen = lazyScreen(() => import('./screens/settings/DevicesScreen.js'), 'DevicesScreen');
 const RestoreHistoryScreen = lazyScreen(() => import('./screens/settings/RestoreHistoryScreen.js'), 'RestoreHistoryScreen');
 const StorageScreen = lazyScreen(() => import('./screens/settings/StorageScreen.js'), 'StorageScreen');
-import { IntroSlidesScreen } from './screens/IntroSlidesScreen.js';
+import { IntroRoute } from './screens/IntroSlidesScreen.js';
 import { OnboardingScreen } from './screens/OnboardingScreen.js';
 import { SplashScreen } from './screens/SplashScreen.js';
 const ControllingScreen = lazyScreen(() => import('./screens/settings/ControllingScreen.js'), 'ControllingScreen');
@@ -386,7 +386,12 @@ export function App() {
               Preview while signed in (`?replay=1`). Anonymous users land here
               from splash; first-time cannot Skip (handled in the screen).
             */}
-            <Route path="/intro" element={<IntroSlidesScreen />} />
+            {/*
+              The five intro slides are retired: a first open goes from the
+              splash straight to Welcome. The route stays so old links and
+              Controlling's replay (`?replay=1`) still land somewhere useful.
+            */}
+            <Route path="/intro" element={<IntroRoute />} />
 
             {/*
               Public, and outside every guard.

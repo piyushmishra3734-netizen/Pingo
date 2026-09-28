@@ -39,6 +39,13 @@ const RESEND_SECONDS = 30;
 /** What 2Factor sends. Anything else is a typo, not a code. */
 const CODE_LENGTH = 6;
 
+/**
+ * How long a code works: the call reads it out, and it stops working five
+ * minutes later. Shown as a countdown so nobody types a dead code and wonders
+ * why it is "wrong" - once it runs out, the screen says so and offers a new call.
+ */
+const CODE_LIFETIME_MS = 5 * 60 * 1000;
+
 export function SignUpPhoneCodeScreen() {
   const navigate = useNavigate();
   const t = useT();
@@ -49,7 +56,16 @@ export function SignUpPhoneCodeScreen() {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [waitFor, setWaitFor] = useState(RESEND_SECONDS);
+  const [expiresAt, setExpiresAt] = useState(() => Date.now() + CODE_LIFETIME_MS);
+  const [now, setNow] = useState(() => Date.now());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(tick);
+  }, []);
+  const left = Math.max(0, expiresAt - now);
+  const expired = left === 0;
 
   useEffect(() => {
     if (waitFor <= 0) return undefined;
@@ -61,10 +77,10 @@ export function SignUpPhoneCodeScreen() {
   // type guard, and it would only ever fire if that redirect were removed.
   if (!identity || identity.kind !== 'phone') return null;
 
-  const ready = code.length === CODE_LENGTH && !checking;
+  const ready = code.length === CODE_LENGTH && !checking && !expired;
 
   const submit = async (entered = code) => {
-    if (entered.length !== CODE_LENGTH || checking) return;
+    if (entered.length !== CODE_LENGTH || checking || expired) return;
 
     setChecking(true);
     setError(undefined);
@@ -94,6 +110,8 @@ export function SignUpPhoneCodeScreen() {
   const resend = async () => {
     setError(undefined);
     setWaitFor(RESEND_SECONDS);
+    setCode('');
+    setExpiresAt(Date.now() + CODE_LIFETIME_MS);
     try {
       await service.phoneOtp.start(identity.value);
     } catch (cause) {
@@ -141,8 +159,10 @@ export function SignUpPhoneCodeScreen() {
         invalid={Boolean(error)}
       />
 
-      <div className="mt-4 text-center">
-        {waitFor > 0 ? (
+      <CodeClock left={left} />
+
+      <div className="mt-5 text-center">
+        {waitFor > 0 && !expired ? (
           <span className="text-caption text-text-tertiary">
             {t('auth.codeResendIn', { seconds: String(waitFor) })}
           </span>
@@ -151,5 +171,46 @@ export function SignUpPhoneCodeScreen() {
         )}
       </div>
     </AuthScreen>
+  );
+}
+
+/** The code's remaining life, as a ring and a sentence. */
+function CodeClock({ left }: { left: number }) {
+  const r = 20;
+  const c = 2 * Math.PI * r;
+  const seconds = Math.ceil(left / 1000);
+  const label = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  const expired = left === 0;
+  return (
+    <div className="mt-6 flex items-center gap-3.5" role="timer" aria-live="off">
+      <div className="relative size-12 shrink-0">
+        <svg viewBox="0 0 48 48" className="size-12 -rotate-90" aria-hidden>
+          <circle cx="24" cy="24" r={r} fill="none" stroke="currentColor" strokeWidth="4" className="text-line" />
+          <circle
+            cx="24"
+            cy="24"
+            r={r}
+            fill="none"
+            stroke="#e0559b"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - left / CODE_LIFETIME_MS)}
+          />
+        </svg>
+        <span className="absolute inset-0 grid place-items-center text-[12px] font-bold tabular-nums text-ink">{label}</span>
+      </div>
+      <p className="text-caption leading-snug text-text-secondary">
+        {expired ? (
+          <>
+            <span className="font-semibold text-danger">This code expired.</span> Ask for a new call below.
+          </>
+        ) : (
+          <>
+            <span className="font-semibold text-ink">Code works for 5 min.</span> After that, ask for a new call.
+          </>
+        )}
+      </p>
+    </div>
   );
 }

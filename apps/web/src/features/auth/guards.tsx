@@ -4,7 +4,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { useSplashHold } from '../loading/splash.js';
 import { isAddingAccount } from './adding-account.js';
-import { guestAuthPath, hasIntroSeen } from './intro-seen.js';
+import { guestAuthPath } from './intro-seen.js';
 import { PRIVATE_ACCESS, isAllowedAddress, isOpenPath } from './private-access.js';
 
 /**
@@ -38,9 +38,8 @@ function Resolving() {
   return <div className="h-full bg-page" />;
 }
 
-/** Pre-auth funnel: intro slides first, then Welcome or Log In. */
+/** Pre-auth funnel: Welcome or Log In. The intro slides were retired. */
 function guestEntryPath(): string {
-  if (!hasIntroSeen()) return '/intro';
   return guestAuthPath();
 }
 
@@ -114,16 +113,6 @@ export function RequireGuest({ children }: { children?: ReactNode }) {
    * when it has nothing to offer, so this costs a returning user one frame.
    */
   if (status === 'authenticated' && !addingAccount) return <Navigate to="/invite" replace />;
-
-  // Anonymous guests must finish (or have finished) the five intro slides
-  // before Welcome / Log In, so deep links cannot flash auth under the intro.
-  if (
-    status === 'anonymous' &&
-    !hasIntroSeen() &&
-    !location.pathname.startsWith('/intro')
-  ) {
-    return <Navigate to="/intro" replace state={{ from: location.pathname }} />;
-  }
 
   return <>{children ?? <Outlet />}</>;
 }

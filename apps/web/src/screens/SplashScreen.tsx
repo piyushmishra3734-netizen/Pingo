@@ -2,6 +2,7 @@ import { useAuth, useChat } from '@pingo/core';
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { guestAuthPath } from '../features/auth/intro-seen.js';
 import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
 import { useSplashHold } from '../features/loading/splash.js';
 
@@ -38,7 +39,8 @@ export function SplashScreen() {
   const left = useRef(false);
   useSplashHold();
 
-  const where = status === 'anonymous' ? '/intro' : '/chats';
+  // Straight to Welcome (or Log In): the five intro slides are gone.
+  const where = status === 'anonymous' ? guestAuthPath() : '/chats';
   const ready = status === 'anonymous' || (status !== 'loading' && chatReady);
   const whereRef = useRef(where);
   whereRef.current = where;
