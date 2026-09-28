@@ -123,7 +123,7 @@ export function demoServices() {
       stats: async () => ({ posts: 3, friends: 12, groups: 2 }),
     }),
     chat: chatProxy,
-    story: stub({ listStoryGroups: async () => storyGroups(), listFriends: async () => PEOPLE.map((p) => p[0]) }),
+    story: stub({ listStoryGroups: async () => storyGroups(), listFriends: async () => [...PEOPLE.map((p) => p[0]), ...(await chat.listContacts()).map((u) => u.id)] }),
     call: stub({}),
   };
 }
