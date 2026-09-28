@@ -1,22 +1,28 @@
 import { searchSettings, useAuth, useProfile } from '@pingo/core';
+import { Avatar, ChevronRightIcon, SearchField, cn } from '@pingo/ui';
 import {
-  AccountIcon,
-  BellIcon,
-  CameraIcon,
-  ChatIcon,
-  FileIcon,
-  HelpIcon,
-  InfoIcon,
-  LockIcon,
-  PaletteIcon,
-  MuteIcon,
-  PhoneIcon,
-  SearchField,
-  ShieldIcon,
-  StorageIcon,
-  UsersIcon,
-  cn,
-} from '@pingo/ui';
+  Bell,
+  Camera,
+  Download,
+  EyeOff,
+  FileText,
+  Gift,
+  Globe,
+  HardDrive,
+  LifeBuoy,
+  Lock,
+  LogOut,
+  Megaphone,
+  MessageCircle,
+  MonitorSmartphone,
+  Palette,
+  Phone,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+  Users,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -29,6 +35,9 @@ import { useSignOut } from '../features/settings/useSignOut.js';
 import { beginAddingAccount } from '../features/auth/adding-account.js';
 import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
 import { SecurePhoneRow } from '../features/auth/SecurePhoneSheet.js';
+import { AppLogo } from '../components/AppLogo.js';
+import { useAppVersion } from '../features/updates/useAppVersion.js';
+import { publicAppUrl } from '../lib/public-origin.js';
 
 /**
  * Settings - the index.
@@ -51,10 +60,11 @@ import { SecurePhoneRow } from '../features/auth/SecurePhoneSheet.js';
  */
 
 const ACCENT_LABEL: Record<string, string> = {
-  blue: 'Ink',
-  purple: 'Purple',
+  purple: 'PINGO',
+  pink: 'Rose',
+  orange: 'Sunset',
   green: 'Green',
-  pink: 'Pink',
+  blue: 'Ink',
   custom: 'Custom',
 };
 
@@ -72,6 +82,7 @@ export function SettingsScreen() {
   const languageValue =
     language === 'en-genz' ? 'Chronically online' : 'English';
 
+  const app = useAppVersion();
   const [query, setQuery] = useState('');
   const results = searchSettings(query);
   const searching = query.trim().length > 0;
@@ -124,123 +135,104 @@ export function SettingsScreen() {
             )}
           </div>
         ) : (
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-5">
+            {/*
+              Who you are, first - the way every settings screen people already
+              know opens. It is also the quickest way to your own profile.
+            */}
+            {profile && (
+              <button
+                type="button"
+                onClick={() => navigate('/profile')}
+                className="focus-ring flex w-full items-center gap-3.5 rounded-lg bg-surface p-3.5 text-left shadow-sm active:bg-pressed"
+              >
+                <Avatar
+                  name={profile.displayName || profile.username}
+                  id={profile.id}
+                  {...(profile.avatarUrl ? { src: profile.avatarUrl } : {})}
+                  size="lg"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[18px] font-semibold text-ink">
+                    {profile.displayName || profile.username}
+                  </span>
+                  <span className="block truncate text-caption text-text-secondary">
+                    @{profile.username} · Your profile
+                  </span>
+                </span>
+                <ChevronRightIcon size={18} className="shrink-0 text-text-tertiary" />
+              </button>
+            )}
+
             {/* Only for an account with no number. See the component. */}
             <SecurePhoneRow />
 
-            <section className="rounded-lg bg-surface p-1 shadow-sm">
+            <Group title="Account">
+              <SettingsRow tone="blue" icon={<UserRound size={18} />} label={t('settings.account')} to="/settings/account" />
+              <SettingsRow tone="indigo" icon={<Lock size={18} />} label={t('settings.privacy')} to="/settings/privacy" />
+              {/*
+                With the account rather than under Privacy: a device list is
+                something you go and look at, and Privacy is a page of switches.
+              */}
+              <SettingsRow tone="teal" icon={<MonitorSmartphone size={18} />} label={t('page.devices')} to="/settings/devices" />
+            </Group>
+
+            <Group title="App">
               <SettingsRow
-                icon={<AccountIcon size={19} />}
-                label={t('settings.account')}
-                to="/settings/account"
-              />
-              <SettingsRow
-                icon={<PaletteIcon size={19} />}
+                tone="purple"
+                icon={<Palette size={18} />}
                 label={t('settings.appearance')}
                 to="/settings/appearance"
                 // The summary answers "what is it set to" without a tap.
-                value={`${resolvedTheme === 'dark' ? 'Dark' : 'Light'} · ${
-                  ACCENT_LABEL[appearance.accent] ?? 'Blue'
-                }`}
+                value={`${resolvedTheme === 'dark' ? 'Dark' : 'Light'} · ${ACCENT_LABEL[appearance.accent] ?? 'PINGO'}`}
               />
-              <SettingsRow
-                icon={<BellIcon size={19} />}
-                label={t('settings.notifications')}
-                to="/settings/notifications"
-              />
-              <SettingsRow
-                icon={<ShieldIcon size={19} />}
-                label={t('settings.privacy')}
-                to="/settings/privacy"
-              />
-            </section>
-
-            <section className="rounded-lg bg-surface p-1 shadow-sm">
-              <SettingsRow
-                icon={<ChatIcon size={19} />}
-                label={t('settings.chats')}
-                to="/settings/chats"
-              />
-              <SettingsRow
-                icon={<CameraIcon size={19} />}
-                label={t('settings.cameraPings')}
-                to="/settings/camera-snaps"
-              />
-              <SettingsRow
-                icon={<PhoneIcon size={19} />}
-                label={t('settings.calls')}
-                to="/settings/calls"
-              />
+              <SettingsRow tone="red" icon={<Bell size={18} />} label={t('settings.notifications')} to="/settings/notifications" />
+              <SettingsRow tone="green" icon={<MessageCircle size={18} />} label={t('settings.chats')} to="/settings/chats" />
+              <SettingsRow tone="orange" icon={<Camera size={18} />} label={t('settings.cameraPings')} to="/settings/camera-snaps" />
+              <SettingsRow tone="green" icon={<Phone size={18} />} label={t('settings.calls')} to="/settings/calls" />
               {/*
                 Muting somebody's stories takes their circle off the rail, and
                 the control that would unmute them goes with it - so Settings is
-                the only place the decision can be taken back. Beside the other
-                per-feature pages rather than under Privacy: it is about what
-                you see, not about what anyone can see of you.
+                the only place the decision can be taken back.
               */}
-              <SettingsRow
-                icon={<MuteIcon size={19} />}
-                label="Muted stories"
-                to="/settings/muted-stories"
-              />
-              {/*
-                With the other per-feature pages rather than under Privacy: a
-                device list is something you go and look at, like storage, and
-                Privacy is a page of switches.
-              */}
-              <SettingsRow
-                icon={<LockIcon size={19} />}
-                label={t('page.devices')}
-                to="/settings/devices"
-              />
-              <SettingsRow
-                icon={<StorageIcon size={19} />}
-                label={t('settings.storage')}
-                to="/settings/storage"
-              />
-            </section>
+              <SettingsRow tone="gray" icon={<EyeOff size={18} />} label="Muted stories" to="/settings/muted-stories" />
+              <SettingsRow tone="sky" icon={<HardDrive size={18} />} label={t('settings.storage')} to="/settings/storage" />
+              <SettingsRow tone="blue" icon={<Globe size={18} />} label={t('settings.language')} to="/settings/language" value={languageValue} />
+            </Group>
 
-            <section className="rounded-lg bg-surface p-1 shadow-sm">
-              <SettingsRow
-                icon={<InfoIcon size={19} />}
-                label={t('settings.language')}
-                to="/settings/language"
-                value={languageValue}
-              />
-              <SettingsRow
-                icon={<FileIcon size={19} />}
-                label={t('settings.advanced')}
-                to="/settings/advanced"
-              />
+            <Group title="More">
+              <SettingsRow tone="pink" icon={<Gift size={18} />} label="Invite friends" to="/invite" />
               {/*
-                Operator-only surface for publishing intro slide art at original
-                quality. Hidden for every account except @piuxxh.
+                Only in the Android app, which cannot update itself: the same
+                page its update prompt opens, in the phone's browser.
+              */}
+              {app.native && (
+                <SettingsRow
+                  tone="purple"
+                  icon={<Download size={18} />}
+                  label="Check for updates"
+                  value={app.version}
+                  onClick={() => {
+                    window.location.href = publicAppUrl('/download?update=1');
+                  }}
+                />
+              )}
+              <SettingsRow tone="sky" icon={<LifeBuoy size={18} />} label={t('settings.help')} to="/settings/help" />
+              <SettingsRow tone="gray" icon={<SlidersHorizontal size={18} />} label={t('settings.advanced')} to="/settings/advanced" />
+              {/*
+                Operator-only surface for publishing intro slide art and the
+                update notice. Hidden for every account except @piuxxh.
               */}
               {isOperator ? (
-                <SettingsRow
-                  icon={<PaletteIcon size={19} />}
-                  label={t('settings.controlling')}
-                  to="/settings/controlling"
-                  value="Intro slides"
-                />
+                <SettingsRow tone="orange" icon={<Megaphone size={18} />} label={t('settings.controlling')} to="/settings/controlling" value="Operator" />
               ) : null}
-              <SettingsRow
-                icon={<HelpIcon size={19} />}
-                label={t('settings.help')}
-                to="/settings/help"
-              />
-              {/* Public route, deliberately: the same page the download page links to. */}
-              <SettingsRow
-                icon={<InfoIcon size={19} />}
-                label={t('settings.terms')}
-                to="/terms"
-              />
-              <SettingsRow
-                icon={<ShieldIcon size={19} />}
-                label={t('settings.privacyPolicy')}
-                to="/privacy"
-              />
-            </section>
+            </Group>
+
+            <Group title="Legal">
+              {/* Public routes, deliberately: the same pages the download page links to. */}
+              <SettingsRow tone="gray" icon={<FileText size={18} />} label={t('settings.terms')} to="/terms" />
+              <SettingsRow tone="gray" icon={<ShieldCheck size={18} />} label={t('settings.privacyPolicy')} to="/privacy" />
+            </Group>
 
             <section className="rounded-lg bg-surface p-1 shadow-sm">
               {/*
@@ -250,22 +242,28 @@ export function SettingsScreen() {
                 the destructive option the first thing a thumb reaches.
               */}
               <SettingsRow
-                icon={<UsersIcon size={19} />}
+                tone="blue"
+                icon={<Users size={18} />}
                 label={t('settings.switchAccount')}
-                value={
-                  saved.length > 1
-                    ? t('settings.accountsCount', { n: saved.length })
-                    : undefined
-                }
+                value={saved.length > 1 ? t('settings.accountsCount', { n: saved.length }) : undefined}
                 onClick={() => setSwitcherOpen(true)}
               />
               <SettingsRow
-                icon={<LockIcon size={19} />}
+                icon={<LogOut size={18} />}
                 label={t('settings.logout')}
                 destructive
                 onClick={() => void signOut()}
               />
             </section>
+
+            {/* Which PINGO this is - the first thing any support conversation asks. */}
+            <footer className="flex flex-col items-center gap-1.5 pt-2 pb-4 text-center">
+              <AppLogo size={28} alt="" className="opacity-80" />
+              <p className="text-caption text-text-secondary">
+                PINGO {app.native ? app.version : 'for web'}
+              </p>
+              <p className="text-[11px] text-text-tertiary tabular-nums">Build {app.build}</p>
+            </footer>
           </div>
         )}
       </div>
@@ -296,5 +294,15 @@ export function SettingsScreen() {
       />
       )}
     </div>
+  );
+}
+
+/** A titled group of rows: the heading outside, the rows on one card. */
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section aria-label={title}>
+      <h2 className="mb-1.5 px-3 text-[12px] font-semibold tracking-[0.06em] text-text-tertiary uppercase">{title}</h2>
+      <div className="rounded-lg bg-surface p-1 shadow-sm">{children}</div>
+    </section>
   );
 }

@@ -2,9 +2,11 @@ import { useChat, type Message, type PingRef } from '@pingo/core';
 import { CameraIcon, StorageIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { ImageViewer } from '../profile/ImageViewer.js';
+import { lazySuspended } from '../../lib/lazy-named.js';
 import { useT } from '../i18n/useT.js';
 import { secureScreen } from '../native/secure-screen.js';
+
+const ImageViewer = lazySuspended(() => import('../profile/ImageViewer.js'), 'ImageViewer');
 
 /**
  * A Ping in the thread: closed, open, or gone.

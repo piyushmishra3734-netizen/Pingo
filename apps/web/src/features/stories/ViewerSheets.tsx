@@ -80,7 +80,7 @@ export function SendStorySheet({ story, onClose }: { story: Story; onClose: () =
   return (
     <StorySheet title="Send to" onClose={onClose}>
       {locked ? (
-        <p className="px-5 pb-8 text-center text-[13.5px] text-[#a1a1a6]">This story went to close friends, so it can't be sent on.</p>
+        <p className="px-5 pb-8 text-center text-[13.5px] text-white/55">This story went to close friends, so it can't be sent on.</p>
       ) : (
         <>
           <SheetSearch value={q} onChange={setQ} />
@@ -130,9 +130,9 @@ function ActivityBody({ stories, current, watchers, likes, onPick, onCamera, onI
               : <img src={s.mediaUrl} alt="" className={thumb(i === current)} />}
           </button>
         ))}
-        <button type="button" aria-label="New story" onClick={then(onCamera)} className="grid h-[100px] w-14 shrink-0 place-items-center rounded-[8px] bg-[#2c2c2e] [&>svg]:size-[22px]"><Camera /></button>
+        <button type="button" aria-label="New story" onClick={then(onCamera)} className="grid h-[100px] w-14 shrink-0 place-items-center rounded-[8px] bg-media-field [&>svg]:size-[22px]"><Camera /></button>
       </div>
-      <div className="flex shrink-0 items-center gap-1 border-y border-[#2c2c2e] px-3.5 py-2">
+      <div className="flex shrink-0 items-center gap-1 border-y border-media-field px-3.5 py-2">
         <span className="flex flex-1 items-center gap-1.5 text-[14px] font-bold"><Eye size={14} />{watchers.length}</span>
         <button type="button" aria-label="Insights" onClick={onInsights} className={icon}><ChartNoAxesColumn /></button>
         <button type="button" aria-label="Share" onClick={then(onSend)} className={icon}><Send /></button>
@@ -140,16 +140,16 @@ function ActivityBody({ stories, current, watchers, likes, onPick, onCamera, onI
         <button type="button" aria-label="Delete" onClick={then(onDelete)} className={icon}><Trash2 /></button>
       </div>
       <SheetBody>
-        <div className="flex justify-between pt-3 pb-1 text-[15px] font-bold"><span>Viewers</span><span className="font-medium text-[#a1a1a6]">{likes} {likes === 1 ? 'like' : 'likes'}</span></div>
+        <div className="flex justify-between pt-3 pb-1 text-[15px] font-bold"><span>Viewers</span><span className="font-medium text-white/55">{likes} {likes === 1 ? 'like' : 'likes'}</span></div>
         {watchers.map((w) => (
           <PersonRow key={w.userId} name={w.username} sub={w.displayName} subTone="#a1a1a6" {...(w.avatarUrl ? { avatar: w.avatarUrl } : {})}
-            badge={w.liked ? <span className="absolute -right-0.5 -bottom-0.5 grid size-[18px] place-items-center rounded-full bg-[#ff3040] shadow-[0_0_0_2px_#1c1c1e]"><Heart size={10} fill="#fff" stroke="#fff" /></span> : undefined}
+            badge={w.liked ? <span className="absolute -right-0.5 -bottom-0.5 grid size-[18px] place-items-center rounded-full bg-danger shadow-[0_0_0_2px_#1c1c1e]"><Heart size={10} fill="#fff" stroke="#fff" /></span> : undefined}
             end={<>
               <span className="grid size-[34px] place-items-center [&>svg]:size-5"><MoreVertical /></span>
               <button type="button" aria-label={`Message ${w.username}`} onClick={then(() => onMessage(w))} className="grid size-[34px] place-items-center [&>svg]:size-5"><Send /></button>
             </>} />
         ))}
-        {watchers.length === 0 && <p className="py-6 text-center text-[13.5px] text-[#a1a1a6]">No one yet</p>}
+        {watchers.length === 0 && <p className="py-6 text-center text-[13.5px] text-white/55">No one yet</p>}
       </SheetBody>
     </>
   );

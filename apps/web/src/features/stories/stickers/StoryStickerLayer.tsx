@@ -136,7 +136,7 @@ export function StoryStickerLayer({
           onPointerDown={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) setAsking(undefined); }}
           onPointerUp={(e) => e.stopPropagation()}>
           <form
-            className="w-full max-w-xs overflow-hidden rounded-[16px] bg-gradient-to-br from-[#8b5dff] to-[#e0559b] p-3 text-center text-white"
+            className="w-full max-w-xs overflow-hidden rounded-[16px] bg-sweep p-3 text-center text-white"
             onSubmit={(e) => {
               e.preventDefault();
               const text = reply.trim();

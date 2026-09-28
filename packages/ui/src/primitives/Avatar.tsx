@@ -95,17 +95,20 @@ const RING: Record<AvatarSize, number> = {
 };
 
 /**
- * Six tints drawn from the brand gradient's range. Deliberately low-saturation:
- * an avatar is a supporting element, and a wall of vivid circles is exactly the
- * visual noise the product is built to avoid.
+ * Six tints from the PINGO sweep - purple, pink, orange, gold - mixed low into
+ * the theme's own surface. Low-saturation on purpose: an avatar is a supporting
+ * element, and a wall of vivid circles is the noise the product avoids. Mixed
+ * rather than written as hex so a dark theme gets dark plates, not pale discs.
  */
+const plate = (a: string, b: string, na: number, nb: number) =>
+  `linear-gradient(135deg, color-mix(in srgb, ${a} ${na}%, var(--color-surface, #fff)) 0%, color-mix(in srgb, ${b} ${nb}%, var(--color-surface, #fff)) 100%)`;
 const GRADIENTS = [
-  'linear-gradient(135deg, #E8E8EA 0%, #F2F2F4 100%)',
-  'linear-gradient(135deg, #E4E5E8 0%, #F0F0F2 100%)',
-  'linear-gradient(135deg, #E6E7EA 0%, #F4F4F5 100%)',
-  'linear-gradient(135deg, #E2E3E6 0%, #EEEFF1 100%)',
-  'linear-gradient(135deg, #E9E9EB 0%, #F5F5F6 100%)',
-  'linear-gradient(135deg, #E5E6E9 0%, #F1F1F3 100%)',
+  plate('#8b5dff', '#8b5dff', 16, 7),
+  plate('#e0559b', '#e0559b', 14, 6),
+  plate('#ff9a5a', '#ff9a5a', 16, 7),
+  plate('#8b5dff', '#e0559b', 14, 8),
+  plate('#e0559b', '#ff9a5a', 14, 8),
+  plate('#ffcc4d', '#ff9a5a', 18, 8),
 ] as const;
 
 type PhotoPhase = 'empty' | 'loading' | 'ready' | 'failed';

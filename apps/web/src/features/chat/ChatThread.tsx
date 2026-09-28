@@ -26,6 +26,7 @@ import {
 import { CloseIcon } from '@pingo/ui';
 import {
   type CSSProperties,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -41,10 +42,7 @@ import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
-import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
-import { AiProfileSheet } from '../ai/AiProfileSheet.js';
-import { VoiceCall } from '../ai/VoiceCall.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
 import { useT } from '../i18n/useT.js';
@@ -54,13 +52,13 @@ import { isMessageMenuOpen } from './context-menu/MessageContextMenu.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer, type MentionOption } from './Composer.js';
-import { GroupInfoSheet } from './GroupInfoSheet.js';
-import { ChatInfo } from './ChatInfo.js';
 import { connectionTitle, useConnectionStatus } from '../connection/useConnectionStatus.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
+import { useIsBlocked } from '../safety/blocks.js';
+import { learnNicknames, nicknameOf, useNickname } from './nicknames.js';
 import { MessageBubble, quoteText } from './MessageBubble.js';
 import { MessageSelectionBar } from './MessageSelectionBar.js';
 import { startRain } from './rain.js';
@@ -79,17 +77,26 @@ import {
 import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
 import { useBackStep } from '../navigation/useBackStep.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
-import { PhotoComposer } from './PhotoComposer.js';
 import { probeKind, retypedAsAudio, type PickedKind } from './picked-media.js';
+import type { PickedMedia } from './MediaSendSheet.js';
+import { lazyNamed, lazySuspended } from '../../lib/lazy-named.js';
 import { probeVideo, videoTooLong } from './media-variants.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
-import { SharedMediaSheet } from './SharedMediaSheet.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
-import { VideoTrimSheet } from './VideoTrimSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
+
+// Sheets this screen can open, fetched the first time one is opened rather than
+// with the thread, which is on the path of every launch.
+const AiProfileSheet = lazyNamed(() => import('../ai/AiProfileSheet.js'), 'AiProfileSheet');
+const VoiceCall = lazyNamed(() => import('../ai/VoiceCall.js'), 'VoiceCall');
+const GroupInfoSheet = lazyNamed(() => import('./GroupInfoSheet.js'), 'GroupInfoSheet');
+const ChatInfo = lazyNamed(() => import('./ChatInfo.js'), 'ChatInfo');
+const MediaSendSheet = lazyNamed(() => import('./MediaSendSheet.js'), 'MediaSendSheet');
+const SharedMediaSheet = lazySuspended(() => import('./SharedMediaSheet.js'), 'SharedMediaSheet');
+const AiOnboardingSheet = lazySuspended(() => import('../ai/AiOnboardingSheet.js'), 'AiOnboardingSheet');
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -272,6 +279,43 @@ export function ChatThread({
     });
     return true;
   };
+
+  /**
+   * What was picked, sorted and checked, ready for the send page.
+   *
+   * Audio and anything unrecognised go straight out as documents (whole bytes,
+   * original name) - the send page is for pictures and clips. Size and length
+   * are checked for every one; the first refusal stops the batch with a
+   * sentence. Kinds are probed, not read off the type: Android reports an
+   * audio-only `.m4a` as `video/mp4`, and a keyboard's stickers are WebP.
+   */
+  const vetMedia = async (chosen: File[]): Promise<PickedMedia[]> => {
+    const kinds = await Promise.all(chosen.map((file) => probeKind(file)));
+    const of = (want: PickedKind) => chosen.filter((_, index) => kinds[index] === want);
+    const images = of('image');
+    const videos = of('video');
+    const files = [...of('audio').map(retypedAsAudio), ...of('file')];
+
+    const oversized = [
+      ...videos.filter((file) => mediaTooLarge(file.size, 'file')),
+      ...files.filter((file) => mediaTooLarge(file.size, 'file')),
+      ...images.filter((file) => mediaTooLarge(file.size, 'photo')),
+    ];
+    if (oversized[0]) {
+      void refuseIfTooLarge(oversized[0], images.includes(oversized[0]) ? 'photo' : 'file');
+      return [];
+    }
+    for (const file of videos) {
+      if (await refuseIfTooLong(file)) return [];
+    }
+    for (const file of files) {
+      void service.sendMessage({ conversationId: conversation.id, body: '', document: { file } });
+    }
+    // In the order they were picked, pictures and clips mixed.
+    return chosen
+      .map((file, index) => ({ file, kind: kinds[index] }))
+      .filter((m): m is PickedMedia => m.kind === 'image' || m.kind === 'video');
+  };
   const {
     messages,
     receipts,
@@ -283,14 +327,14 @@ export function ChatThread({
     send,
     sendSticker,
   } = useMessages(conversation.id);
+  // Nicknames are messages; whatever this thread has loaded is learned (see nicknames.ts).
+  useEffect(() => learnNicknames(conversation.id, messages), [conversation.id, messages]);
   const { startCall, startGroupCall, joinGroupCall, call: activeCall } = useCall();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
   /** Pictures chosen but not yet sent - the composer owns them until then. */
-  const [pending, setPending] = useState<File[]>();
-  /** One chosen video, held while the sender decides where it starts and ends. */
-  const { profile: mine } = useProfile();
-  const [trimming, setTrimming] = useState<File>();
+  const [pending, setPending] = useState<PickedMedia[]>();
+  const { profile: mine, service: profileService } = useProfile();
 
   /*
    * 480p unless this account has premium and asked for HD.
@@ -454,7 +498,7 @@ export function ChatThread({
   const rainRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (!wallpaper.live || !rainRef.current) return;
-    const handle = startRain(rainRef.current, { image: wallpaper.scene });
+    const handle = startRain(rainRef.current, wallpaper.scene ? { image: wallpaper.scene } : {});
     // The sound belongs to the same lifetime: it starts with the rain and it
     // stops when you leave the conversation, not when you leave the app.
     const sound = startRainSound();
@@ -565,7 +609,9 @@ export function ChatThread({
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
   const nameOf = (userId: string) =>
-    userId === currentUser?.id ? 'You' : users.find((u) => u.id === userId)?.name;
+    userId === currentUser?.id
+      ? 'You'
+      : nicknameOf(conversation.id, userId) ?? users.find((u) => u.id === userId)?.name;
 
   const personOf = (userId: string) => users.find((u) => u.id === userId);
 
@@ -620,6 +666,11 @@ export function ChatThread({
           (u) => conversation.participantIds.includes(u.id) && u.id !== currentUser?.id,
         )
       : undefined;
+  // A direct chat is titled by the nickname you gave them, if you did.
+  const partnerNickname = useNickname(conversation.id, partner?.id);
+  const headerTitle = partnerNickname ?? conversation.title;
+  // Blocked: no composer, and the way back (features/safety/blocks.ts).
+  const partnerBlocked = useIsBlocked(partner?.id);
 
   /**
    * PINGO AI is a person-shaped thread: no calls, no E2EE lock line, settings
@@ -1251,11 +1302,13 @@ export function ChatThread({
    */
   if (voiceCall) {
     return (
-      <VoiceCall
-        conversationId={conversation.id}
-        onEnd={() => setVoiceCall(false)}
-        ask={askByVoice}
-      />
+      <Suspense fallback={null}>
+        <VoiceCall
+          conversationId={conversation.id}
+          onEnd={() => setVoiceCall(false)}
+          ask={askByVoice}
+        />
+      </Suspense>
     );
   }
 
@@ -1450,7 +1503,7 @@ export function ChatThread({
           )}
         >
           <span className="flex max-w-full items-center gap-1.5 text-[16px] font-semibold leading-tight text-ink">
-            <span className="truncate">{conversation.title}</span>
+            <span className="truncate">{headerTitle}</span>
             {partner && <AchievementMark achievement={headerAchievements.lead(partner.id)} />}
           </span>
           {netTitle ? (
@@ -1493,7 +1546,7 @@ export function ChatThread({
               <Avatar
                 name={conversation.title}
                 id={partner?.id ?? conversation.id}
-                src={partner?.avatarUrl ?? conversation.avatarUrl}
+                src={partner?.avatarUrl ?? conversation.avatarUrl ?? (conversation.kind === 'ai' ? '/pingo-avatar.png' : undefined)}
                 size="sm"
               />
             )}
@@ -1924,6 +1977,12 @@ export function ChatThread({
             </div>
           )}
 
+          {partnerBlocked && partner ? (
+            <div className="flex items-center justify-between gap-3 rounded-[16px] bg-surface px-4 py-3 shadow-sm ring-1 ring-line">
+              <span className="min-w-0 text-caption text-text-secondary">You blocked {partner.name}. They can't message or call you.</span>
+              <button type="button" onClick={() => void profileService.setBlocked(partner.id, false).catch(() => undefined)} className="focus-ring shrink-0 rounded-full bg-brand px-3.5 py-1.5 text-caption font-semibold text-on-brand">Unblock</button>
+            </div>
+          ) : (
           <Composer
             mentions={mentionOptions}
             onSend={async (body) => {
@@ -1976,10 +2035,11 @@ export function ChatThread({
             // A GIF or sticker from the keyboard lands where a gallery pick
             // lands: same preview, caption and send. The file is passed through
             // untouched, which is what keeps an animated GIF animated.
-            onPasteFiles={(files) => setPending(files)}
+            onPasteFiles={(files) => setPending(files.map((file) => ({ file, kind: file.type.startsWith('video/') ? 'video' : 'image' })))}
             draftKey={conversation.id}
             ariaLabel={`Message ${conversation.title}`}
           />
+          )}
         </div>
       </div>
 
@@ -1991,14 +2051,15 @@ export function ChatThread({
         ref={galleryRef}
         type="file"
         /*
-          Audio is here because it is in the gallery.
+          Pictures and clips only, so the phone opens its photo picker.
 
-          A song, a recording, a voice memo saved from somewhere else: on a
-          phone those live alongside the photos, and leaving them out of the
-          filter did not stop people picking them - some pickers ignore the
-          accept list entirely - it only meant they arrived unannounced.
+          Audio used to be in this list too, and a list with anything but
+          images and videos in it sends Android to the old file browser
+          instead of the photo grid (see MainActivity). A song or a recording
+          goes through Document now. Some pickers ignore the list and hand
+          audio back anyway; `probeKind` below still sorts that out.
         */
-        accept="image/*,video/*,audio/*"
+        accept="image/*,video/*"
         multiple
         hidden
         onChange={(event) => {
@@ -2019,75 +2080,8 @@ export function ChatThread({
              * as a video with no picture in it. `probeKind` decodes it and
              * looks.
              */
-            const kinds = await Promise.all(chosen.map((file) => probeKind(file)));
-            const of = (want: PickedKind) => chosen.filter((_, index) => kinds[index] === want);
-
-            const images = of('image');
-            const videos = of('video');
-            /*
-             * Audio and anything unrecognised travel the document path: whole
-             * bytes, original filename. What each one *looks* like in the
-             * thread is `FileBubble`'s decision, not this picker's - which is
-             * why the audio-in-a-video-container case is retyped here. The mime
-             * travels with the upload and is what the receiver branches on, so
-             * routing it correctly and storing it as `video/mp4` would draw a
-             * black rectangle on the other side.
-             */
-            const files = [...of('audio').map(retypedAsAudio), ...of('file')];
-
-            // Checked here, once, for every branch below.
-            const oversized = [
-              ...videos.filter((file) => mediaTooLarge(file.size, 'file')),
-              ...files.filter((file) => mediaTooLarge(file.size, 'file')),
-              ...images.filter((file) => mediaTooLarge(file.size, 'photo')),
-            ];
-            if (oversized[0]) {
-              void refuseIfTooLarge(
-                oversized[0],
-                images.includes(oversized[0]) ? 'photo' : 'file',
-              );
-              return;
-            }
-
-            // Duration is probed per clip; the first refusal stops the batch
-            // with a sentence, the way size does above.
-            for (const file of videos) {
-              if (await refuseIfTooLong(file)) return;
-            }
-
-            /*
-             * One video opens the trimmer; several go straight out.
-             *
-             * Trimming is a decision about one clip, and a queue of sheets is a
-             * queue of decisions nobody asked to make - picking five videos is
-             * "send these five", not "let me edit each of them".
-             *
-             * Sending the `File` untouched is also the only way to keep the
-             * original quality, since nothing on this path re-encodes it - the
-             * bytes that leave the phone are the bytes the camera wrote.
-             */
-            if (videos.length === 1 && videos[0]) setTrimming(videos[0]);
-            else {
-              for (const file of videos) {
-                void (async () => {
-                  await service.sendMessage({
-                    conversationId: conversation.id,
-                    body: '',
-                    document: { file: await standardVideo(file) },
-                  });
-                })();
-              }
-            }
-
-            for (const file of files) {
-              void service.sendMessage({
-                conversationId: conversation.id,
-                body: '',
-                document: { file },
-              });
-            }
-
-            if (images.length > 0) setPending(images);
+            const media = await vetMedia(chosen);
+            if (media.length > 0) setPending(media);
           })();
         }}
       />
@@ -2152,60 +2146,52 @@ export function ChatThread({
         />
       )}
 
-      {trimming && (
-        <TrimGate
-          file={trimming}
-          onClose={() => setTrimming(undefined)}
-          onSend={(videoEdit) => {
-            void (async () => {
-              /*
-               * Converted after the trim marks are chosen, not before. The
-               * marks are timestamps into the same footage either way, and
-               * shrinking first would have somebody scrubbing a 480p preview
-               * of their own clip.
-               */
-              const file = await standardVideo(trimming);
-              await service.sendMessage({
-                conversationId: conversation.id,
-                body: '',
-                document: { file },
-                ...(videoEdit ? { videoEdit } : {}),
-              });
-            })();
-            setTrimming(undefined);
-          }}
-        />
-      )}
 
       {pending && (
-        <PhotoComposer
-          files={pending}
+        <Suspense fallback={null}>
+        <MediaSendSheet
+          items={pending}
+          to={conversation.title}
           onCancel={() => setPending(undefined)}
-          onSend={async (blobs, caption, viewLimit) => {
+          onAddMore={vetMedia}
+          onSend={async (items, caption, viewOnce) => {
             /*
              * Sent in order, awaited one at a time. In parallel they would race
-             * for `created_at` and land shuffled, which for a set of photos is
-             * the one thing the sender notices immediately.
+             * for `created_at` and land shuffled, which for a set is the one
+             * thing the sender notices immediately. The caption rides on the
+             * first, so a set of four does not repeat one sentence four times.
              */
-            for (const [position, image] of blobs.entries()) {
-              await service.sendMessage({
-                conversationId: conversation.id,
-                // The caption rides on the first picture only, so a set of four
-                // does not repeat one sentence four times.
-                body: position === 0 ? caption : '',
-                photo: { image, ...(viewLimit ? { viewLimit } : {}) },
-              });
+            for (const [position, item] of items.entries()) {
+              const body = position === 0 ? caption : '';
+              if (item.kind === 'photo') {
+                await service.sendMessage({
+                  conversationId: conversation.id,
+                  body,
+                  photo: { image: item.image, ...(viewOnce ? { viewLimit: 1 } : {}) },
+                });
+              } else {
+                await service.sendMessage({
+                  conversationId: conversation.id,
+                  body,
+                  document: { file: await standardVideo(item.file) },
+                  ...(item.edit ? { videoEdit: item.edit } : {}),
+                });
+              }
             }
             setPending(undefined);
           }}
         />
+        </Suspense>
       )}
 
       {groupInfo && (
+        <Suspense fallback={null}>
         <GroupInfoSheet conversation={conversation} onClose={() => setGroupInfo(false)} />
+        </Suspense>
       )}
 
       {infoOpen && (
+        <Suspense fallback={null}>
         <ChatInfo
           conversation={conversation}
           {...(partner ? { partner } : {})}
@@ -2253,6 +2239,7 @@ export function ChatThread({
           onDisappearing={() => setDisappearing(true)}
           onJump={jumpTo}
         />
+        </Suspense>
       )}
 
       {sharedMedia && (
@@ -2278,6 +2265,7 @@ export function ChatThread({
       )}
 
       {isAi && aiProfileOpen && (
+        <Suspense fallback={null}>
         <AiProfileSheet
           conversationId={conversation.id}
           onClose={() => setAiProfileOpen(false)}
@@ -2286,47 +2274,9 @@ export function ChatThread({
             void service.ensureAiConversation().catch(() => undefined);
           }}
         />
+        </Suspense>
       )}
     </div>
   );
 }
 
-/**
- * The header's identity block: a link to a profile, or a button to group info.
- *
- * One component rather than two branches at the call site, because the two
- * differ only in what happens when you press them - everything visual, the
- * avatar, the name, the presence line, is shared, and duplicating it to change
- * the wrapper is how the two drift apart.
- */
-function TrimGate({
-  file,
-  onClose,
-  onSend,
-}: {
-  file: File;
-  onClose: () => void;
-  onSend: (edit: VideoEdit | undefined) => void;
-}) {
-  const [src, setSrc] = useState<string>();
-
-  useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setSrc(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  if (!src) return null;
-
-  return (
-    <VideoTrimSheet
-      src={src}
-      onDone={(edit) => {
-        // Cancelling closes without sending; anything else is a send, including
-        // an edit with no marks in it - that is somebody saying "as it is".
-        if (edit === undefined) onClose();
-        else onSend(edit);
-      }}
-    />
-  );
-}

@@ -85,6 +85,7 @@ export type {
   StorySticker,
   StoryStickerType,
   StoryDecor,
+  StoryFrame,
   StoryBoom,
   StickerAnswer,
   StickerResult,
@@ -123,6 +124,7 @@ export {
   DEFAULT_APPEARANCE,
   DEFAULT_MYTHIC,
   ACCENT_SWATCHES,
+  ACCENT_GRADIENTS,
   SETTINGS_REGISTRY,
   searchSettings,
 } from './settings.js';
@@ -219,6 +221,7 @@ export {
 // Video links: detection, normalisation, and the per-platform adapters.
 export {
   detectVideoLink,
+  withoutVideoLink,
   enrichVideoPreview,
   fileNameFrom,
   findLinks,

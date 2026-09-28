@@ -40,6 +40,13 @@ export interface VideoPreview {
    */
   embedUrl?: string;
   /**
+   * Width over height, when the link says what shape the video is: 16/9 for a
+   * YouTube video, 9/16 for a Short, a reel or a Spotlight, 4/5 for an
+   * Instagram post. The card is drawn at this shape before anything loads, so
+   * a Short arrives as a tall video rather than a letterboxed stamp.
+   */
+  aspect?: number;
+  /**
    * The media itself, when the link *is* a video file rather than a page.
    *
    * Played in our own `<video>`, which is why it is a separate field from

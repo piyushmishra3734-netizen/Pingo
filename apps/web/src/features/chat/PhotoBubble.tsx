@@ -1,13 +1,16 @@
 import { useChat, type Message, type PhotoRef } from '@pingo/core';
 import { EyeIcon, ImageIcon, PingoDot, cn } from '@pingo/ui';
-
+import { ImageDown } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
 import { secureScreen } from '../native/secure-screen.js';
-import { ImageViewer } from '../profile/ImageViewer.js';
+import { lazySuspended } from '../../lib/lazy-named.js';
+import { useDataSaver } from '../connection/data-saver.js';
 import { useOfflineMedia } from './useOfflineVideo.js';
 import { MessageText } from './MessageText.js';
+
+const ImageViewer = lazySuspended(() => import('../profile/ImageViewer.js'), 'ImageViewer');
 
 /**
  * A photo in the thread.
@@ -112,9 +115,23 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
    * its bytes are meant to be spent, not kept, and writing it to disk would be
    * the opposite of what the limit promises.
    */
-  const offline = useOfflineMedia(message.id, limited ? undefined : url, () => {
-    void service.confirmMediaReceived?.(message.id).catch(() => undefined);
-  });
+  /*
+   * With "Use less data" on, the server is not asked until the photo is tapped.
+   * A copy already on this device still shows at once - the hook looks locally
+   * first either way; it is only the download that waits.
+   */
+  const dataSaver = useDataSaver();
+  const [fetchAnyway, setFetchAnyway] = useState(false);
+  const waitForTap = !limited && dataSaver && !fetchAnyway;
+  const offline = useOfflineMedia(
+    message.id,
+    limited || waitForTap ? undefined : url,
+    () => {
+      void service.confirmMediaReceived?.(message.id).catch(() => undefined);
+    },
+    // One download per photo, and none for a photo already kept: see `holdRemote`.
+    true,
+  );
   const shown = limited ? url : offline.src;
   /** This exact source has already been tried and did not load. */
   const broken = failedSrc !== undefined && failedSrc === shown;
@@ -249,7 +266,18 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
               'glass-water',
             )}
           >
-            {photo.storagePath && !broken ? (
+            {waitForTap && photo.storagePath && !broken ? (
+              <button
+                type="button"
+                onClick={() => setFetchAnyway(true)}
+                className="focus-ring flex size-full flex-col items-center justify-center gap-2 rounded-lg text-text-secondary active:bg-pressed"
+              >
+                <span className="grid size-11 place-items-center rounded-full bg-surface text-brand shadow-sm">
+                  <ImageDown size={20} />
+                </span>
+                <span className="text-caption">Tap to load photo</span>
+              </button>
+            ) : photo.storagePath && !broken ? (
               /*
                * Still waiting is only honest while nothing has failed. A path
                * on the row survives on a device that cached it before the

@@ -1,9 +1,8 @@
 /**
  * ChatProvider - the composition root for data.
  *
- * This is the *only* place in the product that knows which ChatService
- * implementation is in use. Screens receive a `ChatService`; they never import
- * `MockChatService`. Swapping in a real backend is a one-line change here.
+ * The app hands it the `ChatService` to use; screens receive it from here and
+ * never import an implementation themselves.
  *
  * The provider owns the state that more than one screen needs - the signed-in
  * user, the conversation list, connection status - and keeps it current from the
@@ -24,7 +23,6 @@ import {
 } from 'react';
 
 import type { ChatEvent, ChatService, ConnectionState } from '../chat-service.js';
-import { MockChatService } from '../mock-chat-service.js';
 import type { Conversation, CurrentUser, User } from '../types.js';
 
 interface ChatContextValue {
@@ -54,15 +52,19 @@ const RECOVERY_FLOOR_MS = 30_000;
 
 interface ChatProviderProps {
   children: ReactNode;
-  /** Injectable for tests and for the eventual real implementation. */
-  service?: ChatService;
+  /**
+   * The backend. Required: the in-memory `MockChatService` used to be the
+   * fallback here, which put it and its seed data into every production bundle
+   * although the app always passes the real one.
+   */
+  service: ChatService;
 }
 
 export function ChatProvider({ children, service: injected }: ChatProviderProps) {
   // Created once per provider lifetime. A ref rather than state because the
   // service is an identity, not a value that renders.
   const serviceRef = useRef<ChatService | undefined>(undefined);
-  serviceRef.current ??= injected ?? new MockChatService();
+  serviceRef.current ??= injected;
   const service = serviceRef.current;
 
   const [currentUser, setCurrentUser] = useState<CurrentUser | undefined>();

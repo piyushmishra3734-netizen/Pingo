@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useT } from '../features/i18n/useT.js';
+import { useStories } from '../features/stories/StoryContext.js';
 
 /**
  * Start a new direct conversation.
@@ -84,7 +85,31 @@ export function NewChatScreen() {
     };
   }, [service]);
 
-  /** Whether there is anything to show at all. Blank field means blank screen. */
+  /*
+   * Your friends, before anything is typed.
+   *
+   * Not the directory the note above warns about: these are people who follow
+   * you and whom you follow back - somebody you have both already chosen. An
+   * empty screen made the most common case, messaging a friend, the slowest
+   * one: remember their handle, type it, wait. Everybody else is still only
+   * reached by searching.
+   */
+  const { service: stories } = useStories();
+  const [friendIds, setFriendIds] = useState<Set<string>>();
+  useEffect(() => {
+    let active = true;
+    void stories
+      .listFriends()
+      .then((ids) => { if (active) setFriendIds(new Set(ids)); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [stories]);
+  const friends = useMemo(
+    () => (people && friendIds ? people.filter((person) => friendIds.has(person.id)).sort((a, b) => a.name.localeCompare(b.name)) : []),
+    [people, friendIds],
+  );
+
+  /** Whether there is anything to show at all. Blank field means friends, or a prompt. */
   const searching = query.trim().length > 0;
 
   const matches = useMemo(() => {
@@ -222,7 +247,12 @@ export function NewChatScreen() {
           roster may still be loading behind this, and nobody needs to know:
           there is nothing to wait for until something is typed.
         */}
-        {!searching ? (
+        {!searching && friends.length > 0 ? (
+          <>
+            <h2 className="px-3 pt-2 pb-1 text-caption font-medium text-text-secondary">Your friends</h2>
+            <ul className="space-y-0.5">{friends.map((person, index) => row(person, index))}</ul>
+          </>
+        ) : !searching ? (
           <EmptyState
             title="Who are you looking for?"
             description="Search by name, @username, or paste their ID."
@@ -243,46 +273,48 @@ export function NewChatScreen() {
             icon={<UsersIcon size={26} />}
           />
         ) : (
-          <ul className="space-y-0.5">
-            {shown.map((person, index) => (
-              <li
-                key={person.id}
-                className="animate-row-in"
-                style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
-              >
-                <button
-                  type="button"
-                  onClick={() => void open(person)}
-                  disabled={Boolean(opening)}
-                  className={cn(
-                    'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left',
-                    'transition-colors duration-instant hover:bg-hover',
-                    // Only the row being opened dims; the rest stay legible.
-                    opening && opening !== person.id && 'opacity-50',
-                  )}
-                >
-                  <Avatar name={person.name} id={person.id} src={person.avatarUrl} size="md" />
-
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-body text-ink">{person.name}</span>
-                    <span className="block truncate text-caption text-text-secondary">
-                      @{person.handle}
-                      {query.trim().length >= 8 &&
-                      person.id.toLowerCase().includes(query.trim().toLowerCase())
-                        ? ` · ${person.id}`
-                        : ''}
-                    </span>
-                  </span>
-
-                  {opening === person.id && (
-                    <span className="text-caption text-text-tertiary">Opening…</span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <ul className="space-y-0.5">{shown.map((person, index) => row(person, index))}</ul>
         )}
       </div>
     </div>
   );
+
+  function row(person: User, index: number) {
+    return (
+      <li
+        key={person.id}
+        className="animate-row-in"
+        style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
+      >
+        <button
+          type="button"
+          onClick={() => void open(person)}
+          disabled={Boolean(opening)}
+          className={cn(
+            'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left',
+            'transition-colors duration-instant hover:bg-hover',
+            // Only the row being opened dims; the rest stay legible.
+            opening && opening !== person.id && 'opacity-50',
+          )}
+        >
+          <Avatar name={person.name} id={person.id} src={person.avatarUrl} size="md" />
+
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-body text-ink">{person.name}</span>
+            <span className="block truncate text-caption text-text-secondary">
+              @{person.handle}
+              {query.trim().length >= 8 &&
+              person.id.toLowerCase().includes(query.trim().toLowerCase())
+                ? ` · ${person.id}`
+                : ''}
+            </span>
+          </span>
+
+          {opening === person.id && (
+            <span className="text-caption text-text-tertiary">Opening…</span>
+          )}
+        </button>
+      </li>
+    );
+  }
 }

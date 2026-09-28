@@ -1,13 +1,14 @@
-import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryBoom, type StoryDecor, type StoryDraft, type StorySticker } from '@pingo/core';
+import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryBoom, type StoryDecor, type StoryDraft, type StoryFrame, type StorySticker } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import {
-  AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronDown, ChevronLeft, CircleCheck, Circle,
+  AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronLeft, CircleCheck, Circle,
   Download, Ellipsis, Eraser, Highlighter, Link as LinkIcon, MapPin, Music2, Pause, PenLine, Play, Search, Sparkles, Star,
-  Sticker, Type, Undo2, ArrowRight, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
+  Sticker, Type, Undo2, Send, Settings2, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
+import { useBackStep } from '../navigation/useBackStep.js';
 import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
@@ -16,6 +17,7 @@ import { useStories } from './StoryContext.js';
 import { MenuGroup, MenuRow, SheetSearch } from './StorySheet.js';
 import { BOOMS, BoomerangMode, useBoomerang } from './Boomerang.js';
 import type { StoryFrom } from './StoryUpload.js';
+import { SCALE_MAX, SCALE_MIN, coverScale, framedRect, initialFrame, paletteOf, washOf, type Box } from './media-frame.js';
 import { Blue, ClipSheet, Field, MusicSheet, Panel, type Song } from '../music/sheets.js';
 
 /**
@@ -69,9 +71,11 @@ export interface StoryEditorProps {
    * rather than an ordinary photo, and one chat may already be chosen.
    */
   ping?: { lockedChatId?: string };
+  /** Somebody's story being added to your own; the viewer credits them. */
+  from?: { id: string; name: string };
 }
 
-export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost, initialSong, ping, start }: StoryEditorProps) {
+export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClose, onPost, initialSong, ping, start, from }: StoryEditorProps) {
   const { users, service: chat } = useChat();
   const { notify } = useStories();
   const { profile } = useProfile();
@@ -93,6 +97,17 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const [trim, setTrim] = useState<[number, number]>([0, 1]);
   useBoomerang(mediaEl, kind === 'video' ? boom : undefined, trim[0], trim[1], mode === 'boom');
   const [sheet, setSheet] = useState<SheetKind | null>(start === 'music' ? 'music' : null);
+  /*
+   * Back, and Escape at a keyboard, close the open sheet first. Without this
+   * the phone's Back skipped past the sticker tray to "Discard your story?".
+   */
+  useBackStep(!!sheet && sheet !== 'discard', () => setSheet(null));
+  useEffect(() => {
+    if (!sheet) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSheet(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sheet]);
   const [rail, setRail] = useState<'labels' | 'icons' | 'open'>('labels');
   const [fname, setFname] = useState<string>();
   const [dragging, setDragging] = useState<{ hot: boolean; gv: boolean; gh: boolean }>();
@@ -107,6 +122,35 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   useEffect(() => { if (!fname) return; const t = window.setTimeout(() => setFname(undefined), 900); return () => window.clearTimeout(t); }, [fname, filterI]);
 
   const filter = FILTERS[filterI]![1];
+
+  /*
+   * Where the photo or video sits, and what is behind it - see media-frame.ts.
+   * Unknown until the media has loaded and told us its shape; until then it is
+   * drawn filling the frame, as it always was. Not used for a shared post,
+   * which brings its own background.
+   */
+  const [natural, setNatural] = useState<Box>();
+  const [frame, setFrame] = useState<StoryFrame>();
+  const [wash, setWash] = useState<[string, string]>();
+  const [stageBox, setStageBox] = useState<Box>();
+  useLayoutEffect(() => {
+    const el = stage.current; if (!el) return;
+    const read = () => setStageBox({ width: el.clientWidth, height: el.clientHeight });
+    read();
+    const observer = new ResizeObserver(read); observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const learnMedia = (el: HTMLImageElement | HTMLVideoElement) => {
+    if (bg) return;
+    const box = el instanceof HTMLVideoElement ? { width: el.videoWidth, height: el.videoHeight } : { width: el.naturalWidth, height: el.naturalHeight };
+    if (!box.width || !box.height) return;
+    setNatural(box);
+    setWash(paletteOf(el));
+    const here = stage.current;
+    if (here && !frame) setFrame(initialFrame({ width: here.clientWidth, height: here.clientHeight }, box));
+  };
+  const placed = !bg && natural && frame && stageBox ? framedRect(stageBox, natural, frame) : undefined;
+  const clampScale = (v: number) => Math.max(SCALE_MIN, Math.min(SCALE_MAX, v));
 
   // ---- stickers --------------------------------------------------------------
 
@@ -165,6 +209,12 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const g = useRef<{
     id?: string; el?: HTMLElement; pts: Map<number, { x: number; y: number }>; x0: number; y0: number; sx: number; sy: number;
     t: number; moved: boolean; editable?: boolean; pinch?: { d: number; a: number; s: number; r: number }; hot?: boolean; dx?: number;
+    /** On the picture itself: which way the first move went (x changes the filter, y moves the picture). */
+    axis?: 'x' | 'y';
+    /** The picture's place when this gesture took hold of it. */
+    f0?: StoryFrame;
+    /** Two fingers on the picture: their distance and midpoint at the start. */
+    mpinch?: { d: number; mx: number; my: number };
   } | undefined>(undefined);
   const binRef = useRef<HTMLDivElement>(null);
 
@@ -190,13 +240,48 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       return;
     }
-    g.current = { pts: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]), x0: e.clientX, y0: e.clientY, sx: 0, sy: 0, t: performance.now(), moved: false };
+    if (cur && !cur.id && cur.pts.size === 1 && frame && !bg) {
+      // A second finger on the picture: pinch to size it, move both to place it.
+      cur.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const [a, b] = [...cur.pts.values()] as [{ x: number; y: number }, { x: number; y: number }];
+      cur.mpinch = { d: Math.hypot(b.x - a.x, b.y - a.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+      cur.f0 = frame; cur.moved = true; cur.axis = 'y'; setFname(undefined);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
+    g.current = { pts: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]), x0: e.clientX, y0: e.clientY, sx: 0, sy: 0, t: performance.now(), moved: false, ...(frame ? { f0: frame } : {}) };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onMove = (e: React.PointerEvent) => {
     const cur = g.current; if (!cur || !cur.pts.has(e.pointerId)) return;
     cur.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (!cur.id) { cur.dx = e.clientX - cur.x0; if (Math.abs(cur.dx) > 12) setFname(FILTERS[wrap(filterI + Math.round(-cur.dx / 90))]![0]); return; }
+    if (!cur.id) {
+      const r = stage.current?.getBoundingClientRect();
+      if (cur.mpinch && cur.f0 && r && cur.pts.size === 2) {
+        const [a, b] = [...cur.pts.values()] as [{ x: number; y: number }, { x: number; y: number }];
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        setFrame({ ...cur.f0, s: clampScale(cur.f0.s * Math.hypot(b.x - a.x, b.y - a.y) / cur.mpinch.d), x: cur.f0.x + (mx - cur.mpinch.mx) / r.width, y: cur.f0.y + (my - cur.mpinch.my) / r.height });
+        return;
+      }
+      const dx = e.clientX - cur.x0, dy = e.clientY - cur.y0;
+      /*
+       * One finger: sideways changes the filter, as it always did; up or down
+       * takes hold of the picture, which can then go anywhere. Decided by the
+       * first ten pixels, so neither gets in the other's way.
+       */
+      if (!cur.axis && Math.hypot(dx, dy) > 10) cur.axis = Math.abs(dx) > Math.abs(dy) || !cur.f0 || bg ? 'x' : 'y';
+      if (cur.axis === 'y' && cur.f0 && r) {
+        cur.moved = true;
+        let x = cur.f0.x + dx / r.width, y = cur.f0.y + dy / r.height;
+        const gv = Math.abs(x) < 0.02, gh = Math.abs(y) < 0.02;
+        if (gv) x = 0; if (gh) y = 0;
+        setDragging({ hot: false, gv, gh });
+        setFrame({ ...cur.f0, x, y });
+        return;
+      }
+      if (cur.axis === 'x') { cur.dx = dx; setFname(FILTERS[wrap(filterI + Math.round(-dx / 90))]![0]); }
+      return;
+    }
     const s = stickers.find((x) => x.id === cur.id); const r = stage.current?.getBoundingClientRect(); if (!s || !r) return;
     if (cur.pinch && cur.pts.size === 2) {
       const [a, b] = [...cur.pts.values()] as [{ x: number; y: number }, { x: number; y: number }];
@@ -219,7 +304,12 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const onUp = (e: React.PointerEvent) => {
     const cur = g.current; if (!cur || !cur.pts.has(e.pointerId)) return;
     cur.pts.delete(e.pointerId);
-    if (cur.pts.size) { cur.pinch = undefined; const [p] = [...cur.pts.values()] as [{ x: number; y: number }]; const s = stickers.find((x) => x.id === cur.id); cur.x0 = p.x; cur.y0 = p.y; cur.sx = s?.x ?? 0; cur.sy = s?.y ?? 0; return; }
+    if (cur.pts.size) {
+      const [p] = [...cur.pts.values()] as [{ x: number; y: number }];
+      // One finger left on the picture carries on moving it from where it is now.
+      if (!cur.id) { cur.mpinch = undefined; cur.x0 = p.x; cur.y0 = p.y; if (frame) cur.f0 = frame; return; }
+      cur.pinch = undefined; const s = stickers.find((x) => x.id === cur.id); cur.x0 = p.x; cur.y0 = p.y; cur.sx = s?.x ?? 0; cur.sy = s?.y ?? 0; return;
+    }
     g.current = undefined; setDragging(undefined);
     if (cur.id) {
       if (cur.hot) { remove(cur.id); return; }
@@ -227,6 +317,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       if (s && !cur.moved && performance.now() - cur.t < 350) tapSticker(s, e.target as HTMLElement);
       return;
     }
+    if (cur.axis === 'y' || cur.mpinch) return; // the picture was moved, not tapped
     if (Math.abs(cur.dx ?? 0) > 12) { setFilterI((i) => wrap(i + Math.round(-(cur.dx ?? 0) / 90))); return; }
     if (performance.now() - cur.t < 400) { setEditingText(undefined); setMode('text'); } // tap anywhere to type
   };
@@ -278,9 +369,20 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       g2.fillStyle = grad; g2.fillRect(0, 0, W, CH);
     } else {
       const img = mediaEl.current as HTMLImageElement;
+      // Where it was placed, over its colours - the same sums as on screen.
+      const nat = { width: img.naturalWidth, height: img.naturalHeight };
+      const place = frame && box && box.width ? framedRect({ width: W, height: CH }, nat, frame) : undefined;
+      if (place) {
+        const [top, bottom] = wash ?? ['#3a3a40', '#1c1c1e'];
+        const grad = g2.createLinearGradient(0, 0, 0, CH); grad.addColorStop(0, top); grad.addColorStop(1, bottom);
+        g2.fillStyle = grad; g2.fillRect(0, 0, W, CH);
+      }
       if ('filter' in g2 && filter) g2.filter = filter;
-      const k = Math.max(W / img.naturalWidth, CH / img.naturalHeight);
-      g2.drawImage(img, (W - img.naturalWidth * k) / 2, (CH - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      if (place) g2.drawImage(img, place.left, place.top, place.width, place.height);
+      else {
+        const k = Math.max(W / img.naturalWidth, CH / img.naturalHeight);
+        g2.drawImage(img, (W - img.naturalWidth * k) / 2, (CH - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      }
       g2.filter = 'none';
     }
     if (ink.current && strokes.length) g2.drawImage(ink.current, 0, 0, W, CH);
@@ -317,7 +419,14 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         const sound = await decodeSound(new File([bytes], song.name, { type: bytes.type || 'audio/mp4' }));
         audio = [{ blob: cutToWav(sound.buffer, song.start, Math.min(sound.buffer.duration, song.start + 15)), at: 0, duration: 15, volume: 1 }];
       }
-      const decor: StoryDecor = { v: 1, stickers, ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}), ...(kind === 'video' && boom !== 'off' ? { boom } : {}) };
+      /*
+       * A video cannot have its place baked in without re-encoding it, so the
+       * viewer is told where to put it. Left out when it simply fills the frame,
+       * which is what the viewer does anyway.
+       */
+      const moved = kind === 'video' && !bg && frame && natural && stageBox
+        && (Math.abs(frame.x) > 0.005 || Math.abs(frame.y) > 0.005 || Math.abs(frame.s - coverScale(stageBox, natural)) > 0.01);
+      const decor: StoryDecor = { v: 1, stickers, ...(from ? { from } : {}), ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}), ...(kind === 'video' && boom !== 'off' ? { boom } : {}), ...(moved && frame ? { frame: { x: frame.x, y: frame.y, s: frame.s, ...(wash ? { bg: wash } : {}) } } : {}) };
       const clip = kind === 'video' ? (mediaEl.current as HTMLVideoElement | null)?.duration : undefined;
       const trimmed = clip && (trim[0] > 0 || trim[1] < 1) ? { videoEdit: { trimStart: trim[0] * clip, trimEnd: trim[1] * clip } } : {};
       setBusy('Sharing…');
@@ -370,13 +479,13 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
     ['Audio', <Music2 key="a" />, () => setSheet('music')],
     // A photo gets its filters; a clip gets Boomerang, opening on Classic as Instagram's does.
     ['Effect', <Sparkles key="e" />, () => { if (kind === 'video') { if (boom === 'off') setBoom('classic'); setMode('boom'); } else setSheet('effects'); }],
+    ...(kind === 'photo' ? [['Draw', <Brush key="d" />, () => setMode('draw')] as [string, ReactNode, () => void]] : []),
+    ['Mention', <AtSign key="m" />, () => setSheet('mention')],
   ];
   const moreTools: [string, ReactNode, () => void][] = [
-    ['Mention', <AtSign key="m" />, () => setSheet('mention')],
-    ...(kind === 'photo' ? [['Draw', <Brush key="d" />, () => setMode('draw')] as [string, ReactNode, () => void]] : []),
     ...(ping && kind === 'photo' ? [[views === null ? 'Views: ∞' : `Views: ${views}`, <Timer key="v" />, () => setViews((v) => (v === 1 ? 2 : v === 2 ? null : 1))] as [string, ReactNode, () => void]] : []),
-    ['Download', <Download key="dl" />, () => void download()],
-    ['More', <Ellipsis key="mo" />, () => setSheet('more')],
+    ['Save', <Download key="dl" />, () => void download()],
+    ['Options', <Settings2 key="mo" />, () => setSheet('more')],
   ];
 
   const hideChrome = mode !== 'none' || !!dragging;
@@ -387,10 +496,11 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} style={{ touchAction: 'none' }}>
         {/* the frame: the whole screen down to the bar, as the sample's; a phone's column on a wide screen */}
         <div className="relative mx-auto h-full w-full max-w-[calc(100dvh*0.5)]">
-          <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-[16px]" style={{ background: bg ?? '#111' }}>
+          <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-b-[16px]" style={{ background: bg ?? (wash ? washOf(wash) : '#111') }}
+            onWheel={(e) => { if (!bg && frame) setFrame({ ...frame, s: clampScale(frame.s * Math.exp(-e.deltaY * 0.0015)) }); }}>
             {kind === 'video'
-              ? <video ref={mediaEl} src={src} className="absolute inset-0 size-full object-cover" style={{ filter }} autoPlay loop muted playsInline />
-              : !bg && <img ref={mediaEl} src={src} alt="" className="absolute inset-0 size-full object-cover" style={{ filter }} draggable={false} crossOrigin="anonymous" />}
+              ? <video ref={mediaEl} data-story-media src={src} onLoadedData={(e) => learnMedia(e.currentTarget)} className={cn('absolute', !placed && 'inset-0 size-full object-cover')} style={{ filter, ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}) }} autoPlay loop muted playsInline />
+              : !bg && <img ref={mediaEl} data-story-media src={src} alt="" onLoad={(e) => learnMedia(e.currentTarget)} className={cn('absolute', !placed && 'inset-0 size-full object-cover')} style={{ filter, ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}) }} draggable={false} crossOrigin="anonymous" />}
             <canvas ref={ink} width={W} height={H} className="pointer-events-none absolute inset-0 size-full" />
             <div ref={layer} className="sk-layer inset-0">
               {stickers.map((s) => (
@@ -403,9 +513,9 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
               ))}
             </div>
             {fname && <div className="pointer-events-none absolute inset-x-0 top-[40%] text-center text-3xl font-semibold drop-shadow-lg">{fname}</div>}
-            {dragging?.gv && <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-[#3ea6ff]" />}
-            {dragging?.gh && <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-[#3ea6ff]" />}
-            <label data-chrome className={cn('absolute right-[70px] bottom-3.5 left-3.5 z-10 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            {dragging?.gv && <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-white/80" />}
+            {dragging?.gh && <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/80" />}
+            <label data-chrome className={cn('absolute right-3.5 bottom-3.5 left-3.5 z-10 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
               <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} placeholder="Add a caption…"
                 className="w-full bg-transparent text-[14px] text-white outline-none placeholder:text-white/85 [text-shadow:0_1px_4px_rgba(0,0,0,.6)]" />
             </label>
@@ -413,40 +523,52 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
 
           {/* the bin, while something is being dragged */}
           <div ref={binRef} className={cn('pointer-events-none absolute bottom-[100px] left-1/2 grid size-13 -translate-x-1/2 place-items-center rounded-full ring-2 ring-white/70 transition-all',
-            dragging ? 'scale-100 opacity-100' : 'scale-50 opacity-0', dragging?.hot ? 'scale-125 bg-[#ff3040]' : 'bg-black/40')}>
+            dragging ? 'scale-100 opacity-100' : 'scale-50 opacity-0', dragging?.hot ? 'scale-125 bg-danger' : 'bg-black/40')}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
           </div>
 
-          {/* back, and the rail */}
-          <div data-chrome className={cn('absolute top-3 left-3 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="grid size-10 place-items-center rounded-full bg-black/35"><ChevronLeft size={22} /></button>
-          </div>
-          <div data-chrome className={cn('absolute top-3 right-2.5 flex flex-col items-end gap-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-            {[...railTools, ...(rail !== 'icons' ? moreTools : [])].map(([label, icon, act]) => (
-              <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex items-center gap-2.5 text-[13.5px] font-semibold [text-shadow:0_1px_3px_rgba(0,0,0,.75)]">
-                <span className={cn('transition-all duration-300', rail === 'icons' ? 'translate-x-2 opacity-0' : 'opacity-100')}>{label}</span>
-                <span className="grid size-[38px] place-items-center rounded-full bg-black/35 [&>svg]:size-5">{icon}</span>
-              </button>
-            ))}
-            <button type="button" aria-label="More tools" onClick={() => setRail((r) => (r === 'icons' ? 'open' : 'icons'))} className="grid h-[22px] w-[30px] place-items-center rounded-full bg-black/35">
-              <ChevronDown size={16} className={cn('transition-transform', rail !== 'icons' && 'rotate-180')} />
-            </button>
+          {/* top: back on the left, and every tool in one bar - the same bar as the camera's */}
+          <div data-chrome className={cn('absolute inset-x-3 top-3 flex items-start justify-between gap-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
+            <button type="button" aria-label="Back" onClick={() => setSheet('discard')} className="grid size-10 shrink-0 place-items-center [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.6))]"><ChevronLeft size={26} /></button>
+            <div className="flex flex-col items-end gap-1.5">
+              {/* Bare icons on the picture, each with a shadow to read on any photo - no plate behind them. */}
+              <div className="flex items-center gap-1 [&>button]:[filter:drop-shadow(0_1px_3px_rgba(0,0,0,.6))]">
+                {railTools.map(([label, icon, act]) => (
+                  <button key={label} type="button" title={label} onClick={() => { act(); setRail('icons'); }} className="grid size-10 place-items-center active:scale-90 [&>svg]:size-[23px]">
+                    {icon}<span className="sr-only">{label}</span>
+                  </button>
+                ))}
+                <button type="button" aria-label="More tools" aria-expanded={rail === 'open'} onClick={() => setRail((r) => (r === 'open' ? 'icons' : 'open'))}
+                  className={cn('grid size-10 place-items-center transition-transform [&>svg]:size-[23px]', rail === 'open' && 'rotate-90')}>
+                  <Ellipsis />
+                </button>
+              </div>
+              {rail === 'open' && (
+                <div className="animate-panel-in flex min-w-[168px] flex-col overflow-hidden rounded-[14px] bg-media-sheet shadow-[0_8px_30px_rgba(0,0,0,.45)] [&>button+button]:border-t [&>button+button]:border-white/[.08]">
+                  {moreTools.map(([label, icon, act]) => (
+                    <button key={label} type="button" onClick={() => { act(); setRail('icons'); }} className="flex h-11 items-center justify-between gap-3 px-4 text-[15px] active:bg-white/10 [&>svg]:size-[19px]">
+                      <span>{label}</span>{icon}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
         {/* where it goes */}
         <div data-chrome className={cn('absolute inset-x-0 bottom-0 flex h-[76px] items-center gap-2 px-3 pb-2 transition-opacity', hideChrome && 'pointer-events-none opacity-0')}>
-          <button type="button" disabled={!!busy} onClick={() => void post('friends')} className="flex h-[46px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#262626] px-2.5 text-[14px] font-bold whitespace-nowrap">
-            {profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" className="size-[26px] shrink-0 rounded-full object-cover" /> : null}Your story
+          <button type="button" disabled={!!busy} onClick={() => void post('friends')} className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-white/10 px-2.5 text-[14px] font-semibold whitespace-nowrap ring-1 ring-white/10 active:bg-white/15">
+            {profile?.avatarUrl ? <span className="bg-sweep-ring shrink-0 rounded-full p-[1.5px]"><img src={profile.avatarUrl} alt="" className="size-6 rounded-full border border-black object-cover" /></span> : null}Your story
           </button>
-          <button type="button" disabled={!!busy} onClick={() => void post('close')} className="flex h-[46px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-[#262626] px-2.5 text-[14px] font-bold whitespace-nowrap">
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#1fc15e]"><Star size={13} fill="#fff" /></span>Close Friends
+          <button type="button" disabled={!!busy} onClick={() => void post('close')} className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-white/10 px-2.5 text-[14px] font-semibold whitespace-nowrap ring-1 ring-white/10 active:bg-white/15">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-close-friends"><Star size={13} fill="#fff" /></span>Close friends
           </button>
-          <button type="button" aria-label="More sharing options" disabled={!!busy} onClick={() => setSheet('share')} className="grid size-[46px] shrink-0 place-items-center rounded-full bg-white text-black"><ArrowRight size={22} /></button>
+          <button type="button" aria-label="More sharing options" disabled={!!busy} onClick={() => setSheet('share')} className="bg-brand-gradient grid size-12 shrink-0 place-items-center rounded-[14px] text-on-brand shadow-[0_6px_18px_color-mix(in_srgb,var(--gradient-from)_40%,transparent)]"><Send size={20} /></button>
         </div>
         </div>
 
         {busy && <div className="absolute inset-0 z-50 grid place-items-center bg-black/55"><div className="flex flex-col items-center gap-3"><span className="size-9 animate-spin rounded-full border-3 border-white/25 border-t-white" /><span className="text-[14px] font-semibold">{busy}</span></div></div>}
-        {error && <p role="alert" className="absolute inset-x-4 bottom-24 z-40 rounded-[12px] bg-[#ff3040] px-4 py-3 text-[14px] font-semibold">{error}</p>}
+        {error && <p role="alert" className="absolute inset-x-4 bottom-24 z-40 rounded-[12px] bg-danger px-4 py-3 text-[14px] font-semibold">{error}</p>}
 
         {mode === 'text' && (
           <TextMode
@@ -529,7 +651,7 @@ export function TextMode({ initial, onDone, onLocation }: { initial?: TextData; 
           <div className="flex gap-2.5 overflow-x-auto px-3">
             {FONTS.map((f) => (
               <button key={f.k} type="button" onClick={() => set({ font: f.k })}
-                className={cn('grid size-11 shrink-0 place-items-center rounded-full text-[17px] ring-1 ring-white/25', d.font === f.k ? 'bg-white text-[#e0559b]' : 'bg-black/45')}>
+                className={cn('grid size-11 shrink-0 place-items-center rounded-full text-[17px] ring-1 ring-white/25', d.font === f.k ? 'bg-white text-black' : 'bg-black/45')}>
                 <span className={`sk-f-${f.k}`} style={{ textShadow: 'none' }}>Aa</span>
               </button>
             ))}
@@ -614,8 +736,8 @@ function EditorSheets(p: SheetsProps) {
     case 'discard':
       return (
         <Panel title="Discard media?" onClose={close}>
-          <p className="px-5 pb-3.5 text-center text-[13.5px] text-[#a1a1a6]">If you go back now, you will lose any changes you've made.</p>
-          <button type="button" onClick={p.onDiscard} className="py-[9px] text-[16px] font-bold text-[#ff3040]">Discard</button>
+          <p className="px-5 pb-3.5 text-center text-[13.5px] text-white/55">If you go back now, you will lose any changes you've made.</p>
+          <button type="button" onClick={p.onDiscard} className="py-[9px] text-[16px] font-bold text-danger">Discard</button>
           <button type="button" onClick={() => { p.notify('Draft saved', <FileIcon />); p.onDiscard(); }} className="py-[9px] text-[16px] font-semibold">Save draft</button>
           <button type="button" onClick={close} className="py-[9px] pb-6 text-[16px]">Cancel</button>
         </Panel>
@@ -649,7 +771,7 @@ function EditorSheets(p: SheetsProps) {
           <SheetSearch value={q} onChange={setQ} autoFocus />
           <div className="overflow-y-auto px-3.5 pb-6">
             {people.map((u) => (
-              <button key={u.id} type="button" onClick={() => { p.add({ type: 'men', d: { text: u.handle ?? u.name } }); close(); }} className="flex w-full items-center gap-3 py-[9px] text-left">
+              <button key={u.id} type="button" onClick={() => { p.add({ type: 'men', d: { text: u.handle ?? u.name, uid: u.id } }); close(); }} className="flex w-full items-center gap-3 py-[9px] text-left">
                 {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="size-11 rounded-full object-cover" /> : <span className="grid size-11 place-items-center rounded-full bg-white/10 font-bold">{u.name[0]}</span>}
                 <span className="min-w-0"><b className="block truncate text-[14px]">{u.handle ?? u.name}</b><span className="text-[13px] text-[#8e8e8e]">{u.name}</span></span>
               </button>
@@ -679,8 +801,8 @@ function EditorSheets(p: SheetsProps) {
             {FILTERS.map(([name, css], i) => (
               <button key={name} type="button" onClick={() => p.setFilterI(i)} className="flex flex-col items-center gap-1.5 text-[11.5px]">
                 {p.kindOfMedia === 'photo'
-                  ? <img src={p.src} alt="" className={cn('h-[84px] w-16 rounded-[16px] object-cover', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }} />
-                  : <span className={cn('grid h-[84px] w-16 place-items-center rounded-[16px] bg-gradient-to-b from-[#8b5dff] to-[#e0559b]', i === p.filterI && 'ring-3 ring-[#0a84ff]')} style={{ filter: css }}><Sparkles size={20} /></span>}
+                  ? <img src={p.src} alt="" className={cn('h-[84px] w-16 rounded-[16px] object-cover', i === p.filterI && 'ring-3 ring-media-accent')} style={{ filter: css }} />
+                  : <span className={cn('grid h-[84px] w-16 place-items-center rounded-[16px] bg-sweep', i === p.filterI && 'ring-3 ring-media-accent')} style={{ filter: css }}><Sparkles size={20} /></span>}
                 {name}
               </button>
             ))}
@@ -727,13 +849,13 @@ function StickerTray(p: SheetsProps & { close: () => void }) {
   const term = q.trim().toLowerCase();
   return (
     <Panel onClose={p.close}>
-      <label className="mx-3.5 mb-3 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-[#2c2c2e] px-3 text-white/55">
+      <label className="mx-3.5 mb-3 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-media-field px-3 text-white/55">
         <Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none" />
       </label>
       <div className="overflow-y-auto px-3.5">
         <div className="flex flex-wrap justify-center gap-2.5 pb-3.5">
           {chips.filter(([k]) => !term || k.includes(term)).map(([k, label, cls, act]) => (
-            <button key={k} type="button" onClick={act} className={cn('inline-flex items-center gap-1.5 rounded-[10px] bg-[#2c2c2e] px-3 py-2 text-[13px] font-extrabold', cls)}>{label}</button>
+            <button key={k} type="button" onClick={act} className={cn('inline-flex items-center gap-1.5 rounded-[10px] bg-media-field px-3 py-2 text-[13px] font-extrabold', cls)}>{label}</button>
           ))}
         </div>
         <div className="grid grid-cols-4 gap-2.5 pb-4">

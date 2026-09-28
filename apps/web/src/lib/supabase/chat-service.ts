@@ -90,6 +90,7 @@ import { recordMetric } from '../net-metrics.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
 import { toStandardQuality } from '../../features/chat/media-quality.js';
+import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { putMedia } from '../../features/chat/video-vault.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
@@ -110,6 +111,7 @@ import { PresenceHub, type ChatActivity } from './presence.js';
 import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-intent.js';
 
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
+import { hiddenByBlock } from '../../features/safety/blocks.js';
 
 /**
  * Whether this draft carries bytes rather than only words.
@@ -1241,6 +1243,8 @@ export class SupabaseChatService implements ChatService {
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const row = payload.new as MessageRow;
+          // Somebody this account has blocked: their message never arrives here.
+          if (hiddenByBlock(row.sender_id, parseTimestamp(row.created_at))) return;
           /*
            * A message landing is the thread becoming real. Whatever the list
            * rule thought of it before, there is something in it now - clear
@@ -2112,7 +2116,7 @@ export class SupabaseChatService implements ChatService {
            * arrives - `#bumpConversation` patches it on the incoming message,
            * ahead of any rebuild.
            */
-          ...(last
+          ...(last && !hiddenByBlock(last.sender_id, parseTimestamp(last.created_at))
             ? { lastMessage: toMessage(last, theirReadAt) }
             : this.#known.get(row.id)?.lastMessage
               ? { lastMessage: this.#known.get(row.id)!.lastMessage! }
@@ -2125,7 +2129,8 @@ export class SupabaseChatService implements ChatService {
            * nothing is unread, whatever the row says.
            */
           unreadCount:
-            heldRead(row.id) >= (last ? parseTimestamp(last.created_at) : 0)
+            heldRead(row.id) >= (last ? parseTimestamp(last.created_at) : 0) ||
+            (last && hiddenByBlock(last.sender_id, parseTimestamp(last.created_at)))
               ? 0
               : (preview?.unread_count ?? 0),
           pinned: mine?.pinned ?? false,
@@ -2807,7 +2812,21 @@ export class SupabaseChatService implements ChatService {
     return work;
   }
 
+  /** A thread, without what somebody blocked sent after the block (features/safety/blocks.ts). */
   async listMessages(
+    conversationId: ConversationId,
+    options?: { limit?: number; before?: MessageId; onEarly?: (messages: Message[]) => void },
+  ): Promise<Message[]> {
+    const shown = (list: Message[]) => list.filter((m) => !hiddenByBlock(m.authorId, m.createdAt));
+    const onEarly = options?.onEarly;
+    const all = await this.#listMessagesAll(conversationId, {
+      ...options,
+      ...(onEarly ? { onEarly: (early: Message[]) => onEarly(shown(early)) } : {}),
+    });
+    return shown(all);
+  }
+
+  async #listMessagesAll(
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId; onEarly?: (messages: Message[]) => void },
   ): Promise<Message[]> {
@@ -3706,7 +3725,9 @@ export class SupabaseChatService implements ChatService {
 
     const { error } = await this.#client.storage
       .from(bucket)
-      .upload(path, body, { contentType });
+      // Every path is a fresh uuid, so the bytes behind it never change: let
+      // anything in between keep them for as long as it likes.
+      .upload(path, body, { contentType, cacheControl: IMMUTABLE_CACHE_SECONDS });
 
     if (error) {
       // The claim outlives a failed upload harmlessly: there is no object, so

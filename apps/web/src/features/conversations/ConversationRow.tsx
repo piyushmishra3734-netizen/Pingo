@@ -28,6 +28,7 @@ import { StreakFlame } from './StreakFlame.js';
 import { useStories } from '../stories/StoryContext.js';
 import { presenceMark } from '../presence/status.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
+import { useNickname } from '../chat/nicknames.js';
 
 /**
  * One row in the conversation list.
@@ -96,6 +97,8 @@ export function ConversationRow({
     conversation.kind === 'direct'
       ? users.find((u) => conversation.participantIds.includes(u.id) && u.id !== currentUser?.id)
       : undefined;
+  // The nickname you gave them, when you gave one (see chat/nicknames.ts).
+  const nickname = useNickname(conversation.id, conversation.kind === 'direct' ? partner?.id : undefined);
 
   /*
    * Somebody reacting to yours, Instagram's way - in place of the preview for
@@ -147,7 +150,7 @@ export function ConversationRow({
           story &&
             (story.allSeen
               ? 'bg-line-strong'
-              : 'bg-[conic-gradient(from_210deg,#e0559b,#ff9a5a,#8b5dff,#e0559b)]'),
+              : 'bg-sweep-ring'),
         )}
       >
       <Avatar
@@ -158,7 +161,7 @@ export function ConversationRow({
           group. Without this every row rendered a monogram even for people who
           had set a picture - the avatar was there, its source was not.
         */
-        src={partner?.avatarUrl ?? conversation.avatarUrl}
+        src={partner?.avatarUrl ?? conversation.avatarUrl ?? (conversation.kind === 'ai' ? '/pingo-avatar.png' : undefined)}
         size="lg"
         // Presence only. Typing is already carried by the preview line below, and
         // saying it twice in one row is two signals competing for the same glance.
@@ -177,7 +180,7 @@ export function ConversationRow({
         <div className="flex items-center gap-2">
           {/* Name, badge and mute as one group on the left - the approved row. */}
           <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="min-w-0 truncate text-body font-semibold text-ink">{conversation.title}</span>
+            <span className="min-w-0 truncate text-body font-semibold text-ink">{nickname ?? conversation.title}</span>
             {/* Only a direct chat's name is a person's; a group's badge sits by the sender. */}
             <AchievementMark achievement={achievements.lead(badgeHolder)} />
             {conversation.muted && (

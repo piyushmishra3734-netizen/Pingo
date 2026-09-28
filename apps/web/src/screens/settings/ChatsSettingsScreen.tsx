@@ -9,6 +9,7 @@ import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useNavigate } from 'react-router-dom';
 import { WALLPAPERS, chosenGlobalWallpaperId } from '../../features/chat/wallpaper.js';
 import { useT } from '../../features/i18n/useT.js';
+import { setDataSaver, useDataSaver } from '../../features/connection/data-saver.js';
 
 /**
  * Chats.
@@ -23,6 +24,7 @@ import { useT } from '../../features/i18n/useT.js';
  * thread (shared for groups, personal for DMs).
  */
 export function ChatsSettingsScreen() {
+  const dataSaver = useDataSaver();
   const t = useT();
   const { preferences, update } = usePreferences();
   const navigate = useNavigate();
@@ -62,7 +64,8 @@ export function ChatsSettingsScreen() {
         />
       </Group>
 
-      <p className="px-1 pb-2 text-caption text-text-tertiary">{t('chatsSet.wallpaperHint')}</p>
+      {/* A second note for the same group: tucked under the first, with the group's own gap after it. */}
+      <p className="-mt-5 mb-7 px-1 text-caption text-text-tertiary">{t('chatsSet.wallpaperHint')}</p>
 
       <Group title={t('chatsSet.groupMedia')}>
         <ChoiceRow
@@ -75,6 +78,12 @@ export function ChatsSettingsScreen() {
             { value: 'never', label: t('choice.never') },
           ]}
           onChange={(autoDownload) => update('chats', { autoDownload })}
+        />
+        <ToggleRow
+          label="Use less data"
+          description="Photos in chats load when you tap them, and nothing is downloaded ahead of time."
+          checked={dataSaver}
+          onChange={setDataSaver}
         />
       </Group>
 

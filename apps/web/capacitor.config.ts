@@ -139,11 +139,10 @@ const config: CapacitorConfig = {
        */
       launchAutoHide: false,
       /*
-       * Sampled from the splash artwork, not chosen: this is the solid frame
-       * Android shows before the image is ready, and a colour that is not the
-       * image's own reads as a flash of something else on every cold launch.
+       * No colour of its own: `splash.png` covers the screen, and it comes in a
+       * light and a -night version, so it matches the phone's theme where one
+       * fixed colour could only match half of them.
        */
-      backgroundColor: '#FAF8F6',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },

@@ -60,9 +60,38 @@ export async function applyRNNoise(source: MediaStream): Promise<RNNoiseResult> 
   input.connect(node);
   node.connect(destination);
 
+  /*
+   * Running, or not used at all.
+   *
+   * What goes out on the call is this context's output, so a suspended context
+   * is not a quieter call - it is the other person hearing nothing. A context
+   * made after the awaits of placing a call is outside the tap that allowed it
+   * and can start suspended; asked once, and if it will not run in a moment the
+   * caller falls back to the plain microphone rather than sending silence.
+   */
+  await Promise.race([context.resume(), new Promise((resolve) => setTimeout(resolve, 800))]);
+  if (context.state !== 'running') {
+    input.disconnect();
+    void context.close();
+    throw new Error('Audio processing could not start.');
+  }
+
+  /*
+   * And kept running. A phone suspends audio it thinks nobody is listening to -
+   * the app going to the background, an incoming system sound - and mid-call
+   * that silently cut this side of the conversation.
+   */
+  const keepAlive = () => {
+    if (context.state === 'suspended') void context.resume().catch(() => undefined);
+  };
+  context.addEventListener('statechange', keepAlive);
+  document.addEventListener('visibilitychange', keepAlive);
+
   return {
     stream: destination.stream,
     cleanup: () => {
+      context.removeEventListener('statechange', keepAlive);
+      document.removeEventListener('visibilitychange', keepAlive);
       node.disconnect();
       input.disconnect();
       void context.close();

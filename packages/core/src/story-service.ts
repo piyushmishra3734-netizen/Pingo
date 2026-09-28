@@ -73,7 +73,30 @@ export interface StoryDecor {
    * the speed swelling and easing (`duo`). Absent or `off` plays it through.
    */
   boom?: StoryBoom;
+  /**
+   * Whose story this was, when it is somebody's story added to your own - a
+   * mention you were given. The viewer names them under your name, the way
+   * Instagram does.
+   */
+  from?: { id: string; name: string };
+  /**
+   * Where a video sits in the frame, when it was moved or resized in the
+   * editor, and the colours behind it. A photo has this baked into the file.
+   */
+  frame?: StoryFrame;
   stickers: StorySticker[];
+}
+
+/**
+ * A story's media placed in its frame: `s` is its size, where 1 is fitted
+ * inside the frame, and `x`/`y` move its centre by fractions of the frame.
+ */
+export interface StoryFrame {
+  x: number;
+  y: number;
+  s: number;
+  /** The wash behind it, top and bottom. */
+  bg?: [string, string];
 }
 
 export type StoryBoom = 'off' | 'echo' | 'classic' | 'slowmo' | 'duo';

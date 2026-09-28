@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        Sampled from the official splash artwork itself, not chosen by eye.
-        Android may paint this before the image is ready, and a frame of some
-        other colour in front of the artwork reads as a flicker on every single
-        launch. It was the lavender of the previous identity, which is half of
-        why the old splash kept appearing for a moment.
+        The app's own ground, the same colour index.html paints behind the
+        splash mark: #FBFBFE in light, #111113 in dark (values-night). The
+        system splash, the native one and the web one are then one picture, so
+        the hand-over between them cannot be seen.
     -->
-    <color name="splashBackground">#faf8f6</color>
+    <color name="splashBackground">#FBFBFE</color>
 </resources>

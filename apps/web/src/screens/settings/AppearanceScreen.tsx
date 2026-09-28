@@ -1,5 +1,5 @@
 import {
-  ACCENT_SWATCHES,
+  ACCENT_GRADIENTS,
   type AccentName,
   type GlassLevel,
   type MotionLevel,
@@ -38,10 +38,11 @@ export function AppearanceScreen() {
   ];
 
   const accents: { value: AccentName; label: string }[] = [
-    { value: 'blue', label: t('appear.ink') },
     { value: 'purple', label: t('appear.purple') },
-    { value: 'green', label: t('appear.green') },
     { value: 'pink', label: t('appear.pink') },
+    { value: 'orange', label: t('appear.orange') },
+    { value: 'green', label: t('appear.green') },
+    { value: 'blue', label: t('appear.ink') },
     { value: 'custom', label: t('appear.custom') },
   ];
 
@@ -81,13 +82,14 @@ export function AppearanceScreen() {
         </Group>
 
         <Group title={t('appear.accent')}>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-6 gap-1">
             {accents.map((accent) => {
               const selected = appearance.accent === accent.value;
+              // The gradient the accent paints buttons and sent bubbles with, not just its colour.
               const swatch =
                 accent.value === 'custom'
                   ? (appearance.customAccent ?? '#5c6cff')
-                  : ACCENT_SWATCHES[accent.value as keyof typeof ACCENT_SWATCHES];
+                  : `linear-gradient(135deg, ${ACCENT_GRADIENTS[accent.value].join(', ')})`;
 
               return (
                 <button
@@ -95,15 +97,15 @@ export function AppearanceScreen() {
                   type="button"
                   onClick={() => updateAppearance({ accent: accent.value })}
                   aria-pressed={selected}
-                  className="focus-ring flex w-16 flex-col items-center gap-2 rounded-lg py-1"
+                  className="focus-ring flex min-w-0 flex-col items-center gap-2 rounded-lg py-1"
                 >
                   <span
                     className={cn(
-                      'grid size-11 place-items-center rounded-full',
+                      'grid size-10 place-items-center rounded-full',
                       'transition-transform duration-quick ease-standard',
                       selected && 'scale-110',
                     )}
-                    style={{ backgroundColor: swatch }}
+                    style={{ background: swatch }}
                   >
                     {selected && <CheckIcon size={18} className="text-white" strokeWidth={3} />}
                   </span>
@@ -171,31 +173,33 @@ export function AppearanceScreen() {
             a letter behind it: you judge glass by what you can still read
             through it.
           */}
-          <div className="relative overflow-hidden rounded-lg bg-brand-gradient p-5">
-            <div aria-hidden className="pointer-events-none absolute inset-0">
-              <span
-                className={cn(
-                  'absolute -top-1 left-3 font-serif text-[5rem] leading-none',
-                  'font-medium text-white/85 select-none',
-                )}
-              >
-                Pingo
+          <div className="relative h-40 overflow-hidden rounded-lg bg-brand-gradient">
+            {/*
+              A conversation behind the glass, because that is what the glass
+              sits over in the app - and a line of text is the one thing whose
+              blur you can judge at a glance.
+            */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 flex flex-col gap-2 p-4 select-none">
+              <span className="w-fit max-w-[70%] rounded-2xl rounded-bl-md bg-white px-3 py-2 text-[14px] text-[#111113]">
+                Are we still on for tonight?
               </span>
-              <span
-                className="absolute inset-0"
-                style={{
-                  backgroundImage:
-                    'repeating-linear-gradient(115deg, rgb(255 255 255 / 0.22) 0 2px, transparent 2px 9px)',
-                }}
-              />
+              <span className="ml-auto w-fit max-w-[70%] rounded-2xl rounded-br-md bg-[#111113]/80 px-3 py-2 text-[14px] text-white">
+                Yes! 8 at the usual place
+              </span>
+              <span className="w-fit max-w-[70%] rounded-2xl rounded-bl-md bg-white px-3 py-2 text-[14px] text-[#111113]">
+                Perfect, see you there
+              </span>
             </div>
 
-            <div className="glass-surface relative rounded-md px-4 py-3">
-              <p className="text-body text-ink">Glass</p>
-              <p className="text-caption text-text-secondary">
-                {appearance.glass === 0 ? 'Off, solid surfaces' : `${appearance.glass}%`}
-              </p>
-            </div>
+            {/*
+              The slab carries no words of its own: text on glass over text is
+              two sentences on top of each other. What it is set to sits in the
+              corner instead, clear of both.
+            */}
+            <div aria-hidden className="glass-surface absolute top-10 right-3 bottom-3 w-[58%] rounded-2xl" />
+            <p className="absolute top-3 right-3 rounded-full bg-black/30 px-2.5 py-0.5 text-[12px] font-medium text-white">
+              {appearance.glass === 0 ? 'Off, solid surfaces' : `Glass ${appearance.glass}%`}
+            </p>
           </div>
 
           <div className="mt-3 flex gap-2">
@@ -306,8 +310,8 @@ function ThemePreview({ mode, resolved }: { mode: ThemeMode; resolved: 'light' |
         style={{ backgroundColor: dark ? '#16171d' : '#ffffff' }}
       />
       <span
-        className="ml-auto block h-2.5 w-10 rounded"
-        style={{ backgroundImage: 'linear-gradient(135deg, #6d7cff, #a16eff)' }}
+        // The sent bubble, in whatever accent is chosen.
+        className="bg-brand-gradient ml-auto block h-2.5 w-10 rounded"
       />
     </span>
   );

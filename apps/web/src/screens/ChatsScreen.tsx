@@ -1,15 +1,30 @@
 import { useChat, useProfile } from '@pingo/core';
 import { EmptyState, cn } from '@pingo/ui';
+import { Suspense, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
 import { InstallBanner } from '../features/install/InstallBanner.js';
-import { ChatThread } from '../features/chat/ChatThread.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
 import { useT } from '../features/i18n/useT.js';
 import { DailyJourneyCard } from '../features/journey/DailyJourneyCard.js';
 import { DUMMY_DAILY_NOTE, DUMMY_MISSIONS } from '../features/journey/dummy-journey.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
+import { lazyNamed } from '../lib/lazy-named.js';
+
+/*
+ * The thread arrives after the list. Launching opens the list, and on a slow
+ * link every kilobyte ahead of it is time spent looking at the splash - so the
+ * thread (bubbles, composer, menus: about a quarter of the old entry chunk)
+ * is fetched once the list is up rather than before it. By the time a finger
+ * lands on a row it is almost always already here.
+ */
+const ChatThread = lazyNamed(() => import('../features/chat/ChatThread.js'), 'ChatThread');
+
+/** What shows for the moment a thread's code is still on its way. */
+function ThreadPending() {
+  return <div className="h-full bg-page" aria-busy="true" />;
+}
 
 /**
  * The chats route, at both layouts.
@@ -31,6 +46,17 @@ export function ChatsScreen() {
   const { profile } = useProfile();
   const { conversations, ready } = useChat();
   const isDesktop = useIsDesktop();
+  /*
+   * Fetch the thread once the list has settled - on any link, since opening a
+   * chat is the one thing nearly every launch leads to. Not `whenIdle`, which
+   * holds back on a poor connection: that is exactly where waiting at the tap
+   * would hurt most.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    const timer = window.setTimeout(() => void ChatThread.preload(), 1200);
+    return () => window.clearTimeout(timer);
+  }, [ready]);
   const conversation = conversationId
     ? conversations.find((c) => c.id === conversationId)
     : undefined;
@@ -42,7 +68,9 @@ export function ChatsScreen() {
 
   if (!isDesktop) {
     return conversation ? (
-      <ChatThread conversation={conversation} showBack />
+      <Suspense fallback={<ThreadPending />}>
+        <ChatThread conversation={conversation} showBack />
+      </Suspense>
     ) : (
       <>
         <ConversationList />
@@ -80,7 +108,9 @@ export function ChatsScreen() {
 
       <section className="min-w-0 flex-1">
         {conversation ? (
-          <ChatThread conversation={conversation} />
+          <Suspense fallback={<ThreadPending />}>
+            <ChatThread conversation={conversation} />
+          </Suspense>
         ) : (
           <div className="grid h-full place-items-center bg-page">
             {/*

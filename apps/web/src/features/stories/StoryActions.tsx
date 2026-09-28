@@ -93,7 +93,7 @@ export function StoryActions({
       </label>
       <button type="button" aria-label="Like" aria-pressed={liked}
         onClick={(e) => { if (!liked) hearts(e.currentTarget); onLike(!liked); }}
-        className={cn('relative grid size-[38px] shrink-0 place-items-center [&>svg]:size-[26px]', liked && 'text-[#ff3040]')}>
+        className={cn('relative grid size-[38px] shrink-0 place-items-center [&>svg]:size-[26px]', liked && 'text-danger')}>
         <Heart fill={liked ? '#ff3040' : 'none'} style={liked ? { animation: 'sv-pop .45s cubic-bezier(.34,1.56,.64,1)' } : undefined} />
       </button>
       <button type="button" aria-label="Send" onClick={onSend} className="grid size-[38px] shrink-0 place-items-center [&>svg]:size-[26px]"><Send /></button>

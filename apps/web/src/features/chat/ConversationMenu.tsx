@@ -65,6 +65,7 @@ export interface ConversationMenuProps {
  * with a fallback rather than a duration formatter.
  */
 export function disappearingLabel(seconds: number): string {
+  if (seconds < 86_400) return `${Math.round(seconds / 3_600)}h`;
   if (seconds === 86_400) return '24h';
   if (seconds === 604_800) return '7d';
   if (seconds === 7_776_000) return '90d';

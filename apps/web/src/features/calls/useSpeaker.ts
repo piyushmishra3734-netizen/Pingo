@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * Speaker mode: making the other person louder.
@@ -15,16 +15,26 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * so a call can be heard at arm's length. That is a gain problem, not a routing
  * one, and gain works in every browser.
  *
- * ## Why the audio element is silenced rather than removed
+ * ## Web Audio only while the boost is on
  *
- * The remote stream stays attached to the `<audio>` element with its volume at
- * zero. Several browsers only keep a `MediaStream` flowing while it is attached
- * to a media element, so detaching it to play through Web Audio instead can
- * silence the call entirely. Element for the plumbing, Web Audio for the sound.
+ * This used to route *every* one-to-one call through an AudioContext, with the
+ * `<audio>` element silenced underneath it, whether or not anybody had asked to
+ * be louder. Three things went wrong with that, all heard as a bad call:
  *
- * If Web Audio cannot start at all, the element's volume is restored and the
- * call is audible at normal loudness with no toggle offered - quieter than
- * intended beats silent.
+ *   - A context that starts suspended - iOS, or a stream that arrives long
+ *     after the tap that placed the call - plays nothing, while the element
+ *     that could have played it sits at volume zero.
+ *   - The source is bound to the track it was built from. When the room
+ *     re-subscribes after a network blip it hands over a new track, and the
+ *     call went silent while the screen still said Connected.
+ *   - On Android, Web Audio is a separate, larger-buffered output from the one
+ *     WebRTC plays calls on, and under load it is the one that crackles.
+ *
+ * So by default the element plays the call, exactly as WebRTC intends, and the
+ * graph exists only for the length of a boost - built on the tap, which is
+ * also the gesture that lets its context start. The element stays attached
+ * throughout (some browsers only keep a remote stream flowing while it is), and
+ * is silenced only once the context is definitely running.
  */
 
 /** Roughly three times louder. Past this the limiter is working constantly. */
@@ -42,127 +52,59 @@ export function useSpeaker(
   active: boolean,
 ): Speaker | undefined {
   /*
-   * The choice outlives the audio.
-   *
-   * The button is offered the moment a call starts, which is before there is
-   * any remote sound to amplify - pressing it then means "be loud when we
-   * connect", and this is what remembers that so the gain can be applied the
-   * instant the stream arrives.
+   * The choice outlives the audio: pressing it before the call connects means
+   * "be loud when we connect", applied the moment the stream arrives.
    */
   const [on, setOn] = useState(false);
 
-  const context = useRef<AudioContext | undefined>(undefined);
-  const gain = useRef<GainNode | undefined>(undefined);
-  /** Built with the graph, but only wired in while the boost is on. */
-  const limiterNode = useRef<DynamicsCompressorNode | undefined>(undefined);
-
   useEffect(() => {
     const element = audio.current;
-    if (!stream || !element) return;
+    if (!element) return;
+    element.volume = 1;
+    if (!on || !stream || stream.getAudioTracks().length === 0) return;
 
+    let ctx: AudioContext | undefined;
     try {
-      const ctx = new AudioContext();
-      void ctx.resume().catch(() => undefined);
-
+      ctx = new AudioContext();
       const source = ctx.createMediaStreamSource(stream);
       const volume = ctx.createGain();
-      volume.gain.value = 1;
+      volume.gain.value = BOOST;
 
       /*
-       * The same limiter the ringtone uses, and for the same reason: a voice
-       * amplified past 1.0 clips, and clipped speech is harder to understand
-       * than quiet speech. This keeps the peaks in check so the boost adds
-       * loudness rather than distortion.
-       *
-       * ## It is only in the path while the boost is
-       *
-       * This used to be wired in permanently, which meant every one-to-one call
-       * was compressed 12:1 whether or not anybody had asked to be louder. With
-       * the default 30 dB knee that starts working around -40 dBFS, so it was
-       * not catching peaks - it was compressing all of ordinary speech, all the
-       * time, with a 3 ms attack. Heard as pumping and crushed consonants, and
-       * *louder* rather than quieter, because squashing the peaks is what makes
-       * a signal dense.
-       *
-       * A group call was clean by accident: with more than one remote stream
-       * this hook is handed `undefined`, no graph is built, and the element
-       * plays the call untouched. That is what the good calls had in common -
-       * not video, as it appeared, but the absence of this node.
+       * The same limiter the ringtone uses: a voice amplified past 1.0 clips,
+       * and clipped speech is harder to understand than quiet speech. It is
+       * only in the path while the boost is, which is now the only time there
+       * is a path at all - at unity it compressed ordinary speech 12:1 and was
+       * heard as pumping and crushed consonants.
        */
       const limiter = ctx.createDynamicsCompressor();
       limiter.threshold.value = -10;
       limiter.ratio.value = 12;
       limiter.attack.value = 0.003;
       limiter.release.value = 0.15;
+      source.connect(volume).connect(limiter).connect(ctx.destination);
 
-      source.connect(volume);
-      // Unity is a straight wire. Nothing is protecting anything at 1.0.
-      if (on) volume.connect(limiter).connect(ctx.destination);
-      else volume.connect(ctx.destination);
-
-      context.current = ctx;
-      gain.current = volume;
-      limiterNode.current = limiter;
-
-      // Whatever was chosen before the stream existed applies now.
-      volume.gain.value = on ? BOOST : 1;
-
-      // Silenced only once Web Audio is definitely carrying the sound.
-      element.volume = 0;
+      const live = ctx;
+      // Suspended later - the app sent to the background - hands the sound back.
+      live.onstatechange = () => { element.volume = live.state === 'running' ? 0 : 1; };
+      void live
+        .resume()
+        .then(() => {
+          if (live.state === 'running') element.volume = 0;
+        })
+        .catch(() => undefined);
     } catch {
-      /*
-       * No Web Audio. The element keeps playing at its normal volume, so the
-       * call is still audible - just not boostable. The control stays visible
-       * because the call is still live, and pressing it simply does nothing
-       * this once, which is better than a button that vanishes mid-call.
-       */
+      // No Web Audio. The element keeps playing at normal loudness.
       element.volume = 1;
     }
 
     return () => {
-      gain.current = undefined;
-      void context.current?.close().catch(() => undefined);
-      context.current = undefined;
-      // Handed back to the element for whatever plays next.
-      if (element) element.volume = 1;
+      element.volume = 1;
+      void ctx?.close().catch(() => undefined);
     };
-  }, [audio, stream]);
+  }, [audio, stream, on]);
 
-  const toggle = useCallback(() => {
-    const next = !on;
-    setOn(next);
-
-    const volume = gain.current;
-    const limiter = limiterNode.current;
-    const ctx = context.current;
-    // Pressed before the call connected. The state is kept and applied by the
-    // effect above the moment the remote stream arrives.
-    if (!volume || !ctx) return;
-
-    /*
-     * Ramped rather than set. A gain that jumps produces a step in the
-     * waveform, heard as a click in the middle of somebody's sentence.
-     */
-    volume.gain.setTargetAtTime(next ? BOOST : 1, ctx.currentTime, 0.02);
-
-    /*
-     * And the limiter comes and goes with it.
-     *
-     * Re-routed rather than left in place, because leaving it in is the bug
-     * this fixes - at unity it has nothing to catch and compresses the call
-     * anyway. Disconnecting only `volume` leaves the limiter's own outgoing
-     * connection alone, which is why the reconnect below names the whole chain.
-     */
-    if (!limiter) return;
-    try {
-      volume.disconnect();
-      limiter.disconnect();
-      if (next) volume.connect(limiter).connect(ctx.destination);
-      else volume.connect(ctx.destination);
-    } catch {
-      // A closed context between the tap and here. The call is over anyway.
-    }
-  }, [on]);
+  const toggle = useCallback(() => setOn((value) => !value), []);
 
   // Reset between calls: each one starts from the earpiece.
   useEffect(() => {

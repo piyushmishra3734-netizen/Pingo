@@ -43,6 +43,7 @@ export const snapchat: VideoProvider = {
       platform: 'snapchat',
       originalUrl: url.href,
       canonicalUrl: `https://www.snapchat.com/spotlight/${second}`,
+      aspect: 9 / 16,
     };
   },
 };

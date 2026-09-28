@@ -1,4 +1,5 @@
-import { CameraIcon, FileIcon, ImageIcon, PlusIcon, UserIcon, cn } from '@pingo/ui';
+import { PlusIcon, cn } from '@pingo/ui';
+import { CalendarDays, Camera, FileText, Images, MapPin, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -61,12 +62,13 @@ export function AttachMenu({
   const items = [
     // "Gallery" and not "Photos": it takes video now, and a label that says
     // photos is a label people believe.
-    { label: 'Photos & videos', icon: <ImageIcon size={19} />, onSelect: onGallery },
-    { label: 'Camera', icon: <CameraIcon size={19} />, onSelect: onCamera },
-    { label: 'Document', icon: <FileIcon size={19} />, onSelect: onDocument },
-    { label: 'Location', icon: <span className="text-[1.05rem]">📍</span>, onSelect: onLocation },
-    { label: 'Contact', icon: <UserIcon size={19} />, onSelect: onContact },
-    { label: 'Event', icon: <span className="text-[1.05rem]">📅</span>, onSelect: onEvent },
+    // Each on its own colour from the PINGO sweep, so the grid reads at a glance.
+    { label: 'Gallery', icon: <Images />, tone: '#8b5dff', onSelect: onGallery },
+    { label: 'Camera', icon: <Camera />, tone: '#e0559b', onSelect: onCamera },
+    { label: 'Document', icon: <FileText />, tone: '#ef6a33', onSelect: onDocument },
+    { label: 'Location', icon: <MapPin />, tone: '#17a67a', onSelect: onLocation },
+    { label: 'Contact', icon: <UserRound />, tone: '#3b82f6', onSelect: onContact },
+    { label: 'Event', icon: <CalendarDays />, tone: '#e5a50a', onSelect: onEvent },
   ];
 
   return (
@@ -114,9 +116,9 @@ export function AttachMenu({
           aria-label="Attachment options"
           className={cn(
             // Grows upward from the button, which is where it came from.
-            'absolute bottom-full left-0 z-200 mb-2 w-44 origin-bottom-left',
-            'animate-panel-in overflow-hidden rounded-xl border border-line',
-            'bg-surface py-1 shadow-lg',
+            'absolute bottom-full left-0 z-200 mb-3 w-[264px] origin-bottom-left',
+            'animate-panel-in grid grid-cols-3 gap-1 rounded-[20px] border border-line',
+            'bg-surface p-2.5 shadow-lg',
           )}
         >
           {items.map((item, index) => (
@@ -131,12 +133,15 @@ export function AttachMenu({
               // Staggered, so the rows arrive in order rather than as a block.
               style={{ animationDelay: `${index * 40}ms` }}
               className={cn(
-                'animate-row-in focus-ring flex w-full items-center gap-3 px-3 py-2.5',
-                'text-left text-body text-ink',
+                'animate-row-in focus-ring flex flex-col items-center gap-1.5 rounded-[14px] py-2.5',
+                'text-caption font-medium text-ink',
                 'transition-colors duration-instant hover:bg-hover active:bg-pressed',
               )}
             >
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-hover text-text-secondary">
+              <span
+                className="grid size-12 place-items-center rounded-full text-white [&>svg]:size-[22px]"
+                style={{ background: `linear-gradient(135deg, ${item.tone}, color-mix(in srgb, ${item.tone} 72%, #fff))` }}
+              >
                 {item.icon}
               </span>
               {item.label}

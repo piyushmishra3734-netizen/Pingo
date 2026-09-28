@@ -2,9 +2,12 @@ import { useEffect } from 'react';
 import { useAuth, useChat, useProfile } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
 import { AppLoader } from '../features/loading/AppLoader.js';
+import { useSplashHold } from '../features/loading/splash.js';
+import { syncBlocks } from '../features/safety/blocks.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
+import { StoryMentionRelay } from '../features/stories/StoryMentionRelay.js';
 import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
@@ -95,6 +98,11 @@ export function AppShell() {
     if (staleAccount) window.location.assign('/chats');
   }, [staleAccount]);
 
+  // Who this account has blocked, fresh from the server each time it opens.
+  useEffect(() => {
+    if (signedInAs) void syncBlocks();
+  }, [signedInAs]);
+
   // The switcher shows accounts by their PINGO name and @username, not by the
   // sign-in email the session carries.
   useEffect(() => {
@@ -160,6 +168,8 @@ export function AppShell() {
    * invisible locally because a warm load is ready on the first render.
    */
   const back = useNavigationType() === 'POP';
+  // The launch splash stays over this until there is something to show.
+  useSplashHold(!ready || staleAccount);
 
   if (!ready || staleAccount) {
     return (
@@ -249,6 +259,7 @@ export function AppShell() {
       </main>
 
       {!fullscreen && <Dock />}
+      <StoryMentionRelay />
     </div>
   );
 }

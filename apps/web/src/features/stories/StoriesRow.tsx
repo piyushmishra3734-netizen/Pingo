@@ -154,7 +154,7 @@ function Ring({ state, mine, children }: { state: RingState; mine?: boolean; chi
       data-ring
       {...(mine ? { 'data-story-ring': 'me' } : {})}
       className={cn('relative grid size-[70px] shrink-0 place-items-center rounded-full', state === 'seen' ? 'p-[2px]' : 'p-[3px]')}
-      style={state === 'unseen' ? { background: RING } : state === 'cf' ? { background: '#1fc15e' } : state === 'seen' ? { background: '#dbdbdb' } : undefined}
+      style={state === 'unseen' ? { background: RING } : state === 'cf' ? { background: 'var(--color-close-friends)' } : state === 'seen' ? { background: 'color-mix(in srgb, var(--color-text) 16%, transparent)' } : undefined}
     >
       {state === 'loading' && (
         <span
@@ -174,8 +174,8 @@ function Ring({ state, mine, children }: { state: RingState; mine?: boolean; chi
     </span>
   );
 }
-/** The sample's ring colours, swept round from the lower left. */
-const RING = 'conic-gradient(from 210deg, #e0559b, #ff9a5a, #ffcc4d, #ff9a5a, #8b5dff, #e0559b)';
+/** The PINGO sweep, as a ring (`--sweep-ring` in the tokens). */
+const RING = 'var(--sweep-ring)';
 
 function RingFace({ name, id, src }: { name: string; id: string | undefined; src?: string | undefined }) {
   return (
@@ -255,7 +255,7 @@ function MyCircle({
         onClick={onCreate}
         aria-label={group ? 'Add another story' : 'Add to your story'}
         tabIndex={group ? 0 : -1}
-        className="absolute top-12 left-[50px] grid size-[22px] place-items-center rounded-full bg-[#0a84ff] text-white shadow-[0_0_0_3px_var(--color-page,#fff)] after:absolute after:-inset-2 after:content-['']"
+        className="absolute top-12 left-[50px] grid size-[22px] place-items-center rounded-full bg-brand text-on-brand shadow-[0_0_0_3px_var(--color-page,#fff)] after:absolute after:-inset-2 after:content-['']"
       >
         <Plus size={14} strokeWidth={3} />
       </button>

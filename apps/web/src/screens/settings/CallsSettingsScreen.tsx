@@ -71,6 +71,7 @@ export function CallsSettingsScreen() {
       <Group title={t('callSet.groupAudio')}>
         <ToggleRow
           label={t('callSet.noise')}
+          description={t('callSet.noiseHint')}
           checked={c.noiseCancellation}
           onChange={(noiseCancellation) => update('calls', { noiseCancellation })}
         />

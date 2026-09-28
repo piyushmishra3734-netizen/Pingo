@@ -19,6 +19,21 @@
  *   page that is really on screen - publishes it as `--app-height` for the root
  *   to use, and puts back the scroll Safari adds when it opens the keyboard.
  *
+ * ## Why the composer then floated far above the keyboard on iPhone
+ *
+ * Shrinking the app was half of it. To show the focused field, iOS Safari also
+ * *pans* the visible part of the page down (`visualViewport.offsetTop`), and on
+ * a page that cannot scroll - which this one cannot, being exactly as tall as
+ * what is visible - `scrollTo(0, 0)` does not undo a pan. So the app sat at the
+ * top of the page while the screen showed a window starting part-way down it:
+ * the composer high up, and below it a keyboard-sized band of empty page.
+ *
+ * The answer is to go where the window is. While a keyboard is up the body is
+ * moved down by exactly the pan (`--app-top`, applied in app.css under
+ * `data-keyboard-pan`), so it fills the visible part and the composer sits on
+ * the keyboard. The body rather than the app root because sheets and menus are
+ * portalled into the body and have to move with it.
+ *
  * Not in the Android app: its WebView resizes natively (capacitor.config.ts),
  * and measuring on top of that would fight it.
  */
@@ -28,6 +43,7 @@ export function trackVisibleViewport(): () => void {
   const root = document.documentElement;
 
   let last = 0;
+  let lastPan = 0;
   const update = () => {
     // Pinch-zoom also shrinks the visual viewport; that is not a keyboard.
     if (view.scale > 1.01) return;
@@ -48,7 +64,20 @@ export function trackVisibleViewport(): () => void {
     }
     // Safari scrolls the whole page up to show the field. Put it back - but only
     // while a keyboard is actually up, never in the middle of an ordinary scroll.
-    if (keyboard && (view.offsetTop > 0 || window.scrollY > 0)) window.scrollTo(0, 0);
+    if (keyboard && window.scrollY > 0) window.scrollTo(0, 0);
+
+    // ...and where it pans instead, follow the pan. See the note at the top.
+    const pan = keyboard ? Math.max(0, Math.round(view.offsetTop)) : 0;
+    if (pan !== lastPan) {
+      lastPan = pan;
+      if (pan > 0) {
+        root.style.setProperty('--app-top', `${pan}px`);
+        root.setAttribute('data-keyboard-pan', '');
+      } else {
+        root.style.removeProperty('--app-top');
+        root.removeAttribute('data-keyboard-pan');
+      }
+    }
   };
 
   update();
@@ -58,5 +87,7 @@ export function trackVisibleViewport(): () => void {
     view.removeEventListener('resize', update);
     view.removeEventListener('scroll', update);
     root.style.removeProperty('--app-height');
+    root.style.removeProperty('--app-top');
+    root.removeAttribute('data-keyboard-pan');
   };
 }

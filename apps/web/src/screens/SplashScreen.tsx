@@ -1,281 +1,64 @@
 import { useAuth, useChat } from '@pingo/core';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ONBOARDED_KEY } from '../features/auth/onboarded.js';
-import {
-  keepSplash,
-  loadSplashUrls,
-  localSplashUrl,
-  preloadImage,
-  readSplashCache,
-  splashVariant,
-  storedSplash,
-  type SplashUrls,
-} from '../lib/supabase/onboarding-slides.js';
+import { useSplashHold } from '../features/loading/splash.js';
 
 /**
- * Splash — must be *seen*, not only mounted.
+ * `/` - the route that decides where opening the app takes you.
  *
- * Earlier bugs:
- * 1. Dwell ran from mount while art was still loading → leave before paint.
- * 2. Effect cleanup set a shared "left" flag that poisoned remounts / races.
+ * It draws nothing of its own. The splash is index.html's: the PINGO mark,
+ * painted in the first frame, and this screen only holds it up
+ * (`useSplashHold`) until it knows the answer - the intro for somebody signed
+ * out, the chats once they are ready for somebody signed in.
  *
- * Rules now:
- * - Always paint an image as soon as possible (custom cache, else built-in).
- * - Refresh to live operator art in the background (preloaded before swap).
- * - Leave only after BOTH: min time from mount AND image `onLoad` (+ short hold).
- * - Hard ceiling so a dead network never traps the user.
+ * ## What this replaced
+ *
+ * A full-screen image, the operator's splash artwork, with a 2.2 second minimum
+ * and a 600ms hold after its pixels arrived. On a slow connection the image was
+ * the slowest thing on the page, so the screen either waited for it or left
+ * before it had shown anything; and on a fast one every launch paid 2.2 seconds
+ * for nothing. The mark needs no download, so neither clock is needed: this
+ * stays exactly as long as the app takes to open.
  */
 
-/** Minimum time spent on this route after open. */
-const MIN_ROUTE_MS = 2200;
-
-/** Extra hold after the browser has actually loaded the image pixels. */
-const AFTER_PAINT_MS = 600;
-
-/** Never stay longer than this (load + hold worst case). */
+/** Never stay longer than this: a chat service that never becomes ready must not trap anybody here. */
 const HARD_MAX_MS = 7000;
-
-/**
- * The colour under the artwork, sampled from the artwork.
- *
- * It was lavender, left over from the previous identity, and it is painted for
- * the frame or two before the image has pixels - so every launch began with a
- * flash of the old brand colour behind the new picture. Cream is what the
- * current art starts with, which is what makes the image appear to fade up out
- * of the screen rather than replace something.
- */
-const SPLASH_GROUND = '#FAF8F6';
-
-function builtInSplash(): SplashUrls {
-  return {
-    desktop: localSplashUrl('desktop'),
-    mobile: localSplashUrl('mobile'),
-    fromRemote: false,
-  };
-}
-
-/** First paint candidate: last custom art if any, else shipped files. */
-function initialSplash(): SplashUrls {
-  return readSplashCache() ?? builtInSplash();
-}
-
-/**
- * The live artwork for this device, or nothing.
- *
- * Nothing is a real answer and the caller keeps what is already on screen. This
- * used to fall back through the URL cache to the bundled file and hand that
- * back as the result - which read as thorough and was a downgrade: the screen
- * had *already* started from those, so the fallbacks could only ever replace
- * the art with itself, or, with the network off, replace working art with a URL
- * that does not load.
- *
- * There is no longer a load budget either. The old one existed to decide how
- * long to wait before settling for the cache, and nothing waits any more - the
- * first frame is painted from the device, this runs behind it, and how long it
- * takes only decides whether it arrives before the splash is over.
- *
- * Only this device's variant is fetched. Downloading the desktop artwork onto a
- * phone to satisfy a `<picture>` element was work no phone ever used.
- */
-async function liveSplashArt(variant: 'desktop' | 'mobile'): Promise<string | undefined> {
-  const url = (await loadSplashUrls())[variant];
-  if (!(await preloadImage(url))) return undefined;
-
-  // Now that it is known to load, keep the bytes for the launches that have no
-  // network. Not awaited: this is for next time, not this time.
-  void keepSplash(variant, url);
-  return url;
-}
 
 export function SplashScreen() {
   const navigate = useNavigate();
   /*
-   * Whether the app behind this screen has finished opening.
-   *
-   * The splash used to leave on its clocks alone, which meant it handed over to
-   * `AppShell` before the shell had anything to show - and `AppShell` answers
-   * that with a second full-window loader. So a cold start ran splash, then a
-   * spinner, back to back: two waits for one wait, and the second one arriving
-   * after the brand screen had already promised the app was here.
-   *
-   * `ChatProvider` wraps this route, so the flag is simply readable. It is one
-   * more condition on leaving, never a reason to stay: `HARD_MAX_MS` still
-   * fires regardless, so a chat service that never becomes ready costs the same
-   * seven seconds it always did rather than trapping anybody here.
+   * `ChatProvider` wraps this route, so whether the app behind it has finished
+   * opening is simply readable. Leaving before it had would hand over to
+   * `AppShell`'s own loader - two waits for one.
    */
   const { ready: chatReady } = useChat();
-  const chatReadyRef = useRef(chatReady);
-  chatReadyRef.current = chatReady;
   const { status } = useAuth();
-  const statusRef = useRef(status);
-  statusRef.current = status;
+  const left = useRef(false);
+  useSplashHold();
 
-  /*
-   * Which of the two configured assets this machine shows. Read once: a window
-   * being resized mid-splash is not a device changing into another one.
-   */
-  const variant = useMemo(() => splashVariant(), []);
-
-  // Always have pixels on the first frame — blank ground was reading as "skip".
-  const [src, setSrc] = useState<string>(() => initialSplash()[variant]);
-
-  const mountedAtRef = useRef(0);
-  const paintedAtRef = useRef<number | null>(null);
-  const leftRef = useRef(false);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-
-  const leave = useCallback(() => {
-    if (leftRef.current) return;
-    leftRef.current = true;
-    const current = statusRef.current;
-    if (current === 'anonymous') {
-      navigate('/intro', { replace: true });
-      return;
-    }
-    navigate('/chats', { replace: true });
-  }, [navigate]);
-
-  /**
-   * Schedule leave when both clocks are satisfied.
-   * Re-checks until ready; safe to call many times.
-   */
-  const armLeave = useCallback(() => {
-    if (leftRef.current) return;
-
-    const tick = () => {
-      if (leftRef.current) return;
-      const now = Date.now();
-      const mountedAt = mountedAtRef.current || now;
-      const paintedAt = paintedAtRef.current;
-
-      const routeReady = now - mountedAt >= MIN_ROUTE_MS;
-      const paintReady =
-        paintedAt != null && now - paintedAt >= AFTER_PAINT_MS;
-      /*
-       * Only the signed-in leg waits for it. An anonymous visitor is going to
-       * `/intro`, which needs nothing from the chat service, and holding them
-       * for a session that is never going to arrive would be the same defect
-       * pointed the other way.
-       */
-      const appReady = statusRef.current === 'anonymous' || chatReadyRef.current;
-
-      if (routeReady && paintReady && appReady) {
-        leave();
-        return;
-      }
-
-      // Not ready yet: come back on the next frame budget rather than betting
-      // on a duration nobody can know.
-      const waitReady = appReady ? 0 : 120;
-      const waitRoute = Math.max(0, MIN_ROUTE_MS - (now - mountedAt));
-      const waitPaint =
-        paintedAt == null
-          ? AFTER_PAINT_MS
-          : Math.max(0, AFTER_PAINT_MS - (now - paintedAt));
-      window.setTimeout(tick, Math.max(waitRoute, waitPaint, waitReady, 32));
-    };
-
-    tick();
-  }, [leave]);
-
-  const markPainted = useCallback(() => {
-    if (paintedAtRef.current != null) return;
-    paintedAtRef.current = Date.now();
-    armLeave();
-  }, [armLeave]);
+  const where = status === 'anonymous' ? '/intro' : '/chats';
+  const ready = status === 'anonymous' || (status !== 'loading' && chatReady);
+  const whereRef = useRef(where);
+  whereRef.current = where;
 
   useEffect(() => {
-    leftRef.current = false;
-    paintedAtRef.current = null;
-    mountedAtRef.current = Date.now();
+    if (!ready || left.current) return;
+    left.current = true;
+    navigate(where, { replace: true });
+  }, [navigate, ready, where]);
 
-    let cancelled = false;
-    const hardTimer = window.setTimeout(() => {
-      if (!cancelled) leave();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (left.current) return;
+      left.current = true;
+      navigate(whereRef.current, { replace: true });
     }, HARD_MAX_MS);
+    return () => window.clearTimeout(timer);
+  }, [navigate]);
 
-    // Cached / built-in img may already be complete before onLoad binds.
-    const el = imgRef.current;
-    if (el?.complete && el.naturalWidth > 0) {
-      markPainted();
-    } else {
-      // If the image never fires onLoad (rare), still release after route min.
-      window.setTimeout(() => {
-        if (!cancelled && paintedAtRef.current == null) markPainted();
-      }, MIN_ROUTE_MS);
-    }
-
-    armLeave();
-
-    /*
-     * The device's own copy of the configured artwork, ahead of any network.
-     *
-     * One IndexedDB read, so it lands within a frame or two of mount - before
-     * the URL in the first frame has had time to fail, on a launch with no
-     * connection. This is what makes the operator's splash the thing that
-     * appears offline instead of the bundled fallback or a blank ground.
-     */
-    let objectUrl: string | undefined;
-    void storedSplash(variant).then((blob) => {
-      if (cancelled || leftRef.current || !blob) return;
-      objectUrl = URL.createObjectURL(blob);
-      setSrc(objectUrl);
-    });
-
-    void (async () => {
-      try {
-        const next = await liveSplashArt(variant);
-        if (!next || cancelled || leftRef.current) return;
-        // Only swap when different — avoids re-flicker when cache already correct.
-        setSrc((prev) => (prev === next ? prev : next));
-      } catch {
-        // Keep whatever is on screen.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(hardTimer);
-      // An object URL pins the whole blob in memory until it is let go.
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      // Do NOT set leftRef here — that poisoned remounts / concurrent loads.
-    };
-  }, [armLeave, leave, markPainted, variant]);
-
-  return (
-    <div
-      className="grid h-full w-full place-items-center overflow-hidden"
-      style={{ backgroundColor: SPLASH_GROUND }}
-    >
-      {/*
-        One image, chosen by device rather than by the viewport.
-
-        The `<picture>` this replaces let the browser re-decide from
-        `(orientation: portrait)` on every resize and rotate, which is how a
-        desktop window in portrait ended up showing the mobile asset. The
-        variant is settled in JavaScript now, once, and the element renders what
-        it is given.
-      */}
-      <div className="h-full w-full">
-        <img
-          ref={imgRef}
-          key={src}
-          src={src}
-          alt="PINGO. Connect. Privately."
-          width={1600}
-          height={900}
-          decoding="async"
-          fetchPriority="high"
-          draggable={false}
-          onLoad={markPainted}
-          onError={markPainted}
-          className="h-full w-full select-none object-cover"
-        />
-      </div>
-    </div>
-  );
+  return <div className="h-full w-full bg-page" aria-hidden />;
 }
 
 /**

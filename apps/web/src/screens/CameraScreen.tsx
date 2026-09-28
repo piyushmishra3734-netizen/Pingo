@@ -19,7 +19,7 @@ import { usePreferences } from '../features/settings/SettingsContext.js';
 import { useStories } from '../features/stories/StoryContext.js';
 
 /** Opened from a chat attach menu with this thread already chosen. */
-type CameraLocationState = { conversationId?: string };
+type CameraLocationState = { conversationId?: string; from?: 'story' };
 
 /**
  * Camera - shoot, filter, edit, then send a Ping or add to your story.
@@ -65,12 +65,14 @@ export function CameraScreen() {
    * instead of dumping the user on a blank camera.
    */
   const lockedChatId = (location.state as CameraLocationState | null)?.conversationId;
+  /** Opened from "Add to story": that tap was the deliberate yes, and posting goes back where it began. */
+  const fromStory = (location.state as CameraLocationState | null)?.from === 'story';
 
   const fileRef = useRef<HTMLInputElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
 
   const [filterId, setFilterId] = useState('none');
-  const [stage, setStage] = useState<Stage>('gate');
+  const [stage, setStage] = useState<Stage>(fromStory ? 'live' : 'gate');
   const [original, setOriginal] = useState<Blob>();
   const [shot, setShot] = useState<{ blob: Blob; url: string } | undefined>();
   const [busy, setBusy] = useState(false);
@@ -106,6 +108,22 @@ export function CameraScreen() {
     // Settings → Camera & Pings → Default Camera. 'front' is the selfie lens.
     preferences.camera.defaultCamera === 'back' ? 'environment' : 'user',
   );
+
+  /*
+   * The gate is there to keep a mis-tap from costing a permission prompt. Once
+   * the camera is already allowed there is no prompt to protect against, and
+   * asking "Open the camera?" on every visit was one more tap for nothing.
+   */
+  useEffect(() => {
+    if (stage !== 'gate' || !navigator.permissions?.query) return;
+    let live = true;
+    navigator.permissions
+      .query({ name: 'camera' as PermissionName })
+      .then((status) => { if (live && status.state === 'granted') setStage((s) => (s === 'gate' ? 'live' : s)); })
+      .catch(() => undefined);
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!shot) return;
@@ -340,9 +358,11 @@ export function CameraScreen() {
           if (lockedChatId) navigate(`/chats/${lockedChatId}`, { replace: true });
         }}
         onPost={async (draft, from) => {
-          // Up in the background: straight back to the camera, as Snapchat does.
+          // Up in the background: straight back to the camera, as Snapchat does -
+          // unless this began at "Add to story", where you go back to watch it post.
           upload(draft, from);
           if (preferences.camera.saveSnaps && snapShot.kind === 'photo') void saveImage(draft.media, 'pingo-story.jpg');
+          if (fromStory) navigate('/chats', { replace: true });
         }}
       />
     );
@@ -358,8 +378,8 @@ export function CameraScreen() {
 
           <h1 className="mt-7 text-h1 text-white">{t('camera.openAsk')}</h1>
           <p className="mt-2 max-w-xs text-body text-white/60">
-            PINGO will ask for camera access. Nothing is captured or sent until
-            you take a Ping.
+            PINGO will ask for camera access once. Nothing is captured or sent
+            until you press the shutter.
           </p>
 
           <div className="mt-9 flex w-full max-w-xs flex-col gap-3">

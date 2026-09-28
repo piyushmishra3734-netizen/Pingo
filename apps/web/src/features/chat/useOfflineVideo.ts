@@ -29,12 +29,27 @@ export function useOfflineVideo(
    * from the bubble appearing. See `video-vault.ts`.
    */
   onStored?: () => void,
+  /**
+   * Show nothing from the server while the device's own copy is being looked
+   * for or fetched, and only fall back to the server URL if that fails.
+   *
+   * For a picture, which is only ever shown whole, handing `<img>` the server
+   * URL at once cost twice: the image fetched the file while the vault fetched
+   * it again, and a photo already kept on this device was still requested
+   * from the network in the moment before the local read came back. A video
+   * is left streaming from the server meanwhile, because waiting for a whole
+   * video before it can start is worse than the bytes.
+   */
+  holdRemote = false,
 ): OfflineVideo {
   const [local, setLocal] = useState<string>();
+  // The local copy could not be had (no space, CORS, gone): the server's URL is all there is.
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     let live = true;
     let url: string | undefined;
+    setMissing(false);
 
     const publish = (blob: Blob) => {
       if (!live) return false;
@@ -64,7 +79,10 @@ export function useOfflineVideo(
       if (!remoteUrl) return;
 
       const fetched = await keepVideo(messageId, remoteUrl);
-      if (!fetched) return;
+      if (!fetched) {
+        if (live) setMissing(true);
+        return;
+      }
       publish(fetched);
       /*
        * Reported even if this component unmounted while the download ran. The
@@ -86,7 +104,8 @@ export function useOfflineVideo(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messageId, remoteUrl]);
 
-  return { src: local ?? remoteUrl, offline: local !== undefined };
+  const remote = holdRemote && !missing ? undefined : remoteUrl;
+  return { src: local ?? remote, offline: local !== undefined };
 }
 
 /**

@@ -12,7 +12,10 @@ import {
 } from 'react';
 
 import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
+import { isBlocked, onBlocksChange } from '../safety/blocks.js';
+import { announceStoryPosted } from './story-mentions.js';
 import { UploadToast, flyToRing, type StoryFrom, type UploadNote } from './StoryUpload.js';
+import { deleteStoryDraft, saveStoryDraft } from './story-drafts.js';
 
 /**
  * Story state, shared by the rail, the viewer and the creator.
@@ -52,8 +55,11 @@ interface StoryContextValue {
    * Posts in the background, the way Instagram does: the caller closes its
    * editor straight away, the picture flies into your ring from `from`, the
    * ring spins until it is up, and a toast says it went (or offers a retry).
+   *
+   * One that fails is kept under Drafts - see story-drafts.ts. `draftId` is
+   * that draft being posted again: it goes when the story is up.
    */
-  upload: (draft: StoryDraft, from?: StoryFrom) => void;
+  upload: (draft: StoryDraft, from?: StoryFrom, draftId?: string) => void;
   /** The sample's toast: one line and an icon, for a moment. */
   notify: (text: string, icon?: ReactNode) => void;
 }
@@ -108,7 +114,8 @@ export function StoryProvider({
         service.listStoryGroups(),
         service.listMutedAuthors(),
       ]);
-      setRaw(groups);
+      // Nobody this account has blocked (features/safety/blocks.ts).
+      setRaw(groups.filter((g) => !isBlocked(g.authorId)));
       setMutedAuthors(muted);
     } catch {
       // An empty rail is the right failure: the screen below it still works,
@@ -122,6 +129,8 @@ export function StoryProvider({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  // A block or an unblock takes effect in the tray at once.
+  useEffect(() => onBlocksChange(() => void refresh()), [refresh]);
 
   /*
    * Somebody's story going up or coming down, without a reload.
@@ -232,24 +241,30 @@ export function StoryProvider({
   }, []);
 
   const upload = useCallback(
-    (draft: StoryDraft, from?: StoryFrom) => {
+    (draft: StoryDraft, from?: StoryFrom, draftId?: string) => {
+      let savedAs = draftId;
       const go = async (fly: boolean) => {
         // The ring only starts to spin once the picture has landed in it.
         if (fly && from) await flyToRing(from, draft.kind === 'photo' ? draft.media : undefined);
         setUploading((n) => n + 1);
         try {
-          await service.post(draft);
+          const posted = await service.post(draft);
+          if (savedAs && meId) void deleteStoryDraft(meId, savedAs);
+          // Anybody mentioned in it hears about it in chat - see story-mentions.ts.
+          announceStoryPosted(posted);
           await refresh();
           say({ at: Date.now(), ok: true, text: draft.audience === 'close' ? 'Shared with close friends' : 'Shared to your story' });
         } catch {
-          say({ at: Date.now(), ok: false, text: 'Your story did not post', retry: () => void go(false) });
+          // Kept, so a bad signal never costs the story itself.
+          if (meId) savedAs = (await saveStoryDraft(meId, draft, savedAs)) ?? savedAs;
+          say({ at: Date.now(), ok: false, text: savedAs ? 'Did not post · saved to drafts' : 'Your story did not post', retry: () => void go(false) });
         } finally {
           setUploading((n) => Math.max(0, n - 1));
         }
       };
       void go(true);
     },
-    [service, refresh, say],
+    [service, refresh, say, meId],
   );
 
   const notify = useCallback((text: string, icon?: ReactNode) => say({ at: Date.now(), ok: true, text, ...(icon ? { icon } : {}) }), [say]);

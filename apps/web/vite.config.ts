@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import basicSsl from '@vitejs/plugin-basic-ssl';
@@ -87,26 +88,12 @@ export default defineConfig({
        */
       registerType: 'autoUpdate',
       /*
-       * `globPatterns` below covers js, css, html and fonts, so every image the
-       * app needs offline has to be named here.
-       *
-       * The two splash files were not, and they are the one asset a launch
-       * cannot proceed without: the splash paints before anything else, and
-       * with no connection there was nothing behind either the operator's
-       * Supabase URL - deliberately never cached, see the runtime rule below -
-       * or the bundled file that was supposed to be the safety net. The
-       * operator's own artwork is now kept as bytes on the device
-       * (`onboarding-slides.ts`); these are what a device paints before it has
-       * ever had a chance to store those.
+       * The images the app itself draws offline. The launcher icons are not
+       * here: the browser fetches those from the manifest when it installs,
+       * and precaching them too cost a quarter of a megabyte on first launch.
+       * The splash needs nothing - it is drawn inside index.html.
        */
-      includeAssets: [
-        'pingo-icon.png',
-        'pingo-favicon.png',
-        'pingo-maskable.png',
-        'pingo-wordmark.png',
-        'pingo-splash.png',
-        'pingo-splash-mobile.png',
-      ],
+      includeAssets: ['pingo-mark.svg', 'pingo-favicon-32.png', 'pingo-avatar.png'],
 
       manifest: {
         name: 'PINGO. Connect. Privately.',
@@ -178,6 +165,29 @@ export default defineConfig({
          */
         globPatterns: ['**/*.{js,css,html,woff2}'],
         /*
+         * ...but only the shell. Precaching every chunk meant a first visit
+         * downloaded 4 MB in the background - the calls library, the camera,
+         * every settings screen, a dozen story fonts - on the same connection
+         * the chat list was waiting on. On 2G that is minutes of contention for
+         * screens most sessions never open.
+         *
+         * So the precache keeps what index.html names (the entry script and
+         * stylesheet), the pages and workers beside it, and the app's own
+         * typeface. Every other chunk is kept the first time it is opened, by
+         * the `pingo-chunks` route below, and works offline from then on.
+         */
+        manifestTransforms: [
+          async (entries) => {
+            const shell = readFileSync(fileURLToPath(new URL('./dist/index.html', import.meta.url)), 'utf8');
+            const manifest = entries.filter(({ url }) => {
+              if (url.startsWith('assets/')) return shell.includes(url);
+              if (url.startsWith('fonts/')) return url.startsWith('fonts/space-grotesk-latin');
+              return true;
+            });
+            return { manifest, warnings: [] };
+          },
+        ],
+        /*
          * The vision models and their runtime are excluded, all forty
          * megabytes of them. They are only needed by camera effects, most
          * people never open one, and precaching them would make every first
@@ -215,6 +225,65 @@ export default defineConfig({
          */
         navigateFallback: undefined,
         runtimeCaching: [
+          {
+            /*
+             * Script and style chunks, kept the first time a screen needs them.
+             * Their names carry a content hash, so a kept file can never be
+             * stale - a new build asks for new names.
+             */
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/')),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'pingo-chunks',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 60, purgeOnQuotaError: true },
+            },
+          },
+          {
+            /*
+             * Faces, profile posts and intro slides, kept by where they live
+             * rather than by the URL that fetched them.
+             *
+             * Posts are private and reached through signed URLs whose token
+             * changes each time one is minted, so the browser saw every post as
+             * a new file after each launch and downloaded it again. Keyed on the
+             * storage path, a second look costs nothing. Every one of these
+             * paths ends in a uuid or a timestamp, so a kept file cannot go
+             * stale - a new picture is a new path.
+             *
+             * Chat photos and voice notes are not here: the media vault already
+             * keeps those on the device (see `video-vault.ts`), and a second
+             * copy would only double the space. Pings, stories and documents
+             * are never kept, and neither is a ranged request, which is how
+             * video is streamed.
+             *
+             * The fetch is made with CORS so the response is readable and can
+             * be stored at its true size; an opaque one would be padded to
+             * megabytes each in the browser's quota.
+             */
+            urlPattern: ({ url, request }) => {
+              if (request.method !== 'GET' || request.headers.has('range')) return false;
+              const match = /\/storage\/v1\/object\/(?:sign|public)\/([^/]+)\//.exec(url.pathname);
+              return match !== null && (match[1] === 'avatars' || match[1] === 'posts' || match[1] === 'onboarding');
+            },
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'pingo-media',
+              fetchOptions: { mode: 'cors', credentials: 'omit' },
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+              plugins: [
+                {
+                  // The same file whether it was reached signed or public, with any token.
+                  cacheKeyWillBeUsed: async ({ request }) => {
+                    const url = new URL(request.url);
+                    return url.origin + url.pathname.replace('/object/sign/', '/object/public/');
+                  },
+                },
+              ],
+            },
+          },
           {
             /*
              * Navigations go to the network first, and this is what makes a
@@ -260,7 +329,7 @@ export default defineConfig({
           },
           {
             /*
-             * Supabase is deliberately never cached.
+             * Everything else from Supabase is deliberately never cached.
              *
              * Messages, stories and Pings are the whole product and they are
              * *supposed* to expire, a cached Ping is a Ping that outlived its

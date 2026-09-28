@@ -59,6 +59,8 @@ export const instagram: VideoProvider = {
       originalUrl: url.href,
       canonicalUrl: `https://www.instagram.com/${path}/${second}/`,
       embedUrl: `https://www.instagram.com/${path}/${second}/embed/`,
+      // Reels and IGTV are upright; a post is at most 4:5, Instagram's tallest.
+      aspect: path === 'p' ? 4 / 5 : 9 / 16,
     };
   },
 };

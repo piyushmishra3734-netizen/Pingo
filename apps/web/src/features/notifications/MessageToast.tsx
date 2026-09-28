@@ -402,9 +402,9 @@ export function MessageToast({
       className={cn(
         'pointer-events-auto relative w-full cursor-pointer select-none',
         'max-w-[26rem] md:max-w-[28rem]',
-        'glass-surface rounded-lg',
-        'px-3 py-2',
-        'shadow-sm',
+        'rounded-[22px] bg-surface/90 ring-1 ring-line backdrop-blur-2xl backdrop-saturate-150',
+        'px-3.5 pt-3 pb-2',
+        'shadow-[0_10px_30px_-8px_rgba(16,17,20,0.28),0_2px_8px_rgba(16,17,20,0.08)]',
         'focus-ring outline-none',
         'touch-none',
         // Enter only when truly idle - never fight a drag or leave.
@@ -417,35 +417,36 @@ export function MessageToast({
       )}
       style={style}
     >
-      <div className="flex items-center gap-3">
-        <Avatar
-          name={toast.senderName}
-          id={toast.senderId}
-          src={toast.senderAvatarUrl}
-          size="sm"
-          className="shrink-0"
-        />
+      <div className="flex items-start gap-3">
+        {/* The sender's face, with PINGO's mark on it: whose message, and from where. */}
+        <span className="relative shrink-0">
+          <Avatar name={toast.senderName} id={toast.senderId} src={toast.senderAvatarUrl} size="sm" />
+          <img
+            src="/pingo-mark.svg"
+            alt=""
+            aria-hidden
+            className="absolute -right-1 -bottom-1 size-[18px] rounded-full bg-surface p-[2px] shadow-sm"
+          />
+        </span>
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-2">
-            <p className="min-w-0 flex-1 truncate text-body font-medium leading-snug text-ink">
+            <p className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-snug text-ink">
               {toast.title}
             </p>
-            {relative !== 'now' && (
-              <time
-                dateTime={new Date(toast.createdAt).toISOString()}
-                className="shrink-0 text-caption tabular-nums text-text-tertiary"
-              >
-                {relative}
-              </time>
-            )}
+            <time
+              dateTime={new Date(toast.createdAt).toISOString()}
+              className="shrink-0 text-[12px] tabular-nums text-text-tertiary"
+            >
+              {relative}
+            </time>
           </div>
 
-          <div className="mt-0.5 flex min-w-0 items-center gap-2">
+          <div className="mt-0.5 flex min-w-0 items-end gap-2">
             <p
               key={toast.generation}
               className={cn(
-                'min-w-0 flex-1 truncate text-caption leading-snug text-text-secondary',
+                'line-clamp-2 min-w-0 flex-1 text-[14px] leading-[1.35] text-text-secondary',
                 motion === 'update' &&
                   phase === 'idle' &&
                   'motion-safe:animate-fade-in',
@@ -458,12 +459,14 @@ export function MessageToast({
                 count={toast.unreadCount}
                 tone="brand"
                 srSuffix="unread"
-                className="h-4 min-w-4 shrink-0 px-1 text-[0.625rem] font-medium leading-none"
+                className="mb-0.5 h-[18px] min-w-[18px] shrink-0 px-1.5 text-[0.6875rem] font-semibold leading-none"
               />
             )}
           </div>
         </div>
       </div>
+      {/* The handle: this can be swiped away, or pulled down to open. */}
+      <span aria-hidden className="mx-auto mt-2 block h-1 w-9 rounded-full bg-ink/15" />
     </div>
   );
 }

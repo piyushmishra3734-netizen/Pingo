@@ -5,22 +5,15 @@
  * assembled from these; no screen reaches for a raw colour, radius or shadow.
  *
  * Layering, outermost first:
- *   brand/      identity - the monogram, wordmark, app icon, the dot
+ *   brand/      identity - the dot and the loader (the logo itself is
+ *               apps/web/brand/pingo-mark.svg)
  *   primitives/ interaction - buttons, fields, chips, toggles, surfaces
  *   icons/      one 24×24 rounded 2px-stroke family
  */
 
 // Brand
-export { PingoMark, markGeometry, type PingoMarkProps } from './brand/PingoMark.js';
 export { PingoDot, type DotState, type PingoDotProps } from './brand/PingoDot.js';
-export {
-  PingoMarkState,
-  type MarkState,
-  type PingoMarkStateProps,
-} from './brand/PingoMarkState.js';
-export { Wordmark, Tagline, type WordmarkProps } from './brand/Wordmark.js';
 export { PingoLoader, type PingoLoaderProps } from './brand/PingoLoader.js';
-export { AppIcon, type AppIconProps, type AppIconVariant } from './brand/AppIcon.js';
 
 // Primitives
 export {

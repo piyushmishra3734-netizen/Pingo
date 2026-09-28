@@ -31,7 +31,7 @@ const shot = (n) => page.screenshot({ path: `./out/c-${n}.png` });
 
 await page.goto('https://127.0.0.1:5190/dev/camera-lab', { waitUntil: 'domcontentloaded' });
 await check('Camera Kit starts and lenses load', async () => {
-  await page.waitForFunction(() => document.querySelectorAll('[aria-label="Take a snap, hold to record"]').length && document.querySelectorAll('button .rounded-md').length > 5, null, { timeout: 90000 });
+  await page.waitForFunction(() => document.querySelectorAll('[aria-label="Take a snap, hold to record"]').length && document.querySelectorAll('button > span.bg-sweep').length > 5, null, { timeout: 90000 });
   return true;
 });
 await w(2000); await shot('1live');

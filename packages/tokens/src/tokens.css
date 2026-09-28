@@ -147,6 +147,29 @@
   --gradient-from: #111113;
   --gradient-to: #2a2a2e;
 
+  /*
+   * The PINGO sweep: the logo's own gradient, #8B5DFF → #E0559B → #FF9A5A →
+   * #FFCC4D. It never follows the accent - it is the brand's signature, kept
+   * for the few places that carry the brand itself: the logo and splash, story
+   * rings, the camera shutter, "new" marks and the recording ring. Buttons and
+   * bubbles use the accent's gradient instead.
+   */
+  --sweep: linear-gradient(135deg, #8b5dff 0%, #e0559b 45%, #ff9a5a 80%, #ffcc4d 100%);
+  --sweep-ring: conic-gradient(from 210deg, #e0559b, #ff9a5a, #ffcc4d, #ff9a5a, #8b5dff, #e0559b);
+
+  /* Media screens (camera, story viewer, editor) are always dark. */
+  --color-media-glass: rgba(20, 20, 24, 0.42);
+  --color-media-sheet: #1c1c20;
+  --color-media-field: #2a2a2f;
+  --color-close-friends: #1fc15e;
+  /*
+   * The accent, on a media screen. The same colour as `--color-brand` except for
+   * Ink: media screens are dark in either theme, and a black button on a dark
+   * sheet is no button. See the Ink block below.
+   */
+  --color-media-accent: var(--color-brand);
+  --color-on-media-accent: var(--color-on-brand);
+
   /* ---- Lines ------------------------------------------------------------ */
   --color-line: rgba(17, 17, 19, 0.07);
   --color-line-strong: rgba(17, 17, 19, 0.12);
@@ -899,6 +922,35 @@
     inset 0 1px 0 rgb(255 255 255 / 0.45),
     inset 0 -1px 0 rgb(255 255 255 / 0.14),
     0 1px 3px -1px color-mix(in srgb, var(--gradient-from, #111113) 45%, transparent);
+}
+
+/** The PINGO sweep, as a fill and as a ring. See `--sweep`. */
+@utility bg-sweep {
+  background-image: var(--sweep);
+}
+
+@utility bg-sweep-ring {
+  background-image: var(--sweep-ring);
+}
+
+/** Text in the sweep. */
+@utility text-sweep {
+  background-image: var(--sweep);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/**
+ * Glass on a media screen: a control floating over a photo or the camera.
+ * One recipe for the camera, the editor and the viewer, so the three read as
+ * one tool.
+ */
+@utility media-glass {
+  background-color: var(--color-media-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
 }
 
 /** Soft neutral wash for large calm surfaces (auth, empty states). */
@@ -1708,6 +1760,8 @@
 
 /* Default accent id "blue" = product ink (kept key for stored preferences). */
 :root[data-accent='blue'] {
+  --color-media-accent: #f4f5f9;
+  --color-on-media-accent: #111113;
   --color-brand: #111113;
   --color-brand-alt: #2a2a2e;
   --color-dot: #111113;
@@ -1729,8 +1783,9 @@
   --color-brand: #8b5dff;
   --color-brand-alt: #a16eff;
   --color-dot: #a16eff;
+  /* The first half of the logo's sweep. See ACCENT_GRADIENTS in core/settings. */
   --gradient-from: #8b5dff;
-  --gradient-to: #c07dff;
+  --gradient-to: #e0559b;
   --color-hover: rgba(139, 93, 255, 0.07);
   --color-pressed: rgba(139, 93, 255, 0.12);
   --color-selected: rgba(139, 93, 255, 0.1);
@@ -1754,11 +1809,23 @@
   --color-brand-alt: #ff7ab8;
   --color-dot: #ff7ab8;
   --gradient-from: #e0559b;
-  --gradient-to: #ff86c2;
+  --gradient-to: #f47a4d;
   --color-hover: rgba(224, 85, 155, 0.07);
   --color-pressed: rgba(224, 85, 155, 0.12);
   --color-selected: rgba(224, 85, 155, 0.1);
   --color-focus-ring: rgba(224, 85, 155, 0.45);
+}
+
+:root[data-accent='orange'] {
+  --color-brand: #ef6a33;
+  --color-brand-alt: #ff9a5a;
+  --color-dot: #ff9a5a;
+  --gradient-from: #ef6a33;
+  --gradient-to: #f5a13a;
+  --color-hover: rgba(239, 106, 51, 0.07);
+  --color-pressed: rgba(239, 106, 51, 0.12);
+  --color-selected: rgba(239, 106, 51, 0.1);
+  --color-focus-ring: rgba(239, 106, 51, 0.45);
 }
 
 /*

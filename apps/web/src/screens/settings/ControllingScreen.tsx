@@ -7,15 +7,11 @@ import { ScreenHeader } from '../../components/ScreenHeader.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { MissionControl } from '../../features/referrals/MissionControl.js';
 import {
-  listAppSplashRows,
   listOnboardingSlideRows,
-  previewSplashUrl,
   previewUrlFor,
   SLIDE_COUNT,
-  type AppSplashRow,
   type OnboardingSlideRow,
   type SlideVariant,
-  uploadAppSplash,
   uploadOnboardingSlide,
 } from '../../lib/supabase/onboarding-slides.js';
 import { NoticeCard } from '../../features/updates/UpdateNotice.js';
@@ -28,7 +24,7 @@ import {
 } from '../../lib/supabase/update-notice.js';
 
 /**
- * Operator-only: upload original-quality splash + intro art (PC + mobile).
+ * Operator-only: upload original-quality intro art (PC + mobile).
  * Visible solely for `@piuxxh` so assets can be published without redesign.
  */
 
@@ -48,7 +44,6 @@ export function ControllingScreen() {
   const allowed = profile?.username === OPERATOR_USERNAME;
 
   const [rows, setRows] = useState<OnboardingSlideRow[]>([]);
-  const [splashRows, setSplashRows] = useState<AppSplashRow[]>([]);
   const [premiumHandle, setPremiumHandle] = useState('');
   const [seedQuery, setSeedQuery] = useState('');
   const [seedResults, setSeedResults] = useState<Profile[]>([]);
@@ -68,21 +63,13 @@ export function ControllingScreen() {
     return map;
   }, [rows]);
 
-  const splashByVariant = useMemo(() => {
-    const map = new Map<SlideVariant, AppSplashRow>();
-    for (const row of splashRows) map.set(row.variant, row);
-    return map;
-  }, [splashRows]);
-
   const refresh = useCallback(async () => {
     try {
-      const [slides, splash, update] = await Promise.all([
+      const [slides, update] = await Promise.all([
         listOnboardingSlideRows(),
-        listAppSplashRows(),
         loadUpdateNotice(),
       ]);
       setRows(slides);
-      setSplashRows(splash);
       setNotice(update);
       setMinBuild(update ? String(update.min_build) : '');
     } catch (e) {
@@ -131,23 +118,6 @@ export function ControllingScreen() {
       await uploadOnboardingSlide(slide, variant, file);
       await refresh();
       setOk(`Slide ${slide} (${variant}) uploaded — original quality kept.`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const onPickSplash = async (variant: SlideVariant, file: File | null) => {
-    if (!file) return;
-    const key = `splash:${variant}`;
-    setBusy(key);
-    setError(null);
-    setOk(null);
-    try {
-      await uploadAppSplash(variant, file);
-      await refresh();
-      setOk(`Splash (${variant}) uploaded — original quality kept.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
@@ -295,14 +265,11 @@ export function ControllingScreen() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-28 pt-3">
         <p className="mb-3 px-1 text-caption text-text-secondary">
-          Upload splash + intro art at original quality (no redesign, no recompress).
+          Upload intro art at original quality (no redesign, no recompress).
           Public visitors see these after a hard refresh / new open.
         </p>
 
         <div className="mb-3 flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" onClick={() => navigate('/')}>
-            Preview splash
-          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -593,72 +560,9 @@ export function ControllingScreen() {
           ) : null}
         </section>
 
-        {/* Splash */}
-        <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
-          <h2 className="mb-1 text-body font-semibold text-ink">Splash screen</h2>
-          <p className="mb-3 text-caption text-text-secondary">
-            First screen after launch. PC (landscape) and mobile (portrait) —
-            not the same image stretched.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(['desktop', 'mobile'] as const).map((variant) => {
-              const row = splashByVariant.get(variant);
-              const key = `splash:${variant}`;
-              const preview = previewSplashUrl(row, variant);
-              return (
-                <label
-                  key={variant}
-                  className={cn(
-                    'flex cursor-pointer flex-col gap-2 rounded-md border border-border/60 p-2',
-                    'hover:bg-hover/60',
-                    busy === key && 'opacity-60',
-                  )}
-                >
-                  <span className="text-caption font-medium text-text-secondary">
-                    {variant === 'desktop' ? 'PC / desktop' : 'Mobile'}
-                  </span>
-                  <div
-                    className={cn(
-                      'overflow-hidden rounded bg-page',
-                      variant === 'mobile'
-                        ? 'aspect-[9/16] max-h-56'
-                        : 'aspect-video max-h-40',
-                    )}
-                  >
-                    <img
-                      src={preview}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.opacity = '0.25';
-                      }}
-                    />
-                  </div>
-                  <span className="text-[11px] text-text-tertiary">
-                    {row
-                      ? `${row.storage_path} · ${new Date(row.updated_at).toLocaleString()}`
-                      : 'Using built-in splash until you upload'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="text-caption file:mr-2 file:rounded-md file:border-0 file:bg-brand/15 file:px-2 file:py-1 file:text-caption file:font-medium file:text-brand"
-                    disabled={busy === key}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      e.target.value = '';
-                      void onPickSplash(variant, f);
-                    }}
-                  />
-                </label>
-              );
-            })}
-          </div>
-        </section>
-
         <h2 className="mb-2 px-1 text-body font-semibold text-ink">Intro slides</h2>
         <p className="mb-3 px-1 text-caption text-text-secondary">
-          Five slides after splash, before login / get started.
+          Five slides before login / get started.
         </p>
 
         <div className="space-y-3">

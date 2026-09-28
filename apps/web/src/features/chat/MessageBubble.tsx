@@ -1,5 +1,6 @@
 import {
   detectVideoLink,
+  withoutVideoLink,
   formatEventTime,
   formatTime,
   linkify,
@@ -36,6 +37,9 @@ import { ArcadeInviteCard } from '../arcade/ArcadeInviteCard.js';
 import { parseArcadeInvite } from '../arcade/arcade-link.js';
 import { LinkPreviewCard } from './LinkPreviewCard.js';
 import { VideoLinkCard } from './VideoLinkCard.js';
+import { StoryMentionCard } from '../stories/StoryMentionCard.js';
+import { parseStoryMention } from '../stories/story-mentions.js';
+import { parseNickname } from './nicknames.js';
 import { VoiceNote } from './VoiceNote.js';
 
 /**
@@ -184,7 +188,7 @@ export function MessageBubble({
    * tick, so the whole thread resolves in one query - see `useEarnedBadges`.
    */
   const authorAchievements = useAchievements([message.authorId]);
-  const { service } = useChat();
+  const { service, currentUser } = useChat();
 
   /*
    * The assistant's own text, and nothing else.
@@ -214,7 +218,6 @@ export function MessageBubble({
     () => (message.deleted ? undefined : parseArcadeInvite(message.body)),
     [message.body, message.deleted],
   );
-  const hasBody = !arcadeInvite && message.body.trim().length > 0;
   /*
    * Derived, not stored - see the note at the end of the `Message` type.
    *
@@ -226,6 +229,23 @@ export function MessageBubble({
     () => (message.deleted ? undefined : detectVideoLink(message.body)),
     [message.body, message.deleted],
   );
+  const nicknameEvent = useMemo(
+    () => (message.deleted ? undefined : parseNickname(message.body)),
+    [message.body, message.deleted],
+  );
+  const storyMention = useMemo(
+    () => (message.deleted ? undefined : parseStoryMention(message.body)),
+    [message.body, message.deleted],
+  );
+  /*
+   * What is written, less the video link: the video is shown, so the URL under
+   * it would be the same thing twice. Copying the message still copies it.
+   */
+  const shownBody = useMemo(
+    () => (videoLink ? withoutVideoLink(message.body, videoLink) : message.body),
+    [message.body, videoLink],
+  );
+  const hasBody = !arcadeInvite && shownBody.trim().length > 0;
   /*
    * The first ordinary link, when there is no video card already.
    *
@@ -317,6 +337,22 @@ export function MessageBubble({
 
   // System notices are not bubbles at all - they are centred captions.
   // Kept plain so they never compete with the thread's liquid glass surfaces.
+  /*
+   * A nickname being set is a line in the thread, like a system notice - from
+   * each reader's side: "You set Rohit's nickname", "Rohit set your nickname".
+   */
+  if (nicknameEvent) {
+    const who = mine ? 'You' : nicknameEvent.actorName;
+    const whose = nicknameEvent.userId === currentUser?.id ? 'your' : mine ? `${nicknameEvent.targetName}'s` : `${nicknameEvent.targetName}'s`;
+    return (
+      <div id={`message-${message.id}`} {...trigger} className="py-2 text-center outline-none">
+        <span className="text-caption text-text-tertiary">
+          {nicknameEvent.nick ? <>{who} set {whose} nickname to <b className="font-semibold text-text-secondary">{nicknameEvent.nick}</b></> : <>{who} removed {whose} nickname</>}
+        </span>
+      </div>
+    );
+  }
+
   if (message.system) {
     return (
       <div className="py-2 text-center">
@@ -374,6 +410,40 @@ export function MessageBubble({
    * of its own underneath. Before the Ping branch because the two are mutually
    * exclusive and this is the commoner of the pair.
    */
+  /* "Mentioned you in their story": Instagram's card, in place of the text and link. */
+  if (storyMention) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
+          {nameLabel}
+          <StoryMentionCard mention={storyMention} mine={mine} otherName={authorName ?? 'them'} />
+          <span className="mt-0.5 text-caption text-text-tertiary">{formatTime(message.createdAt)}</span>
+          <div className="clear-both">{reactions}</div>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * A message that is only a video link is the video: no bubble, no URL, the
+   * clip at its own shape - the way a sent video looks. With words beside the
+   * link it stays a bubble, the video above them.
+   */
+  if (videoLink && !hasBody && !replyTo && !voiceNote && !file && !message.editedAt) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
+          {nameLabel}
+          <VideoLinkCard preview={videoLink} messageId={message.id} bare />
+          <span className="mt-0.5 flex items-center gap-1 text-caption text-text-tertiary">
+            {formatTime(message.createdAt)}
+          </span>
+          <div className="clear-both">{reactions}</div>
+        </div>
+      </div>
+    );
+  }
+
   if (message.photo) {
     return (
       // Wrapped rather than passed down: the trigger belongs to "this message",
@@ -600,7 +670,7 @@ export function MessageBubble({
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
             <p className="text-body break-words whitespace-pre-wrap">
-              <MessageText body={message.body} mine={mine} />
+              <MessageText body={shownBody} mine={mine} />
               {message.editedAt && (
                 /*
                  * Inside the bubble, on the edited message itself - not with

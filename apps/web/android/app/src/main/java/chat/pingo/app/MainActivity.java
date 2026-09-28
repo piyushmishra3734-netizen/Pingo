@@ -15,6 +15,9 @@ import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.ContentInfoCompat;
@@ -78,6 +81,58 @@ public class MainActivity extends BridgeActivity {
      * allows it does not also have to press call a second time.
      */
     private PermissionRequest pendingMicRequest;
+
+    /*
+     * Photos and videos, through Android's own photo picker.
+     *
+     * Capacitor answers every <input type="file"> with ACTION_GET_CONTENT,
+     * which on a phone is the old file browser - Recent, Downloads, a drive
+     * list - rather than the photo grid people know from every other app. When
+     * the page asks only for pictures and clips, this opens the system photo
+     * picker instead (Android 11+ via Play system updates; older phones keep
+     * the file browser). The answer goes back to the page exactly as the file
+     * browser's would, through the same callback.
+     */
+    private ValueCallback<Uri[]> pendingPick;
+
+    private final ActivityResultLauncher<PickVisualMediaRequest> pickOne = registerForActivityResult(
+        new ActivityResultContracts.PickVisualMedia(),
+        (Uri uri) -> finishPick(uri == null ? null : new Uri[] { uri })
+    );
+
+    private final ActivityResultLauncher<PickVisualMediaRequest> pickMany = registerForActivityResult(
+        new ActivityResultContracts.PickMultipleVisualMedia(30),
+        (java.util.List<Uri> uris) -> finishPick(uris == null || uris.isEmpty() ? null : uris.toArray(new Uri[0]))
+    );
+
+    private void finishPick(Uri[] uris) {
+        ValueCallback<Uri[]> callback = pendingPick;
+        pendingPick = null;
+        if (callback == null) return;
+        try {
+            PickedFiles.remember(this, uris);
+        } catch (Exception ignored) {
+            // Recording is a convenience. Never fail a pick for it.
+        }
+        callback.onReceiveValue(uris);
+    }
+
+    /** The photo picker's media type for an accept list of only images and videos, or null. */
+    private static ActivityResultContracts.PickVisualMedia.VisualMediaType mediaTypeFor(String[] accept) {
+        boolean images = false;
+        boolean videos = false;
+        for (String type : accept) {
+            if (type == null || type.trim().isEmpty()) continue;
+            String t = type.trim().toLowerCase();
+            if (t.startsWith("image/")) images = true;
+            else if (t.startsWith("video/")) videos = true;
+            else return null;
+        }
+        if (images && videos) return ActivityResultContracts.PickVisualMedia.ImageAndVideo.INSTANCE;
+        if (images) return ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE;
+        if (videos) return ActivityResultContracts.PickVisualMedia.VideoOnly.INSTANCE;
+        return null;
+    }
 
     @Override
     public void onRequestPermissionsResult(
@@ -185,6 +240,20 @@ public class MainActivity extends BridgeActivity {
                 ValueCallback<Uri[]> callback,
                 FileChooserParams params
             ) {
+                ActivityResultContracts.PickVisualMedia.VisualMediaType media = mediaTypeFor(params.getAcceptTypes());
+                if (
+                    media != null &&
+                    !params.isCaptureEnabled() &&
+                    ActivityResultContracts.PickVisualMedia.isPhotoPickerAvailable(MainActivity.this)
+                ) {
+                    // A pick still open is answered empty, so its input is freed.
+                    if (pendingPick != null) pendingPick.onReceiveValue(null);
+                    pendingPick = callback;
+                    PickVisualMediaRequest request = new PickVisualMediaRequest.Builder().setMediaType(media).build();
+                    if (params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) pickMany.launch(request);
+                    else pickOne.launch(request);
+                    return true;
+                }
                 return super.onShowFileChooser(view, (Uri[] uris) -> {
                     try {
                         PickedFiles.remember(MainActivity.this, uris);

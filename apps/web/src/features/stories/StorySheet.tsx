@@ -47,10 +47,10 @@ export function StorySheet({ dark = true, title, onClose, children, className, z
             role="dialog"
             aria-modal="true"
             className={cn('absolute inset-x-0 bottom-0 mx-auto flex max-h-[86%] max-w-[560px] flex-col rounded-t-[18px] transition-transform duration-[340ms] ease-[cubic-bezier(.2,.8,.2,1)]',
-              dark ? 'bg-[#1c1c1e] text-white' : 'bg-white text-[#111]', className)}
+              dark ? 'bg-media-sheet text-white' : 'bg-white text-[#111]', className)}
             style={{ transform: closing ? 'translateY(105%)' : undefined, animation: 'ss-up .34s cubic-bezier(.2,.8,.2,1)' }}
           >
-            <div {...grab} className={cn('relative mx-auto mt-2 mb-2.5 h-1 w-[38px] shrink-0 touch-none rounded-sm before:absolute before:-inset-x-6 before:-inset-y-3 before:content-[""]', dark ? 'bg-[#48484a]' : 'bg-[#c7c7cc]')} />
+            <div {...grab} className={cn('relative mx-auto mt-2 mb-2.5 h-1 w-[38px] shrink-0 touch-none rounded-sm before:absolute before:-inset-x-6 before:-inset-y-3 before:content-[""]', dark ? 'bg-white/25' : 'bg-[#c7c7cc]')} />
             {title && <h3 {...grab} className="touch-none px-4 pb-2.5 text-center text-[16px] font-bold">{title}</h3>}
             {children}
           </div>
@@ -67,7 +67,7 @@ export function SheetSearch({ dark = true, value, onChange, placeholder = 'Searc
   onEnter?: () => void;
 }) {
   return (
-    <label className={cn('mx-3.5 mb-3 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] px-3 text-[#8e8e8e]', dark ? 'bg-[#2c2c2e]' : 'bg-[#efefef]')}>
+    <label className={cn('mx-3.5 mb-3 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] px-3 text-[#8e8e8e]', dark ? 'bg-media-field' : 'bg-[#efefef]')}>
       <Search size={18} />
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} enterKeyHint={onEnter ? 'done' : undefined}
         onKeyDown={(e) => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }}
@@ -86,13 +86,13 @@ export function SheetBody({ children, className }: { children: ReactNode; classN
  * name side by side, a hairline between them. `danger` turns the whole row red.
  */
 export function MenuGroup({ children }: { children: ReactNode }) {
-  return <div className="overflow-hidden rounded-[14px] bg-[#2c2c2e] [&>button+button]:border-t [&>button+button]:border-white/[.08]">{children}</div>;
+  return <div className="overflow-hidden rounded-[14px] bg-media-field [&>button+button]:border-t [&>button+button]:border-white/[.08]">{children}</div>;
 }
 
 export function MenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: string; danger?: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
-      className={cn('flex h-[52px] w-full items-center gap-3.5 px-4 text-left transition-colors active:bg-white/[.06]', danger ? 'text-[#ff453a]' : 'text-white')}>
+      className={cn('flex h-[52px] w-full items-center gap-3.5 px-4 text-left transition-colors active:bg-white/[.06]', danger ? 'text-danger' : 'text-white')}>
       <span className="grid size-6 shrink-0 place-items-center [&>svg]:size-[22px] [&>svg]:stroke-[1.8]">{icon}</span>
       <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{label}</span>
     </button>
@@ -106,7 +106,7 @@ export function PersonRow({ avatar, name, sub, end, badge, subTone = '#8e8e8e' }
   return (
     <div className="flex items-center gap-3 py-[9px]">
       <span className="relative shrink-0">
-        {avatar ? <img src={avatar} alt="" className="size-11 rounded-full object-cover" /> : <span className="grid size-11 place-items-center rounded-full bg-[#2c2c2e] font-bold text-white">{name[0]?.toUpperCase()}</span>}
+        {avatar ? <img src={avatar} alt="" className="size-11 rounded-full object-cover" /> : <span className="grid size-11 place-items-center rounded-full bg-media-field font-bold text-white">{name[0]?.toUpperCase()}</span>}
         {badge}
       </span>
       <span className="min-w-0 flex-1">
@@ -122,7 +122,7 @@ export function PersonRow({ avatar, name, sub, end, badge, subTone = '#8e8e8e' }
 export function SendButton({ sent, onClick, label = 'Send', sentLabel = 'Sent' }: { sent: boolean; onClick: () => void; label?: string; sentLabel?: string }) {
   return (
     <button type="button" onClick={onClick} disabled={sent}
-      className={cn('shrink-0 rounded-[8px] px-4 py-[7px] text-[13.5px] font-bold', sent ? 'bg-[#efefef] text-[#111]' : 'bg-[#0a84ff] text-white')}>
+      className={cn('shrink-0 rounded-[8px] px-4 py-[7px] text-[13.5px] font-bold', sent ? 'bg-[#efefef] text-[#111]' : 'bg-media-accent text-on-media-accent')}>
       {sent ? sentLabel : label}
     </button>
   );

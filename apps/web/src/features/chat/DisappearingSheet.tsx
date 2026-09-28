@@ -32,6 +32,8 @@ import { useT } from '../i18n/useT.js';
 
 const CHOICES: Array<{ seconds: number | undefined; key: MessageKey }> = [
   { seconds: undefined, key: 'disappearing.off' },
+  // The shortest the database allows, and the one that shows the feature working.
+  { seconds: 3_600, key: 'disappearing.hour' },
   { seconds: 86_400, key: 'disappearing.day' },
   { seconds: 604_800, key: 'disappearing.week' },
   { seconds: 7_776_000, key: 'disappearing.ninetyDays' },

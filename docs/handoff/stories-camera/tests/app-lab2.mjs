@@ -49,7 +49,7 @@ await check('drop on the bin deletes', async () => {
   await w(100); await page.mouse.up(); await w(300);
   return (await count('.sk-link')) === 0;
 });
-await check('effects filter', async () => { await btn('Effect').click(); await w(400); await page.locator(`${ed} button`, { hasText: 'Jaipur' }).click(); await w(200); await page.mouse.click(195, 60); await w(300); return page.evaluate(() => document.querySelector('[aria-label="Story editor"] img.object-cover')?.style.filter.includes('sepia')); });
+await check('effects filter', async () => { await btn('Effect').click(); await w(400); await page.locator(`${ed} button`, { hasText: 'Jaipur' }).click(); await w(200); await page.mouse.click(195, 60); await w(300); return page.evaluate(() => document.querySelector('[aria-label="Story editor"] img[data-story-media]')?.style.filter.includes('sepia')); });
 await check('draw a stroke, undo', async () => {
   await page.locator(`${ed} [aria-label="More tools"]`).click(); await w(200); await btn('Draw').click(); await w(300);
   await drag(80, 300, 300, 360); await drag(80, 420, 300, 480);

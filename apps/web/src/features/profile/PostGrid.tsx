@@ -1,5 +1,6 @@
 import type { Post } from '@pingo/core';
 import { HeartIcon, ImageIcon, PlusIcon, Skeleton, cn } from '@pingo/ui';
+import { Lock } from 'lucide-react';
 
 /**
  * Three posts, in a row of squares.
@@ -146,6 +147,26 @@ export function PostsEmpty({ name }: { name: string }) {
       <p className="mt-4 text-body font-medium text-ink">{name} hasn{"'"}t posted yet.</p>
       <p className="mt-1.5 text-caption text-text-tertiary">
         A PINGO profile holds three posts. Theirs are still to come.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Where a private account's posts would be, for somebody not let in yet.
+ *
+ * Not "hasn't posted": the posts exist, and saying otherwise would be a lie
+ * about somebody else. The follow button is right above, on the profile.
+ */
+export function PrivatePosts({ name }: { name: string }) {
+  return (
+    <div className="rounded-[28px] bg-surface px-6 py-14 text-center">
+      <span className="mx-auto grid size-14 place-items-center rounded-full border-[1.5px] border-ink text-ink">
+        <Lock size={24} />
+      </span>
+      <p className="mt-4 text-body font-semibold text-ink">This account is private</p>
+      <p className="mx-auto mt-1.5 max-w-xs text-caption text-text-secondary">
+        Follow {name} to see their posts and profile.
       </p>
     </div>
   );

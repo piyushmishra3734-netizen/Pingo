@@ -92,7 +92,7 @@ export function InstallBanner() {
           'motion-safe:animate-install-in',
         )}
       >
-        <AppLogo size={40} alt="" className="shrink-0" />
+        <AppLogo size={40} alt="" tile className="shrink-0" />
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-body font-medium text-ink">{t('install.title')}</p>

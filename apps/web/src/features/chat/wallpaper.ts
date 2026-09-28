@@ -425,11 +425,11 @@ export function wallpaperIsLive(scope: string | WallpaperScope): boolean {
 /**
  * What the rain should fall in front of.
  *
- * Your photograph if you have one, and otherwise a scene of its own - rain on
- * a window with nothing behind it is just a grey rectangle with dots.
+ * Your photograph if you have one. Without one there is no scene for now -
+ * the built-in scenes are still to be chosen - so the rain falls on its own.
  */
-export function rainScene(scope: string | WallpaperScope): string {
-  return customWallpaperPhoto(scope) ?? '/pingo-splash.jpg';
+export function rainScene(scope: string | WallpaperScope): string | undefined {
+  return customWallpaperPhoto(scope);
 }
 
 /** Local (DM/AI) wallpaper pick. Groups use `setGroupWallpaper` on the service. */

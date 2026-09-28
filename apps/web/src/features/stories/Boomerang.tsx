@@ -124,7 +124,7 @@ export function BoomerangMode({ src, boom, trim, onChange, onDone }: {
       <div className="absolute inset-x-0 bottom-[110px] flex justify-center gap-[18px]">
         {BOOMS.map(([k, label, Icon]) => (
           <button key={k} type="button" aria-label={label} onClick={() => onChange(k, trim)}
-            className={cn('grid size-[52px] place-items-center rounded-full transition-transform duration-200 [&>svg]:size-[22px]', k === boom ? 'scale-[1.08] bg-white text-[#e0559b]' : 'bg-[rgba(40,40,44,.75)]')}>
+            className={cn('grid size-[52px] place-items-center rounded-full transition-transform duration-200 [&>svg]:size-[22px]', k === boom ? 'scale-[1.08] bg-white text-black' : 'bg-[rgba(40,40,44,.75)]')}>
             <Icon />
           </button>
         ))}

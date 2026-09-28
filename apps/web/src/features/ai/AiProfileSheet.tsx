@@ -1,5 +1,6 @@
 import { useChat, useProfile } from '@pingo/core';
-import { Avatar, Button, PingoDot, Toggle, cn } from '@pingo/ui';
+import { Avatar, PingoDot, Toggle, cn } from '@pingo/ui';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,9 +15,9 @@ import {
   type AiPublicIdentity,
 } from './ai-public.js';
 import { AiMemoriesSheet } from './AiMemoriesSheet.js';
-import { AiPersonalityGrid } from './AiPersonalityGrid.js';
 import { IMMUTABLE_CACHE_SECONDS, shrinkToAvatar } from '../profile/avatar-image.js';
 import {
+  PERSONALITIES,
   orderedLanguages,
   pushRecentLanguage,
   RESPONSE_LENGTHS,
@@ -52,6 +53,7 @@ export function AiProfileSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [memoriesOpen, setMemoriesOpen] = useState(false);
+  const [picker, setPicker] = useState<'personality' | 'length' | 'language'>();
   const [memoryCount, setMemoryCount] = useState(0);
 
   const refreshMemoryCount = () => {
@@ -86,10 +88,14 @@ export function AiProfileSheet({
   }, [profile]);
 
   const faceName = prefs.display_name?.trim() || pub?.displayName || 'PINGO';
-  const faceSrc = prefs.avatar_url || pub?.avatarUrl;
-  // Same fallback as the face: their own if they set one, the shared one if not.
-  const bannerSrc = prefs.banner_url ?? pub?.bannerUrl;
-  const bannerOffset = prefs.banner_url ? 50 : (pub?.bannerOffset ?? 50);
+  const faceSrc = prefs.avatar_url || pub?.avatarUrl || '/pingo-avatar.png';
+  /*
+   * Their own cover if they set one; otherwise PINGO's, drawn from the logo.
+   * The shared picture that used to fill this read as generated art, and a
+   * brand's own assistant should look like the brand.
+   */
+  const bannerSrc = prefs.banner_url ?? undefined;
+  const bannerOffset = 50;
   const faceBio =
     prefs.bio?.trim() ||
     pub?.bio?.trim() ||
@@ -269,11 +275,6 @@ export function AiProfileSheet({
     navigate('/chats');
   };
 
-  const field =
-    'w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[0.9375rem] text-ink ' +
-    'placeholder:text-text-tertiary outline-none transition-[border-color,box-shadow] duration-150 ' +
-    'focus:border-black/20 focus:shadow-[0_0_0_3px_rgba(17,17,19,0.06)]';
-
   return (
     <>
       <Sheet
@@ -316,7 +317,7 @@ export function AiProfileSheet({
         <div className="relative w-full">
           <div
             className={cn(
-              'relative w-full overflow-hidden bg-[#E8E8EA]',
+              'relative w-full overflow-hidden bg-surface',
               /* Tall full-bleed cover — not a thin strip. */
               'aspect-[2/1] min-h-[11.5rem] max-h-[14rem] sm:min-h-[12.5rem]',
             )}
@@ -335,15 +336,18 @@ export function AiProfileSheet({
                 draggable={false}
               />
             ) : (
-              <div
-                className="absolute inset-0 h-full w-full"
-                style={{
-                  background:
-                    'radial-gradient(90% 80% at 20% 0%, rgb(17 17 19 / 0.08), transparent 55%),' +
-                    'radial-gradient(70% 60% at 90% 40%, rgb(60 70 90 / 0.1), transparent 50%),' +
-                    'linear-gradient(160deg, #F0F0F2 0%, #E4E5E8 100%)',
-                }}
-              />
+              <div className="absolute inset-0 h-full w-full overflow-hidden bg-surface">
+                {/* The sweep, soft, with the mark large and off to one side - PINGO's own cover. */}
+                <div className="bg-sweep absolute inset-0 opacity-30" />
+                <div className="absolute inset-0 bg-[radial-gradient(80%_90%_at_15%_20%,var(--color-surface)_0%,transparent_70%)] opacity-60" />
+                <img
+                  src="/pingo-mark.svg"
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                  className="absolute -top-6 -right-8 size-56 rotate-[-8deg] opacity-90 drop-shadow-[0_18px_40px_rgba(139,93,255,0.35)]"
+                />
+              </div>
             )}
             {/* Soft bottom fade only — cover still reads full frame */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent" />
@@ -434,202 +438,128 @@ export function AiProfileSheet({
           </div>
         </div>
 
-        <div className="space-y-3 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          <Card>
-            <Label>Their name</Label>
-            <input
-              value={prefs.display_name ?? faceName}
-              onChange={(e) =>
-                setPrefs((r) => ({ ...r, display_name: e.target.value.slice(0, 40) }))
-              }
-              onBlur={() => void savePrefs({ display_name: prefs.display_name })}
-              className={field}
-            />
-          </Card>
-
-          <Card>
-            <Label>Your name for them</Label>
-            <input
-              value={prefs.preferred_name ?? ''}
-              onChange={(e) =>
-                setPrefs((r) => ({ ...r, preferred_name: e.target.value.slice(0, 40) }))
-              }
-              onBlur={() =>
-                void savePrefs({ preferred_name: prefs.preferred_name?.trim() || null })
-              }
-              placeholder={profile?.displayName || t('ai.callYouTitle')}
-              className={field}
-            />
-            <Hint>How they address you in chat</Hint>
-          </Card>
-
-          <Card>
-            <Label>Bio</Label>
-            <textarea
-              value={prefs.bio ?? ''}
-              onChange={(e) => setPrefs((r) => ({ ...r, bio: e.target.value.slice(0, 160) }))}
-              onBlur={() => void savePrefs({ bio: prefs.bio ?? null })}
-              rows={3}
-              className={cn(field, 'resize-none')}
-              placeholder={
-                pub?.bio?.trim() ||
-                'Always down to chat. Your study buddy. Whatever fits them.'
-              }
-            />
-            <Hint>
-              How they show up for you
-              {prefs.bio?.trim()
-                ? ''
-                : pub?.bio?.trim()
-                  ? ` · default: “${pub.bio.trim()}”`
-                  : ''}
-            </Hint>
-            {owner && (
-              <button
-                type="button"
-                className="mt-2 text-[0.8125rem] font-medium text-brand underline-offset-2 hover:underline"
-                onClick={() =>
-                  void saveSharedDefaultBio((prefs.bio?.trim() || faceBio).slice(0, 160))
-                }
-              >
-                Use this as default for everyone
-              </button>
+        {/*
+          Settings the way a phone's own Settings are: grouped rows, a value on
+          the right, a list with a tick behind it. The grid of personality tiles
+          and the chip clouds this replaced looked generated - this looks like
+          the rest of the phone.
+        */}
+        {picker ? (
+          <div className="bg-page px-4 pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <button type="button" onClick={() => setPicker(undefined)} className="mb-2 flex items-center gap-1 py-2 text-[15px] font-medium text-brand">
+              <ChevronLeft size={20} />Back
+            </button>
+            {picker === 'personality' && (
+              <Group title="Personality" footer={PERSONALITIES.find((x) => x.id === personality)?.preview}>
+                {PERSONALITIES.map((x) => (
+                  <PickRow key={x.id} label={x.label} sub={x.hint} on={personality === x.id} onPick={() => void savePrefs({ personality: x.id })} />
+                ))}
+              </Group>
             )}
-          </Card>
-
-          <Card>
-            <Label>Personality</Label>
-            <AiPersonalityGrid
-              value={personality}
-              customText={prefs.custom_personality ?? ''}
-              onChange={(id) => void savePrefs({ personality: id })}
-              onCustomText={(text) => setPrefs((r) => ({ ...r, custom_personality: text }))}
-            />
-            {personality === 'custom' && (
-              <Button
-                variant="secondary"
-                className="mt-3 w-full"
-                onClick={() =>
-                  void savePrefs({ custom_personality: prefs.custom_personality ?? null })
-                }
-              >
-                Save custom vibe
-              </Button>
+            {picker === 'personality' && personality === 'custom' && (
+              <Group title="Their vibe, in your words" footer="Saved when you leave the box.">
+                <textarea
+                  value={prefs.custom_personality ?? ''}
+                  onChange={(e) => setPrefs((r) => ({ ...r, custom_personality: e.target.value.slice(0, 200) }))}
+                  onBlur={() => void savePrefs({ custom_personality: prefs.custom_personality ?? null })}
+                  rows={3}
+                  placeholder={t('ai.vibePh')}
+                  className="block w-full resize-none bg-transparent px-4 py-3 text-[16px] text-ink outline-none placeholder:text-text-tertiary"
+                />
+              </Group>
             )}
-          </Card>
-
-          <Card>
-            <Label>Response style</Label>
-            <div className="flex gap-1.5 rounded-xl bg-sunken p-1">
-              {RESPONSE_LENGTHS.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  onClick={() => void savePrefs({ response_length: l.id })}
-                  className={cn(
-                    'flex-1 rounded-lg py-2 text-[0.8125rem] font-medium transition-colors',
-                    length === l.id
-                      ? 'bg-surface text-ink shadow-sm'
-                      : 'text-text-secondary hover:text-ink',
-                  )}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-[0.75rem] leading-snug text-text-tertiary" aria-live="polite">
-              {lengthPreview}
-            </p>
-          </Card>
-
-          <Card>
-            <Label>Language</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {langs.slice(0, 10).map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  onClick={() => void savePrefs({ language: l.id })}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors',
-                    (prefs.language ?? 'en') === l.id
-                      ? 'bg-brand text-on-brand'
-                      : 'bg-sunken text-text-secondary hover:text-ink',
-                  )}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[0.9375rem] font-medium text-ink">{t('ai.rememberMe')}</p>
-                <p className="mt-0.5 text-[0.75rem] leading-snug text-text-tertiary">
-                  Only with your permission. Edit or erase anytime.
-                </p>
-              </div>
-              <Toggle
-                checked={Boolean(prefs.memory_enabled ?? true)}
-                onChange={(memory_enabled) => void savePrefs({ memory_enabled })}
-                label={t('ai.rememberMe')}
-              />
-            </div>
-            {prefs.memory_enabled !== false && (
-              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line pt-3">
-                <button
-                  type="button"
-                  className="text-[0.8125rem] font-medium text-brand underline-offset-2 hover:underline"
-                  onClick={() => setMemoriesOpen(true)}
-                >
-                  {t('ai.memories')}
-                  {memoryCount > 0 ? ` (${memoryCount})` : ''}
-                </button>
-                <span className="text-[0.75rem] text-text-tertiary">
-                  Saves when you say “remember…” / “yaad rakh…”
-                </span>
-              </div>
+            {picker === 'length' && (
+              <Group title="Replies" footer={lengthPreview}>
+                {RESPONSE_LENGTHS.map((l) => (
+                  <PickRow key={l.id} label={l.label} on={length === l.id} onPick={() => void savePrefs({ response_length: l.id })} />
+                ))}
+              </Group>
             )}
-          </Card>
-
-          <Card>
-            <Label>Privacy</Label>
-            <div className="space-y-1.5 text-[0.8125rem] leading-relaxed text-text-secondary">
-              <p>Messages here are processed so they can reply.</p>
-              <p>Processing copies clean up after about 24 hours.</p>
-              <p>This chat is not end-to-end encrypted.</p>
-            </div>
-          </Card>
-
-          <Card>
-            <Label>Advanced</Label>
-            <div className="divide-y divide-line">
-              <AdvRow label={t('ai.resetPersonality')} onClick={() => void resetPersonality()} />
-              <AdvRow label={t('ai.resetMemory')} onClick={() => void resetMemory()} />
-              {conversationId && (
-                <>
-                  <AdvRow label={t('ai.clearChat')} onClick={() => void clearChat()} />
-                  <AdvRow label={t('ai.deleteChat')} danger onClick={() => void deleteChat()} />
-                </>
+            {picker === 'language' && (
+              <Group title="Language">
+                {langs.map((l) => (
+                  <PickRow key={l.id} label={l.label} on={(prefs.language ?? 'en') === l.id} onPick={() => void savePrefs({ language: l.id })} />
+                ))}
+              </Group>
+            )}
+          </div>
+        ) : (
+          <div className="bg-page px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <Group>
+              <FieldRow label="Name">
+                <input
+                  value={prefs.display_name ?? faceName}
+                  onChange={(e) => setPrefs((r) => ({ ...r, display_name: e.target.value.slice(0, 40) }))}
+                  onBlur={() => void savePrefs({ display_name: prefs.display_name })}
+                  className={rowInput}
+                />
+              </FieldRow>
+              <FieldRow label="Calls you">
+                <input
+                  value={prefs.preferred_name ?? ''}
+                  onChange={(e) => setPrefs((r) => ({ ...r, preferred_name: e.target.value.slice(0, 40) }))}
+                  onBlur={() => void savePrefs({ preferred_name: prefs.preferred_name?.trim() || null })}
+                  placeholder={profile?.displayName || t('ai.callYouTitle')}
+                  className={rowInput}
+                />
+              </FieldRow>
+              <label className="block px-4 py-3">
+                <span className="block text-[13px] text-text-secondary">Bio</span>
+                <textarea
+                  value={prefs.bio ?? ''}
+                  onChange={(e) => setPrefs((r) => ({ ...r, bio: e.target.value.slice(0, 160) }))}
+                  onBlur={() => void savePrefs({ bio: prefs.bio ?? null })}
+                  rows={2}
+                  placeholder={pub?.bio?.trim() || 'How they show up for you'}
+                  className="mt-1 block w-full resize-none bg-transparent text-[16px] leading-snug text-ink outline-none placeholder:text-text-tertiary"
+                />
+              </label>
+              {owner && (
+                <ActionRow label="Use this bio for everyone" onClick={() => void saveSharedDefaultBio((prefs.bio?.trim() || faceBio).slice(0, 160))} />
               )}
-            </div>
-          </Card>
+            </Group>
 
-          {error && (
-            <p
-              className="rounded-xl bg-danger-soft px-3 py-2.5 text-center text-[0.8125rem] text-danger"
-              role="alert"
+            <Group title="How they talk">
+              <NavRow label="Personality" value={PERSONALITIES.find((x) => x.id === personality)?.label ?? 'Friendly'} onClick={() => setPicker('personality')} />
+              <NavRow label="Replies" value={RESPONSE_LENGTHS.find((l) => l.id === length)?.label ?? 'Short'} onClick={() => setPicker('length')} />
+              <NavRow label="Language" value={(langs.find((l) => l.id === (prefs.language ?? 'en'))?.label ?? 'English')} onClick={() => setPicker('language')} />
+            </Group>
+
+            <Group
+              title="Memory"
+              footer="Messages here are processed so they can reply, and those copies clear after about 24 hours. This chat is not end-to-end encrypted."
             >
-              {error}
-            </p>
-          )}
+              <div className="flex min-h-12 items-center justify-between gap-3 px-4 py-2">
+                <span className="text-[16px] text-ink">{t('ai.rememberMe')}</span>
+                <Toggle
+                  checked={Boolean(prefs.memory_enabled ?? true)}
+                  onChange={(memory_enabled) => void savePrefs({ memory_enabled })}
+                  label={t('ai.rememberMe')}
+                />
+              </div>
+              {prefs.memory_enabled !== false && (
+                <NavRow label={t('ai.memories')} value={memoryCount > 0 ? String(memoryCount) : ''} onClick={() => setMemoriesOpen(true)} />
+              )}
+            </Group>
 
-          <Button variant="primary" className="w-full" onClick={onClose} disabled={busy}>
-            Done
-          </Button>
-        </div>
+            <Group>
+              <ActionRow label={t('ai.resetPersonality')} onClick={() => void resetPersonality()} />
+              <ActionRow label={t('ai.resetMemory')} onClick={() => void resetMemory()} />
+              {conversationId && <ActionRow label={t('ai.clearChat')} onClick={() => void clearChat()} />}
+            </Group>
+            {conversationId && (
+              <Group>
+                <ActionRow label={t('ai.deleteChat')} danger onClick={() => void deleteChat()} />
+              </Group>
+            )}
+
+            {error && (
+              <p className="mt-3 text-center text-[13px] text-danger" role="alert">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
       </Sheet>
 
       {memoriesOpen && <AiMemoriesSheet onClose={() => setMemoriesOpen(false)} />}
@@ -637,51 +567,53 @@ export function AiProfileSheet({
   );
 }
 
-function Card({ children }: { children: React.ReactNode }) {
+const rowInput = 'min-w-0 flex-1 bg-transparent text-right text-[16px] text-text-secondary outline-none placeholder:text-text-tertiary focus:text-ink';
+
+/** An inset group: optional title above, rows on one card, optional footnote below. */
+function Group({ title, footer, children }: { title?: string; footer?: string | undefined; children: React.ReactNode }) {
   return (
-    <section
-      className={cn(
-        'rounded-2xl border border-line bg-surface p-4',
-        'shadow-[0_1px_2px_rgba(17,17,19,0.03)]',
-      )}
-    >
-      {children}
+    <section className="mb-6">
+      {title && <h3 className="mb-1.5 px-4 text-[13px] text-text-secondary">{title}</h3>}
+      <div className="overflow-hidden rounded-[14px] bg-surface [&>*+*]:border-t [&>*+*]:border-line">{children}</div>
+      {footer && <p className="mt-1.5 px-4 text-[13px] leading-snug text-text-tertiary">{footer}</p>}
     </section>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <h3 className="mb-2 text-[0.75rem] font-medium tracking-[-0.01em] text-text-secondary">
+    <label className="flex min-h-12 items-center gap-3 px-4">
+      <span className="shrink-0 text-[16px] text-ink">{label}</span>
       {children}
-    </h3>
+    </label>
   );
 }
 
-function Hint({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1.5 text-[0.75rem] leading-snug text-text-tertiary">{children}</p>;
+function NavRow({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex min-h-12 w-full items-center gap-2 px-4 text-left active:bg-hover">
+      <span className="flex-1 text-[16px] text-ink">{label}</span>
+      <span className="truncate text-[16px] text-text-secondary">{value}</span>
+      <ChevronRight size={18} className="shrink-0 text-text-tertiary" />
+    </button>
+  );
 }
 
-function AdvRow({
-  label,
-  onClick,
-  danger,
-}: {
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-}) {
+function PickRow({ label, sub, on, onPick }: { label: string; sub?: string; on: boolean; onPick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-center py-2.5 text-left text-[0.9375rem]',
-        'transition-colors first:pt-0 last:pb-0',
-        'hover:opacity-80 active:opacity-60',
-        danger ? 'text-danger' : 'text-ink',
-      )}
-    >
+    <button type="button" role="radio" aria-checked={on} onClick={onPick} className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left active:bg-hover">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] text-ink">{label}</span>
+        {sub && <span className="block text-[13px] text-text-tertiary">{sub}</span>}
+      </span>
+      {on && <Check size={20} strokeWidth={2.5} className="shrink-0 text-brand" />}
+    </button>
+  );
+}
+
+function ActionRow({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} className={cn('flex min-h-12 w-full items-center px-4 text-left text-[16px] active:bg-hover', danger ? 'text-danger' : 'text-brand')}>
       {label}
     </button>
   );

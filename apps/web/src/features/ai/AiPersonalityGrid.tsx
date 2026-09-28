@@ -1,4 +1,5 @@
 import { cn } from '@pingo/ui';
+import { Check } from 'lucide-react';
 
 import { useT } from '../i18n/useT.js';
 import { PERSONALITIES, type PersonalityId } from './personalities.js';
@@ -23,41 +24,24 @@ export function AiPersonalityGrid({
 
   return (
     <div className="space-y-3">
-      <ul className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('ai.personality')}>
+      {/* A list with a tick, as a phone's own settings pick one of several. */}
+      <ul className="overflow-hidden rounded-[14px] bg-surface ring-1 ring-line [&>li+li]:border-t [&>li+li]:border-line" role="radiogroup" aria-label={t('ai.personality')}>
         {PERSONALITIES.map((p) => {
           const selected = value === p.id;
           return (
-            <li key={p.id} className="min-w-0">
+            <li key={p.id}>
               <button
                 type="button"
                 role="radio"
                 aria-checked={selected}
                 onClick={() => onChange(p.id)}
-                className={cn(
-                  'flex w-full flex-col rounded-xl border px-3 py-2.5 text-left',
-                  'transition-[border-color,background-color,box-shadow] duration-150',
-                  'active:scale-[0.98]',
-                  selected
-                    ? 'border-brand/30 bg-brand text-on-brand shadow-sm'
-                    : 'border-line bg-sunken/80 text-ink hover:bg-hover',
-                )}
+                className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left active:bg-hover"
               >
-                <span
-                  className={cn(
-                    'text-[0.875rem] font-medium tracking-[-0.01em]',
-                    selected ? 'text-on-brand' : 'text-ink',
-                  )}
-                >
-                  {p.label}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] text-ink">{p.label}</span>
+                  <span className="block text-[13px] text-text-tertiary">{p.hint}</span>
                 </span>
-                <span
-                  className={cn(
-                    'mt-0.5 text-[0.75rem] leading-snug',
-                    selected ? 'text-on-brand/70' : 'text-text-tertiary',
-                  )}
-                >
-                  {p.hint}
-                </span>
+                {selected && <Check size={20} strokeWidth={2.5} className="shrink-0 text-brand" />}
               </button>
             </li>
           );
@@ -79,14 +63,7 @@ export function AiPersonalityGrid({
         />
       )}
 
-      <p
-        className={cn(
-          'rounded-xl border border-line bg-sunken/70 px-3 py-2.5',
-          'text-[0.75rem] leading-snug text-text-secondary',
-        )}
-        aria-live="polite"
-      >
-        <span className="font-medium text-text-tertiary">Preview · </span>
+      <p className="px-4 text-[13px] leading-snug text-text-tertiary" aria-live="polite">
         {preview}
       </p>
     </div>
