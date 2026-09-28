@@ -24,17 +24,25 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
  * the page is reloaded once. That is the only repair there is, and it is the
  * one the user was trying to perform by refreshing.
  *
- * Once, though. A reload that fails the same way twice is a real bug, not a
- * stale cache, and a boundary that keeps reloading turns it into an infinite
- * flicker nobody can read or escape. The second time it shows the error.
+ * Not twice in a row, though. A reload that fails the same way straight away is
+ * a real bug, not a stale cache, and a boundary that keeps reloading turns it
+ * into an infinite flicker nobody can read or escape - so within twenty seconds
+ * of the last try it shows the error instead.
+ *
+ * It used to be once per *session*, and that was the complaint: PINGO ships
+ * several times a day, so the second deploy an open app lived through landed
+ * on this error screen instead of quietly reloading. A time window keeps the
+ * loop guard and lets every later deploy recover on its own.
  *
  * Anything that is not a chunk failure is not reloaded at all: a component that
  * throws on this data will throw again after a reload, and spinning the page is
  * a worse answer than saying so.
  */
 
-/** Survives the reload it triggers; cleared when the session ends. */
-const RECOVERY_KEY = 'pingo:chunk-reload';
+/** When the last repair reload happened. Survives the reload it triggers. */
+const RECOVERY_KEY = 'pingo:chunk-reload-at';
+/** A second failure this soon after a repair is a real fault, not a stale build. */
+const RETRY_WINDOW_MS = 20_000;
 
 /**
  * Every phrasing the browsers use for "the module would not load".
@@ -83,6 +91,8 @@ interface Props {
 interface State {
   failed: boolean;
   message?: string;
+  /** Reloading to repair it: nothing to read, so nothing is shown but a spinner. */
+  recovering?: boolean;
 }
 
 export class RouteBoundary extends Component<Props, State> {
@@ -92,6 +102,8 @@ export class RouteBoundary extends Component<Props, State> {
     return {
       failed: true,
       message: error instanceof Error ? error.message : String(error),
+      // Assumed repairable until componentDidCatch finds it was just tried, so the error never flashes first.
+      recovering: looksLikeMissingChunk(error),
     };
   }
 
@@ -104,8 +116,9 @@ export class RouteBoundary extends Component<Props, State> {
 
     let alreadyTried = false;
     try {
-      alreadyTried = sessionStorage.getItem(RECOVERY_KEY) === '1';
-      sessionStorage.setItem(RECOVERY_KEY, '1');
+      const last = Number(sessionStorage.getItem(RECOVERY_KEY) ?? 0);
+      alreadyTried = Date.now() - last < RETRY_WINDOW_MS;
+      if (!alreadyTried) sessionStorage.setItem(RECOVERY_KEY, String(Date.now()));
     } catch {
       /*
        * No sessionStorage means no way to know whether this is the second
@@ -115,11 +128,19 @@ export class RouteBoundary extends Component<Props, State> {
       alreadyTried = true;
     }
 
-    if (!alreadyTried) void dropCachesAndReload();
+    if (alreadyTried) this.setState({ recovering: false });
+    else void dropCachesAndReload();
   }
 
   override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
+    if (this.state.recovering) {
+      return (
+        <div className="grid h-full place-items-center bg-page" role="status" aria-label="Loading">
+          <span aria-hidden className="size-7 animate-spin rounded-full border-[3px] border-line border-t-brand" />
+        </div>
+      );
+    }
 
     return (
       <div className="grid h-full place-items-center bg-page p-6">

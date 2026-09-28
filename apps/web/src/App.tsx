@@ -17,6 +17,7 @@ import { NotificationProvider } from './features/notifications/NotificationConte
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
+import { NewBuildNavigation } from './components/NewBuildNavigation.js';
 import { RouteBoundary } from './components/RouteBoundary.js';
 import { AppLoader } from './features/loading/AppLoader.js';
 import { releaseSplash, useSplashHold } from './features/loading/splash.js';
@@ -360,6 +361,7 @@ export function App() {
             application down to a white page with no way back. See RouteBoundary
             for what that looked like and why refreshing did not clear it.
           */}
+          <NewBuildNavigation />
           <RouteBoundary>
           {/*
             Not `null`, which is what this was.

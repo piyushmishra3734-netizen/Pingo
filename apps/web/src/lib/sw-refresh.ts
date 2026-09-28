@@ -47,7 +47,53 @@ const CHECK_MS = 60 * 60 * 1000;
  */
 const RELOADED = 'pingo.sw.reloaded';
 
+/**
+ * A newer build is on the server than the one running here.
+ *
+ * Once it is, the chunks this build would ask for next are gone - a deploy
+ * replaces every hashed file - so the next screen opened would fail with
+ * "That screen did not open". Instead, the next move to another screen is made
+ * as a full page load of that screen, which fetches the new build on the way.
+ * To the person it is just the screen opening.
+ */
+let newBuildLive = false;
+
+export function newBuildWaiting(): boolean {
+  return newBuildLive;
+}
+
+/** How often returning to the app may ask the server which build it has. */
+const VERSION_CHECK_MS = 2 * 60 * 1000;
+let lastVersionCheck = 0;
+
+/**
+ * Asks the server which entry script it serves now, and notes a new build.
+ *
+ * Cheap - one small HTML file, uncached - and independent of the service
+ * worker, whose own update check can lag well behind a deploy. Skipped inside
+ * the Android app, which runs the bundle it shipped with.
+ */
+export function checkForNewBuild(): void {
+  if (newBuildLive || location.hostname === 'localhost' || location.hostname === '127.0.0.1') return;
+  if (Date.now() - lastVersionCheck < VERSION_CHECK_MS) return;
+  lastVersionCheck = Date.now();
+  const running = document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/index-"]')?.src;
+  if (!running) return;
+  void fetch('/', { cache: 'no-store', headers: { accept: 'text/html' } })
+    .then((r) => (r.ok ? r.text() : ''))
+    .then((html) => {
+      const served = /\/assets\/index-[\w-]+\.js/.exec(html)?.[0];
+      if (served && !running.endsWith(served)) newBuildLive = true;
+    })
+    .catch(() => undefined);
+}
+
 export function keepServiceWorkerFresh(): void {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForNewBuild();
+  });
+  checkForNewBuild();
+
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
   /*
@@ -57,6 +103,7 @@ export function keepServiceWorkerFresh(): void {
    * install means a genuinely new deploy - not every load.
    */
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    newBuildLive = true;
     reloadWhenUnwatched();
   });
 
