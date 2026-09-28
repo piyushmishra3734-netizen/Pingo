@@ -534,6 +534,13 @@ const en = {
     'These apply to your next call. The microphone test uses your real microphone and does not call anyone.',
 
   // in-call overlay
+  'call.kindVoice': 'PINGO voice call',
+  'call.kindVideo': 'PINGO video call',
+  'call.capMute': 'Mute',
+  'call.capUnmute': 'Unmute',
+  'call.capSpeaker': 'Speaker',
+  'call.capCamera': 'Camera',
+  'call.capShare': 'Share',
   'call.decline': 'Decline',
   'call.answer': 'Answer',
   'call.answerVideo': 'Answer with video',
@@ -1309,6 +1316,13 @@ const enGenz: Catalog = {
   'callSet.footer':
     'these hit your next call. mic test is real and doesn’t call anyone.',
 
+  'call.kindVoice': 'pingo voice call',
+  'call.kindVideo': 'pingo video call',
+  'call.capMute': 'mute',
+  'call.capUnmute': 'unmute',
+  'call.capSpeaker': 'speaker',
+  'call.capCamera': 'camera',
+  'call.capShare': 'share',
   'call.decline': 'decline',
   'call.answer': 'answer',
   'call.answerVideo': 'answer with video',

@@ -124,6 +124,64 @@ export function demoServices() {
     }),
     chat: chatProxy,
     story: stub({ listStoryGroups: async () => storyGroups(), listFriends: async () => [...PEOPLE.map((p) => p[0]), ...(await chat.listContacts()).map((u) => u.id)] }),
-    call: stub({}),
+    call: demoCalls(),
   };
+}
+
+/**
+ * A call to look at, for `?demo&call=incoming|outgoing|connected` (`&kind=video`).
+ *
+ * No media and no network: just the states the call screen draws, so its
+ * design can be worked on without two phones.
+ */
+function demoCalls() {
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('call');
+  const kind = params.get('kind') === 'video' ? 'video' : 'voice';
+  const listeners = new Set<(event: unknown) => void>();
+  let call: Record<string, unknown> | undefined;
+  const emit = (event: unknown) => listeners.forEach((fn) => fn(event));
+  const update = (changes: Record<string, unknown>) => {
+    if (!call) return;
+    call = { ...call, ...changes };
+    emit({ type: 'call:updated', call });
+  };
+  const end = () => {
+    if (!call) return;
+    const ended = { ...call, state: 'ended', endReason: 'hung-up' };
+    call = undefined;
+    emit({ type: 'call:ended', call: ended });
+  };
+  let started = false;
+  const start = () => {
+    if (!mode || started) return;
+    started = true;
+    setTimeout(() => {
+      call = {
+        id: 'demo-call',
+        peer: { userId: 'u-rohit', name: 'Rohit Verma' },
+        conversationId: 'c-rohit',
+        direction: mode === 'incoming' ? 'incoming' : 'outgoing',
+        kind,
+        state: mode === 'connected' ? 'connected' : mode === 'incoming' ? 'ringing' : 'dialling',
+        muted: false,
+        cameraOff: kind === 'voice',
+        ...(mode === 'connected' ? { connectedAt: Date.now() - 83_000 } : {}),
+      };
+      emit({ type: mode === 'incoming' ? 'call:incoming' : 'call:updated', call });
+    }, 600);
+  };
+  return stub({
+    get current() { return call; },
+    connect: async () => undefined,
+    disconnect: () => undefined,
+    // Rings once somebody is listening, so the screen never misses it.
+    subscribe: (fn: (event: unknown) => void) => { listeners.add(fn); start(); return () => listeners.delete(fn); },
+    answer: async () => update({ state: 'connected', connectedAt: Date.now() }),
+    decline: async () => end(),
+    hangUp: async () => end(),
+    setMuted: (_id: string, muted: boolean) => update({ muted }),
+    setCameraOff: (_id: string, cameraOff: boolean) => update({ cameraOff }),
+    quality: async () => undefined,
+  });
 }

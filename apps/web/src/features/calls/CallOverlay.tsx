@@ -17,6 +17,8 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import '../auth/paper.css';
+import './call-screen.css';
 import { useT } from '../i18n/useT.js';
 import { CallChatPanel, useCallChatUnread, useChatWindow } from './CallChat.js';
 import { useCall } from './CallProvider.js';
@@ -168,13 +170,13 @@ export function CallOverlay() {
           : t('call.with', { name })
       }
       className={cn(
-        'fixed inset-0 z-1000 flex flex-col items-center justify-between',
+        // fixed! - paper.css is unlayered and sets position: relative, which would win.
+        'fixed! inset-0 z-1000 flex flex-col items-center justify-between',
         /*
-          `bg-page` first, and it is not redundant. `brand-wash` is a translucent
-          tint - on its own the chat list shows straight through a ringing call,
-          which reads as a broken overlay rather than a screen.
+          PINGO paper, the same ground as sign-in, and opaque - the chat list
+          must never show through a ringing call.
         */
-        'bg-page px-6 pt-24 pb-24',
+        'paper-ground px-6 pt-[max(5.5rem,calc(env(safe-area-inset-top)+4rem))] pb-[max(3rem,calc(env(safe-area-inset-bottom)+2rem))]',
         'animate-fade-in',
       )}
     >
@@ -208,9 +210,7 @@ export function CallOverlay() {
         />
       ) : showingRemote ? (
         <RemoteVideo stream={primaryRemote} />
-      ) : (
-        <div className="pointer-events-none absolute inset-0 bg-brand-wash" aria-hidden />
-      )}
+      ) : null}
 
       {/*
         The picture and the name are for the part of a call where there is
@@ -232,15 +232,37 @@ export function CallOverlay() {
           (showingRemote || Boolean(sharedScreen)) && 'pointer-events-none opacity-0',
         )}
       >
+        <p className="text-[11.5px] font-semibold tracking-[0.16em] text-text-tertiary uppercase">
+          {video ? t('call.kindVideo') : t('call.kindVoice')}
+        </p>
         {roster ? (
           <CallRoster participants={roster} streams={remoteStreams} video={video} />
         ) : (
-          <Avatar name={name} id={call.peer.userId} src={known?.avatarUrl} size="2xl" />
+          /*
+            The face in the PINGO ring, with ripples until somebody is on the
+            line - the one moving thing on a screen that is otherwise waiting.
+          */
+          <div className={cn('call-face', !connected && 'call-ripple')}>
+            <Avatar name={name} id={call.peer.userId} src={known?.avatarUrl} size="2xl" />
+          </div>
         )}
 
-        <div className="text-center">
-          <h1 className="text-h1 text-ink">{name}</h1>
-          <p className="mt-1 text-body text-text-secondary" aria-live="polite">
+        <div className="flex flex-col items-center text-center">
+          <h1 className="text-[32px] leading-tight font-bold tracking-[-0.03em] text-ink">{name}</h1>
+          <p
+            className={cn(
+              'mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3.5 py-1.5',
+              'text-caption font-medium text-text-secondary tabular-nums',
+            )}
+            aria-live="polite"
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'size-2 shrink-0 rounded-full',
+                connected ? 'bg-online' : 'animate-pulse bg-brand',
+              )}
+            />
             <StatusLine
               state={call.state}
               direction={call.direction}
@@ -341,9 +363,10 @@ export function CallOverlay() {
       ) : null}
 
       {incoming ? (
-        <div className="relative flex w-full max-w-xs items-center justify-between">
+        <div className="relative flex w-full max-w-xs items-start justify-between">
           <CallAction
             label={t('call.decline')}
+            caption={t('call.decline')}
             tone="end"
             size="lg"
             onClick={() => void decline()}
@@ -357,8 +380,10 @@ export function CallOverlay() {
 
           <CallAction
             label={video ? t('call.answerVideo') : t('call.answer')}
+            caption={t('call.answer')}
             tone="answer"
             size="lg"
+            pulse
             onClick={() => void answer()}
           >
             {video ? <VideoIcon size={26} /> : <PhoneIcon size={26} />}
@@ -380,10 +405,18 @@ export function CallOverlay() {
           button exactly as much weight as "flip camera" is how people press it
           by accident.
         */
-        <div className="relative flex flex-col items-center gap-4">
-          <div className="flex items-center justify-center gap-2.5">
+        <div className="relative flex w-full max-w-sm flex-col items-center gap-6">
+          <div
+            className={cn(
+              'flex w-full items-start justify-center gap-5 px-4 py-4',
+              // A card on the paper; nothing over a picture, where it would hide the face.
+              !showingRemote && !sharedScreen && 'rounded-[28px] border border-line bg-surface/75 shadow-sm backdrop-blur-md',
+            )}
+          >
             <CallAction
               label={call.muted ? t('call.unmuteMic') : t('call.muteMic')}
+              caption={call.muted ? t('call.capUnmute') : t('call.capMute')}
+              onMedia={showingRemote}
               tone="neutral"
               pressed={call.muted}
               onClick={toggleMute}
@@ -394,6 +427,8 @@ export function CallOverlay() {
             {video ? (
               <CallAction
                 label={call.cameraOff ? t('call.cameraOn') : t('call.cameraOff')}
+                caption={t('call.capCamera')}
+                onMedia={showingRemote}
                 tone="neutral"
                 pressed={call.cameraOff}
                 onClick={toggleCamera}
@@ -411,6 +446,8 @@ export function CallOverlay() {
             {speaker && (
               <CallAction
                 label={speaker.on ? t('call.speakerOff') : t('call.speakerOn')}
+                caption={t('call.capSpeaker')}
+                onMedia={showingRemote}
                 tone="neutral"
                 pressed={speaker.on}
                 onClick={speaker.toggle}
@@ -445,6 +482,8 @@ export function CallOverlay() {
             toggleScreenShare ? (
               <CallAction
                 label={call.screenSharing ? t('call.stopShare') : t('call.shareScreen')}
+                caption={t('call.capShare')}
+                onMedia={showingRemote}
                 /*
                   Brand, not the "off" ink chip the other toggles use. Every
                   other switch here turns something of yours off; this one is
@@ -472,6 +511,8 @@ export function CallOverlay() {
             {connected && sendChat ? (
               <CallAction
                 label={t('call.chatTitle')}
+                caption={t('call.chatTitle')}
+                onMedia={showingRemote}
                 tone="neutral"
                 pressed={chatOpen}
                 badge={unread}
@@ -489,7 +530,7 @@ export function CallOverlay() {
             */}
           </div>
 
-          <CallAction label={t('call.end')} tone="end" size="lg" onClick={() => void hangUp()}>
+          <CallAction label={t('call.end')} tone="end" size="lg" wide onClick={() => void hangUp()}>
             <PhoneIcon size={26} className="rotate-[135deg]" />
           </CallAction>
         </div>
@@ -960,76 +1001,98 @@ function StatusLine({
   }
 }
 
-/** A large round call button. Big enough to hit without looking. */
+/** A call button: a big target, and a word under it so nobody has to guess. */
 function CallAction({
   label,
+  caption,
   tone,
   pressed,
   badge,
   size = 'md',
+  wide = false,
+  pulse = false,
+  onMedia = false,
   onClick,
   children,
 }: {
   label: string;
+  /** The word under the button. The full `label` stays for screen readers. */
+  caption?: string;
   /**
    * `neutral` is a switch, `active` is a switch that is broadcasting, and the
-   * other two are the two ways a call begins and ends. They are separated
-   * because colour here is meaning, not decoration: red appears exactly once on
-   * this screen and it is the thing you cannot undo.
+   * other two are the two ways a call begins and ends. Colour here is meaning:
+   * red appears exactly once on this screen and it is the thing you cannot undo.
    */
   tone: 'answer' | 'end' | 'neutral' | 'active';
   pressed?: boolean;
   /** A count to show on the corner. Zero draws nothing. */
   badge?: number;
-  /** `lg` is for the two buttons that start and end a call. */
+  /** `lg` is for the buttons that start and end a call. */
   size?: 'md' | 'lg';
+  /** Hang-up as a pill rather than a circle: the one control that is never a switch. */
+  wide?: boolean;
+  /** Breathes while ringing, so the answer button is found at a glance. */
+  pulse?: boolean;
+  /** Sitting over a picture rather than the page. */
+  onMedia?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={badge ? `${label}, ${badge} new` : label}
-      aria-pressed={tone === 'neutral' || tone === 'active' ? pressed : undefined}
-      onClick={onClick}
-      className={cn(
-        'focus-ring relative grid shrink-0 place-items-center rounded-full',
-        size === 'lg' ? 'size-16' : 'size-12',
-        'transition-[transform,background-color] duration-instant ease-standard active:scale-95',
-        tone === 'answer' && 'bg-online text-white shadow-md',
-        tone === 'end' && 'bg-danger text-white shadow-lg',
-        tone === 'active' && 'bg-brand text-white shadow-md',
-        /*
-          Solid, and inverted when the switch is on.
-
-          Dark circle with a white glyph is the resting state, and it holds
-          against everything this screen can put behind it: a face, a shared
-          document, the plain page of a voice call. The glass version borrowed
-          its colour from whatever was underneath, which meant the controls
-          changed shade whenever the other person moved.
-
-          Flipping to white is how "muted" and "camera off" announce
-          themselves. It is the loudest thing available and it is spent on the
-          two states somebody needs to notice they are in.
-        */
-        tone === 'neutral' &&
-          (pressed ? 'bg-white text-ink shadow-md' : 'bg-ink/85 text-white shadow-sm'),
-      )}
-    >
-      {children}
-      {badge ? (
+    <div className="flex shrink-0 flex-col items-center gap-2">
+      <button
+        type="button"
+        aria-label={badge ? `${label}, ${badge} new` : label}
+        aria-pressed={tone === 'neutral' || tone === 'active' ? pressed : undefined}
+        onClick={onClick}
+        className={cn(
+          'focus-ring relative grid shrink-0 place-items-center',
+          wide ? 'h-16 w-40 rounded-full' : size === 'lg' ? 'size-[72px] rounded-full' : 'size-14 rounded-full',
+          'transition-[transform,background-color] duration-instant ease-standard active:scale-95',
+          tone === 'answer' && 'bg-online text-white shadow-md',
+          tone === 'answer' && pulse && 'call-answer-pulse',
+          tone === 'end' && 'bg-danger text-white shadow-lg',
+          tone === 'active' && 'bg-brand text-white shadow-md',
+          /*
+            Paper on the page, dark glass over a picture - and inverted when the
+            switch is on, which is how "muted" announces itself.
+          */
+          tone === 'neutral' &&
+            (onMedia
+              ? pressed
+                ? 'bg-white text-ink shadow-md'
+                : 'bg-black/45 text-white backdrop-blur-md'
+              : pressed
+                ? 'bg-ink text-page shadow-md'
+                : 'border border-line bg-surface text-ink shadow-sm'),
+        )}
+      >
+        {children}
+        {badge ? (
+          <span
+            aria-hidden
+            className={cn(
+              'absolute -top-0.5 -right-0.5 grid min-w-5 place-items-center',
+              'rounded-full bg-brand px-1.5 py-0.5',
+              'text-caption font-semibold text-white tabular-nums',
+            )}
+          >
+            {badge > 9 ? '9+' : badge}
+          </span>
+        ) : null}
+      </button>
+      {caption ? (
         <span
           aria-hidden
           className={cn(
-            'absolute -top-0.5 -right-0.5 grid min-w-5 place-items-center',
-            'rounded-full bg-brand px-1.5 py-0.5',
-            'text-caption font-semibold text-white tabular-nums',
+            'text-[12.5px] font-medium',
+            onMedia ? 'text-white/90 drop-shadow' : 'text-text-secondary',
           )}
         >
-          {badge > 9 ? '9+' : badge}
+          {caption}
         </span>
       ) : null}
-    </button>
+    </div>
   );
 }
 
