@@ -843,3 +843,36 @@ video {
 .ig-typing i:nth-child(3) { animation-delay: .3s; }
 @keyframes ig-typing { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: .9; } }
 @media (prefers-reduced-motion: reduce) { .ig-typing i { animation: none; } }
+
+/* The song card's bar: white fill up to where it is playing, a round thumb to drag. */
+.song-seek {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+.song-seek::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #fff var(--p, 0%), rgb(255 255 255 / 0.3) var(--p, 0%));
+}
+.song-seek::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, #fff var(--p, 0%), rgb(255 255 255 / 0.3) var(--p, 0%));
+}
+.song-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+.song-seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+}

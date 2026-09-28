@@ -10,6 +10,8 @@ import { readDraft, saveDraft } from './drafts.js';
 import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
 import { VoiceRecorderBar } from './VoiceRecorderBar.js';
+import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
+import { songBody } from '../music/song-share.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
 
 /** Someone you can @mention from the composer. */
@@ -153,7 +155,7 @@ export function Composer({
    * everybody's memory of the app.
    */
   useBackStep(pickerOpen, () => setPickerOpen(false));
-  const [tab, setTab] = useState<'emoji' | 'stickers'>('emoji');
+  const [tab, setTab] = useState<'emoji' | 'stickers' | 'music'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
 
@@ -499,6 +501,14 @@ export function Composer({
                 textareaRef.current?.focus();
               }}
               onClose={() => setPickerOpen(false)}
+            />
+          ) : tab === 'music' ? (
+            <ChatMusicPicker
+              onSelect={(song) => {
+                // A song is the whole message, like a sticker: sent straight away.
+                setPickerOpen(false);
+                void Promise.resolve(onSend(songBody(song))).catch(() => setError('That song could not be sent.'));
+              }}
             />
           ) : (
             <StickerPicker
@@ -932,8 +942,8 @@ function PickerTabs({
   onTab,
   showStickers,
 }: {
-  tab: 'emoji' | 'stickers';
-  onTab: (next: 'emoji' | 'stickers') => void;
+  tab: 'emoji' | 'stickers' | 'music';
+  onTab: (next: 'emoji' | 'stickers' | 'music') => void;
   showStickers: boolean;
 }) {
   if (!showStickers) return null;
@@ -941,6 +951,7 @@ function PickerTabs({
   const tabs = [
     { id: 'emoji' as const, label: 'Emoji' },
     { id: 'stickers' as const, label: 'Stickers' },
+    { id: 'music' as const, label: 'Music' },
   ];
 
   return (

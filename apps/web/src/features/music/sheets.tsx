@@ -39,6 +39,20 @@ export const toSong = (r: ApiSong): Song | undefined => {
   return { name: decode(r.name), artist: decode((r.artists?.primary ?? []).map((a) => a.name).slice(0, 2).join(', ')), img: r.image?.[1]?.url ?? r.image?.[0]?.url ?? '', url, secs: r.duration ?? 180, start: 30 };
 };
 
+/** Songs for a search, or the "For you" playlist when the query is empty. Empty on any failure. */
+export async function fetchSongs(query: string): Promise<Song[]> {
+  try {
+    const r = await fetch(query ? `${MUSIC}/search/songs?query=${encodeURIComponent(query)}&limit=20` : `${MUSIC}/playlists?id=110858205&limit=25`);
+    const j = (await r.json()) as { data: { results?: ApiSong[]; songs?: ApiSong[] } };
+    return ((query ? j.data.results : j.data.songs) ?? []).map(toSong).filter((s): s is Song => !!s);
+  } catch {
+    return [];
+  }
+}
+
+/** The shelves above the list, shared by the story sheet and the chat's Music tab. */
+export const MUSIC_TABS: [string, string][] = [['For you', ''], ['Trending', 'trending hits'], ['Hindi', 'latest hindi songs'], ['Punjabi', 'punjabi hits']];
+
 export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void; chooseSong: (s: Song) => void }) {
   const [tab, setTab] = useState('');
   const [q, setQ] = useState('');
@@ -46,15 +60,11 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
   const [playing, setPlaying] = useState<string>();
   const load = useCallback(async (query: string) => {
     setList(undefined);
-    try {
-      const r = await fetch(query ? `${MUSIC}/search/songs?query=${encodeURIComponent(query)}&limit=20` : `${MUSIC}/playlists?id=110858205&limit=25`);
-      const j = (await r.json()) as { data: { results?: ApiSong[]; songs?: ApiSong[] } };
-      setList(((query ? j.data.results : j.data.songs) ?? []).map(toSong).filter((s): s is Song => !!s));
-    } catch { setList([]); }
+    setList(await fetchSongs(query));
   }, []);
   useEffect(() => { const t = window.setTimeout(() => void load(q.trim() || tab), q ? 350 : 0); return () => window.clearTimeout(t); }, [q, tab, load]);
   useEffect(() => () => p.onPreview(undefined), [p]);
-  const tabs: [string, string][] = [['For you', ''], ['Trending', 'trending hits'], ['Hindi', 'latest hindi songs'], ['Punjabi', 'punjabi hits']];
+  const tabs = MUSIC_TABS;
   return (
     <Panel onClose={p.close}>
       <label className="mx-3.5 mb-2.5 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-media-field px-3 text-white/55">
