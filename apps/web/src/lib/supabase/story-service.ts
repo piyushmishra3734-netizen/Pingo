@@ -480,7 +480,7 @@ export class SupabaseStoryService implements StoryService {
         // Either kind of story can carry sound - see 20260913000000.
         ...((audioRow.length > 0 ? { audio: audioRow } : {}) as Record<string, never>),
         // Stickers as data - see 20260927000000.
-        ...((draft.decor?.stickers.length || draft.decor?.filter || draft.decor?.bg || draft.decor?.from || (draft.decor?.boom && draft.decor.boom !== 'off')
+        ...((draft.decor?.stickers.length || draft.decor?.filter || draft.decor?.bg || draft.decor?.from || draft.decor?.frame || (draft.decor?.boom && draft.decor.boom !== 'off')
           ? { decor: draft.decor }
           : {}) as Record<string, never>),
       })

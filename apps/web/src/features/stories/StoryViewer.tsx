@@ -22,6 +22,7 @@ import { StorySound, soundLength } from './StorySound.js';
 import { MAX_STORY_SECONDS } from './story-audio.js';
 import { useStoryPlayer } from './useStoryPlayer.js';
 import { useBoomerang } from './Boomerang.js';
+import { framedRect, washOf, type Box } from './media-frame.js';
 import { ActivitySheet, MyMenu, OtherMenu, SendStorySheet } from './ViewerSheets.js';
 
 /**
@@ -595,6 +596,18 @@ function StoryVideo({
   const framed = Boolean(edit?.rotate || edit?.crop || overlay.length > 0 || strokes.length > 0);
   const box = useContainBox(stage, framed && ratio ? pictureRatio(ratio, edit?.rotate ?? 0, edit?.crop) : undefined);
   const geometry = box ? videoGeometry(box, edit?.rotate ?? 0, edit?.crop) : undefined;
+
+  // Placed in the editor - moved or resized over its own colours. See media-frame.ts.
+  const frame = story.decor?.frame;
+  const [stageBox, setStageBox] = useState<Box>();
+  useEffect(() => {
+    const el = stage.current; if (!el || !frame) return;
+    const read = () => setStageBox({ width: el.clientWidth, height: el.clientHeight });
+    read();
+    const observer = new ResizeObserver(read); observer.observe(el);
+    return () => observer.disconnect();
+  }, [frame]);
+  const placed = frame && !geometry && ratio && stageBox ? framedRect(stageBox, { width: ratio, height: 1 }, frame) : undefined;
   const loops = soundLength(story.audio) * 1000 > clipMs + 150;
 
   const media = (
@@ -638,9 +651,10 @@ function StoryVideo({
         m.currentTime = story.videoEdit?.trimStart ?? 0;
         void m.play().catch(() => undefined);
       }}
-      className={cn('select-none', !geometry && 'absolute inset-0 size-full object-cover')}
+      className={cn('select-none', !geometry && 'absolute', !geometry && !placed && 'inset-0 size-full object-cover')}
       style={{
         ...(geometry ? geometry.video : {}),
+        ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}),
         ...(story.decor?.filter ? { filter: story.decor.filter } : {}),
       }}
     />
@@ -648,7 +662,7 @@ function StoryVideo({
 
   return (
     <>
-      <div ref={stage} className="pointer-events-none absolute inset-0 grid place-items-center">
+      <div ref={stage} className="pointer-events-none absolute inset-0 grid place-items-center" style={frame && !geometry ? { background: washOf(frame.bg) } : undefined}>
         {geometry && box ? (
           <div className="relative overflow-hidden" style={{ width: box.width, height: box.height }}>
             <div style={geometry.picture}>{media}</div>
@@ -657,7 +671,7 @@ function StoryVideo({
         ) : (
           media
         )}
-        {boom === 'echo' && !geometry && (
+        {boom === 'echo' && !geometry && !placed && (
           <video ref={echo} src={story.mediaUrl} muted playsInline autoPlay className="absolute inset-0 size-full scale-[1.02] object-cover opacity-40 mix-blend-screen" />
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryBoom, type StoryDecor, type StoryDraft, type StorySticker } from '@pingo/core';
+import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryBoom, type StoryDecor, type StoryDraft, type StoryFrame, type StorySticker } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import {
   AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronLeft, CircleCheck, Circle,
@@ -16,6 +16,7 @@ import { useStories } from './StoryContext.js';
 import { MenuGroup, MenuRow, SheetSearch } from './StorySheet.js';
 import { BOOMS, BoomerangMode, useBoomerang } from './Boomerang.js';
 import type { StoryFrom } from './StoryUpload.js';
+import { SCALE_MAX, SCALE_MIN, coverScale, framedRect, initialFrame, paletteOf, washOf, type Box } from './media-frame.js';
 import { Blue, ClipSheet, Field, MusicSheet, Panel, type Song } from '../music/sheets.js';
 
 /**
@@ -110,6 +111,35 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
 
   const filter = FILTERS[filterI]![1];
 
+  /*
+   * Where the photo or video sits, and what is behind it - see media-frame.ts.
+   * Unknown until the media has loaded and told us its shape; until then it is
+   * drawn filling the frame, as it always was. Not used for a shared post,
+   * which brings its own background.
+   */
+  const [natural, setNatural] = useState<Box>();
+  const [frame, setFrame] = useState<StoryFrame>();
+  const [wash, setWash] = useState<[string, string]>();
+  const [stageBox, setStageBox] = useState<Box>();
+  useLayoutEffect(() => {
+    const el = stage.current; if (!el) return;
+    const read = () => setStageBox({ width: el.clientWidth, height: el.clientHeight });
+    read();
+    const observer = new ResizeObserver(read); observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const learnMedia = (el: HTMLImageElement | HTMLVideoElement) => {
+    if (bg) return;
+    const box = el instanceof HTMLVideoElement ? { width: el.videoWidth, height: el.videoHeight } : { width: el.naturalWidth, height: el.naturalHeight };
+    if (!box.width || !box.height) return;
+    setNatural(box);
+    setWash(paletteOf(el));
+    const here = stage.current;
+    if (here && !frame) setFrame(initialFrame({ width: here.clientWidth, height: here.clientHeight }, box));
+  };
+  const placed = !bg && natural && frame && stageBox ? framedRect(stageBox, natural, frame) : undefined;
+  const clampScale = (v: number) => Math.max(SCALE_MIN, Math.min(SCALE_MAX, v));
+
   // ---- stickers --------------------------------------------------------------
 
   /** New stickers are measured once drawn, then moved to where they cover the least. */
@@ -167,6 +197,12 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const g = useRef<{
     id?: string; el?: HTMLElement; pts: Map<number, { x: number; y: number }>; x0: number; y0: number; sx: number; sy: number;
     t: number; moved: boolean; editable?: boolean; pinch?: { d: number; a: number; s: number; r: number }; hot?: boolean; dx?: number;
+    /** On the picture itself: which way the first move went (x changes the filter, y moves the picture). */
+    axis?: 'x' | 'y';
+    /** The picture's place when this gesture took hold of it. */
+    f0?: StoryFrame;
+    /** Two fingers on the picture: their distance and midpoint at the start. */
+    mpinch?: { d: number; mx: number; my: number };
   } | undefined>(undefined);
   const binRef = useRef<HTMLDivElement>(null);
 
@@ -192,13 +228,48 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       return;
     }
-    g.current = { pts: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]), x0: e.clientX, y0: e.clientY, sx: 0, sy: 0, t: performance.now(), moved: false };
+    if (cur && !cur.id && cur.pts.size === 1 && frame && !bg) {
+      // A second finger on the picture: pinch to size it, move both to place it.
+      cur.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const [a, b] = [...cur.pts.values()] as [{ x: number; y: number }, { x: number; y: number }];
+      cur.mpinch = { d: Math.hypot(b.x - a.x, b.y - a.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+      cur.f0 = frame; cur.moved = true; cur.axis = 'y'; setFname(undefined);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
+    g.current = { pts: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]), x0: e.clientX, y0: e.clientY, sx: 0, sy: 0, t: performance.now(), moved: false, ...(frame ? { f0: frame } : {}) };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onMove = (e: React.PointerEvent) => {
     const cur = g.current; if (!cur || !cur.pts.has(e.pointerId)) return;
     cur.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (!cur.id) { cur.dx = e.clientX - cur.x0; if (Math.abs(cur.dx) > 12) setFname(FILTERS[wrap(filterI + Math.round(-cur.dx / 90))]![0]); return; }
+    if (!cur.id) {
+      const r = stage.current?.getBoundingClientRect();
+      if (cur.mpinch && cur.f0 && r && cur.pts.size === 2) {
+        const [a, b] = [...cur.pts.values()] as [{ x: number; y: number }, { x: number; y: number }];
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        setFrame({ ...cur.f0, s: clampScale(cur.f0.s * Math.hypot(b.x - a.x, b.y - a.y) / cur.mpinch.d), x: cur.f0.x + (mx - cur.mpinch.mx) / r.width, y: cur.f0.y + (my - cur.mpinch.my) / r.height });
+        return;
+      }
+      const dx = e.clientX - cur.x0, dy = e.clientY - cur.y0;
+      /*
+       * One finger: sideways changes the filter, as it always did; up or down
+       * takes hold of the picture, which can then go anywhere. Decided by the
+       * first ten pixels, so neither gets in the other's way.
+       */
+      if (!cur.axis && Math.hypot(dx, dy) > 10) cur.axis = Math.abs(dx) > Math.abs(dy) || !cur.f0 || bg ? 'x' : 'y';
+      if (cur.axis === 'y' && cur.f0 && r) {
+        cur.moved = true;
+        let x = cur.f0.x + dx / r.width, y = cur.f0.y + dy / r.height;
+        const gv = Math.abs(x) < 0.02, gh = Math.abs(y) < 0.02;
+        if (gv) x = 0; if (gh) y = 0;
+        setDragging({ hot: false, gv, gh });
+        setFrame({ ...cur.f0, x, y });
+        return;
+      }
+      if (cur.axis === 'x') { cur.dx = dx; setFname(FILTERS[wrap(filterI + Math.round(-dx / 90))]![0]); }
+      return;
+    }
     const s = stickers.find((x) => x.id === cur.id); const r = stage.current?.getBoundingClientRect(); if (!s || !r) return;
     if (cur.pinch && cur.pts.size === 2) {
       const [a, b] = [...cur.pts.values()] as [{ x: number; y: number }, { x: number; y: number }];
@@ -221,7 +292,12 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const onUp = (e: React.PointerEvent) => {
     const cur = g.current; if (!cur || !cur.pts.has(e.pointerId)) return;
     cur.pts.delete(e.pointerId);
-    if (cur.pts.size) { cur.pinch = undefined; const [p] = [...cur.pts.values()] as [{ x: number; y: number }]; const s = stickers.find((x) => x.id === cur.id); cur.x0 = p.x; cur.y0 = p.y; cur.sx = s?.x ?? 0; cur.sy = s?.y ?? 0; return; }
+    if (cur.pts.size) {
+      const [p] = [...cur.pts.values()] as [{ x: number; y: number }];
+      // One finger left on the picture carries on moving it from where it is now.
+      if (!cur.id) { cur.mpinch = undefined; cur.x0 = p.x; cur.y0 = p.y; if (frame) cur.f0 = frame; return; }
+      cur.pinch = undefined; const s = stickers.find((x) => x.id === cur.id); cur.x0 = p.x; cur.y0 = p.y; cur.sx = s?.x ?? 0; cur.sy = s?.y ?? 0; return;
+    }
     g.current = undefined; setDragging(undefined);
     if (cur.id) {
       if (cur.hot) { remove(cur.id); return; }
@@ -229,6 +305,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       if (s && !cur.moved && performance.now() - cur.t < 350) tapSticker(s, e.target as HTMLElement);
       return;
     }
+    if (cur.axis === 'y' || cur.mpinch) return; // the picture was moved, not tapped
     if (Math.abs(cur.dx ?? 0) > 12) { setFilterI((i) => wrap(i + Math.round(-(cur.dx ?? 0) / 90))); return; }
     if (performance.now() - cur.t < 400) { setEditingText(undefined); setMode('text'); } // tap anywhere to type
   };
@@ -280,9 +357,20 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
       g2.fillStyle = grad; g2.fillRect(0, 0, W, CH);
     } else {
       const img = mediaEl.current as HTMLImageElement;
+      // Where it was placed, over its colours - the same sums as on screen.
+      const nat = { width: img.naturalWidth, height: img.naturalHeight };
+      const place = frame && box && box.width ? framedRect({ width: W, height: CH }, nat, frame) : undefined;
+      if (place) {
+        const [top, bottom] = wash ?? ['#3a3a40', '#1c1c1e'];
+        const grad = g2.createLinearGradient(0, 0, 0, CH); grad.addColorStop(0, top); grad.addColorStop(1, bottom);
+        g2.fillStyle = grad; g2.fillRect(0, 0, W, CH);
+      }
       if ('filter' in g2 && filter) g2.filter = filter;
-      const k = Math.max(W / img.naturalWidth, CH / img.naturalHeight);
-      g2.drawImage(img, (W - img.naturalWidth * k) / 2, (CH - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      if (place) g2.drawImage(img, place.left, place.top, place.width, place.height);
+      else {
+        const k = Math.max(W / img.naturalWidth, CH / img.naturalHeight);
+        g2.drawImage(img, (W - img.naturalWidth * k) / 2, (CH - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      }
       g2.filter = 'none';
     }
     if (ink.current && strokes.length) g2.drawImage(ink.current, 0, 0, W, CH);
@@ -319,7 +407,14 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         const sound = await decodeSound(new File([bytes], song.name, { type: bytes.type || 'audio/mp4' }));
         audio = [{ blob: cutToWav(sound.buffer, song.start, Math.min(sound.buffer.duration, song.start + 15)), at: 0, duration: 15, volume: 1 }];
       }
-      const decor: StoryDecor = { v: 1, stickers, ...(from ? { from } : {}), ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}), ...(kind === 'video' && boom !== 'off' ? { boom } : {}) };
+      /*
+       * A video cannot have its place baked in without re-encoding it, so the
+       * viewer is told where to put it. Left out when it simply fills the frame,
+       * which is what the viewer does anyway.
+       */
+      const moved = kind === 'video' && !bg && frame && natural && stageBox
+        && (Math.abs(frame.x) > 0.005 || Math.abs(frame.y) > 0.005 || Math.abs(frame.s - coverScale(stageBox, natural)) > 0.01);
+      const decor: StoryDecor = { v: 1, stickers, ...(from ? { from } : {}), ...(kind === 'video' && filter ? { filter } : {}), ...(bg ? { bg } : {}), ...(kind === 'video' && boom !== 'off' ? { boom } : {}), ...(moved && frame ? { frame: { x: frame.x, y: frame.y, s: frame.s, ...(wash ? { bg: wash } : {}) } } : {}) };
       const clip = kind === 'video' ? (mediaEl.current as HTMLVideoElement | null)?.duration : undefined;
       const trimmed = clip && (trim[0] > 0 || trim[1] < 1) ? { videoEdit: { trimStart: trim[0] * clip, trimEnd: trim[1] * clip } } : {};
       setBusy('Sharing…');
@@ -389,10 +484,11 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} style={{ touchAction: 'none' }}>
         {/* the frame: the whole screen down to the bar, as the sample's; a phone's column on a wide screen */}
         <div className="relative mx-auto h-full w-full max-w-[calc(100dvh*0.5)]">
-          <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-b-[16px]" style={{ background: bg ?? '#111' }}>
+          <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-b-[16px]" style={{ background: bg ?? (wash ? washOf(wash) : '#111') }}
+            onWheel={(e) => { if (!bg && frame) setFrame({ ...frame, s: clampScale(frame.s * Math.exp(-e.deltaY * 0.0015)) }); }}>
             {kind === 'video'
-              ? <video ref={mediaEl} src={src} className="absolute inset-0 size-full object-cover" style={{ filter }} autoPlay loop muted playsInline />
-              : !bg && <img ref={mediaEl} src={src} alt="" className="absolute inset-0 size-full object-cover" style={{ filter }} draggable={false} crossOrigin="anonymous" />}
+              ? <video ref={mediaEl} data-story-media src={src} onLoadedData={(e) => learnMedia(e.currentTarget)} className={cn('absolute', !placed && 'inset-0 size-full object-cover')} style={{ filter, ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}) }} autoPlay loop muted playsInline />
+              : !bg && <img ref={mediaEl} data-story-media src={src} alt="" onLoad={(e) => learnMedia(e.currentTarget)} className={cn('absolute', !placed && 'inset-0 size-full object-cover')} style={{ filter, ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}) }} draggable={false} crossOrigin="anonymous" />}
             <canvas ref={ink} width={W} height={H} className="pointer-events-none absolute inset-0 size-full" />
             <div ref={layer} className="sk-layer inset-0">
               {stickers.map((s) => (
