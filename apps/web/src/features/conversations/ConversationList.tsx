@@ -19,11 +19,12 @@ import {
   SearchField,
   cn,
 } from '@pingo/ui';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { canAccessCommunities } from '../../lib/community-access.js';
+import { lazyNamed, whenIdle } from '../../lib/lazy-named.js';
 import { connectionTitle, useConnectionStatus } from '../connection/useConnectionStatus.js';
 import { useT } from '../i18n/useT.js';
 import { usePreferences } from '../settings/SettingsContext.js';
@@ -33,8 +34,6 @@ import { JourneyStrip } from '../journey/JourneyStrip.js';
 import { useJourneyProgress } from '../journey/useJourneyProgress.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { useBackStep } from '../navigation/useBackStep.js';
-import { StoryComposer } from '../stories/StoryComposer.js';
-import { StoryViewer } from '../stories/StoryViewer.js';
 import { LiveCreateSheet } from '../live/LiveCreateSheet.js';
 import { LiveBanner } from '../live/LiveBanner.js';
 import { useLive } from '../live/LiveContext.js';
@@ -47,6 +46,11 @@ import { NewChatMenu } from './NewChatMenu.js';
 import { SelectionBar, SelectionMenuItem } from './SelectionBar.js';
 import { useConversationActions } from './useConversationActions.js';
 import { useUnmuteConfirm } from './useUnmuteConfirm.js';
+
+// Opened from here, but not needed to draw the list: fetched when first shown,
+// or once the list has settled (see the preload below).
+const StoryViewer = lazyNamed(() => import('../stories/StoryViewer.js'), 'StoryViewer');
+const StoryComposer = lazyNamed(() => import('../stories/StoryComposer.js'), 'StoryComposer');
 
 /**
  * The conversation list - header, search, filters, rows, selection.
@@ -95,6 +99,9 @@ export function ConversationList({
    * thread each time a message arrives — see `useJourneyProgress`.
    */
   const journey = useJourneyProgress();
+
+  // Warm the story viewer once the list is up, so the first tap on a ring does not wait for it.
+  useEffect(() => (ready ? whenIdle(() => void StoryViewer.preload()) : undefined), [ready]);
   const { profile, service: profiles } = useProfile();
   const { groups: storyGroups, uploading: storyUploading } = useStories();
   const navigate = useNavigate();
@@ -810,6 +817,7 @@ export function ConversationList({
       </div>
 
       {openStory && (
+        <Suspense fallback={null}>
         <StoryViewer
           groups={storyGroups}
           startGroupIndex={openStory.index}
@@ -817,10 +825,13 @@ export function ConversationList({
           origin={openStory.origin}
           onClose={() => setOpenStory(undefined)}
         />
+        </Suspense>
       )}
 
       {creating && (
-        <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} onLive={() => navigate('/live/setup')} />
+        <Suspense fallback={null}>
+          <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} onLive={() => navigate('/live/setup')} />
+        </Suspense>
       )}
 
       {choosingCreate && (

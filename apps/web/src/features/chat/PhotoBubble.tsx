@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { saveImage } from '../native/save-image.js';
 import { secureScreen } from '../native/secure-screen.js';
-import { ImageViewer } from '../profile/ImageViewer.js';
+import { lazySuspended } from '../../lib/lazy-named.js';
+
+const ImageViewer = lazySuspended(() => import('../profile/ImageViewer.js'), 'ImageViewer');
 import { useOfflineMedia } from './useOfflineVideo.js';
 import { MessageText } from './MessageText.js';
 
@@ -112,9 +114,15 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
    * its bytes are meant to be spent, not kept, and writing it to disk would be
    * the opposite of what the limit promises.
    */
-  const offline = useOfflineMedia(message.id, limited ? undefined : url, () => {
-    void service.confirmMediaReceived?.(message.id).catch(() => undefined);
-  });
+  const offline = useOfflineMedia(
+    message.id,
+    limited ? undefined : url,
+    () => {
+      void service.confirmMediaReceived?.(message.id).catch(() => undefined);
+    },
+    // One download per photo, and none for a photo already kept: see `holdRemote`.
+    true,
+  );
   const shown = limited ? url : offline.src;
   /** This exact source has already been tried and did not load. */
   const broken = failedSrc !== undefined && failedSrc === shown;

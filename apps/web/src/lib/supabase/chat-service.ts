@@ -90,6 +90,7 @@ import { recordMetric } from '../net-metrics.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
 import { toStandardQuality } from '../../features/chat/media-quality.js';
+import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { putMedia } from '../../features/chat/video-vault.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
@@ -3724,7 +3725,9 @@ export class SupabaseChatService implements ChatService {
 
     const { error } = await this.#client.storage
       .from(bucket)
-      .upload(path, body, { contentType });
+      // Every path is a fresh uuid, so the bytes behind it never change: let
+      // anything in between keep them for as long as it likes.
+      .upload(path, body, { contentType, cacheControl: IMMUTABLE_CACHE_SECONDS });
 
     if (error) {
       // The claim outlives a failed upload harmlessly: there is no object, so

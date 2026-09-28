@@ -1,8 +1,10 @@
 import { cn } from '@pingo/ui';
 import { CirclePlus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 
-import { StoryEditor } from './StoryEditor.js';
+import { lazyNamed } from '../../lib/lazy-named.js';
+
+const StoryEditor = lazyNamed(() => import('./StoryEditor.js'), 'StoryEditor');
 import { useStories } from './StoryContext.js';
 import type { StoryMention } from './story-mentions.js';
 
@@ -79,6 +81,7 @@ export function StoryMentionCard({ mention, mine, otherName }: { mention: StoryM
         </button>
       )}
       {editing && found && (
+        <Suspense fallback={null}>
         <StoryEditor
           src={editing.src}
           kind={editing.kind}
@@ -90,6 +93,7 @@ export function StoryMentionCard({ mention, mine, otherName }: { mention: StoryM
             setEditing(undefined);
           }}
         />
+        </Suspense>
       )}
     </div>
   );

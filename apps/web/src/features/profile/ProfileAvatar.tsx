@@ -1,7 +1,9 @@
 import { Avatar, CameraIcon, TrashIcon, cn, type AvatarSize } from '@pingo/ui';
 import { useRef, useState } from 'react';
 
-import { ImageViewer } from './ImageViewer.js';
+import { lazySuspended } from '../../lib/lazy-named.js';
+
+const ImageViewer = lazySuspended(() => import('./ImageViewer.js'), 'ImageViewer');
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
 import type { PresenceStatus } from '../settings/privacy-flags.js';
 

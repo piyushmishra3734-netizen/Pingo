@@ -26,6 +26,7 @@ import {
 import { CloseIcon } from '@pingo/ui';
 import {
   type CSSProperties,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -41,10 +42,7 @@ import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
-import { AiOnboardingSheet } from '../ai/AiOnboardingSheet.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
-import { AiProfileSheet } from '../ai/AiProfileSheet.js';
-import { VoiceCall } from '../ai/VoiceCall.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
 import { useT } from '../i18n/useT.js';
@@ -54,8 +52,6 @@ import { isMessageMenuOpen } from './context-menu/MessageContextMenu.js';
 import { MessageMenu } from './context-menu/MessageMenu.js';
 import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer, type MentionOption } from './Composer.js';
-import { GroupInfoSheet } from './GroupInfoSheet.js';
-import { ChatInfo } from './ChatInfo.js';
 import { connectionTitle, useConnectionStatus } from '../connection/useConnectionStatus.js';
 import { ConversationMenu } from './ConversationMenu.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
@@ -82,15 +78,25 @@ import { ContactSheet, EventSheet, LocationSheet } from './AttachSheets.js';
 import { useBackStep } from '../navigation/useBackStep.js';
 import { NewMessagesDivider } from './NewMessagesDivider.js';
 import { probeKind, retypedAsAudio, type PickedKind } from './picked-media.js';
-import { MediaSendSheet, type PickedMedia } from './MediaSendSheet.js';
+import type { PickedMedia } from './MediaSendSheet.js';
+import { lazyNamed, lazySuspended } from '../../lib/lazy-named.js';
 import { probeVideo, videoTooLong } from './media-variants.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
 import { ThreadJumpChip } from './ThreadJumpChip.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
-import { SharedMediaSheet } from './SharedMediaSheet.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
+
+// Sheets this screen can open, fetched the first time one is opened rather than
+// with the thread, which is on the path of every launch.
+const AiProfileSheet = lazyNamed(() => import('../ai/AiProfileSheet.js'), 'AiProfileSheet');
+const VoiceCall = lazyNamed(() => import('../ai/VoiceCall.js'), 'VoiceCall');
+const GroupInfoSheet = lazyNamed(() => import('./GroupInfoSheet.js'), 'GroupInfoSheet');
+const ChatInfo = lazyNamed(() => import('./ChatInfo.js'), 'ChatInfo');
+const MediaSendSheet = lazyNamed(() => import('./MediaSendSheet.js'), 'MediaSendSheet');
+const SharedMediaSheet = lazySuspended(() => import('./SharedMediaSheet.js'), 'SharedMediaSheet');
+const AiOnboardingSheet = lazySuspended(() => import('../ai/AiOnboardingSheet.js'), 'AiOnboardingSheet');
 
 /**
  * An open conversation: header, scrolling thread, composer.
@@ -1296,11 +1302,13 @@ export function ChatThread({
    */
   if (voiceCall) {
     return (
-      <VoiceCall
-        conversationId={conversation.id}
-        onEnd={() => setVoiceCall(false)}
-        ask={askByVoice}
-      />
+      <Suspense fallback={null}>
+        <VoiceCall
+          conversationId={conversation.id}
+          onEnd={() => setVoiceCall(false)}
+          ask={askByVoice}
+        />
+      </Suspense>
     );
   }
 
@@ -2140,6 +2148,7 @@ export function ChatThread({
 
 
       {pending && (
+        <Suspense fallback={null}>
         <MediaSendSheet
           items={pending}
           to={conversation.title}
@@ -2172,13 +2181,17 @@ export function ChatThread({
             setPending(undefined);
           }}
         />
+        </Suspense>
       )}
 
       {groupInfo && (
+        <Suspense fallback={null}>
         <GroupInfoSheet conversation={conversation} onClose={() => setGroupInfo(false)} />
+        </Suspense>
       )}
 
       {infoOpen && (
+        <Suspense fallback={null}>
         <ChatInfo
           conversation={conversation}
           {...(partner ? { partner } : {})}
@@ -2226,6 +2239,7 @@ export function ChatThread({
           onDisappearing={() => setDisappearing(true)}
           onJump={jumpTo}
         />
+        </Suspense>
       )}
 
       {sharedMedia && (
@@ -2251,6 +2265,7 @@ export function ChatThread({
       )}
 
       {isAi && aiProfileOpen && (
+        <Suspense fallback={null}>
         <AiProfileSheet
           conversationId={conversation.id}
           onClose={() => setAiProfileOpen(false)}
@@ -2259,6 +2274,7 @@ export function ChatThread({
             void service.ensureAiConversation().catch(() => undefined);
           }}
         />
+        </Suspense>
       )}
     </div>
   );

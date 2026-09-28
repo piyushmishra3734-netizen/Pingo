@@ -14,7 +14,9 @@ import { makeVideoPoster } from './media-variants.js';
 import { keepMedia, keepVideo, putPoster, storedPoster, storedVideo } from './video-vault.js';
 import { VideoPlayer } from './VideoPlayer.js';
 import { VoiceNote } from './VoiceNote.js';
-import { ImageViewer } from '../profile/ImageViewer.js';
+import { lazySuspended } from '../../lib/lazy-named.js';
+
+const ImageViewer = lazySuspended(() => import('../profile/ImageViewer.js'), 'ImageViewer');
 
 /**
  * An attached file, rendered as whatever it actually is.

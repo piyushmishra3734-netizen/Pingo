@@ -9,9 +9,9 @@ import { IdentityFlow } from './features/auth/IdentityFlow.js';
 import { PrivateAccessGate, RequireAuth, RequireGuest } from './features/auth/guards.js';
 import { markOnboarded } from './features/auth/onboarded.js';
 import { CallBoundary } from './features/calls/CallBoundary.js';
-import { CallOverlay } from './features/calls/CallOverlay.js';
 import { ConfirmProvider } from './components/ConfirmProvider.js';
 import { CallProvider } from './features/calls/CallProvider.js';
+import { CallLayer } from './features/calls/CallLayer.js';
 import { MessageToastProvider } from './features/notifications/MessageToastProvider.js';
 import { NotificationProvider } from './features/notifications/NotificationContext.js';
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
@@ -609,7 +609,7 @@ export function App() {
           looks fine on every other. See `CallBoundary`.
         */}
         <CallBoundary>
-          <CallOverlay />
+          <CallLayer />
         </CallBoundary>
         {/* Renders nothing. Keeps this session’s own profile live everywhere. */}
         <LiveProfile />

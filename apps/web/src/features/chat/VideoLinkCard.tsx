@@ -8,7 +8,9 @@ import { canResolveMedia, resolveMedia } from '../../lib/video/resolve-media.js'
 import { saveVideo, saveVideoBlob } from '../native/save-video.js';
 import { clock, VideoPlayer } from './VideoPlayer.js';
 import { keepVideo, storedVideo } from './video-vault.js';
-import { VideoLinkViewer } from './VideoLinkViewer.js';
+import { lazySuspended } from '../../lib/lazy-named.js';
+
+const VideoLinkViewer = lazySuspended(() => import('./VideoLinkViewer.js'), 'VideoLinkViewer');
 
 /**
  * A video link, drawn as the video it points at.
