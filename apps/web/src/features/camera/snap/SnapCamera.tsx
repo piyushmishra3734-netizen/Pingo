@@ -84,10 +84,15 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [facing, setFacing] = useState<'user' | 'environment'>(preferred);
+  /** For Camera Kit, which arrives later and must pick up whichever way the camera faces by then. */
+  const facingNow = useRef(preferred);
+  facingNow.current = facing;
   const [lenses, setLenses] = useState<Lens[]>(() => ranked(LOOKS));
   const [current, setCurrent] = useState(0);
   const [kitOn, setKitOn] = useState(false);
   const [noCamera, setNoCamera] = useState(false);
+  /** The first frame is on its way. A black card with nothing on it for two seconds read as a broken camera. */
+  const [started, setStarted] = useState(false);
   const [rail, setRail] = useState(false);
   const [torch, setTorch] = useState(false);
   const [timer, setTimer] = useState<(typeof TIMERS)[number]>(0);
@@ -131,39 +136,65 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
         const source = k.mod.createMediaStreamSource(s, { cameraType: f === 'user' ? 'user' : 'environment', ...(f === 'user' ? { transform: k.mod.Transform2D.MirrorX } : {}) });
         await k.session.setSource(source);
         await source.setRenderSize(720, 1280).catch(() => undefined);
+        setStarted(true);
       } else if (videoRef.current) {
-        videoRef.current.srcObject = s; void videoRef.current.play().catch(() => undefined);
+        const v = videoRef.current;
+        v.srcObject = s; void v.play().catch(() => undefined);
+        if (v.readyState >= 2) setStarted(true);
+        else v.addEventListener('loadeddata', () => setStarted(true), { once: true });
       }
     } catch {
       setNoCamera(true);
     }
   }, [openStream]);
 
+  /*
+   * The plain camera first, Camera Kit when it is ready.
+   *
+   * Nothing used to open until the Camera Kit SDK had downloaded and booted -
+   * many seconds on a slow link - so the viewfinder sat black, and a shot taken
+   * in that window came out black. Now the phone's camera is on screen at once,
+   * through a plain <video>, and Camera Kit takes over the same stream without
+   * a flicker once it can.
+   */
   useEffect(() => {
     let dead = false;
     (async () => {
+      await setSource(preferred);
+      // Left before the camera answered: turn it straight back off.
+      if (dead) { stream.current?.getTracks().forEach((t) => t.stop()); return; }
       try {
         const mod = await import('@snap/camera-kit');
         const ck = await mod.bootstrapCameraKit({ apiToken: CAMERA_KIT_TOKEN });
         const canvas = document.createElement('canvas');
         const session = await ck.createSession({ liveRenderTarget: canvas });
         if (dead) { void session.destroy(); return; }
-        kit.current = { mod, ck, session };
-        ckCanvas.current = canvas;
         canvas.className = 'absolute inset-0 size-full object-cover';
-        view.current?.prepend(canvas);
         // The lenses load on their own: a slow or missing camera must not hold them up.
         const loading = ck.lensRepository.loadLensGroups([CAMERA_KIT_GROUP]);
+        const s = stream.current;
+        if (s) {
+          const f = facingNow.current;
+          const source = mod.createMediaStreamSource(s, { cameraType: f === 'user' ? 'user' : 'environment', ...(f === 'user' ? { transform: mod.Transform2D.MirrorX } : {}) });
+          await session.setSource(source);
+          await source.setRenderSize(720, 1280).catch(() => undefined);
+        }
+        await session.play('live').catch(() => undefined);
+        if (dead) { void session.destroy(); return; }
+        // Swapped in only now, fully running, so the picture never drops to black.
+        kit.current = { mod, ck, session };
+        ckCanvas.current = canvas;
+        view.current?.prepend(canvas);
         setKitOn(true);
-        await setSource(preferred);
-        void session.play('live').catch(() => undefined);
+        // Flipped while Camera Kit was loading: its source is a stream that has since stopped.
+        if (!s || stream.current !== s) await setSource(facingNow.current);
         const { lenses: found } = await loading;
         if (dead) return;
         setLenses(ranked([...found.map((l) => ({ key: `ck:${l.id}`, name: l.name.trim(), css: '', ar: true, ...(l.iconUrl ? { icon: l.iconUrl } : {}), ck: l })), ...LOOKS]));
       } catch (cause) {
+        // The plain camera is already running; it simply stays.
         console.warn('[camera] Camera Kit did not start; plain camera', cause);
         kit.current = undefined;
-        if (!dead) await setSource(preferred);
       }
     })();
     return () => {
@@ -345,6 +376,12 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       <div ref={view} className="absolute inset-x-0 top-0 bottom-[132px] overflow-hidden rounded-b-[16px] bg-[#111]"
         onDoubleClick={() => void flip()} onClick={() => setDualOpen(false)}>
         {!kitOn && <video ref={videoRef} className={cn('absolute inset-0 size-full object-cover', facing === 'user' && '-scale-x-100')} muted playsInline autoPlay />}
+        {!started && !noCamera && (
+          <div role="status" className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 text-[13px] font-medium text-white/65">
+            <span aria-hidden className="size-7 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+            Starting camera…
+          </div>
+        )}
         {noCamera && <p className="absolute inset-x-8 top-1/2 -translate-y-1/2 text-center text-white/75">No camera here. Pick a photo from your gallery instead.</p>}
         {dual !== 'off' && (
           <video ref={pipVideo} muted playsInline autoPlay className={cn('absolute z-[2] object-cover',

@@ -54,8 +54,19 @@ export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate,
             {onLive && <button type="button" onClick={onLive} className={tab}><Radio className="text-danger" />Live</button>}
           </div>
           <div className="scrollbar-none grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-0.5 overflow-y-auto">
-            <button type="button" aria-label="Camera" onClick={onCamera} className="grid aspect-[9/16] place-items-center bg-media-sheet [&>svg]:size-[30px]"><Camera /></button>
-            <button type="button" aria-label="Your photos" onClick={onGallery} className="grid aspect-[9/16] place-items-center bg-media-sheet [&>svg]:size-[30px]"><Images /></button>
+            {/* Named, not just drawn: two dark tiles with a glyph each read as something still loading. */}
+            <button type="button" onClick={onCamera} className="flex aspect-[9/16] flex-col items-center justify-center gap-2 bg-media-sheet text-[13px] font-semibold active:bg-white/10 [&>svg]:size-[30px]"><Camera />Camera</button>
+            <button type="button" onClick={onGallery} className="flex aspect-[9/16] flex-col items-center justify-center gap-2 bg-media-sheet text-[13px] font-semibold active:bg-white/10 [&>svg]:size-[30px]"><Images />Your photos</button>
+            {photos.length === 0 && (
+              /*
+               * Without this the rest of the screen was plain black, which looks
+               * like a gallery that failed to load rather than one with nothing
+               * in it yet.
+               */
+              <p className="col-span-3 px-6 pt-8 text-center text-[13px] leading-relaxed text-white/55">
+                Photos you share in chats show up here, ready to add to your story.
+              </p>
+            )}
             {photos.map((p) => (
               <button key={p.id} type="button" onClick={() => onPick(p.url)} className="relative aspect-[9/16] overflow-hidden bg-media-sheet">
                 <img src={p.url} alt="" loading="lazy" className="size-full object-cover" />

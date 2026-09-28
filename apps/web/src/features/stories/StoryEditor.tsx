@@ -8,6 +8,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
+import { useBackStep } from '../navigation/useBackStep.js';
 import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
@@ -96,6 +97,17 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const [trim, setTrim] = useState<[number, number]>([0, 1]);
   useBoomerang(mediaEl, kind === 'video' ? boom : undefined, trim[0], trim[1], mode === 'boom');
   const [sheet, setSheet] = useState<SheetKind | null>(start === 'music' ? 'music' : null);
+  /*
+   * Back, and Escape at a keyboard, close the open sheet first. Without this
+   * the phone's Back skipped past the sticker tray to "Discard your story?".
+   */
+  useBackStep(!!sheet && sheet !== 'discard', () => setSheet(null));
+  useEffect(() => {
+    if (!sheet) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSheet(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sheet]);
   const [rail, setRail] = useState<'labels' | 'icons' | 'open'>('labels');
   const [fname, setFname] = useState<string>();
   const [dragging, setDragging] = useState<{ hot: boolean; gv: boolean; gh: boolean }>();

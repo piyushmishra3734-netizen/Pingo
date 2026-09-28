@@ -362,7 +362,7 @@ export function StoryComposer({
         {galleryInput}
         <StoryGallery
           onClose={onClose}
-          onCamera={() => { onClose(); navigate('/camera'); }}
+          onCamera={() => { onClose(); navigate('/camera', { state: { from: 'story' } }); }}
           onGallery={openGallery}
           onPick={(url) => {
             void fetch(url).then((r) => r.blob()).then((blob) => setIg({ src: URL.createObjectURL(blob), kind: 'photo', media: blob }))
