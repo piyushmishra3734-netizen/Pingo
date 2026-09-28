@@ -76,6 +76,7 @@ function toProfile(row: ProfileRow): Profile {
     // Absent until the migration adds the columns; either way, blank is not drawn.
     ...(row.work?.trim() ? { work: row.work } : {}),
     ...(row.location?.trim() ? { location: row.location } : {}),
+    ...(row.song && typeof row.song.url === 'string' && row.song.url.startsWith('https://') ? { song: row.song } : {}),
     isPremium: row.is_premium ?? false,
     createdAt: Date.parse(row.created_at),
   };
@@ -345,6 +346,10 @@ export class SupabaseProfileService implements ProfileService {
     if ('bannerUrl' in changes) patch.banner_url = changes.bannerUrl ?? null;
     if ('work' in changes) patch.work = changes.work?.trim() || null;
     if ('location' in changes) patch.location = changes.location?.trim() || null;
+    if ('song' in changes) {
+      const song = changes.song;
+      patch.song = song ? { name: song.name.slice(0, 120), artist: song.artist.slice(0, 120), img: song.img, url: song.url, secs: Math.round(song.secs) } : null;
+    }
     if ('bannerOffset' in changes && changes.bannerOffset !== undefined) {
       // Clamped here as well as in the check constraint: a drag that overshoots
       // should land at the edge, not come back as a failed save.

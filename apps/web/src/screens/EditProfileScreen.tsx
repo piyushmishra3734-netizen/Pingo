@@ -1,6 +1,9 @@
-import { isValidUsername, normaliseUsername, useProfile } from '@pingo/core';
+import { isValidUsername, normaliseUsername, useProfile, type ProfileSong } from '@pingo/core';
+import { Sheet } from '../components/Sheet.js';
+import { ChatMusicPicker } from '../features/music/ChatMusicPicker.js';
+import { ProfileSongCard } from '../features/music/ProfileSongCard.js';
 import { Avatar, Button, CameraIcon, TextField, TrashIcon, cn } from '@pingo/ui';
-import { AtSign, Briefcase, MapPin } from 'lucide-react';
+import { AtSign, Briefcase, MapPin, Music2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -53,6 +56,10 @@ export function EditProfileScreen() {
   const [bio, setBio] = useState('');
   const [work, setWork] = useState('');
   const [place, setPlace] = useState('');
+  /** The profile song, staged until Save like everything else here. */
+  const [song, setSong] = useState<ProfileSong>();
+  const [songTouched, setSongTouched] = useState(false);
+  const [songPicker, setSongPicker] = useState(false);
   /** Cropped file from the editor, held until form Save so nothing uploads early. */
   const [photo, setPhoto] = useState<File>();
   const [removePhoto, setRemovePhoto] = useState(false);
@@ -75,6 +82,8 @@ export function EditProfileScreen() {
     setBio(profile.bio ?? '');
     setWork(profile.work ?? '');
     setPlace(profile.location ?? '');
+    setSong(profile.song);
+    setSongTouched(false);
   }, [profile]);
 
   /*
@@ -181,6 +190,7 @@ export function EditProfileScreen() {
         // columns an older database may not have yet.
         ...(work.trim() === (profile?.work ?? '') ? {} : { work }),
         ...(place.trim() === (profile?.location ?? '') ? {} : { location: place }),
+        ...(songTouched ? { song } : {}),
         ...(bannerUrl ? { bannerUrl } : {}),
         ...(coverOffset === undefined ? {} : { bannerOffset: coverOffset }),
         // Only sent when it actually changed, so an unrelated save cannot clear
@@ -295,6 +305,7 @@ export function EditProfileScreen() {
                 {work.trim() && <Fact icon={<Briefcase size={14} />}>{work.trim()}</Fact>}
                 {place.trim() && <Fact icon={<MapPin size={14} />}>{place.trim()}</Fact>}
               </div>
+              {song && <ProfileSongCard song={song} className="mt-3" />}
             </div>
           </div>
         </article>
@@ -470,6 +481,63 @@ export function EditProfileScreen() {
             fieldClassName="h-12"
           />
         </section>
+
+        {/* Profile song, Telegram's way: anybody opening your profile can play it. */}
+        <section className="flex flex-col gap-3 rounded-2xl bg-surface p-4 ring-1 ring-line">
+          <div>
+            <h3 className="text-body font-semibold text-ink">Profile song</h3>
+            <p className="mt-0.5 text-caption text-text-secondary">
+              Plays for anyone who opens your profile, if they tap it.
+            </p>
+          </div>
+          {song ? (
+            <ProfileSongCard
+              song={song}
+              trailing={
+                <span className="flex shrink-0 items-center gap-1">
+                  <button type="button" onClick={() => setSongPicker(true)} className="focus-ring h-8 rounded-full bg-sunken px-3 text-caption font-semibold text-ink">
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Remove profile song"
+                    onClick={() => { setSong(undefined); setSongTouched(true); }}
+                    className="focus-ring grid size-8 place-items-center rounded-full text-text-secondary hover:text-danger"
+                  >
+                    <TrashIcon size={15} />
+                  </button>
+                </span>
+              }
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSongPicker(true)}
+              className={cn(
+                'focus-ring flex h-14 items-center gap-3 rounded-2xl border border-dashed border-line-strong px-3.5 text-left',
+                'transition-colors duration-instant hover:bg-hover active:scale-[0.99]',
+              )}
+            >
+              <span className="grid size-9 place-items-center rounded-full bg-brand-soft text-brand"><Music2 size={17} /></span>
+              <span className="text-body font-medium text-ink">Add a song</span>
+            </button>
+          )}
+        </section>
+
+        {songPicker && (
+          <Sheet title="Profile song" onClose={() => setSongPicker(false)}>
+            <div className="-mx-2 mt-2">
+              <ChatMusicPicker
+                pick
+                onSelect={(picked) => {
+                  setSong({ name: picked.name, artist: picked.artist, img: picked.img, url: picked.url, secs: picked.secs });
+                  setSongTouched(true);
+                  setSongPicker(false);
+                }}
+              />
+            </div>
+          </Sheet>
+        )}
 
         {error && (
           <p

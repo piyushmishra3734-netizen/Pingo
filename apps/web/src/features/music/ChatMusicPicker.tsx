@@ -1,5 +1,5 @@
 import { SearchField, cn } from '@pingo/ui';
-import { Pause, Play, Send } from 'lucide-react';
+import { Check, Pause, Play, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { MUSIC_TABS, fetchSongs, type Song } from './sheets.js';
@@ -9,7 +9,7 @@ import { MUSIC_TABS, fetchSongs, type Song } from './sheets.js';
  * it. The same catalogue the story editor uses, drawn in the chat's own light
  * panel rather than the camera's dark one.
  */
-export function ChatMusicPicker({ onSelect }: { onSelect: (song: Song) => void }) {
+export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: Song) => void; /** Choosing, not sending: a tick instead of the send arrow. */ pick?: boolean }) {
   const [shelf, setShelf] = useState('');
   const [query, setQuery] = useState('');
   const [list, setList] = useState<Song[]>();
@@ -75,10 +75,10 @@ export function ChatMusicPicker({ onSelect }: { onSelect: (song: Song) => void }
             <button
               type="button"
               onClick={() => { audio.current?.pause(); onSelect(song); }}
-              aria-label={`Send ${song.name}`}
+              aria-label={`${pick ? 'Choose' : 'Send'} ${song.name}`}
               className="focus-ring grid size-9 shrink-0 place-items-center rounded-full bg-brand text-on-brand active:scale-95"
             >
-              <Send size={16} />
+              {pick ? <Check size={17} /> : <Send size={16} />}
             </button>
           </div>
         ))}

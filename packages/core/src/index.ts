@@ -45,6 +45,7 @@ export type {
   ProfileService,
   Profile,
   ProfileDraft,
+  ProfileSong,
   ProfileErrorCode,
   FollowState,
   Post,

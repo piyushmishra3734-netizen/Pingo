@@ -41,6 +41,8 @@ export type ProfileRow = {
   work?: string | null;
   /** Free text, up to 40 characters. Null means not drawn. */
   location?: string | null;
+  /** The profile song: what its card draws. Null means none. */
+  song?: { name: string; artist: string; img: string; url: string; secs: number } | null;
   /** Operator-granted. Not in the column grant a user holds over their row. */
   is_premium: boolean;
   /** Display-only offsets added inside profile_stats. Operator-set. */
@@ -756,6 +758,7 @@ export type Database = {
           banner_offset?: number;
           work?: string | null;
           location?: string | null;
+          song?: { name: string; artist: string; img: string; url: string; secs: number } | null;
         };
         Relationships: [];
       };

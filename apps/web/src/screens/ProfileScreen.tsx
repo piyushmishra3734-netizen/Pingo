@@ -9,6 +9,7 @@ import {
   type ProfileStats,
   type SharedHistory,
 } from '@pingo/core';
+import { ProfileSongCard } from '../features/music/ProfileSongCard.js';
 import {
   Button,
   ChatIcon,
@@ -667,6 +668,9 @@ export function ProfileScreen() {
                 {!detailsHidden && person.work && <Fact icon={<Briefcase size={14} />}>{person.work}</Fact>}
                 {!detailsHidden && person.location && <Fact icon={<MapPin size={14} />}>{person.location}</Fact>}
               </div>
+
+              {/* Their song, Telegram's way: one tap plays it, and it keeps playing after you leave. */}
+              {!detailsHidden && person.song && <ProfileSongCard song={person.song} className="mt-3" />}
 
               {locked === true ? null : (
               <dl className={cn('mt-4 flex gap-4', detailsHidden && 'invisible')}>

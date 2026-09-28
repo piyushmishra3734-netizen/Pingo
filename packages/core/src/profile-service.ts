@@ -49,6 +49,8 @@ export interface Profile {
   work?: string;
   /** Where they are, in their words. Free text, never a coordinate. */
   location?: string;
+  /** A song on the profile, Telegram's way. Anybody viewing it can play it. */
+  song?: ProfileSong;
   /**
    * Whether this account has PINGO premium.
    *
@@ -62,6 +64,18 @@ export interface Profile {
 }
 
 /** A draft profile, as collected across the sign-up steps. */
+/** What a profile song card needs, and nothing else. */
+export interface ProfileSong {
+  name: string;
+  artist: string;
+  /** Cover picture. May be empty. */
+  img: string;
+  /** The audio itself. */
+  url: string;
+  /** Length in seconds. */
+  secs: number;
+}
+
 export interface ProfileDraft {
   username: string;
   displayName: string;
@@ -71,6 +85,8 @@ export interface ProfileDraft {
   bannerOffset?: number;
   work?: string;
   location?: string;
+  /** Present and undefined clears it, like the other optional fields. */
+  song?: ProfileSong;
 }
 
 export type ProfileErrorCode =

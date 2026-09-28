@@ -114,6 +114,8 @@ export function demoServices() {
     }),
     profile: stub({
       getMine: async () => ME,
+      // Edits stick for the session, so a changed profile can be looked at after Save.
+      update: async (changes: Record<string, unknown>) => { Object.assign(ME, changes); if ('song' in changes && !changes.song) delete (ME as { song?: unknown }).song; return { ...ME }; },
       find: async (h: string) => (h === ME.username || h === ME_ID ? ME : personProfile(h)),
       peek: (h: string) => (h === ME.username || h === ME_ID ? ME : personProfile(h) ?? undefined),
       followState: async () => 'none',
