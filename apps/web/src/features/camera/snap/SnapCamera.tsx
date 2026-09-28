@@ -1,9 +1,9 @@
 import { cn } from '@pingo/ui';
 import {
   CircleOff, Grid3x3, ImagePlus, Moon, Music2, PictureInPicture2, Plus, ScanLine, Search, Sparkles, SwitchCamera, Timer, X, Zap, ZapOff,
-  Rows2, Columns2,
+  Rows2, Columns2, Clapperboard, Cloud, Coffee, Contrast, Droplets, Flower2, Snowflake, Sun,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { ClipSheet, MusicSheet, Panel, type Song } from '../../music/sheets.js';
 import { CAMERA_KIT_GROUP, CAMERA_KIT_TOKEN } from './camera-kit.js';
@@ -112,31 +112,6 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
   const lens = lenses[current] ?? NONE;
   const look = [lens.css, night ? NIGHT : ''].filter(Boolean).join(' ') || 'none';
 
-  /*
-   * A small still of what the camera sees, refreshed every second and a half,
-   * so each filter's tile shows you through that filter - the way Snapchat's
-   * do - rather than two letters of its name.
-   */
-  const [thumb, setThumb] = useState<string>();
-  useEffect(() => {
-    if (recording) return;
-    const take = () => {
-      const src = kit.current ? ckCanvas.current : videoRef.current;
-      if (!src) return;
-      const w = src instanceof HTMLVideoElement ? src.videoWidth : src.width;
-      const h = src instanceof HTMLVideoElement ? src.videoHeight : src.height;
-      if (!w || !h) return;
-      try {
-        const c = document.createElement('canvas'); c.width = 96; c.height = 96;
-        const side = Math.min(w, h);
-        c.getContext('2d')?.drawImage(src, (w - side) / 2, (h - side) / 2, side, side, 0, 0, 96, 96);
-        setThumb(c.toDataURL('image/jpeg', 0.6));
-      } catch { /* a frame that cannot be read: the tiles keep the sample */ }
-    };
-    take();
-    const timer = window.setInterval(take, 1500);
-    return () => window.clearInterval(timer);
-  }, [recording, kitOn]);
 
   const say = (text: string) => { setTip(text); window.setTimeout(() => setTip((t) => (t === text ? undefined : t)), 1200); };
 
@@ -318,8 +293,28 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
 
   // ---- the lens row ------------------------------------------------------------
   const pickAt = useRef<number | undefined>(undefined);
+  const frameReq = useRef<number | undefined>(undefined);
+  /*
+   * Every tile sized by how far it is from the slot, each frame of the scroll -
+   * the Snapchat roll. It used to snap between two sizes once scrolling had
+   * stopped, which is what read as stuttering. Written straight to the style,
+   * outside React, so a scroll never re-renders the camera.
+   */
+  const shade = useCallback(() => {
+    frameReq.current = undefined;
+    const el = car.current; if (!el) return;
+    const mid = el.scrollLeft + el.clientWidth / 2;
+    for (const child of el.children) {
+      const b = child as HTMLElement;
+      const d = Math.min(1, Math.abs(b.offsetLeft + b.offsetWidth / 2 - mid) / 140);
+      b.style.transform = `scale(${1 - d * 0.2})`;
+      b.style.opacity = String(1 - d * 0.35);
+    }
+  }, []);
+  useLayoutEffect(() => { shade(); }, [shade, lenses]);
   const onScroll = () => {
     const el = car.current; if (!el) return;
+    frameReq.current ??= requestAnimationFrame(shade);
     window.clearTimeout(pickAt.current);
     pickAt.current = window.setTimeout(() => {
       const mid = el.scrollLeft + el.clientWidth / 2;
@@ -416,13 +411,13 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       </div>
       <div className="absolute inset-x-0 bottom-[142px] z-10 h-[62px]">
         {/* The slot the looks scroll through. What sits in it is what the camera sees. */}
-        <span aria-hidden className="bg-sweep pointer-events-none absolute top-1/2 left-1/2 z-[1] size-[60px] -translate-x-1/2 -translate-y-1/2 rounded-[18px] p-[2.5px] [mask:linear-gradient(#000_0_0)_content-box_exclude,linear-gradient(#000_0_0)]" />
-        <div ref={car} onScroll={onScroll} className="scrollbar-none absolute inset-0 flex snap-x snap-mandatory items-center gap-2.5 overflow-x-auto px-[calc(50%-24px)]">
+        <span aria-hidden className="bg-sweep pointer-events-none absolute top-1/2 left-1/2 z-[1] size-[62px] -translate-x-1/2 -translate-y-1/2 rounded-full p-[3px] [mask:linear-gradient(#000_0_0)_content-box_exclude,linear-gradient(#000_0_0)]" />
+        <div ref={car} onScroll={onScroll} className="scrollbar-none absolute inset-0 flex snap-x snap-mandatory items-center gap-2.5 overflow-x-auto px-[calc(50%-26px)]">
           {lenses.map((l, i) => (
             <button key={l.key} type="button" onClick={() => goTo(i)} aria-label={l.name} aria-pressed={i === current}
-              className={cn('relative grid size-12 shrink-0 snap-center place-items-center overflow-hidden rounded-[14px] bg-white/12 transition-transform duration-200', i === current ? 'scale-100' : 'scale-[.86] opacity-80')}>
-              <Tile l={l} thumb={thumb} />
-              {l.ar && <span className="bg-sweep absolute right-1 bottom-1 rounded-[5px] px-1 text-[8px] leading-[12px] font-extrabold">AR</span>}
+              className="relative grid size-[52px] shrink-0 snap-center place-items-center overflow-hidden rounded-full bg-white/12 ring-1 ring-white/20 will-change-transform">
+              <Tile l={l} />
+              {l.ar && <span className="bg-sweep absolute right-0.5 bottom-0.5 rounded-full px-1 text-[8px] leading-[12px] font-extrabold">AR</span>}
             </button>
           ))}
         </div>
@@ -439,7 +434,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
           onPointerDown={onShutterDown} onPointerUp={onShutterUp} onPointerCancel={onShutterUp} onContextMenu={(e) => e.preventDefault()}
           className={cn('bg-sweep-ring relative size-[80px] shrink-0 rounded-full p-[4px] shadow-[0_6px_24px_rgba(139,93,255,.35)] transition-transform duration-200', recording && 'scale-[1.14]')}>
           <span className={cn('grid size-full place-items-center overflow-hidden rounded-full border-[3px] border-black bg-white transition-all duration-200', recording && 'scale-[.62] rounded-[14px] border-0 bg-danger')}>
-            {!recording && lens.key !== 'none' && <Tile l={lens} thumb={thumb} big />}
+            {!recording && lens.key !== 'none' && <Tile l={lens} big />}
           </span>
           {recording && (
             <svg viewBox="0 0 100 100" className="absolute -inset-[8px] size-[96px] -rotate-90">
@@ -475,17 +470,40 @@ function Tool({ label, on, onClick, children }: { label: string; on?: boolean; o
 }
 
 /**
- * A look's face. A lens shows its Camera Kit icon. A filter shows the camera's
- * own picture through that filter, or - before the first frame - a sample
- * scene through it, so every filter tile is a preview rather than a label.
+ * A look's face, round like Snapchat's.
+ *
+ * A lens shows its Camera Kit icon. A filter shows its own small picture - a
+ * colour and a mark that say what it does (Warm is a sun, Cool a snowflake) -
+ * so the row reads as a set of looks rather than a set of names. They used to
+ * be the camera's own frame refreshed every second and a half, which cost a
+ * re-render of the whole camera each time and made every tile look the same.
  */
-function Tile({ l, thumb, big }: { l: Lens; thumb?: string | undefined; big?: boolean }) {
-  if (l.icon) return <img src={l.icon} alt="" className="size-full object-cover" />;
+function Tile({ l, big }: { l: Lens; big?: boolean }) {
+  if (l.icon) return <img src={l.icon} alt="" className="size-full object-cover" draggable={false} />;
   if (l.key === 'none') return <CircleOff size={big ? 22 : 20} className={big ? 'text-black/70' : 'text-white/85'} />;
-  return thumb
-    ? <img src={thumb} alt="" className="size-full object-cover" style={{ filter: l.css }} />
-    : <span className="size-full bg-[linear-gradient(160deg,#9fd3ff_0%,#f6c89f_42%,#e07a5f_68%,#3d405b_100%)]" style={{ filter: l.css }} />;
+  const art = FILTER_ART[l.key];
+  if (!art) return <span className="text-[15px] font-semibold text-white/90">{l.name.slice(0, 2)}</span>;
+  const { bg, Icon } = art;
+  return (
+    <span className="relative grid size-full place-items-center" style={{ background: bg }}>
+      {/* A soft light from the top left, so each reads as a little lit object, not a flat swatch. */}
+      <span aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,.45),transparent_55%)]" />
+      <Icon size={big ? 26 : 22} strokeWidth={2.2} className="relative text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.35)]" />
+    </span>
+  );
 }
+
+const FILTER_ART: Record<string, { bg: string; Icon: typeof Sun }> = {
+  'look:smooth': { bg: 'linear-gradient(145deg,#ffb3c7,#ff8fa3 55%,#f7a072)', Icon: Sparkles },
+  'look:cinematic': { bg: 'linear-gradient(145deg,#1f6f78,#2d3a4a 50%,#f28c38)', Icon: Clapperboard },
+  'look:dreamy': { bg: 'linear-gradient(145deg,#c9b6ff,#9fb8ff 55%,#ffd1f0)', Icon: Cloud },
+  'look:warm': { bg: 'linear-gradient(145deg,#ffcc4d,#ff8a3d 55%,#e2553b)', Icon: Sun },
+  'look:cool': { bg: 'linear-gradient(145deg,#7fe3ff,#3a8dff 55%,#4a4ad6)', Icon: Snowflake },
+  'look:mono': { bg: 'linear-gradient(135deg,#f2f2f2 0 50%,#1b1b1f 50% 100%)', Icon: Contrast },
+  'look:bloom': { bg: 'linear-gradient(145deg,#ff7eb6,#ffb86b 55%,#ffe56b)', Icon: Flower2 },
+  'look:sepia': { bg: 'linear-gradient(145deg,#d8b48a,#a47148 55%,#6b4226)', Icon: Coffee },
+  'look:fade': { bg: 'linear-gradient(145deg,#cfd8dc,#a8c0b8 55%,#9aa5b1)', Icon: Droplets },
+};
 
 /** Applies the look and the software zoom to whatever is rendering the feed. */
 function LookStyle({ host, look, zoom }: { host: React.RefObject<HTMLDivElement | null>; look: string; zoom: number }) {
@@ -518,7 +536,7 @@ function LensSearch({ lenses, current, onPick, onClose }: { lenses: Lens[]; curr
           <button key={l.key} type="button" onClick={() => onPick(i)} className="flex min-w-0 flex-col items-center gap-1.5 text-[11.5px] font-semibold text-white/85">
             <span className={cn('relative grid size-[62px] place-items-center overflow-hidden rounded-[16px] bg-white/10', i === current ? 'ring-[2.5px] ring-white' : 'ring-1 ring-white/15')}>
               {l.icon ? <img src={l.icon} alt="" className="size-full object-cover" /> : <span className="text-[18px] font-semibold text-white/90">{l.name.slice(0, 2)}</span>}
-              {l.ar && <span className="bg-sweep absolute right-1 bottom-1 rounded-[5px] px-1 text-[8px] leading-[12px] font-extrabold">AR</span>}
+              {l.ar && <span className="bg-sweep absolute right-0.5 bottom-0.5 rounded-full px-1 text-[8px] leading-[12px] font-extrabold">AR</span>}
             </span>
             <span className="w-full truncate text-center">{l.name}</span>
           </button>
