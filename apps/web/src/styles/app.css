@@ -185,6 +185,17 @@
     height: var(--app-height, 100%);
   }
 
+  /*
+   * iPhone Safari pans the screen down to the field being typed into, and that
+   * pan cannot be scrolled away. So while it lasts the page goes to where the
+   * screen is looking. Only while a keyboard is up: a transform on the body
+   * makes it the frame for every fixed element, which is exactly right for as
+   * long as it has moved and needless the rest of the time.
+   */
+  html[data-keyboard-pan] body {
+    transform: translateY(var(--app-top, 0px));
+  }
+
   html {
     /* Anchors and scroll-into-view land below sticky headers rather than under them. */
     scroll-padding-top: 5rem;
