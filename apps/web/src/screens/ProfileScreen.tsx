@@ -163,8 +163,12 @@ export function ProfileScreen() {
   const [mutualFriends, setMutualFriends] = useState<MutualFriends>();
   /** This account is private - shown as a lock beside the handle, to anyone. */
   const [accountPrivate, setAccountPrivate] = useState(false);
-  /** Private, and the viewer is not an accepted follower: no posts for them. */
-  const [locked, setLocked] = useState(false);
+  /**
+   * Private, and the viewer is not an accepted follower. Undefined until known,
+   * and treated as locked meanwhile: showing somebody's bio for a moment and
+   * then taking it away is a leak with an animation.
+   */
+  const [locked, setLocked] = useState<boolean>();
 
   const [tab, setTab] = useState<Tab>('posts');
 
@@ -176,11 +180,18 @@ export function ProfileScreen() {
     setShared(undefined);
     setMutualFriends(undefined);
     setAccountPrivate(false);
-    setLocked(false);
+    setLocked(undefined);
     setTab('posts');
   }, [handle]);
 
   const personId = person?.id;
+  /*
+   * What a private account keeps from somebody it has not let in: everything
+   * but the name, the photo and the handle - the three things needed to know
+   * who this is and to ask to follow. Posts are also withheld by the database;
+   * the rest is kept off this screen.
+   */
+  const detailsHidden = !isSelf && locked !== false;
 
   useEffect(() => {
     if (!personId) return;
@@ -224,7 +235,10 @@ export function ProfileScreen() {
           setAccountPrivate(isPrivate);
           setLocked(isPrivate && state !== 'following' && state !== 'mutual');
         })
-        .catch(() => undefined);
+        // Could not tell: the open default, as the database assumes too.
+        .catch(() => { if (active) setLocked(false); });
+    } else {
+      setLocked(false);
     }
 
     if (isSelf) {
@@ -561,7 +575,7 @@ export function ProfileScreen() {
         <article className="rounded-[34px] bg-surface/70 p-[5px] ring-1 ring-line">
           <div className="relative overflow-hidden rounded-[29px] bg-surface">
             {/* A picture here; it is changed and moved in Edit profile, next to the rest. */}
-            <ProfileCover src={person.bannerUrl} offset={person.bannerOffset} />
+            <ProfileCover src={detailsHidden ? undefined : person.bannerUrl} offset={person.bannerOffset} />
 
             {/*
               Back and the menu sit on the cover, not in a bar above it: the
@@ -637,7 +651,7 @@ export function ProfileScreen() {
               </h1>
 
               {/* Two lines at most: a profile is an identity, not an information sheet. */}
-              {person.bio && (
+              {!detailsHidden && person.bio && (
                 <p className="mt-1 line-clamp-2 text-[15px] font-medium leading-snug text-text-secondary">
                   <CaptionText text={person.bio} />
                 </p>
@@ -650,11 +664,17 @@ export function ProfileScreen() {
                     <Lock size={12} className="ml-1 inline-block align-[-1px] text-text-tertiary" aria-label="Private account" />
                   )}
                 </Fact>
-                {person.work && <Fact icon={<Briefcase size={14} />}>{person.work}</Fact>}
-                {person.location && <Fact icon={<MapPin size={14} />}>{person.location}</Fact>}
+                {!detailsHidden && person.work && <Fact icon={<Briefcase size={14} />}>{person.work}</Fact>}
+                {!detailsHidden && person.location && <Fact icon={<MapPin size={14} />}>{person.location}</Fact>}
               </div>
 
-              <dl className="mt-4 flex gap-4">
+              {locked === true ? (
+                <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-sunken px-3 py-1.5 text-[12.5px] font-medium text-text-secondary">
+                  <Lock size={13} />
+                  Private account
+                </p>
+              ) : (
+              <dl className={cn('mt-4 flex gap-4', detailsHidden && 'invisible')}>
                 <Stat label="Posts" value={stats?.posts} />
                 <Stat
                   label="Friends"
@@ -667,6 +687,7 @@ export function ProfileScreen() {
                   {...(isSelf ? { onOpen: () => setListing('groups') } : {})}
                 />
               </dl>
+              )}
 
               {/*
                 One quiet line each, in the same place on both kinds of profile.
@@ -708,7 +729,7 @@ export function ProfileScreen() {
                     <b className="font-semibold text-ink">Journey</b> · Badges earned and what is next
                   </Line>
                 </div>
-              ) : (
+              ) : detailsHidden ? null : (
                 <InCommon
                   friends={mutualFriends}
                   groups={conversations.filter(

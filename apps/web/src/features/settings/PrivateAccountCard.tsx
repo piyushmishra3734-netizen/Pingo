@@ -57,7 +57,7 @@ export function PrivateAccountCard({
               Private account
             </h2>
             <p className="text-caption text-text-secondary">
-              {isPrivate ? 'Only followers you approve see your posts' : 'Anyone on PINGO can see your posts'}
+              {isPrivate ? 'Only followers you approve see your profile' : 'Anyone on PINGO can see your profile'}
             </p>
           </div>
           <Toggle checked={isPrivate} onChange={(next) => setAsking(next)} label="Private account" />
@@ -65,7 +65,7 @@ export function PrivateAccountCard({
 
         <ul className="relative mt-4 flex flex-col gap-2.5 border-t border-line pt-4">
           <Fact icon={<LayoutGrid size={16} />} on={isPrivate}>
-            {isPrivate ? 'Posts: followers you have approved' : 'Posts: everyone on PINGO'}
+            {isPrivate ? 'Posts, bio and details: followers you approve' : 'Posts, bio and details: everyone on PINGO'}
           </Fact>
           <Fact icon={<UserCheck size={16} />} on>
             New followers ask first, and you choose
@@ -119,12 +119,12 @@ function Confirm({
 }) {
   const points = toPrivate
     ? [
-        'Only followers you approve will see your posts.',
-        'People who already follow you keep seeing them.',
-        'Your name, photo and bio can still be found.',
+        'Only followers you approve will see your posts, bio, details and counts.',
+        'People who already follow you keep seeing everything.',
+        'Your name, photo and username can still be found, so people can ask to follow.',
       ]
     : [
-        'Anyone on PINGO will be able to see your posts.',
+        'Anyone on PINGO will be able to see your posts, bio and details.',
         'Follow requests still come to you to accept.',
         'Stories, calls and Pings stay with people you both follow.',
       ];

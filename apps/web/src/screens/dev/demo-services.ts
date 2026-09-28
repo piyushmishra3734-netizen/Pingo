@@ -80,7 +80,7 @@ function personProfile(handle: string): Profile | null {
   const row = PEOPLE.find(([id]) => id === handle);
   if (!row) return null;
   const [id, full, f] = row;
-  return { id, username: id, displayName: full, avatarUrl: face(f), bio: '', bannerOffset: 50, isPremium: false, createdAt: Date.now() - 90 * 864e5 } as Profile;
+  return { id, username: id, displayName: full, avatarUrl: face(f), bio: 'Coffee, films and long walks.', work: 'Designer', location: 'Mumbai', bannerOffset: 50, isPremium: false, createdAt: Date.now() - 90 * 864e5 } as Profile;
 }
 
 export function demoServices() {
