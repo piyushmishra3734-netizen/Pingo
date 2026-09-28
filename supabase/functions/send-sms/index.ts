@@ -97,8 +97,26 @@ const OK = () =>
   });
 
 interface HookPayload {
-  user?: { id?: string; phone?: string };
-  sms?: { otp?: string };
+  user?: { id?: string; phone?: string; phone_change?: string };
+  sms?: { otp?: string; phone?: string; sms_type?: string };
+}
+
+/**
+ * The number the code is for.
+ *
+ * Usually the account's own number - but adding or changing one sends the code
+ * to the *new* number, which Auth carries in `user.phone_change` while
+ * `user.phone` is still the old one, or empty on a Google account. Reading only
+ * `phone` sent that code nowhere and failed every "secure your account".
+ */
+function destination(payload: HookPayload): string {
+  const user = payload.user ?? {};
+  const pending = user.phone_change?.trim() ?? '';
+  const current = user.phone?.trim() ?? '';
+  const named = payload.sms?.phone?.trim() ?? '';
+  if (named) return named;
+  if (payload.sms?.sms_type === 'phone_change' && pending) return pending;
+  return current || pending;
 }
 
 /**
@@ -143,7 +161,7 @@ Deno.serve(async (request) => {
     return failure(401, 'Invalid signature.');
   }
 
-  const phone = payload.user?.phone?.trim() ?? '';
+  const phone = destination(payload);
   const otp = payload.sms?.otp?.trim() ?? '';
 
   if (!phone || !otp) {

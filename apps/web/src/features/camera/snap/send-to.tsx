@@ -1,7 +1,9 @@
 import { useChat, useProfile, type StorySticker } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { ChevronDown, CircleCheck, Circle, Search, Send, Star, Timer, UsersRound } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { useStories } from '../../stories/StoryContext.js';
 
 import type { TextData } from '../../stories/stickers/StickerView.js';
 
@@ -36,10 +38,30 @@ export function SendTo({ views, locked, onClose, onSend }: {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(locked ? [locked] : []));
   const [story, setStory] = useState<false | 'friends' | 'close'>(false);
   const sends = useMemo(readSends, []);
-  const list = useMemo(() => conversations
+  /*
+   * Friends only. The chat list also holds message requests and anybody who
+   * ever wrote first, and a snap is not for them - a one-to-one chat shows here
+   * only when both of you follow each other. Groups stay: being in one is the
+   * consent. Until the friend list arrives nobody one-to-one is shown, rather
+   * than everybody for a moment.
+   */
+  const { service: stories } = useStories();
+  const [friendIds, setFriendIds] = useState<Set<string>>();
+  useEffect(() => {
+    let active = true;
+    void stories.listFriends().then((ids) => { if (active) setFriendIds(new Set(ids)); }).catch(() => { if (active) setFriendIds(new Set()); });
+    return () => { active = false; };
+  }, [stories]);
+  const allowed = useMemo(() => conversations.filter((c) => {
+    if (c.id === locked) return true;
+    if (c.kind === 'group' || c.kind === 'community') return true;
+    if (c.kind !== 'direct' || !friendIds) return false;
+    return c.participantIds.some((id) => id !== profile?.id && friendIds.has(id));
+  }), [conversations, friendIds, locked, profile?.id]);
+  const list = useMemo(() => allowed
     .filter((c) => (tab === 'all' || c.kind === 'group') && (!q.trim() || c.title.toLowerCase().includes(q.trim().toLowerCase())))
     .sort((a, b) => (sends[b.id]?.n ?? 0) - (sends[a.id]?.n ?? 0) || (sends[b.id]?.t ?? 0) - (sends[a.id]?.t ?? 0))
-    .slice(0, 80), [conversations, tab, q, sends]);
+    .slice(0, 80), [allowed, tab, q, sends]);
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const names = [...(story ? [story === 'close' ? 'Close friends' : 'My story'] : []), ...conversations.filter((c) => picked.has(c.id)).map((c) => c.title)];
   const Tick = ({ on }: { on: boolean }) => (on ? <CircleCheck size={26} className="shrink-0 text-media-accent" /> : <Circle size={26} className="shrink-0 text-white/40" />);

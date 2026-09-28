@@ -39,6 +39,8 @@ const LOOKS: Lens[] = [
 ];
 const NONE: Lens = { key: 'none', name: 'None', css: '' };
 const TIMERS = [0, 3, 10] as const;
+/** The longest one hold records, and the length of the ring around the shutter. */
+const REC_MAX_MS = 15_000;
 const NIGHT = 'brightness(1.35) contrast(1.05)';
 
 // What this person uses most comes first, as on Snapchat. A use is a snap taken
@@ -192,6 +194,9 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
         // Swapped in only now, fully running, so the picture never drops to black.
         kit.current = { mod, ck, session };
         ckCanvas.current = canvas;
+        // Hidden and idle until an AR lens is picked - see the lens effect below.
+        canvas.style.opacity = '0';
+        void session.pause('live').catch(() => undefined);
         view.current?.prepend(canvas);
         setKitOn(true);
         // Flipped while Camera Kit was loading: its source is a stream that has since stopped.
@@ -222,6 +227,14 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
   useEffect(() => {
     const k = kit.current;
     if (k) void (lens.ck ? k.session.applyLens(lens.ck as never) : k.session.removeLens()).catch(() => undefined);
+    /*
+     * Camera Kit only while an AR lens is on. Its canvas is a 720p WebGL
+     * re-render of the camera - softer than the camera itself and heavy enough
+     * to make the viewfinder lag - so with no lens the phone's own full
+     * resolution picture is what shows, and Camera Kit is paused.
+     */
+    if (k) void (lens.ck ? k.session.play('live') : k.session.pause()).catch(() => undefined);
+    if (ckCanvas.current) ckCanvas.current.style.opacity = lens.ck ? '1' : '0';
     window.clearTimeout(dwell.current);
     if (lens.key !== 'none') dwell.current = window.setTimeout(() => noteUse(lens), 2500);
     setNameShown(lens.key === 'none' ? undefined : lens.name + (lens.ar ? ' · Camera Kit' : ''));
@@ -299,11 +312,29 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
     const t = window.setInterval(() => { left -= 1; if (left > 0) setCount(left); else { window.clearInterval(t); setCount(undefined); fn(); } }, 1000);
   };
 
-  const rec = useRef<{ r: MediaRecorder; stop: () => void } | undefined>(undefined);
+  /*
+   * Hold to record, Snapchat's way.
+   *
+   * The press owns the clip, not the recorder: `pressed` is what the finger is
+   * doing, and a recorder that is still waiting on the microphone when the
+   * finger lifts is told to stop the moment it starts. It used to look for a
+   * recorder that did not exist yet, so a quick hold never stopped - the ring
+   * ran, no clip came, and nothing could end it.
+   */
+  const rec = useRef<{ stop: () => void } | undefined>(undefined);
+  const pressed = useRef(false);
   const actx = useRef<{ ctx: AudioContext; dest: MediaStreamAudioDestinationNode } | undefined>(undefined);
+  /** The latest drawFrame, so a clip picks up zoom and looks changed mid-recording. */
+  const drawNow = useRef(drawFrame);
+  drawNow.current = drawFrame;
   const startRec = async () => {
+    let wanted = true;
+    rec.current = { stop: () => { wanted = false; } };
+    setRecording(true);
     const c = document.createElement('canvas'); c.width = 720; c.height = 1280; const g = c.getContext('2d')!;
+    drawNow.current(g, 720, 1280);
     const out = c.captureStream(30);
+    let mic: MediaStream | undefined;
     if (song) {
       const a = (player.current ??= new Audio()); a.crossOrigin = 'anonymous';
       if (!actx.current) {
@@ -316,34 +347,66 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       if (!a.src.endsWith(song.url)) a.src = song.url;
       a.currentTime = song.start; void a.play().catch(() => undefined);
     } else {
-      try { const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } }); out.addTrack(mic.getAudioTracks()[0]!); } catch { /* a silent clip */ }
+      try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); out.addTrack(mic.getAudioTracks()[0]!); } catch { /* a silent clip */ }
     }
-    const type = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
+    const type = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
     const chunks: Blob[] = [];
-    const r = new MediaRecorder(out, { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: 5_000_000 });
+    let r: MediaRecorder;
+    try {
+      r = new MediaRecorder(out, { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: 6_000_000 });
+    } catch {
+      out.getTracks().forEach((t) => t.stop()); mic?.getTracks().forEach((t) => t.stop());
+      rec.current = undefined; setRecording(false); say("This phone can't record video here");
+      return;
+    }
     r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     let live = true;
-    const draw = () => { if (!live) return; drawFrame(g, 720, 1280); requestAnimationFrame(draw); };
-    const limit = window.setTimeout(() => stop(), 10_000);
+    const began = Date.now();
+    const draw = () => { if (!live) return; drawNow.current(g, 720, 1280); requestAnimationFrame(draw); };
+    const limit = window.setTimeout(() => stop(), REC_MAX_MS);
     const stop = () => {
-      if (!live) return; live = false; window.clearTimeout(limit); setRecording(false);
+      if (!live) return; live = false; window.clearTimeout(limit); setRecording(false); rec.current = undefined;
       r.onstop = () => {
         out.getTracks().forEach((t) => t.stop());
+        mic?.getTracks().forEach((t) => t.stop());
         player.current?.pause();
+        const blob = new Blob(chunks, { type: r.mimeType || type || 'video/webm' });
+        if (!blob.size) { say('That clip did not record. Try again'); return; }
         noteUse(lens);
-        onShot({ kind: 'video', blob: new Blob(chunks, { type: r.mimeType || 'video/webm' }), ...(song ? { song } : {}) });
+        onShot({ kind: 'video', blob, ...(song ? { song } : {}) });
       };
-      r.stop();
+      // A clip gets at least a moment, so a tap-and-release still holds a frame.
+      const short = 600 - (Date.now() - began);
+      if (short > 0) window.setTimeout(() => r.stop(), short); else r.stop();
     };
-    rec.current = { r, stop };
-    r.start(250); setRecording(true); draw();
+    r.start(250); draw();
+    rec.current = { stop };
+    // Let go while the microphone was still being asked for.
+    if (!wanted || !pressed.current) stop();
   };
 
   const hold = useRef<number | undefined>(undefined);
-  const onShutterDown = (e: React.PointerEvent) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic */ } hold.current = window.setTimeout(() => { hold.current = undefined; void startRec(); }, 300); };
+  /** Where the finger went down, and the zoom then: sliding up from there zooms in. */
+  const slide = useRef<{ y: number; z: number } | undefined>(undefined);
+  const zoomTop = () => Math.min(8, caps().zoom?.max ?? 4);
+  const onShutterDown = (e: React.PointerEvent) => {
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic */ }
+    pressed.current = true;
+    slide.current = { y: e.clientY, z: zoom };
+    hold.current = window.setTimeout(() => { hold.current = undefined; if (pressed.current) void startRec(); }, 280);
+  };
+  const onShutterMove = (e: React.PointerEvent) => {
+    const from = slide.current; if (!from || !pressed.current || hold.current) return;
+    // A full swipe up the screen is the whole range; back down returns to where it began.
+    const reach = Math.max(200, window.innerHeight * 0.55);
+    const z = Math.min(zoomTop(), Math.max(1, from.z + ((from.y - e.clientY) / reach) * (zoomTop() - 1)));
+    if (Math.abs(z - zoom) > 0.02) setZoom(Math.round(z * 100) / 100);
+  };
   const onShutterUp = () => {
+    if (!pressed.current) return;
+    pressed.current = false; slide.current = undefined;
     if (hold.current) { window.clearTimeout(hold.current); hold.current = undefined; afterTimer(() => void snap()); return; }
-    rec.current?.stop(); rec.current = undefined;
+    rec.current?.stop();
   };
 
   // ---- the lens row ------------------------------------------------------------
@@ -400,7 +463,10 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       <div ref={view} className="absolute inset-x-0 top-0 bottom-[132px] overflow-hidden rounded-b-[16px] bg-[#111]"
         onDoubleClick={() => void flip()} onClick={() => setDualOpen(false)}>
         {/* Always mounted: with Camera Kit on it is hidden but still the full-resolution source for the shutter. */}
-        <video ref={videoRef} className={cn('absolute inset-0 size-full object-cover', facing === 'user' && '-scale-x-100', kitOn && 'pointer-events-none opacity-0')} muted playsInline autoPlay />
+        {/* Mirrored with transform, not the -scale-x utility: LookStyle writes an
+            inline `scale` for zoom, which silently undid that flip, so the selfie
+            view started the wrong way round and jumped once Camera Kit took over. */}
+        <video ref={videoRef} className={cn('absolute inset-0 size-full object-cover', kitOn && !!lens.ck && 'pointer-events-none opacity-0')} style={facing === 'user' ? { transform: 'scaleX(-1)' } : undefined} muted playsInline autoPlay />
         {!started && !noCamera && (
           <div role="status" className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 text-[13px] font-medium text-white/65">
             <span aria-hidden className="size-7 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
@@ -493,7 +559,8 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
           <button type="button" aria-label="Gallery" onClick={() => fileRef.current?.click()} className="grid size-11 place-items-center rounded-[12px] bg-white/10 ring-1 ring-white/15"><ImagePlus size={20} /></button>
         </div>
         <button type="button" aria-label={recording ? 'Recording' : 'Take a snap, hold to record'}
-          onPointerDown={onShutterDown} onPointerUp={onShutterUp} onPointerCancel={onShutterUp} onContextMenu={(e) => e.preventDefault()}
+          onPointerDown={onShutterDown} onPointerMove={onShutterMove} onPointerUp={onShutterUp} onPointerCancel={onShutterUp} onLostPointerCapture={onShutterUp} onContextMenu={(e) => e.preventDefault()}
+          style={{ touchAction: 'none', WebkitTouchCallout: 'none' }}
           className={cn('bg-sweep-ring relative size-[80px] shrink-0 rounded-full p-[4px] shadow-[0_6px_24px_rgba(139,93,255,.35)] transition-transform duration-200', recording && 'scale-[1.14]')}>
           <span className={cn('grid size-full place-items-center overflow-hidden rounded-full border-[3px] border-black bg-white transition-all duration-200', recording && 'scale-[.62] rounded-[14px] border-0 bg-danger')}>
             {!recording && lens.key !== 'none' && <Tile l={lens} big />}
@@ -501,7 +568,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
           {recording && (
             <svg viewBox="0 0 100 100" className="absolute -inset-[8px] size-[96px] -rotate-90">
               <defs><linearGradient id="rec-sweep" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#8b5dff" /><stop offset=".5" stopColor="#e0559b" /><stop offset="1" stopColor="#ffcc4d" /></linearGradient></defs>
-              <circle cx="50" cy="50" r="46" fill="none" stroke="url(#rec-sweep)" strokeWidth="5" strokeLinecap="round" strokeDasharray="289" strokeDashoffset="289" style={{ animation: 'snap-rec 10s linear forwards' }} />
+              <circle cx="50" cy="50" r="46" fill="none" stroke="url(#rec-sweep)" strokeWidth="5" strokeLinecap="round" strokeDasharray="289" strokeDashoffset="289" style={{ animation: `snap-rec ${REC_MAX_MS}ms linear forwards` }} />
             </svg>
           )}
         </button>

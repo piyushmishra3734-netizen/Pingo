@@ -85,13 +85,24 @@ export function keepServiceWorkerFresh(): void {
 }
 
 /**
- * Reloads the moment nobody is looking, and never twice.
+ * How long the app must have been away before a pending update reloads it.
  *
- * Hidden already - the person has switched away - means now. Otherwise it
- * waits for them to leave, so the update happens between glances rather than
- * under a thumb mid-sentence. A tab that is never hidden simply keeps running
- * the old build until it is, which is the honest trade: correctness matters,
- * but not enough to yank a conversation out from under somebody.
+ * Reloading the instant the tab was hidden was felt: replying from a
+ * notification, glancing at another app, pulling down the shade - each hides
+ * PINGO for a few seconds, and coming back to a chat that had just refreshed
+ * itself under you read as a jolt and a flash. After this long away, a fresh
+ * start is what opening the app looks like anyway.
+ */
+const AWAY_MS = 10 * 60 * 1000;
+
+/**
+ * Reloads once the app has been away long enough, and never twice.
+ *
+ * Checked when it comes back, not when it leaves: a phone freezes the timers
+ * of an app in the background, so "away for ten minutes" can only be read on
+ * the way back in. A tab that is never away that long keeps running the old
+ * build until it is - correctness matters, but not enough to yank a
+ * conversation out from under somebody.
  */
 function reloadWhenUnwatched(): void {
   try {
@@ -110,16 +121,18 @@ function reloadWhenUnwatched(): void {
     window.location.reload();
   };
 
-  if (document.visibilityState === 'hidden') {
-    go();
-    return;
-  }
-
-  document.addEventListener(
-    'visibilitychange',
-    () => {
-      if (document.visibilityState === 'hidden') go();
-    },
-    { once: true },
-  );
+  let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : undefined;
+  const onChange = () => {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+      return;
+    }
+    if (hiddenAt !== undefined && Date.now() - hiddenAt >= AWAY_MS) {
+      document.removeEventListener('visibilitychange', onChange);
+      go();
+      return;
+    }
+    hiddenAt = undefined;
+  };
+  document.addEventListener('visibilitychange', onChange);
 }

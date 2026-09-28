@@ -1,6 +1,6 @@
 import { useProfile, type Profile } from '@pingo/core';
 import { Avatar, Button, cn } from '@pingo/ui';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
@@ -22,6 +22,9 @@ import {
   uploadUpdateNotice,
   type UpdateNoticeRow,
 } from '../../lib/supabase/update-notice.js';
+
+/** The newest APK's versionCode (2.26.40.1), filled in so a card can be published straight away. */
+const LATEST_BUILD = '2604001';
 
 /**
  * Operator-only: upload original-quality intro art (PC + mobile).
@@ -52,7 +55,8 @@ export function ControllingScreen() {
   const [seedGroups, setSeedGroups] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [notice, setNotice] = useState<UpdateNoticeRow | null>(null);
-  const [minBuild, setMinBuild] = useState('');
+  const [minBuild, setMinBuild] = useState(LATEST_BUILD);
+  const noticeFile = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -71,7 +75,7 @@ export function ControllingScreen() {
       ]);
       setRows(slides);
       setNotice(update);
-      setMinBuild(update ? String(update.min_build) : '');
+      setMinBuild(update ? String(update.min_build) : LATEST_BUILD);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load assets');
     }
@@ -289,6 +293,148 @@ export function ControllingScreen() {
           <p className="mb-3 rounded-lg bg-brand/10 px-3 py-2 text-caption text-brand">{ok}</p>
         ) : null}
 
+        {/* Update card */}
+        <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
+          <h2 className="mb-1 text-body font-semibold text-ink">Update card</h2>
+          <p className="mb-3 text-caption text-text-secondary">
+            Everyone sees this on launch — web included. Anyone on an installed
+            build below the number you set gets it back every open until they
+            install the new APK; everyone else can close it once and it is gone.
+            Publishing a new card shows it to everybody again.
+          </p>
+
+          <label className="mb-3 block">
+            <span className="text-caption font-medium text-text-secondary">
+              Show to builds below
+            </span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={minBuild}
+              onChange={(e) => setMinBuild(e.target.value)}
+              placeholder="2603503"
+              className="mt-1 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
+            />
+            <span className="mt-1 block text-[11px] text-text-tertiary">
+              versionCode of the build you just shipped — YYWWBB, so 2.26.35.8 is
+              2603508.
+            </span>
+            {/*
+              What the number actually means, in a sentence.
+
+              A build number is seven digits and one wrong one changes who the
+              card reaches, silently. 4664 was typed once: every phone is above
+              it, so everybody counted as up to date, saw it once, and never saw
+              it again. Nothing errored. This says out loud what is about to
+              happen so the mistake is visible before it is published.
+            */}
+            {minBuild.trim() ? (
+              <span className="mt-1 block text-[11px] text-text-secondary">
+                {Number(minBuild) >= 1_000_000
+                  ? `Anyone on a build older than ${Number(minBuild)} keeps seeing this until they update. Everyone else sees it once.`
+                  : 'That is not a build number — they are seven digits. Every phone is above this, so nobody would be asked to update.'}
+              </span>
+            ) : null}
+          </label>
+
+          <div className="mb-2 overflow-hidden rounded bg-page">
+            {notice ? (
+              <img
+                src={updateNoticeUrl(notice)}
+                alt=""
+                className="max-h-56 w-full object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.opacity = '0.25';
+                }}
+              />
+            ) : (
+              <p className="px-3 py-6 text-center text-caption text-text-tertiary">
+                No card published
+              </p>
+            )}
+          </div>
+
+          <span className="mb-2 block text-[11px] text-text-tertiary">
+            {notice
+              ? `Nagging builds under ${notice.min_build} · ${new Date(notice.updated_at).toLocaleString()}`
+              : 'Nobody is being shown anything'}
+          </span>
+
+{/*
+            A button, not the browser's own file input. That one was a line of
+            small text, greyed out until a build number was typed, and on a
+            phone it did not read as a control at all - "there is no option".
+          */}
+          <input
+            ref={noticeFile}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              e.target.value = '';
+              void onPickNotice(f);
+            }}
+          />
+          <Button
+            size="sm"
+            className="w-full"
+            disabled={busy === 'notice' || Number(minBuild) < 1_000_000}
+            onClick={() => noticeFile.current?.click()}
+          >
+            {busy === 'notice' ? 'Uploading…' : notice ? 'Replace update image' : 'Choose update image'}
+          </Button>
+          {Number(minBuild) < 1_000_000 ? (
+            <span className="mt-1 block text-[11px] text-text-tertiary">Type the build number above first.</span>
+          ) : null}
+          {notice ? (
+            /*
+              The card, exactly as it will arrive.
+
+              `NoticeCard` is the same component the real notice renders - not a
+              copy of its markup. A preview drawn from its own JSX is a promise
+              the real thing does not have to keep: it drifts the first time
+              either is touched, and the moment it drifts it is worse than no
+              preview at all, because somebody trusts it.
+            */
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3 w-full"
+              onClick={() => setPreviewing(true)}
+            >
+              Preview
+            </Button>
+          ) : null}
+
+          {previewing && notice ? (
+            <NoticeCard
+              src={updateNoticeUrl(notice)}
+              onClose={() => setPreviewing(false)}
+            />
+          ) : null}
+
+          {notice ? (
+            /*
+              A real button, not a text link under a file input.
+              
+              It was `variant="text"` at `sm`, tucked below the picker, and the
+              operator could not find it - which for the one control that stops
+              a card appearing on everybody's phone is the wrong place to be
+              subtle.
+            */
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3 w-full border-danger/40 text-danger"
+              disabled={busy === 'notice'}
+              onClick={() => void onClearNotice()}
+            >
+              Remove this card
+            </Button>
+          ) : null}
+        </section>
+
         <MissionControl />
 
         {/* Premium */}
@@ -434,131 +580,6 @@ export function ControllingScreen() {
           ) : null}
         </section>
 
-        {/* Update card */}
-        <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
-          <h2 className="mb-1 text-body font-semibold text-ink">Update card</h2>
-          <p className="mb-3 text-caption text-text-secondary">
-            Everyone sees this on launch — web included. Anyone on an installed
-            build below the number you set gets it back every open until they
-            install the new APK; everyone else can close it once and it is gone.
-            Publishing a new card shows it to everybody again.
-          </p>
-
-          <label className="mb-3 block">
-            <span className="text-caption font-medium text-text-secondary">
-              Show to builds below
-            </span>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={minBuild}
-              onChange={(e) => setMinBuild(e.target.value)}
-              placeholder="2603503"
-              className="mt-1 w-full rounded-md border border-border/60 bg-page px-3 py-2 text-body text-ink"
-            />
-            <span className="mt-1 block text-[11px] text-text-tertiary">
-              versionCode of the build you just shipped — YYWWBB, so 2.26.35.8 is
-              2603508.
-            </span>
-            {/*
-              What the number actually means, in a sentence.
-
-              A build number is seven digits and one wrong one changes who the
-              card reaches, silently. 4664 was typed once: every phone is above
-              it, so everybody counted as up to date, saw it once, and never saw
-              it again. Nothing errored. This says out loud what is about to
-              happen so the mistake is visible before it is published.
-            */}
-            {minBuild.trim() ? (
-              <span className="mt-1 block text-[11px] text-text-secondary">
-                {Number(minBuild) >= 1_000_000
-                  ? `Anyone on a build older than ${Number(minBuild)} keeps seeing this until they update. Everyone else sees it once.`
-                  : 'That is not a build number — they are seven digits. Every phone is above this, so nobody would be asked to update.'}
-              </span>
-            ) : null}
-          </label>
-
-          <div className="mb-2 overflow-hidden rounded bg-page">
-            {notice ? (
-              <img
-                src={updateNoticeUrl(notice)}
-                alt=""
-                className="max-h-56 w-full object-contain"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.opacity = '0.25';
-                }}
-              />
-            ) : (
-              <p className="px-3 py-6 text-center text-caption text-text-tertiary">
-                No card published
-              </p>
-            )}
-          </div>
-
-          <span className="mb-2 block text-[11px] text-text-tertiary">
-            {notice
-              ? `Nagging builds under ${notice.min_build} · ${new Date(notice.updated_at).toLocaleString()}`
-              : 'Nobody is being shown anything'}
-          </span>
-
-          <input
-            type="file"
-            accept="image/*"
-            className="text-caption file:mr-2 file:rounded-md file:border-0 file:bg-brand/15 file:px-2 file:py-1 file:text-caption file:font-medium file:text-brand"
-            disabled={busy === 'notice' || !minBuild.trim()}
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null;
-              e.target.value = '';
-              void onPickNotice(f);
-            }}
-          />
-          {notice ? (
-            /*
-              The card, exactly as it will arrive.
-
-              `NoticeCard` is the same component the real notice renders - not a
-              copy of its markup. A preview drawn from its own JSX is a promise
-              the real thing does not have to keep: it drifts the first time
-              either is touched, and the moment it drifts it is worse than no
-              preview at all, because somebody trusts it.
-            */
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-3 w-full"
-              onClick={() => setPreviewing(true)}
-            >
-              Preview
-            </Button>
-          ) : null}
-
-          {previewing && notice ? (
-            <NoticeCard
-              src={updateNoticeUrl(notice)}
-              onClose={() => setPreviewing(false)}
-            />
-          ) : null}
-
-          {notice ? (
-            /*
-              A real button, not a text link under a file input.
-              
-              It was `variant="text"` at `sm`, tucked below the picker, and the
-              operator could not find it - which for the one control that stops
-              a card appearing on everybody's phone is the wrong place to be
-              subtle.
-            */
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-3 w-full border-danger/40 text-danger"
-              disabled={busy === 'notice'}
-              onClick={() => void onClearNotice()}
-            >
-              Remove this card
-            </Button>
-          ) : null}
-        </section>
 
         <h2 className="mb-2 px-1 text-body font-semibold text-ink">Intro slides</h2>
         <p className="mb-3 px-1 text-caption text-text-secondary">
