@@ -1,118 +1,47 @@
 /*
- * The invite card, over a spring scene: frosted glass the blossoms blur
- * through, with PINGO's colours pooling at its edges - lilac along the left,
- * pink at the bottom left, peach down the right - and a white wave of light
- * across the top. The middle, where the code sits, stays pale.
+ * The invite card is the sakura artwork itself (public/qr/sakura-invite.webp),
+ * with the parts that belong to one person - their photo, name, handle and
+ * code - drawn live on top. These are the few styles those live parts need.
  */
-.qr-card {
-  --qr-ink: #2a2640;
-  --qr-muted: #8b8699;
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  color: var(--qr-ink);
-  font-family: 'Manrope', var(--font-sans);
-  background:
-    radial-gradient(65% 34% at 0% 14%, rgb(206 180 252 / 1), transparent 72%),
-    radial-gradient(60% 40% at 0% 50%, rgb(220 180 252 / 0.95), transparent 72%),
-    radial-gradient(70% 34% at 0% 96%, rgb(244 168 232 / 1), transparent 72%),
-    radial-gradient(60% 38% at 100% 42%, rgb(255 214 186 / 0.95), transparent 72%),
-    radial-gradient(62% 34% at 100% 96%, rgb(255 222 176 / 1), transparent 72%),
-    radial-gradient(90% 26% at 48% 104%, rgb(246 186 222 / 1), transparent 75%),
-    radial-gradient(60% 28% at 74% 14%, rgb(255 226 232 / 0.9), transparent 75%),
-    rgb(253 246 251 / 0.6);
-  -webkit-backdrop-filter: blur(22px) saturate(130%);
-  backdrop-filter: blur(22px) saturate(130%);
-  box-shadow:
-    inset 0 0 0 2px rgb(255 255 255 / 0.95),
-    inset 0 0 0 3.5px rgb(255 255 255 / 0.35),
-    inset 0 1px 22px rgb(255 255 255 / 0.6),
-    0 30px 60px -28px rgb(120 60 140 / 0.45);
+
+/* The artwork's first and last few rows fade out, so it sits in the blurred scene without a seam. */
+.qr-art {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 3.5%, #000 95.5%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 3.5%, #000 95.5%, transparent);
 }
 
-/* The wave of light across the top left, like the edge of a glass pane. */
-.qr-card::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  left: -20%;
-  top: 12%;
-  width: 95%;
-  height: 26%;
-  border-radius: 50%;
-  border-top: 2px solid rgb(255 255 255 / 0.75);
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0) 70%);
-  transform: rotate(-24deg);
-  pointer-events: none;
+/* The avatar's ring, as the artwork draws it: an 8px sweep of colour, a 7px white gap. */
+.qr-ring {
+  padding: 0.82cqw;
+  border-radius: 9999px;
+  background: conic-gradient(from 200deg, #9f63ff, #c066f5, #f062d2, #ff72b0, #ff9c6a, #ffc452, #f7a5d4, #9f63ff);
+  box-shadow: 0 0 2.2cqw rgb(230 110 220 / 0.35);
 }
-/* And a second, fainter one lower down, sweeping the other way. */
-.qr-card::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  left: -30%;
-  bottom: 8%;
-  width: 80%;
-  height: 34%;
-  border-radius: 50%;
-  border-top: 1.5px solid rgb(255 255 255 / 0.5);
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0) 60%);
-  transform: rotate(14deg);
-  pointer-events: none;
+.qr-ring > * {
+  border: 0.72cqw solid #fff;
+  border-radius: 9999px;
 }
 
 .qr-glass {
-  background: linear-gradient(160deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.48));
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.85), rgb(255 255 255 / 0.62));
   box-shadow:
     inset 0 0 0 1.2px rgb(255 255 255 / 0.95),
-    inset 0 2px 10px rgb(255 255 255 / 0.6),
-    0 10px 24px -14px rgb(140 70 150 / 0.35);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+    0 12px 28px -14px rgb(140 70 150 / 0.4);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
-
-/* The avatar's ring: a thin sweep of PINGO colour, a hair of white, then the photo. */
-.qr-ring {
-  padding: 3.5px;
-  border-radius: 9999px;
-  background: conic-gradient(from 210deg, #a66cff, #c86cf0, #f06bd0, #ff7fa8, #ffb35a, #ffd36a, #f6a0d8, #a66cff);
-  box-shadow: 0 8px 22px -10px rgb(166 108 255 / 0.6);
-}
-.qr-ring > * {
-  border: 3.5px solid #fdf8fb;
-  border-radius: 9999px;
-}
-
-.qr-muted { color: var(--qr-muted); }
-
-/* Petals falling behind the card, swaying as they go. */
-@keyframes sakura-fall {
-  0% { transform: translate3d(0, -40px, 0); opacity: 0; }
-  8% { opacity: 1; }
-  50% { transform: translate3d(var(--drift, 30px), 50vh, 0); }
-  92% { opacity: 1; }
-  100% { transform: translate3d(0, 105vh, 0); opacity: 0; }
-}
-@keyframes sakura-spin {
-  0% { transform: rotate(0deg) rotateX(0deg); }
-  50% { transform: rotate(160deg) rotateX(60deg); }
-  100% { transform: rotate(360deg) rotateX(0deg); }
-}
-.sakura-fall { animation: sakura-fall 12s linear infinite; }
-.sakura-spin { display: block; animation: sakura-spin 4s ease-in-out infinite; }
 
 @keyframes qr-scene-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 @keyframes qr-card-in {
-  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
   to { opacity: 1; transform: none; }
 }
-.qr-scene-in { animation: qr-scene-in 0.35s ease-out both; }
-.qr-card-in { animation: qr-card-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both; }
+.qr-scene-in { animation: qr-scene-in 0.3s ease-out both; }
+.qr-card-in { animation: qr-card-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.04s both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sakura-fall, .sakura-spin, .qr-card-in, .qr-scene-in { animation: none; }
-  .sakura-fall { display: none; }
+  .qr-card-in, .qr-scene-in { animation: none; }
 }

@@ -1,12 +1,8 @@
-import { Avatar, CheckIcon, LinkIcon, ShareIcon, StorageIcon, cn } from '@pingo/ui';
-import { MoreHorizontal } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Avatar } from '@pingo/ui';
+import { useEffect, useRef, useState } from 'react';
 
-import { AppLogo } from '../../components/AppLogo.js';
 import { Overlay } from '../../components/Overlay.js';
 import { profileLink } from './ShareProfileSheet.js';
-import { FallingPetals, Petal, SakuraBackdrop } from './SakuraScene.js';
-import { VoxelCat, catEdge } from './VoxelCat.js';
 import { VoxelQr } from './VoxelQr.js';
 import './qr-card.css';
 
@@ -65,6 +61,16 @@ export function QrCodeSheet({
   const [menu, setMenu] = useState(false);
   /** Bumped to play the tree coming apart into the code once more. */
   const [replay, setReplay] = useState(0);
+  /** The code's size in px: the artwork gives it 560 of its 979 px of width. */
+  const [qrSize, setQrSize] = useState(220);
+  useEffect(() => {
+    const el = cardRef.current; if (!el) return;
+    const fit = () => setQrSize(Math.round((el.getBoundingClientRect().width * 560) / ART_W));
+    fit();
+    const watch = new ResizeObserver(fit);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
 
   const copy = async () => {
     try {
@@ -133,101 +139,74 @@ export function QrCodeSheet({
 
   return (
     <Overlay onDismiss={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Your QR code"
-        className="qr-scene-in fixed inset-0 z-[600] overflow-hidden"
-        onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      >
-        <SakuraBackdrop />
-        <FallingPetals />
+      <div role="dialog" aria-modal="true" aria-label="Your QR code" className="qr-scene-in fixed inset-0 z-[600] overflow-hidden bg-[#f3cdd8]">
+        {/* The scene carried on past the edges of the artwork, soft, on screens taller or wider than it. */}
+        <img src={SCENE} alt="" aria-hidden className="absolute inset-0 size-full scale-110 object-cover blur-2xl" />
 
-        <div
-          className="relative flex h-full items-center justify-center px-[7%] pt-[max(4.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
-          onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-        >
-          <div className="qr-card-in relative w-full max-w-[21rem]">
-            <div ref={cardRef} className="qr-card rounded-[1.9rem] px-5 pb-[15px]">
-              {/* The brand, top left. */}
-              <span className="absolute top-[18px] left-[24px] flex items-center gap-2.5">
-                <AppLogo size={32} alt="" />
-                <span className="text-[16px] font-extrabold tracking-[0.24em]">PINGO</span>
-              </span>
+        <div className="relative grid h-full place-items-center" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          {/*
+            The card, drawn at the artwork's own proportions (979 x 1606) and
+            scaled to the screen. Every position below is the artwork's pixel,
+            as a share of it, so the live parts land exactly where the design
+            has them.
+          */}
+          <div
+            ref={cardRef}
+            className="qr-card-in relative [container-type:inline-size]"
+            style={{ width: 'min(100vw, 460px, calc((100dvh - 8px) * 979 / 1606))', aspectRatio: '979 / 1606' }}
+            onPointerDown={(e) => {
+              // Outside the glass card itself is the scene: a tap there closes.
+              const box = e.currentTarget.getBoundingClientRect();
+              const x = ((e.clientX - box.left) / box.width) * 979;
+              const y = ((e.clientY - box.top) / box.height) * 1606;
+              if (x < 67 || x > 910 || y < 195 || y > 1484) onClose();
+            }}
+          >
+            {/* Its top and bottom edges fade into the softened scene behind, for screens taller than the artwork. */}
+            <img src={SCENE} alt="" aria-hidden className="qr-art absolute inset-0 size-full select-none" draggable={false} />
 
-              {/* A small glass pill of a menu, top right. */}
-              <span className="absolute top-[20px] right-[16px] z-20">
-                <button
-                  type="button"
-                  aria-label="More"
-                  aria-expanded={menu}
-                  onClick={() => setMenu((m) => !m)}
-                  className="qr-glass focus-ring grid h-[24px] w-[34px] place-items-center rounded-full text-[#8e86a0]"
-                >
-                  <MoreHorizontal size={18} strokeWidth={2.6} />
-                </button>
-                {menu && (
-                  <span role="menu" className="qr-glass absolute top-8 right-0 flex w-44 flex-col overflow-hidden rounded-2xl py-1 text-[14px] font-semibold">
-                    <button type="button" role="menuitem" onClick={() => { setMenu(false); setReplay((n) => n + 1); }} className="px-4 py-2.5 text-left hover:bg-white/50">
-                      Play the tree again
-                    </button>
-                    <button type="button" role="menuitem" onClick={() => { setMenu(false); void copy(); }} className="px-4 py-2.5 text-left hover:bg-white/50">
-                      Copy link
-                    </button>
-                  </span>
-                )}
-              </span>
+            {/* The avatar in its ring: an 8px sweep of colour, a 7px gap, the photo. */}
+            <span className="qr-ring absolute" style={at(380, 294, 220, 220)}>
+              <Avatar name={displayName} id={userId} src={avatarUrl} size="xl" className="!size-full !text-[7cqw]" />
+            </span>
 
-              {/* Petals that have landed on the glass - never over the code. */}
-              {CARD_PETALS.map((p, i) => (
-                <Petal key={i} size={p.size} className="pointer-events-none absolute" style={{ left: `${p.x}%`, top: `${p.y}%`, transform: `rotate(${p.r}deg)`, opacity: p.o }} />
-              ))}
+            <p className="absolute truncate text-center font-extrabold leading-none tracking-[-0.01em] text-[#1f2340]" style={{ ...at(300, 519, 379, 50), fontSize: cq(43), fontFamily: "'Manrope', var(--font-sans)" }}>
+              {displayName}
+            </p>
+            <p className="absolute truncate text-center font-semibold leading-none text-[#7c7a8c]" style={{ ...at(300, 566, 379, 34), fontSize: cq(27), fontFamily: "'Manrope', var(--font-sans)" }}>
+              @{username}
+            </p>
 
-              <div className="relative flex flex-col items-center pt-[40px]">
-                <span className="qr-ring">
-                  <Avatar name={displayName} id={userId} src={avatarUrl} size="xl" className="!size-[80px]" />
-                </span>
-                <p className="mt-0.5 max-w-full truncate text-[23px] font-extrabold leading-[1.15] tracking-[-0.01em]">{displayName}</p>
-                <p className="qr-muted text-[13.5px] font-semibold leading-[1.1]">@{username}</p>
-
-                {/*
-                  The plate. Frosted glass around a code that stays on white in
-                  every theme - scanners assume the light modules are light.
-                */}
-                <div className="qr-glass mt-[10px] grid h-[241px] w-[260px] max-w-full place-items-center rounded-[22px]">
-                  <div className="rounded-[14px] bg-white/85">
-                    <VoxelQr key={replay} value={link} size={222} autoPlay caption="" label={`QR code for ${displayName} on PINGO`} />
-                  </div>
-                </div>
-
-                <p className="mt-[6px] text-[12.5px] font-medium text-[#6f6a7d]">Scan to connect on PINGO</p>
-
-                {error && (
-                  <p role="alert" className="mt-1 text-center text-caption text-danger">
-                    {error}
-                  </p>
-                )}
-
-                <div className="mt-[7px] grid w-full grid-cols-3 gap-[10px]">
-                  <Action label="Share" tint="#ee4fa3" onClick={() => void share()}>
-                    <ShareIcon size={25} />
-                  </Action>
-                  <Action label={saved ? 'Saved' : 'Save'} tint="#9d6cf6" onClick={() => void save()}>
-                    {saved ? <CheckIcon size={25} /> : <StorageIcon size={25} />}
-                  </Action>
-                  <Action label={copied ? 'Copied' : 'Copy link'} tint="#f5a524" onClick={() => void copy()}>
-                    {copied ? <CheckIcon size={25} /> : <LinkIcon size={25} />}
-                  </Action>
-                </div>
+            {/* The code, in the middle of the frosted tile. */}
+            <div className="absolute grid place-items-center" style={at(174, 630, 629, 585)}>
+              <div className="rounded-[3cqw] bg-white/70">
+                <VoxelQr key={`${replay}-${qrSize}`} value={link} size={qrSize} autoPlay caption="" label={`QR code for ${displayName} on PINGO`} />
               </div>
             </div>
 
-            {/* The cat, lying on the card's top edge: paws over the front, tail hanging down. */}
-            <VoxelCat size={CAT_SIZE} className="pointer-events-none absolute z-10" style={{ left: CAT_LEFT, top: -catEdge(CAT_SIZE).top, transform: 'rotate(-4deg)', transformOrigin: `${catEdge(CAT_SIZE).left}px ${catEdge(CAT_SIZE).top}px` }} />
-            {/* Petals that have landed on the cat: one on its back, one at the tip of its tail, one beside a paw. */}
-            <Petal size={22} className="pointer-events-none absolute z-20" style={{ left: `calc(${CAT_HEAD} + 90px)`, top: -30, transform: 'rotate(60deg)' }} />
-            <Petal size={20} className="pointer-events-none absolute z-20" style={{ left: `calc(${CAT_HEAD} + 66px)`, top: 72, transform: 'rotate(-30deg)' }} />
-            <Petal size={16} className="pointer-events-none absolute z-20" style={{ left: `calc(${CAT_HEAD} - 20px)`, top: -12, transform: 'rotate(25deg)' }} />
+            {/* The menu pill, drawn in the artwork; this is what makes it a button. */}
+            <button type="button" aria-label="More" aria-expanded={menu} onClick={() => setMenu((m) => !m)} className="focus-ring absolute rounded-full active:bg-white/30" style={at(792, 245, 80, 55)} />
+            {menu && (
+              <span role="menu" className="qr-glass absolute z-10 flex flex-col overflow-hidden rounded-2xl py-1 text-[14px] font-semibold text-[#2e2a3a]" style={{ right: pct(979 - 872, 979), top: pct(310, 1606) }}>
+                <button type="button" role="menuitem" onClick={() => { setMenu(false); setReplay((n) => n + 1); }} className="px-4 py-2.5 text-left whitespace-nowrap hover:bg-white/50">
+                  Play the tree again
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setMenu(false); void copy(); }} className="px-4 py-2.5 text-left whitespace-nowrap hover:bg-white/50">
+                  Copy link
+                </button>
+              </span>
+            )}
+
+            {/* Share, Save and Copy link are drawn in the artwork too; these are their touch areas. */}
+            <PressArea label="Share" box={[116, 1290, 235, 153]} onClick={() => void share()} />
+            <PressArea label="Save" box={[374, 1290, 231, 153]} onClick={() => void save()} />
+            <PressArea label="Copy link" box={[628, 1290, 234, 153]} onClick={() => void copy()} />
+
+            {(copied || saved || error) && (
+              <span role="status" className="absolute left-1/2 -translate-x-1/2 rounded-full bg-[#2a2640]/85 px-3.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white shadow-lg" style={{ top: pct(1236, 1606) }}>
+                {error ?? (copied ? 'Link copied' : 'Saved to your phone')}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -235,56 +214,32 @@ export function QrCodeSheet({
   );
 }
 
-const CAT_SIZE = 4.1;
-/**
- * Where the cat's head starts, from the card's left. Measured back from the
- * right edge, so on any width the tail hangs just left of the menu pill.
- */
-const CAT_HEAD = `(100% - ${Math.round(17 * CAT_SIZE + 64)}px)`;
-const CAT_LEFT = `calc(${CAT_HEAD} - ${catEdge(CAT_SIZE).left}px)`;
+/** The artwork's size, which every position here is measured in. */
+const ART_W = 979;
+const ART_H = 1606;
+const SCENE = '/qr/sakura-invite.webp';
 
-/** Where petals rest on the card, in % of its box. Kept off the code in the middle. */
-const CARD_PETALS = [
-  { x: 9, y: 17, size: 24, r: -40, o: 1 },
-  { x: 12, y: 29, size: 19, r: 25, o: 1 },
-  { x: 7, y: 44, size: 16, r: -65, o: 0.95 },
-  { x: 11, y: 58, size: 21, r: 35, o: 1 },
-  { x: 3, y: 73, size: 20, r: -15, o: 1 },
-  { x: 85, y: 17, size: 26, r: 30, o: 1 },
-  { x: 81, y: 30, size: 16, r: -10, o: 0.95 },
-  { x: 89, y: 43, size: 20, r: 55, o: 1 },
-  { x: 86, y: 57, size: 17, r: -40, o: 0.95 },
-  { x: 90, y: 71, size: 22, r: 15, o: 1 },
-  { x: 35, y: 94, size: 18, r: -70, o: 1 },
-  { x: 60, y: 95, size: 15, r: 25, o: 0.95 },
-  { x: 4, y: 91, size: 16, r: 60, o: 0.95 },
-  { x: 91, y: 93, size: 20, r: -35, o: 1 },
-];
+const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+/** A font size in the artwork's pixels, as a share of the card's width. */
+const cq = (px: number) => `${(px / ART_W) * 100}cqw`;
+/** A box in the artwork's pixels, placed on the card. */
+const at = (x: number, y: number, w: number, h: number): React.CSSProperties => ({
+  left: pct(x, ART_W),
+  top: pct(y, ART_H),
+  width: pct(w, ART_W),
+  height: pct(h, ART_H),
+});
 
-/** One of the three actions: a frosted tile, the icon in its own colour. */
-function Action({
-  label,
-  tint,
-  onClick,
-  children,
-}: {
-  label: string;
-  tint: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+/** An invisible button over something the artwork draws, with a soft flash when pressed. */
+function PressArea({ label, box, onClick }: { label: string; box: [number, number, number, number]; onClick: () => void }) {
   return (
     <button
       type="button"
+      aria-label={label}
       onClick={onClick}
-      className={cn(
-        'qr-glass focus-ring flex h-[62px] flex-col items-center justify-center gap-1 rounded-[16px] px-2',
-        'text-[14px] font-bold text-[#2e2a3a]',
-        'transition-transform duration-quick ease-standard active:scale-[0.96]',
-      )}
-    >
-      <span style={{ color: tint }}>{children}</span>
-      <span>{label}</span>
-    </button>
+      className="focus-ring absolute rounded-[3.8cqw] transition-colors duration-100 active:bg-white/35"
+      style={at(...box)}
+    />
   );
 }
+
