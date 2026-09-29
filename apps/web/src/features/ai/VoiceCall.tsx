@@ -1,4 +1,5 @@
-import { ChevronLeftIcon, EditIcon, PhoneIcon, PlusIcon, SendIcon, cn } from '@pingo/ui';
+import { cn } from '@pingo/ui';
+import { ChevronLeft, ImagePlus, Keyboard, Phone, Send } from 'lucide-react';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -6,7 +7,7 @@ import { openSpeech, type Speech } from '../chat/speak.js';
 import { isEcho } from './echo.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { useLiveTranscript } from './useLiveTranscript.js';
-import { VoiceWave } from './VoiceWave.js';
+import { VoiceBars } from './VoiceBars.js';
 
 /**
  * Talking to PINGO out loud.
@@ -42,6 +43,14 @@ const WHAT: Record<Phase, string> = {
   thinking: 'thinking',
   speaking: 'speaking',
   error: 'that did not work',
+};
+
+/** The same, as the screen says it to the person on the call. */
+const SAY: Record<Phase, string> = {
+  listening: 'sun raha hoon',
+  thinking: 'soch raha hoon…',
+  speaking: 'bol raha hoon',
+  error: 'kuch gadbad hui, phir se bolo',
 };
 
 /**
@@ -163,6 +172,22 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
    */
   const [stage, setStage] = useState<string>();
   const picker = useRef<HTMLInputElement>(null);
+  /*
+   * The last two lines of the conversation, faint above the one being said.
+   *
+   * Only two: enough to see what the current line answers, few enough that the
+   * screen is still about the line in front of you.
+   */
+  const [log, setLog] = useState<{ who: 'PINGO' | 'Tum'; text: string }[]>([]);
+  const saidNow = useRef('');
+  /** When the current answer started being spoken, for lighting its words in turn. */
+  const [speakingSince, setSpeakingSince] = useState(0);
+  const [clock, setClock] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const tick = window.setInterval(() => setClock(Date.now() - started), 250);
+    return () => window.clearInterval(tick);
+  }, []);
 
   const speech = useRef<Speech | undefined>(undefined);
   const live = useRef(true);
@@ -196,10 +221,7 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
     () => (phaseRef.current === 'speaking' ? (speech.current?.level() ?? 0) : micLevel.current),
     [],
   );
-  const active = useCallback(
-    () => phaseRef.current === 'listening' || phaseRef.current === 'speaking',
-    [],
-  );
+  const mode = useCallback(() => phaseRef.current, []);
 
   /**
    * Everything after the words exist: ask, speak, back to listening.
@@ -210,6 +232,9 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   const answer = useCallback(
     async (words: string) => {
       if (!live.current) return;
+      const before = saidNow.current;
+      if (before) setLog((lines) => [...lines, { who: 'PINGO' as const, text: before }].slice(-2));
+      saidNow.current = '';
       setHeard(words);
       setPhase('thinking');
       setStage(undefined);
@@ -241,7 +266,12 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
       try {
         reply = await ask(words, setStage, (sentence) => {
           if (!live.current) return;
-          if (phaseRef.current !== 'speaking') setPhase('speaking');
+          if (phaseRef.current !== 'speaking') {
+            setPhase('speaking');
+            setSpeakingSince(Date.now());
+            setLog((lines) => [...lines, { who: 'Tum' as const, text: words }].slice(-2));
+          }
+          saidNow.current = `${saidNow.current} ${sentence}`.trim();
           setSaid((before) => (before ? `${before} ${sentence}` : sentence));
           saying.current = `${saying.current} ${sentence}`.trim();
           queue.push(sentence);
@@ -267,6 +297,9 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
        */
       if (!queue.started && reply) {
         setSaid(reply);
+        saidNow.current = reply;
+        setSpeakingSince(Date.now());
+        setLog((lines) => [...lines, { who: 'Tum' as const, text: words }].slice(-2));
         setPhase('speaking');
         queue.push(reply);
       }
@@ -396,6 +429,8 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   useEffect(() => {
     const hello = HELLOS[Math.floor(Math.random() * HELLOS.length)]!;
     setSaid(hello);
+    saidNow.current = hello;
+    setSpeakingSince(Date.now());
     saying.current = hello;
 
     const queue = openSpeech(fetchSentence);
@@ -448,199 +483,141 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
   /*
    * The one line of text the screen is about, and whose line it is.
    *
-   * Two columns of transcript - yours on one side, PINGO's on the other - is
-   * how a debugging view looks. A call has exactly one speaker at a time, so
-   * the screen shows exactly one thing: the partial while somebody is talking,
-   * the answer while PINGO is, and what was heard while it thinks about it.
+   * A call has exactly one speaker at a time, so the screen shows exactly one
+   * thing large: the partial while somebody is talking, the answer while PINGO
+   * is, and what was heard while it thinks about it.
    */
   const speakingNow = phase === 'speaking' || (phase === 'thinking' && !heard);
-  const line = speakingNow
-    ? said
-    : phase === 'listening'
-      ? transcript.partial || heard
-      : heard;
+  const line = speakingNow ? said : phase === 'listening' ? transcript.partial || heard : heard;
+  const whose = speakingNow ? 'PINGO' : 'Tum';
 
-  /** Who the words on screen belong to, which is the only label needed. */
-  const whose = speakingNow ? 'PINGO' : 'You';
+  /*
+   * Subtitles, lit a word at a time as they are said.
+   *
+   * The audio does not report where it is in a sentence, so this follows the
+   * pace of the voice (a little under three words a second) from the moment
+   * the answer started, and lights everything once it has finished. Your own
+   * words are lit as they arrive - they are already said.
+   */
+  const words = line ? line.split(/\s+/) : [];
+  const lit = speakingNow && phase === 'speaking'
+    ? Math.min(words.length, Math.floor(((Date.now() - speakingSince) / 1000) * 2.7) + 1)
+    : words.length;
+  // Long answers step down a size rather than running off the screen.
+  const size = line.length > 220 ? 'text-[19px] leading-snug' : line.length > 110 ? 'text-[23px] leading-tight' : 'text-[28px] leading-[1.18]';
+
+  const seconds = Math.floor(clock / 1000);
+  const timer = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  const status = phase === 'thinking' ? (stage ?? SAY.thinking) : SAY[phase];
 
   return (
     <div
       className={cn(
         /*
-         * Above the dock, which sits at 200.
-         *
-         * At the old `z-50` the navigation bar and the chats list floated over
-         * the call - three quiet grey glyphs and a list of other conversations
-         * drawn on top of a screen whose whole job is that you are talking to
-         * somebody. A call is modal by nature; this is the number that says so.
+         * Above the dock, which sits at 200. A call is modal by nature; this is
+         * the number that says so.
          */
-        'fixed inset-0 z-400 flex flex-col overflow-hidden bg-[#07080d] text-white',
-        /*
-         * Rising from the bottom edge, because that is the edge it was summoned
-         * from. The gesture is a hold at the bottom of the screen and the
-         * answer to it travels the same axis - which is the whole reason both
-         * phones animate their assistant this way rather than fading it in.
-         */
+        'fixed inset-0 z-400 flex flex-col overflow-hidden bg-page text-ink',
+        // Rising from the bottom edge, the edge it was summoned from.
         'motion-safe:animate-call-in',
       )}
+      style={
+        {
+          '--bars-ink': 'var(--color-ink)',
+          '--bars-brand': 'var(--gradient-from, #7c5cff)',
+          '--bars-quiet': 'var(--color-text-tertiary)',
+        } as React.CSSProperties
+      }
     >
-      {/*
-        Light, in three layers, none of it decoration.
-
-        A single flat radial gradient is what the first version had, and a flat
-        gradient behind a moving line reads as a screenshot with an animation
-        pasted on. These drift at different speeds and different sizes, so the
-        background is never quite the same twice - the same trick a lava lamp
-        plays, and the reason a dark screen can feel awake rather than off.
-
-        Brightened while PINGO is speaking and dimmed while it thinks, so the
-        room itself carries the state and the caption underneath is confirming
-        something the eye already knows.
-      */}
-      <div
-        aria-hidden
-        className={cn(
-          'pointer-events-none absolute inset-0 transition-opacity duration-slow ease-liquid',
-          phase === 'speaking' ? 'opacity-100' : phase === 'thinking' ? 'opacity-55' : 'opacity-80',
-        )}
-      >
-        <div
-          className="absolute -top-1/4 left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 rounded-[50%] blur-[80px] motion-safe:animate-aurora-drift"
-          style={{
-            background:
-              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-from, #7c5cff) 78%, transparent), transparent 70%)',
-          }}
-        />
-        {/*
-          The second one sits behind the wave rather than at the bottom edge.
-
-          Down there it was light leaking in from off-screen, which is only ever
-          background. Here the line is *in* it - the pool of colour is centred on
-          the one thing that moves, so the light reads as coming off the voice
-          rather than off the wallpaper.
-        */}
-        <div
-          className="absolute top-[38%] left-1/2 h-[55vh] w-[105vw] -translate-x-1/2 rounded-[50%] blur-[90px] motion-safe:animate-aurora-drift-slow"
-          style={{
-            background:
-              'radial-gradient(closest-side, color-mix(in srgb, var(--gradient-to, #3a8dff) 70%, transparent), transparent 72%)',
-          }}
-        />
-        {/* A vignette, so the controls at the edges keep their contrast. */}
-        <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_45%,transparent_42%,rgba(3,4,8,0.72)_100%)]" />
-      </div>
-
-      {/*
-        The header does two jobs and no more: say whose call this is, and give
-        the way out. Anything else up here competes with the only thing that
-        matters, which is in the middle of the screen.
-      */}
-      <header className="relative z-10 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      {/* Whose call, how long it has been going, and the way out. Nothing else up here. */}
+      <header className="relative z-10 flex items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button
           type="button"
           onClick={onEnd}
           aria-label="Close the call"
-          className={cn(
-            'focus-ring grid size-10 place-items-center rounded-full',
-            'bg-white/[0.07] text-white/80 backdrop-blur-md',
-            'transition-transform duration-instant active:scale-95',
-          )}
+          className="focus-ring -ml-1 grid size-10 place-items-center rounded-full text-text-secondary transition-transform duration-instant active:scale-95"
         >
-          <ChevronLeftIcon size={20} />
+          <ChevronLeft size={22} />
         </button>
-
-        <div className="flex items-center gap-2">
-          {/*
-            A live dot, and it is not always green.
-
-            It pulses only while the microphone is actually open. During
-            thinking it is still - which is the honest picture, because nothing
-            is being heard then, and a permanently blinking "live" light is the
-            kind of detail that makes people distrust everything next to it.
-          */}
-          <span
-            aria-hidden
-            className={cn(
-              'size-1.5 rounded-full',
-              phase === 'listening'
-                ? 'bg-emerald-400 motion-safe:animate-dot-pulse'
-                : phase === 'error'
-                  ? 'bg-red-400'
-                  : 'bg-white/35',
-            )}
-          />
-          <span className="text-caption font-medium tracking-wide text-white/70">PINGO</span>
-        </div>
-
-        {/* Balances the close button so the name sits truly centred. */}
-        <span aria-hidden className="size-10" />
+        <img src="/pingo-mark.svg" alt="" className="size-6" draggable={false} />
+        <span className="text-[16px] font-extrabold">PINGO</span>
+        <span className="ml-auto font-mono text-[12.5px] text-text-tertiary tabular-nums">{timer}</span>
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-        {/*
-          Whose voice it is, above the words.
+      {/*
+        The conversation so far, faint: the last two lines, yours on the right
+        and PINGO's on the left, so the big line below has something it is
+        answering.
+      */}
+      <section aria-label="Earlier in the call" className="relative z-10 mt-5 flex flex-col gap-3 px-6">
+        {log.map((entry, index) => (
+          <p
+            key={`${index}-${entry.text.slice(0, 12)}`}
+            className={cn(
+              'line-clamp-2 max-w-[85%] text-[15px] leading-snug font-semibold text-text-tertiary',
+              entry.who === 'Tum' && 'self-end text-right',
+            )}
+          >
+            {entry.text}
+          </p>
+        ))}
+      </section>
 
-          Small, low contrast - a label rather than content. Without it, a
-          reply and a transcript of your own sentence look identical, and on a
-          call that is the one ambiguity that makes people repeat themselves.
-
-          Set in sentence case, not caps: Apple moved section labels to
-          title-style capitalisation for legibility, and this one is read at a
-          glance on a moving screen, which is where caps cost the most.
-        */}
+      {/*
+        The words, as subtitles, a little below the middle of the screen where
+        the eye rests. Long answers step down a size rather than overflowing.
+      */}
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-6 pt-6 pb-4">
         <p
-          className={cn(
-            'text-caption mb-3 font-medium',
-            'transition-colors duration-base',
-            speakingNow ? 'text-white/45' : 'text-white/30',
-          )}
+          className="mb-2 text-[12.5px] font-bold tracking-wide"
+          style={{ color: speakingNow ? 'var(--gradient-from, #7c5cff)' : 'var(--color-text-secondary)' }}
         >
           {line ? whose : ''}
         </p>
-
-        {/*
-          The words. Sized to be read at arm's length, which is where a phone is
-          during a call, and clamped so a long answer cannot push the wave off
-          the screen.
-        */}
-        <p
-          className={cn(
-            'min-h-[4.5rem] max-w-md text-center text-balance',
-            'text-xl leading-snug font-light',
-            'transition-opacity duration-base ease-liquid',
-            line ? 'text-white/95 opacity-100' : 'text-white/40 opacity-100',
-            'line-clamp-3',
+        <p className={cn('max-h-full overflow-hidden font-extrabold tracking-[-0.015em] text-balance', size)}>
+          {line ? (
+            words.map((word, index) => (
+              <span
+                // eslint-disable-next-line react/no-array-index-key
+                key={index}
+                className={cn('transition-colors duration-base', index < lit ? 'text-ink' : 'text-text-tertiary/50')}
+              >
+                {word}{' '}
+              </span>
+            ))
+          ) : (
+            <span className="text-text-tertiary">{phase === 'listening' ? 'Bolo, main sun raha hoon…' : ''}</span>
           )}
-        >
-          {line || (phase === 'listening' ? 'Bolo, main sun raha hoon…' : '')}
         </p>
 
-        {/* The line itself. Everything above and below is context for it. */}
-        <div className="mt-6 h-32 w-full max-w-md">
-          <VoiceWave level={level} active={active} />
-        </div>
-
-        {/*
-          What it is doing, in its own words.
-
-          The function reports its stage - reading the thread, asking the big
-          model, shaping the reply - and this is where it lands. It is the
-          longest silence in the exchange and the only place the screen can say
-          why.
-        */}
-        <p
-          className="text-caption mt-4 h-5 text-white/40"
-          aria-live="polite"
-        >
-          {phase === 'thinking' ? (stage ?? 'soch raha hoon…') : WHAT[phase]}
+        {/* What it is doing, with a dot that is live only while it listens. */}
+        <p className="mt-3 flex h-5 items-center gap-2 text-[13px] font-semibold text-text-secondary" aria-live="polite">
+          <span
+            aria-hidden
+            className={cn('size-2 rounded-full', phase === 'listening' && 'motion-safe:animate-dot-pulse')}
+            style={{
+              background:
+                phase === 'listening'
+                  ? '#22c55e'
+                  : phase === 'speaking'
+                    ? 'var(--gradient-from, #7c5cff)'
+                    : phase === 'error'
+                      ? '#ef4444'
+                      : 'var(--color-text-tertiary)',
+            }}
+          />
+          {status}
         </p>
 
-        {transcript.error && (
-          <p className="text-caption mt-2 max-w-xs text-center text-red-300">{transcript.error}</p>
-        )}
+        {transcript.error && <p className="mt-2 text-[13px] text-red-500">{transcript.error}</p>}
       </main>
 
-      <footer className="relative z-10 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      {/* The voice, as a row of bars, between the words and the keys. */}
+      <div className="relative z-10 mx-6 h-11">
+        <VoiceBars level={level} mode={mode} />
+      </div>
+
+      <footer className="relative z-10 px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         {/*
           Typing is a fallback, so it lives behind a key rather than in front of
           it. A text field sitting open on a voice call says the voice part is
@@ -651,11 +628,11 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
             className="motion-safe:animate-panel-in mx-auto mb-4 flex w-full max-w-md items-center gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              const words = typed.trim();
-              if (!words || phase === 'thinking' || phase === 'speaking') return;
+              const text = typed.trim();
+              if (!text || phase === 'thinking' || phase === 'speaking') return;
               setTyped('');
               setKeyboard(false);
-              void answer(words);
+              void answer(text);
             }}
           >
             <input
@@ -664,23 +641,15 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
               placeholder="Ya likh do…"
               aria-label="Type instead of speaking"
               autoFocus
-              className={cn(
-                'focus-ring text-body min-w-0 flex-1 rounded-full px-4 py-2.5',
-                'border border-white/10 bg-white/[0.07] text-white placeholder:text-white/35',
-                'backdrop-blur-md',
-              )}
+              className="focus-ring text-body min-w-0 flex-1 rounded-full bg-sunken px-4 py-2.5 text-ink placeholder:text-text-tertiary"
             />
             <button
               type="submit"
               disabled={!typed.trim() || phase === 'thinking' || phase === 'speaking'}
               aria-label="Send"
-              className={cn(
-                'focus-ring grid size-11 shrink-0 place-items-center rounded-full',
-                'bg-white/15 text-white transition-transform duration-instant',
-                'active:scale-95 disabled:opacity-30',
-              )}
+              className="focus-ring grid size-11 shrink-0 place-items-center rounded-full bg-ink text-page transition-transform duration-instant active:scale-95 disabled:opacity-30"
             >
-              <SendIcon size={18} />
+              <Send size={18} />
             </button>
           </form>
         )}
@@ -699,45 +668,29 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
         />
 
         {/*
-          Three controls, and the one that ends the call is the only one with a
-          colour.
-
-          The old screen had a red pill that said "End call" in words, which is
-          the largest and loudest thing on a screen whose subject is a moving
-          line. Every phone in the world draws this as a round red key between
-          two quiet ones; there is no reason to be the exception, and being the
-          exception here reads as a prototype.
+          Three keys. Hanging up is the widest and the only solid one, set in
+          the ink colour rather than red: on a screen this quiet, a red key is
+          the loudest thing on it, and the words are what should be loud.
         */}
-        <div className="mx-auto flex w-full max-w-xs items-center justify-center gap-6">
+        <div className="mx-auto flex w-full max-w-xs items-center justify-center gap-5">
           <button
             type="button"
             onClick={() => picker.current?.click()}
             disabled={phase === 'thinking' || phase === 'speaking'}
             aria-label="Send a photo to look at"
-            className={cn(
-              'focus-ring grid size-14 place-items-center rounded-full',
-              'border border-white/10 bg-white/[0.07] text-white/85 backdrop-blur-md',
-              'transition-transform duration-instant active:scale-95 disabled:opacity-25',
-            )}
+            className="focus-ring grid size-14 place-items-center rounded-full bg-sunken text-ink transition-transform duration-instant active:scale-95 disabled:opacity-35"
           >
-            <PlusIcon size={22} />
+            <ImagePlus size={21} />
           </button>
 
           <button
             type="button"
             onClick={onEnd}
             aria-label="End call"
-            className={cn(
-              'focus-ring grid size-16 place-items-center rounded-full',
-              'bg-red-500 text-white',
-              // Lit along the top and dropping a red shadow: a key with a
-              // surface, matching the camera key in the dock.
-              'shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_10px_28px_-10px_rgb(239_68_68/0.9)]',
-              'transition-transform duration-instant active:scale-95',
-            )}
+            className="focus-ring grid h-14 w-[5.25rem] place-items-center rounded-full bg-ink text-page transition-transform duration-instant active:scale-95"
           >
             {/* A handset turned over is "hang up" everywhere, in every app. */}
-            <PhoneIcon size={24} className="rotate-[135deg]" />
+            <Phone size={22} className="rotate-[135deg]" />
           </button>
 
           <button
@@ -746,13 +699,11 @@ export function VoiceCall({ conversationId, onEnd, ask }: VoiceCallProps) {
             aria-label={keyboard ? 'Hide the keyboard' : 'Type instead of speaking'}
             aria-pressed={keyboard}
             className={cn(
-              'focus-ring grid size-14 place-items-center rounded-full',
-              'border border-white/10 backdrop-blur-md',
-              'transition-transform duration-instant active:scale-95',
-              keyboard ? 'bg-white/20 text-white' : 'bg-white/[0.07] text-white/85',
+              'focus-ring grid size-14 place-items-center rounded-full transition-transform duration-instant active:scale-95',
+              keyboard ? 'bg-ink text-page' : 'bg-sunken text-ink',
             )}
           >
-            <EditIcon size={20} />
+            <Keyboard size={21} />
           </button>
         </div>
       </footer>
