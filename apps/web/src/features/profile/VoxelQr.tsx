@@ -2,7 +2,6 @@ import { cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { GARDEN, encodeQr, mixRgb as mix, type QrLevel, type Rgb } from './qr.js';
-import { paintCat as paintGardenCat, type CatKind } from './garden-cat.js';
 
 /**
  * A voxel cherry tree that comes apart into the QR code.
@@ -256,21 +255,46 @@ export const SAKURA: Crown = {
 
 /** One unhurried lap of the lawn. */
 const PROWL_MS = 15000;
-/** Strides to a lap: an unhurried walk for a cat this size on a ring this long. */
-const STRIDES = 21;
-/** The cat's length from chest to rump, in modules. */
-const CAT_LENGTH = 6;
+/*
+ * The cat: a sprite sheet of the same black voxel kitten the invite artwork
+ * sits on its card, in six poses - sitting, sitting and looking at you, three
+ * steps of a walk, and curled up in a loaf. `public/qr/garden-cat.webp`,
+ * cut from the artist's sheet with every pose's feet on its bottom edge.
+ *
+ * `ax` is where the pose stands, measured from its left edge: the middle of
+ * the feet for the still poses, and a fixed point behind the head for the
+ * steps, so the body stays put across the walk while the legs move under it.
+ */
+const CAT_SHEET = '/qr/garden-cat.webp';
+const CAT_POSES = {
+  sit: { x: 4, y: 4, w: 224, h: 185, ax: 137 },
+  look: { x: 236, y: 4, w: 214, h: 186, ax: 122 },
+  stepA: { x: 458, y: 4, w: 230, h: 175, ax: 230 - 108 },
+  stepB: { x: 696, y: 4, w: 238, h: 166, ax: 238 - 108 },
+  stepC: { x: 942, y: 4, w: 231, h: 167, ax: 231 - 108 },
+  loaf: { x: 1181, y: 4, w: 230, h: 125, ax: 112 },
+} as const;
+type CatPose = keyof typeof CAT_POSES;
+/** The walk, as the three steps played there and back. */
+const WALK: CatPose[] = ['stepA', 'stepB', 'stepC', 'stepB'];
+/** How tall the sitting cat stands, in modules. */
+const CAT_HEIGHT = 6.4;
+/** Walking, then a rest, over and over. */
+const STROLL_MS = 6500;
+const REST_MS = 3200;
+/** What it does on each rest, in turn: sit, sit and look up at you, curl up. */
+const RESTS: CatPose[] = ['sit', 'look', 'loaf'];
 
-/** One small scratch canvas for the cat, reused every frame. */
-let catCanvas: HTMLCanvasElement | undefined;
-function catLayer(px: number): HTMLCanvasElement {
-  catCanvas ??= document.createElement('canvas');
-  const edge = Math.max(8, Math.ceil(px));
-  if (catCanvas.width !== edge) {
-    catCanvas.width = edge;
-    catCanvas.height = edge;
+let catSheet: HTMLImageElement | undefined;
+/** The sheet, loading on first use; undefined until it can be drawn. */
+function catImage(): HTMLImageElement | undefined {
+  if (typeof Image === 'undefined') return undefined;
+  if (!catSheet) {
+    catSheet = new Image();
+    catSheet.decoding = 'async';
+    catSheet.src = CAT_SHEET;
   }
-  return catCanvas;
+  return catSheet.complete && catSheet.naturalWidth > 0 ? catSheet : undefined;
 }
 
 interface Cell {
@@ -425,7 +449,6 @@ export function VoxelQr({
   level = 'M',
   size = 300,
   crown = SAKURA,
-  cat = 'black',
   autoPlay = false,
   className,
   label = 'Profile QR code',
@@ -436,8 +459,6 @@ export function VoxelQr({
   size?: number;
   /** What kind of tree. See `Crown`; `SAKURA` is the shipped shape. */
   crown?: Crown;
-  /** Which coat the cat doing laps of the lawn has. See `garden-cat.ts`. */
-  cat?: CatKind;
   /** Open on its own after a beat, which is what the share sheet wants. */
   autoPlay?: boolean;
   className?: string;
@@ -760,7 +781,16 @@ export function VoxelQr({
        * needs somewhere to go and a lap does not.
        */
       const alive = Math.min(1, (1 - e) * 2.4);
-      const lap = ((now % PROWL_MS) / PROWL_MS) * Math.PI * 2;
+
+      /*
+       * A stroll and a rest, taken in turn. The lap only moves while it walks,
+       * so it stops where it is to sit, then carries on from there.
+       */
+      const round = Math.floor(now / (STROLL_MS + REST_MS));
+      const into = now % (STROLL_MS + REST_MS);
+      const walking = into < STROLL_MS;
+      const walked = round * STROLL_MS + Math.min(into, STROLL_MS);
+      const lap = ((walked % PROWL_MS) / PROWL_MS) * Math.PI * 2;
       /*
        * Inside the grass, not on it. The rim of the lawn is where the grass
        * grows, and a cat walking through the middle of a tuft was the one thing
@@ -775,43 +805,40 @@ export function VoxelQr({
       /*
        * Which way it is facing. The path's own tangent in screen x says which
        * way it is going: differentiate the projection along the lap and
-       * everything but `-sin(lap + spin)` cancels. The cat is drawn side on,
-       * so it turns by flipping, at the two ends of the ring where it is
-       * walking straight towards or away from the camera.
+       * everything but `-sin(lap + spin)` cancels. The sprite faces right, so
+       * walking left is the same cat mirrored; at rest it keeps the way it was
+       * going.
        */
-      const tangent = -Math.sin(lap + spin);
-      facing.current = tangent >= 0 ? 1 : -1;
+      if (walking) facing.current = -Math.sin(lap + spin) >= 0 ? 1 : -1;
+      else if (facing.current === 0) facing.current = 1;
+
+      const pose: CatPose = walking
+        ? WALK[Math.floor(now / 125) % WALK.length]!
+        : RESTS[round % RESTS.length]!;
 
       const paintCat = () => {
-        if (alive <= 0.01) return;
+        const sheet = catImage();
+        if (alive <= 0.01 || !sheet) return;
         const ground = py(cx, 0, cz);
-        const s = unit * CAT_LENGTH;
+        const f = CAT_POSES[pose];
+        const k = (unit * CAT_HEIGHT) / CAT_POSES.sit.h;
+        // A step lifts the body a touch on every footfall.
+        const bob = walking ? Math.abs(Math.sin((now / 250) * Math.PI)) * unit * 0.18 : 0;
 
-        // Its shadow on the lawn, soft and flat.
         ctx.save();
+        // Its shadow on the lawn, soft and flat.
         ctx.globalAlpha = alive * 0.2;
         ctx.fillStyle = 'rgb(90, 40, 80)';
         ctx.beginPath();
-        ctx.ellipse(here, ground, s * 0.5, s * 0.5 * Math.max(0.2, cosP) * 0.45, 0, 0, Math.PI * 2);
+        const shadow = unit * (pose === 'loaf' ? 3.4 : 2.8);
+        ctx.ellipse(here, ground, shadow, shadow * Math.max(0.2, cosP) * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
 
-        /*
-         * Drawn whole into its own small canvas and then laid down at the
-         * scene's alpha, so it fades out as one animal. Faded shape by
-         * shape, the legs would show through the body.
-         */
-        const box = Math.ceil(s * 2.4);
-        const layer = catLayer(box * dpr);
-        const g = layer.getContext('2d')!;
-        g.setTransform(1, 0, 0, 1, 0, 0);
-        g.clearRect(0, 0, layer.width, layer.height);
-        g.setTransform(dpr * facing.current, 0, 0, dpr, (box / 2) * dpr, box * 0.62 * dpr);
-        const blink = now % 4200 < 150 ? 1 : 0;
-        paintGardenCat(g, s, cat, lap * STRIDES, blink);
-        ctx.save();
+        // An image fades as one animal, so the scene's alpha is enough.
         ctx.globalAlpha = alive;
-        ctx.drawImage(layer, 0, 0, layer.width, layer.height, here - box / 2, ground - box * 0.62, box, box);
+        ctx.translate(here, ground - bob);
+        ctx.scale(facing.current * k, k);
+        ctx.drawImage(sheet, f.x, f.y, f.w, f.h, -f.ax, -f.h, f.w, f.h);
         ctx.restore();
       };
 
@@ -1128,7 +1155,7 @@ export function VoxelQr({
       cancelAnimationFrame(frame);
       if (hold !== undefined) window.clearTimeout(hold);
     };
-  }, [value, level, size, crown, cat, autoPlay]);
+  }, [value, level, size, crown, autoPlay]);
 
   const hint = caption ?? (open ? 'Tap to see the tree' : 'Tap the tree to see the QR code');
 

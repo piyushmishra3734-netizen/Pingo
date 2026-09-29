@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { VoxelQr } from '../../features/profile/VoxelQr.js';
-import { paintCat, type CatKind } from '../../features/profile/garden-cat.js';
 
 /**
  * The tree-to-QR transition, on its own, at `/dev/qr-lab`.
@@ -20,7 +19,6 @@ export function VoxelQrLab() {
   const [size, setSize] = useState(300);
   // Remounting is the replay: the hold-then-open runs from the top again.
   const [take, setTake] = useState(0);
-  const [cat, setCat] = useState<CatKind>((new URLSearchParams(window.location.search).get('cat') as CatKind) || 'black');
 
   return (
     <div className="h-full overflow-y-auto bg-sunken">
@@ -39,7 +37,7 @@ export function VoxelQrLab() {
         </button>
 
         <div className="mt-5 grid place-items-center rounded-lg bg-page p-5 shadow-sm">
-          <VoxelQr key={take} value={value} size={size} cat={cat} autoPlay />
+          <VoxelQr key={take} value={value} size={size} autoPlay />
         </div>
 
         <label className="mt-6 block text-caption text-text-secondary">
@@ -68,27 +66,6 @@ export function VoxelQrLab() {
           ))}
         </div>
 
-        <div className="mt-3 flex gap-2">
-          {(['black', 'ginger', 'snow'] as const).map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setCat(c)}
-              className={
-                cat === c
-                  ? 'rounded-md bg-brand px-3 py-1.5 text-caption font-medium text-on-brand'
-                  : 'rounded-md bg-surface px-3 py-1.5 text-caption font-medium text-text-secondary'
-              }
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-
-        <div data-cat className="mt-5 grid place-items-center rounded-lg bg-page p-3 shadow-sm">
-          <CatCloseUp cat={cat} />
-        </div>
-
         <p className="mt-5 pb-10 text-caption text-text-tertiary">
           The settled state is the scan target: flat, on white, full contrast,
           four-module quiet zone. Point a camera at one once it has landed.
@@ -98,26 +75,3 @@ export function VoxelQrLab() {
   );
 }
 
-/** The cat on its own and large, walking on the spot, to judge it up close. */
-function CatCloseUp({ cat }: { cat: CatKind }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return undefined;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = 300 * dpr;
-    canvas.height = 200 * dpr;
-    let frame = 0;
-    const draw = (now: number) => {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(dpr, 0, 0, dpr, 150 * dpr, 175 * dpr);
-      paintCat(ctx, 140, cat, now / 170, now % 4200 < 150 ? 1 : 0);
-      frame = requestAnimationFrame(draw);
-    };
-    frame = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(frame);
-  }, [cat]);
-  return <canvas ref={ref} style={{ width: 300, height: 200 }} />;
-}
