@@ -25,6 +25,8 @@ export function songBody(song: Song): string {
 }
 
 const SAFE = /^https:\/\//;
+/** Demo builds play uploads from memory; nothing but a dev build accepts that. */
+const playable = (url: string) => SAFE.test(url) || (import.meta.env.DEV && url.startsWith('blob:'));
 
 export function parseSongShare(body: string): SharedSong | undefined {
   const match = /https?:\/\/\S+\/song\?(\S+)/.exec(body);
@@ -34,7 +36,7 @@ export function parseSongShare(body: string): SharedSong | undefined {
   const url = q.get('u') ?? '';
   const img = q.get('i') ?? '';
   // Only https media: this is played and drawn straight from a message somebody else wrote.
-  if (!name || !SAFE.test(url)) return undefined;
+  if (!name || !playable(url)) return undefined;
   return {
     name: name.slice(0, 120),
     artist: (q.get('a') ?? '').slice(0, 120),

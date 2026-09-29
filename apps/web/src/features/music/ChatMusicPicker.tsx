@@ -1,8 +1,9 @@
 import { SearchField, cn } from '@pingo/ui';
-import { Check, Pause, Play, Send } from 'lucide-react';
+import { Check, Pause, Play, Send, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { MUSIC_TABS, fetchSongs, type Song } from './sheets.js';
+import { MUSIC_TABS, UPLOADS, fetchSongs, type Song } from './sheets.js';
+import { UploadsShelf } from './UploadsShelf.js';
 
 /**
  * The Music tab beside Emoji and Stickers: find a song, hear a bit of it, send
@@ -16,7 +17,10 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
   const [previewing, setPreviewing] = useState<string>();
   const audio = useRef<HTMLAudioElement | undefined>(undefined);
 
+  const uploads = shelf === UPLOADS;
+
   useEffect(() => {
+    if (uploads) return;
     let live = true;
     const wanted = query.trim() || shelf;
     setList(undefined);
@@ -24,7 +28,7 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
       void fetchSongs(wanted).then((songs) => { if (live) setList(songs); });
     }, query ? 350 : 0);
     return () => { live = false; window.clearTimeout(timer); };
-  }, [query, shelf]);
+  }, [query, shelf, uploads]);
 
   useEffect(() => () => { audio.current?.pause(); }, []);
 
@@ -49,18 +53,30 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
             type="button"
             onClick={() => { setQuery(''); setShelf(value); }}
             className={cn(
-              'focus-ring shrink-0 rounded-full px-3 py-1 text-caption font-semibold transition-colors duration-instant',
-              !query && shelf === value ? 'bg-ink text-page' : 'bg-sunken text-text-secondary',
+              'focus-ring flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-caption font-semibold transition-colors duration-instant',
+              shelf === value && (value === UPLOADS || !query) ? 'bg-ink text-page' : 'bg-sunken text-text-secondary',
             )}
           >
+            {value === UPLOADS && <Upload size={12} />}
             {label}
           </button>
         ))}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
-        {!list && <p className="py-8 text-center text-caption text-text-tertiary">Loading songs…</p>}
-        {list?.length === 0 && <p className="py-8 text-center text-caption text-text-tertiary">No songs found.</p>}
-        {list?.map((song) => (
+        {uploads && (
+          <UploadsShelf
+            tone="light"
+            query={query}
+            {...(previewing ? { previewing } : {})}
+            onPreview={preview}
+            onSelect={(song) => { audio.current?.pause(); onSelect(song); }}
+            actionIcon={pick ? <Check size={17} /> : <Send size={16} />}
+            actionLabel={pick ? 'Choose' : 'Send'}
+          />
+        )}
+        {!uploads && !list && <p className="py-8 text-center text-caption text-text-tertiary">Loading songs…</p>}
+        {!uploads && list?.length === 0 && <p className="py-8 text-center text-caption text-text-tertiary">No songs found.</p>}
+        {!uploads && list?.map((song) => (
           <div key={song.url} className="flex items-center gap-2.5 rounded-xl px-1.5 py-1.5 hover:bg-hover">
             <button type="button" onClick={() => preview(song)} aria-label={previewing === song.url ? `Stop ${song.name}` : `Play ${song.name}`} className="focus-ring relative size-11 shrink-0 overflow-hidden rounded-lg">
               {song.img && <img src={song.img} alt="" className="size-full object-cover" />}

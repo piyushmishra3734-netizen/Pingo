@@ -1,0 +1,20 @@
+# Songs people upload to PINGO: the "Uploads" shelf beside For you, Trending,
+# Hindi and Punjabi in every music picker (chat, story, camera, profile).
+#
+# The files live in the same R2 bucket as the APK, under `songs/`, and are only
+# reachable through this Worker. Who is uploading is checked against Supabase
+# Auth, so nobody can fill the bucket or delete somebody else's song.
+name = "pingo-songs"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+[[r2_buckets]]
+binding = "SONGS"
+bucket_name = "pingo"
+
+[vars]
+SUPABASE_URL = "https://gpijpmepzowwhvgkriqu.supabase.co"
+
+# SUPABASE_ANON_KEY is set with `wrangler secret put SUPABASE_ANON_KEY` (the
+# project's public anon key - the same one the app ships with). It is only used
+# to ask Supabase Auth who a token belongs to.

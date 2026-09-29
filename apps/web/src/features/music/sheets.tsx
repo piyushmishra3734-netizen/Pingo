@@ -1,6 +1,8 @@
 import { cn } from '@pingo/ui';
-import { Pause, Play, Search } from 'lucide-react';
+import { Check, Music2, Pause, Play, Search, Upload } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import { UploadsShelf } from './UploadsShelf.js';
 
 /**
  * Music for stories and snaps: JioSaavn, through PINGO's own worker
@@ -50,8 +52,11 @@ export async function fetchSongs(query: string): Promise<Song[]> {
   }
 }
 
-/** The shelves above the list, shared by the story sheet and the chat's Music tab. */
-export const MUSIC_TABS: [string, string][] = [['For you', ''], ['Trending', 'trending hits'], ['Hindi', 'latest hindi songs'], ['Punjabi', 'punjabi hits']];
+/** The shelf of your own uploaded songs. Not a search term: it is read from the songs Worker. */
+export const UPLOADS = '@uploads';
+
+/** The shelves above the list, shared by the story sheet, the camera, the chat's Music tab and the profile. */
+export const MUSIC_TABS: [string, string][] = [['For you', ''], ['Trending', 'trending hits'], ['Hindi', 'latest hindi songs'], ['Punjabi', 'punjabi hits'], ['Uploads', UPLOADS]];
 
 export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void; chooseSong: (s: Song) => void }) {
   const [tab, setTab] = useState('');
@@ -62,7 +67,13 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
     setList(undefined);
     setList(await fetchSongs(query));
   }, []);
-  useEffect(() => { const t = window.setTimeout(() => void load(q.trim() || tab), q ? 350 : 0); return () => window.clearTimeout(t); }, [q, tab, load]);
+  const uploads = tab === UPLOADS;
+  useEffect(() => {
+    if (uploads) return;
+    const t = window.setTimeout(() => void load(q.trim() || tab), q ? 350 : 0);
+    return () => window.clearTimeout(t);
+  }, [q, tab, load, uploads]);
+  const preview = (s: Song) => { if (playing === s.url) { setPlaying(undefined); p.onPreview(undefined); } else { setPlaying(s.url); p.onPreview(s); } };
   useEffect(() => () => p.onPreview(undefined), [p]);
   const tabs = MUSIC_TABS;
   return (
@@ -71,8 +82,21 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
         <Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search music" className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none" />
       </label>
       <div className="flex shrink-0 gap-2 overflow-x-auto px-3.5 pb-2.5">
-        {tabs.map(([l, v]) => <button key={l} type="button" onClick={() => { setQ(''); setTab(v); }} className={cn('shrink-0 rounded-[10px] px-3 py-1.5 text-[13px] font-bold', tab === v ? 'bg-white text-black' : 'bg-media-field')}>{l}</button>)}
+        {tabs.map(([l, v]) => <button key={l} type="button" onClick={() => { setQ(''); setTab(v); }} className={cn('flex shrink-0 items-center gap-1 rounded-[10px] px-3 py-1.5 text-[13px] font-bold', tab === v ? 'bg-white text-black' : 'bg-media-field')}>{v === UPLOADS && <Upload size={13} />}{l}</button>)}
       </div>
+      {uploads ? (
+        <div className="overflow-y-auto px-2 pb-2">
+          <UploadsShelf
+            tone="dark"
+            query={q}
+            {...(playing ? { previewing: playing } : {})}
+            onPreview={preview}
+            onSelect={(s) => { p.onPreview(undefined); p.chooseSong(s); }}
+            actionIcon={<Check size={17} />}
+            actionLabel="Use"
+          />
+        </div>
+      ) : (
       <div className="overflow-y-auto px-2">
         {!list && <p className="py-6 text-center text-white/50">Loading…</p>}
         {list?.length === 0 && <p className="py-6 text-center text-white/50">Nothing found</p>}
@@ -82,12 +106,13 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
               <img src={s.img} alt="" className="size-12 shrink-0 rounded-[8px] object-cover" />
               <span className="min-w-0"><b className="block truncate text-[14.5px]">{s.name}</b><span className="block truncate text-[13px] text-white/55">{s.artist}</span></span>
             </button>
-            <button type="button" aria-label={playing === s.url ? 'Pause' : 'Preview'} onClick={() => { if (playing === s.url) { setPlaying(undefined); p.onPreview(undefined); } else { setPlaying(s.url); p.onPreview(s); } }} className="grid size-9 shrink-0 place-items-center">
+            <button type="button" aria-label={playing === s.url ? 'Pause' : 'Preview'} onClick={() => preview(s)} className="grid size-9 shrink-0 place-items-center">
               {playing === s.url ? <Pause size={19} /> : <Play size={19} />}
             </button>
           </div>
         ))}
       </div>
+      )}
     </Panel>
   );
 }
@@ -100,7 +125,7 @@ export function ClipSheet(p: { close: () => void; song?: Song; setSong: (s: Song
   return (
     <Panel onClose={p.close}>
       <div className="flex items-center gap-2.5 px-4 pb-3">
-        <img src={s.img} alt="" className="size-11 rounded-[8px]" />
+        {s.img ? <img src={s.img} alt="" className="size-11 rounded-[8px]" /> : <span className="grid size-11 place-items-center rounded-[8px] bg-white/10"><Music2 size={20} /></span>}
         <div className="min-w-0 flex-1"><b className="block truncate">{s.name}</b><span className="text-[13px] text-white/60">{s.artist}</span></div>
         <button type="button" onClick={p.close} className="font-bold text-media-accent">Done</button>
       </div>
