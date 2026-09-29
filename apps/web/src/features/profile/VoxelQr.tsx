@@ -116,7 +116,7 @@ const SLAB_SIDE: Rgb = [222, 215, 226];
 /** Where a dark module will land. Pale enough to still be a light module. */
 const REST: Rgb = [226, 222, 215];
 const TRUNK: Rgb = [138, 98, 68];
-const PETAL: Rgb = [247, 156, 188];
+const PETAL: Rgb = [248, 180, 202];
 
 const css = (c: Rgb) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
 
@@ -127,15 +127,22 @@ const css = (c: Rgb) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
  * washed-out pink. Only ever seen in the air - every block darkens to its
  * `GARDEN` ink on the way down, so none of this reaches the scan target.
  */
-const CANOPY_DEEP: Rgb = [214, 84, 128];
-const CANOPY: Rgb = [243, 128, 170];
-const CANOPY_LIGHT: Rgb = [255, 184, 210];
-/** The pale petals and the yellow heart of a flower, drawn on a few of the leaves. */
-const FLOWER: Rgb = [255, 228, 238];
-const POLLEN: Rgb = [255, 208, 110];
+const CANOPY_DEEP: Rgb = [210, 100, 142];
+const CANOPY: Rgb = [243, 158, 188];
+const CANOPY_LIGHT: Rgb = [255, 206, 222];
+/** The light catching the upper face of a leaf. */
+const SHEEN: Rgb = [255, 234, 241];
+/** A sakura flower: near-white petals round a deep pink heart. */
+const FLOWER: Rgb = [255, 246, 249];
+const FLOWER_HEART: Rgb = [222, 92, 138];
+/** A daisy's heart, in the grass. */
+const POLLEN: Rgb = [255, 212, 118];
 /** The lawn's greens while it is a lawn: shade at the roots, sun on the blades. */
-const GRASS_DEEP: Rgb = [58, 146, 50];
-const GRASS_BRIGHT: Rgb = [132, 208, 76];
+const GRASS_DEEP: Rgb = [70, 150, 60];
+const GRASS_BRIGHT: Rgb = [138, 204, 88];
+/** The trunk lit from the left and falling into shade on the right. */
+const BARK_LIT: Rgb = [168, 122, 88];
+const BARK_SHADE: Rgb = [96, 64, 44];
 
 /** Where between deep, middle and light a leaf falls, from 0 to 1. */
 const canopy = (t: number): Rgb =>
@@ -540,6 +547,25 @@ export function VoxelQr({
 
       const depth = 0.9 * (1 - e);
       if (depth > 0.002) {
+        /*
+         * A soft shadow under the slab, so the lawn sits on the card rather
+         * than being printed on it: a flat gradient pool below its front
+         * corner, cheap enough to draw every frame. Gone by the time the code
+         * lands - the scan target is flat and on white, with nothing round it.
+         */
+        const pool = at(0, 0, -depth);
+        ctx.save();
+        ctx.translate(pool[0], pool[1] + unit * 1.2);
+        ctx.scale(1, Math.max(0.1, cosP) * 0.62);
+        const spread = edge * 1.55 * unit;
+        const g = ctx.createRadialGradient(0, 0, spread * 0.55, 0, 0, spread);
+        g.addColorStop(0, `rgba(120, 64, 110, ${0.16 * (1 - e)})`);
+        g.addColorStop(1, 'rgba(120, 64, 110, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, spread, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
         // The cut edge, so the lawn reads as a slab rather than a decal. Only
         // the two faces the camera can see; at zero pitch there are none.
         quad([sw, se, at(edge, edge, -depth), at(-edge, edge, -depth)], SLAB_SIDE);
@@ -602,6 +628,34 @@ export function VoxelQr({
         ctx.globalAlpha = 1;
       }
 
+      /* ---- the shade under the tree -------------------------------------- */
+
+      /*
+       * The crown's shadow on the lawn, and a darker one where the trunk meets
+       * it. Soft-edged, lying flat on the ground at the camera's own pitch, and
+       * the single thing that most makes the tree stand in the garden rather
+       * than float over it.
+       */
+      if (restAlpha > 0.01) {
+        const foot = at(0, 0, 0);
+        const shade = (radius: number, strength: number) => {
+          ctx.save();
+          ctx.translate(foot[0], foot[1]);
+          ctx.scale(1, Math.max(0.1, cosP));
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+          g.addColorStop(0, `rgba(150, 70, 110, ${strength * restAlpha})`);
+          g.addColorStop(0.55, `rgba(150, 70, 110, ${strength * 0.55 * restAlpha})`);
+          g.addColorStop(1, 'rgba(150, 70, 110, 0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        };
+        shade(count * 0.62 * crown.spread * unit, 0.16);
+        shade(Math.max(2, count * 0.1) * unit, 0.28);
+      }
+
       /* ---- the trunk ----------------------------------------------------- */
 
       const trunkH = count * crown.trunk * (1 - e);
@@ -626,7 +680,7 @@ export function VoxelQr({
          * the canopy still hides most of each one, which is what they are for -
          * a canopy with nothing going into it hangs in the air.
          */
-        ctx.strokeStyle = css(mix(TRUNK, [0, 0, 0], 0.1));
+        ctx.strokeStyle = css(mix(TRUNK, BARK_SHADE, 0.35));
         ctx.lineCap = 'round';
         for (let b = -2; b <= 2; b += 1) {
           ctx.lineWidth = wTop * (0.4 - Math.abs(b) * 0.07);
@@ -641,7 +695,12 @@ export function VoxelQr({
           ctx.stroke();
         }
 
-        ctx.fillStyle = css(TRUNK);
+        // Round, from the light: a gradient across the width is a column, not a plank.
+        const bark = ctx.createLinearGradient(x - wTop / 2, 0, x + wTop / 2, 0);
+        bark.addColorStop(0, css(BARK_LIT));
+        bark.addColorStop(0.45, css(TRUNK));
+        bark.addColorStop(1, css(BARK_SHADE));
+        ctx.fillStyle = bark;
         ctx.beginPath();
         ctx.moveTo(x - wTop / 2, top[1]);
         ctx.lineTo(x + wTop / 2, top[1]);
@@ -650,27 +709,13 @@ export function VoxelQr({
         ctx.closePath();
         ctx.fill();
 
-        // One shaded half, which is the whole lighting model a column needs.
-        ctx.fillStyle = css(mix(TRUNK, [0, 0, 0], 0.24));
-        ctx.beginPath();
-        ctx.moveTo(x, top[1]);
-        ctx.lineTo(x + wTop / 2, top[1]);
-        ctx.lineTo(x + wFoot / 2, foot[1]);
-        ctx.lineTo(x, foot[1]);
-        ctx.closePath();
-        ctx.fill();
-
-        // Bark, as rings. A stack of them is what says the trunk is a solid
-        // round thing and not a painted stripe.
-        ctx.strokeStyle = css(mix(TRUNK, [0, 0, 0], 0.36));
-        ctx.lineWidth = Math.max(0.8, unit * 0.07);
-        for (let k = 1; k < 8; k += 1) {
-          const f = k / 8;
-          const y = top[1] + height * f;
-          const w = (wTop + (wFoot - wTop) * f) / 2;
+        // A few fine streaks of bark running up it, faint enough to be texture.
+        ctx.strokeStyle = 'rgba(70, 44, 30, 0.22)';
+        ctx.lineWidth = Math.max(0.6, unit * 0.06);
+        for (const f of [-0.22, 0.08, 0.3]) {
           ctx.beginPath();
-          ctx.moveTo(x - w, y);
-          ctx.lineTo(x + w, y);
+          ctx.moveTo(x + f * wTop, top[1] + height * 0.06);
+          ctx.lineTo(x + f * wFoot, foot[1] - height * 0.04);
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
@@ -763,13 +808,24 @@ export function VoxelQr({
       const paintCat = () => {
         if (alive <= 0.01) return;
         ctx.save();
-        ctx.globalAlpha = alive;
-        // A cube a little under half a module, which makes the cat about five modules tall.
+        // Its shadow stays on the grass while it hops, and shrinks as it goes up.
+        const ground = py(cx, 0, cz);
+        ctx.globalAlpha = alive * (0.22 - hop * 0.08);
+        ctx.fillStyle = 'rgb(90, 40, 80)';
+        ctx.beginPath();
+        ctx.ellipse(here, ground, unit * (2.4 - hop * 0.5), unit * (2.4 - hop * 0.5) * Math.max(0.2, cosP) * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        /*
+         * A cube a little under half a module, which makes the cat about five
+         * modules tall. It leaves by shrinking into its own feet rather than
+         * fading: a see-through stack of cubes shows every face inside it.
+         */
         drawVoxelCat(
           ctx,
           here,
-          py(cx, 0, cz) - hop * unit * LIFT * (1 + 1.3 * turning),
-          unit * 0.4,
+          py(cx, 0, cz) - hop * unit * LIFT * (1 + 1.3 * turning) * alive,
+          unit * 0.4 * alive,
           cat,
           lap * HOPS * 2,
           facing.current > 0 ? 0 : 1,
@@ -868,6 +924,20 @@ export function VoxelQr({
 
       const blade = unit * (0.45 + 1.0 * (1 - e));
 
+      /*
+       * How far back each leaf is, 0 at the back of the crown and 1 at the
+       * front. Leaves further back sit in the crown's own shade, which is what
+       * gives it depth instead of one even pink.
+       */
+      let nearest = -Infinity;
+      let furthest = Infinity;
+      for (const v of drawn) {
+        if (v.grass) continue;
+        if (v.d > nearest) nearest = v.d;
+        if (v.d < furthest) furthest = v.d;
+      }
+      const reach = Math.max(1, nearest - furthest);
+
       for (const v of drawn) {
         paintUpTo(v.d);
         if (flat) {
@@ -890,27 +960,40 @@ export function VoxelQr({
            * hanging in a canopy read as gravel; the scalloped edge of a few
            * hundred overlapping leaves is the whole look of the tree.
            */
-          ctx.fillStyle = css(v.colour);
-          blossom(ctx, v.sx, v.sy, hw, v.t, v.turn);
-
           /*
-           * While it is still a leaf: a fine darker edge, so overlapping leaves
-           * read as layers rather than one pink shape, and on some of them a
-           * flower - pale petals round a yellow heart. Both are gone well
-           * before the block lands.
+           * Each leaf is lit, not filled. The whole leaf goes down in its
+           * shadow tone, then a slightly smaller copy nudged towards the light
+           * (up and to the left) in its lit tone, which leaves a crescent of
+           * shade on the far side. That crescent, a few hundred times over, is
+           * what gives the crown volume rather than a pink outline.
+           *
+           * The two tones meet at the block's own colour as it lands, so the
+           * code underneath is exactly the colour it always was.
            */
-          const leafy = 1 - v.t * 2.5;
+          const leafy = Math.max(0, 1 - v.t * 2.2);
+          const back = 1 - (v.d - furthest) / reach;
+          ctx.fillStyle = css(mix(v.colour, CANOPY_DEEP, (0.3 + 0.35 * back) * leafy));
+          blossom(ctx, v.sx, v.sy, hw, v.t, v.turn);
           if (leafy > 0.01) {
             ctx.globalAlpha = leafy;
-            ctx.strokeStyle = 'rgba(176, 52, 98, 0.28)';
-            ctx.lineWidth = 0.6;
-            ctx.stroke();
-            if (v.luck < 0.3) {
-              ctx.fillStyle = css(mix(v.colour, FLOWER, 0.7));
-              blossom(ctx, v.sx, v.sy - hw * 0.08, hw * 0.4, 0, v.turn + 0.6);
-              ctx.fillStyle = css(POLLEN);
+            ctx.fillStyle = css(mix(mix(v.colour, CANOPY_DEEP, 0.25 * back), SHEEN, 0.28 * (1 - back * 0.6)));
+            blossom(ctx, v.sx - hw * 0.1, v.sy - hw * 0.14, hw * 0.78, v.t, v.turn);
+
+            // Now and then a flower open on the leaf: five pale petals, a deep pink heart.
+            const r = hw * 0.17;
+            if (v.luck < 0.16 && r > 0.8) {
+              const fx = v.sx - hw * 0.12;
+              const fy = v.sy - hw * 0.18;
+              ctx.fillStyle = css(FLOWER);
+              for (let k = 0; k < 5; k += 1) {
+                const a = (k / 5) * Math.PI * 2 + v.turn;
+                ctx.beginPath();
+                ctx.arc(fx + Math.cos(a) * r * 1.05, fy + Math.sin(a) * r * 1.05, r * 0.72, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.fillStyle = css(FLOWER_HEART);
               ctx.beginPath();
-              ctx.arc(v.sx, v.sy - hw * 0.08, Math.max(0.6, hw * 0.1), 0, Math.PI * 2);
+              ctx.arc(fx, fy, r * 0.42, 0, Math.PI * 2);
               ctx.fill();
             }
             ctx.globalAlpha = 1;
@@ -995,10 +1078,10 @@ export function VoxelQr({
           }
 
           // A few tufts in flower: five white or pink petals and a yellow heart.
-          if (v.luck < 0.16 && e < 0.9) {
+          if (v.luck < 0.08 && e < 0.9) {
             const fx = v.sx + lean;
             const fy = v.sy - blade * 0.95;
-            const r = unit * 0.2;
+            const r = unit * 0.15;
             ctx.globalAlpha = 1 - e;
             ctx.fillStyle = css(v.luck < 0.07 ? PETAL : [255, 255, 255]);
             for (let k = 0; k < 5; k += 1) {
