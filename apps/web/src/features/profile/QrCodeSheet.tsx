@@ -185,8 +185,9 @@ export function QrCodeSheet({
 
             {/* The code, in the middle of the frosted tile. */}
             <div className="absolute grid place-items-center" style={at(174, 630, 629, 585)}>
-              {/* Straight on the frosted tile: the lawn is its own white, and so is the settled code's quiet zone. */}
-              <VoxelQr key={`${replay}-${qrSize}`} value={link} size={qrSize} autoPlay caption="" label={`QR code for ${displayName} on PINGO`} />
+              <div className="rounded-[3cqw] bg-white/70">
+                <VoxelQr key={`${replay}-${qrSize}`} value={link} size={qrSize} autoPlay caption="" label={`QR code for ${displayName} on PINGO`} />
+              </div>
             </div>
 
             {/* The menu pill, drawn in the artwork; this is what makes it a button. */}
