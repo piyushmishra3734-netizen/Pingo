@@ -142,6 +142,25 @@
       somebody who picked it. Wrapped because a browser refusing
       localStorage must cost the flash, not the app.
     -->
+    <!--
+      A Google sign-in that PINGO for Windows started.
+
+      The desktop app sends Google's sign-in to the real browser (Google will
+      not sign in inside an app's window), so the browser is where it comes
+      back: /auth/google?code=... with no sign-in of its own waiting for that
+      code. The code belongs to the desktop app, which stored the other half.
+      Before the app here tries - and fails - to use it, it is handed over.
+    -->
+    <script>
+      (function () {
+        try {
+          if (location.pathname !== '/auth/google' || !/[?&]code=/.test(location.search)) return;
+          if (/Electron\//.test(navigator.userAgent)) return;
+          if (localStorage.getItem('pingo.auth.session-code-verifier')) return;
+          location.replace('/desktop-return.html' + location.search);
+        } catch (e) {}
+      })();
+    </script>
     <script>
       (function () {
         try {

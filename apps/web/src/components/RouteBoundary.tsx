@@ -39,10 +39,19 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
  * a worse answer than saying so.
  */
 
-/** When the last repair reload happened. Survives the reload it triggers. */
-const RECOVERY_KEY = 'pingo:chunk-reload-at';
-/** A second failure this soon after a repair is a real fault, not a stale build. */
-const RETRY_WINDOW_MS = 20_000;
+/** The repair reloads so far: `{ at, count }`. Survives the reloads it triggers. */
+const RECOVERY_KEY = 'pingo:chunk-reloads';
+/**
+ * Silent reloads allowed inside the window before it is called a real fault.
+ *
+ * One was not enough, and the fallback was a whole page saying "a new version
+ * landed - Reload PINGO". People met that page after nearly every deploy and
+ * found it maddening: a new version should just be there. So a stale build
+ * now gets three quiet reloads, and the page is kept for the case where three
+ * fresh loads all fail - which is not a new version, it is a bug.
+ */
+const MAX_RELOADS = 3;
+const RETRY_WINDOW_MS = 2 * 60_000;
 
 /**
  * Every phrasing the browsers use for "the module would not load".
@@ -114,11 +123,23 @@ export class RouteBoundary extends Component<Props, State> {
 
     if (!looksLikeMissingChunk(error)) return;
 
+    /*
+     * Offline is not a stale build. Unregistering the worker there would take
+     * away the offline app itself, so it waits for the connection and then
+     * reloads.
+     */
+    if (!navigator.onLine) {
+      window.addEventListener('online', () => void dropCachesAndReload(), { once: true });
+      return;
+    }
+
     let alreadyTried = false;
+    let count = 0;
     try {
-      const last = Number(sessionStorage.getItem(RECOVERY_KEY) ?? 0);
-      alreadyTried = Date.now() - last < RETRY_WINDOW_MS;
-      if (!alreadyTried) sessionStorage.setItem(RECOVERY_KEY, String(Date.now()));
+      const last = JSON.parse(sessionStorage.getItem(RECOVERY_KEY) ?? 'null') as { at: number; count: number } | null;
+      count = last && Date.now() - last.at < RETRY_WINDOW_MS ? last.count : 0;
+      alreadyTried = count >= MAX_RELOADS;
+      if (!alreadyTried) sessionStorage.setItem(RECOVERY_KEY, JSON.stringify({ at: Date.now(), count: count + 1 }));
     } catch {
       /*
        * No sessionStorage means no way to know whether this is the second
@@ -129,7 +150,8 @@ export class RouteBoundary extends Component<Props, State> {
     }
 
     if (alreadyTried) this.setState({ recovering: false });
-    else void dropCachesAndReload();
+    // A beat before the second and third tries, for a deploy still settling.
+    else window.setTimeout(() => void dropCachesAndReload(), count === 0 ? 0 : 1500);
   }
 
   override render(): ReactNode {
@@ -147,15 +169,14 @@ export class RouteBoundary extends Component<Props, State> {
         <div className="max-w-sm text-center">
           <h1 className="text-h2 text-ink">That screen did not open</h1>
           <p className="mt-2 text-caption text-text-secondary">
-            Usually a new version landed while you were reading. Reloading picks
-            it up.
+            It failed to load a few times in a row. Try once more.
           </p>
           <button
             type="button"
             onClick={() => void dropCachesAndReload()}
             className="focus-ring mt-5 rounded-full bg-brand px-5 py-2.5 text-body font-medium text-on-brand active:scale-[0.98]"
           >
-            Reload PINGO
+            Try again
           </button>
           {this.state.message ? (
             <p className="mt-4 break-words text-[11px] text-text-tertiary">

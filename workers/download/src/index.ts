@@ -22,14 +22,21 @@ interface Env {
 }
 
 /** The single object this endpoint is about. */
-const KEY = 'PINGO.apk';
+/** Each download the Worker serves: one object per platform, always the latest. */
+const FILES: Record<string, { key: string; type: string }> = {
+  '/': { key: 'PINGO.apk', type: 'application/vnd.android.package-archive' },
+  '/android': { key: 'PINGO.apk', type: 'application/vnd.android.package-archive' },
+  // PINGO for Windows: the installer built from `desktop/`.
+  '/windows': { key: 'PINGO-Setup.exe', type: 'application/vnd.microsoft.portable-executable' },
+};
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     // Anything that is not the Android download is not this Worker's business.
-    if (url.pathname !== '/android' && url.pathname !== '/') {
+    const file = FILES[url.pathname];
+    if (!file) {
       return new Response('Not found', { status: 404 });
     }
 
@@ -41,9 +48,9 @@ export default {
      * about its length is waste that shows up as a slow first byte.
      */
     if (request.method === 'HEAD') {
-      const head = await env.APKS.head(KEY);
+      const head = await env.APKS.head(file.key);
       if (!head) return new Response('Not found', { status: 404 });
-      return new Response(null, { status: 200, headers: headersFor(head) });
+      return new Response(null, { status: 200, headers: headersFor(head, file) });
     }
 
     if (request.method !== 'GET') {
@@ -64,7 +71,7 @@ export default {
      * failure than one that cannot resume.
      */
     const wantsRange = request.headers.has('range');
-    const object = await env.APKS.get(KEY, {
+    const object = await env.APKS.get(file.key, {
       ...(wantsRange ? { range: request.headers } : {}),
       onlyIf: request.headers,
     });
@@ -75,7 +82,7 @@ export default {
 
     // `body` is absent when `onlyIf` matched - the client already has it.
     if (!('body' in object) || !object.body) {
-      return new Response(null, { status: 304, headers: headersFor(object) });
+      return new Response(null, { status: 304, headers: headersFor(object, file) });
     }
 
     return new Response(object.body, {
@@ -83,23 +90,23 @@ export default {
       // a range on the object even for a whole-file read, so trusting it made
       // every plain download a 206.
       status: wantsRange ? 206 : 200,
-      headers: headersFor(object),
+      headers: headersFor(object, file),
     });
   },
 };
 
-function headersFor(object: R2Object): Headers {
+function headersFor(object: R2Object, file: { key: string; type: string }): Headers {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
 
   headers.set('etag', object.httpEtag);
-  headers.set('content-type', 'application/vnd.android.package-archive');
+  headers.set('content-type', file.type);
 
   /*
    * `attachment` is what makes the phone download instead of trying to render
    * it, and the filename is what it lands in the downloads folder as.
    */
-  headers.set('content-disposition', `attachment; filename="PINGO.apk"`);
+  headers.set('content-disposition', `attachment; filename="${file.key}"`);
 
   // Resumable downloads need the server to say it supports them.
   headers.set('accept-ranges', 'bytes');

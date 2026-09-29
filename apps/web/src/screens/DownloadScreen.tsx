@@ -27,6 +27,8 @@ import { loadUpdateNotice } from '../lib/supabase/update-notice.js';
  * Cloudflare account; only this constant changes.
  */
 const ANDROID_APK = 'https://pingo-download.dubesminecraft.workers.dev/android';
+/** The Windows installer, from the same Worker and bucket. Built from `desktop/`. */
+const WINDOWS_EXE = 'https://pingo-download.dubesminecraft.workers.dev/windows';
 
 /**
  * The page PINGO sends people to for the app, and back to for every update.
@@ -43,8 +45,8 @@ const ANDROID_APK = 'https://pingo-download.dubesminecraft.workers.dev/android';
  *
  * The Android app is a real installable app, sideloaded until there is a Play
  * listing. iPhone has no equivalent of an APK, so its road is Add to Home
- * Screen, which works today. Windows and Mac say "Later" because there is
- * nothing to download for them yet.
+ * Screen, which works today. Windows has its desktop app; Mac says "Later"
+ * because there is nothing to download for it yet.
  */
 
 interface OtherDevice {
@@ -62,7 +64,7 @@ const OTHER_DEVICES: OtherDevice[] = [
     ready: true,
   },
   { logo: 'web', name: 'Web', how: 'Nothing to install. Open it in any modern browser.', ready: true },
-  { logo: 'windows', name: 'Windows', how: 'A desktop app is being built. The web works meanwhile.', ready: false },
+  { logo: 'windows', name: 'Windows', how: 'The desktop app. Open this page on your PC to download it.', ready: true },
   { logo: 'macos', name: 'Mac', how: 'A desktop app is being built. The web works meanwhile.', ready: false },
 ];
 
@@ -181,7 +183,7 @@ export function DownloadScreen() {
                 </ul>
               </>
             ) : (
-              <NotOnAndroid />
+              <NotOnAndroid windows={platform === 'windows'} />
             )}
           </div>
         </section>
@@ -273,7 +275,7 @@ export function DownloadScreen() {
  * things that work: PINGO in this browser now, and the address to open on a
  * phone for the Android app.
  */
-function NotOnAndroid() {
+function NotOnAndroid({ windows }: { windows: boolean }) {
   const address = publicAppUrl('/download').replace(/^https?:\/\//, '');
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -288,9 +290,34 @@ function NotOnAndroid() {
 
   return (
     <div className="mt-6 flex w-full max-w-xs flex-col items-stretch gap-3">
+      {windows && (
+        <>
+          <a
+            href={WINDOWS_EXE}
+            rel="noopener noreferrer"
+            className="focus-ring bg-sweep flex h-13 items-center justify-center gap-2 rounded-full text-[16px] font-semibold text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)] active:scale-[0.98]"
+          >
+            <ArrowDownToLine size={20} />
+            Download for Windows
+          </a>
+          {/*
+            The installer is not code-signed yet, so SmartScreen stops it once.
+            Said here, before it happens, so the warning is expected rather
+            than alarming.
+          */}
+          <p className="text-[12.5px] leading-snug text-text-secondary">
+            Windows 10 and 11. If Windows says it protected your PC, choose More info, then Run anyway.
+          </p>
+        </>
+      )}
       <Link
         to="/chats"
-        className="focus-ring bg-sweep flex h-13 items-center justify-center rounded-full text-[16px] font-semibold text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)] active:scale-[0.98]"
+        className={cn(
+          'focus-ring flex h-13 items-center justify-center rounded-full text-[16px] font-semibold active:scale-[0.98]',
+          windows
+            ? 'bg-sunken text-ink'
+            : 'bg-sweep text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)]',
+        )}
       >
         Open PINGO in your browser
       </Link>
