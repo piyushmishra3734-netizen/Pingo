@@ -3,8 +3,10 @@ import { MoreHorizontal } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 import { AppLogo } from '../../components/AppLogo.js';
-import { Sheet } from '../../components/Sheet.js';
+import { Overlay } from '../../components/Overlay.js';
 import { profileLink } from './ShareProfileSheet.js';
+import { FallingPetals, Petal, SakuraBackdrop } from './SakuraScene.js';
+import { VoxelCat, catEdge } from './VoxelCat.js';
 import { VoxelQr } from './VoxelQr.js';
 import './qr-card.css';
 
@@ -130,82 +132,134 @@ export function QrCodeSheet({
   };
 
   return (
-    <Sheet title="Your QR code" hideTitle onClose={onClose} className="border-0 bg-transparent p-1.5 shadow-none sm:p-1.5">
-      <div className="flex flex-col items-center">
-        {/* Fade and scale, once, on entry - the small rise is what makes it feel handed over. */}
-        <div ref={cardRef} className="qr-card w-full max-w-[22rem] rounded-[2rem] px-5 pt-5 pb-5 shadow-[0_24px_60px_-24px_rgba(80,40,140,0.35)] motion-safe:animate-qr-in">
-          {/* The brand, and a small menu. */}
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <AppLogo size={30} alt="" />
-              <span className="text-[15px] font-bold tracking-[0.22em]">PINGO</span>
-            </span>
-            <span className="relative">
-              <button
-                type="button"
-                aria-label="More"
-                aria-expanded={menu}
-                onClick={() => setMenu((m) => !m)}
-                className="focus-ring qr-muted grid size-9 place-items-center rounded-full hover:bg-black/5"
-              >
-                <MoreHorizontal size={20} />
-              </button>
-              {menu && (
-                <span role="menu" className="qr-glass absolute top-10 right-0 z-10 flex w-44 flex-col overflow-hidden rounded-2xl py-1 text-[14px]">
-                  <button type="button" role="menuitem" onClick={() => { setMenu(false); setReplay((n) => n + 1); }} className="px-4 py-2.5 text-left hover:bg-black/5">
-                    Play the tree again
-                  </button>
-                  <button type="button" role="menuitem" onClick={() => { setMenu(false); void copy(); }} className="px-4 py-2.5 text-left hover:bg-black/5">
-                    Copy link
-                  </button>
+    <Overlay onDismiss={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Your QR code"
+        className="qr-scene-in fixed inset-0 z-[600] overflow-hidden"
+        onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <SakuraBackdrop />
+        <FallingPetals />
+
+        <div
+          className="relative flex h-full items-center justify-center px-[7%] pt-[max(4.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+          onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+          <div className="qr-card-in relative w-full max-w-[21rem]">
+            <div ref={cardRef} className="qr-card rounded-[1.9rem] px-5 pb-[15px]">
+              {/* The brand, top left. */}
+              <span className="absolute top-[18px] left-[24px] flex items-center gap-2.5">
+                <AppLogo size={32} alt="" />
+                <span className="text-[16px] font-extrabold tracking-[0.24em]">PINGO</span>
+              </span>
+
+              {/* A small glass pill of a menu, top right. */}
+              <span className="absolute top-[20px] right-[16px] z-20">
+                <button
+                  type="button"
+                  aria-label="More"
+                  aria-expanded={menu}
+                  onClick={() => setMenu((m) => !m)}
+                  className="qr-glass focus-ring grid h-[24px] w-[34px] place-items-center rounded-full text-[#8e86a0]"
+                >
+                  <MoreHorizontal size={18} strokeWidth={2.6} />
+                </button>
+                {menu && (
+                  <span role="menu" className="qr-glass absolute top-8 right-0 flex w-44 flex-col overflow-hidden rounded-2xl py-1 text-[14px] font-semibold">
+                    <button type="button" role="menuitem" onClick={() => { setMenu(false); setReplay((n) => n + 1); }} className="px-4 py-2.5 text-left hover:bg-white/50">
+                      Play the tree again
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => { setMenu(false); void copy(); }} className="px-4 py-2.5 text-left hover:bg-white/50">
+                      Copy link
+                    </button>
+                  </span>
+                )}
+              </span>
+
+              {/* Petals that have landed on the glass - never over the code. */}
+              {CARD_PETALS.map((p, i) => (
+                <Petal key={i} size={p.size} className="pointer-events-none absolute" style={{ left: `${p.x}%`, top: `${p.y}%`, transform: `rotate(${p.r}deg)`, opacity: p.o }} />
+              ))}
+
+              <div className="relative flex flex-col items-center pt-[40px]">
+                <span className="qr-ring">
+                  <Avatar name={displayName} id={userId} src={avatarUrl} size="xl" className="!size-[80px]" />
                 </span>
-              )}
-            </span>
-          </div>
+                <p className="mt-0.5 max-w-full truncate text-[23px] font-extrabold leading-[1.15] tracking-[-0.01em]">{displayName}</p>
+                <p className="qr-muted text-[13.5px] font-semibold leading-[1.1]">@{username}</p>
 
-          <div className="mt-3 flex flex-col items-center gap-2.5">
-            <span className="qr-ring">
-              <Avatar name={displayName} id={userId} src={avatarUrl} size="xl" />
-            </span>
-            <div className="text-center">
-              <p className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{displayName}</p>
-              <p className="qr-muted text-[14px]">@{username}</p>
+                {/*
+                  The plate. Frosted glass around a code that stays on white in
+                  every theme - scanners assume the light modules are light.
+                */}
+                <div className="qr-glass mt-[10px] grid h-[241px] w-[260px] max-w-full place-items-center rounded-[22px]">
+                  <div className="rounded-[14px] bg-white/85">
+                    <VoxelQr key={replay} value={link} size={222} autoPlay caption="" label={`QR code for ${displayName} on PINGO`} />
+                  </div>
+                </div>
+
+                <p className="mt-[6px] text-[12.5px] font-medium text-[#6f6a7d]">Scan to connect on PINGO</p>
+
+                {error && (
+                  <p role="alert" className="mt-1 text-center text-caption text-danger">
+                    {error}
+                  </p>
+                )}
+
+                <div className="mt-[7px] grid w-full grid-cols-3 gap-[10px]">
+                  <Action label="Share" tint="#ee4fa3" onClick={() => void share()}>
+                    <ShareIcon size={25} />
+                  </Action>
+                  <Action label={saved ? 'Saved' : 'Save'} tint="#9d6cf6" onClick={() => void save()}>
+                    {saved ? <CheckIcon size={25} /> : <StorageIcon size={25} />}
+                  </Action>
+                  <Action label={copied ? 'Copied' : 'Copy link'} tint="#f5a524" onClick={() => void copy()}>
+                    {copied ? <CheckIcon size={25} /> : <LinkIcon size={25} />}
+                  </Action>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/*
-            The plate. White in both themes on purpose - scanners assume the
-            light modules are light - and frosted at the edge so it sits in the
-            card rather than on it.
-          */}
-          <div className="mx-auto mt-4 w-fit rounded-[1.75rem] bg-white p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.9),0_16px_40px_-18px_rgba(80,40,140,0.35)]">
-            <VoxelQr key={replay} value={link} size={236} autoPlay caption="" label={`QR code for ${displayName} on PINGO`} />
-          </div>
-
-          <p className="qr-muted mt-3 text-center text-[13.5px]">Scan to connect on PINGO</p>
-
-          {error && (
-            <p role="alert" className="mt-2 text-center text-caption text-danger">
-              {error}
-            </p>
-          )}
-
-          <div className="mt-4 grid grid-cols-3 gap-2.5">
-            <Action label="Share" tint="#e0559b" onClick={() => void share()}>
-              <ShareIcon size={22} />
-            </Action>
-            <Action label={saved ? 'Saved' : 'Save'} tint="#8b5dff" onClick={() => void save()}>
-              {saved ? <CheckIcon size={22} /> : <StorageIcon size={22} />}
-            </Action>
-            <Action label={copied ? 'Copied' : 'Copy link'} tint="#f0a020" onClick={() => void copy()}>
-              {copied ? <CheckIcon size={22} /> : <LinkIcon size={22} />}
-            </Action>
+            {/* The cat, lying on the card's top edge: paws over the front, tail hanging down. */}
+            <VoxelCat size={CAT_SIZE} className="pointer-events-none absolute z-10" style={{ left: CAT_LEFT, top: -catEdge(CAT_SIZE).top, transform: 'rotate(-4deg)', transformOrigin: `${catEdge(CAT_SIZE).left}px ${catEdge(CAT_SIZE).top}px` }} />
+            {/* Petals that have landed on the cat: one on its back, one at the tip of its tail, one beside a paw. */}
+            <Petal size={22} className="pointer-events-none absolute z-20" style={{ left: `calc(${CAT_HEAD} + 90px)`, top: -30, transform: 'rotate(60deg)' }} />
+            <Petal size={20} className="pointer-events-none absolute z-20" style={{ left: `calc(${CAT_HEAD} + 66px)`, top: 72, transform: 'rotate(-30deg)' }} />
+            <Petal size={16} className="pointer-events-none absolute z-20" style={{ left: `calc(${CAT_HEAD} - 20px)`, top: -12, transform: 'rotate(25deg)' }} />
           </div>
         </div>
       </div>
-    </Sheet>
+    </Overlay>
   );
 }
+
+const CAT_SIZE = 4.1;
+/**
+ * Where the cat's head starts, from the card's left. Measured back from the
+ * right edge, so on any width the tail hangs just left of the menu pill.
+ */
+const CAT_HEAD = `(100% - ${Math.round(17 * CAT_SIZE + 64)}px)`;
+const CAT_LEFT = `calc(${CAT_HEAD} - ${catEdge(CAT_SIZE).left}px)`;
+
+/** Where petals rest on the card, in % of its box. Kept off the code in the middle. */
+const CARD_PETALS = [
+  { x: 9, y: 17, size: 24, r: -40, o: 1 },
+  { x: 12, y: 29, size: 19, r: 25, o: 1 },
+  { x: 7, y: 44, size: 16, r: -65, o: 0.95 },
+  { x: 11, y: 58, size: 21, r: 35, o: 1 },
+  { x: 3, y: 73, size: 20, r: -15, o: 1 },
+  { x: 85, y: 17, size: 26, r: 30, o: 1 },
+  { x: 81, y: 30, size: 16, r: -10, o: 0.95 },
+  { x: 89, y: 43, size: 20, r: 55, o: 1 },
+  { x: 86, y: 57, size: 17, r: -40, o: 0.95 },
+  { x: 90, y: 71, size: 22, r: 15, o: 1 },
+  { x: 35, y: 94, size: 18, r: -70, o: 1 },
+  { x: 60, y: 95, size: 15, r: 25, o: 0.95 },
+  { x: 4, y: 91, size: 16, r: 60, o: 0.95 },
+  { x: 91, y: 93, size: 20, r: -35, o: 1 },
+];
 
 /** One of the three actions: a frosted tile, the icon in its own colour. */
 function Action({
@@ -224,13 +278,13 @@ function Action({
       type="button"
       onClick={onClick}
       className={cn(
-        'qr-glass focus-ring flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3.5',
-        'text-[13.5px] font-medium',
+        'qr-glass focus-ring flex h-[62px] flex-col items-center justify-center gap-1 rounded-[16px] px-2',
+        'text-[14px] font-bold text-[#2e2a3a]',
         'transition-transform duration-quick ease-standard active:scale-[0.96]',
       )}
     >
       <span style={{ color: tint }}>{children}</span>
-      <span className="opacity-80">{label}</span>
+      <span>{label}</span>
     </button>
   );
 }
