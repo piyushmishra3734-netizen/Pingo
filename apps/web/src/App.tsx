@@ -112,7 +112,6 @@ import { SplashScreen } from './screens/SplashScreen.js';
 const ControllingScreen = lazyScreen(() => import('./screens/settings/ControllingScreen.js'), 'ControllingScreen');
 const ProfileLookLab = lazyScreen(() => import('./screens/dev/ProfileLookLab.js'), 'ProfileLookLab');
 const VoxelQrLab = lazyScreen(() => import('./screens/dev/VoxelQrLab.js'), 'VoxelQrLab');
-const GardenLab = lazyScreen(() => import('./screens/dev/GardenLab.js'), 'GardenLab');
 const InviteLab = lazyScreen(() => import('./screens/dev/InviteLab.js'), 'InviteLab');
 const StatusLab = lazyScreen(() => import('./screens/dev/StatusLab.js'), 'StatusLab');
 const SecurePhoneLab = lazyScreen(() => import('./screens/dev/SecurePhoneLab.js'), 'SecurePhoneLab');
@@ -431,9 +430,6 @@ export function App() {
             )}
             {import.meta.env.DEV && (
               <Route path="/dev/qr-lab" element={<VoxelQrLab />} />
-            )}
-            {import.meta.env.DEV && (
-              <Route path="/dev/garden-lab" element={<GardenLab />} />
             )}
             {import.meta.env.DEV && (
               <Route path="/dev/invite-lab" element={<InviteLab />} />

@@ -2,6 +2,7 @@ import { cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { GARDEN, encodeQr, mixRgb as mix, type QrLevel, type Rgb } from './qr.js';
+import { drawVoxelCat, type CatKind } from './voxel-cat.js';
 
 /**
  * A voxel cherry tree that comes apart into the QR code.
@@ -115,12 +116,30 @@ const SLAB_SIDE: Rgb = [222, 215, 226];
 /** Where a dark module will land. Pale enough to still be a light module. */
 const REST: Rgb = [226, 222, 215];
 const TRUNK: Rgb = [138, 98, 68];
-const PETAL: Rgb = [244, 150, 152];
+const PETAL: Rgb = [247, 156, 188];
 
 const css = (c: Rgb) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
 
-/** A highlight tone, so the canopy is lit rather than one flat pink. */
-const BLOSSOM_LIT: Rgb = [252, 172, 174];
+/*
+ * The canopy's colours while it is a tree: deep rose underneath, cherry
+ * through the middle, pale pink where the light catches the top. Three tones
+ * rather than two close ones is what gives the crown depth instead of a flat,
+ * washed-out pink. Only ever seen in the air - every block darkens to its
+ * `GARDEN` ink on the way down, so none of this reaches the scan target.
+ */
+const CANOPY_DEEP: Rgb = [214, 84, 128];
+const CANOPY: Rgb = [243, 128, 170];
+const CANOPY_LIGHT: Rgb = [255, 184, 210];
+/** The pale petals and the yellow heart of a flower, drawn on a few of the leaves. */
+const FLOWER: Rgb = [255, 228, 238];
+const POLLEN: Rgb = [255, 208, 110];
+/** The lawn's greens while it is a lawn: shade at the roots, sun on the blades. */
+const GRASS_DEEP: Rgb = [58, 146, 50];
+const GRASS_BRIGHT: Rgb = [132, 208, 76];
+
+/** Where between deep, middle and light a leaf falls, from 0 to 1. */
+const canopy = (t: number): Rgb =>
+  t < 0.5 ? mix(CANOPY_DEEP, CANOPY, t / 0.5) : mix(CANOPY, CANOPY_LIGHT, (t - 0.5) / 0.5);
 
 /**
  * Where a maple leaf's five points face, as bearings from its middle.
@@ -230,333 +249,9 @@ export const SAKURA: Crown = {
 
 /** One unhurried lap of the lawn. */
 const PROWL_MS = 15000;
-
-/**
- * A cat: how it travels, and how it is drawn.
- *
- * `paint` rather than a pile of proportions. Four cats built by scaling one
- * drawing are one cat four times - the silhouette is the whole of what reads at
- * this size, so a different cat has to be a different outline, and a different
- * gait besides. A loafing cat and a leaping cat share nothing but their ears.
- *
- * `paint` draws in its own space: feet on y = 0, facing +x, one unit of height
- * given as `s`. `hop` is 0 with its feet down and 1 at the top of its arc;
- * `stride` runs on regardless, for gaits that never leave the ground.
- */
-export interface Cat {
-  /** Height standing, in modules. */
-  size: number;
-  /** How high it gets off the ground, in modules. */
-  lift: number;
-  /** Beats per lap of the lawn. */
-  hops: number;
-  paint: (ctx: CanvasRenderingContext2D, s: number, hop: number, stride: number) => void;
-}
-
-/** Not pure black: a hole reads as a hole, a very dark grey reads as a cat. */
-const COAT: Rgb = [32, 29, 40];
-
-/**
- * The head every one of them has: ears, then the skull, then a face.
- *
- * Ears before the skull, so its curve cuts their bases off cleanly. The face
- * only when there are pixels for one - below about eighteen px of cat, eyes and
- * a mouth turn into smudges and read worse than a clean silhouette does.
- */
-function face(
-  ctx: CanvasRenderingContext2D,
-  hx: number,
-  hy: number,
-  hr: number,
-  /** Ear height, as a multiple of head radius. */
-  ear: number,
-  /** Round open eyes rather than happily shut ones. */
-  wide: boolean,
-  s: number,
-  /** Cheeks, for a face that has to look pleased rather than merely awake. */
-  happy = false,
-) {
-  ctx.beginPath();
-  ctx.moveTo(hx - hr * 0.85, hy - hr * 0.4);
-  ctx.lineTo(hx - hr * 0.6, hy - hr * 0.4 - hr * ear);
-  ctx.lineTo(hx - hr * 0.02, hy - hr * 0.66);
-  ctx.moveTo(hx + hr * 0.28, hy - hr * 0.68);
-  ctx.lineTo(hx + hr * 0.76, hy - hr * 0.3 - hr * ear);
-  ctx.lineTo(hx + hr * 0.92, hy - hr * 0.26);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(hx, hy, hr, hr * 0.92, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (s <= 18) return;
-
-  /*
-   * The muzzle sits under the middle of the two eyes, and everything about it
-   * is measured from there.
-   *
-   * That is the alignment this kept missing. The eyes are a pair - the face
-   * reads front-on even though the body is side-on - so their midpoint is the
-   * centre line of the face, and a nose anywhere else is a nose on the side of
-   * a head. It had been pushed out toward the front of the skull, which put
-   * the mouth past the cheek and half of it outside the silhouette.
-   */
-  const eyeL = hx - hr * 0.3;
-  const eyeR = hx + hr * 0.4;
-  const mx = (eyeL + eyeR) / 2;
-  const my = hy + hr * 0.34;
-
-  ctx.fillStyle = css(PETAL);
-  if (happy) {
-    // Cheeks, outboard of both eyes. The one thing that turns a neutral little
-    // face into a delighted one, and it is two dots.
-    ctx.globalAlpha = 0.72;
-    for (const cheek of [eyeL - hr * 0.34, eyeR + hr * 0.3]) {
-      ctx.beginPath();
-      ctx.ellipse(cheek, hy + hr * 0.24, hr * 0.17, hr * 0.12, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // The nose: the rounded triangle a cat has, point down, so the line below it
-  // leaves from somewhere rather than from the middle of a dot.
-  const nose = hr * 0.15;
-  ctx.beginPath();
-  ctx.moveTo(mx - nose, my - nose * 0.6);
-  ctx.lineTo(mx + nose, my - nose * 0.6);
-  ctx.lineTo(mx, my + nose * 0.8);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = css(GROUND);
-  ctx.lineWidth = Math.max(0.6, s * 0.032);
-
-  /*
-   * No whiskers. They were drawn light and crossed the eyes, then drawn dark
-   * and only existed outside the silhouette, and either way six hairs off a
-   * head twenty-five pixels tall is more detail than the face can hold. The
-   * ears carry the whole of "cat" here; the whiskers were paying nothing.
-   */
-
-  /*
-   * The mouth: a short line down from the point of the nose, then a lobe either
-   * side of it.
-   *
-   * Each lobe is half a circle whose radius equals the offset of its own
-   * centre, so both start exactly on the foot of that line and neither
-   * overshoots it. Canvas measures angles with y running down, so a sweep from
-   * 0 to pi traces the underside of each circle - the lobe curving the way a
-   * pleased cat's does.
-   *
-   * Small: the pair together is a third of the head wide. It was nearly twice
-   * that, which put the far lobe outside the face entirely, and the line down
-   * from the nose was thick enough to read as a bar rather than a crease.
-   */
-  ctx.strokeStyle = css(GROUND);
-  ctx.lineWidth = Math.max(0.7, s * 0.022);
-  const lobe = hr * 0.115;
-  const chin = my + nose * 0.8 + lobe * 0.5;
-  ctx.beginPath();
-  ctx.moveTo(mx, my + nose * 0.7);
-  ctx.lineTo(mx, chin);
-  ctx.stroke();
-  for (const side of [-1, 1]) {
-    ctx.beginPath();
-    ctx.arc(mx + side * lobe, chin, lobe, 0, Math.PI);
-    ctx.stroke();
-  }
-
-  /*
-   * Eyes last, so nothing is drawn over them. They are the smallest thing on
-   * the face and the first one anybody looks at.
-   */
-  const eyes = [eyeL, eyeR];
-  const eyeY = hy - hr * 0.12;
-  if (wide) {
-    ctx.fillStyle = css(GROUND);
-    for (const ex of eyes) {
-      ctx.beginPath();
-      ctx.ellipse(ex, eyeY, hr * 0.26, hr * 0.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // A catchlight in each, which is the difference between awake and blank.
-    ctx.fillStyle = css(COAT);
-    for (const ex of eyes) {
-      ctx.beginPath();
-      ctx.ellipse(ex + hr * 0.05, eyeY + hr * 0.04, hr * 0.12, hr * 0.15, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else {
-    ctx.strokeStyle = css(GROUND);
-    ctx.lineWidth = Math.max(0.9, s * 0.045);
-    for (const ex of eyes) {
-      ctx.beginPath();
-      ctx.arc(ex, eyeY, hr * 0.27, Math.PI * 0.12, Math.PI * 0.88);
-      ctx.stroke();
-    }
-  }
-
-  ctx.fillStyle = css(COAT);
-  ctx.strokeStyle = css(COAT);
-}
-
-/** The coat colour and stroke style every cat starts from. */
-function coat(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = css(COAT);
-  ctx.strokeStyle = css(COAT);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-}
-
-/**
- * A round little cat, walking.
- *
- * It started as a loaf - the brick shape a cat folds into with its paws put
- * away - and that was the shape worth keeping: plump, low, no visible neck,
- * more circle than animal. The roundness is untouched; what it needed was to
- * be going somewhere, so the loaf is up on four short legs and bouncing along
- * on them.
- *
- * ## Squash and stretch, and not much else
- *
- * A hopping walk is one trick done properly. On the ground it goes wide and
- * flat, in the air it goes tall and narrow, and the two exaggerate past what a
- * real cat does because that overshoot is the whole of why a cartoon reads as
- * springy rather than as a picture being moved upward. Legs push down as it
- * lands and tuck up under it at the top of the arc, which is the other half:
- * feet that stay put through a jump look pinned on.
- *
- * ## Everything else is doing one cheerful thing
- *
- * The tail is up with a curl in the tip, and it whips as the body leaves the
- * ground - a cat's mood is entirely legible from behind. The eyes are shut and
- * curved the happy way up, with two pink cheeks. The head follows a beat late,
- * because a heavy head always does, and that lag is most of why it reads as
- * pleased rather than merely animated.
- */
-const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
-  coat(ctx);
-
-  /*
-   * Wide and flat with its feet down, tall and narrow at the top of the arc.
-   * The numbers overshoot a real cat on purpose - a hop drawn to scale looks
-   * like a sprite being lifted, and this is the exaggeration that makes it
-   * bounce.
-   */
-  const squash = 1 - hop;
-  const w = s * (1.16 + 0.2 * squash);
-  const h = s * 0.66 * (1 + 0.26 * hop - 0.12 * squash);
-  const floor = -s * 0.2;
-  const bob = 0;
-
-  /*
-   * Legs that bound, rather than walking through a jump.
-   *
-   * They were doing a four-beat diagonal walk with a fold laid over the top of
-   * it, and a walk cycle and a hop are two different animals: the legs said
-   * "strolling" while the body said "airborne", and no jump height reconciles
-   * that. The height and the distance were never the problem.
-   *
-   * So they do what legs do in a bound, in three moments. The back pair drives
-   * backwards off the ground at take-off. Everything folds up under the belly
-   * at the top of the arc. The front pair reaches forward to receive the
-   * landing while the back pair gathers underneath. `Math.cos(stride)` is the
-   * sign of the arc - rising or falling - which is what tells one moment from
-   * the next.
-   *
-   * Each leg stays a fixed length and only its angle changes. Zero is straight
-   * down, positive is forward.
-   */
-  const rise = Math.cos(stride);
-  const drive = Math.max(0, rise) * squash;
-  const land = Math.max(0, -rise) * squash;
-  const reach = s * 0.2;
-
-  ctx.lineWidth = s * 0.15;
-  const legs: [number, number, boolean][] = [
-    [w * 0.3, 0.06, true],
-    [w * 0.16, -0.05, true],
-    [-w * 0.24, 0.05, false],
-    [-w * 0.36, -0.06, false],
-  ];
-  for (const [lx, offset, front] of legs) {
-    const fold =
-      hop * 1.25 +
-      (front ? -0.2 : -0.95) * drive +
-      (front ? 0.8 : -0.15) * land +
-      offset;
-    const px2 = lx + Math.sin(fold) * reach;
-    const py2 = floor + Math.cos(fold) * reach;
-    ctx.beginPath();
-    ctx.moveTo(lx, floor);
-    ctx.lineTo(px2, py2);
-    ctx.stroke();
-    // A paw on the end, which is what stops a folded leg reading as a stump.
-    ctx.beginPath();
-    ctx.ellipse(px2, py2, s * 0.075, s * 0.06, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  /*
-   * Tail: up, curled over at the tip, and it whips as the body leaves the
-   * ground. Its length comes from `s` and not from the squashed body height -
-   * measured off `h` it grew with the stretch and nearly doubled at the top of
-   * the arc, which read as a separate animal.
-   */
-  const tail = s * 1.05;
-  const whip = hop * s * 0.1;
-  ctx.lineWidth = s * 0.13;
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.42, floor - h * 0.45);
-  ctx.quadraticCurveTo(
-    -w * 0.62 - whip,
-    floor - h * 0.45 - tail * 0.62,
-    -w * 0.34 - whip * 0.4,
-    floor - h * 0.45 - tail,
-  );
-  ctx.quadraticCurveTo(
-    -w * 0.18 + whip * 0.6,
-    floor - h * 0.45 - tail * 1.16,
-    -w * 0.08,
-    floor - h * 0.45 - tail * 0.96,
-  );
-  ctx.stroke();
-
-  /*
-   * The body: one plump curve, wider than it is tall, and lowest at the belly.
-   * Drawn as a path rather than an ellipse so the back can sit higher at the
-   * shoulder than at the hip, which is the difference between a cat and a bun.
-   */
-  const by = floor - bob;
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.48, by - h * 0.34);
-  ctx.quadraticCurveTo(-w * 0.5, by - h * 1.02, w * 0.02, by - h * 1.06);
-  ctx.quadraticCurveTo(w * 0.5, by - h * 1.02, w * 0.48, by - h * 0.3);
-  ctx.quadraticCurveTo(w * 0.44, by + h * 0.16, w * 0.02, by + h * 0.14);
-  ctx.quadraticCurveTo(-w * 0.44, by + h * 0.16, -w * 0.48, by - h * 0.34);
-  ctx.closePath();
-  ctx.fill();
-
-  // The head, a beat behind the body - a heavy head always lags, and that lag
-  // is most of the charm.
-  const lag = Math.sin(stride - 0.8) * s * 0.035;
-  face(ctx, w * 0.42, by - h * 0.94 + lag, s * 0.3, 1.2, false, s, true);
-};
-
-/**
- * The cat that ships.
- *
- * `lift` is a whole module and a half: it hops along rather than padding
- * along, and a hop you cannot see is not worth the arithmetic. Thirteen of
- * them to a lap, so a little over a second apiece - the pace of something
- * pleased with the garden rather than crossing it.
- *
- * Three others were up beside it - a prowler on long legs, a leaper stretched
- * flat in the air, a kitten sitting upright - and they are gone rather than
- * left behind as options nothing picks between.
- */
-export const LOAF: Cat = { size: 5.2, lift: 1.5, hops: 13, paint: paintLoaf };
+/** Hops to a lap, and how high each one gets, in modules. */
+const HOPS = 13;
+const LIFT = 0.8;
 
 interface Cell {
   /** Where it lands: module coordinates, with the quiet zone already added. */
@@ -616,6 +311,8 @@ function plant(modules: boolean[][], size: number, crown: Crown): Cell[] {
       const reach = Math.max(Math.abs(x - mid), Math.abs(y - mid)) / mid;
       const grass = isFinder(x, y) || reach + r3 * 0.05 > 0.9;
 
+      /** How high in the crown, 0 at the skirt and 1 at the top: the light falls from above. */
+      let tone = 0;
       let tx: number;
       let ty: number;
       let tz: number;
@@ -672,6 +369,7 @@ function plant(modules: boolean[][], size: number, crown: Crown): Cell[] {
         tx = (x - mid) * crown.spread * slop;
         tz = (y - mid) * crown.spread * slop;
         ty = size * crown.base + dome * fill;
+        tone = (dome * fill) / (size * crown.dome);
       }
 
       const jitter = Math.abs(r2);
@@ -688,7 +386,9 @@ function plant(modules: boolean[][], size: number, crown: Crown): Cell[] {
         phase: (seed % 628) / 100,
         // Two close pinks rather than one, which is the difference between a
         // canopy with light in it and a pink shape.
-        air: grass ? GRASS_AIR : mix(BLOSSOM_AIR, BLOSSOM_LIT, jitter),
+        air: grass
+          ? mix(GRASS_DEEP, GRASS_BRIGHT, jitter)
+          : canopy(Math.max(0, Math.min(1, tone * 0.85 + 0.12 + (jitter - 0.5) * 0.4))),
         ink: shadeOf(grass ? GRASS_INK : BLOSSOM_INK, grass ? GRASS_AIR : BLOSSOM_AIR, jitter),
       });
     }
@@ -705,7 +405,7 @@ export function VoxelQr({
   level = 'M',
   size = 300,
   crown = SAKURA,
-  kitty = LOAF,
+  cat = 'black',
   autoPlay = false,
   className,
   label = 'Profile QR code',
@@ -716,8 +416,8 @@ export function VoxelQr({
   size?: number;
   /** What kind of tree. See `Crown`; `SAKURA` is the shipped shape. */
   crown?: Crown;
-  /** Which cat is doing laps of the lawn. See `Cat`. */
-  kitty?: Cat;
+  /** Which coat the cat doing laps of the lawn has. See `voxel-cat.ts`. */
+  cat?: CatKind;
   /** Open on its own after a beat, which is what the share sheet wants. */
   autoPlay?: boolean;
   className?: string;
@@ -1016,7 +716,7 @@ export function VoxelQr({
 
       // Half of each hop is spent on the ground, which is what makes it a
       // stroll rather than a bounce.
-      const hop = Math.max(0, Math.sin(lap * kitty.hops)) ** 0.7;
+      const hop = Math.max(0, Math.sin(lap * HOPS)) ** 0.7;
       const here = px(cx, cz);
 
       /*
@@ -1062,12 +762,19 @@ export function VoxelQr({
 
       const paintCat = () => {
         if (alive <= 0.01) return;
-        const s = unit * kitty.size;
         ctx.save();
         ctx.globalAlpha = alive;
-        ctx.translate(here, py(cx, 0, cz) - hop * unit * kitty.lift * (1 + 1.3 * turning));
-        ctx.scale(facing.current, 1);
-        kitty.paint(ctx, s, hop, lap * kitty.hops);
+        // A cube a little under half a module, which makes the cat about five modules tall.
+        drawVoxelCat(
+          ctx,
+          here,
+          py(cx, 0, cz) - hop * unit * LIFT * (1 + 1.3 * turning),
+          unit * 0.4,
+          cat,
+          lap * HOPS * 2,
+          facing.current > 0 ? 0 : 1,
+          dpr,
+        );
         ctx.restore();
       };
 
@@ -1092,6 +799,8 @@ export function VoxelQr({
         /** 0 is a leaf on the tree, 1 is the module. Drives shape, not place. */
         t: number;
         turn: number;
+        /** 0 to 1, fixed per block: which leaves wear a flower, which tufts bloom. */
+        luck: number;
       };
       const drawn: Drawn[] = [];
 
@@ -1131,6 +840,7 @@ export function VoxelQr({
           w: unit * (cell.grass ? 1 : 1 + crown.leaf * (1 - le)),
           t: le,
           turn: cell.turn,
+          luck: (cell.phase * 7.13) % 1,
         });
       }
 
@@ -1182,6 +892,29 @@ export function VoxelQr({
            */
           ctx.fillStyle = css(v.colour);
           blossom(ctx, v.sx, v.sy, hw, v.t, v.turn);
+
+          /*
+           * While it is still a leaf: a fine darker edge, so overlapping leaves
+           * read as layers rather than one pink shape, and on some of them a
+           * flower - pale petals round a yellow heart. Both are gone well
+           * before the block lands.
+           */
+          const leafy = 1 - v.t * 2.5;
+          if (leafy > 0.01) {
+            ctx.globalAlpha = leafy;
+            ctx.strokeStyle = 'rgba(176, 52, 98, 0.28)';
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+            if (v.luck < 0.3) {
+              ctx.fillStyle = css(mix(v.colour, FLOWER, 0.7));
+              blossom(ctx, v.sx, v.sy - hw * 0.08, hw * 0.4, 0, v.turn + 0.6);
+              ctx.fillStyle = css(POLLEN);
+              ctx.beginPath();
+              ctx.arc(v.sx, v.sy - hw * 0.08, Math.max(0.6, hw * 0.1), 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+          }
         } else {
           quad(
             [
@@ -1242,7 +975,8 @@ export function VoxelQr({
             const bx = v.sx + k * unit * 0.22;
             const len = blade * (1 - Math.abs(k) * 0.16);
             const tip = v.sy - len;
-            ctx.fillStyle = css(mix(v.colour, GRASS_AIR, 0.3));
+            // Alternate blades darker and lighter, so a tuft has depth in it.
+            ctx.fillStyle = css(mix(v.colour, k % 2 ? GRASS_DEEP : GRASS_BRIGHT, 0.35));
             ctx.beginPath();
             ctx.moveTo(bx - unit * 0.09, v.sy);
             ctx.lineTo(bx + unit * 0.09, v.sy);
@@ -1258,6 +992,26 @@ export function VoxelQr({
             ctx.lineTo(bx + k * unit * 0.26 + lean, tip);
             ctx.closePath();
             ctx.fill();
+          }
+
+          // A few tufts in flower: five white or pink petals and a yellow heart.
+          if (v.luck < 0.16 && e < 0.9) {
+            const fx = v.sx + lean;
+            const fy = v.sy - blade * 0.95;
+            const r = unit * 0.2;
+            ctx.globalAlpha = 1 - e;
+            ctx.fillStyle = css(v.luck < 0.07 ? PETAL : [255, 255, 255]);
+            for (let k = 0; k < 5; k += 1) {
+              const a = (k / 5) * Math.PI * 2 - Math.PI / 2;
+              ctx.beginPath();
+              ctx.arc(fx + Math.cos(a) * r, fy + Math.sin(a) * r * 0.8, r * 0.75, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.fillStyle = css(POLLEN);
+            ctx.beginPath();
+            ctx.arc(fx, fy, r * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
           }
         }
       }
@@ -1310,7 +1064,7 @@ export function VoxelQr({
       cancelAnimationFrame(frame);
       if (hold !== undefined) window.clearTimeout(hold);
     };
-  }, [value, level, size, crown, kitty, autoPlay]);
+  }, [value, level, size, crown, cat, autoPlay]);
 
   const hint = caption ?? (open ? 'Tap to see the tree' : 'Tap the tree to see the QR code');
 

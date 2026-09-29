@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { VoxelQr } from '../../features/profile/VoxelQr.js';
+import type { CatKind } from '../../features/profile/voxel-cat.js';
 
 /**
  * The tree-to-QR transition, on its own, at `/dev/qr-lab`.
@@ -19,6 +20,7 @@ export function VoxelQrLab() {
   const [size, setSize] = useState(300);
   // Remounting is the replay: the hold-then-open runs from the top again.
   const [take, setTake] = useState(0);
+  const [cat, setCat] = useState<CatKind>((new URLSearchParams(window.location.search).get('cat') as CatKind) || 'black');
 
   return (
     <div className="h-full overflow-y-auto bg-sunken">
@@ -37,7 +39,7 @@ export function VoxelQrLab() {
         </button>
 
         <div className="mt-5 grid place-items-center rounded-lg bg-page p-5 shadow-sm">
-          <VoxelQr key={take} value={value} size={size} autoPlay />
+          <VoxelQr key={take} value={value} size={size} cat={cat} autoPlay />
         </div>
 
         <label className="mt-6 block text-caption text-text-secondary">
@@ -62,6 +64,23 @@ export function VoxelQrLab() {
               }
             >
               {s}px
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          {(['black', 'ginger', 'snow'] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCat(c)}
+              className={
+                cat === c
+                  ? 'rounded-md bg-brand px-3 py-1.5 text-caption font-medium text-on-brand'
+                  : 'rounded-md bg-surface px-3 py-1.5 text-caption font-medium text-text-secondary'
+              }
+            >
+              {c}
             </button>
           ))}
         </div>
