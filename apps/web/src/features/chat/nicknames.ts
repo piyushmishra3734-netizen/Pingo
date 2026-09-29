@@ -5,6 +5,7 @@ import { publicAppUrl } from '../../lib/public-origin.js';
 
 /**
  * Nicknames, the way Messenger does them: set in a chat, seen by both people.
+ * You can name the other person, never yourself.
  *
  * A nickname is a message - "Piyush set Rohit's nickname to “Ro”" - so both
  * sides are told, in the thread, when it changes. Each device learns the
@@ -77,6 +78,9 @@ export function learnNicknames(conversationId: string, messages: readonly Messag
     if (message.deleted) continue;
     const e = parseNickname(message.body);
     if (!e) continue;
+    // Only someone else can name you. A nickname people gave themselves, from
+    // before that rule, is ignored.
+    if (e.userId === message.authorId) continue;
     const had = known[e.userId];
     if (had && had.at >= message.createdAt) continue;
     known[e.userId] = { n: e.nick, at: message.createdAt };
