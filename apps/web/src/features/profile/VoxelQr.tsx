@@ -2,7 +2,7 @@ import { cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import { GARDEN, encodeQr, mixRgb as mix, type QrLevel, type Rgb } from './qr.js';
-import { drawVoxelCat, type CatKind } from './voxel-cat.js';
+import { paintCat as paintGardenCat, type CatKind } from './garden-cat.js';
 
 /**
  * A voxel cherry tree that comes apart into the QR code.
@@ -256,9 +256,22 @@ export const SAKURA: Crown = {
 
 /** One unhurried lap of the lawn. */
 const PROWL_MS = 15000;
-/** Hops to a lap, and how high each one gets, in modules. */
-const HOPS = 13;
-const LIFT = 0.8;
+/** Strides to a lap: an unhurried walk for a cat this size on a ring this long. */
+const STRIDES = 21;
+/** The cat's length from chest to rump, in modules. */
+const CAT_LENGTH = 6;
+
+/** One small scratch canvas for the cat, reused every frame. */
+let catCanvas: HTMLCanvasElement | undefined;
+function catLayer(px: number): HTMLCanvasElement {
+  catCanvas ??= document.createElement('canvas');
+  const edge = Math.max(8, Math.ceil(px));
+  if (catCanvas.width !== edge) {
+    catCanvas.width = edge;
+    catCanvas.height = edge;
+  }
+  return catCanvas;
+}
 
 interface Cell {
   /** Where it lands: module coordinates, with the quiet zone already added. */
@@ -423,7 +436,7 @@ export function VoxelQr({
   size?: number;
   /** What kind of tree. See `Crown`; `SAKURA` is the shipped shape. */
   crown?: Crown;
-  /** Which coat the cat doing laps of the lawn has. See `voxel-cat.ts`. */
+  /** Which coat the cat doing laps of the lawn has. See `garden-cat.ts`. */
   cat?: CatKind;
   /** Open on its own after a beat, which is what the share sheet wants. */
   autoPlay?: boolean;
@@ -736,7 +749,7 @@ export function VoxelQr({
       /* ---- the cat ------------------------------------------------------- */
 
       /*
-       * One cat, hopping a slow lap of the lawn.
+       * One cat, walking a slow lap of the lawn.
        *
        * It goes the way the wind goes: entirely, by the time the code lands.
        * Everything alive in this scene lives in the second before the QR
@@ -744,8 +757,7 @@ export function VoxelQr({
        * sitting on a module is a module a scanner cannot read at all.
        *
        * The path is a circle on the lawn rather than a wander, because a wander
-       * needs somewhere to go and a lap does not, and because at this size the
-       * only thing that reads is the hop.
+       * needs somewhere to go and a lap does not.
        */
       const alive = Math.min(1, (1 - e) * 2.4);
       const lap = ((now % PROWL_MS) / PROWL_MS) * Math.PI * 2;
@@ -758,79 +770,48 @@ export function VoxelQr({
       const ring = edge * 0.6;
       const cx = Math.cos(lap) * ring;
       const cz = Math.sin(lap) * ring;
-
-      // Half of each hop is spent on the ground, which is what makes it a
-      // stroll rather than a bounce.
-      const hop = Math.max(0, Math.sin(lap * HOPS)) ** 0.7;
       const here = px(cx, cz);
 
       /*
-       * Which way it is facing, and when it is allowed to change its mind.
-       *
-       * The path's own tangent in screen x says which way it is going:
-       * differentiate the projection along the lap and everything but
-       * `-sin(lap + spin)` cancels.
-       *
-       * Turning by scaling through that value foreshortened the sprite as it
-       * came round, which is geometrically right and looked like a sheet of
-       * paper being turned edge-on - the cat is a flat drawing and squashing it
-       * horizontally says so out loud.
-       *
-       * So it flips, and it jumps to do it.
-       *
-       * The tangent runs through zero exactly where a turn is needed, so
-       * `turning` is one near the two ends of the ring and nothing anywhere
-       * else. It buys height: the cat takes a noticeably bigger hop right
-       * there, and the new direction is taken at the top of that hop - where
-       * every leg is tucked under the belly and the mirroring has nothing to
-       * catch on. A cat turning around jumps to do it, so the move explains the
-       * flip rather than hiding it.
-       *
-       * Taking it anywhere else in the arc was the awkward part: the flip
-       * landed wherever the hop happened to be, sometimes a foot off the ground
-       * with all four legs mid-bound, and mirrored them across the body.
-       *
-       * The window has to be wide enough to contain an apex, and the first one
-       * was not. Simulating a lap said so: of the two turns, one flipped on a
-       * hop with no height behind it at all, because the nearest apex fell
-       * before the tangent changed sign and the next one came after the window
-       * had closed - so the cat turned on an ordinary step, which is exactly
-       * the thing this was meant to stop. `1.8` spans a good two hops either
-       * side, and both turns now land on a hop with most of its boost.
+       * Which way it is facing. The path's own tangent in screen x says which
+       * way it is going: differentiate the projection along the lap and
+       * everything but `-sin(lap + spin)` cancels. The cat is drawn side on,
+       * so it turns by flipping, at the two ends of the ring where it is
+       * walking straight towards or away from the camera.
        */
       const tangent = -Math.sin(lap + spin);
-      const turning = Math.max(0, 1 - Math.abs(tangent) * 1.8);
-      // Zero means it has not decided yet: the first frame takes its bearing
-      // without hopping for it.
-      const want = tangent >= 0 ? 1 : -1;
-      if (facing.current === 0 || hop > 0.75) facing.current = want;
+      facing.current = tangent >= 0 ? 1 : -1;
 
       const paintCat = () => {
         if (alive <= 0.01) return;
-        ctx.save();
-        // Its shadow stays on the grass while it hops, and shrinks as it goes up.
         const ground = py(cx, 0, cz);
-        ctx.globalAlpha = alive * (0.22 - hop * 0.08);
+        const s = unit * CAT_LENGTH;
+
+        // Its shadow on the lawn, soft and flat.
+        ctx.save();
+        ctx.globalAlpha = alive * 0.2;
         ctx.fillStyle = 'rgb(90, 40, 80)';
         ctx.beginPath();
-        ctx.ellipse(here, ground, unit * (2.4 - hop * 0.5), unit * (2.4 - hop * 0.5) * Math.max(0.2, cosP) * 0.7, 0, 0, Math.PI * 2);
+        ctx.ellipse(here, ground, s * 0.5, s * 0.5 * Math.max(0.2, cosP) * 0.45, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.restore();
+
         /*
-         * A cube a little under half a module, which makes the cat about five
-         * modules tall. It leaves by shrinking into its own feet rather than
-         * fading: a see-through stack of cubes shows every face inside it.
+         * Drawn whole into its own small canvas and then laid down at the
+         * scene's alpha, so it fades out as one animal. Faded shape by
+         * shape, the legs would show through the body.
          */
-        drawVoxelCat(
-          ctx,
-          here,
-          py(cx, 0, cz) - hop * unit * LIFT * (1 + 1.3 * turning) * alive,
-          unit * 0.4 * alive,
-          cat,
-          lap * HOPS * 2,
-          facing.current > 0 ? 0 : 1,
-          dpr,
-        );
+        const box = Math.ceil(s * 2.4);
+        const layer = catLayer(box * dpr);
+        const g = layer.getContext('2d')!;
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, layer.width, layer.height);
+        g.setTransform(dpr * facing.current, 0, 0, dpr, (box / 2) * dpr, box * 0.62 * dpr);
+        const blink = now % 4200 < 150 ? 1 : 0;
+        paintGardenCat(g, s, cat, lap * STRIDES, blink);
+        ctx.save();
+        ctx.globalAlpha = alive;
+        ctx.drawImage(layer, 0, 0, layer.width, layer.height, here - box / 2, ground - box * 0.62, box, box);
         ctx.restore();
       };
 

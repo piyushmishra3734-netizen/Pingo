@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { VoxelQr } from '../../features/profile/VoxelQr.js';
-import type { CatKind } from '../../features/profile/voxel-cat.js';
+import { paintCat, type CatKind } from '../../features/profile/garden-cat.js';
 
 /**
  * The tree-to-QR transition, on its own, at `/dev/qr-lab`.
@@ -85,6 +85,10 @@ export function VoxelQrLab() {
           ))}
         </div>
 
+        <div data-cat className="mt-5 grid place-items-center rounded-lg bg-page p-3 shadow-sm">
+          <CatCloseUp cat={cat} />
+        </div>
+
         <p className="mt-5 pb-10 text-caption text-text-tertiary">
           The settled state is the scan target: flat, on white, full contrast,
           four-module quiet zone. Point a camera at one once it has landed.
@@ -92,4 +96,28 @@ export function VoxelQrLab() {
       </div>
     </div>
   );
+}
+
+/** The cat on its own and large, walking on the spot, to judge it up close. */
+function CatCloseUp({ cat }: { cat: CatKind }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return undefined;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = 300 * dpr;
+    canvas.height = 200 * dpr;
+    let frame = 0;
+    const draw = (now: number) => {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 150 * dpr, 175 * dpr);
+      paintCat(ctx, 140, cat, now / 170, now % 4200 < 150 ? 1 : 0);
+      frame = requestAnimationFrame(draw);
+    };
+    frame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frame);
+  }, [cat]);
+  return <canvas ref={ref} style={{ width: 300, height: 200 }} />;
 }
