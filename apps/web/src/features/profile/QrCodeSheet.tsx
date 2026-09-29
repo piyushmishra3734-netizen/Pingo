@@ -1,6 +1,7 @@
 import { Avatar } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { AppLogo } from '../../components/AppLogo.js';
 import { Overlay } from '../../components/Overlay.js';
 import { profileLink } from './ShareProfileSheet.js';
 import { VoxelQr } from './VoxelQr.js';
@@ -164,6 +165,11 @@ export function QrCodeSheet({
           >
             {/* Its top and bottom edges fade into the softened scene behind, for screens taller than the artwork. */}
             <img src={SCENE} alt="" aria-hidden className="qr-art absolute inset-0 size-full select-none" draggable={false} />
+
+            {/* The official PINGO mark, where the artwork's own drawing of it was. */}
+            <span className="absolute" style={at(120, 236, 92, 92)}>
+              <AppLogo alt="" className="!size-full" />
+            </span>
 
             {/* The avatar in its ring: an 8px sweep of colour, a 7px gap, the photo. */}
             <span className="qr-ring absolute" style={at(380, 294, 220, 220)}>
