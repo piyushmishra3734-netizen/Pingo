@@ -228,43 +228,39 @@ export const SAKURA: Crown = {
   leaf: 3.9,
 };
 
-/** One unhurried lap of the lawn. */
-const PROWL_MS = 15000;
-
 /*
- * The cat: a sprite sheet of the same black voxel kitten the invite artwork
- * sits on its card, in six poses - sitting, sitting and looking at you, three
- * steps of a walk, and curled up in a loaf. `public/qr/garden-cat.webp`,
- * cut from the artist's sheet with every pose's feet on its bottom edge.
- *
- * `ax` is where the pose stands, measured from its left edge: the middle of
- * the feet for the still poses, and a fixed point behind the head for the
- * steps, so the body stays put across the walk while the legs move under it.
+ * The cat: the same black voxel kitten the invite artwork sits on its card,
+ * sitting and looking up at you. `public/qr/garden-cat.webp`, cut from the
+ * artist's sheet. `ax` is the middle of its feet, from the left edge.
  */
 const CAT_SHEET = '/qr/garden-cat.webp';
-const CAT_POSES = {
-  sit: { x: 4, y: 4, w: 224, h: 185, ax: 137 },
-  look: { x: 236, y: 4, w: 214, h: 186, ax: 122 },
-  stepA: { x: 458, y: 4, w: 230, h: 175, ax: 230 - 108 },
-  stepB: { x: 696, y: 4, w: 238, h: 166, ax: 238 - 108 },
-  stepC: { x: 942, y: 4, w: 231, h: 167, ax: 231 - 108 },
-  loaf: { x: 1181, y: 4, w: 230, h: 125, ax: 112 },
-} as const;
-type CatPose = keyof typeof CAT_POSES;
-/** The walk, as the three steps played there and back. */
-const WALK: CatPose[] = ['stepA', 'stepB', 'stepC', 'stepB'];
+const CAT = { w: 214, h: 186, ax: 122 };
 /** How tall the sitting cat stands, in modules. */
-const CAT_HEIGHT = 6.4;
-/** Walking, then a rest, over and over. */
-const STROLL_MS = 6500;
-const REST_MS = 3200;
-/** What it does on each rest, in turn: sit, sit and look up at you, curl up. */
-const RESTS: CatPose[] = ['sit', 'look', 'loaf'];
-/** Once a stroll, a proper leap: when it starts, and how long it takes. */
-const LEAP_AT = 2300;
-const LEAP_MS = 950;
-/** How long a turn round takes: squeeze to nothing, then out the other way. */
-const TURN_MS = 220;
+const CAT_HEIGHT = 7.4;
+/** Where it sits: on the lawn to the right of the trunk, in modules from the middle. */
+const CAT_SPOT = { x: 7, z: -4 };
+
+/*
+ * Its face, in the sheet's pixels: where the head is (so it can
+ * tilt on its own), and where the eyes and cheeks sit on it.
+ */
+const HEAD = { x: 72, y: 0, w: 142, h: 114, pivotX: 142, pivotY: 106, clipBelow: 106 };
+const EYES = [
+  { x: 148, y: 79, rx: 10, ry: 13 },
+  { x: 190, y: 79, rx: 8, ry: 13 },
+];
+const CHEEKS = [
+  { x: 136, y: 97 },
+  { x: 200, y: 98 },
+];
+/** The fur round the eyes, for the lids. */
+const FUR = 'rgb(30, 24, 37)';
+
+/** 0 to 1 and back over `ms`, eased at both ends, while `t` is inside it. */
+const pulse = (t: number, start: number, ms: number) => {
+  const u = (t - start) / ms;
+  return u <= 0 || u >= 1 ? 0 : Math.sin(Math.PI * u) ** 2;
+};
 
 /** A little heart, for the cat that has just looked up at you. */
 function heart(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
@@ -463,9 +459,6 @@ export function VoxelQr({
   /** 0 is the tree, 1 is the code. A ref: it changes every frame. */
   const progress = useRef(0);
   /** Which way the cat is pointing, or 0 before the first frame has decided. */
-  const facing = useRef(0);
-  /** When the cat last turned round, for the squeeze-and-flip. */
-  const turnedAt = useRef(-1e9);
   const target = useRef(0);
   const [open, setOpen] = useState(false);
 
@@ -738,175 +731,107 @@ export function VoxelQr({
        * needs somewhere to go and a lap does not.
        */
       const alive = Math.min(1, (1 - e) * 2.4);
-
-      /*
-       * A stroll and a rest, taken in turn. The lap only moves while it walks,
-       * so it stops where it is to sit, then carries on from there.
-       */
-      const round = Math.floor(now / (STROLL_MS + REST_MS));
-      const into = now % (STROLL_MS + REST_MS);
-      const walking = into < STROLL_MS;
-      const walked = round * STROLL_MS + Math.min(into, STROLL_MS);
-      const lap = ((walked % PROWL_MS) / PROWL_MS) * Math.PI * 2;
-      /*
-       * Inside the grass, not on it. The rim of the lawn is where the grass
-       * grows, and a cat walking through the middle of a tuft was the one thing
-       * about it that looked wrong - it was standing in the grass rather than
-       * behind or in front of it.
-       */
-      const ring = edge * 0.6;
-      const cx = Math.cos(lap) * ring;
-      const cz = Math.sin(lap) * ring;
+      const cx = CAT_SPOT.x;
+      const cz = CAT_SPOT.z;
       const here = px(cx, cz);
 
       /*
-       * Which way it is facing. The path's own tangent in screen x says which
-       * way it is going: differentiate the projection along the lap and
-       * everything but `-sin(lap + spin)` cancels. The sprite faces right, so
-       * walking left is the same cat mirrored; at rest it keeps the way it was
-       * going.
+       * It stays put and only its face moves - a ten-second loop of small,
+       * cartoon things: it breathes all the time, blinks every few seconds
+       * (twice in a row now and then), tilts its head one way as if curious
+       * and later a little the other way, and once a loop squeezes its eyes
+       * shut in a smile, blushes, and a heart pops out.
        */
-      if (walking) {
-        const want = -Math.sin(lap + spin) >= 0 ? 1 : -1;
-        if (facing.current !== 0 && want !== facing.current) turnedAt.current = now;
-        facing.current = want;
-      } else if (facing.current === 0) facing.current = 1;
-
-      /*
-       * Cartoon timing, all of it squash and stretch.
-       *
-       * It walks in small bounces, squashing wide on every footfall and
-       * stretching tall between. Once a stroll it takes a proper leap: a
-       * crouch to wind up, a stretched launch, a round tuck at the top, and a
-       * big squash on landing with a puff of dust. It turns round by
-       * squeezing to nothing and springing out the other way with a hop. At
-       * rest it breathes; looking up at you it blinks and a heart pops out;
-       * curled in a loaf it snores a few little z's.
-       */
-      const rest = walking ? -1 : into - STROLL_MS;
-      const restPose = RESTS[round % RESTS.length]!;
-      const leap = walking ? (into - LEAP_AT) / LEAP_MS : -1;
-      const inLeap = leap >= 0 && leap <= 1;
-      const turn = (now - turnedAt.current) / TURN_MS;
-      const turning = walking && turn >= 0 && turn < 1;
-
-      let rise = 0; // modules off the ground
-      let sx = 1;
-      let sy = 1;
-      let tilt = 0; // radians, nose up is negative
-      let pose: CatPose;
-
-      if (inLeap) {
-        if (leap < 0.18) {
-          // Wind up: crouch low and wide.
-          const c = Math.sin((leap / 0.18) * (Math.PI / 2));
-          sx = 1 + 0.22 * c;
-          sy = 1 - 0.22 * c;
-          pose = 'stepA';
-        } else if (leap < 0.78) {
-          // In the air: stretched off the ground and into the fall, round at the top.
-          const u = (leap - 0.18) / 0.6;
-          rise = 3.4 * Math.sin(Math.PI * u);
-          const stretch = Math.abs(Math.cos(Math.PI * u));
-          sx = 1 - 0.12 * stretch;
-          sy = 1 + 0.16 * stretch;
-          tilt = -0.32 * Math.cos(Math.PI * u);
-          pose = 'stepB';
-        } else {
-          // Land: a big squash, and back.
-          const l = Math.sin(((leap - 0.78) / 0.22) * Math.PI);
-          sx = 1 + 0.26 * l;
-          sy = 1 - 0.24 * l;
-          pose = 'stepC';
-        }
-      } else if (walking) {
-        // A bounce on every footfall: squashed at the ground, stretched in between.
-        const hop = Math.abs(Math.sin((now / 250) * Math.PI));
-        const contact = (1 - hop) ** 3;
-        rise = hop ** 0.8 * 0.6;
-        sx = 1 + 0.1 * contact - 0.05 * hop;
-        sy = 1 - 0.1 * contact + 0.07 * hop;
-        pose = WALK[Math.floor(now / 125) % WALK.length]!;
-        if (turning) rise += 0.9 * Math.sin(Math.PI * turn);
-      } else {
-        pose = restPose;
-        // Settling in: a quick squash as it stops, then breathing.
-        const settle = rest < 240 ? Math.sin((rest / 240) * Math.PI) : 0;
-        const slow = restPose === 'loaf' ? 760 : 460;
-        const breath = Math.sin(now / slow) * (restPose === 'loaf' ? 0.035 : 0.025);
-        sx = 1 + 0.16 * settle - breath * 0.5;
-        sy = 1 - 0.16 * settle + breath;
-        // Looking up at you, it blinks.
-        if (restPose === 'look' && now % 1700 < 110) pose = 'sit';
-      }
-
-      // Turning round: squeeze to nothing, then spring out facing the other way.
-      const flip = turning ? facing.current * -Math.cos(Math.PI * turn) : facing.current;
+      const loop = now % 10000;
+      const breath = Math.sin(now / 520);
+      const tilt = 0.085 * pulse(loop, 1800, 2600) - 0.06 * pulse(loop, 8000, 1800);
+      const smile = Math.min(1, pulse(loop, 5600, 2200) * 1.6);
+      const blinkAt = now % 3700;
+      const blink = Math.max(pulse(blinkAt, 0, 170), loop > 9000 ? pulse(blinkAt, 260, 170) : 0);
+      const lid = Math.max(blink, smile);
 
       const paintCat = () => {
         const sheet = catImage();
         if (alive <= 0.01 || !sheet) return;
         const ground = py(cx, 0, cz);
-        const f = CAT_POSES[pose];
-        const k = (unit * CAT_HEIGHT) / CAT_POSES.sit.h;
+        const f = CAT;
+        const k = (unit * CAT_HEIGHT) / CAT.h;
 
         ctx.save();
-        // Its shadow on the lawn: smaller and fainter the higher it gets.
-        const high = 1 / (1 + rise * 0.28);
-        ctx.globalAlpha = alive * 0.2 * high;
+        // Its shadow on the lawn, soft and flat.
+        ctx.globalAlpha = alive * 0.2;
         ctx.fillStyle = 'rgb(90, 40, 80)';
         ctx.beginPath();
-        const shadow = unit * (pose === 'loaf' ? 3.4 : 2.8) * high * sx;
-        ctx.ellipse(here, ground, shadow, shadow * Math.max(0.2, cosP) * 0.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(here, ground, unit * 2.8, unit * 2.8 * Math.max(0.2, cosP) * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
-
-        // Dust from the landing: little puffs thrown out either side.
-        const dust = (into - LEAP_AT - LEAP_MS * 0.78) / 460;
-        if (walking && dust > 0 && dust < 1) {
-          ctx.fillStyle = 'rgb(236, 212, 228)';
-          for (let i = 0; i < 6; i += 1) {
-            const side = i % 2 ? 1 : -1;
-            const reach = (0.9 + (i >> 1) * 0.55) * (0.4 + dust) * unit * 1.6;
-            ctx.globalAlpha = alive * 0.75 * (1 - dust);
-            ctx.beginPath();
-            ctx.arc(here + side * reach, ground - dust * unit * (0.6 + (i >> 1) * 0.4), unit * (0.35 + 0.55 * dust), 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
 
         // An image fades as one animal, so the scene's alpha is enough.
         ctx.globalAlpha = alive;
-        ctx.translate(here, ground - rise * unit);
-        // Tilts about its middle, not its feet, the way a body turns in the air.
-        const middle = f.h * k * 0.45;
-        ctx.translate(0, -middle);
-        ctx.rotate(tilt * facing.current);
-        ctx.translate(0, middle);
-        ctx.scale(flip * k * sx, k * sy);
-        ctx.drawImage(sheet, f.x, f.y, f.w, f.h, -f.ax, -f.h, f.w, f.h);
+        ctx.translate(here, ground);
+        // Breathing: a touch taller and narrower on the in-breath.
+        ctx.scale(k * (1 - 0.008 * breath), k * (1 + 0.018 * breath));
+        // Sheet pixels from here on, with the feet at the origin.
+        ctx.translate(-f.ax, -f.h);
+
+        // The body, with the head cut out of it so the head can move on its own.
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, f.w, f.h);
+        ctx.rect(HEAD.x, HEAD.y, f.w - HEAD.x, HEAD.clipBelow);
+        ctx.clip('evenodd');
+        ctx.drawImage(sheet, 0, 0, f.w, f.h, 0, 0, f.w, f.h);
         ctx.restore();
 
-        const top = ground - rise * unit - f.h * k * sy;
-        // Looking up at you: a heart pops out and floats away.
-        if (restPose === 'look' && rest >= 0 && rest < 1400) {
-          const t = rest / 1400;
-          ctx.save();
-          ctx.globalAlpha = alive * Math.min(1, (1 - t) * 3.5);
-          ctx.fillStyle = 'rgb(255, 92, 146)';
-          heart(ctx, here + facing.current * unit * 1.2, top - unit * (0.5 + t * 2.4), unit * 1.3 * popIn(t * 4));
-          ctx.restore();
-        }
-        // Curled up: a few little z's drifting off.
-        if (restPose === 'loaf' && rest >= 300) {
-          ctx.save();
-          ctx.fillStyle = 'rgb(122, 92, 168)';
-          ctx.textAlign = 'center';
-          for (let i = 0; i < 3; i += 1) {
-            const t = ((rest - 300) / 1500 + i / 3) % 1;
-            ctx.globalAlpha = alive * Math.sin(Math.PI * t);
-            ctx.font = `800 ${unit * (1.3 + t * 1.1)}px system-ui, sans-serif`;
-            ctx.fillText('z', here + facing.current * unit * (1.4 + t * 1.6), top - unit * (0.2 + t * 2.8));
+        // The head, tilting about the neck, and everything on the face with it.
+        ctx.translate(HEAD.pivotX, HEAD.pivotY);
+        ctx.rotate(tilt);
+        ctx.translate(-HEAD.pivotX, -HEAD.pivotY);
+        ctx.drawImage(sheet, HEAD.x, HEAD.y, HEAD.w, HEAD.h, HEAD.x, HEAD.y, HEAD.w, HEAD.h);
+
+        // Lids: fur comes down over each eye from the top.
+        if (lid > 0.01) {
+          for (const eye of EYES) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(eye.x, eye.y, eye.rx * 1.3, eye.ry * 1.2, 0, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.fillStyle = FUR;
+            const top = eye.y - eye.ry * 1.25;
+            ctx.fillRect(eye.x - eye.rx * 1.4, top, eye.rx * 2.8, eye.ry * 2.5 * Math.min(1, lid));
+            ctx.restore();
           }
+          if (lid > 0.9) {
+            // Shut: a soft curve for a blink, a happy arch for a smile.
+            ctx.strokeStyle = 'rgb(250, 248, 252)';
+            ctx.lineWidth = 3.4;
+            ctx.lineCap = 'round';
+            for (const eye of EYES) {
+              ctx.beginPath();
+              if (smile > 0.5) ctx.arc(eye.x, eye.y + eye.ry * 0.35, eye.rx * 0.95, Math.PI * 1.12, Math.PI * 1.88);
+              else ctx.arc(eye.x, eye.y - eye.ry * 0.3, eye.rx * 0.95, Math.PI * 0.12, Math.PI * 0.88);
+              ctx.stroke();
+            }
+          }
+        }
+
+        // A blush that comes up with the smile.
+        if (smile > 0.01) {
+          ctx.fillStyle = `rgba(255, 110, 150, ${0.55 * smile})`;
+          for (const cheek of CHEEKS) {
+            ctx.beginPath();
+            ctx.ellipse(cheek.x, cheek.y, 9, 5.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        // With the smile, a heart pops out above its head and floats up.
+        const love = (loop - 5800) / 1800;
+        if (love > 0 && love < 1) {
+          ctx.save();
+          ctx.globalAlpha = alive * Math.min(1, (1 - love) * 3);
+          ctx.fillStyle = 'rgb(255, 92, 146)';
+          heart(ctx, here + unit * 2.2, ground - unit * (CAT_HEIGHT + 0.4 + love * 2), unit * 1.1 * popIn(love * 4));
           ctx.restore();
         }
       };
