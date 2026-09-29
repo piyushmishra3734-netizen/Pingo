@@ -129,7 +129,6 @@ function ChatInfoPage({
   const [muting, setMuting] = useState(false);
   const [naming, setNaming] = useState(false);
   const theirNickname = useNickname(conversation.id, partner?.id);
-  const myNickname = useNickname(conversation.id, currentUser?.id);
   const toggleMute = () => {
     if (!conversation.muted) {
       setMuting(true);
@@ -346,7 +345,7 @@ function ChatInfoPage({
           )}
           {partner && (
             <Row icon={<PenLine size={19} />} onClick={() => setNaming(true)} value={theirNickname ?? 'None'}>
-              Nicknames
+              Nickname
             </Row>
           )}
           <Row
@@ -385,16 +384,11 @@ function ChatInfoPage({
         <NicknameSheet
           partnerName={partner.name}
           theirs={theirNickname ?? ''}
-          mine={myNickname ?? ''}
           onClose={() => setNaming(false)}
-          onSave={async (theirs, mineNext) => {
-            const me = currentUser.name;
+          onSave={async (theirs) => {
             // One line in the thread per change, so both people see it - Messenger's way.
             if (theirs !== (theirNickname ?? '')) {
-              await chat.sendMessage({ conversationId: conversation.id, body: nicknameBody({ userId: partner.id, nick: theirs, actorName: me, targetName: partner.name }) });
-            }
-            if (mineNext !== (myNickname ?? '')) {
-              await chat.sendMessage({ conversationId: conversation.id, body: nicknameBody({ userId: currentUser.id, nick: mineNext, actorName: me, targetName: me }) });
+              await chat.sendMessage({ conversationId: conversation.id, body: nicknameBody({ userId: partner.id, nick: theirs, actorName: currentUser.name, targetName: partner.name }) });
             }
             setNaming(false);
           }}
@@ -568,33 +562,30 @@ function Empty({ children }: { children: ReactNode }) {
   return <p className="py-6 text-center text-caption text-text-tertiary">{children}</p>;
 }
 
-/** Messenger's nicknames sheet: theirs and yours, both seen by both of you. */
-function NicknameSheet({ partnerName, theirs, mine, onClose, onSave }: {
+/**
+ * The nickname sheet: the name you give the other person, seen by both of you.
+ * Only ever theirs - nobody renames themselves in someone else's chat.
+ */
+function NicknameSheet({ partnerName, theirs, onClose, onSave }: {
   partnerName: string;
   theirs: string;
-  mine: string;
   onClose: () => void;
-  onSave: (theirs: string, mine: string) => Promise<void>;
+  onSave: (theirs: string) => Promise<void>;
 }) {
   const [a, setA] = useState(theirs);
-  const [b, setB] = useState(mine);
   const [busy, setBusy] = useState(false);
   const field = 'mt-1 block w-full rounded-[12px] bg-sunken px-3.5 py-2.5 text-[16px] text-ink outline-none placeholder:text-text-tertiary';
   return (
-    <Sheet title="Nicknames" description="Both of you see these, and the chat says when one changes." onClose={onClose}>
+    <Sheet title="Nickname" description="Both of you see it, and the chat says when it changes." onClose={onClose}>
       <div className="space-y-4 pb-2">
         <label className="block text-caption text-text-secondary">
           {partnerName.split(' ')[0]}
           <input value={a} onChange={(e) => setA(e.target.value.slice(0, MAX_NICKNAME))} placeholder={partnerName} className={field} />
         </label>
-        <label className="block text-caption text-text-secondary">
-          You
-          <input value={b} onChange={(e) => setB(e.target.value.slice(0, MAX_NICKNAME))} placeholder="Your nickname in this chat" className={field} />
-        </label>
         <button
           type="button"
-          disabled={busy || (a.trim() === theirs && b.trim() === mine)}
-          onClick={() => { setBusy(true); void onSave(a.trim(), b.trim()).catch(() => setBusy(false)); }}
+          disabled={busy || a.trim() === theirs}
+          onClick={() => { setBusy(true); void onSave(a.trim()).catch(() => setBusy(false)); }}
           className="bg-brand-gradient h-11 w-full rounded-full text-[15px] font-semibold text-on-brand disabled:opacity-50"
         >
           {busy ? 'Saving…' : 'Save'}
