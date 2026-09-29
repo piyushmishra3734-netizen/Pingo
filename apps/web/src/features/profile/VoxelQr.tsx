@@ -231,332 +231,47 @@ export const SAKURA: Crown = {
 /** One unhurried lap of the lawn. */
 const PROWL_MS = 15000;
 
-/**
- * A cat: how it travels, and how it is drawn.
+/*
+ * The cat: a sprite sheet of the same black voxel kitten the invite artwork
+ * sits on its card, in six poses - sitting, sitting and looking at you, three
+ * steps of a walk, and curled up in a loaf. `public/qr/garden-cat.webp`,
+ * cut from the artist's sheet with every pose's feet on its bottom edge.
  *
- * `paint` rather than a pile of proportions. Four cats built by scaling one
- * drawing are one cat four times - the silhouette is the whole of what reads at
- * this size, so a different cat has to be a different outline, and a different
- * gait besides. A loafing cat and a leaping cat share nothing but their ears.
- *
- * `paint` draws in its own space: feet on y = 0, facing +x, one unit of height
- * given as `s`. `hop` is 0 with its feet down and 1 at the top of its arc;
- * `stride` runs on regardless, for gaits that never leave the ground.
+ * `ax` is where the pose stands, measured from its left edge: the middle of
+ * the feet for the still poses, and a fixed point behind the head for the
+ * steps, so the body stays put across the walk while the legs move under it.
  */
-export interface Cat {
-  /** Height standing, in modules. */
-  size: number;
-  /** How high it gets off the ground, in modules. */
-  lift: number;
-  /** Beats per lap of the lawn. */
-  hops: number;
-  paint: (ctx: CanvasRenderingContext2D, s: number, hop: number, stride: number) => void;
+const CAT_SHEET = '/qr/garden-cat.webp';
+const CAT_POSES = {
+  sit: { x: 4, y: 4, w: 224, h: 185, ax: 137 },
+  look: { x: 236, y: 4, w: 214, h: 186, ax: 122 },
+  stepA: { x: 458, y: 4, w: 230, h: 175, ax: 230 - 108 },
+  stepB: { x: 696, y: 4, w: 238, h: 166, ax: 238 - 108 },
+  stepC: { x: 942, y: 4, w: 231, h: 167, ax: 231 - 108 },
+  loaf: { x: 1181, y: 4, w: 230, h: 125, ax: 112 },
+} as const;
+type CatPose = keyof typeof CAT_POSES;
+/** The walk, as the three steps played there and back. */
+const WALK: CatPose[] = ['stepA', 'stepB', 'stepC', 'stepB'];
+/** How tall the sitting cat stands, in modules. */
+const CAT_HEIGHT = 6.4;
+/** Walking, then a rest, over and over. */
+const STROLL_MS = 6500;
+const REST_MS = 3200;
+/** What it does on each rest, in turn: sit, sit and look up at you, curl up. */
+const RESTS: CatPose[] = ['sit', 'look', 'loaf'];
+
+let catSheet: HTMLImageElement | undefined;
+/** The sheet, loading on first use; undefined until it can be drawn. */
+function catImage(): HTMLImageElement | undefined {
+  if (typeof Image === 'undefined') return undefined;
+  if (!catSheet) {
+    catSheet = new Image();
+    catSheet.decoding = 'async';
+    catSheet.src = CAT_SHEET;
+  }
+  return catSheet.complete && catSheet.naturalWidth > 0 ? catSheet : undefined;
 }
-
-/** Not pure black: a hole reads as a hole, a very dark grey reads as a cat. */
-const COAT: Rgb = [32, 29, 40];
-
-/**
- * The head every one of them has: ears, then the skull, then a face.
- *
- * Ears before the skull, so its curve cuts their bases off cleanly. The face
- * only when there are pixels for one - below about eighteen px of cat, eyes and
- * a mouth turn into smudges and read worse than a clean silhouette does.
- */
-function face(
-  ctx: CanvasRenderingContext2D,
-  hx: number,
-  hy: number,
-  hr: number,
-  /** Ear height, as a multiple of head radius. */
-  ear: number,
-  /** Round open eyes rather than happily shut ones. */
-  wide: boolean,
-  s: number,
-  /** Cheeks, for a face that has to look pleased rather than merely awake. */
-  happy = false,
-) {
-  ctx.beginPath();
-  ctx.moveTo(hx - hr * 0.85, hy - hr * 0.4);
-  ctx.lineTo(hx - hr * 0.6, hy - hr * 0.4 - hr * ear);
-  ctx.lineTo(hx - hr * 0.02, hy - hr * 0.66);
-  ctx.moveTo(hx + hr * 0.28, hy - hr * 0.68);
-  ctx.lineTo(hx + hr * 0.76, hy - hr * 0.3 - hr * ear);
-  ctx.lineTo(hx + hr * 0.92, hy - hr * 0.26);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.ellipse(hx, hy, hr, hr * 0.92, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (s <= 18) return;
-
-  /*
-   * The muzzle sits under the middle of the two eyes, and everything about it
-   * is measured from there.
-   *
-   * That is the alignment this kept missing. The eyes are a pair - the face
-   * reads front-on even though the body is side-on - so their midpoint is the
-   * centre line of the face, and a nose anywhere else is a nose on the side of
-   * a head. It had been pushed out toward the front of the skull, which put
-   * the mouth past the cheek and half of it outside the silhouette.
-   */
-  const eyeL = hx - hr * 0.3;
-  const eyeR = hx + hr * 0.4;
-  const mx = (eyeL + eyeR) / 2;
-  const my = hy + hr * 0.34;
-
-  ctx.fillStyle = css(PETAL);
-  if (happy) {
-    // Cheeks, outboard of both eyes. The one thing that turns a neutral little
-    // face into a delighted one, and it is two dots.
-    ctx.globalAlpha = 0.72;
-    for (const cheek of [eyeL - hr * 0.34, eyeR + hr * 0.3]) {
-      ctx.beginPath();
-      ctx.ellipse(cheek, hy + hr * 0.24, hr * 0.17, hr * 0.12, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // The nose: the rounded triangle a cat has, point down, so the line below it
-  // leaves from somewhere rather than from the middle of a dot.
-  const nose = hr * 0.15;
-  ctx.beginPath();
-  ctx.moveTo(mx - nose, my - nose * 0.6);
-  ctx.lineTo(mx + nose, my - nose * 0.6);
-  ctx.lineTo(mx, my + nose * 0.8);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = css(GROUND);
-  ctx.lineWidth = Math.max(0.6, s * 0.032);
-
-  /*
-   * No whiskers. They were drawn light and crossed the eyes, then drawn dark
-   * and only existed outside the silhouette, and either way six hairs off a
-   * head twenty-five pixels tall is more detail than the face can hold. The
-   * ears carry the whole of "cat" here; the whiskers were paying nothing.
-   */
-
-  /*
-   * The mouth: a short line down from the point of the nose, then a lobe either
-   * side of it.
-   *
-   * Each lobe is half a circle whose radius equals the offset of its own
-   * centre, so both start exactly on the foot of that line and neither
-   * overshoots it. Canvas measures angles with y running down, so a sweep from
-   * 0 to pi traces the underside of each circle - the lobe curving the way a
-   * pleased cat's does.
-   *
-   * Small: the pair together is a third of the head wide. It was nearly twice
-   * that, which put the far lobe outside the face entirely, and the line down
-   * from the nose was thick enough to read as a bar rather than a crease.
-   */
-  ctx.strokeStyle = css(GROUND);
-  ctx.lineWidth = Math.max(0.7, s * 0.022);
-  const lobe = hr * 0.115;
-  const chin = my + nose * 0.8 + lobe * 0.5;
-  ctx.beginPath();
-  ctx.moveTo(mx, my + nose * 0.7);
-  ctx.lineTo(mx, chin);
-  ctx.stroke();
-  for (const side of [-1, 1]) {
-    ctx.beginPath();
-    ctx.arc(mx + side * lobe, chin, lobe, 0, Math.PI);
-    ctx.stroke();
-  }
-
-  /*
-   * Eyes last, so nothing is drawn over them. They are the smallest thing on
-   * the face and the first one anybody looks at.
-   */
-  const eyes = [eyeL, eyeR];
-  const eyeY = hy - hr * 0.12;
-  if (wide) {
-    ctx.fillStyle = css(GROUND);
-    for (const ex of eyes) {
-      ctx.beginPath();
-      ctx.ellipse(ex, eyeY, hr * 0.26, hr * 0.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // A catchlight in each, which is the difference between awake and blank.
-    ctx.fillStyle = css(COAT);
-    for (const ex of eyes) {
-      ctx.beginPath();
-      ctx.ellipse(ex + hr * 0.05, eyeY + hr * 0.04, hr * 0.12, hr * 0.15, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else {
-    ctx.strokeStyle = css(GROUND);
-    ctx.lineWidth = Math.max(0.9, s * 0.045);
-    for (const ex of eyes) {
-      ctx.beginPath();
-      ctx.arc(ex, eyeY, hr * 0.27, Math.PI * 0.12, Math.PI * 0.88);
-      ctx.stroke();
-    }
-  }
-
-  ctx.fillStyle = css(COAT);
-  ctx.strokeStyle = css(COAT);
-}
-
-/** The coat colour and stroke style every cat starts from. */
-function coat(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = css(COAT);
-  ctx.strokeStyle = css(COAT);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-}
-
-/**
- * A round little cat, walking.
- *
- * It started as a loaf - the brick shape a cat folds into with its paws put
- * away - and that was the shape worth keeping: plump, low, no visible neck,
- * more circle than animal. The roundness is untouched; what it needed was to
- * be going somewhere, so the loaf is up on four short legs and bouncing along
- * on them.
- *
- * ## Squash and stretch, and not much else
- *
- * A hopping walk is one trick done properly. On the ground it goes wide and
- * flat, in the air it goes tall and narrow, and the two exaggerate past what a
- * real cat does because that overshoot is the whole of why a cartoon reads as
- * springy rather than as a picture being moved upward. Legs push down as it
- * lands and tuck up under it at the top of the arc, which is the other half:
- * feet that stay put through a jump look pinned on.
- *
- * ## Everything else is doing one cheerful thing
- *
- * The tail is up with a curl in the tip, and it whips as the body leaves the
- * ground - a cat's mood is entirely legible from behind. The eyes are shut and
- * curved the happy way up, with two pink cheeks. The head follows a beat late,
- * because a heavy head always does, and that lag is most of why it reads as
- * pleased rather than merely animated.
- */
-const paintLoaf: Cat['paint'] = (ctx, s, hop, stride) => {
-  coat(ctx);
-
-  /*
-   * Wide and flat with its feet down, tall and narrow at the top of the arc.
-   * The numbers overshoot a real cat on purpose - a hop drawn to scale looks
-   * like a sprite being lifted, and this is the exaggeration that makes it
-   * bounce.
-   */
-  const squash = 1 - hop;
-  const w = s * (1.16 + 0.2 * squash);
-  const h = s * 0.66 * (1 + 0.26 * hop - 0.12 * squash);
-  const floor = -s * 0.2;
-  const bob = 0;
-
-  /*
-   * Legs that bound, rather than walking through a jump.
-   *
-   * They were doing a four-beat diagonal walk with a fold laid over the top of
-   * it, and a walk cycle and a hop are two different animals: the legs said
-   * "strolling" while the body said "airborne", and no jump height reconciles
-   * that. The height and the distance were never the problem.
-   *
-   * So they do what legs do in a bound, in three moments. The back pair drives
-   * backwards off the ground at take-off. Everything folds up under the belly
-   * at the top of the arc. The front pair reaches forward to receive the
-   * landing while the back pair gathers underneath. `Math.cos(stride)` is the
-   * sign of the arc - rising or falling - which is what tells one moment from
-   * the next.
-   *
-   * Each leg stays a fixed length and only its angle changes. Zero is straight
-   * down, positive is forward.
-   */
-  const rise = Math.cos(stride);
-  const drive = Math.max(0, rise) * squash;
-  const land = Math.max(0, -rise) * squash;
-  const reach = s * 0.2;
-
-  ctx.lineWidth = s * 0.15;
-  const legs: [number, number, boolean][] = [
-    [w * 0.3, 0.06, true],
-    [w * 0.16, -0.05, true],
-    [-w * 0.24, 0.05, false],
-    [-w * 0.36, -0.06, false],
-  ];
-  for (const [lx, offset, front] of legs) {
-    const fold =
-      hop * 1.25 +
-      (front ? -0.2 : -0.95) * drive +
-      (front ? 0.8 : -0.15) * land +
-      offset;
-    const px2 = lx + Math.sin(fold) * reach;
-    const py2 = floor + Math.cos(fold) * reach;
-    ctx.beginPath();
-    ctx.moveTo(lx, floor);
-    ctx.lineTo(px2, py2);
-    ctx.stroke();
-    // A paw on the end, which is what stops a folded leg reading as a stump.
-    ctx.beginPath();
-    ctx.ellipse(px2, py2, s * 0.075, s * 0.06, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  /*
-   * Tail: up, curled over at the tip, and it whips as the body leaves the
-   * ground. Its length comes from `s` and not from the squashed body height -
-   * measured off `h` it grew with the stretch and nearly doubled at the top of
-   * the arc, which read as a separate animal.
-   */
-  const tail = s * 1.05;
-  const whip = hop * s * 0.1;
-  ctx.lineWidth = s * 0.13;
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.42, floor - h * 0.45);
-  ctx.quadraticCurveTo(
-    -w * 0.62 - whip,
-    floor - h * 0.45 - tail * 0.62,
-    -w * 0.34 - whip * 0.4,
-    floor - h * 0.45 - tail,
-  );
-  ctx.quadraticCurveTo(
-    -w * 0.18 + whip * 0.6,
-    floor - h * 0.45 - tail * 1.16,
-    -w * 0.08,
-    floor - h * 0.45 - tail * 0.96,
-  );
-  ctx.stroke();
-
-  /*
-   * The body: one plump curve, wider than it is tall, and lowest at the belly.
-   * Drawn as a path rather than an ellipse so the back can sit higher at the
-   * shoulder than at the hip, which is the difference between a cat and a bun.
-   */
-  const by = floor - bob;
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.48, by - h * 0.34);
-  ctx.quadraticCurveTo(-w * 0.5, by - h * 1.02, w * 0.02, by - h * 1.06);
-  ctx.quadraticCurveTo(w * 0.5, by - h * 1.02, w * 0.48, by - h * 0.3);
-  ctx.quadraticCurveTo(w * 0.44, by + h * 0.16, w * 0.02, by + h * 0.14);
-  ctx.quadraticCurveTo(-w * 0.44, by + h * 0.16, -w * 0.48, by - h * 0.34);
-  ctx.closePath();
-  ctx.fill();
-
-  // The head, a beat behind the body - a heavy head always lags, and that lag
-  // is most of the charm.
-  const lag = Math.sin(stride - 0.8) * s * 0.035;
-  face(ctx, w * 0.42, by - h * 0.94 + lag, s * 0.3, 1.2, false, s, true);
-};
-
-/**
- * The cat that ships.
- *
- * `lift` is a whole module and a half: it hops along rather than padding
- * along, and a hop you cannot see is not worth the arithmetic. Thirteen of
- * them to a lap, so a little over a second apiece - the pace of something
- * pleased with the garden rather than crossing it.
- *
- * Three others were up beside it - a prowler on long legs, a leaper stretched
- * flat in the air, a kitten sitting upright - and they are gone rather than
- * left behind as options nothing picks between.
- */
-export const LOAF: Cat = { size: 5.2, lift: 1.5, hops: 13, paint: paintLoaf };
 
 interface Cell {
   /** Where it lands: module coordinates, with the quiet zone already added. */
@@ -705,7 +420,6 @@ export function VoxelQr({
   level = 'M',
   size = 300,
   crown = SAKURA,
-  kitty = LOAF,
   autoPlay = false,
   className,
   label = 'Profile QR code',
@@ -716,8 +430,6 @@ export function VoxelQr({
   size?: number;
   /** What kind of tree. See `Crown`; `SAKURA` is the shipped shape. */
   crown?: Crown;
-  /** Which cat is doing laps of the lawn. See `Cat`. */
-  kitty?: Cat;
   /** Open on its own after a beat, which is what the share sheet wants. */
   autoPlay?: boolean;
   className?: string;
@@ -991,7 +703,7 @@ export function VoxelQr({
       /* ---- the cat ------------------------------------------------------- */
 
       /*
-       * One cat, hopping a slow lap of the lawn.
+       * One cat, strolling a slow lap of the lawn.
        *
        * It goes the way the wind goes: entirely, by the time the code lands.
        * Everything alive in this scene lives in the second before the QR
@@ -999,11 +711,19 @@ export function VoxelQr({
        * sitting on a module is a module a scanner cannot read at all.
        *
        * The path is a circle on the lawn rather than a wander, because a wander
-       * needs somewhere to go and a lap does not, and because at this size the
-       * only thing that reads is the hop.
+       * needs somewhere to go and a lap does not.
        */
       const alive = Math.min(1, (1 - e) * 2.4);
-      const lap = ((now % PROWL_MS) / PROWL_MS) * Math.PI * 2;
+
+      /*
+       * A stroll and a rest, taken in turn. The lap only moves while it walks,
+       * so it stops where it is to sit, then carries on from there.
+       */
+      const round = Math.floor(now / (STROLL_MS + REST_MS));
+      const into = now % (STROLL_MS + REST_MS);
+      const walking = into < STROLL_MS;
+      const walked = round * STROLL_MS + Math.min(into, STROLL_MS);
+      const lap = ((walked % PROWL_MS) / PROWL_MS) * Math.PI * 2;
       /*
        * Inside the grass, not on it. The rim of the lawn is where the grass
        * grows, and a cat walking through the middle of a tuft was the one thing
@@ -1013,61 +733,45 @@ export function VoxelQr({
       const ring = edge * 0.6;
       const cx = Math.cos(lap) * ring;
       const cz = Math.sin(lap) * ring;
-
-      // Half of each hop is spent on the ground, which is what makes it a
-      // stroll rather than a bounce.
-      const hop = Math.max(0, Math.sin(lap * kitty.hops)) ** 0.7;
       const here = px(cx, cz);
 
       /*
-       * Which way it is facing, and when it is allowed to change its mind.
-       *
-       * The path's own tangent in screen x says which way it is going:
-       * differentiate the projection along the lap and everything but
-       * `-sin(lap + spin)` cancels.
-       *
-       * Turning by scaling through that value foreshortened the sprite as it
-       * came round, which is geometrically right and looked like a sheet of
-       * paper being turned edge-on - the cat is a flat drawing and squashing it
-       * horizontally says so out loud.
-       *
-       * So it flips, and it jumps to do it.
-       *
-       * The tangent runs through zero exactly where a turn is needed, so
-       * `turning` is one near the two ends of the ring and nothing anywhere
-       * else. It buys height: the cat takes a noticeably bigger hop right
-       * there, and the new direction is taken at the top of that hop - where
-       * every leg is tucked under the belly and the mirroring has nothing to
-       * catch on. A cat turning around jumps to do it, so the move explains the
-       * flip rather than hiding it.
-       *
-       * Taking it anywhere else in the arc was the awkward part: the flip
-       * landed wherever the hop happened to be, sometimes a foot off the ground
-       * with all four legs mid-bound, and mirrored them across the body.
-       *
-       * The window has to be wide enough to contain an apex, and the first one
-       * was not. Simulating a lap said so: of the two turns, one flipped on a
-       * hop with no height behind it at all, because the nearest apex fell
-       * before the tangent changed sign and the next one came after the window
-       * had closed - so the cat turned on an ordinary step, which is exactly
-       * the thing this was meant to stop. `1.8` spans a good two hops either
-       * side, and both turns now land on a hop with most of its boost.
+       * Which way it is facing. The path's own tangent in screen x says which
+       * way it is going: differentiate the projection along the lap and
+       * everything but `-sin(lap + spin)` cancels. The sprite faces right, so
+       * walking left is the same cat mirrored; at rest it keeps the way it was
+       * going.
        */
-      const tangent = -Math.sin(lap + spin);
-      const turning = Math.max(0, 1 - Math.abs(tangent) * 1.8);
-      // Zero means it has not decided yet: the first frame takes its bearing
-      // without hopping for it.
-      const want = tangent >= 0 ? 1 : -1;
-      if (facing.current === 0 || hop > 0.75) facing.current = want;
+      if (walking) facing.current = -Math.sin(lap + spin) >= 0 ? 1 : -1;
+      else if (facing.current === 0) facing.current = 1;
+
+      const pose: CatPose = walking
+        ? WALK[Math.floor(now / 125) % WALK.length]!
+        : RESTS[round % RESTS.length]!;
 
       const paintCat = () => {
-        if (alive <= 0.01) return;
-        const s = unit * kitty.size;
+        const sheet = catImage();
+        if (alive <= 0.01 || !sheet) return;
+        const ground = py(cx, 0, cz);
+        const f = CAT_POSES[pose];
+        const k = (unit * CAT_HEIGHT) / CAT_POSES.sit.h;
+        // A step lifts the body a touch on every footfall.
+        const bob = walking ? Math.abs(Math.sin((now / 250) * Math.PI)) * unit * 0.18 : 0;
+
         ctx.save();
+        // Its shadow on the lawn, soft and flat.
+        ctx.globalAlpha = alive * 0.2;
+        ctx.fillStyle = 'rgb(90, 40, 80)';
+        ctx.beginPath();
+        const shadow = unit * (pose === 'loaf' ? 3.4 : 2.8);
+        ctx.ellipse(here, ground, shadow, shadow * Math.max(0.2, cosP) * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // An image fades as one animal, so the scene's alpha is enough.
         ctx.globalAlpha = alive;
-        ctx.translate(here, py(cx, 0, cz) - hop * unit * kitty.lift * (1 + 1.3 * turning));
-        ctx.scale(facing.current, 1);
-        kitty.paint(ctx, s, hop, lap * kitty.hops);
+        ctx.translate(here, ground - bob);
+        ctx.scale(facing.current * k, k);
+        ctx.drawImage(sheet, f.x, f.y, f.w, f.h, -f.ax, -f.h, f.w, f.h);
         ctx.restore();
       };
 
@@ -1310,7 +1014,7 @@ export function VoxelQr({
       cancelAnimationFrame(frame);
       if (hold !== undefined) window.clearTimeout(hold);
     };
-  }, [value, level, size, crown, kitty, autoPlay]);
+  }, [value, level, size, crown, autoPlay]);
 
   const hint = caption ?? (open ? 'Tap to see the tree' : 'Tap the tree to see the QR code');
 
