@@ -1,0 +1,78 @@
+/*
+ * The invite card's ground: soft PINGO colour pooling at the edges of a pale
+ * card, the way light pools on frosted glass. Colour only ever at the edges -
+ * the middle, where the code sits, stays pale so nothing tints the scan.
+ */
+.qr-card {
+  --qr-base: #fbf8fc;
+  --qr-violet: rgb(167 139 250 / 0.55);
+  --qr-pink: rgb(244 114 182 / 0.42);
+  --qr-peach: rgb(253 186 116 / 0.45);
+  --qr-lilac: rgb(216 180 254 / 0.5);
+  --qr-glass: rgb(255 255 255 / 0.62);
+  --qr-glass-ring: rgb(255 255 255 / 0.9);
+  --qr-ink: #17151c;
+  --qr-muted: #8a8594;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(38% 32% at 0% 42%, var(--qr-violet), transparent 70%),
+    radial-gradient(45% 30% at 8% 100%, var(--qr-pink), transparent 70%),
+    radial-gradient(40% 30% at 100% 30%, var(--qr-lilac), transparent 70%),
+    radial-gradient(42% 26% at 100% 96%, var(--qr-peach), transparent 70%),
+    radial-gradient(60% 30% at 50% 0%, rgb(199 210 254 / 0.35), transparent 75%),
+    var(--qr-base);
+  color: var(--qr-ink);
+}
+
+/* A slow wave of light across the card, like the edge of a glass pane. */
+.qr-card::before {
+  content: '';
+  position: absolute;
+  inset: 28% -30% auto -30%;
+  height: 46%;
+  z-index: -1;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.75), rgb(255 255 255 / 0));
+  transform: rotate(-12deg);
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.qr-glass {
+  background: var(--qr-glass);
+  box-shadow:
+    inset 0 0 0 1px var(--qr-glass-ring),
+    0 10px 30px -12px rgb(60 30 90 / 0.18);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+
+.qr-ring {
+  padding: 3px;
+  border-radius: 9999px;
+  background: conic-gradient(from 200deg, #8b5dff, #e0559b, #ff9a5a, #ffcc4d, #8b5dff);
+  box-shadow: 0 8px 24px -10px rgb(139 93 255 / 0.55);
+}
+.qr-ring > * {
+  border: 3px solid var(--qr-base);
+  border-radius: 9999px;
+}
+
+.qr-muted { color: var(--qr-muted); }
+
+:root[data-theme='dark'] .qr-card {
+  --qr-base: #16141b;
+  --qr-violet: rgb(139 93 255 / 0.45);
+  --qr-pink: rgb(224 85 155 / 0.35);
+  --qr-peach: rgb(255 154 90 / 0.28);
+  --qr-lilac: rgb(168 85 247 / 0.32);
+  --qr-glass: rgb(255 255 255 / 0.07);
+  --qr-glass-ring: rgb(255 255 255 / 0.12);
+  --qr-ink: #f4f2f7;
+  --qr-muted: #a39fae;
+}
+:root[data-theme='dark'] .qr-card::before {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0));
+}

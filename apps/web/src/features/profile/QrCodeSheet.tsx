@@ -1,9 +1,12 @@
 import { Avatar, CheckIcon, LinkIcon, ShareIcon, StorageIcon, cn } from '@pingo/ui';
+import { MoreHorizontal } from 'lucide-react';
 import { useRef, useState } from 'react';
 
+import { AppLogo } from '../../components/AppLogo.js';
 import { Sheet } from '../../components/Sheet.js';
 import { profileLink } from './ShareProfileSheet.js';
 import { VoxelQr } from './VoxelQr.js';
+import './qr-card.css';
 
 /**
  * The profile QR, as something you would want to hold up.
@@ -57,6 +60,9 @@ export function QrCodeSheet({
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string>();
+  const [menu, setMenu] = useState(false);
+  /** Bumped to play the tree coming apart into the code once more. */
+  const [replay, setReplay] = useState(0);
 
   const copy = async () => {
     try {
@@ -124,93 +130,92 @@ export function QrCodeSheet({
   };
 
   return (
-    <Sheet title="Your QR code" hideTitle onClose={onClose}>
-      <div className="flex flex-col items-center pb-1">
-        {/*
-          Fade and scale, once, on entry. `animate-fade-in` alone would leave
-          the card feeling like it was already there; the small rise is what
-          makes it feel handed over.
-        */}
-        <div
-          ref={cardRef}
-          className={cn(
-            'relative isolate w-full max-w-[19rem]',
-            'motion-safe:animate-qr-in',
-          )}
-        >
-          {/*
-            The glow. Behind the card, blurred, and static - see the note at the
-            top. `-z-10` keeps it strictly under the white plate so it can never
-            tint the code itself.
-          */}
-          <div
-            aria-hidden
-            className={cn(
-              'pointer-events-none absolute -inset-6 -z-10 rounded-[2.5rem] blur-2xl',
-              'bg-[radial-gradient(60%_60%_at_50%_40%,rgba(124,58,237,0.42),rgba(37,99,235,0.28)_55%,transparent_75%)]',
-            )}
-          />
-
-          <div
-            className={cn(
-              'flex flex-col items-center gap-4 rounded-[1.75rem] p-6',
-              'bg-surface shadow-lg ring-1 ring-line',
-            )}
-          >
-            <div className="flex flex-col items-center gap-2">
-              <Avatar name={displayName} id={userId} src={avatarUrl} size="xl" />
-              <div className="text-center">
-                <p className="text-h2 leading-tight text-ink">{displayName}</p>
-                <p className="text-caption text-text-tertiary">@{username}</p>
-              </div>
-            </div>
-
-            {/*
-              The white plate. Explicitly `#FFFFFF` rather than a surface token,
-              because the token follows the theme and this must not.
-            */}
-            <div className="rounded-2xl bg-white p-3 shadow-sm">
-              <VoxelQr
-                value={link}
-                size={232}
-                autoPlay
-                caption=""
-                label={`QR code for ${displayName} on PINGO`}
-              />
-            </div>
-
-            <p className="text-caption text-text-secondary">Scan to connect on PINGO</p>
+    <Sheet title="Your QR code" hideTitle onClose={onClose} className="border-0 bg-transparent p-1.5 shadow-none sm:p-1.5">
+      <div className="flex flex-col items-center">
+        {/* Fade and scale, once, on entry - the small rise is what makes it feel handed over. */}
+        <div ref={cardRef} className="qr-card w-full max-w-[22rem] rounded-[2rem] px-5 pt-5 pb-5 shadow-[0_24px_60px_-24px_rgba(80,40,140,0.35)] motion-safe:animate-qr-in">
+          {/* The brand, and a small menu. */}
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <AppLogo size={30} alt="" />
+              <span className="text-[15px] font-bold tracking-[0.22em]">PINGO</span>
+            </span>
+            <span className="relative">
+              <button
+                type="button"
+                aria-label="More"
+                aria-expanded={menu}
+                onClick={() => setMenu((m) => !m)}
+                className="focus-ring qr-muted grid size-9 place-items-center rounded-full hover:bg-black/5"
+              >
+                <MoreHorizontal size={20} />
+              </button>
+              {menu && (
+                <span role="menu" className="qr-glass absolute top-10 right-0 z-10 flex w-44 flex-col overflow-hidden rounded-2xl py-1 text-[14px]">
+                  <button type="button" role="menuitem" onClick={() => { setMenu(false); setReplay((n) => n + 1); }} className="px-4 py-2.5 text-left hover:bg-black/5">
+                    Play the tree again
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(false); void copy(); }} className="px-4 py-2.5 text-left hover:bg-black/5">
+                    Copy link
+                  </button>
+                </span>
+              )}
+            </span>
           </div>
-        </div>
 
-        {error && (
-          <p role="alert" className="mt-3 text-caption text-danger">
-            {error}
-          </p>
-        )}
+          <div className="mt-3 flex flex-col items-center gap-2.5">
+            <span className="qr-ring">
+              <Avatar name={displayName} id={userId} src={avatarUrl} size="xl" />
+            </span>
+            <div className="text-center">
+              <p className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{displayName}</p>
+              <p className="qr-muted text-[14px]">@{username}</p>
+            </div>
+          </div>
 
-        <div className="mt-5 flex w-full max-w-[19rem] items-center gap-2">
-          <Action label="Share" onClick={() => void share()}>
-            <ShareIcon size={18} />
-          </Action>
-          <Action label={saved ? 'Saved' : 'Save'} onClick={() => void save()}>
-            {saved ? <CheckIcon size={18} /> : <StorageIcon size={18} />}
-          </Action>
-          <Action label={copied ? 'Copied' : 'Copy link'} onClick={() => void copy()}>
-            {copied ? <CheckIcon size={18} /> : <LinkIcon size={18} />}
-          </Action>
+          {/*
+            The plate. White in both themes on purpose - scanners assume the
+            light modules are light - and frosted at the edge so it sits in the
+            card rather than on it.
+          */}
+          <div className="mx-auto mt-4 w-fit rounded-[1.75rem] bg-white p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.9),0_16px_40px_-18px_rgba(80,40,140,0.35)]">
+            <VoxelQr key={replay} value={link} size={236} autoPlay caption="" label={`QR code for ${displayName} on PINGO`} />
+          </div>
+
+          <p className="qr-muted mt-3 text-center text-[13.5px]">Scan to connect on PINGO</p>
+
+          {error && (
+            <p role="alert" className="mt-2 text-center text-caption text-danger">
+              {error}
+            </p>
+          )}
+
+          <div className="mt-4 grid grid-cols-3 gap-2.5">
+            <Action label="Share" tint="#e0559b" onClick={() => void share()}>
+              <ShareIcon size={22} />
+            </Action>
+            <Action label={saved ? 'Saved' : 'Save'} tint="#8b5dff" onClick={() => void save()}>
+              {saved ? <CheckIcon size={22} /> : <StorageIcon size={22} />}
+            </Action>
+            <Action label={copied ? 'Copied' : 'Copy link'} tint="#f0a020" onClick={() => void copy()}>
+              {copied ? <CheckIcon size={22} /> : <LinkIcon size={22} />}
+            </Action>
+          </div>
         </div>
       </div>
     </Sheet>
   );
 }
 
+/** One of the three actions: a frosted tile, the icon in its own colour. */
 function Action({
   label,
+  tint,
   onClick,
   children,
 }: {
   label: string;
+  tint: string;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -219,15 +224,13 @@ function Action({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex flex-1 flex-col items-center gap-1.5 rounded-xl px-2 py-3',
-        'bg-surface-sunken text-caption text-text-secondary',
-        'transition-transform duration-quick ease-standard',
-        'hover:bg-surface-hover active:scale-[0.97]',
-        'focus-ring',
+        'qr-glass focus-ring flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3.5',
+        'text-[13.5px] font-medium',
+        'transition-transform duration-quick ease-standard active:scale-[0.96]',
       )}
     >
-      <span className="text-brand">{children}</span>
-      {label}
+      <span style={{ color: tint }}>{children}</span>
+      <span className="opacity-80">{label}</span>
     </button>
   );
 }
