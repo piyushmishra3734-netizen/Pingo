@@ -39,7 +39,11 @@ export const MUSIC_SHELVES: Shelf[] = [
   { label: 'Uploads', src: UPLOADS },
 ];
 
-export interface Playlist { id: string; name: string; img: string; count: number }
+/** A card in the sideways row: a playlist, or - on a search - JioSaavn's top artist/album matches. */
+export interface Playlist { id: string; name: string; img: string; count: number; kind?: 'playlist' | 'artist' | 'album' }
+
+/** The song source a card opens: `pl:`, `ar:` or `al:` plus its id. */
+export const cardSrc = (p: Playlist) => `${p.kind === 'artist' ? 'ar' : p.kind === 'album' ? 'al' : 'pl'}:${p.id}`;
 
 const LIMIT = 20;
 
@@ -55,19 +59,54 @@ async function get(path: string): Promise<Record<string, unknown> | undefined> {
  */
 const isLast = (d: Record<string, unknown> | undefined, n: number, page: number) => n === 0 || (typeof d?.total === 'number' && page * LIMIT >= d.total);
 
-/** One page of songs: `pl:<id>` is a playlist, anything else a search. */
+/** One page of songs: `pl:` a playlist, `ar:` an artist's songs, `al:` an album, anything else a search. */
 async function songPage(src: string, page: number) {
-  const pl = src.startsWith('pl:');
-  const d = await get(pl ? `/playlists?id=${src.slice(3)}&limit=${LIMIT}&page=${page}` : `/search/songs?query=${encodeURIComponent(src)}&limit=${LIMIT}&page=${page}`);
-  const raw = ((pl ? d?.songs : d?.results) ?? []) as ApiSong[];
-  return { items: raw.map(toSong).filter((s): s is Song => !!s), last: isLast(d, raw.length, page) };
+  const kind = /^(pl|ar|al):/.exec(src)?.[1];
+  const id = kind ? src.slice(3) : '';
+  const d = await get(
+    kind === 'pl' ? `/playlists?id=${id}&limit=${LIMIT}&page=${page}`
+      : kind === 'ar' ? `/artists/${id}/songs?page=${page}`
+        : kind === 'al' ? `/albums?id=${id}`
+          : `/search/songs?query=${encodeURIComponent(src)}&limit=${LIMIT}&page=${page}`,
+  );
+  const raw = ((kind ? d?.songs : d?.results) ?? []) as ApiSong[];
+  // An album is one page; an artist's list pages like a search, by its own total.
+  const last = kind === 'al' || isLast(d, raw.length, page);
+  return { items: raw.map(toSong).filter((s): s is Song => !!s), last };
 }
 
-async function listPage(q: string, page: number) {
-  const d = await get(`/search/playlists?query=${encodeURIComponent(q)}&limit=${LIMIT}&page=${page}`);
+/**
+ * What JioSaavn puts above the songs when you search: its top result and the
+ * best artist and album matches. Searching "arijit singh" or "aashiqui 2"
+ * found songs that merely mention them; the app leads with the artist and the
+ * album themselves, and that is what made the two feel different.
+ */
+async function topMatches(q: string): Promise<Playlist[]> {
+  const d = await get(`/search?query=${encodeURIComponent(q)}`).catch(() => undefined);
+  type Hit = { id: string; title: string; type: string; image?: { url: string }[] };
+  const pick = (key: string) => (((d?.[key] as { results?: Hit[] } | undefined)?.results ?? []) as Hit[]);
+  const cards: Playlist[] = [];
+  const seen = new Set<string>();
+  for (const hit of [...pick('topQuery'), ...pick('artists').slice(0, 3), ...pick('albums').slice(0, 3)]) {
+    const kind = hit.type === 'artist' ? 'artist' : hit.type === 'album' ? 'album' : undefined;
+    if (!kind || seen.has(hit.id)) continue;
+    seen.add(hit.id);
+    cards.push({ id: hit.id, name: decode(hit.title), img: hit.image?.[1]?.url ?? hit.image?.[0]?.url ?? '', count: 0, kind });
+  }
+  return cards;
+}
+
+async function listPage(src: string, page: number) {
+  // `q:` marks a search typed by the person, which leads with the top artist/album matches.
+  const typed = src.startsWith('q:');
+  const q = typed ? src.slice(2) : src;
+  const [d, top] = await Promise.all([
+    get(`/search/playlists?query=${encodeURIComponent(q)}&limit=${LIMIT}&page=${page}`),
+    typed && page === 1 ? topMatches(q) : Promise.resolve([] as Playlist[]),
+  ]);
   const raw = (d?.results ?? []) as { id: string; name: string; songCount?: number; image?: { url: string }[] }[];
   return {
-    items: raw.filter((p) => (p.songCount ?? 1) > 0).map((p): Playlist => ({ id: p.id, name: decode(p.name), img: p.image?.[1]?.url ?? p.image?.[0]?.url ?? '', count: p.songCount ?? 0 })),
+    items: [...top, ...raw.filter((p) => (p.songCount ?? 1) > 0).map((p): Playlist => ({ id: p.id, name: decode(p.name), img: p.image?.[1]?.url ?? p.image?.[0]?.url ?? '', count: p.songCount ?? 0, kind: 'playlist' }))],
     last: isLast(d, raw.length, page),
   };
 }
@@ -106,7 +145,7 @@ function usePages<T>(key: string | undefined, fetchPage: (src: string, page: num
 }
 
 const songId = (s: Song) => s.url;
-const listId = (p: Playlist) => p.id;
+const listId = (p: Playlist) => `${p.kind ?? 'playlist'}:${p.id}`;
 
 /** The picker's state: which shelf, the (debounced) search, an opened playlist, and the pages for each. */
 export function useCatalogue() {
@@ -116,13 +155,13 @@ export function useCatalogue() {
   const [open, setOpen] = useState<Playlist>();
   useEffect(() => { const t = window.setTimeout(() => setQ(query.trim()), query ? 350 : 0); return () => window.clearTimeout(t); }, [query]);
   const uploads = shelf.src === UPLOADS;
-  const songSrc = uploads ? undefined : open ? `pl:${open.id}` : q || shelf.src;
-  const listSrc = uploads ? undefined : q || shelf.lists;
+  const songSrc = uploads ? undefined : open ? cardSrc(open) : q || shelf.src;
+  const listSrc = uploads ? undefined : q ? `q:${q}` : shelf.lists;
   return {
     shelf, query, open, uploads,
     setShelf: (s: Shelf) => { setShelfRaw(s); setQueryRaw(''); setOpen(undefined); },
     setQuery: (v: string) => { setQueryRaw(v); setOpen(undefined); },
-    toggleOpen: (p: Playlist) => setOpen((o) => (o?.id === p.id ? undefined : p)),
+    toggleOpen: (p: Playlist) => setOpen((o) => (o && listId(o) === listId(p) ? undefined : p)),
     songs: usePages(songSrc && `s|${songSrc}`, songPage, songId),
     lists: usePages(listSrc && `l|${listSrc}`, listPage, listId),
   };
@@ -160,11 +199,14 @@ export function PlaylistRow({ pager, open, onOpen, tone }: { pager: Pager<Playli
   return (
     <div className="flex shrink-0 gap-2.5 overflow-x-auto px-3 pb-2.5">
       {pager.items.map((p) => (
-        <button key={p.id} type="button" onClick={() => onOpen(p)} aria-pressed={open?.id === p.id} className="w-[84px] shrink-0 text-left">
-          <span className={cn('relative block size-[84px] overflow-hidden rounded-[10px]', dark ? 'bg-media-field' : 'bg-sunken', open?.id === p.id && (dark ? 'ring-2 ring-white' : 'ring-2 ring-ink'))}>
+        <button key={listId(p)} type="button" onClick={() => onOpen(p)} aria-pressed={!!open && listId(open) === listId(p)} className="w-[84px] shrink-0 text-left">
+          <span className={cn('relative block size-[84px] overflow-hidden', p.kind === 'artist' ? 'rounded-full' : 'rounded-[10px]', dark ? 'bg-media-field' : 'bg-sunken', !!open && listId(open) === listId(p) && (dark ? 'ring-2 ring-white' : 'ring-2 ring-ink'))}>
             {p.img ? <img src={p.img} alt="" loading="lazy" className="size-full object-cover" /> : <ListMusic size={22} className="m-auto mt-[31px]" />}
           </span>
           <span className={cn('mt-1 line-clamp-2 text-[12px] leading-tight font-semibold', dark ? 'text-white/80' : 'text-text-secondary')}>{p.name}</span>
+          {p.kind && p.kind !== 'playlist' && (
+            <span className={cn('block text-[11px] capitalize', dark ? 'text-white/50' : 'text-text-tertiary')}>{p.kind}</span>
+          )}
         </button>
       ))}
       <More pager={pager} tone={tone} className="px-2" />
