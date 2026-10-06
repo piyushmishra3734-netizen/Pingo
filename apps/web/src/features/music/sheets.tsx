@@ -1,6 +1,8 @@
 import { cn } from '@pingo/ui';
 import { Check, Music2, Pause, Play, Search, Upload } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import { MUSIC_SHELVES, More, PlaylistRow, UPLOADS, useCatalogue } from './catalogue.js';
 
 import { UploadsShelf } from './UploadsShelf.js';
 
@@ -41,54 +43,25 @@ export const toSong = (r: ApiSong): Song | undefined => {
   return { name: decode(r.name), artist: decode((r.artists?.primary ?? []).map((a) => a.name).slice(0, 2).join(', ')), img: r.image?.[1]?.url ?? r.image?.[0]?.url ?? '', url, secs: r.duration ?? 180, start: 30 };
 };
 
-/** Songs for a search, or the "For you" playlist when the query is empty. Empty on any failure. */
-export async function fetchSongs(query: string): Promise<Song[]> {
-  try {
-    const r = await fetch(query ? `${MUSIC}/search/songs?query=${encodeURIComponent(query)}&limit=20` : `${MUSIC}/playlists?id=110858205&limit=25`);
-    const j = (await r.json()) as { data: { results?: ApiSong[]; songs?: ApiSong[] } };
-    return ((query ? j.data.results : j.data.songs) ?? []).map(toSong).filter((s): s is Song => !!s);
-  } catch {
-    return [];
-  }
-}
-
-/** The shelf of your own uploaded songs. Not a search term: it is read from the songs Worker. */
-export const UPLOADS = '@uploads';
-
-/** The shelves above the list, shared by the story sheet, the camera, the chat's Music tab and the profile. */
-export const MUSIC_TABS: [string, string][] = [['For you', ''], ['Trending', 'trending hits'], ['Hindi', 'latest hindi songs'], ['Punjabi', 'punjabi hits'], ['Uploads', UPLOADS]];
-
 export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void; chooseSong: (s: Song) => void }) {
-  const [tab, setTab] = useState('');
-  const [q, setQ] = useState('');
-  const [list, setList] = useState<Song[]>();
+  const cat = useCatalogue();
   const [playing, setPlaying] = useState<string>();
-  const load = useCallback(async (query: string) => {
-    setList(undefined);
-    setList(await fetchSongs(query));
-  }, []);
-  const uploads = tab === UPLOADS;
-  useEffect(() => {
-    if (uploads) return;
-    const t = window.setTimeout(() => void load(q.trim() || tab), q ? 350 : 0);
-    return () => window.clearTimeout(t);
-  }, [q, tab, load, uploads]);
   const preview = (s: Song) => { if (playing === s.url) { setPlaying(undefined); p.onPreview(undefined); } else { setPlaying(s.url); p.onPreview(s); } };
   useEffect(() => () => p.onPreview(undefined), [p]);
-  const tabs = MUSIC_TABS;
+  const list = cat.songs.items;
   return (
     <Panel onClose={p.close}>
       <label className="mx-3.5 mb-2.5 flex h-[38px] shrink-0 items-center gap-2 rounded-[10px] bg-media-field px-3 text-white/55">
-        <Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search music" className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none" />
+        <Search size={16} /><input value={cat.query} onChange={(e) => cat.setQuery(e.target.value)} placeholder="Search music" className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none" />
       </label>
       <div className="flex shrink-0 gap-2 overflow-x-auto px-3.5 pb-2.5">
-        {tabs.map(([l, v]) => <button key={l} type="button" onClick={() => { setQ(''); setTab(v); }} className={cn('flex shrink-0 items-center gap-1 rounded-[10px] px-3 py-1.5 text-[13px] font-bold', tab === v ? 'bg-white text-black' : 'bg-media-field')}>{v === UPLOADS && <Upload size={13} />}{l}</button>)}
+        {MUSIC_SHELVES.map((s) => <button key={s.label} type="button" onClick={() => cat.setShelf(s)} className={cn('flex shrink-0 items-center gap-1 rounded-[10px] px-3 py-1.5 text-[13px] font-bold', cat.shelf === s && (cat.uploads || !cat.query) ? 'bg-white text-black' : 'bg-media-field')}>{s.src === UPLOADS && <Upload size={13} />}{s.label}</button>)}
       </div>
-      {uploads ? (
+      {cat.uploads ? (
         <div className="overflow-y-auto px-2 pb-2">
           <UploadsShelf
             tone="dark"
-            query={q}
+            query={cat.query}
             {...(playing ? { previewing: playing } : {})}
             onPreview={preview}
             onSelect={(s) => { p.onPreview(undefined); p.chooseSong(s); }}
@@ -98,12 +71,13 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
         </div>
       ) : (
       <div className="overflow-y-auto px-2">
+        <PlaylistRow pager={cat.lists} tone="dark" onOpen={cat.toggleOpen} {...(cat.open ? { open: cat.open } : {})} />
         {!list && <p className="py-6 text-center text-white/50">Loading…</p>}
-        {list?.length === 0 && <p className="py-6 text-center text-white/50">Nothing found</p>}
+        {list?.length === 0 && cat.songs.done && <p className="py-6 text-center text-white/50">Nothing found</p>}
         {list?.map((s) => (
           <div key={s.url} className="flex items-center gap-3 rounded-[12px] px-2 py-2 active:bg-white/5">
             <button type="button" onClick={() => { p.onPreview(undefined); p.chooseSong(s); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-              <img src={s.img} alt="" className="size-12 shrink-0 rounded-[8px] object-cover" />
+              <img src={s.img} alt="" loading="lazy" className="size-12 shrink-0 rounded-[8px] object-cover" />
               <span className="min-w-0"><b className="block truncate text-[14.5px]">{s.name}</b><span className="block truncate text-[13px] text-white/55">{s.artist}</span></span>
             </button>
             <button type="button" aria-label={playing === s.url ? 'Pause' : 'Preview'} onClick={() => preview(s)} className="grid size-9 shrink-0 place-items-center">
@@ -111,6 +85,7 @@ export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void
             </button>
           </div>
         ))}
+        <More pager={cat.songs} tone="dark" />
       </div>
       )}
     </Panel>
