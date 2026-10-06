@@ -181,6 +181,18 @@
     filter: blur(5px) brightness(0.94) saturate(112%);
     transform: scale(1.04);
   }
+  /* The scaled, blurred photo stays inside the chat - it spilled over the chat list on desktop. */
+  .chat-wallpaper:has(> .chat-wallpaper-photo) {
+    overflow: clip;
+  }
+  /*
+   * Names, times and the deleted line are the quiet greys, and on thin glass
+   * over a photo they washed out to nothing. Deeper here, and only here.
+   */
+  [data-wallpaper-photo]:not([data-wallpaper-dark]) .lq-bubble {
+    --color-text-secondary: rgb(32 30 44 / 0.82);
+    --color-text-tertiary: rgb(32 30 44 / 0.66);
+  }
   [data-wallpaper-dark] .lq-bubble,
   :root[data-theme='dark'] .lq-bubble {
     background: linear-gradient(180deg, rgb(44 44 54 / 0.92), rgb(24 24 32 / 0.8) 70%);

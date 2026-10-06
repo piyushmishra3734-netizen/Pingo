@@ -616,13 +616,18 @@ const VOICE_BUCKET = 'voice';
 const DOCUMENT_BUCKET = 'documents';
 
 /**
- * An hour for a photo's signed URL.
+ * A photo's signed URL: longer than a snap's minute, because a photo is meant
+ * to be scrolled back to. Still finite - a URL that never expires is a copy
+ * that outlives the message.
  *
- * Longer than a snap's minute, because a photo is meant to be scrolled back to
- * and re-signing on every pass through the thread would be a request per bubble.
- * Still finite: a URL that never expires is a copy that outlives the message.
+ * Six hours, and remembered across launches (see `persistentUrlCache`).
+ * An hour, held in memory, meant every launch minted a fresh token for every
+ * photo on screen - a new URL, so the browser fetched the same picture again
+ * although it was uploaded as immutable. Measured 2026-09-29: 62 photos pulled
+ * 693 times in a day, 105 MB of egress. Reusing a URL is what lets the HTTP
+ * cache answer.
  */
-const PHOTO_URL_TTL_SECONDS = 60 * 60;
+const PHOTO_URL_TTL_SECONDS = 6 * 60 * 60;
 
 /**
  * A picture's file extension, from what it actually is.
@@ -3943,7 +3948,7 @@ export class SupabaseChatService implements ChatService {
    * the receiver with a silent voice bubble. Zip by request index first, then
    * retry failures one by one.
    */
-  #signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+  #signedUrlCache = persistentUrlCache();
   /** Signings in flight, so two pages opening together sign once. */
   #signingInFlight = new Map<string, Promise<Map<string, string>>>();
 
@@ -6407,4 +6412,43 @@ export class SupabaseChatService implements ChatService {
 
     return data;
   }
+}
+
+/**
+ * The signed-URL cache, kept in localStorage so a relaunch reuses yesterday's
+ * URLs (and with them the browser's cached files) instead of minting new ones.
+ *
+ * Expired entries are dropped on load, the store is capped, and a write is
+ * coalesced to one per second. Snaps never come through here - their URLs are
+ * minted per view on purpose.
+ */
+function persistentUrlCache(): Map<string, { url: string; expiresAt: number }> {
+  const KEY = 'pingo:signed-urls';
+  const MAX = 400;
+  const cache = new Map<string, { url: string; expiresAt: number }>();
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY) ?? '[]') as [string, { url: string; expiresAt: number }][];
+    const now = Date.now();
+    for (const [key, entry] of stored) if (entry?.expiresAt > now + 5 * 60 * 1000) cache.set(key, entry);
+  } catch {
+    // Nothing kept, or unreadable: start empty.
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const save = () => {
+    timer = undefined;
+    try {
+      localStorage.setItem(KEY, JSON.stringify([...cache].slice(-MAX)));
+    } catch {
+      // Full or private: memory still works for this launch.
+    }
+  };
+  const set = cache.set.bind(cache);
+  cache.set = (key, value) => {
+    set(key, value);
+    if (cache.size > MAX) cache.delete(cache.keys().next().value!);
+    timer ??= setTimeout(save, 1000);
+    return cache;
+  };
+  return cache;
 }
