@@ -44,8 +44,24 @@ export function isBehind(build: string | undefined, minBuild: number): boolean {
  * publishing a new card shows it again to people who closed the old one -
  * without a second key, and without anything to clean up when it is replaced.
  */
-export function shouldShow(behind: boolean, seen: string | null, updatedAt: string): boolean {
-  if (behind) return true;
+/**
+ * Somebody behind is asked again - once a day, not on every launch.
+ *
+ * Every launch was the rule, and every launch fetched the card's picture: after
+ * 2.26.40.1 shipped, each phone still on the old APK pulled it again each time
+ * the app opened, and the project's cached egress climbed with it. Once a day
+ * still asks every day anybody opens PINGO.
+ */
+export const PROMPT_EVERY_MS = 20 * 60 * 60 * 1000;
+
+export function shouldShow(
+  behind: boolean,
+  seen: string | null,
+  updatedAt: string,
+  lastPromptAt = 0,
+  now = Date.now(),
+): boolean {
+  if (behind) return now - lastPromptAt >= PROMPT_EVERY_MS;
   return seen !== updatedAt;
 }
 

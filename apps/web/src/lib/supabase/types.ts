@@ -1591,6 +1591,10 @@ export type Database = {
         Args: { call: string };
         Returns: undefined;
       };
+      latest_reactions: {
+        Args: Record<PropertyKey, never>;
+        Returns: { conversation_id: string; message_id: string; user_id: string; emoji: string; created_at: string }[];
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
