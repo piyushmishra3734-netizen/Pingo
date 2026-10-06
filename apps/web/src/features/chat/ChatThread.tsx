@@ -1354,6 +1354,7 @@ export function ChatThread({
         backgroundPosition: 'center',
       }}
       data-wallpaper-dark={wallpaper.dark ? '' : undefined}
+      data-wallpaper-photo={wallpaper.photo ? '' : undefined}
     >
       {wallpaper.photo && !wallpaper.live ? (
         <img
