@@ -158,20 +158,6 @@
       0 4px 10px -6px rgb(40 20 90 / 0.2);
   }
   /*
-   * Over a photo, more of the photo. Near-solid white is right on a plain
-   * page - it is what separates the bubble from it - but on a picture it read
-   * as white cards pasted over it. Dark text still holds at this fill.
-   */
-  [data-wallpaper-photo]:not([data-wallpaper-dark]) .lq-bubble {
-    background: linear-gradient(180deg, rgb(246 242 255 / 0.4), rgb(236 230 252 / 0.26) 75%);
-    box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 0.6),
-      inset 0 1px 0 rgb(255 255 255 / 0.95),
-      0 2px 8px -3px rgb(30 20 60 / 0.22);
-    /* A soft light behind the letters keeps them crisp over the photo. */
-    text-shadow: 0 0 3px rgb(255 255 255 / 0.55);
-  }
-  /*
    * The photo is softened once - it never scrolls, so this is one raster, not
    * a blur per frame the way glass bubbles were - and that is what lets the
    * bubbles above stay this thin and still read. Scaled a touch so the
@@ -185,14 +171,6 @@
   .chat-wallpaper:has(> .chat-wallpaper-photo) {
     overflow: clip;
   }
-  /*
-   * Names, times and the deleted line are the quiet greys, and on thin glass
-   * over a photo they washed out to nothing. Deeper here, and only here.
-   */
-  [data-wallpaper-photo]:not([data-wallpaper-dark]) .lq-bubble {
-    --color-text-secondary: rgb(32 30 44 / 0.82);
-    --color-text-tertiary: rgb(32 30 44 / 0.66);
-  }
   [data-wallpaper-dark] .lq-bubble,
   :root[data-theme='dark'] .lq-bubble {
     background: linear-gradient(180deg, rgb(44 44 54 / 0.92), rgb(24 24 32 / 0.8) 70%);
@@ -201,6 +179,25 @@
       inset 0 1px 0 rgb(255 255 255 / 0.14),
       0 1px 2px rgb(0 0 0 / 0.3),
       0 4px 10px -6px rgb(0 0 0 / 0.4);
+  }
+  /*
+   * Over any photo: smoked glass, white text.
+   *
+   * White glass over a photo either hid the picture (thick) or lost the text
+   * (thin). A dark tint at half strength does neither: the photo stays bright
+   * around and through it, and white letters read on it everywhere.
+   */
+  .chat-wallpaper[data-wallpaper-photo] .lq-bubble {
+    --color-ink: #ffffff;
+    --color-text-secondary: rgb(255 255 255 / 0.86);
+    --color-text-tertiary: rgb(255 255 255 / 0.7);
+    color: #fff;
+    background: linear-gradient(180deg, rgb(30 30 42 / 0.52), rgb(18 18 26 / 0.44));
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.16),
+      inset 0 1px 0 rgb(255 255 255 / 0.26),
+      0 2px 8px -3px rgb(0 0 0 / 0.3);
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
   }
   /* Yours: flat brand, no blur - it was paying for one it could not show. */
   .lq-bubble-mine {
