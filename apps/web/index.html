@@ -446,9 +446,20 @@
        */
       (function () {
         var KEY = 'pingo:boot-retry';
+        /*
+         * React's own mark on the container, not "is there anything in #root".
+         * #root now ships with a static skeleton, so a page whose JavaScript
+         * never ran looked mounted and was never rescued: a cached HTML page
+         * standing in for the entry script left people on that skeleton for
+         * good (2026-10-06).
+         */
         function mounted() {
           var root = document.getElementById('root');
-          return !!root && root.childNodes.length > 0;
+          if (!root) return false;
+          for (var key in root) {
+            if (key.indexOf('__reactContainer') === 0) return true;
+          }
+          return false;
         }
         window.addEventListener('load', function () {
           setTimeout(function () {
