@@ -235,6 +235,25 @@ function read(): Preferences {
   return DEFAULT_PREFERENCES;
 }
 
+/**
+ * A phone that cannot afford live blur gets PINGO without it.
+ *
+ * Every glass surface re-blurs what is behind it on every frame, and on a
+ * 4 GB / few-core Android - most of PINGO's phones - that was the stutter in
+ * scrolling, the hold menu and sheets. Treated like the OS's reduce-transparency
+ * request: glass level 0, the same flat-but-tinted surfaces, no lens. Read
+ * once; `deviceMemory` is Chrome-only, so Safari and desktops keep their glass.
+ */
+const WEAK_DEVICE = (() => {
+  try {
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
+    const cores = navigator.hardwareConcurrency ?? 8;
+    return memory <= 4 || cores <= 4;
+  } catch {
+    return false;
+  }
+})();
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState<Preferences>(read);
   const [systemDark, setSystemDark] = useState(
@@ -307,7 +326,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
    * Nothing is written back, so the slider still shows what they picked and
    * comes back untouched the moment the OS setting is turned off.
    */
-  const resolvedGlass = systemPlain ? 0 : appearance.glass;
+  const resolvedGlass = systemPlain || WEAK_DEVICE ? 0 : appearance.glass;
 
   useEffect(() => {
     const root = document.documentElement;

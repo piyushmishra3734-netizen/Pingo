@@ -167,6 +167,22 @@
     background: var(--color-brand);
   }
 
+  /*
+   * Glass level 0 - chosen, asked for by the OS, or a phone too weak for blur
+   * (SettingsContext). The blur is gone (tokens.css), so the fills that were
+   * thin because a blur sat behind them become solid enough to read on.
+   */
+  :root[data-glass='0'] .lq-glass-water { --lq-fill: rgb(255 255 255 / 0.86); --lq-sheen: 0.12; }
+  :root[data-glass='0'] .lq-menu { --lq-fill: rgb(255 255 255 / 0.96); }
+  :root[data-glass='0'][data-theme='dark'] .lq-glass-water,
+  :root[data-glass='0'] [data-wallpaper-dark] .lq-glass-water { --lq-fill: rgb(28 28 34 / 0.88); }
+  :root[data-glass='0'][data-theme='dark'] .lq-menu { --lq-fill: rgb(30 30 36 / 0.97); }
+  :root[data-glass='0'] .lq-dim {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgb(0 0 0 / 0.38);
+  }
+
   /* Menus are glass too, frosted enough to read a list off. */
   .lq-menu { --lq-fill: rgb(255 255 255 / 0.62); }
   :root[data-theme='dark'] .lq-menu { --lq-fill: rgb(28 28 34 / 0.62); }
