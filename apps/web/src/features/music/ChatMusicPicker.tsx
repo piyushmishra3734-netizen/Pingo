@@ -30,7 +30,12 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
   };
 
   return (
-    <div className="flex h-[320px] flex-col">
+    /*
+     * Tall enough to browse. At a fixed 320px the search, the shelf chips and
+     * the album/playlist row left room for about one and a half songs, so a
+     * list of hundreds read as "only a couple of songs, and it will not scroll".
+     */
+    <div className="flex h-[min(560px,62dvh)] min-h-[320px] flex-col">
       <div className="px-2.5 pt-2.5">
         <SearchField value={query} onChange={(e) => cat.setQuery(e.target.value)} placeholder="Search music" aria-label="Search music" />
       </div>
