@@ -112,6 +112,8 @@ export function formatFileSize(bytes: number): string {
 
 /** Presence line under a name in the chat header. */
 export function formatPresence(user: User, now = Date.now()): string {
+  const label = user.presence.label?.trim();
+  if (label) return /^last seen/i.test(label) ? label : `last seen ${label}`;
   if (user.presence.state === 'online') return 'online';
   if (user.presence.state === 'away') return 'away';
   // A chosen status, and no date with it: last seen is exactly what it hides.

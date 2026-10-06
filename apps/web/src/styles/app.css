@@ -150,7 +150,7 @@
    * the pink beside it.
    */
   .lq-bubble {
-    background: linear-gradient(180deg, rgb(247 244 254 / 0.95), rgb(238 233 251 / 0.9) 75%);
+    background: linear-gradient(180deg, rgb(247 244 254 / 0.8), rgb(238 233 251 / 0.66) 75%);
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 0.6),
       inset 0 1px 0 rgb(255 255 255 / 0.9),
@@ -163,11 +163,13 @@
    * as white cards pasted over it. Dark text still holds at this fill.
    */
   [data-wallpaper-photo]:not([data-wallpaper-dark]) .lq-bubble {
-    background: linear-gradient(180deg, rgb(246 242 255 / 0.62), rgb(236 230 252 / 0.46) 75%);
+    background: linear-gradient(180deg, rgb(246 242 255 / 0.4), rgb(236 230 252 / 0.26) 75%);
     box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 0.55),
-      inset 0 1px 0 rgb(255 255 255 / 0.9),
-      0 2px 8px -3px rgb(30 20 60 / 0.25);
+      inset 0 0 0 1px rgb(255 255 255 / 0.6),
+      inset 0 1px 0 rgb(255 255 255 / 0.95),
+      0 2px 8px -3px rgb(30 20 60 / 0.22);
+    /* A soft light behind the letters keeps them crisp over the photo. */
+    text-shadow: 0 0 8px rgb(255 255 255 / 0.75), 0 0 1px rgb(255 255 255 / 0.9);
   }
   /*
    * The photo is softened once - it never scrolls, so this is one raster, not
@@ -176,8 +178,8 @@
    * blurred edge never shows.
    */
   .chat-wallpaper-photo {
-    filter: blur(3px) brightness(0.92) saturate(110%);
-    transform: scale(1.03);
+    filter: blur(5px) brightness(0.94) saturate(112%);
+    transform: scale(1.04);
   }
   [data-wallpaper-dark] .lq-bubble,
   :root[data-theme='dark'] .lq-bubble {

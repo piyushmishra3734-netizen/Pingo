@@ -32,6 +32,8 @@ export interface Presence {
   state: PresenceState;
   /** Epoch ms of last activity. Rendered as "last seen ..." when offline. */
   lastSeenAt: number;
+  /** A last-seen line the person wrote themselves; shown instead of a time. */
+  label?: string;
 }
 
 export interface User {

@@ -201,7 +201,7 @@ function shownStatus(row: {
   return row.presence_status === 'dnd' ? 'dnd' : 'invisible';
 }
 
-function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd'): User {
+function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd', custom?: string): User {
   return {
     id: row.id,
     name: row.display_name,
@@ -224,9 +224,11 @@ function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd')
      * creation date was being shown as "last seen" for everybody who had turned
      * activity off, which is the one thing hiding it was supposed to prevent.
      */
-    presence: status
-      ? { state: status, lastSeenAt: 0 }
-      : presenceFrom(lastSeenAt ?? Date.parse(row.created_at)),
+    presence: custom
+      ? { state: 'offline', lastSeenAt: 0, label: custom }
+      : status
+        ? { state: status, lastSeenAt: 0 }
+        : presenceFrom(lastSeenAt ?? Date.parse(row.created_at)),
   };
 }
 
@@ -1582,9 +1584,11 @@ export class SupabaseChatService implements ChatService {
         { event: '*', schema: 'public', table: 'privacy_settings' },
         (payload) => {
           const row = (payload.new ?? payload.old) as
-            | { user_id?: string; online_status?: boolean; presence_status?: string }
+            | { user_id?: string; online_status?: boolean; presence_status?: string; custom_last_seen?: string | null }
             | null;
           if (!row?.user_id) return;
+          if (row.custom_last_seen) this.#customSeenById.set(row.user_id, row.custom_last_seen);
+          else this.#customSeenById.delete(row.user_id);
 
           void this.#userId().then((me) => {
             if (row.user_id === me) {
@@ -1622,7 +1626,10 @@ export class SupabaseChatService implements ChatService {
              * ago, so they were here. A row update that changes neither leaves
              * the drawn presence alone.
              */
-            const presence = status
+            const custom = this.#customSeenById.get(row.user_id);
+            const presence = custom
+              ? { state: 'offline' as const, lastSeenAt: 0, label: custom }
+              : status
               ? { state: status, lastSeenAt: 0 }
               : (this.#livePresence.get(row.user_id) ?? {
                   state: 'offline' as const,
@@ -1679,7 +1686,7 @@ export class SupabaseChatService implements ChatService {
       this.#lastSeenFor(missing),
     ]);
     for (const row of data ?? []) {
-      const user = toUser(row, lastSeen.get(row.id), this.#statusById.get(row.id));
+      const user = toUser(row, lastSeen.get(row.id), this.#statusById.get(row.id), this.#customSeenById.get(row.id));
       /*
        * Whatever the socket already told us wins over the row.
        *
@@ -1795,7 +1802,7 @@ export class SupabaseChatService implements ChatService {
 
     const { data, error } = await this.#client
       .from('privacy_settings')
-      .select('user_id,online_status,presence_status')
+      .select('user_id,online_status,presence_status,custom_last_seen')
       .in('user_id', ids);
 
     if (error || !data) return found;
@@ -1803,6 +1810,8 @@ export class SupabaseChatService implements ChatService {
     for (const row of data) {
       const status = shownStatus(row);
       if (status) found.set(row.user_id, status);
+      if (row.custom_last_seen) this.#customSeenById.set(row.user_id, row.custom_last_seen);
+      else this.#customSeenById.delete(row.user_id);
     }
     // Merged, not replaced: this is asked about a few people at a time, and
     // replacing the map forgot everybody else's status until they were asked
@@ -1823,6 +1832,8 @@ export class SupabaseChatService implements ChatService {
    * costs one refresh.
    */
   #statusById = new Map<UserId, 'invisible' | 'dnd'>();
+  /** A last-seen line somebody wrote themselves (the operator only, by rule). */
+  #customSeenById = new Map<UserId, string>();
 
   /** Builds the view-model conversations for a set of rows the user belongs to. */
   async #hydrate(
@@ -5952,7 +5963,7 @@ export class SupabaseChatService implements ChatService {
     ]);
     if (!data) return undefined;
 
-    const user = toUser(data, lastSeen.get(id), this.#statusById.get(id));
+    const user = toUser(data, lastSeen.get(id), this.#statusById.get(id), this.#customSeenById.get(id));
     this.#people.set(id, user);
     return user;
   }
@@ -6017,7 +6028,7 @@ export class SupabaseChatService implements ChatService {
      * from the database; neither may claim to know who is connected.
      */
     const users = rows.map((row) => {
-      const user = toUser(row, lastSeen.get(row.id), this.#statusById.get(row.id));
+      const user = toUser(row, lastSeen.get(row.id), this.#statusById.get(row.id), this.#customSeenById.get(row.id));
       const live = this.#statusById.has(row.id) ? undefined : this.#livePresence.get(row.id);
       return live ? { ...user, presence: live } : user;
     });

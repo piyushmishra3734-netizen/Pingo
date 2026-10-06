@@ -12,7 +12,8 @@ import {
 import { PrivateAccountCard } from '../../features/settings/PrivateAccountCard.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useT } from '../../features/i18n/useT.js';
-import { refreshPresenceStatus, savePresenceStatus } from '../../features/presence/status.js';
+import { customLastSeen, refreshPresenceStatus, saveCustomLastSeen, savePresenceStatus } from '../../features/presence/status.js';
+import { isOperator } from '../../lib/operator.js';
 import { presenceStatus, type PresenceStatus } from '../../features/settings/privacy-flags.js';
 
 /**
@@ -43,7 +44,7 @@ import { presenceStatus, type PresenceStatus } from '../../features/settings/pri
 export function PrivacyScreen() {
   const t = useT();
   const { preferences, update } = usePreferences();
-  const { service: profiles } = useProfile();
+  const { service: profiles, profile } = useProfile();
   const p = preferences.privacy;
 
   /*
@@ -207,6 +208,8 @@ export function PrivacyScreen() {
         />
       </Group>
 
+      {isOperator(profile?.id) && <CustomLastSeen />}
+
       <Group note={t('privacy.screenshotNote')}>
         {/*
           The real list. This said "None" as a literal string, so somebody who
@@ -271,5 +274,65 @@ function StatusIcon({ state }: { state: PresenceStatus }) {
     <span className="grid place-items-center rounded-full bg-page p-[2px]">
       <PingoDot state={state} size={10} />
     </span>
+  );
+}
+
+/**
+ * Operator only: a last-seen line you write yourself.
+ *
+ * While it is on, everybody sees "last seen <your text>" and nothing else -
+ * no online dot, no read receipts, no typing. See `saveCustomLastSeen`.
+ */
+function CustomLastSeen() {
+  const [on, setOn] = useState(() => Boolean(customLastSeen()));
+  const [text, setText] = useState(() => customLastSeen() ?? 'yesterday at 10:30 PM');
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+
+  const commit = (nextOn: boolean, nextText: string) => {
+    setState('saving');
+    void saveCustomLastSeen(nextOn ? nextText : null)
+      .then(() => setState('saved'))
+      .catch((cause: unknown) => {
+        setState('failed');
+        setOn(Boolean(customLastSeen()));
+        console.warn('Custom last seen did not save.', cause);
+      });
+  };
+
+  return (
+    <Group
+      title="Custom last seen"
+      note="Only you have this. While it is on, people see the line below instead of your real last seen, and no read receipts, online dot or typing."
+    >
+      <ToggleRow
+        label="Show my own last seen"
+        description={on ? `Everyone sees: last seen ${text.trim() || '…'}` : 'Off: your real status shows.'}
+        checked={on}
+        onChange={(next) => {
+          setOn(next);
+          commit(next, text);
+        }}
+      />
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <span className="shrink-0 text-body text-text-secondary">last seen</span>
+        <input
+          value={text}
+          maxLength={48}
+          onChange={(event) => setText(event.target.value)}
+          placeholder="yesterday at 10:30 PM"
+          aria-label="Custom last seen"
+          className="min-w-0 flex-1 rounded-md bg-sunken px-3 py-2 text-body text-ink outline-none"
+        />
+        <button
+          type="button"
+          disabled={!on || !text.trim() || state === 'saving'}
+          onClick={() => commit(true, text)}
+          className="shrink-0 rounded-full bg-brand px-4 py-2 text-caption font-semibold text-on-brand disabled:opacity-40"
+        >
+          {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save'}
+        </button>
+      </div>
+      {state === 'failed' && <p className="px-3 pb-2 text-caption text-danger">Did not save. Try again.</p>}
+    </Group>
   );
 }
