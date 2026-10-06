@@ -1,6 +1,7 @@
 import { createElement, lazy, Suspense, type ComponentProps, type ComponentType, type LazyExoticComponent } from 'react';
 
 import { spareNothing } from '../features/connection/useConnectionStatus.js';
+import { importWithRetry } from './chunk-recovery.js';
 
 /**
  * A component that arrives when it is first drawn, not with the app.
@@ -25,8 +26,13 @@ export function lazyNamed<M extends Record<K, ComponentType<any>>, K extends key
   name: K,
 ): Preloadable<M[K]> {
   let pending: Promise<M> | undefined;
-  const once = () => (pending ??= load().catch((error: unknown) => {
-    // A failed fetch (offline, a deploy in between) may be retried on the next draw.
+  /*
+   * A failed chunk is asked for again under a fresh URL before it counts as
+   * failed (see chunk-recovery.ts): calling `load()` again on the next draw
+   * only got the browser's remembered failure back.
+   */
+  const once = () => (pending ??= importWithRetry(load).catch((error: unknown) => {
+    // Offline, say: the next draw may try again.
     pending = undefined;
     throw error;
   }));

@@ -19,6 +19,7 @@ import { RequireProfile } from './features/profile/guards.js';
 import { NotificationPrefsSync } from './features/settings/NotificationPrefsSync.js';
 import { NewBuildNavigation } from './components/NewBuildNavigation.js';
 import { RouteBoundary } from './components/RouteBoundary.js';
+import { importWithRetry } from './lib/chunk-recovery.js';
 import { AppLoader } from './features/loading/AppLoader.js';
 import { releaseSplash, useSplashHold } from './features/loading/splash.js';
 import { demoOn, demoServices } from './screens/dev/demo-services.js';
@@ -53,7 +54,9 @@ import {
  * is the whole of what this wrapper does.
  */
 function lazyScreen<M extends Record<string, unknown>>(load: () => Promise<M>, name: keyof M) {
-  return lazy(async () => ({ default: (await load())[name] as ComponentType }));
+  // Through importWithRetry: React.lazy keeps a rejected factory forever, so a
+  // chunk that failed once has to be retried here or never (chunk-recovery.ts).
+  return lazy(async () => ({ default: (await importWithRetry(load))[name] as ComponentType }));
 }
 
 const CallsScreen = lazyScreen(() => import('./screens/CallsScreen.js'), 'CallsScreen');

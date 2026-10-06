@@ -2,6 +2,7 @@ import { useAuth } from '@pingo/core';
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
+import { ListPaneSkeleton } from '../loading/ListPaneSkeleton.js';
 import { useSplashHold } from '../loading/splash.js';
 import { isAddingAccount } from './adding-account.js';
 import { guestAuthPath } from './intro-seen.js';
@@ -30,12 +31,14 @@ import { PRIVATE_ACCESS, isAllowedAddress, isOpenPath } from './private-access.j
  * is the splash - a screen built for exactly this - so the marker was never the
  * thing carrying the news.
  *
- * The ground, and nothing on it. `#boot` has already painted this same colour
- * before the bundle arrived, so on a cold start the handover is invisible.
+ * What `#boot` drew, and nothing more: the list's skeleton in the list's place
+ * on a list route, the bare ground anywhere else. `#boot` has already painted
+ * exactly that before the bundle arrived, so the handover is invisible - and
+ * it is the same picture the profile read and the shell show next.
  */
 function Resolving() {
   useSplashHold();
-  return <div className="h-full bg-page" />;
+  return <ListPaneSkeleton />;
 }
 
 /** Pre-auth funnel: Welcome or Log In. The intro slides were retired. */
