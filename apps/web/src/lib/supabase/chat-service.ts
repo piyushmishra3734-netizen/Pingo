@@ -6043,15 +6043,37 @@ export class SupabaseChatService implements ChatService {
    * this to conversations they belong to, so there is no second visibility rule
    * to keep in step with the first.
    */
+  /*
+   * Egress, measured 2026-09-29: this was `select('*')`, and `*` carries each
+   * row's `envelope` - a wrapped key per device, ~3 KB a row - for a list
+   * that reads four small columns. A hundred rows a call, and the Calls
+   * screen, the daily missions and the Journey badges all called it on every
+   * render that touched them: 3,252 times in a day, the largest single cost
+   * on the project. Now the four columns, and one answer shared for a minute.
+   */
+  #callsRead: { at: number; work: Promise<CallRecord[]> } | undefined;
+
   async listCalls(): Promise<CallRecord[]> {
+    const held = this.#callsRead;
+    if (held && Date.now() - held.at < 60_000) return held.work;
+    const work = this.#readCalls();
+    this.#callsRead = { at: Date.now(), work };
+    void work.catch(() => {
+      if (this.#callsRead?.work === work) this.#callsRead = undefined;
+    });
+    return work;
+  }
+
+  async #readCalls(): Promise<CallRecord[]> {
     const me = await this.#userId();
 
-    const { data } = await this.#client
+    const { data, error } = await this.#client
       .from('messages')
-      .select('*')
+      .select('id, sender_id, created_at, meta')
       .eq('kind', 'call')
       .order('created_at', { ascending: false })
       .limit(100);
+    if (error) throw error;
 
     return (data ?? []).flatMap((row) => {
       const meta = row.meta as unknown as Message['call'];
@@ -6071,6 +6093,8 @@ export class SupabaseChatService implements ChatService {
     durationSeconds: number;
     callId?: string;
   }): Promise<Message> {
+    // A new call is history the minute-old list does not have.
+    this.#callsRead = undefined;
     /*
      * Sent as an ordinary message, so it lands in the thread, reaches the other
      * end over realtime, and updates the conversation list - all the machinery

@@ -54,7 +54,7 @@ export function Dock() {
   const { totalUnread } = useChat();
   const { profile } = useProfile();
   const { unread: unreadNotifications } = useNotifications();
-  const communities = canAccessCommunities(profile?.username);
+  const communities = canAccessCommunities(profile?.id);
 
   const { pathname } = useLocation();
   const items = useMemo<DockItem[]>(

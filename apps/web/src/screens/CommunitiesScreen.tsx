@@ -38,7 +38,7 @@ export function CommunitiesScreen() {
   const { service, conversations, users, currentUser } = useChat();
   const { profile, service: profiles } = useProfile();
   const [query, setQuery] = useState('');
-  const allowed = canAccessCommunities(profile?.username);
+  const allowed = canAccessCommunities(profile?.id);
 
   /*
    * The whole directory, not just people already in a conversation.
