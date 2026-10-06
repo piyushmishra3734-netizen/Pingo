@@ -54,6 +54,7 @@ import type {
   User,
   UserId,
   UserSettings,
+  Presence,
   PresenceState,
 } from '@pingo/core';
 
@@ -201,6 +202,18 @@ function shownStatus(row: {
   return row.presence_status === 'dnd' ? 'dnd' : 'invisible';
 }
 
+/**
+ * The operator's chosen last seen, as presence.
+ *
+ * A date (what the picker writes) becomes an ordinary offline presence at that
+ * moment, so it reads exactly like a real one - "yesterday at 10:30 PM" today,
+ * a weekday next week. Anything else is shown as written.
+ */
+function customPresence(custom: string): Presence {
+  const at = Date.parse(custom);
+  return Number.isFinite(at) ? { state: 'offline', lastSeenAt: at } : { state: 'offline', lastSeenAt: 0, label: custom };
+}
+
 function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd', custom?: string): User {
   return {
     id: row.id,
@@ -225,7 +238,7 @@ function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd',
      * activity off, which is the one thing hiding it was supposed to prevent.
      */
     presence: custom
-      ? { state: 'offline', lastSeenAt: 0, label: custom }
+      ? customPresence(custom)
       : status
         ? { state: status, lastSeenAt: 0 }
         : presenceFrom(lastSeenAt ?? Date.parse(row.created_at)),
@@ -1627,8 +1640,8 @@ export class SupabaseChatService implements ChatService {
              * the drawn presence alone.
              */
             const custom = this.#customSeenById.get(row.user_id);
-            const presence = custom
-              ? { state: 'offline' as const, lastSeenAt: 0, label: custom }
+            const presence: Presence = custom
+              ? customPresence(custom)
               : status
               ? { state: status, lastSeenAt: 0 }
               : (this.#livePresence.get(row.user_id) ?? {

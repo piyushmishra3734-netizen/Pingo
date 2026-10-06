@@ -1,4 +1,4 @@
-import { OPEN_PRIVACY, useProfile, type PrivacySettings, type Profile } from '@pingo/core';
+import { OPEN_PRIVACY, formatPresence, useProfile, type PrivacySettings, type Profile } from '@pingo/core';
 import { PingoDot } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
@@ -277,20 +277,39 @@ function StatusIcon({ state }: { state: PresenceStatus }) {
   );
 }
 
+/** `yyyy-MM-ddTHH:mm` in local time, which is what a datetime-local input reads and writes. */
+function toLocalInput(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /**
- * Operator only: a last-seen line you write yourself.
+ * Operator only: pick the last seen everybody is shown.
  *
- * While it is on, everybody sees "last seen <your text>" and nothing else -
- * no online dot, no read receipts, no typing. See `saveCustomLastSeen`.
+ * A date and a time from the phone's own picker, stored as a moment, so others
+ * read it the way a real one reads ("yesterday at 10:30 PM", then a weekday).
+ * While it is on: no online dot, no read receipts, no typing. See
+ * `saveCustomLastSeen`.
  */
 function CustomLastSeen() {
-  const [on, setOn] = useState(() => Boolean(customLastSeen()));
-  const [text, setText] = useState(() => customLastSeen() ?? 'yesterday at 10:30 PM');
+  const stored = customLastSeen();
+  const storedAt = stored ? Date.parse(stored) : NaN;
+  const [on, setOn] = useState(() => Boolean(stored));
+  const [when, setWhen] = useState(() =>
+    toLocalInput(Number.isFinite(storedAt) ? storedAt : Date.now() - 60 * 60 * 1000),
+  );
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 
-  const commit = (nextOn: boolean, nextText: string) => {
+  const at = new Date(when).getTime();
+  const preview = Number.isFinite(at)
+    ? formatPresence({ id: '', name: '', handle: '', presence: { state: 'offline', lastSeenAt: at } })
+    : '';
+
+  const commit = (nextOn: boolean) => {
+    if (nextOn && !Number.isFinite(at)) return;
     setState('saving');
-    void saveCustomLastSeen(nextOn ? nextText : null)
+    void saveCustomLastSeen(nextOn ? new Date(at).toISOString() : null)
       .then(() => setState('saved'))
       .catch((cause: unknown) => {
         setState('failed');
@@ -302,31 +321,33 @@ function CustomLastSeen() {
   return (
     <Group
       title="Custom last seen"
-      note="Only you have this. While it is on, people see the line below instead of your real last seen, and no read receipts, online dot or typing."
+      note="Only you have this. While it is on, people see this last seen instead of your real one, and no read receipts, online dot or typing."
     >
       <ToggleRow
         label="Show my own last seen"
-        description={on ? `Everyone sees: last seen ${text.trim() || '…'}` : 'Off: your real status shows.'}
+        description={on ? `Everyone sees: ${preview || '…'}` : 'Off: your real status shows.'}
         checked={on}
         onChange={(next) => {
           setOn(next);
-          commit(next, text);
+          commit(next);
         }}
       />
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <span className="shrink-0 text-body text-text-secondary">last seen</span>
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
         <input
-          value={text}
-          maxLength={48}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="yesterday at 10:30 PM"
-          aria-label="Custom last seen"
+          type="datetime-local"
+          value={when}
+          max={toLocalInput(Date.now())}
+          onChange={(event) => {
+            setWhen(event.target.value);
+            setState('idle');
+          }}
+          aria-label="Last seen date and time"
           className="min-w-0 flex-1 rounded-md bg-sunken px-3 py-2 text-body text-ink outline-none"
         />
         <button
           type="button"
-          disabled={!on || !text.trim() || state === 'saving'}
-          onClick={() => commit(true, text)}
+          disabled={!on || !Number.isFinite(at) || state === 'saving'}
+          onClick={() => commit(true)}
           className="shrink-0 rounded-full bg-brand px-4 py-2 text-caption font-semibold text-on-brand disabled:opacity-40"
         >
           {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save'}
