@@ -429,6 +429,19 @@ const READ_MARK_MIN_GAP_MS = 8_000;
  */
 const MESSAGE_PAGE_CACHE = 50;
 
+/**
+ * How many of the list's top chats get their newest page read ahead of the
+ * tap - see `#prefetchNewest`. The top of the list is where the tap lands.
+ */
+const PREFETCH_THREADS = 5;
+
+/**
+ * How long a finished newest-page read answers later callers - see
+ * `listMessages`. Only ever with the socket up, and any event for the thread
+ * retires it sooner; this is the ceiling, not the rule.
+ */
+const NEWEST_PAGE_REUSE_MS = 30_000;
+
 /** Before any message. A cursor that has never advanced. */
 const EPOCH = '1970-01-01T00:00:00Z';
 
@@ -1079,6 +1092,28 @@ export class SupabaseChatService implements ChatService {
   // -- internals -----------------------------------------------------------
 
   #emit(event: ChatEvent): void {
+    /*
+     * Anything that changes a thread retires its shared newest page first, so
+     * no caller is handed an answer from before the change - see
+     * `#newestPages`. Before the listeners, because the thread's reconnect
+     * handler asks for a fresh page from inside its listener.
+     */
+    switch (event.type) {
+      case 'message:new':
+      case 'message:updated':
+        this.#newestPages.delete(event.message.conversationId);
+        break;
+      case 'conversation:removed':
+        this.#newestPages.delete(event.conversationId);
+        break;
+      // Neither names a thread, so every shared page goes.
+      case 'message:removed':
+      case 'connection:changed':
+        this.#newestPages.clear();
+        break;
+      default:
+        break;
+    }
     for (const listener of this.#listeners) listener(event);
   }
 
@@ -1863,7 +1898,18 @@ export class SupabaseChatService implements ChatService {
     for (const row of rows) this.#conversationRows.set(row.id, row);
     const ids = rows.map((row) => row.id);
 
-    const [{ data: members }, { data: previews }, { data: streaks }] = await Promise.all([
+    /*
+     * Everything that needs only the ids, in one round trip.
+     *
+     * The list filing below used to be its own `await` after this, and the
+     * preview rows, the roster's profiles and the AI face after that - five
+     * sequential round trips inside one hydrate, none of which needs another's
+     * answer. Measured on the live launch the database answered each in well
+     * under 100 ms and the list still took one to two seconds to replace the
+     * cached one: the time was the queue of round trips, not the queries. So
+     * the filing joins this batch, and the three after it run side by side.
+     */
+    const [{ data: members }, { data: previews }, { data: streaks }, { data: listRows }] = await Promise.all([
       this.#client.from('conversation_members').select('*').in('conversation_id', ids),
       /*
        * One preview and one unread count per conversation, from the database.
@@ -1882,6 +1928,16 @@ export class SupabaseChatService implements ChatService {
        * conversation it describes.
        */
       this.#client.rpc('my_streaks'),
+      /*
+       * Which lists each conversation is filed under.
+       *
+       * RLS scopes `chat_list_members` to lists this user owns, so this needs no
+       * filter of its own - and could not see anyone else's filing if it tried.
+       */
+      this.#client
+        .from('chat_list_members')
+        .select('list_id,conversation_id')
+        .in('conversation_id', ids),
     ]);
 
     const streakByConversation = new Map(
@@ -1891,17 +1947,6 @@ export class SupabaseChatService implements ChatService {
     const previewByConversation = new Map(
       ((previews ?? []) as ConversationPreviewRow[]).map((row) => [row.conversation_id, row]),
     );
-
-    /*
-     * Which lists each conversation is filed under.
-     *
-     * RLS scopes `chat_list_members` to lists this user owns, so this needs no
-     * filter of its own - and could not see anyone else's filing if it tried.
-     */
-    const { data: listRows } = await this.#client
-      .from('chat_list_members')
-      .select('list_id,conversation_id')
-      .in('conversation_id', ids);
 
     const listsByConversation = new Map<string, string[]>();
     for (const row of listRows ?? []) {
@@ -1937,67 +1982,74 @@ export class SupabaseChatService implements ChatService {
       .filter((id): id is string => Boolean(id));
 
     const lastById = new Map<string, MessageRow>();
-    if (lastMessageIds.length > 0) {
-      /*
-       * Through the trim, like every other read - and only for the ones this
-       * session has not already seen.
-       *
-       * This was the last `select('*')` on messages. Trimming it took a page of
-       * twenty previews from 54 kB to 20.5 kB, and then measurement showed the
-       * far larger problem: it ran **seventeen times** in a six-navigation
-       * session, because every hydrate re-fetched the same twenty rows. 348 kB
-       * to learn nothing new.
-       *
-       * A preview is the newest message of a conversation. It changes when a
-       * new one arrives or that one is edited, and both of those already come
-       * through realtime - which is what `#forgetPreview` hangs off. So holding
-       * them by id for the life of the session is not a guess about staleness;
-       * it is the same event that would have changed the answer.
-       */
-      const wanted = lastMessageIds.filter((id) => !this.#previewRows.has(id));
-      if (wanted.length > 0) {
-        const fetched = await this.#fetchMessagesById(wanted);
-        // The list's previews are ciphertext too. Without this the home screen
-        // would show base64 under every name.
-        await openRows(fetched);
-        for (const row of fetched) {
-          /*
-           * A row that would not open is not cached, and that is the whole of
-           * why "Sent before you added this device" used to sit under a
-           * conversation name and then correct itself.
-           *
-           * `openRow` writes the placeholder into `row.body` when a decrypt
-           * fails, and this cache is held for the life of the session - so one
-           * transient failure (keys still loading on a cold start, a device
-           * that has not finished publishing) was promoted to the preview text
-           * and stayed. The thread already refuses to cache a page that did not
-           * fully decrypt, for exactly this reason and in almost these words;
-           * previews were the one path that did not.
-           *
-           * Skipping the write costs a re-fetch on the next hydrate, which is
-           * when it will open.
-           */
-          if (row.body !== UNREADABLE) this.#previewRows.set(row.id, row);
-        }
-      }
-      for (const id of lastMessageIds) {
-        const row = this.#previewRows.get(id);
-        if (row) lastById.set(id, row);
-      }
-    }
-
-    await this.#loadPeople((members ?? []).map((m) => m.user_id));
-
-    // AI face: global public identity (same for everyone) + optional personal prefs.
     const hasAi = rows.some((r) => r.kind === 'ai');
-    const { data: aiProfiles } = hasAi
-      ? await this.#client.from('ai_profiles').select('*').eq('user_id', me)
-      : { data: [] as { user_id: string; display_name: string; avatar_url: string | null }[] };
+
+    /*
+     * The preview rows, the roster's faces and the AI face, side by side.
+     *
+     * None of the four needs another's answer - they were sequential only
+     * because they were written one under the other - and each was a full
+     * round trip on the path between the splash and a current chat list.
+     */
+    const [, , { data: aiProfiles }, { data: aiPublicRows }] = await Promise.all([
+      (async () => {
+        if (lastMessageIds.length === 0) return;
+        /*
+         * Through the trim, like every other read - and only for the ones this
+         * session has not already seen.
+         *
+         * This was the last `select('*')` on messages. Trimming it took a page of
+         * twenty previews from 54 kB to 20.5 kB, and then measurement showed the
+         * far larger problem: it ran **seventeen times** in a six-navigation
+         * session, because every hydrate re-fetched the same twenty rows. 348 kB
+         * to learn nothing new.
+         *
+         * A preview is the newest message of a conversation. It changes when a
+         * new one arrives or that one is edited, and both of those already come
+         * through realtime - which is what `#forgetPreview` hangs off. So holding
+         * them by id for the life of the session is not a guess about staleness;
+         * it is the same event that would have changed the answer.
+         */
+        const wanted = lastMessageIds.filter((id) => !this.#previewRows.has(id));
+        if (wanted.length > 0) {
+          const fetched = await this.#fetchMessagesById(wanted);
+          // The list's previews are ciphertext too. Without this the home screen
+          // would show base64 under every name.
+          await openRows(fetched);
+          for (const row of fetched) {
+            /*
+             * A row that would not open is not cached, and that is the whole of
+             * why "Sent before you added this device" used to sit under a
+             * conversation name and then correct itself.
+             *
+             * `openRow` writes the placeholder into `row.body` when a decrypt
+             * fails, and this cache is held for the life of the session - so one
+             * transient failure (keys still loading on a cold start, a device
+             * that has not finished publishing) was promoted to the preview text
+             * and stayed. The thread already refuses to cache a page that did not
+             * fully decrypt, for exactly this reason and in almost these words;
+             * previews were the one path that did not.
+             *
+             * Skipping the write costs a re-fetch on the next hydrate, which is
+             * when it will open.
+             */
+            if (row.body !== UNREADABLE) this.#previewRows.set(row.id, row);
+          }
+        }
+        for (const id of lastMessageIds) {
+          const row = this.#previewRows.get(id);
+          if (row) lastById.set(id, row);
+        }
+      })(),
+      this.#loadPeople((members ?? []).map((m) => m.user_id)),
+      // AI face: global public identity (same for everyone) + optional personal prefs.
+      hasAi
+        ? this.#client.from('ai_profiles').select('*').eq('user_id', me)
+        : { data: [] as { user_id: string; display_name: string; avatar_url: string | null }[] },
+      hasAi ? this.#client.rpc('get_ai_public_identity') : { data: null as null },
+    ]);
     const aiByUser = new Map((aiProfiles ?? []).map((p) => [p.user_id, p]));
 
-    const { data: aiPublicRows } = hasAi
-      ? await this.#client.rpc('get_ai_public_identity')
-      : { data: null as null };
     const aiPublic = Array.isArray(aiPublicRows)
       ? (aiPublicRows[0] as
           | {
@@ -2384,8 +2436,19 @@ export class SupabaseChatService implements ChatService {
     const inFlight = this.#conversationListRead;
     if (inFlight && Date.now() - inFlight.at < CONVERSATION_COALESCE_MS) return inFlight.work;
 
-    const work = this.#listConversationsOnce(key).then((list) => this.#withLastReactions(list));
+    /*
+     * The newest reactions are asked for alongside the list, not after it.
+     *
+     * The RPC takes no arguments - it answers for the whole account - so it
+     * never needed the list to exist first, and chaining it put one more round
+     * trip between the splash and a current list, on every launch.
+     */
+    const reactions = this.#latestReactions();
+    const work = this.#listConversationsOnce(key).then(async (list) =>
+      this.#withLastReactions(list, await reactions),
+    );
     this.#conversationListRead = { at: Date.now(), work };
+    void work.then((list) => this.#prefetchNewest(list)).catch(() => undefined);
     void work
       .catch(() => undefined)
       .finally(() => {
@@ -2513,16 +2576,24 @@ export class SupabaseChatService implements ChatService {
   async #listConversationsFromNetwork(): Promise<Conversation[]> {
     const me = await this.#userId();
 
-    const { data: memberships } = await this.#client
-      .from('conversation_members')
-      .select('conversation_id')
-      .eq('user_id', me);
+    /*
+     * The memberships and the conversations together, not one after the other.
+     *
+     * The second used to wait for the first so it could name the ids - one
+     * whole round trip spent on the way to a current list, to ask for exactly
+     * what RLS already returns: "members read their conversations" is the only
+     * select policy on the table, the same scoping `#listFingerprint` relies
+     * on. The membership list is kept, and still filters, so a policy that is
+     * ever widened cannot put somebody else's conversation in this list.
+     */
+    const [{ data: memberships }, { data: rows }] = await Promise.all([
+      this.#client.from('conversation_members').select('conversation_id').eq('user_id', me),
+      this.#client.from('conversations').select('*'),
+    ]);
 
-    const ids = (memberships ?? []).map((m) => m.conversation_id);
-    if (ids.length === 0) return [];
-
-    const { data: rows } = await this.#client.from('conversations').select('*').in('id', ids);
-    return this.#hydrate(rows ?? [], me);
+    const ids = new Set((memberships ?? []).map((m) => m.conversation_id));
+    if (ids.size === 0) return [];
+    return this.#hydrate((rows ?? []).filter((row) => ids.has(row.id)), me);
   }
 
   // -- conversation management ----------------------------------------------
@@ -2848,11 +2919,109 @@ export class SupabaseChatService implements ChatService {
   ): Promise<Message[]> {
     const shown = (list: Message[]) => list.filter((m) => !hiddenByBlock(m.authorId, m.createdAt));
     const onEarly = options?.onEarly;
-    const all = await this.#listMessagesAll(conversationId, {
-      ...options,
-      ...(onEarly ? { onEarly: (early: Message[]) => onEarly(shown(early)) } : {}),
-    });
-    return shown(all);
+    const read = () =>
+      this.#listMessagesAll(conversationId, {
+        ...options,
+        ...(onEarly ? { onEarly: (early: Message[]) => onEarly(shown(early)) } : {}),
+      });
+
+    // Paging back is never shared: each `before` is a different question.
+    if (options?.before) return shown(await read());
+
+    /*
+     * The newest page is asked once, however many callers want it.
+     *
+     * The chat list starts this read for the chats that changed while the app
+     * was closed (`#prefetchNewest`), and tapping one of them a moment later
+     * used to ask the same question again from the beginning - a second delta,
+     * a second reactions read, a second wait, and the stale cached page on
+     * screen for all of it. That second wait is the "it loads twice" report:
+     * the list had already spent the time, and the thread spent it again.
+     *
+     * A read still in flight is always shared. A finished one is shared only
+     * while it can still be trusted, which is two conditions: it started with
+     * the socket connected - so anything newer than its snapshot came as an
+     * event - and no event for this thread has arrived since, which `#emit`
+     * enforces by retiring the entry. Without the socket a finished read is
+     * never reused; the thread asks again, and the delta it asks is small
+     * because the shared read already moved the cursor.
+     *
+     * A caller joining a shared read does not get its `onEarly`. The early
+     * paint exists for a thread with nothing on disk, and the reads that get
+     * shared are the prefetch's, which only runs where there is a cached page.
+     */
+    const shared = this.#newestPages.get(conversationId);
+    if (shared && (!shared.done || (shared.live && Date.now() - shared.at < NEWEST_PAGE_REUSE_MS))) {
+      return shown(await shared.work);
+    }
+
+    const entry = {
+      at: Date.now(),
+      live: this.#connection === 'connected',
+      done: false,
+      work: read(),
+    };
+    this.#newestPages.set(conversationId, entry);
+    try {
+      const all = await entry.work;
+      entry.done = true;
+      return shown(all);
+    } catch (cause) {
+      // A failure is nobody's answer.
+      if (this.#newestPages.get(conversationId) === entry) this.#newestPages.delete(conversationId);
+      throw cause;
+    }
+  }
+
+  /**
+   * The newest page of each thread being read or just read - see
+   * `listMessages`. Retired by `#emit` the moment anything changes it.
+   */
+  #newestPages = new Map<
+    ConversationId,
+    { at: number; live: boolean; done: boolean; work: Promise<Message[]> }
+  >();
+
+  /**
+   * Brings the top of the list's threads up to date before anybody opens them.
+   *
+   * ## Why
+   *
+   * The list and a thread are separate reads of the same news. A launch after
+   * messages arrived painted the cached list, waited a second or two for the
+   * fresh one - and then, when the chat was opened, painted the cached *page*
+   * from before those messages and waited about as long again for the thread's
+   * own delta. Nothing the list had learned reached the thread: the list
+   * fetches previews, the thread fetches pages, and they share no cache.
+   *
+   * So the moment the list knows a chat near the top has something newer than
+   * this device's page of it, that page's delta starts. If it finishes before
+   * the tap, the disk page is already current and the open paints the right
+   * thing first; if it is still running, the open joins it rather than
+   * starting again.
+   *
+   * ## What it will not do
+   *
+   * Only threads that already have a page and a cursor - the delta path, a few
+   * rows each. A thread never opened on this device would cost a whole page of
+   * history for a chat that may not be opened at all, and stays an open-time
+   * read. And only the top few, because that is where the tap lands.
+   *
+   * ponytail: a delta the service declines (a placeholder owed its retry, or
+   * more than DELTA_LIMIT rows changed) falls through to a full page here like
+   * it would on open; rare, and bounded by PREFETCH_THREADS per list read.
+   * Give `#listMessagesAll` a delta-only mode if egress ever shows it.
+   */
+  async #prefetchNewest(list: Conversation[]): Promise<void> {
+    const top = list.filter((c) => !c.archived && c.lastMessage).slice(0, PREFETCH_THREADS);
+    for (const conversation of top) {
+      if (this.#newestPages.has(conversation.id)) continue;
+      const cursor = await this.#syncCursor(conversation.id).catch(() => undefined);
+      if (!cursor) continue;
+      // Nothing newer than what this device stored: the cached page is current.
+      if ((conversation.lastMessage?.createdAt ?? 0) <= Date.parse(cursor)) continue;
+      void this.listMessages(conversation.id, { limit: MESSAGE_PAGE_CACHE }).catch(() => undefined);
+    }
   }
 
   async #listMessagesAll(
@@ -3581,7 +3750,12 @@ export class SupabaseChatService implements ChatService {
    * does not touch the conversation row, so the cached list and its
    * fingerprint never see one. A failure leaves the list as it was.
    */
-  async #withLastReactions(list: Conversation[]): Promise<Conversation[]> {
+  /**
+   * The newest reaction per conversation, or `undefined` when it could not be
+   * read - never a rejection, because it runs beside the list and a failure
+   * here must leave the list as it was rather than fail it.
+   */
+  async #latestReactions(): Promise<Map<ConversationId, Conversation['lastReaction']> | undefined> {
     try {
       /*
        * One RPC, newest reaction per conversation - see
@@ -3590,7 +3764,7 @@ export class SupabaseChatService implements ChatService {
        * database.
        */
       const { data, error } = await this.#client.rpc('latest_reactions');
-      if (error || !data) return list;
+      if (error || !data) return undefined;
       const newest = new Map<ConversationId, Conversation['lastReaction']>();
       for (const row of data) {
         newest.set(row.conversation_id, {
@@ -3600,17 +3774,25 @@ export class SupabaseChatService implements ChatService {
           at: Date.parse(row.created_at),
         });
       }
-      return list.map((conversation) => {
-        const reaction = newest.get(conversation.id);
-        if (!reaction) return conversation;
-        // A reaction is activity: the chat rises to its moment, like a message.
-        const next = { ...conversation, lastReaction: reaction, updatedAt: Math.max(conversation.updatedAt, reaction!.at) };
-        this.#known.set(next.id, next);
-        return next;
-      });
+      return newest;
     } catch {
-      return list;
+      return undefined;
     }
+  }
+
+  #withLastReactions(
+    list: Conversation[],
+    newest: Map<ConversationId, Conversation['lastReaction']> | undefined,
+  ): Conversation[] {
+    if (!newest) return list;
+    return list.map((conversation) => {
+      const reaction = newest.get(conversation.id);
+      if (!reaction) return conversation;
+      // A reaction is activity: the chat rises to its moment, like a message.
+      const next = { ...conversation, lastReaction: reaction, updatedAt: Math.max(conversation.updatedAt, reaction.at) };
+      this.#known.set(next.id, next);
+      return next;
+    });
   }
 
   /** Applies one person's choice to a message's grouped reactions. */
