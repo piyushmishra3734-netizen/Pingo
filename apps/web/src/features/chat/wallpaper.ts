@@ -390,8 +390,12 @@ export function wallpaperCss(scope: string | WallpaperScope): string {
 
 const remoteKey = (url: string) => `pingo:wallpaper-remote-dark:${url.split('?')[0]}`;
 const sampling = new Set<string>();
+/** blob: and data: addresses die with the page; remembered here, never on disk. */
+const passingDark = new Map<string, boolean>();
+const passing = (url: string) => url.startsWith('blob:') || url.startsWith('data:');
 
 function remoteDark(url: string): boolean | undefined {
+  if (passing(url)) return passingDark.get(url);
   try {
     const value = window.localStorage.getItem(remoteKey(url));
     return value === null ? undefined : value === '1';
@@ -420,7 +424,9 @@ function sampleRemote(url: string, conversationId: string): void {
         sum += 0.2126 * data[i]! + 0.7152 * data[i + 1]! + 0.0722 * data[i + 2]!;
       }
       // The same line a photo of your own is judged by, below.
-      window.localStorage.setItem(key, sum / (data.length / 4) < 128 ? '1' : '0');
+      const dark = sum / (data.length / 4) < 128;
+      if (passing(url)) passingDark.set(url, dark);
+      else window.localStorage.setItem(key, dark ? '1' : '0');
       notify(conversationId);
     } catch {
       // A photo that will not let itself be read keeps the dark default.

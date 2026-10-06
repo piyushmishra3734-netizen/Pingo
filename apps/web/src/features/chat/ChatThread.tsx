@@ -1362,7 +1362,7 @@ export function ChatThread({
           alt=""
           aria-hidden
           draggable={false}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          className="chat-wallpaper-photo pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       ) : null}
       {wallpaper.live && (
