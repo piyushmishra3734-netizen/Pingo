@@ -1,0 +1,44 @@
+diff --git a/src/common/helpers/fetch.helper.ts b/src/common/helpers/fetch.helper.ts
+index 44112a4..8e62448 100644
+--- a/src/common/helpers/fetch.helper.ts
++++ b/src/common/helpers/fetch.helper.ts
+@@ -15,7 +15,13 @@ interface FetchResponse<T> {
+ }
+ 
+ export const useFetch = async <T>({ endpoint, params, context }: FetchParams): Promise<FetchResponse<T>> => {
+-  const url = new URL('https://www.jiosaavn.com/api.php')
++  /*
++   * PINGO: asked through a Supabase Edge Function pinned to Mumbai.
++   * JioSaavn answers by the caller's country and Cloudflare's outgoing
++   * addresses are not Indian, so straight from here it served a thin
++   * international catalogue ("fairytail": 10 instrumentals, not 358 songs).
++   */
++  const url = new URL('https://gpijpmepzowwhvgkriqu.supabase.co/functions/v1/saavn-proxy')
+ 
+   url.searchParams.append('__call', endpoint.toString())
+   url.searchParams.append('_format', 'json')
+@@ -28,7 +34,7 @@ export const useFetch = async <T>({ endpoint, params, context }: FetchParams): P
+   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)]
+ 
+   const response = await fetch(url.toString(), {
+-    headers: { 'Content-Type': 'application/json', 'User-Agent': randomUserAgent }
++    headers: { 'Content-Type': 'application/json', 'User-Agent': randomUserAgent, 'x-region': 'ap-south-1' }
+   })
+ 
+   const data = await response.json()
+diff --git a/wrangler.toml b/wrangler.toml
+index eee76ca..a49a6da 100644
+--- a/wrangler.toml
++++ b/wrangler.toml
+@@ -1,6 +1,10 @@
+-name = "jiosaavn-api"
++name = "pingo-music"
+ main = "./src/server.ts"
+ compatibility_date = "2024-09-28"
+ 
++# JioSaavn calls go through the saavn-proxy Edge Function in ap-south-1
++# (src/common/helpers/fetch.helper.ts): from Cloudflare's addresses JioSaavn
++# serves a thin international catalogue.
++
+ [observability]
+ enabled = true
