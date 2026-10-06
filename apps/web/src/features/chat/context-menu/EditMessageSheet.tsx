@@ -89,7 +89,7 @@ export function EditMessageSheet({ body, onCancel, onSave }: EditMessageSheetPro
               maxLength={4000}
               aria-label="Message"
               className={cn(
-                'lq-brand-glass-water min-h-[42px] min-w-0 flex-1 resize-none rounded-[20px] px-4 py-2.5',
+                'lq-bubble-mine min-h-[42px] min-w-0 flex-1 resize-none rounded-[20px] px-4 py-2.5',
                 'text-body text-on-brand outline-none placeholder:text-white/60',
               )}
             />
