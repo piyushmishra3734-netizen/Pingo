@@ -259,12 +259,15 @@ const CHEEKS = [
  * swings from, and the cheek it rubs - all in sheet pixels.
  */
 const PAW = { x: 161, y: 163, w: 42, h: 24 };
-const SHOULDER = { x: 186, y: 130 };
-const PAW_REST = { x: 182, y: 175 };
-const PAW_CHEEK = { x: 211, y: 93 };
-/** Upper arm and forearm, in sheet pixels: long enough to reach the ground and the cheek. */
-const UPPER_ARM = 24;
-const FOREARM = 27;
+/** The whole foreleg on the sheet, cut out of the body while it is up. */
+const LEG = { x: 163, y: 149, w: 40, h: 38 };
+/** Inside the chest, beside the white bib: the arm comes forward from in front of the body. */
+const SHOULDER = { x: 178, y: 140 };
+const PAW_REST = { x: 182, y: 176 };
+const PAW_CHEEK = { x: 204, y: 100 };
+/** Where the elbow is with the leg down, and with the paw at the cheek. */
+const ELBOW_DOWN = { x: 181, y: 158 };
+const ELBOW_UP = { x: 197, y: 132 };
 /** The sheet's own block size, so the arm is built from the same cubes as the cat. */
 const CUBE = 7;
 const FUR_LIT = 'rgb(58, 48, 70)';
@@ -293,6 +296,13 @@ function heart(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.closePath();
   ctx.fill();
 }
+
+/** Up past the mark by a few percent and back, so the paw lands rather than stops. */
+const pawLift = (t: number) => {
+  const c = 0.8;
+  const u = Math.max(0, Math.min(1, t)) - 1;
+  return 1 + (c + 1) * u * u * u + c * u * u;
+};
 
 /** Overshoots a little and settles, the way a cartoon pops into place. */
 const popIn = (t: number) => {
@@ -787,7 +797,7 @@ export function VoxelQr({
        * Up with a little overshoot, the way a cartoon paw pops into place, and
        * back down with a small bounce as it lands - never a straight slide.
        */
-      const up = grooming ? popIn(between(0, 0.16, groom) * 0.999) : 0;
+      const up = grooming ? pawLift(between(0, 0.16, groom)) : 0;
       const downT = grooming ? between(0.84, 1, groom) : 0;
       const down = downT * downT * (1 - 0.35 * Math.sin(downT * Math.PI));
       const raised = grooming ? Math.max(0, up * (1 - down)) : 0;
@@ -826,7 +836,7 @@ export function VoxelQr({
         ctx.rect(0, 0, f.w, f.h);
         ctx.rect(HEAD.x, HEAD.y, f.w - HEAD.x, HEAD.clipBelow);
         // While the paw is up, its place on the ground is empty.
-        if (raised > 0.02) ctx.rect(PAW.x, PAW.y, PAW.w, PAW.h);
+        if (raised > 0.02) ctx.rect(LEG.x, LEG.y, LEG.w, LEG.h);
         ctx.clip('evenodd');
         ctx.drawImage(sheet, 0, 0, f.w, f.h, 0, 0, f.w, f.h);
         ctx.restore();
@@ -888,40 +898,42 @@ export function VoxelQr({
 
           /*
             The foreleg, in two bones with an elbow between them, built from
-            the same cubes the cat is made of. The elbow always bends forward,
-            away from the chest, which is how a paw comes up to a face.
+            the same cubes the cat is made of. The shoulder is inside the chest
+            and the elbow swings forward and up on its own path, so the arm
+            always grows out of the body - straight down at the start, folded
+            up in front of the chest at the cheek.
           */
-          const reach = Math.hypot(pawX - SHOULDER.x, pawY - SHOULDER.y);
-          const span = Math.max(Math.abs(UPPER_ARM - FOREARM) + 1, Math.min(UPPER_ARM + FOREARM - 0.5, reach));
-          const toPaw = Math.atan2(pawY - SHOULDER.y, pawX - SHOULDER.x);
-          const bend = Math.acos(
-            Math.max(-1, Math.min(1, (UPPER_ARM ** 2 + span ** 2 - FOREARM ** 2) / (2 * UPPER_ARM * span))),
-          );
-          const elbowX = SHOULDER.x + Math.cos(toPaw - bend) * UPPER_ARM;
-          const elbowY = SHOULDER.y + Math.sin(toPaw - bend) * UPPER_ARM;
+          const elbowX = ELBOW_DOWN.x + (ELBOW_UP.x - ELBOW_DOWN.x) * raised;
+          const elbowY = ELBOW_DOWN.y + (ELBOW_UP.y - ELBOW_DOWN.y) * raised;
           const cubes = (x0: number, y0: number, x1: number, y1: number, size: number) => {
-            const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (CUBE * 0.7)));
-            for (let i = 0; i <= steps; i += 1) {
-              const t = i / steps;
-              // Snapped to the sheet's grid, so it reads as blocks, not a tube.
-              const x = Math.round((x0 + (x1 - x0) * t) / 2) * 2;
-              const y = Math.round((y0 + (y1 - y0) * t) / 2) * 2;
-              ctx.fillStyle = FUR_DARK;
-              ctx.fillRect(x - size / 2 + 1.5, y - size / 2 + 1.5, size, size);
-              ctx.fillStyle = FUR_MID;
-              ctx.fillRect(x - size / 2, y - size / 2, size, size);
-              ctx.fillStyle = FUR_LIT;
-              ctx.fillRect(x - size / 2, y - size / 2, size, 2);
+            const steps = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (CUBE * 0.35)));
+            // Shade first, then the face of every cube, so the shading never cuts across the limb.
+            for (const pass of [0, 1, 2]) {
+              for (let i = 0; i <= steps; i += 1) {
+                const t = i / steps;
+                const x = Math.round((x0 + (x1 - x0) * t) / 2) * 2;
+                const y = Math.round((y0 + (y1 - y0) * t) / 2) * 2;
+                if (pass === 0) {
+                  ctx.fillStyle = FUR_DARK;
+                  ctx.fillRect(x - size / 2 + 1.5, y - size / 2 + 1.5, size, size);
+                } else if (pass === 1) {
+                  ctx.fillStyle = FUR_MID;
+                  ctx.fillRect(x - size / 2, y - size / 2, size, size);
+                } else {
+                  ctx.fillStyle = FUR_LIT;
+                  ctx.fillRect(x - size / 2, y - size / 2, size, 1.6);
+                }
+              }
             }
           };
-          cubes(SHOULDER.x, SHOULDER.y, elbowX, elbowY, CUBE * 2);
-          cubes(elbowX, elbowY, pawX, pawY, CUBE * 1.7);
+          cubes(SHOULDER.x, SHOULDER.y, elbowX, elbowY, CUBE * 2.2);
+          cubes(elbowX, elbowY, pawX, pawY, CUBE * 1.9);
 
           // The paw itself, cut from the sheet, turned to follow the forearm so its pads face the cheek.
           ctx.save();
           ctx.translate(pawX, pawY);
           ctx.rotate(Math.atan2(pawY - elbowY, pawX - elbowX) - Math.PI / 2);
-          ctx.drawImage(sheet, PAW.x, PAW.y, PAW.w, PAW.h, -PAW.w / 2, -PAW.h * 0.4, PAW.w, PAW.h);
+          ctx.drawImage(sheet, PAW.x, PAW.y, PAW.w, PAW.h, -PAW.w * 0.42, -PAW.h * 0.4, PAW.w * 0.84, PAW.h * 0.84);
           ctx.restore();
 
           // A few sparkles off the rubbed cheek.
