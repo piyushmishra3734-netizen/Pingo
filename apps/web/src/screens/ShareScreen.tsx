@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { peekShare, takeShare, watchShare, type SharePayload } from '../features/share/share-store.js';
+import { parseSongShare } from '../features/music/song-share.js';
 
 /**
  * Send something to somebody, from anywhere.
@@ -44,6 +45,8 @@ export function ShareScreen() {
   useEffect(() => watchShare(setPayload), []);
 
   const first = payload?.files?.[0];
+  /** A song from PINGO Music: shown as its cover and name, not as the link that carries it. */
+  const song = !first && payload?.text ? parseSongShare(payload.text) : undefined;
 
   /*
    * A thumbnail only where there is something to see.
@@ -182,7 +185,13 @@ export function ShareScreen() {
           keep that shape wherever it is opened.
         */}
         <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl bg-surface p-3 shadow-sm">
-          {preview ? (
+          {song ? (
+            song.img ? (
+              <img src={song.img} alt="" className="size-14 shrink-0 rounded-lg object-cover" />
+            ) : (
+              <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-sunken text-h2">🎵</span>
+            )
+          ) : preview ? (
             <img
               src={preview}
               alt=""
@@ -212,7 +221,12 @@ export function ShareScreen() {
                 {first.name}
               </p>
             ) : null}
-            {payload.text ? (
+            {song ? (
+              <>
+                <p className="truncate text-body font-medium text-ink">{song.name}</p>
+                {song.artist ? <p className="truncate text-caption text-text-secondary">{song.artist}</p> : null}
+              </>
+            ) : payload.text ? (
               <p className="line-clamp-2 break-words text-caption text-text-secondary">
                 {payload.text}
               </p>

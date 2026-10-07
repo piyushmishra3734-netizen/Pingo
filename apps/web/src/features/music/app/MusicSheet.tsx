@@ -1,8 +1,13 @@
 import { cn } from '@pingo/ui';
-import { ChevronDown, ChevronLeft, Heart, ListEnd, ListPlus, ListStart, Loader2, Pause, Play, Plus, Radio, Search, UserRound, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Heart, ListEnd, ListPlus, ListStart, Loader2, Pause, Play, Plus, Radio, Search, Send, UserRound, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useBackStep } from '../../navigation/useBackStep.js';
+import { putShare } from '../../share/share-store.js';
+import { fromSaavn } from '../catalogue.js';
+import { songBody } from '../song-share.js';
+import * as api from '../saavn/api.js';
 import { useMusicPlayer } from '../player.js';
 import * as library from '../saavn/library.js';
 import * as playback from '../saavn/playback.js';
@@ -117,6 +122,29 @@ export default function MusicSheet() {
       }
     },
     [push],
+  );
+
+  /**
+   * A song to a friend: the same card the chat's Music tab sends, through the
+   * app's one "send to somebody" screen. The sheet steps aside for it and is
+   * where it was when they come back.
+   */
+  const navigate = useNavigate();
+  const sendToChat = useCallback(
+    async (s: Song) => {
+      setActions(undefined);
+      const full = api.streamUrl(s, 'normal') ? s : await api.song(s.id).catch(() => undefined);
+      const shared = full && fromSaavn(full);
+      if (!shared) {
+        toast("This song can't be sent");
+        return;
+      }
+      putShare({ text: songBody(shared), label: 'Send song' });
+      setNp(false);
+      closeMusic();
+      navigate('/share');
+    },
+    [navigate, toast],
   );
 
   const ctx: MusicCtx = useMemo(() => {
@@ -303,6 +331,7 @@ export default function MusicSheet() {
                   if (text) toast(text);
                 }}
                 goArtist={goArtist}
+                send={() => void sendToChat(actions)}
               />
             </>
           )}
@@ -365,17 +394,22 @@ function ActionList({
   playlists,
   done,
   goArtist,
+  send,
 }: {
   song: Song;
   liked: boolean;
   playlists: { id: string; name: string }[];
   done: (toast?: string) => void;
   goArtist: (a: { id: string; name: string }) => void;
+  send: () => void;
 }) {
   const artist = song.artists[0];
   const row = 'flex w-full items-center gap-4 px-5 py-3 text-left text-[15px] active:bg-sunken';
   return (
     <div>
+      <button type="button" className={row} onClick={send}>
+        <Send size={21} className="text-text-secondary" /> Send to chat
+      </button>
       <button type="button" className={row} onClick={() => (playback.playNext([song]), done('Playing next'))}>
         <ListStart size={21} className="text-text-secondary" /> Play next
       </button>
