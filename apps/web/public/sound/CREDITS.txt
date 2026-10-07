@@ -10,3 +10,13 @@ listening: this one has the most high-frequency content and the least
 low-frequency rumble, which is the difference between light rain and a
 downpour, and it is the steadiest and the longest, which is what keeps a
 loop from announcing itself.
+
+received.mp3
+
+"Carme" from the Android Open Source Project's notification sounds,
+frameworks/base/data/sounds/notifications/material/ogg/Carme_48k.ogg
+(https://android.googlesource.com/platform/frameworks/base/+/main/data/sounds).
+Copyright The Android Open Source Project. Licence: Apache License 2.0
+(https://www.apache.org/licenses/LICENSE-2.0). Converted from Ogg Vorbis
+to mono MP3 so it plays on iPhone Safari too, and lowered 2 dB so the
+downmix does not clip. No other change.

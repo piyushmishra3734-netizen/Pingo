@@ -1,11 +1,12 @@
 /**
- * PINGO's message sounds, synthesised.
+ * PINGO's message sounds. Sent is synthesised; received is a recording, with
+ * the synthesised one as its fallback.
  *
- * Nothing is downloaded and nothing is decoded: every sound here is a few sine
- * oscillators and a noise burst, built at the moment it plays. That is not a
- * shortcut — it is what makes the latency zero, the payload zero, and the
- * licensing question not exist. It also keeps the sounds in tune at any device
- * sample rate, which a shipped 44.1 kHz asset does not on a 48 kHz phone.
+ * The synthesised sounds are a few sine oscillators and a noise burst, built at
+ * the moment they play: no download, no decode, zero latency. The recorded
+ * received sound (an 11 KB MP3, decoded once) replaced the synthesised one
+ * because people heard the difference; the design notes below describe the
+ * synth, which still plays until the recording has loaded.
  *
  * ## The design, in one paragraph
  *
@@ -247,12 +248,66 @@ export function primeMessageSounds(): void {
   source.buffer = buffer;
   source.connect(ctx.destination);
   source.start();
+
+  // Fetch and decode the recorded sounds now, so the first message has them.
+  for (const kind of Object.keys(RECORDED) as MessageSound[]) loadRecorded(ctx, kind);
+}
+
+/**
+ * Received is a recorded sound: "Carme", from Android's own notification set
+ * (Apache 2.0, see `public/sound/CREDITS.txt`).
+ *
+ * Decoded once into a buffer and played from the same context as everything
+ * else, so it keeps the throttle's gain and costs no latency after the first
+ * load. Until the file has arrived, or if it never does, the synthesised
+ * `RECEIVED` plays in its place: a message never lands silently because a
+ * fetch was slow.
+ */
+const RECORDED: { [K in MessageSound]?: string } = { received: '/sound/received.mp3' };
+
+/** The recording is a full notification; this keeps it level with the synth. */
+const RECORDED_GAIN = 0.55;
+
+const buffers = new Map<MessageSound, AudioBuffer>();
+const loading = new Set<MessageSound>();
+
+function loadRecorded(ctx: AudioContext, kind: MessageSound): void {
+  const url = RECORDED[kind];
+  if (!url || buffers.has(kind) || loading.has(kind)) return;
+  loading.add(kind);
+  fetch(url)
+    .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(String(res.status)))))
+    .then((data) => ctx.decodeAudioData(data))
+    .then((buffer) => {
+      buffers.set(kind, buffer);
+    })
+    .catch(() => undefined)
+    .finally(() => loading.delete(kind));
+}
+
+function playRecorded(ctx: AudioContext, kind: MessageSound, gain: number): boolean {
+  const buffer = buffers.get(kind);
+  if (!buffer) {
+    loadRecorded(ctx, kind);
+    return false;
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  // The same anti-sameness as the synth: a fraction of a percent off each time.
+  source.playbackRate.value = 1 + (Math.random() * 2 - 1) * (DETUNE / 3);
+  const level = ctx.createGain();
+  level.gain.value = gain * RECORDED_GAIN;
+  source.connect(level);
+  level.connect(ctx.destination);
+  source.start();
+  return true;
 }
 
 /** Build and schedule one sound. Returns false when audio is unavailable. */
 export function playMessageSound(kind: MessageSound, gain = 1): boolean {
   const ctx = audioContext();
   if (!ctx || ctx.state !== 'running') return false;
+  if (playRecorded(ctx, kind, gain)) return true;
 
   const design = DESIGNS[kind];
   const now = ctx.currentTime;
@@ -332,4 +387,5 @@ export function playMessageSound(kind: MessageSound, gain = 1): boolean {
 export function resetMessageSounds(): void {
   void context?.close().catch(() => undefined);
   context = undefined;
+  buffers.clear();
 }
