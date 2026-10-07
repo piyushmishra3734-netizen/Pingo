@@ -491,6 +491,17 @@
             var done = function () {
               location.reload();
             };
+            /*
+             * Clearing Cache Storage is not enough on its own: the browser's
+             * HTTP cache can hold the same wrong file for hours (the
+             * pingochat.xyz edge sends max-age=14400), and a plain reload is
+             * answered from it. Fetching each stylesheet and the entry script
+             * again with `cache: 'reload'` replaces those entries before the reload.
+             */
+            var refetch = [];
+            document.querySelectorAll('link[rel="stylesheet"][href^="/assets/"], script[type="module"][src^="/assets/"]').forEach(function (el) {
+              refetch.push(el.getAttribute('href') || el.getAttribute('src'));
+            });
             var jobs = [];
             if (window.caches && caches.keys) {
               jobs.push(
@@ -506,7 +517,14 @@
                 }),
               );
             }
-            Promise.all(jobs).then(done, done);
+            var settled = function () {
+              return Promise.all(
+                refetch.map(function (url) {
+                  return fetch(url, { cache: 'reload' }).catch(function () {});
+                }),
+              );
+            };
+            Promise.all(jobs).then(settled, settled).then(done, done);
           }, 5000);
         });
       })();

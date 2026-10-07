@@ -6,6 +6,12 @@
  * component; this file stays short by design.
  */
 
+/*!
+ * Stylesheet revision 2. Changing this line renames the built CSS file, which
+ * is the only way past a copy of the fallback page that browsers and the
+ * pingochat.xyz edge kept under the old name for four hours (2026-10-07).
+ */
+
 @import 'tailwindcss';
 
 /* The theme, straight from the design-system package. */
