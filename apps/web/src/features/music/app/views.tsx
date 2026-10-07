@@ -88,8 +88,25 @@ export function HomeView() {
   const last = lib.plays[0]?.song;
   const langs = useMemo(() => homeLanguages(library.currentTaste()), []);
   const home = useLoad(`home:${langs.join()}`, () => api.home(langs));
+  // Last time's home, painted at once while today's arrives: the first answer can take seconds.
+  const savedKey = `pingo-music-home:${langs.join()}`;
+  const saved = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem(savedKey) ?? 'null') as { modules: Module[] } | null;
+    } catch {
+      return null;
+    }
+  }, [savedKey]);
+  useEffect(() => {
+    if (!home.data) return;
+    try {
+      localStorage.setItem(savedKey, JSON.stringify(home.data));
+    } catch {
+      // Storage full or blocked: the next open just waits for the network.
+    }
+  }, [home.data, savedKey]);
   const because = useLoad(last ? `because:${last.id}` : 'because:none', () => (last ? api.songRadio([last.id], 10).then((r) => r.songs) : Promise.resolve([] as Song[])));
-  const mods = home.data?.modules ?? [];
+  const mods = home.data?.modules ?? saved?.modules ?? [];
   const moods = mods.find((m) => /mood|genre/i.test(m.title));
   const first = mods.find((m) => songsOf(m.items).length > 2);
   const fallback = first ? songsOf(first.items) : [];
@@ -137,8 +154,8 @@ export function HomeView() {
         </>
       )}
 
-      {home.loading && <Loading />}
-      {home.error && <Failed text={home.error} />}
+      {home.loading && !mods.length && <Loading />}
+      {home.error && !mods.length && <Failed text={home.error} />}
 
       {moods && (
         <section>
@@ -176,8 +193,8 @@ export function SearchView({ q, onPick }: { q: string; onPick: (q: string) => vo
   const top = useLoad(term ? undefined : 'top-searches', () => api.topSearches());
   const res = useLoad(term ? `search:${term.toLowerCase()}` : undefined, () => api.searchAll(term));
   const remember = () => library.rememberSearch(term);
-  /** The search whose songs are open in full ("See all songs"). */
-  const [allFor, setAllFor] = useState<string>();
+  /** What is open in full ("See all") and for which search. */
+  const [all, setAll] = useState<{ term: string; kind: AllKind }>();
   const openRemember: Open = useMemo(
     () => ({
       album: (a) => (remember(), open.album(a)),
@@ -232,18 +249,25 @@ export function SearchView({ q, onPick }: { q: string; onPick: (q: string) => vo
   const empty = !r.songs.length && !r.artists.length && !r.albums.length && !r.playlists.length;
   if (empty) return <p className="px-8 py-12 text-center text-[13.5px] leading-relaxed text-text-secondary">Nothing found for "{term}".<br />Try spelling it the way it sounds.</p>;
   const best = r.top[0];
-  if (allFor === term) {
+  if (all?.term === term) {
     return (
       <div className="pb-32">
-        <button type="button" onClick={() => setAllFor(undefined)} className="mx-[18px] mt-3 flex items-center gap-1 text-[13px] font-medium text-text-secondary">
+        <button type="button" onClick={() => setAll(undefined)} className="mx-[18px] mt-3 flex items-center gap-1 text-[13px] font-medium text-text-secondary">
           <ChevronLeft size={16} />
           All results
         </button>
-        <Heading first>Songs for "{term}"</Heading>
-        <AllSongs key={`all-${term}`} term={term} first={r.songs} onPlay={remember} all />
+        <Heading first>
+          {ALL_TITLE[all.kind]} for "{term}"
+        </Heading>
+        {all.kind === 'songs' ? (
+          <AllSongs key={`all-${term}`} term={term} first={r.songs} onPlay={remember} all />
+        ) : (
+          <AllItems key={`${all.kind}-${term}`} kind={all.kind} term={term} first={r[all.kind]} open={openRemember} />
+        )}
       </div>
     );
   }
+  const seeAll = (kind: AllKind) => () => setAll({ term, kind });
   return (
     <div className="pb-32">
       {r.corrected && (
@@ -262,28 +286,79 @@ export function SearchView({ q, onPick }: { q: string; onPick: (q: string) => vo
       {!!r.songs.length && (
         <>
           <Heading first={!best || best.type === 'song'}>Songs</Heading>
-          <AllSongs key={term} term={term} first={r.songs} onPlay={remember} onAll={() => setAllFor(term)} />
+          <AllSongs key={term} term={term} first={r.songs} onPlay={remember} onAll={seeAll('songs')} />
         </>
       )}
       {!!r.artists.length && (
         <>
-          <Heading>Artists</Heading>
+          <Heading onAll={seeAll('artists')}>Artists</Heading>
           <Strip>{r.artists.map((it) => <ItemTile key={it.id} item={it} open={openRemember} />)}</Strip>
         </>
       )}
       {!!r.albums.length && (
         <>
-          <Heading>Albums</Heading>
+          <Heading onAll={seeAll('albums')}>Albums</Heading>
           <Strip>{r.albums.map((it) => <ItemTile key={it.id} item={it} open={openRemember} small />)}</Strip>
         </>
       )}
       {!!r.playlists.length && (
         <>
-          <Heading>Playlists</Heading>
+          <Heading onAll={seeAll('playlists')}>Playlists</Heading>
           <Strip>{r.playlists.map((it) => <ItemTile key={it.id} item={it} open={openRemember} small />)}</Strip>
         </>
       )}
     </div>
+  );
+}
+
+type AllKind = 'songs' | 'artists' | 'albums' | 'playlists';
+const ALL_TITLE: Record<AllKind, string> = { songs: 'Songs', artists: 'Artists', albums: 'Albums', playlists: 'Playlists' };
+const SEARCH_PAGE = { artists: api.searchArtists, albums: api.searchAlbums, playlists: api.searchPlaylists } as const;
+
+/** Every artist, album or playlist for a search, in a grid, page by page as the end nears. */
+function AllItems({ kind, term, first, open }: { kind: Exclude<AllKind, 'songs'>; term: string; first: Item[]; open: Open }) {
+  const [items, setItems] = useState<Item[]>(first);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const end = useRef<HTMLDivElement>(null);
+  const loadMore = useRef<() => void>(() => {});
+  loadMore.current = () => {
+    if (busy || !hasMore) return;
+    setBusy(true);
+    (SEARCH_PAGE[kind](term, page + 1) as Promise<{ items: Item[]; page: number; more: boolean }>).then(
+      (r) => {
+        setItems((cur) => {
+          const seen = new Set(cur.map((i) => i.id));
+          return [...cur, ...r.items.filter((i) => !seen.has(i.id))];
+        });
+        setPage(r.page);
+        setHasMore(r.more && r.items.length > 0);
+        setBusy(false);
+      },
+      () => {
+        setHasMore(false);
+        setBusy(false);
+      },
+    );
+  };
+  useEffect(() => {
+    if (busy || !hasMore || !end.current) return undefined;
+    const io = new IntersectionObserver((e) => e[0]?.isIntersecting && loadMore.current(), { rootMargin: '600px' });
+    io.observe(end.current);
+    return () => io.disconnect();
+  }, [busy, hasMore, items.length]);
+  return (
+    <>
+      <div className={cn('grid gap-x-3.5 gap-y-5 px-[18px]', kind === 'artists' ? 'grid-cols-3' : 'grid-cols-2')}>
+        {items.map((it) => (
+          <ItemTile key={`${it.type}-${it.id}`} item={it} open={open} fill />
+        ))}
+      </div>
+      <div ref={end} className="grid h-16 place-items-center text-[12.5px] text-text-tertiary">
+        {busy ? <span className="size-5 animate-spin rounded-full border-2 border-line border-t-ink" aria-label="Loading more" /> : null}
+      </div>
+    </>
   );
 }
 
