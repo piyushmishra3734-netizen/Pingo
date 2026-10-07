@@ -7,7 +7,7 @@ import { musicPlayer, useMusicPlayer } from '../player.js';
 import * as api from '../saavn/api.js';
 import * as library from '../saavn/library.js';
 import * as playback from '../saavn/playback.js';
-import type { Song } from '../saavn/types.js';
+import type { Lyrics, Song } from '../saavn/types.js';
 import { SongRow, clean, fmt, names, useLoad } from './parts.js';
 
 type Panel = 'lyrics' | 'queue' | undefined;
@@ -22,6 +22,12 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
   const lib = library.useLibrary();
   const [panel, setPanel] = useState<Panel>();
   const song = playback.Q.current(queue);
+  /*
+   * Asked for as soon as the player is up, so the button already says whether
+   * there are any. A song found by search does not always say, so every song is asked.
+   */
+  const lyrics = useLoad(open && song ? `lyrics:${song.id}` : undefined, () => api.lyrics(song!.id));
+  const noLyrics = !!lyrics.error || (!!lyrics.data && !lyrics.data.lines.some((l) => l.trim()));
 
   useBackStep(open && !panel, onClose);
   useBackStep(open && !!panel, () => setPanel(undefined));
@@ -127,9 +133,14 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
       </div>
 
       <div className="relative mb-[max(14px,env(safe-area-inset-bottom))] mt-4 flex justify-center gap-2 px-7">
-        <button type="button" onClick={() => setPanel('lyrics')} className="flex h-10 items-center gap-2 rounded-full px-4 text-[13.5px] font-medium text-text-secondary active:bg-sunken">
+        <button
+          type="button"
+          disabled={noLyrics}
+          onClick={() => setPanel('lyrics')}
+          className="flex h-10 items-center gap-2 rounded-full px-4 text-[13.5px] font-medium text-text-secondary active:bg-sunken disabled:text-text-tertiary disabled:opacity-70"
+        >
           <MicVocal size={18} />
-          Lyrics
+          {noLyrics ? 'Lyrics unsupported' : 'Lyrics'}
         </button>
         <button type="button" onClick={() => setPanel('queue')} className="flex h-10 items-center gap-2 rounded-full px-4 text-[13.5px] font-medium text-text-secondary active:bg-sunken">
           <ListMusic size={18} />
@@ -138,7 +149,7 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
       </div>
 
       <Sheet open={panel === 'lyrics'} title="Lyrics" onClose={() => setPanel(undefined)}>
-        {panel === 'lyrics' && <LyricsBody song={song} />}
+        {panel === 'lyrics' && <LyricsBody lyrics={lyrics} />}
       </Sheet>
       <Sheet open={panel === 'queue'} title="Up next" onClose={() => setPanel(undefined)}>
         {panel === 'queue' && <QueueBody onMore={onMore} />}
@@ -220,11 +231,9 @@ function Sheet({ open, title, onClose, children }: { open: boolean; title: strin
   );
 }
 
-function LyricsBody({ song }: { song: Song }) {
-  // Asked for every song: a song found by search does not always say whether it has them.
-  const l = useLoad(`lyrics:${song.id}`, () => api.lyrics(song.id));
+function LyricsBody({ lyrics: l }: { lyrics: { data?: Lyrics; error?: string; loading: boolean } }) {
   if (l.loading) return <Loader2 size={22} className="mx-auto mt-12 animate-spin text-text-tertiary" />;
-  if (l.error || !l.data?.lines.length) return <p className="px-8 py-12 text-center text-[14px] text-text-secondary">No lyrics for this one yet.</p>;
+  if (l.error || !l.data?.lines.length) return <p className="px-8 py-12 text-center text-[14px] text-text-secondary">Lyrics unsupported for this song.</p>;
   return (
     <div className="px-6 pt-2">
       {l.data.lines.map((line, i) => (line.trim() ? (

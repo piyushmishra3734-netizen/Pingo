@@ -156,20 +156,20 @@ export function SongRow({
 }
 
 /** A square tile in a sideways row: a song, album or playlist. */
-export function Tile({ img, title, sub, small, onClick }: { img?: string; title: string; sub?: string; small?: boolean; onClick: () => void }) {
+export function Tile({ img, title, sub, small, fill, onClick }: { img?: string; title: string; sub?: string; small?: boolean; /** As wide as its grid cell. */ fill?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={cn('group shrink-0 snap-start text-left', small ? 'w-28' : 'w-[136px]')}>
-      <Cover src={img} className={cn('transition-transform duration-quick group-active:scale-95', small ? 'size-28' : 'size-[136px]', 'rounded-xl')} />
+    <button type="button" onClick={onClick} className={cn('group shrink-0 snap-start text-left', fill ? 'w-full min-w-0' : small ? 'w-28' : 'w-[136px]')}>
+      <Cover src={img} className={cn('transition-transform duration-quick group-active:scale-95', fill ? 'aspect-square h-auto w-full' : small ? 'size-28' : 'size-[136px]', 'rounded-xl')} />
       <b className="mt-2 block truncate text-[13.5px] font-medium">{clean(title)}</b>
       {sub && <small className="block truncate text-[12px] text-text-secondary">{sub}</small>}
     </button>
   );
 }
 
-export function RoundTile({ img, title, sub, onClick }: { img?: string; title: string; sub?: string; onClick: () => void }) {
+export function RoundTile({ img, title, sub, fill, onClick }: { img?: string; title: string; sub?: string; fill?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="w-[84px] shrink-0 snap-start text-center">
-      <Cover src={img} round className="size-[84px]" />
+    <button type="button" onClick={onClick} className={cn('shrink-0 snap-start text-center', fill ? 'w-full min-w-0' : 'w-[84px]')}>
+      <Cover src={img} round className={fill ? 'aspect-square h-auto w-full' : 'size-[84px]'} />
       <b className="mt-1.5 block truncate text-[12px] font-medium">{title}</b>
       {sub && <small className="block text-[11px] text-text-secondary">{sub}</small>}
     </button>
@@ -180,8 +180,17 @@ export function Strip({ children }: { children: ReactNode }) {
   return <div className="flex snap-x snap-mandatory scroll-px-[18px] gap-3.5 overflow-x-auto px-[18px] pb-1 scrollbar-none">{children}</div>;
 }
 
-export function Heading({ children, first }: { children: ReactNode; first?: boolean }) {
-  return <h3 className={cn('mx-[18px] mb-3 text-[17px] font-semibold tracking-[-0.01em]', first ? 'mt-4' : 'mt-7')}>{children}</h3>;
+export function Heading({ children, first, onAll }: { children: ReactNode; first?: boolean; /** A "See all" at the end of the line. */ onAll?: () => void }) {
+  const h = <h3 className={cn('text-[17px] font-semibold tracking-[-0.01em]', !onAll && 'mx-[18px] mb-3', !onAll && (first ? 'mt-4' : 'mt-7'))}>{children}</h3>;
+  if (!onAll) return h;
+  return (
+    <div className={cn('mx-[18px] mb-3 flex items-baseline justify-between gap-3', first ? 'mt-4' : 'mt-7')}>
+      {h}
+      <button type="button" onClick={onAll} className="shrink-0 text-[13.5px] font-medium text-text-secondary">
+        See all
+      </button>
+    </div>
+  );
 }
 
 export function Note({ children }: { children: ReactNode }) {
@@ -198,19 +207,20 @@ export interface Open {
   song: (s: Song, list?: Song[]) => void;
 }
 
-export function ItemTile({ item, open, small, list }: { item: Item; open: Open; small?: boolean; list?: Song[] }) {
+export function ItemTile({ item, open, small, fill, list }: { item: Item; open: Open; small?: boolean; fill?: boolean; list?: Song[] }) {
+  const f = fill ? { fill } : {};
   switch (item.type) {
     case 'song':
-      return <Tile img={item.image} title={item.name} sub={names(item)} {...(small ? { small } : {})} onClick={() => open.song(item, list)} />;
+      return <Tile {...f} img={item.image} title={item.name} sub={names(item)} {...(small ? { small } : {})} onClick={() => open.song(item, list)} />;
     case 'album':
-      return <Tile img={item.image} title={item.name} sub={item.subtitle || names(item) || 'Album'} {...(small ? { small } : {})} onClick={() => open.album(item)} />;
+      return <Tile {...f} img={item.image} title={item.name} sub={item.subtitle || names(item) || 'Album'} {...(small ? { small } : {})} onClick={() => open.album(item)} />;
     case 'playlist':
-      return <Tile img={item.image} title={item.name} sub={item.subtitle || 'Playlist'} {...(small ? { small } : {})} onClick={() => open.playlist(item)} />;
+      return <Tile {...f} img={item.image} title={item.name} sub={item.subtitle || 'Playlist'} {...(small ? { small } : {})} onClick={() => open.playlist(item)} />;
     case 'artist':
-      return <RoundTile img={item.image} title={item.name} sub="Artist" onClick={() => open.artist(item)} />;
+      return <RoundTile {...f} img={item.image} title={item.name} sub="Artist" onClick={() => open.artist(item)} />;
     case 'station':
-      return <RoundTile img={item.image} title={item.name} sub="Radio" onClick={() => open.station(item)} />;
+      return <RoundTile {...f} img={item.image} title={item.name} sub="Radio" onClick={() => open.station(item)} />;
     case 'channel':
-      return <Tile img={item.image} title={item.name} sub="Mood" {...(small ? { small } : {})} onClick={() => open.channel(item)} />;
+      return <Tile {...f} img={item.image} title={item.name} sub="Mood" {...(small ? { small } : {})} onClick={() => open.channel(item)} />;
   }
 }
