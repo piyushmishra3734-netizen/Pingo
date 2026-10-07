@@ -26,6 +26,21 @@ export interface PlayerState {
 }
 
 let state: PlayerState = { playing: false, loading: false, failed: false, at: 0, length: 0, speed: 1 };
+
+/**
+ * A queue driving the player (PINGO Music, `saavn/playback.ts`), when there is
+ * one. Without it a song plays once and stops, as a song card in a chat does;
+ * with it the end of a song moves the queue on, and the phone's next and
+ * previous buttons work.
+ */
+export interface QueueControls {
+  next(auto: boolean): void;
+  prev(): void;
+}
+let queue: QueueControls | undefined;
+export function setQueueControls(controls: QueueControls | undefined) {
+  queue = controls;
+}
 const listeners = new Set<() => void>();
 let audio: HTMLAudioElement | undefined;
 
@@ -43,7 +58,11 @@ function element(): HTMLAudioElement {
   a.addEventListener('playing', () => set({ playing: true, loading: false, failed: false }));
   a.addEventListener('waiting', () => set({ loading: true }));
   a.addEventListener('pause', () => set({ playing: false }));
-  a.addEventListener('ended', () => { a.currentTime = 0; set({ playing: false, at: 0 }); });
+  a.addEventListener('ended', () => {
+    if (queue) { queue.next(true); return; }
+    a.currentTime = 0;
+    set({ playing: false, at: 0 });
+  });
   a.addEventListener('error', () => { if (a.src) set({ playing: false, loading: false, failed: true }); });
   audio = a;
   return a;
@@ -66,6 +85,8 @@ function mediaSession(song: SharedSong) {
     session.setActionHandler('seekforward', () => musicPlayer.seek(state.at + 10));
     session.setActionHandler('seekto', (d) => { if (d.seekTime !== undefined) musicPlayer.seek(d.seekTime); });
     session.setActionHandler('stop', () => musicPlayer.close());
+    session.setActionHandler('nexttrack', queue ? () => queue?.next(false) : null);
+    session.setActionHandler('previoustrack', queue ? () => queue?.prev() : null);
   } catch {
     // Some browsers know the API but not every action. The in-app controls still work.
   }
@@ -122,6 +143,10 @@ export const musicPlayer = {
 
 const subscribe = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
 const snapshot = () => state;
+
+/** For code outside React (the queue) that has to follow the player. */
+export const watchPlayer = subscribe;
+export const playerState = snapshot;
 
 export function useMusicPlayer(): PlayerState {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
