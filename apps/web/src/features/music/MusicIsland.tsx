@@ -67,7 +67,7 @@ function useRubberPull(target: { readonly current: HTMLElement | null }, enabled
   const pulled = useRef(false);
 
   /** Rubber: follows near 1:1 to begin with, and never passes `reach`. */
-  const give = (d: number, reach: number) => (d * reach * 0.55) / (reach + 0.55 * Math.abs(d));
+  const give = (d: number, reach: number) => (d * reach * 0.85) / (reach + 0.85 * Math.abs(d));
 
   const paint = (x: number, y: number) => {
     const el = target.current;
@@ -82,8 +82,8 @@ function useRubberPull(target: { readonly current: HTMLElement | null }, enabled
   /** A damped spring home from where it was let go, starting at the finger's speed. */
   const release = (x: number, y: number, vx: number, vy: number) => {
     cancelAnimationFrame(frame.current);
-    const stiffness = 320;
-    const damping = 15;
+    const stiffness = 210;
+    const damping = 11;
     let px = x;
     let py = y;
     let ux = vx;
@@ -125,8 +125,8 @@ function useRubberPull(target: { readonly current: HTMLElement | null }, enabled
       d.moved = true;
       event.currentTarget.setPointerCapture(event.pointerId);
     }
-    const nx = give(rawX, 140);
-    const ny = give(rawY, 70);
+    const nx = give(rawX, 300);
+    const ny = give(rawY, 160);
     const now = performance.now();
     const dt = Math.max(1, now - d.t) / 1000;
     d.vx = (nx - d.dx) / dt;
