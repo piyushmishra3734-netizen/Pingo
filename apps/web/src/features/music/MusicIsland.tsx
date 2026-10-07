@@ -44,6 +44,121 @@ const fmt = (s: number) => {
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 };
 
+/**
+ * Pulled about by a finger, it gives the way rubber does, and let go it springs
+ * back home.
+ *
+ * The give is the iPhone's own scroll-edge curve: it follows the finger at
+ * first and stiffens the further it goes, so it can be tugged but never thrown
+ * off the screen. It stretches a touch along the pull, which is what makes it
+ * read as soft rather than as a box being moved.
+ *
+ * Driven through the `translate` and `scale` properties rather than
+ * `transform`: React owns `transform` (the shape's own spring), and the player
+ * re-renders several times a second. These two it never touches, so a drag is
+ * never reset under the finger, and they compose with the shape's transform.
+ */
+function useRubberPull(target: { readonly current: HTMLElement | null }, enabled: boolean) {
+  const drag = useRef<
+    { id: number; x: number; y: number; dx: number; dy: number; vx: number; vy: number; t: number; moved: boolean } | undefined
+  >(undefined);
+  const frame = useRef(0);
+  /** Set when the last press was a pull, so the click it ends with does not open the player. */
+  const pulled = useRef(false);
+
+  /** Rubber: follows near 1:1 to begin with, and never passes `reach`. */
+  const give = (d: number, reach: number) => (d * reach * 0.55) / (reach + 0.55 * Math.abs(d));
+
+  const paint = (x: number, y: number) => {
+    const el = target.current;
+    if (!el) return;
+    el.style.translate = x || y ? `${x.toFixed(2)}px ${y.toFixed(2)}px` : '';
+    // Stretched along the pull, kept to its volume across it.
+    const stretch = Math.min(0.14, Math.hypot(x, y) / 600);
+    const along = Math.abs(x) >= Math.abs(y);
+    el.style.scale = stretch > 0.002 ? (along ? `${1 + stretch} ${1 - stretch / 2}` : `${1 - stretch / 2} ${1 + stretch}`) : '';
+  };
+
+  /** A damped spring home from where it was let go, starting at the finger's speed. */
+  const release = (x: number, y: number, vx: number, vy: number) => {
+    cancelAnimationFrame(frame.current);
+    const stiffness = 320;
+    const damping = 15;
+    let px = x;
+    let py = y;
+    let ux = vx;
+    let uy = vy;
+    let before = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(0.032, (now - before) / 1000);
+      before = now;
+      ux += (-stiffness * px - damping * ux) * dt;
+      uy += (-stiffness * py - damping * uy) * dt;
+      px += ux * dt;
+      py += uy * dt;
+      if (Math.abs(px) < 0.3 && Math.abs(py) < 0.3 && Math.hypot(ux, uy) < 8) {
+        paint(0, 0);
+        return;
+      }
+      paint(px, py);
+      frame.current = requestAnimationFrame(step);
+    };
+    frame.current = requestAnimationFrame(step);
+  };
+
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!enabled || event.button !== 0) return;
+    cancelAnimationFrame(frame.current);
+    pulled.current = false;
+    drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, dy: 0, vx: 0, vy: 0, t: performance.now(), moved: false };
+  };
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== event.pointerId) return;
+    const rawX = event.clientX - d.x;
+    const rawY = event.clientY - d.y;
+    if (!d.moved) {
+      if (Math.hypot(rawX, rawY) < 6) return;
+      d.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    const nx = give(rawX, 140);
+    const ny = give(rawY, 70);
+    const now = performance.now();
+    const dt = Math.max(1, now - d.t) / 1000;
+    d.vx = (nx - d.dx) / dt;
+    d.vy = (ny - d.dy) / dt;
+    d.dx = nx;
+    d.dy = ny;
+    d.t = now;
+    paint(nx, ny);
+  };
+
+  const onPointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== event.pointerId) return;
+    drag.current = undefined;
+    if (!d.moved) return;
+    pulled.current = true;
+    // A finger lifted after holding still has no speed left in it.
+    const stale = performance.now() - d.t > 80;
+    release(d.dx, d.dy, stale ? 0 : d.vx, stale ? 0 : d.vy);
+  };
+
+  return {
+    handlers: { onPointerDown, onPointerMove, onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd },
+    /** True once, right after a pull: the click that follows is the release, not a tap. */
+    wasPull: () => {
+      const was = pulled.current;
+      pulled.current = false;
+      return was;
+    },
+  };
+}
+
 export function MusicIsland() {
   const player = useMusicPlayer();
   const { pathname } = useLocation();
@@ -116,6 +231,8 @@ export function MusicIsland() {
   }, [shape]);
 
   useEffect(() => () => window.clearTimeout(settle.current), []);
+
+  const pull = useRubberPull(box, shape === 'pill' && !still);
 
   if (!shown || shape === 'gone' || pathname.startsWith('/camera')) return null;
 
@@ -196,11 +313,14 @@ export function MusicIsland() {
       {/* The pill: the cover and a few bars that dance while it plays. */}
       <button
         type="button"
-        onClick={open}
+        {...pull.handlers}
+        onClick={() => {
+          if (!pull.wasPull()) open();
+        }}
         aria-label={`${shown.name}, open the player`}
         tabIndex={isOpen ? -1 : 0}
         className={cn(
-          'focus-ring absolute inset-0 flex items-center justify-between px-[6px] transition-[opacity,filter,transform] duration-200 active:scale-95',
+          'focus-ring absolute inset-0 flex touch-none items-center justify-between px-[6px] transition-[opacity,filter,transform] duration-200 active:scale-95',
           isOpen ? 'pointer-events-none scale-90 opacity-0 blur-[6px]' : 'scale-100 opacity-100 blur-0 delay-75',
         )}
       >
