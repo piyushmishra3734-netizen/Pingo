@@ -40,12 +40,40 @@ export function updateNoticeUrl(row: UpdateNoticeRow): string {
 }
 
 /**
+ * The card's picture, made small before it is published.
+ *
+ * Every phone fetches it, and a designed PNG straight from the editor was
+ * 1.4 MB - most of the project's cached egress after an update. Re-encoded as
+ * WebP at most 1080 px wide it is about a tenth of that and looks the same on
+ * a phone. Kept as uploaded if the browser cannot encode WebP or the result is
+ * not smaller.
+ */
+async function compactImage(file: File): Promise<File> {
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1080 / bitmap.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.85));
+    if (!blob || blob.type !== 'image/webp' || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' });
+  } catch {
+    return file;
+  }
+}
+
+/**
  * Publishes (or replaces) the notice.
  *
  * The stored path carries the build number, so replacing a notice cannot be
  * served from a cache keyed on the old one — and `updated_at` busts the rest.
  */
-export async function uploadUpdateNotice(file: File, minBuild: number): Promise<UpdateNoticeRow> {
+export async function uploadUpdateNotice(input: File, minBuild: number): Promise<UpdateNoticeRow> {
+  let file = input;
   if (!file.type.startsWith('image/')) throw new Error('Only image files are allowed');
   /*
    * A versionCode, not any number - and this check is the whole reason it
@@ -69,6 +97,7 @@ export async function uploadUpdateNotice(file: File, minBuild: number): Promise<
   }
 
   const client = getSupabaseClient();
+  file = await compactImage(file);
   const storage_path = `update/notice-${minBuild}.${extensionFor(file)}`;
 
   const { error: upErr } = await client.storage.from(ONBOARDING_BUCKET).upload(storage_path, file, {

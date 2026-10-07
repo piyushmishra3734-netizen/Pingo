@@ -55,6 +55,8 @@ check('a non-numeric version is left alone', isBehind('unknown', SHIPPED), false
 const PUBLISHED = '2026-08-30T12:00:00.000Z';
 
 check('someone behind sees it again after closing', shouldShow(true, PUBLISHED, PUBLISHED), true);
+check('someone behind is not asked again the same day', shouldShow(true, PUBLISHED, PUBLISHED, 1_000_000, 1_000_000 + 60 * 60 * 1000), false);
+check('someone behind is asked again the next day', shouldShow(true, PUBLISHED, PUBLISHED, 1_000_000, 1_000_000 + 21 * 60 * 60 * 1000), true);
 check('a closed card stays closed when current', shouldShow(false, PUBLISHED, PUBLISHED), false);
 check('an unseen card shows when current', shouldShow(false, null, PUBLISHED), true);
 

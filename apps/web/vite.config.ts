@@ -237,6 +237,18 @@ export default defineConfig({
             options: {
               cacheName: 'pingo-chunks',
               cacheableResponse: { statuses: [200] },
+              /*
+               * Never an HTML page under a script's name. A missing file comes
+               * back as the app's index.html with a 200, and CacheFirst kept
+               * that forever: the entry script was "loaded", never ran, and the
+               * app sat on its skeleton on every launch (2026-10-06).
+               */
+              plugins: [
+                {
+                  cacheWillUpdate: async ({ response }: { response: Response }) =>
+                    response && !(response.headers.get('content-type') ?? '').includes('text/html') ? response : null,
+                },
+              ],
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 60, purgeOnQuotaError: true },
             },
           },

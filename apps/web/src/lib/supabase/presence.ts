@@ -41,6 +41,7 @@ import type { PingoSupabaseClient } from './client.js';
  * is a type that is wrong in one of them.
  */
 export type { ChatActivity } from '@pingo/core';
+import { customLastSeen } from '../../features/presence/status.js';
 import type { ChatActivity } from '@pingo/core';
 
 /** How long a typing signal stands before it is assumed stale. */
@@ -235,6 +236,8 @@ export class PresenceHub {
     this.watchTyping(conversationId);
     const channel = this.#typing.get(conversationId);
     if (!channel || !this.#userId) return;
+    // A custom last seen means nobody sees this account being here at all.
+    if (typing && customLastSeen()) return;
 
     /*
      * Throttled per kind, not per conversation.

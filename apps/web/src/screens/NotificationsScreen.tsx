@@ -113,7 +113,7 @@ export function NotificationsScreen() {
    * Primary dock tab for most accounts (no back). Allowlisted community
    * accounts still open this from the chats header, so they keep a back button.
    */
-  const showBack = canAccessCommunities(profile?.username);
+  const showBack = canAccessCommunities(profile?.id);
 
   const respond = async (item: AppNotification, accept: boolean) => {
     if (!item.actorId || acting) return;

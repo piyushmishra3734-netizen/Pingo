@@ -79,15 +79,43 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
   /** When the last reconnect-driven rebuild ran. See the floor below. */
   const lastRecovery = useRef(0);
 
+  /**
+   * Which of the three the network has already answered, so a cache read that
+   * lands late cannot paint over it. Per field, because they now arrive apart.
+   */
+  const fresh = useRef({ user: false, users: false, list: false });
+
   const load = useCallback(async () => {
+    /*
+     * Each of the three paints the moment it lands, not when the slowest does.
+     *
+     * The list is what somebody is looking at after the splash, and it used to
+     * wait behind the profile read and the whole contact roster - two
+     * unrelated reads, the roster the heavier of them - before replacing the
+     * cached one. Every millisecond either of them took past the list was a
+     * millisecond of yesterday's unread counts on screen. The cached user and
+     * roster are already painted by then, so nothing renders half-formed in
+     * the meantime; they are simply corrected when their own answers arrive.
+     */
     const [user, contacts, list] = await Promise.all([
-      service.getCurrentUser(),
-      service.listContacts(),
-      service.listConversations(),
+      service.getCurrentUser().then((value) => {
+        fresh.current.user = true;
+        setCurrentUser(value);
+        return value;
+      }),
+      service.listContacts().then((value) => {
+        fresh.current.users = true;
+        setUsers(value);
+        return value;
+      }),
+      service.listConversations().then((value) => {
+        fresh.current.list = true;
+        setConversations(value);
+        // The list is the screen; a current one is as ready as it gets.
+        setReady(true);
+        return value;
+      }),
     ]);
-    setCurrentUser(user);
-    setUsers(contacts);
-    setConversations(list);
 
     // Recorded for the next cold launch. Deliberately not awaited: the screen
     // is already correct by this point and writing to disk is not the user's
@@ -117,9 +145,9 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
       .cachedStartup()
       .then((snapshot) => {
         if (!active || settled || !snapshot) return;
-        setCurrentUser(snapshot.currentUser);
-        setUsers(snapshot.users);
-        setConversations(snapshot.conversations);
+        if (!fresh.current.user) setCurrentUser(snapshot.currentUser);
+        if (!fresh.current.users) setUsers(snapshot.users);
+        if (!fresh.current.list) setConversations(snapshot.conversations);
         // Ready, because there is a usable screen. Whether it is the final one
         // is not something a spinner can usefully communicate.
         setReady(true);

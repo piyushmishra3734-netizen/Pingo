@@ -104,3 +104,55 @@ export function usePresenceStatus(): PresenceStatus {
 export function presenceMark(state: PresenceState | undefined): PresenceStatus | undefined {
   return state === 'online' || state === 'invisible' || state === 'dnd' ? state : undefined;
 }
+
+/**
+ * The operator's own last-seen line.
+ *
+ * On: everybody reads "last seen <text>" for this account, and underneath it
+ * is invisible - no dot, no read receipts (they follow the status), and no
+ * typing (presence.ts checks `customLastSeen`). Off: back to the status that
+ * was on before. Only the operator's id is allowed a value by the database.
+ */
+const CUSTOM_KEY = 'pingo:custom-last-seen';
+const CUSTOM_BEFORE_KEY = 'pingo:custom-last-seen-before';
+
+export function customLastSeen(): string | null {
+  try {
+    return localStorage.getItem(CUSTOM_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCustomLastSeen(text: string | null): Promise<void> {
+  const userId = await signedInUserId();
+  if (!userId) throw new Error('Not signed in.');
+  const value = text?.trim().slice(0, 48) || null;
+
+  if (value) {
+    try {
+      if (!customLastSeen()) localStorage.setItem(CUSTOM_BEFORE_KEY, presenceStatus());
+    } catch {
+      // Nothing to restore to later but online.
+    }
+    await savePresenceStatus('invisible');
+  }
+
+  const { error } = await getSupabaseClient()
+    .from('privacy_settings')
+    .upsert({ user_id: userId, custom_last_seen: value }, { onConflict: 'user_id' });
+  if (error) throw error;
+
+  try {
+    if (value) {
+      localStorage.setItem(CUSTOM_KEY, value);
+    } else {
+      localStorage.removeItem(CUSTOM_KEY);
+      const before = localStorage.getItem(CUSTOM_BEFORE_KEY);
+      localStorage.removeItem(CUSTOM_BEFORE_KEY);
+      await savePresenceStatus(before === 'invisible' || before === 'dnd' ? before : 'online');
+    }
+  } catch (cause) {
+    if (!value) throw cause;
+  }
+}

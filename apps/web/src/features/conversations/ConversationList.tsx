@@ -111,7 +111,7 @@ export function ConversationList({
    * Most accounts open notifications from the dock. Allowlisted community
    * accounts still have Communities in that slot, so they keep the header bell.
    */
-  const showHeaderNotifications = canAccessCommunities(profile?.username);
+  const showHeaderNotifications = canAccessCommunities(profile?.id);
 
   const actions = useConversationActions();
   const confirm = useConfirm();

@@ -15,6 +15,7 @@ import {
   uploadOnboardingSlide,
 } from '../../lib/supabase/onboarding-slides.js';
 import { NoticeCard } from '../../features/updates/UpdateNotice.js';
+import { isOperator } from '../../lib/operator.js';
 import {
   clearUpdateNotice,
   loadUpdateNotice,
@@ -28,10 +29,9 @@ const LATEST_BUILD = '2604001';
 
 /**
  * Operator-only: upload original-quality intro art (PC + mobile).
- * Visible solely for `@piuxxh` so assets can be published without redesign.
+ * Visible solely for the operator account (`lib/operator.ts`) so assets can be published without redesign.
  */
 
-const OPERATOR_USERNAME = 'piuxxh';
 
 type SeedPick = {
   profile: Profile;
@@ -44,7 +44,7 @@ type SeedPick = {
 export function ControllingScreen() {
   const { profile, service } = useProfile();
   const navigate = useNavigate();
-  const allowed = profile?.username === OPERATOR_USERNAME;
+  const allowed = isOperator(profile?.id);
 
   const [rows, setRows] = useState<OnboardingSlideRow[]>([]);
   const [premiumHandle, setPremiumHandle] = useState('');

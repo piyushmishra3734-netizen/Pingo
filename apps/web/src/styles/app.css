@@ -125,6 +125,102 @@
   button.lq-glass-water:active,
   a.lq-glass-water:active { transform: scale(0.92); }
 
+  /*
+   * Message bubbles: the glass look, without glass's price.
+   *
+   * Bubbles were `lq-glass-water` - a backdrop blur, the SVG lens from lens.ts,
+   * a rim and sheen on two pseudo-elements and six shadows, on every bubble in
+   * the thread. Measured on a simulated low-end phone (CPU 6x slower), scrolling
+   * a thread took 52 ms a frame and missed 97% of frames. This keeps the read -
+   * a bright top fading down, a lit rim, a lift off the wallpaper - with the
+   * shine in the fill gradient, the rim one inset line and one small shadow:
+   * 17 ms a frame, 1% missed. Option E in the 2026-10-06 sample.
+   *
+   * The names deliberately do not contain "glass-water": lens.ts lenses
+   * anything that does.
+   */
+  .lq-bubble,
+  .lq-bubble-mine {
+    position: relative;
+    transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  /*
+   * Lilac glass, not white. Plain white read as paper cards stuck on the chat;
+   * a whisper of PINGO's purple keeps the text dark and crisp and sits with
+   * the pink beside it.
+   */
+  .lq-bubble {
+    background: linear-gradient(180deg, rgb(247 244 254 / 0.8), rgb(238 233 251 / 0.66) 75%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.6),
+      inset 0 1px 0 rgb(255 255 255 / 0.9),
+      0 1px 2px rgb(40 20 90 / 0.1),
+      0 4px 10px -6px rgb(40 20 90 / 0.2);
+  }
+  /*
+   * The photo is softened once - it never scrolls, so this is one raster, not
+   * a blur per frame the way glass bubbles were - and that is what lets the
+   * bubbles above stay this thin and still read. Scaled a touch so the
+   * blurred edge never shows.
+   */
+  .chat-wallpaper-photo {
+    filter: blur(5px) brightness(0.94) saturate(112%);
+    transform: scale(1.04);
+  }
+  /* The scaled, blurred photo stays inside the chat - it spilled over the chat list on desktop. */
+  .chat-wallpaper:has(> .chat-wallpaper-photo) {
+    overflow: clip;
+  }
+  [data-wallpaper-dark] .lq-bubble,
+  :root[data-theme='dark'] .lq-bubble {
+    background: linear-gradient(180deg, rgb(44 44 54 / 0.92), rgb(24 24 32 / 0.8) 70%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.08),
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 4px 10px -6px rgb(0 0 0 / 0.4);
+  }
+  /*
+   * Over any photo: smoked glass, white text.
+   *
+   * White glass over a photo either hid the picture (thick) or lost the text
+   * (thin). A dark tint at half strength does neither: the photo stays bright
+   * around and through it, and white letters read on it everywhere.
+   */
+  .chat-wallpaper[data-wallpaper-photo] .lq-bubble {
+    --color-ink: #ffffff;
+    --color-text-secondary: rgb(255 255 255 / 0.86);
+    --color-text-tertiary: rgb(255 255 255 / 0.7);
+    color: #fff;
+    background: linear-gradient(180deg, rgb(30 30 42 / 0.52), rgb(18 18 26 / 0.44));
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.16),
+      inset 0 1px 0 rgb(255 255 255 / 0.26),
+      0 2px 8px -3px rgb(0 0 0 / 0.3);
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  }
+  /* Yours: flat brand, no blur - it was paying for one it could not show. */
+  .lq-bubble-mine {
+    color: var(--color-on-brand);
+    background: var(--color-brand);
+  }
+
+  /*
+   * Glass level 0 - chosen, asked for by the OS, or a phone too weak for blur
+   * (SettingsContext). The blur is gone (tokens.css), so the fills that were
+   * thin because a blur sat behind them become solid enough to read on.
+   */
+  :root[data-glass='0'] .lq-glass-water { --lq-fill: rgb(246 243 253 / 0.8); --lq-sheen: 0.12; }
+  :root[data-glass='0'] .lq-menu { --lq-fill: rgb(255 255 255 / 0.96); }
+  :root[data-glass='0'][data-theme='dark'] .lq-glass-water,
+  :root[data-glass='0'] [data-wallpaper-dark] .lq-glass-water { --lq-fill: rgb(28 28 34 / 0.88); }
+  :root[data-glass='0'][data-theme='dark'] .lq-menu { --lq-fill: rgb(30 30 36 / 0.97); }
+  :root[data-glass='0'] .lq-dim {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgb(0 0 0 / 0.38);
+  }
+
   /* Menus are glass too, frosted enough to read a list off. */
   .lq-menu { --lq-fill: rgb(255 255 255 / 0.62); }
   :root[data-theme='dark'] .lq-menu { --lq-fill: rgb(28 28 34 / 0.62); }

@@ -13,5 +13,26 @@
  * this build rather than the runtime copy from the last one.
  */
 self.addEventListener('activate', (event) => {
-  event.waitUntil(caches.delete('pingo-shell'));
+  event.waitUntil(
+    Promise.all([
+      caches.delete('pingo-shell'),
+      /*
+       * And any HTML page kept under a script's name. Before the chunk route
+       * refused them, a missing file's fallback page could be stored as that
+       * script, and the app never started on that device again.
+       */
+      caches.open('pingo-chunks').then((cache) =>
+        cache.keys().then((requests) =>
+          Promise.all(
+            requests.map((request) =>
+              cache.match(request).then((response) => {
+                const type = (response && response.headers.get('content-type')) || '';
+                return type.includes('text/html') ? cache.delete(request) : undefined;
+              }),
+            ),
+          ),
+        ),
+      ),
+    ]),
+  );
 });

@@ -62,7 +62,7 @@ export function MessageInfoSheet({ message, onClose }: { message: Message; onClo
           <div className="overflow-y-auto px-4 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             {/* the message, as the bubble it is */}
             <div className="mb-6 flex justify-end">
-              <p className="lq-brand-glass-water line-clamp-6 max-w-[78%] rounded-[18px] px-4 py-2.5 text-body text-on-brand">
+              <p className="lq-bubble-mine line-clamp-6 max-w-[78%] rounded-[18px] px-4 py-2.5 text-body text-on-brand">
                 {message.deleted ? 'This message was deleted' : message.body || 'Attachment'}
               </p>
             </div>

@@ -2,7 +2,8 @@ import { SearchField, cn } from '@pingo/ui';
 import { Check, Pause, Play, Send, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { MUSIC_TABS, UPLOADS, fetchSongs, type Song } from './sheets.js';
+import { MUSIC_SHELVES, More, PlaylistRow, UPLOADS, useCatalogue } from './catalogue.js';
+import type { Song } from './sheets.js';
 import { UploadsShelf } from './UploadsShelf.js';
 
 /**
@@ -11,24 +12,11 @@ import { UploadsShelf } from './UploadsShelf.js';
  * panel rather than the camera's dark one.
  */
 export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: Song) => void; /** Choosing, not sending: a tick instead of the send arrow. */ pick?: boolean }) {
-  const [shelf, setShelf] = useState('');
-  const [query, setQuery] = useState('');
-  const [list, setList] = useState<Song[]>();
+  const cat = useCatalogue();
+  const { query, uploads } = cat;
+  const list = cat.songs.items;
   const [previewing, setPreviewing] = useState<string>();
   const audio = useRef<HTMLAudioElement | undefined>(undefined);
-
-  const uploads = shelf === UPLOADS;
-
-  useEffect(() => {
-    if (uploads) return;
-    let live = true;
-    const wanted = query.trim() || shelf;
-    setList(undefined);
-    const timer = window.setTimeout(() => {
-      void fetchSongs(wanted).then((songs) => { if (live) setList(songs); });
-    }, query ? 350 : 0);
-    return () => { live = false; window.clearTimeout(timer); };
-  }, [query, shelf, uploads]);
 
   useEffect(() => () => { audio.current?.pause(); }, []);
 
@@ -42,23 +30,28 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
   };
 
   return (
-    <div className="flex h-[320px] flex-col">
+    /*
+     * Tall enough to browse. At a fixed 320px the search, the shelf chips and
+     * the album/playlist row left room for about one and a half songs, so a
+     * list of hundreds read as "only a couple of songs, and it will not scroll".
+     */
+    <div className="flex h-[min(560px,62dvh)] min-h-[320px] flex-col">
       <div className="px-2.5 pt-2.5">
-        <SearchField value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search music" aria-label="Search music" />
+        <SearchField value={query} onChange={(e) => cat.setQuery(e.target.value)} placeholder="Search music" aria-label="Search music" />
       </div>
       <div className="flex shrink-0 gap-1.5 overflow-x-auto px-2.5 py-2">
-        {MUSIC_TABS.map(([label, value]) => (
+        {MUSIC_SHELVES.map((s) => (
           <button
-            key={label}
+            key={s.label}
             type="button"
-            onClick={() => { setQuery(''); setShelf(value); }}
+            onClick={() => cat.setShelf(s)}
             className={cn(
               'focus-ring flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-caption font-semibold transition-colors duration-instant',
-              shelf === value && (value === UPLOADS || !query) ? 'bg-ink text-page' : 'bg-sunken text-text-secondary',
+              cat.shelf === s && (uploads || !query) ? 'bg-ink text-page' : 'bg-sunken text-text-secondary',
             )}
           >
-            {value === UPLOADS && <Upload size={12} />}
-            {label}
+            {s.src === UPLOADS && <Upload size={12} />}
+            {s.label}
           </button>
         ))}
       </div>
@@ -74,12 +67,13 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
             actionLabel={pick ? 'Choose' : 'Send'}
           />
         )}
+        {!uploads && <PlaylistRow pager={cat.lists} tone="light" onOpen={cat.toggleOpen} {...(cat.open ? { open: cat.open } : {})} />}
         {!uploads && !list && <p className="py-8 text-center text-caption text-text-tertiary">Loading songs…</p>}
-        {!uploads && list?.length === 0 && <p className="py-8 text-center text-caption text-text-tertiary">No songs found.</p>}
+        {!uploads && list?.length === 0 && cat.songs.done && <p className="py-8 text-center text-caption text-text-tertiary">No songs found.</p>}
         {!uploads && list?.map((song) => (
           <div key={song.url} className="flex items-center gap-2.5 rounded-xl px-1.5 py-1.5 hover:bg-hover">
             <button type="button" onClick={() => preview(song)} aria-label={previewing === song.url ? `Stop ${song.name}` : `Play ${song.name}`} className="focus-ring relative size-11 shrink-0 overflow-hidden rounded-lg">
-              {song.img && <img src={song.img} alt="" className="size-full object-cover" />}
+              {song.img && <img src={song.img} alt="" loading="lazy" className="size-full object-cover" />}
               <span className="absolute inset-0 grid place-items-center bg-black/30 text-white">
                 {previewing === song.url ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
               </span>
@@ -98,6 +92,7 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
             </button>
           </div>
         ))}
+        {!uploads && <More pager={cat.songs} tone="light" />}
       </div>
     </div>
   );

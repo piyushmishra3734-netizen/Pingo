@@ -388,6 +388,53 @@ export function wallpaperCss(scope: string | WallpaperScope): string {
   return WALLPAPERS.find((w) => w.id === id)?.css ?? WALLPAPERS[0]?.css ?? '';
 }
 
+const remoteKey = (url: string) => `pingo:wallpaper-remote-dark:${url.split('?')[0]}`;
+const sampling = new Set<string>();
+/** blob: and data: addresses die with the page; remembered here, never on disk. */
+const passingDark = new Map<string, boolean>();
+const passing = (url: string) => url.startsWith('blob:') || url.startsWith('data:');
+
+function remoteDark(url: string): boolean | undefined {
+  if (passing(url)) return passingDark.get(url);
+  try {
+    const value = window.localStorage.getItem(remoteKey(url));
+    return value === null ? undefined : value === '1';
+  } catch {
+    return undefined;
+  }
+}
+
+function sampleRemote(url: string, conversationId: string): void {
+  const key = remoteKey(url);
+  if (sampling.has(key)) return;
+  sampling.add(key);
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 24;
+      canvas.height = 24;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, 24, 24);
+      const data = ctx.getImageData(0, 0, 24, 24).data;
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        sum += 0.2126 * data[i]! + 0.7152 * data[i + 1]! + 0.0722 * data[i + 2]!;
+      }
+      // The same line a photo of your own is judged by, below.
+      const dark = sum / (data.length / 4) < 128;
+      if (passing(url)) passingDark.set(url, dark);
+      else window.localStorage.setItem(key, dark ? '1' : '0');
+      notify(conversationId);
+    } catch {
+      // A photo that will not let itself be read keeps the dark default.
+    }
+  };
+  img.src = url;
+}
+
 /** True when the current choice needs light text over it. */
 export function wallpaperIsDark(scope: string | WallpaperScope): boolean {
   const id = chosenWallpaperId(scope);
@@ -395,9 +442,21 @@ export function wallpaperIsDark(scope: string | WallpaperScope): boolean {
     const conversationId = typeof scope === 'string' ? scope : scope.conversationId;
     const shared = typeof scope === 'string' ? false : Boolean(scope.shared);
     if (shared) {
-      // Server custom photos: assume dark-friendly text until we sample remote.
-      // Light text on a light photo is worse than dark text on a dark one for
-      // readability of glass chrome, so prefer dark=true for unknown custom.
+      /*
+       * A group's photo, set by somebody else: measured here, once.
+       *
+       * This answered `true` for every shared photo - "until we sample
+       * remote", and nothing ever sampled - so a bright photo got dark
+       * bubbles. Under the old blurred glass that was a smoky tint; with the
+       * bubbles solid it was black boxes on a sunny picture. Now the photo is
+       * drawn small, averaged, remembered by its address, and the thread is
+       * told to repaint. Dark is still the answer until then.
+       */
+      const photo = customWallpaperPhoto(scope);
+      if (!photo) return true;
+      const known = remoteDark(photo);
+      if (known !== undefined) return known;
+      sampleRemote(photo, conversationId);
       return true;
     }
     try {

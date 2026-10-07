@@ -827,6 +827,7 @@ export type Database = {
           profile_visibility: string;
           online_status: boolean;
           presence_status: 'online' | 'invisible' | 'dnd';
+          custom_last_seen: string | null;
           updated_at: string;
         };
         Insert: {
@@ -836,6 +837,7 @@ export type Database = {
           profile_visibility?: string;
           online_status?: boolean;
           presence_status?: 'online' | 'invisible' | 'dnd';
+          custom_last_seen?: string | null;
         };
         Update: {
           who_can_call?: string;
@@ -843,6 +845,7 @@ export type Database = {
           profile_visibility?: string;
           online_status?: boolean;
           presence_status?: 'online' | 'invisible' | 'dnd';
+          custom_last_seen?: string | null;
         };
         Relationships: [];
       };
@@ -1590,6 +1593,10 @@ export type Database = {
       end_call_ring: {
         Args: { call: string };
         Returns: undefined;
+      };
+      latest_reactions: {
+        Args: Record<PropertyKey, never>;
+        Returns: { conversation_id: string; message_id: string; user_id: string; emoji: string; created_at: string }[];
       };
     };
     Enums: { [_ in never]: never };

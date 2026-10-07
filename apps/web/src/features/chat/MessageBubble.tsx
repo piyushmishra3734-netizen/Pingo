@@ -322,7 +322,7 @@ export function MessageBubble({
             'max-w-[76%] px-3 py-[7px]',
             arrive,
             SHAPE[mine ? 'mine' : 'theirs'][position],
-            'lq-glass-water lq-read',
+            'lq-bubble',
           )}
         >
           <p className="text-body italic text-text-tertiary">
@@ -578,10 +578,10 @@ export function MessageBubble({
             'px-3 pt-[7px] pb-[5px] leading-[1.35]',
             SHAPE[mine ? 'mine' : 'theirs'][position],
             mine
-              ? 'lq-brand-glass-water text-on-brand'
+              ? 'lq-bubble-mine'
               /*
-                Incoming bubbles are glass, the same glass as the header and
-                the composer.
+                Incoming bubbles look like glass - see `.lq-bubble` for why they
+                are not blurred any more.
 
                 They were an opaque white card needing a shadow to be seen at
                 all against a near-white page. With a wallpaper behind, that
@@ -594,7 +594,7 @@ export function MessageBubble({
                 Shape + padding are locked to the glass material — do not
                 restyle these for “aesthetics” without re-tuning glass itself.
               */
-              : 'lq-glass-water lq-read text-ink',
+              : 'lq-bubble text-ink',
             // A failed send desaturates and outlines, rather than turning red.
             message.status === 'failed' && 'opacity-60 ring-1 ring-danger/40',
           )}

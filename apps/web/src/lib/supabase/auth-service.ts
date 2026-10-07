@@ -680,6 +680,23 @@ export class SupabaseAuthService implements AuthService {
    * dead.
    */
   async getSession(): Promise<AuthSession | null> {
+    /*
+     * The session on disk answers at once.
+     *
+     * `auth.getSession()` refreshes an expired token before it returns, so an
+     * app opened an hour after it was last used sat on its skeleton for a
+     * network round trip before it would even say who was signed in - and the
+     * chat list it already had on disk waited behind that. The stored session
+     * says it now; the refresh runs behind it, every request still waits for a
+     * valid token on its own, and a refresh that fails signs out through
+     * `onSessionChange` as before.
+     */
+    const early = persistedSession();
+    if (early) {
+      void this.client.auth.getSession().catch(() => undefined);
+      return early;
+    }
+
     const { data, error } = await this.client.auth.getSession();
     if (data.session) return toSession(data.session);
 

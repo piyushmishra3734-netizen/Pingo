@@ -230,7 +230,6 @@
        */
       #boot .col {
         width: 100%;
-        max-width: 25rem;
         height: 100%;
         display: flex;
         flex-direction: column;
@@ -306,10 +305,19 @@
       #boot .row:nth-child(5) i::after { animation-delay: 0.15s; }
       #boot .row:nth-child(6) i::after { animation-delay: 0.2s; }
 
-      /* The pane's own edge, where there is a pane beside it. */
+      /*
+       * The pane's own width and edge, where there is a pane beside it:
+       * ChatsScreen's `w-[22rem] xl:w-[25rem]`. A flat 25rem everywhere was
+       * 3rem too wide on a laptop and a narrow strip on a tablet, where the
+       * real list is full width - so the list jumped as it arrived. React's
+       * ListPaneSkeleton draws the same column at the same widths.
+       */
       @media (min-width: 64rem) {
-        #boot .col { border-right: 1px solid rgba(17, 17, 19, 0.07); }
+        #boot .col { width: 22rem; border-right: 1px solid rgba(17, 17, 19, 0.07); }
         :root[data-theme='dark'] #boot .col { border-right-color: rgba(255, 255, 255, 0.08); }
+      }
+      @media (min-width: 80rem) {
+        #boot .col { width: 25rem; }
       }
 
       @keyframes boot-sweep {
@@ -446,9 +454,20 @@
        */
       (function () {
         var KEY = 'pingo:boot-retry';
+        /*
+         * React's own mark on the container, not "is there anything in #root".
+         * #root now ships with a static skeleton, so a page whose JavaScript
+         * never ran looked mounted and was never rescued: a cached HTML page
+         * standing in for the entry script left people on that skeleton for
+         * good (2026-10-06).
+         */
         function mounted() {
           var root = document.getElementById('root');
-          return !!root && root.childNodes.length > 0;
+          if (!root) return false;
+          for (var key in root) {
+            if (key.indexOf('__reactContainer') === 0) return true;
+          }
+          return false;
         }
         window.addEventListener('load', function () {
           setTimeout(function () {

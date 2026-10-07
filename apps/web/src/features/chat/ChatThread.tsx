@@ -82,7 +82,7 @@ import type { PickedMedia } from './MediaSendSheet.js';
 import { lazyNamed, lazySuspended } from '../../lib/lazy-named.js';
 import { probeVideo, videoTooLong } from './media-variants.js';
 import { SwipeableMessage } from './SwipeableMessage.js';
-import { ThreadJumpChip } from './ThreadJumpChip.js';
+import { JumpToLatestButton } from './JumpToLatestButton.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
@@ -123,11 +123,6 @@ export interface ChatThreadProps {
 const FOLLOW_THRESHOLD = 120;
 
 
-/**
- * After jumping to the first unread, keep the divider visible this long so the
- * eye can register the boundary before it fades.
- */
-const DIVIDER_HOLD_MS = 600;
 
 /**
  * A microphone that breathes, for "recording a voice note".
@@ -591,19 +586,7 @@ export function ChatThread({
     setDividerAtId(undefined);
     lastTrackedNewestRef.current = undefined;
     followingRef.current = true;
-    if (dividerHoldTimer.current !== undefined) {
-      window.clearTimeout(dividerHoldTimer.current);
-      dividerHoldTimer.current = undefined;
-    }
   }, [conversation.id]);
-
-  useEffect(() => {
-    return () => {
-      if (dividerHoldTimer.current !== undefined) {
-        window.clearTimeout(dividerHoldTimer.current);
-      }
-    };
-  }, []);
 
   /** Resolves a quoted message against the loaded page. */
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
@@ -645,12 +628,12 @@ export function ChatThread({
   const bottomRef = useRef<HTMLDivElement>(null);
   /** Whether the user was at the bottom *before* this render's new content. */
   const followingRef = useRef(true);
-  /** React state mirror of followingRef so the jump chip can re-render. */
+  /** React state mirror of followingRef so the jump button can re-render. */
   const [awayFromBottom, setAwayFromBottom] = useState(false);
 
   /**
    * New-messages session: one pin, one count, while the reader is away.
-   * Cleared at the bottom or after jump-to-unread (divider may linger briefly).
+   * Cleared at the bottom (which the jump button scrolls to).
    */
   const [newSession, setNewSession] = useState<
     { firstId: string; count: number } | undefined
@@ -658,7 +641,6 @@ export function ChatThread({
   /** Message id that currently hosts the in-thread "New Messages" divider. */
   const [dividerAtId, setDividerAtId] = useState<string | undefined>();
   const lastTrackedNewestRef = useRef<string | undefined>(undefined);
-  const dividerHoldTimer = useRef<number | undefined>(undefined);
 
   const partner =
     conversation.kind === 'direct'
@@ -956,15 +938,11 @@ export function ChatThread({
 
       /*
        * Back at the bottom: clear the new-messages session and divider.
-       * The jump chip hides because awayFromBottom is false.
+       * The jump button hides because awayFromBottom is false.
        */
       if (following) {
         setNewSession(undefined);
         setDividerAtId(undefined);
-        if (dividerHoldTimer.current !== undefined) {
-          window.clearTimeout(dividerHoldTimer.current);
-          dividerHoldTimer.current = undefined;
-        }
       }
 
       /*
@@ -1176,35 +1154,10 @@ export function ChatThread({
     el.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }, [groups, loading, prefersReducedMotion]);
 
-  const jumpChipMode =
-    newSession && newSession.count > 0
-      ? ('new' as const)
-      : awayFromBottom
-        ? ('latest' as const)
-        : undefined;
-
   const jumpToLatest = useCallback(() => {
     const el = scrollRef.current;
     el?.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }, [prefersReducedMotion]);
-
-  const jumpToNewMessages = useCallback(() => {
-    const session = newSession;
-    if (!session) return;
-
-    jumpTo(session.firstId);
-    // Chip becomes Latest (if still away) or Hidden once at bottom.
-    setNewSession(undefined);
-
-    // Keep the divider long enough to read the boundary, then fade it out.
-    if (dividerHoldTimer.current !== undefined) {
-      window.clearTimeout(dividerHoldTimer.current);
-    }
-    dividerHoldTimer.current = window.setTimeout(() => {
-      setDividerAtId(undefined);
-      dividerHoldTimer.current = undefined;
-    }, DIVIDER_HOLD_MS);
-  }, [jumpTo, newSession]);
 
   /**
    * Day dividers, computed once per render of the thread. Placed before the first
@@ -1354,6 +1307,7 @@ export function ChatThread({
         backgroundPosition: 'center',
       }}
       data-wallpaper-dark={wallpaper.dark ? '' : undefined}
+      data-wallpaper-photo={wallpaper.photo ? '' : undefined}
     >
       {wallpaper.photo && !wallpaper.live ? (
         <img
@@ -1361,7 +1315,7 @@ export function ChatThread({
           alt=""
           aria-hidden
           draggable={false}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          className="chat-wallpaper-photo pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       ) : null}
       {wallpaper.live && (
@@ -1876,11 +1830,6 @@ export function ChatThread({
         )}
       </div>
 
-      {/*
-        Jump control lives between thread and composer - not inside the
-        bordered composer strip, so it never rides a full-width "patti".
-        One slot: New Messages wins over Latest.
-      */}
       <div aria-hidden className="lq-scrim-top pointer-events-none absolute inset-x-0 top-0 z-[90]" style={{ height: chrome.top + 36 }} />
       <div aria-hidden className="lq-scrim-bottom pointer-events-none absolute inset-x-0 bottom-0 z-[90]" style={{ height: chrome.bottom + 24 }} />
 
@@ -1904,24 +1853,19 @@ export function ChatThread({
         </div>
       )}
 
-      {jumpChipMode && (
-        <div
-          className="pointer-events-none absolute inset-x-0 z-[96] flex justify-center px-3"
-          style={{ bottom: chrome.bottom + 6 }}
-        >
-          <div className="pointer-events-auto">
-            {jumpChipMode === 'new' && newSession ? (
-              <ThreadJumpChip
-                mode="new"
-                count={newSession.count}
-                onClick={jumpToNewMessages}
-              />
-            ) : (
-              <ThreadJumpChip mode="latest" onClick={jumpToLatest} />
-            )}
-          </div>
-        </div>
-      )}
+      {/*
+        Scrolled up: WhatsApp's round jump button, bottom-right above the
+        composer - the typing bubble owns the bottom-left, so the two never meet.
+        `right-3` is the thread pane's edge, so the desktop two-pane layout keeps
+        it beside the composer rather than at the window's edge.
+      */}
+      <JumpToLatestButton
+        visible={awayFromBottom}
+        count={newSession?.count ?? 0}
+        onClick={jumpToLatest}
+        className="absolute right-3 z-[96]"
+        style={{ bottom: chrome.bottom + 6 }}
+      />
 
       {/* ---- Composer ----------------------------------------------------- */}
       <div

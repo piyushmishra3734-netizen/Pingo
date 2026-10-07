@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuth, useChat, useProfile } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
 import { AppLoader } from '../features/loading/AppLoader.js';
+import { LIST_ROUTES, ListPaneSkeleton } from '../features/loading/ListPaneSkeleton.js';
 import { useSplashHold } from '../features/loading/splash.js';
 import { syncBlocks } from '../features/safety/blocks.js';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
@@ -173,6 +174,13 @@ export function AppShell() {
   useSplashHold(!ready || staleAccount);
 
   if (!ready || staleAccount) {
+    /*
+     * On a list route, the list's own skeleton in the list's own place. This
+     * was the ring below on every route, centred in the window - which on a
+     * desktop is nowhere near the left pane the list then appears in, so the
+     * splash handed over to a loader in the wrong place. See ListPaneSkeleton.
+     */
+    if (LIST_ROUTES.test(location.pathname)) return <ListPaneSkeleton />;
     return (
       <div className="grid h-full place-items-center bg-page">
         {/*

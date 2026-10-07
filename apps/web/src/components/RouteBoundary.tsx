@@ -1,4 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
+
+import { chunkUrlFrom, healPoisonedAssets, looksLikeMissingChunk } from '../lib/chunk-recovery.js';
 
 /**
  * The thing that stops a bad render from being a white page forever.
@@ -19,24 +22,20 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
  *
  * ## What happens now
  *
- * A failed chunk is treated as what it is - this build is gone, the one on the
- * server is newer - so the caches are dropped, the worker is unregistered and
- * the page is reloaded once. That is the only repair there is, and it is the
- * one the user was trying to perform by refreshing.
+ * The lazy wrappers retry a failed chunk under a fresh URL first
+ * (`importWithRetry`), so most failures never reach this boundary. One that
+ * does is treated as what it is - this build is gone, or a cache holds HTML
+ * under a script's name - so the poisoned HTTP cache entries are replaced,
+ * the caches dropped, the worker unregistered and the page reloaded.
  *
- * Not twice in a row, though. A reload that fails the same way straight away is
- * a real bug, not a stale cache, and a boundary that keeps reloading turns it
- * into an infinite flicker nobody can read or escape - so within twenty seconds
- * of the last try it shows the error instead.
- *
- * It used to be once per *session*, and that was the complaint: PINGO ships
- * several times a day, so the second deploy an open app lived through landed
- * on this error screen instead of quietly reloading. A time window keeps the
- * loop guard and lets every later deploy recover on its own.
+ * Not forever, though. A reload that fails the same way straight away is a
+ * real bug, not a stale cache, and a boundary that keeps reloading turns it
+ * into an infinite flicker nobody can read or escape - so after three tries
+ * in two minutes it shows the error instead.
  *
  * Anything that is not a chunk failure is not reloaded at all: a component that
  * throws on this data will throw again after a reload, and spinning the page is
- * a worse answer than saying so.
+ * a worse answer than saying so. It gets its own page, with the error on it.
  */
 
 /** The repair reloads so far: `{ at, count }`. Survives the reloads it triggers. */
@@ -52,26 +51,25 @@ const RECOVERY_KEY = 'pingo:chunk-reloads';
  */
 const MAX_RELOADS = 3;
 const RETRY_WINDOW_MS = 2 * 60_000;
+/** How long the app has to stay up before the reload count is forgotten. */
+const HEALTHY_MS = 30_000;
 
-/**
- * Every phrasing the browsers use for "the module would not load".
- *
- * There is no error type to check - Chrome, Safari and Firefox each throw a
- * plain `Error` with their own sentence, and the sentence is the only signal.
- * Matched loosely on purpose: a false positive costs one reload, and a false
- * negative costs the white screen this exists to prevent.
+/*
+ * Re-exported for anything that imported it from here. The test itself moved
+ * beside `importWithRetry`, which marks its own failures as `ChunkLoadError`.
  */
-export function looksLikeMissingChunk(error: unknown): boolean {
-  const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
-  return /ChunkLoadError|dynamically imported module|Importing a module script failed|error loading dynamically|Failed to fetch|NetworkError when attempting to fetch resource/i.test(
-    message,
-  );
-}
+export { looksLikeMissingChunk };
 
-async function dropCachesAndReload(): Promise<void> {
+async function dropCachesAndReload(error?: unknown): Promise<void> {
   try {
     /*
-     * The worker first. Deleting the caches while it is still controlling the
+     * The HTTP cache first, while the worker can still answer for the files it
+     * holds. This is the cache the old repair never reached, and the reason
+     * three reloads in a row could all fail the same way (chunk-recovery.ts).
+     */
+    await healPoisonedAssets([chunkUrlFrom(error)]);
+    /*
+     * Then the worker. Deleting the caches while it is still controlling the
      * page means it can repopulate them from its own precache manifest - the
      * very list of files that no longer exist - and the reload lands on the
      * same missing chunk.
@@ -93,27 +91,70 @@ async function dropCachesAndReload(): Promise<void> {
   window.location.replace(window.location.href);
 }
 
+function forgetReloads(): void {
+  try {
+    sessionStorage.removeItem(RECOVERY_KEY);
+  } catch {
+    /* nothing to forget */
+  }
+}
+
 interface Props {
   children: ReactNode;
+  /** The path. A new one clears a failure: one broken screen must not take every other one with it. */
+  resetKey: string;
 }
 
 interface State {
   failed: boolean;
+  error?: unknown;
   message?: string;
+  /** A missing chunk rather than a screen that threw. Decides what the page says and what retry does. */
+  chunk?: boolean;
   /** Reloading to repair it: nothing to read, so nothing is shown but a spinner. */
   recovering?: boolean;
 }
 
-export class RouteBoundary extends Component<Props, State> {
+class Boundary extends Component<Props, State> {
   override state: State = { failed: false };
+  private healthy: number | undefined;
 
   static getDerivedStateFromError(error: unknown): State {
+    const chunk = looksLikeMissingChunk(error);
     return {
       failed: true,
+      error,
       message: error instanceof Error ? error.message : String(error),
+      chunk,
       // Assumed repairable until componentDidCatch finds it was just tried, so the error never flashes first.
-      recovering: looksLikeMissingChunk(error),
+      recovering: chunk,
     };
+  }
+
+  /*
+   * A recovery that worked is forgotten. The count used to live for two
+   * minutes after the last attempt whatever happened next, so a repaired
+   * launch followed by one more stale screen started at "already tried".
+   */
+  override componentDidMount(): void {
+    this.healthy = window.setTimeout(() => {
+      if (!this.state.failed) forgetReloads();
+    }, HEALTHY_MS);
+  }
+
+  override componentWillUnmount(): void {
+    window.clearTimeout(this.healthy);
+  }
+
+  /*
+   * Navigating away clears the failure. This boundary wraps every route, and
+   * without this one screen that threw left the error page over all of them:
+   * the dock went to Calls, Settings, the chat list, and each showed the same
+   * "did not open" until the app was reloaded. One broken screen looked like
+   * a broken app.
+   */
+  override componentDidUpdate(previous: Props): void {
+    if (this.state.failed && previous.resetKey !== this.props.resetKey) this.setState({ failed: false });
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo): void {
@@ -129,7 +170,7 @@ export class RouteBoundary extends Component<Props, State> {
      * reloads.
      */
     if (!navigator.onLine) {
-      window.addEventListener('online', () => void dropCachesAndReload(), { once: true });
+      window.addEventListener('online', () => void dropCachesAndReload(error), { once: true });
       return;
     }
 
@@ -151,8 +192,20 @@ export class RouteBoundary extends Component<Props, State> {
 
     if (alreadyTried) this.setState({ recovering: false });
     // A beat before the second and third tries, for a deploy still settling.
-    else window.setTimeout(() => void dropCachesAndReload(), count === 0 ? 0 : 1500);
+    else window.setTimeout(() => void dropCachesAndReload(error), count === 0 ? 0 : 1500);
   }
+
+  private retry = (): void => {
+    if (this.state.chunk) {
+      // A deliberate tap is a fresh start: the count is for automatic reloads.
+      forgetReloads();
+      this.setState({ recovering: true });
+      void dropCachesAndReload(this.state.error);
+    } else {
+      // A screen that threw: draw it again in place. No reload, no cache wipe.
+      this.setState({ failed: false });
+    }
+  };
 
   override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
@@ -164,27 +217,60 @@ export class RouteBoundary extends Component<Props, State> {
       );
     }
 
+    /*
+     * Two pages, because they are two different faults.
+     *
+     * Every error used to get "It failed to load a few times in a row" - also
+     * a screen that had loaded fine and simply threw on its data, which had
+     * been reloaded zero times. That sentence sent people to retry something
+     * retrying could not fix, and buried the one line that said what was
+     * wrong. A screen that threw now says so and shows the error itself.
+     */
+    const { chunk, message } = this.state;
     return (
       <div className="grid h-full place-items-center bg-page p-6">
         <div className="max-w-sm text-center">
-          <h1 className="text-h2 text-ink">That screen did not open</h1>
+          <h1 className="text-h2 text-ink">{chunk ? 'That screen did not open' : 'Something went wrong on this screen'}</h1>
           <p className="mt-2 text-caption text-text-secondary">
-            It failed to load a few times in a row. Try once more.
+            {chunk
+              ? 'Part of the app could not be downloaded, even after a few tries. Check the connection and try once more.'
+              : 'The rest of PINGO is fine. Go back, or try this screen again.'}
           </p>
           <button
             type="button"
-            onClick={() => void dropCachesAndReload()}
+            onClick={this.retry}
             className="focus-ring mt-5 rounded-full bg-brand px-5 py-2.5 text-body font-medium text-on-brand active:scale-[0.98]"
           >
             Try again
           </button>
-          {this.state.message ? (
-            <p className="mt-4 break-words text-[11px] text-text-tertiary">
-              {this.state.message}
+          {chunk ? null : (
+            <button
+              type="button"
+              onClick={() => window.location.replace(window.location.href)}
+              className="focus-ring mx-auto mt-3 block text-caption text-text-secondary hover:underline"
+            >
+              Reload PINGO
+            </button>
+          )}
+          {message ? (
+            <p
+              className={
+                chunk
+                  ? 'mt-4 break-words text-[11px] text-text-tertiary'
+                  : 'mt-4 break-words rounded-xl bg-sunken px-3 py-2 text-left font-mono text-[12px] text-text-secondary'
+              }
+            >
+              {message}
             </p>
           ) : null}
         </div>
       </div>
     );
   }
+}
+
+/** Keyed on the path from inside the router, so a failure belongs to the screen that had it. */
+export function RouteBoundary({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return <Boundary resetKey={pathname}>{children}</Boundary>;
 }

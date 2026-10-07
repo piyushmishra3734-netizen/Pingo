@@ -7,8 +7,8 @@
  * that decision lives and where it is tested.
  *
  * Everyone gets the card: the web, and every installed build. Only somebody on
- * an APK older than the published number gets it back after closing it, because
- * only they have something left to do.
+ * an APK older than the published number gets it back after closing it - once
+ * a day - because only they have something left to do.
  *
  * Deliberately not re-shown on resume. Switching to another app and back is not
  * "opening PINGO" in the sense that matters, and a card that reappears every
@@ -60,7 +60,8 @@ export function UpdateNotice() {
       if (cancelled || !notice) return;
 
       const isOld = isBehind(info?.build, notice.min_build);
-      if (!shouldShow(isOld, readSeen(), notice.updated_at)) return;
+      if (!shouldShow(isOld, readSeen(), notice.updated_at, readPromptAt())) return;
+      if (isOld) writePromptAt();
 
       setBehind(isOld);
       setRow(notice);
@@ -257,6 +258,24 @@ export function NoticeCard({ src, onClose }: { src: string; onClose: () => void 
  * that costs is seeing an announcement a second time.
  */
 const SEEN_KEY = 'pingo:update_notice_seen';
+/** When somebody behind was last asked; see PROMPT_EVERY_MS. */
+const PROMPT_KEY = 'pingo:update_prompt_at';
+
+function readPromptAt(): number {
+  try {
+    return Number(localStorage.getItem(PROMPT_KEY) ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writePromptAt(): void {
+  try {
+    localStorage.setItem(PROMPT_KEY, String(Date.now()));
+  } catch {
+    // Storage disabled: asked on every launch, as before.
+  }
+}
 
 function readSeen(): string | null {
   try {

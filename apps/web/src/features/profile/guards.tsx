@@ -1,7 +1,8 @@
 import { useProfile } from '@pingo/core';
-import { ConversationSkeleton } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+
+import { ListPaneSkeleton } from '../loading/ListPaneSkeleton.js';
 
 /**
  * Keeps a half-finished account out of the product.
@@ -33,26 +34,12 @@ import { Navigate, Outlet } from 'react-router-dom';
  * where it applies the handover is invisible rather than a cut from a list to
  * a spinner and back to a list.
  *
- * The route test is copied from `#boot` deliberately, and the reasoning with
- * it: a chat-list skeleton over Settings would be a lie about what is coming,
- * and on those routes the ground alone is still better than a spinner.
+ * It used to be its own copy, in a centred 42rem column - on a desktop that
+ * is the middle of the window, not the left pane where `#boot` drew the list
+ * and where the list then lands. It is the shared one now, so all three waits
+ * after the splash are the same picture in the same place.
  */
-const LIST_ROUTES = /^\/(chats|calls|communities|notifications|profile|settings)/;
-
-function Resolving() {
-  const listIsComing =
-    typeof window !== 'undefined' && LIST_ROUTES.test(window.location.pathname);
-
-  return (
-    <div className="h-full overflow-hidden bg-page">
-      {listIsComing && (
-        <div className="mx-auto w-full max-w-2xl px-3 pt-3">
-          <ConversationSkeleton rows={7} />
-        </div>
-      )}
-    </div>
-  );
-}
+const Resolving = ListPaneSkeleton;
 
 export function RequireProfile({ children }: { children?: ReactNode }) {
   const { profile, ready } = useProfile();

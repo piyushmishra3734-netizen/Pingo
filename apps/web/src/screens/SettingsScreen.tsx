@@ -38,6 +38,7 @@ import { SecurePhoneRow } from '../features/auth/SecurePhoneSheet.js';
 import { AppLogo } from '../components/AppLogo.js';
 import { useAppVersion } from '../features/updates/useAppVersion.js';
 import { publicAppUrl } from '../lib/public-origin.js';
+import { isOperator } from '../lib/operator.js';
 
 /**
  * Settings - the index.
@@ -73,7 +74,7 @@ export function SettingsScreen() {
   const signOut = useSignOut();
   const auth = useAuth();
   const { profile } = useProfile();
-  const isOperator = profile?.username === 'piuxxh';
+  const operator = isOperator(profile?.id);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [saved, setSaved] = useState(() => auth.service.listSavedAccounts());
   const { appearance, resolvedTheme, preferences } = useAppearance();
@@ -221,9 +222,9 @@ export function SettingsScreen() {
               <SettingsRow tone="gray" icon={<SlidersHorizontal size={18} />} label={t('settings.advanced')} to="/settings/advanced" />
               {/*
                 Operator-only surface for publishing intro slide art and the
-                update notice. Hidden for every account except @piuxxh.
+                update notice. Hidden for every account but the operator's (by id).
               */}
-              {isOperator ? (
+              {operator ? (
                 <SettingsRow tone="orange" icon={<Megaphone size={18} />} label={t('settings.controlling')} to="/settings/controlling" value="Operator" />
               ) : null}
             </Group>

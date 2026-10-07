@@ -1,4 +1,4 @@
-import { OPEN_PRIVACY, useProfile, type PrivacySettings, type Profile } from '@pingo/core';
+import { OPEN_PRIVACY, formatPresence, useProfile, type PrivacySettings, type Profile } from '@pingo/core';
 import { PingoDot } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
@@ -12,7 +12,8 @@ import {
 import { PrivateAccountCard } from '../../features/settings/PrivateAccountCard.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useT } from '../../features/i18n/useT.js';
-import { refreshPresenceStatus, savePresenceStatus } from '../../features/presence/status.js';
+import { customLastSeen, refreshPresenceStatus, saveCustomLastSeen, savePresenceStatus } from '../../features/presence/status.js';
+import { isOperator } from '../../lib/operator.js';
 import { presenceStatus, type PresenceStatus } from '../../features/settings/privacy-flags.js';
 
 /**
@@ -43,7 +44,7 @@ import { presenceStatus, type PresenceStatus } from '../../features/settings/pri
 export function PrivacyScreen() {
   const t = useT();
   const { preferences, update } = usePreferences();
-  const { service: profiles } = useProfile();
+  const { service: profiles, profile } = useProfile();
   const p = preferences.privacy;
 
   /*
@@ -207,6 +208,8 @@ export function PrivacyScreen() {
         />
       </Group>
 
+      {isOperator(profile?.id) && <CustomLastSeen />}
+
       <Group note={t('privacy.screenshotNote')}>
         {/*
           The real list. This said "None" as a literal string, so somebody who
@@ -271,5 +274,86 @@ function StatusIcon({ state }: { state: PresenceStatus }) {
     <span className="grid place-items-center rounded-full bg-page p-[2px]">
       <PingoDot state={state} size={10} />
     </span>
+  );
+}
+
+/** `yyyy-MM-ddTHH:mm` in local time, which is what a datetime-local input reads and writes. */
+function toLocalInput(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Operator only: pick the last seen everybody is shown.
+ *
+ * A date and a time from the phone's own picker, stored as a moment, so others
+ * read it the way a real one reads ("yesterday at 10:30 PM", then a weekday).
+ * While it is on: no online dot, no read receipts, no typing. See
+ * `saveCustomLastSeen`.
+ */
+function CustomLastSeen() {
+  const stored = customLastSeen();
+  const storedAt = stored ? Date.parse(stored) : NaN;
+  const [on, setOn] = useState(() => Boolean(stored));
+  const [when, setWhen] = useState(() =>
+    toLocalInput(Number.isFinite(storedAt) ? storedAt : Date.now() - 60 * 60 * 1000),
+  );
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+
+  const at = new Date(when).getTime();
+  const preview = Number.isFinite(at)
+    ? formatPresence({ id: '', name: '', handle: '', presence: { state: 'offline', lastSeenAt: at } })
+    : '';
+
+  const commit = (nextOn: boolean) => {
+    if (nextOn && !Number.isFinite(at)) return;
+    setState('saving');
+    void saveCustomLastSeen(nextOn ? new Date(at).toISOString() : null)
+      .then(() => setState('saved'))
+      .catch((cause: unknown) => {
+        setState('failed');
+        setOn(Boolean(customLastSeen()));
+        console.warn('Custom last seen did not save.', cause);
+      });
+  };
+
+  return (
+    <Group
+      title="Custom last seen"
+      note="Only you have this. While it is on, people see this last seen instead of your real one, and no read receipts, online dot or typing."
+    >
+      <ToggleRow
+        label="Show my own last seen"
+        description={on ? `Everyone sees: ${preview || '…'}` : 'Off: your real status shows.'}
+        checked={on}
+        onChange={(next) => {
+          setOn(next);
+          commit(next);
+        }}
+      />
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <input
+          type="datetime-local"
+          value={when}
+          max={toLocalInput(Date.now())}
+          onChange={(event) => {
+            setWhen(event.target.value);
+            setState('idle');
+          }}
+          aria-label="Last seen date and time"
+          className="min-w-0 flex-1 rounded-md bg-sunken px-3 py-2 text-body text-ink outline-none"
+        />
+        <button
+          type="button"
+          disabled={!on || !Number.isFinite(at) || state === 'saving'}
+          onClick={() => commit(true)}
+          className="shrink-0 rounded-full bg-brand px-4 py-2 text-caption font-semibold text-on-brand disabled:opacity-40"
+        >
+          {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save'}
+        </button>
+      </div>
+      {state === 'failed' && <p className="px-3 pb-2 text-caption text-danger">Did not save. Try again.</p>}
+    </Group>
   );
 }
