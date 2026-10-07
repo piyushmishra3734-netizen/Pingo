@@ -40,7 +40,13 @@ export function useMusicEverOpened(): boolean {
   return useSyncExternalStore(subscribe, () => everOpened, () => false);
 }
 
-/** Warm the sheet's code before it is needed, on a press rather than the release. */
+/**
+ * Warm the sheet before it is needed, on a press rather than the release: its
+ * code, and the home page's catalogue, which is the slow part of a first open.
+ */
 export function preloadMusic() {
   void import('./MusicSheet.js');
+  void Promise.all([import('../saavn/api.js'), import('../saavn/library.js'), import('../saavn/taste.js')]).then(([api, library, taste]) => {
+    void api.home(taste.homeLanguages(library.currentTaste())).catch(() => undefined);
+  });
 }

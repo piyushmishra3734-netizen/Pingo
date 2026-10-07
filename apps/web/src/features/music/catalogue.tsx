@@ -2,16 +2,19 @@ import { cn } from '@pingo/ui';
 import { ListMusic, Loader2, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
-import { MUSIC, decode, toSong, type ApiSong, type Song } from './sheets.js';
+import * as api from './saavn/api.js';
+import type { Song as SaavnSong } from './saavn/types.js';
+import type { Song } from './sheets.js';
 
 /**
  * Browsing the JioSaavn catalogue page by page, shared by the story/camera sheet
  * and the chat/profile picker.
  *
- * The live API (upstream sumitkolhe/jiosaavn-api) pages both `/search/songs` and
- * `/playlists` with a 1-based `page` and a `limit`; `/search/playlists` finds
- * JioSaavn's own editorial playlists (charts, new releases, every language).
- * It has no charts/modules route, so the shelves are those editorial playlists.
+ * The same backend as PINGO Music (`pingo-saavn`, through `saavn/api.ts`), so
+ * a search here finds what it finds there. Songs, playlists, artists' songs
+ * and searches page with a 1-based `page`; `searchPlaylists` finds JioSaavn's
+ * own editorial playlists (charts, new releases, every language), which is
+ * what the shelves are.
  */
 
 /** The shelf of your own uploaded songs. Not a search term: it is read from the songs Worker. */
@@ -47,32 +50,30 @@ export const cardSrc = (p: Playlist) => `${p.kind === 'artist' ? 'ar' : p.kind =
 
 const LIMIT = 20;
 
-async function get(path: string): Promise<Record<string, unknown> | undefined> {
-  const r = await fetch(MUSIC + path);
-  if (!r.ok) throw new Error(String(r.status));
-  return ((await r.json()) as { data?: Record<string, unknown> }).data ?? undefined;
-}
-
 /**
- * The end: an empty page, or past `total` (searches have one). Not a short page:
- * JioSaavn drops unplayable songs from a page, so a playlist page of 20 can come back with 17.
+ * A catalogue song as the pickers carry it. The 160 kbps address, whatever the
+ * connection: it travels in a shared song's link and plays on the other phone,
+ * and 160 is what JioSaavn plays by default. The small cover keeps that link short.
  */
-const isLast = (d: Record<string, unknown> | undefined, n: number, page: number) => n === 0 || (typeof d?.total === 'number' && page * LIMIT >= d.total);
+const small = (img: string) => img.replace(/(\d{2,3})x\1(?=\.\w+$)/, '150x150');
+export function fromSaavn(s: SaavnSong): Song | undefined {
+  const url = api.streamUrl(s, 'normal');
+  if (!url) return undefined;
+  return { name: s.name, artist: s.artists.map((a) => a.name).filter(Boolean).slice(0, 2).join(', '), img: small(s.image), url, secs: s.secs || 180, start: 30 };
+}
+const songs = (list: SaavnSong[] | undefined) => (list ?? []).map(fromSaavn).filter((s): s is Song => !!s);
 
 /** One page of songs: `pl:` a playlist, `ar:` an artist's songs, `al:` an album, anything else a search. */
 async function songPage(src: string, page: number) {
   const kind = /^(pl|ar|al):/.exec(src)?.[1];
   const id = kind ? src.slice(3) : '';
-  const d = await get(
-    kind === 'pl' ? `/playlists?id=${id}&limit=${LIMIT}&page=${page}`
-      : kind === 'ar' ? `/artists/${id}/songs?page=${page}`
-        : kind === 'al' ? `/albums?id=${id}`
-          : `/search/songs?query=${encodeURIComponent(src)}&limit=${LIMIT}&page=${page}`,
-  );
-  const raw = ((kind ? d?.songs : d?.results) ?? []) as ApiSong[];
-  // An album is one page; an artist's list pages like a search, by its own total.
-  const last = kind === 'al' || isLast(d, raw.length, page);
-  return { items: raw.map(toSong).filter((s): s is Song => !!s), last };
+  if (kind === 'pl') {
+    const p = await api.playlist(id, page, LIMIT);
+    return { items: songs(p.songs), last: !p.more || !p.songs?.length };
+  }
+  if (kind === 'al') return { items: songs((await api.album(id)).songs), last: true };
+  const r = kind === 'ar' ? await api.artistSongs(id, page) : await api.searchSongs(src, page);
+  return { items: songs(r.items), last: !r.more || !r.items.length };
 }
 
 /**
@@ -82,16 +83,15 @@ async function songPage(src: string, page: number) {
  * album themselves, and that is what made the two feel different.
  */
 async function topMatches(q: string): Promise<Playlist[]> {
-  const d = await get(`/search?query=${encodeURIComponent(q)}`).catch(() => undefined);
-  type Hit = { id: string; title: string; type: string; image?: { url: string }[] };
-  const pick = (key: string) => (((d?.[key] as { results?: Hit[] } | undefined)?.results ?? []) as Hit[]);
+  const d = await api.searchAll(q).catch(() => undefined);
+  if (!d) return [];
   const cards: Playlist[] = [];
   const seen = new Set<string>();
-  for (const hit of [...pick('topQuery'), ...pick('artists').slice(0, 3), ...pick('albums').slice(0, 3)]) {
+  for (const hit of [...d.top, ...d.artists.slice(0, 3), ...d.albums.slice(0, 3)]) {
     const kind = hit.type === 'artist' ? 'artist' : hit.type === 'album' ? 'album' : undefined;
     if (!kind || seen.has(hit.id)) continue;
     seen.add(hit.id);
-    cards.push({ id: hit.id, name: decode(hit.title), img: hit.image?.[1]?.url ?? hit.image?.[0]?.url ?? '', count: 0, kind });
+    cards.push({ id: hit.id, name: hit.name, img: small(hit.image), count: 0, kind });
   }
   return cards;
 }
@@ -100,14 +100,10 @@ async function listPage(src: string, page: number) {
   // `q:` marks a search typed by the person, which leads with the top artist/album matches.
   const typed = src.startsWith('q:');
   const q = typed ? src.slice(2) : src;
-  const [d, top] = await Promise.all([
-    get(`/search/playlists?query=${encodeURIComponent(q)}&limit=${LIMIT}&page=${page}`),
-    typed && page === 1 ? topMatches(q) : Promise.resolve([] as Playlist[]),
-  ]);
-  const raw = (d?.results ?? []) as { id: string; name: string; songCount?: number; image?: { url: string }[] }[];
+  const [d, top] = await Promise.all([api.searchPlaylists(q, page), typed && page === 1 ? topMatches(q) : Promise.resolve([] as Playlist[])]);
   return {
-    items: [...top, ...raw.filter((p) => (p.songCount ?? 1) > 0).map((p): Playlist => ({ id: p.id, name: decode(p.name), img: p.image?.[1]?.url ?? p.image?.[0]?.url ?? '', count: p.songCount ?? 0, kind: 'playlist' }))],
-    last: isLast(d, raw.length, page),
+    items: [...top, ...d.items.filter((p) => p.songCount > 0).map((p): Playlist => ({ id: p.id, name: p.name, img: small(p.image), count: p.songCount, kind: 'playlist' }))],
+    last: !d.more || !d.items.length,
   };
 }
 

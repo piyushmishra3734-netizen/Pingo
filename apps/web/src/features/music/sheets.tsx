@@ -8,13 +8,12 @@ import { UploadsShelf } from './UploadsShelf.js';
 
 /**
  * Music for stories and snaps: JioSaavn, through PINGO's own worker
- * (`pingo-music`), and the dark sheets both the story editor and the camera use
- * to search it, preview a song and pick the fifteen seconds that play.
+ * (`pingo-saavn`, the one PINGO Music uses), and the dark sheets both the
+ * story editor and the camera use to search it, preview a song and pick the
+ * fifteen seconds that play.
  */
 
-export const MUSIC = 'https://pingo-music.dubesminecraft.workers.dev/api';
 export interface Song { name: string; artist: string; img: string; url: string; secs: number; start: number }
-export const decode = (t: string) => { const x = document.createElement('textarea'); x.innerHTML = t; return x.value; };
 export const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 export function Panel({ children, title, onClose }: { children: ReactNode; title?: string; onClose: () => void }) {
@@ -35,13 +34,6 @@ export const Field = (p: React.InputHTMLAttributes<HTMLInputElement>) => (
 export const Blue = ({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
   <button type="button" {...p} className="h-[46px] w-full rounded-[12px] bg-media-accent text-[15px] font-bold text-on-media-accent disabled:opacity-50">{children}</button>
 );
-
-export interface ApiSong { name: string; duration?: number; image?: { url: string }[]; downloadUrl?: { quality: string; url: string }[]; artists?: { primary?: { name: string }[] } }
-export const toSong = (r: ApiSong): Song | undefined => {
-  const url = r.downloadUrl?.find((u) => u.quality === '160kbps')?.url ?? r.downloadUrl?.at(-1)?.url;
-  if (!url) return undefined;
-  return { name: decode(r.name), artist: decode((r.artists?.primary ?? []).map((a) => a.name).slice(0, 2).join(', ')), img: r.image?.[1]?.url ?? r.image?.[0]?.url ?? '', url, secs: r.duration ?? 180, start: 30 };
-};
 
 export function MusicSheet(p: { close: () => void; onPreview: (s?: Song) => void; chooseSong: (s: Song) => void }) {
   const cat = useCatalogue();
@@ -114,4 +106,3 @@ export function ClipSheet(p: { close: () => void; song?: Song; setSong: (s: Song
     </Panel>
   );
 }
-

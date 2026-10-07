@@ -4,11 +4,11 @@ PINGO Music's catalogue: everything JioSaavn has, in one small API. The routes
 are listed at the top of `src/index.ts`; the shapes are in `src/normalize.ts`
 (mirrored for the app in `apps/web/src/features/music/saavn/types.ts`).
 
-It replaces nothing yet. The old `pingo-music` Worker (`workers/music`) keeps
-serving the pickers in chat, stories and profile; this one is the backend for
-the PINGO Music screen, and has what the old one never had: home, charts,
-trending, new releases, editorial playlists, moods and genres, radio stations
-that never run dry, lyrics, top searches, full artist pages, link resolving.
+It is the one music backend the app uses: the PINGO Music screen, and the
+song pickers in chat, stories, the camera and profile (`catalogue.tsx`). The
+old `pingo-music` Worker (`workers/music`) is no longer called by the app;
+songs already shared in chats still play, since their links point straight at
+JioSaavn's own audio.
 
 ## How it reaches JioSaavn
 
