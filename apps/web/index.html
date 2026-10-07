@@ -469,9 +469,19 @@
           }
           return false;
         }
+        /*
+         * The stylesheet arrived as the stylesheet, not as a page wearing its
+         * name. A precache filled during a deploy stored the SPA fallback under
+         * the CSS file's name, the browser refused it (nosniff), and the app
+         * mounted bare: system fonts, grey buttons, no layout, on every launch
+         * (2026-10-07). Mounting is not enough of a signal on its own.
+         */
+        function styled() {
+          return getComputedStyle(document.documentElement).getPropertyValue('--font-sans') !== '';
+        }
         window.addEventListener('load', function () {
           setTimeout(function () {
-            if (mounted()) {
+            if (mounted() && styled()) {
               sessionStorage.removeItem(KEY);
               return;
             }
