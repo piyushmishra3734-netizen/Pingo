@@ -833,7 +833,7 @@ function EditorSheets(p: SheetsProps) {
 function StickerTray(p: SheetsProps & { close: () => void }) {
   const [q, setQ] = useState('');
   const [pack, setPack] = useState<{ name: string; url: string; keywords: string[] }[]>([]);
-  useEffect(() => { void fetch('/stickers/fluent-3d.json').then((r) => r.json()).then((j: { stickers: typeof pack }) => setPack(j.stickers)).catch(() => undefined); }, []);
+  useEffect(() => { void fetch('/stickers/blobfox.json').then((r) => r.json()).then((j: { stickers: typeof pack }) => setPack(j.stickers)).catch(() => undefined); }, []);
   const chips: [string, ReactNode, string, () => void][] = [
     ['loc', <><MapPin size={14} />LOCATION</>, 'text-[#8b3dff]', () => p.setKind('loc')],
     ['men', <>@MENTION</>, 'text-[#ff7a00]', () => p.setKind('mention')],

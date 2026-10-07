@@ -1,0 +1,3943 @@
+{
+ "id": "blobfox",
+ "name": "Blobfox",
+ "coverUrl": "https://pingochat.pages.dev/stickers/blobfox/bongo.png",
+ "attribution": {
+  "source": "Blobfox by Volpeon",
+  "url": "https://volpeon.ink/emojis/blobfox/",
+  "licence": "Apache-2.0",
+  "credit": "Blobfox by Volpeon, Apache License 2.0"
+ },
+ "stickers": [
+  {
+   "id": "blobfox-bongo",
+   "name": "Bongo",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "bongo",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/bongo.png"
+  },
+  {
+   "id": "blobfox-bongohyper",
+   "name": "Bongo Hyper",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "bongo",
+    "bongohyper",
+    "fox",
+    "hyper"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/bongohyper.png"
+  },
+  {
+   "id": "blobfox-bongoterrified",
+   "name": "Bongo Terrified",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "bongo",
+    "bongoterrified",
+    "fox",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/bongoterrified.png"
+  },
+  {
+   "id": "blobfox-hyper",
+   "name": "Hyper",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "hyper"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/hyper.png"
+  },
+  {
+   "id": "blobfox-ree",
+   "name": "Ree",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "ree"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/ree.png"
+  },
+  {
+   "id": "blobfox-hyperwhaaaat",
+   "name": "Hyper Whaaaat",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "hyper",
+    "hyperwhaaaat",
+    "whaaaat"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/hyperwhaaaat.png"
+  },
+  {
+   "id": "blobfox-dundundun",
+   "name": "Dundundun",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "dundundun",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/dundundun.png"
+  },
+  {
+   "id": "blobfox-dundundunowo",
+   "name": "Dundundun Owo",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "dundundun",
+    "dundundunowo",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/dundundunowo.png"
+  },
+  {
+   "id": "blobfox-hyperowo",
+   "name": "Hyper Owo",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "hyper",
+    "hyperowo",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/hyperowo.png"
+  },
+  {
+   "id": "blobfox-hyperthinking",
+   "name": "Hyper Thinking",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "hyper",
+    "hyperthinking",
+    "thinking"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/hyperthinking.png"
+  },
+  {
+   "id": "blobfox-hypercofe",
+   "name": "Hyper Cofe",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "fox",
+    "hyper",
+    "hypercofe"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/hypercofe.png"
+  },
+  {
+   "id": "blobfox-hypersnugowo",
+   "name": "Hyper Snug Owo",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "hyper",
+    "hypersnugowo",
+    "owo",
+    "snug"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/hypersnugowo.png"
+  },
+  {
+   "id": "blobfox-loading",
+   "name": "Loading",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "loading"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/loading.png"
+  },
+  {
+   "id": "blobfox-yeet",
+   "name": "Yeet",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "yeet"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/yeet.png",
+   "emoji": "🚀"
+  },
+  {
+   "id": "blobfox-tableflip",
+   "name": "Tableflip",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "tableflip"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/tableflip.png"
+  },
+  {
+   "id": "blobfox-bonk",
+   "name": "Bonk",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "bonk",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/bonk.png"
+  },
+  {
+   "id": "blobfox-googly",
+   "name": "Googly",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "googly"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/googly.png"
+  },
+  {
+   "id": "blobfox-0_0",
+   "name": "0_0",
+   "category": "meme",
+   "keywords": [
+    "0",
+    "0_0",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/0_0.png"
+  },
+  {
+   "id": "blobfox-whaaaat",
+   "name": "Whaaaat",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "whaaaat"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/whaaaat.png"
+  },
+  {
+   "id": "blobfox-deadinside",
+   "name": "Deadinside",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "deadinside",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/deadinside.png"
+  },
+  {
+   "id": "blobfox-dead",
+   "name": "Dead",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "dead",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/dead.png",
+   "emoji": "💀"
+  },
+  {
+   "id": "blobfox-notlikethis",
+   "name": "Notlikethis",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "notlikethis"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/notlikethis.png"
+  },
+  {
+   "id": "blobfox-facepalm",
+   "name": "Facepalm",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "facepalm",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/facepalm.png",
+   "emoji": "🤦"
+  },
+  {
+   "id": "blobfox-meltsob",
+   "name": "Melt Sob",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "melt",
+    "meltsob",
+    "sob"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/meltsob.png"
+  },
+  {
+   "id": "blobfox-crylaugh",
+   "name": "Cry Laugh",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "cry",
+    "crylaugh",
+    "fox",
+    "laugh"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/crylaugh.png",
+   "emoji": "😂"
+  },
+  {
+   "id": "blobfox-dealwithit",
+   "name": "Dealwithit",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "dealwithit",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/dealwithit.png"
+  },
+  {
+   "id": "blobfox-fingerguns",
+   "name": "Fingerguns",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fingerguns",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/fingerguns.png"
+  },
+  {
+   "id": "blobfox-dab",
+   "name": "Dab",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "dab",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/dab.png"
+  },
+  {
+   "id": "blobfox-washingmachine",
+   "name": "Washingmachine",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "washingmachine"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/washingmachine.png"
+  },
+  {
+   "id": "blobfox-cursedowo",
+   "name": "Cursed Owo",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "cursed",
+    "cursedowo",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cursedowo.png"
+  },
+  {
+   "id": "blobfox-angrylaugh",
+   "name": "Angrylaugh",
+   "category": "smileys",
+   "keywords": [
+    "angrylaugh",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/angrylaugh.png"
+  },
+  {
+   "id": "blobfox-rage",
+   "name": "Rage",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "rage"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/rage.png",
+   "emoji": "😡"
+  },
+  {
+   "id": "blobfox-knife",
+   "name": "Knife",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "knife"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/knife.png"
+  },
+  {
+   "id": "blobfox-peekknife",
+   "name": "Peek Knife",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "knife",
+    "peek",
+    "peekknife"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/peekknife.png"
+  },
+  {
+   "id": "blobfox-nerd",
+   "name": "Nerd",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nerd"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nerd.png",
+   "emoji": "🤓"
+  },
+  {
+   "id": "blobfox-smug",
+   "name": "Smug",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "smug"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/smug.png",
+   "emoji": "😏"
+  },
+  {
+   "id": "blobfox-pleading",
+   "name": "Pleading",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "pleading"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/pleading.png",
+   "emoji": "🥺"
+  },
+  {
+   "id": "blobfox-heartcute",
+   "name": "Heart Cute",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "cute",
+    "fox",
+    "heart",
+    "heartcute"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/heartcute.png"
+  },
+  {
+   "id": "blobfox-snuggle",
+   "name": "Snug Gle",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "gle",
+    "snug",
+    "snuggle"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/snuggle.png"
+  },
+  {
+   "id": "blobfox-signnou",
+   "name": "Sign Nou",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nou",
+    "sign",
+    "signnou"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signnou.png"
+  },
+  {
+   "id": "blobfox-signno",
+   "name": "Sign No",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "no",
+    "sign",
+    "signno"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signno.png"
+  },
+  {
+   "id": "blobfox-signyes",
+   "name": "Sign Yes",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sign",
+    "signyes",
+    "yes"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signyes.png"
+  },
+  {
+   "id": "blobfox-signthx",
+   "name": "Sign Thx",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sign",
+    "signthx",
+    "thx"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signthx.png"
+  },
+  {
+   "id": "blobfox-signbaka",
+   "name": "Sign Baka",
+   "category": "meme",
+   "keywords": [
+    "baka",
+    "blobfox",
+    "fox",
+    "sign",
+    "signbaka"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signbaka.png"
+  },
+  {
+   "id": "blobfox-signbigfan",
+   "name": "Sign Bigfan",
+   "category": "meme",
+   "keywords": [
+    "bigfan",
+    "blobfox",
+    "fox",
+    "sign",
+    "signbigfan"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signbigfan.png"
+  },
+  {
+   "id": "blobfox-thumbsup",
+   "name": "Thumbsup",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "thumbsup"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thumbsup.png",
+   "emoji": "👍"
+  },
+  {
+   "id": "blobfox-upsidedowndizzy",
+   "name": "Upsidedowndizzy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "upsidedowndizzy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/upsidedowndizzy.png"
+  },
+  {
+   "id": "blobfox-dizzy",
+   "name": "Dizzy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "dizzy",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/dizzy.png",
+   "emoji": "😵"
+  },
+  {
+   "id": "blobfox-scared",
+   "name": "Scared",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "scared"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/scared.png",
+   "emoji": "😨"
+  },
+  {
+   "id": "blobfox-shocked",
+   "name": "Shocked",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "shocked"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/shocked.png",
+   "emoji": "😱"
+  },
+  {
+   "id": "blobfox-devil",
+   "name": "D Evil",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "d",
+    "devil",
+    "evil",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/devil.png",
+   "emoji": "😈"
+  },
+  {
+   "id": "blobfox-ninja",
+   "name": "Ninja",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "ninja"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/ninja.png"
+  },
+  {
+   "id": "blobfox-thief",
+   "name": "Thief",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "thief"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thief.png"
+  },
+  {
+   "id": "blobfox-police",
+   "name": "Police",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "police"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/police.png"
+  },
+  {
+   "id": "blobfox-trash",
+   "name": "Trash",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "trash"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/trash.png"
+  },
+  {
+   "id": "blobfox-3c",
+   "name": "3c",
+   "category": "smileys",
+   "keywords": [
+    "3c",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/3c.png"
+  },
+  {
+   "id": "blobfox-3cevil",
+   "name": "3C Evil",
+   "category": "smileys",
+   "keywords": [
+    "3c",
+    "3cevil",
+    "blobfox",
+    "evil",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/3cevil.png"
+  },
+  {
+   "id": "blobfox-_w_",
+   "name": "_w_",
+   "category": "smileys",
+   "keywords": [
+    "_w_",
+    "blobfox",
+    "fox",
+    "w"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/_w_.png"
+  },
+  {
+   "id": "blobfox-angry",
+   "name": "Angry",
+   "category": "smileys",
+   "keywords": [
+    "angry",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/angry.png",
+   "emoji": "😠"
+  },
+  {
+   "id": "blobfox-annoyed",
+   "name": "Annoyed",
+   "category": "smileys",
+   "keywords": [
+    "annoyed",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/annoyed.png"
+  },
+  {
+   "id": "blobfox-artist",
+   "name": "Artist",
+   "category": "smileys",
+   "keywords": [
+    "artist",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/artist.png"
+  },
+  {
+   "id": "blobfox-astronout",
+   "name": "Astronout",
+   "category": "meme",
+   "keywords": [
+    "astronout",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/astronout.png"
+  },
+  {
+   "id": "blobfox-astronoutgun",
+   "name": "Astronoutgun",
+   "category": "meme",
+   "keywords": [
+    "astronoutgun",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/astronoutgun.png"
+  },
+  {
+   "id": "blobfox-aww",
+   "name": "Aww",
+   "category": "love",
+   "keywords": [
+    "aww",
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/aww.png"
+  },
+  {
+   "id": "blobfox-blobfox",
+   "name": "Blobfox",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/blobfox.png"
+  },
+  {
+   "id": "blobfox-blush",
+   "name": "Blush",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "blush",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/blush.png",
+   "emoji": "😊"
+  },
+  {
+   "id": "blobfox-blushmore",
+   "name": "Blushmore",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "blushmore",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/blushmore.png"
+  },
+  {
+   "id": "blobfox-boop",
+   "name": "Boop",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boop.png"
+  },
+  {
+   "id": "blobfox-boop_w_",
+   "name": "Boop W",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boop_w_",
+    "fox",
+    "w"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boop_w_.png"
+  },
+  {
+   "id": "blobfox-boopblush",
+   "name": "Boop Blush",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "blush",
+    "boop",
+    "boopblush",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopblush.png"
+  },
+  {
+   "id": "blobfox-boopcute",
+   "name": "Boop Cute",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopcute",
+    "cute",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopcute.png"
+  },
+  {
+   "id": "blobfox-boopfloof",
+   "name": "Boop Floof",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopfloof",
+    "floof",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopfloof.png"
+  },
+  {
+   "id": "blobfox-boopglare",
+   "name": "Boop Glare",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopglare",
+    "fox",
+    "glare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopglare.png"
+  },
+  {
+   "id": "blobfox-boopgoogly",
+   "name": "Boop Googly",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopgoogly",
+    "fox",
+    "googly"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopgoogly.png"
+  },
+  {
+   "id": "blobfox-boophappy",
+   "name": "Boop Happy",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boophappy",
+    "fox",
+    "happy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boophappy.png"
+  },
+  {
+   "id": "blobfox-boopmelt",
+   "name": "Boop Melt",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopmelt",
+    "fox",
+    "melt"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopmelt.png"
+  },
+  {
+   "id": "blobfox-boopmelthappy",
+   "name": "Boop Melt Happy",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopmelthappy",
+    "fox",
+    "happy",
+    "melt"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopmelthappy.png"
+  },
+  {
+   "id": "blobfox-boopmlem",
+   "name": "Boop Mlem",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopmlem",
+    "fox",
+    "mlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopmlem.png"
+  },
+  {
+   "id": "blobfox-boopowo",
+   "name": "Boop Owo",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopowo",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopowo.png"
+  },
+  {
+   "id": "blobfox-boopterrified",
+   "name": "Boop Terrified",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "boop",
+    "boopterrified",
+    "fox",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/boopterrified.png"
+  },
+  {
+   "id": "blobfox-box",
+   "name": "Box",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "box",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/box.png"
+  },
+  {
+   "id": "blobfox-breadpeek",
+   "name": "Bread Peek",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "bread",
+    "breadpeek",
+    "fox",
+    "peek"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/breadpeek.png"
+  },
+  {
+   "id": "blobfox-breadsnoot",
+   "name": "Breadsnoot",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "breadsnoot",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/breadsnoot.png"
+  },
+  {
+   "id": "blobfox-breadsnoot2",
+   "name": "Breadsnoot2",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "breadsnoot2",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/breadsnoot2.png"
+  },
+  {
+   "id": "blobfox-breadsnoot2googly",
+   "name": "Breadsnoot2 Googly",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "breadsnoot2",
+    "breadsnoot2googly",
+    "fox",
+    "googly"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/breadsnoot2googly.png"
+  },
+  {
+   "id": "blobfox-breadsnootgoogly",
+   "name": "Breadsnoot Googly",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "breadsnoot",
+    "breadsnootgoogly",
+    "fox",
+    "googly"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/breadsnootgoogly.png"
+  },
+  {
+   "id": "blobfox-cactus",
+   "name": "Cactus",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cactus",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cactus.png"
+  },
+  {
+   "id": "blobfox-camera",
+   "name": "Camera",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "camera",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/camera.png"
+  },
+  {
+   "id": "blobfox-cat",
+   "name": "Cat",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "cat",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cat.png"
+  },
+  {
+   "id": "blobfox-catsnuggle",
+   "name": "Cat Snug Gle",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "cat",
+    "catsnuggle",
+    "fox",
+    "gle",
+    "snug"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/catsnuggle.png"
+  },
+  {
+   "id": "blobfox-catterrified",
+   "name": "Cat Terrified",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "cat",
+    "catterrified",
+    "fox",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/catterrified.png"
+  },
+  {
+   "id": "blobfox-check",
+   "name": "Check",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "check",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/check.png",
+   "emoji": "✅"
+  },
+  {
+   "id": "blobfox-cheer",
+   "name": "Cheer",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "cheer",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cheer.png"
+  },
+  {
+   "id": "blobfox-cofe",
+   "name": "Cofe",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cofe.png"
+  },
+  {
+   "id": "blobfox-cofe_w_",
+   "name": "Cofe W",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "cofe_w_",
+    "fox",
+    "w"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cofe_w_.png"
+  },
+  {
+   "id": "blobfox-cofecute",
+   "name": "Cofe Cute",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "cofecute",
+    "cute",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cofecute.png"
+  },
+  {
+   "id": "blobfox-cofeglare",
+   "name": "Cofe Glare",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "cofeglare",
+    "fox",
+    "glare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cofeglare.png"
+  },
+  {
+   "id": "blobfox-cofemlem",
+   "name": "Cofe Mlem",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "cofemlem",
+    "fox",
+    "mlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cofemlem.png"
+  },
+  {
+   "id": "blobfox-cofeowo",
+   "name": "Cofe Owo",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "cofeowo",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cofeowo.png"
+  },
+  {
+   "id": "blobfox-cofeterrified",
+   "name": "Cofe Terrified",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "cofeterrified",
+    "fox",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cofeterrified.png"
+  },
+  {
+   "id": "blobfox-comfy",
+   "name": "Comfy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfy.png"
+  },
+  {
+   "id": "blobfox-comfycofe",
+   "name": "Comfy Cofe",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "comfy",
+    "comfycofe",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfycofe.png"
+  },
+  {
+   "id": "blobfox-comfycomputer",
+   "name": "Comfy Computer",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfycomputer",
+    "computer",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfycomputer.png"
+  },
+  {
+   "id": "blobfox-comfyevil",
+   "name": "Comfy Evil",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfyevil",
+    "evil",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfyevil.png"
+  },
+  {
+   "id": "blobfox-comfyglare",
+   "name": "Comfy Glare",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfyglare",
+    "fox",
+    "glare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfyglare.png"
+  },
+  {
+   "id": "blobfox-comfyhappy",
+   "name": "Comfy Happy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfyhappy",
+    "fox",
+    "happy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfyhappy.png"
+  },
+  {
+   "id": "blobfox-comfymelt",
+   "name": "Comfy Melt",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfymelt",
+    "fox",
+    "melt"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfymelt.png"
+  },
+  {
+   "id": "blobfox-comfymelthappy",
+   "name": "Comfy Melt Happy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfymelthappy",
+    "fox",
+    "happy",
+    "melt"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfymelthappy.png"
+  },
+  {
+   "id": "blobfox-comfyowo",
+   "name": "Comfy Owo",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfyowo",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfyowo.png"
+  },
+  {
+   "id": "blobfox-comfysip",
+   "name": "Comfy Sip",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfysip",
+    "fox",
+    "sip"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfysip.png"
+  },
+  {
+   "id": "blobfox-comfysleepy",
+   "name": "Comfy Sleepy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfysleepy",
+    "fox",
+    "sleepy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfysleepy.png"
+  },
+  {
+   "id": "blobfox-comfysmirk",
+   "name": "Comfy Smirk",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfysmirk",
+    "fox",
+    "smirk"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfysmirk.png"
+  },
+  {
+   "id": "blobfox-comfysmug",
+   "name": "Comfy Smug",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfysmug",
+    "fox",
+    "smug"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfysmug.png"
+  },
+  {
+   "id": "blobfox-comfytea",
+   "name": "Comfy Tea",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfytea",
+    "fox",
+    "tea"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfytea.png"
+  },
+  {
+   "id": "blobfox-comfyterrified",
+   "name": "Comfy Terrified",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "comfyterrified",
+    "fox",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/comfyterrified.png"
+  },
+  {
+   "id": "blobfox-computer",
+   "name": "Computer",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "computer",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/computer.png"
+  },
+  {
+   "id": "blobfox-computerowo",
+   "name": "Computer Owo",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "computer",
+    "computerowo",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/computerowo.png"
+  },
+  {
+   "id": "blobfox-computerowonotice",
+   "name": "Computer Owo Notice",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "computer",
+    "computerowonotice",
+    "fox",
+    "notice",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/computerowonotice.png"
+  },
+  {
+   "id": "blobfox-confused",
+   "name": "Confused",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "confused",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/confused.png"
+  },
+  {
+   "id": "blobfox-cookie",
+   "name": "Cookie",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cookie",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cookie.png"
+  },
+  {
+   "id": "blobfox-cookienomfox",
+   "name": "Cookie Nom Fox",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cookie",
+    "cookienomfox",
+    "fox",
+    "nom"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cookienomfox.png"
+  },
+  {
+   "id": "blobfox-cry",
+   "name": "Cry",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "cry",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cry.png",
+   "emoji": "😢"
+  },
+  {
+   "id": "blobfox-cry2",
+   "name": "Cry 2",
+   "category": "smileys",
+   "keywords": [
+    "2",
+    "blobfox",
+    "cry",
+    "cry2",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cry2.png"
+  },
+  {
+   "id": "blobfox-cryreach",
+   "name": "Cry Reach",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "cry",
+    "cryreach",
+    "fox",
+    "reach"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cryreach.png"
+  },
+  {
+   "id": "blobfox-cute",
+   "name": "Cute",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "cute",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/cute.png"
+  },
+  {
+   "id": "blobfox-darkghost",
+   "name": "Darkghost",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "darkghost",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/darkghost.png"
+  },
+  {
+   "id": "blobfox-darkghostfloof",
+   "name": "Darkghost Floof",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "darkghost",
+    "darkghostfloof",
+    "floof",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/darkghostfloof.png"
+  },
+  {
+   "id": "blobfox-darkghostspooky",
+   "name": "Darkghostspooky",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "darkghostspooky",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/darkghostspooky.png"
+  },
+  {
+   "id": "blobfox-dealwithitfingerguns",
+   "name": "Dealwithitfingerguns",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "dealwithitfingerguns",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/dealwithitfingerguns.png"
+  },
+  {
+   "id": "blobfox-detective",
+   "name": "Detective",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "detective",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/detective.png"
+  },
+  {
+   "id": "blobfox-determined",
+   "name": "Determined",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "determined",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/determined.png"
+  },
+  {
+   "id": "blobfox-disapprove",
+   "name": "Disapprove",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "disapprove",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/disapprove.png"
+  },
+  {
+   "id": "blobfox-disgust",
+   "name": "Disgust",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "disgust",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/disgust.png"
+  },
+  {
+   "id": "blobfox-disputed",
+   "name": "Disputed",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "disputed",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/disputed.png"
+  },
+  {
+   "id": "blobfox-doubt",
+   "name": "Doubt",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "doubt",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/doubt.png"
+  },
+  {
+   "id": "blobfox-drool",
+   "name": "Drool",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "drool",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/drool.png"
+  },
+  {
+   "id": "blobfox-evil",
+   "name": "Evil",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "evil",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/evil.png"
+  },
+  {
+   "id": "blobfox-eyes",
+   "name": "Eyes",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "eyes",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/eyes.png",
+   "emoji": "👀"
+  },
+  {
+   "id": "blobfox-fake",
+   "name": "Fake",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fake",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/fake.png"
+  },
+  {
+   "id": "blobfox-floof",
+   "name": "Floof",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "floof",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floof.png"
+  },
+  {
+   "id": "blobfox-floof_w_",
+   "name": "Floof W",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "floof",
+    "floof_w_",
+    "fox",
+    "w"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floof_w_.png"
+  },
+  {
+   "id": "blobfox-floofcofe",
+   "name": "Floof Cofe",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "floof",
+    "floofcofe",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floofcofe.png"
+  },
+  {
+   "id": "blobfox-floofcute",
+   "name": "Floof Cute",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "cute",
+    "floof",
+    "floofcute",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floofcute.png"
+  },
+  {
+   "id": "blobfox-floofdevil",
+   "name": "Floof D Evil",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "d",
+    "evil",
+    "floof",
+    "floofdevil",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floofdevil.png"
+  },
+  {
+   "id": "blobfox-floofevil",
+   "name": "Floof Evil",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "evil",
+    "floof",
+    "floofevil",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floofevil.png"
+  },
+  {
+   "id": "blobfox-floofhappy",
+   "name": "Floof Happy",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "floof",
+    "floofhappy",
+    "fox",
+    "happy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floofhappy.png"
+  },
+  {
+   "id": "blobfox-floofowo",
+   "name": "Floof Owo",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "floof",
+    "floofowo",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floofowo.png"
+  },
+  {
+   "id": "blobfox-floofreach",
+   "name": "Floof Reach",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "floof",
+    "floofreach",
+    "fox",
+    "reach"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/floofreach.png"
+  },
+  {
+   "id": "blobfox-flooftea",
+   "name": "Floof Tea",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "floof",
+    "flooftea",
+    "fox",
+    "tea"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/flooftea.png"
+  },
+  {
+   "id": "blobfox-flower",
+   "name": "Flower",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "flower",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/flower.png"
+  },
+  {
+   "id": "blobfox-flowerhair",
+   "name": "Flowerhair",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "flowerhair",
+    "fox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/flowerhair.png"
+  },
+  {
+   "id": "blobfox-ghost",
+   "name": "Ghost",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "ghost"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/ghost.png",
+   "emoji": "👻"
+  },
+  {
+   "id": "blobfox-ghostfloof",
+   "name": "Ghost Floof",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "floof",
+    "fox",
+    "ghost",
+    "ghostfloof"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/ghostfloof.png"
+  },
+  {
+   "id": "blobfox-ghostspooky",
+   "name": "Ghostspooky",
+   "category": "animals",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "ghostspooky"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/ghostspooky.png"
+  },
+  {
+   "id": "blobfox-glare",
+   "name": "Glare",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "glare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/glare.png"
+  },
+  {
+   "id": "blobfox-googlycry",
+   "name": "Googly Cry",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "cry",
+    "fox",
+    "googly",
+    "googlycry"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/googlycry.png"
+  },
+  {
+   "id": "blobfox-googlymlem",
+   "name": "Googly Mlem",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "googly",
+    "googlymlem",
+    "mlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/googlymlem.png"
+  },
+  {
+   "id": "blobfox-googlynomlog",
+   "name": "Googly Nom Log",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "googly",
+    "googlynomlog",
+    "log",
+    "nom"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/googlynomlog.png"
+  },
+  {
+   "id": "blobfox-googlytrash",
+   "name": "Googly Trash",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "googly",
+    "googlytrash",
+    "trash"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/googlytrash.png"
+  },
+  {
+   "id": "blobfox-happy",
+   "name": "Happy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "happy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/happy.png",
+   "emoji": "😄"
+  },
+  {
+   "id": "blobfox-happymlem",
+   "name": "Happy Mlem",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "happy",
+    "happymlem",
+    "mlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/happymlem.png"
+  },
+  {
+   "id": "blobfox-headphones",
+   "name": "Headphones",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "headphones"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/headphones.png"
+  },
+  {
+   "id": "blobfox-heart",
+   "name": "Heart",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "heart"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/heart.png",
+   "emoji": "❤️"
+  },
+  {
+   "id": "blobfox-hyper2",
+   "name": "Hyper 2",
+   "category": "smileys",
+   "keywords": [
+    "2",
+    "blobfox",
+    "fox",
+    "hyper",
+    "hyper2"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/hyper2.png"
+  },
+  {
+   "id": "blobfox-innocent",
+   "name": "Innocent",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "innocent"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/innocent.png"
+  },
+  {
+   "id": "blobfox-innocentcute",
+   "name": "Innocent Cute",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "cute",
+    "fox",
+    "innocent",
+    "innocentcute"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/innocentcute.png"
+  },
+  {
+   "id": "blobfox-innocentmlem",
+   "name": "Innocent Mlem",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "innocent",
+    "innocentmlem",
+    "mlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/innocentmlem.png"
+  },
+  {
+   "id": "blobfox-laugh",
+   "name": "Laugh",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "laugh"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/laugh.png",
+   "emoji": "😂"
+  },
+  {
+   "id": "blobfox-laughsweat",
+   "name": "Laughsweat",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "laughsweat"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/laughsweat.png"
+  },
+  {
+   "id": "blobfox-lul",
+   "name": "Lul",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "lul"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lul.png"
+  },
+  {
+   "id": "blobfox-lurk",
+   "name": "Lurk",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "lurk"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurk.png"
+  },
+  {
+   "id": "blobfox-lurk2",
+   "name": "Lurk 2",
+   "category": "smileys",
+   "keywords": [
+    "2",
+    "blobfox",
+    "fox",
+    "lurk",
+    "lurk2"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurk2.png"
+  },
+  {
+   "id": "blobfox-lurk2glare",
+   "name": "Lurk 2 Glare",
+   "category": "smileys",
+   "keywords": [
+    "2",
+    "blobfox",
+    "fox",
+    "glare",
+    "lurk",
+    "lurk2glare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurk2glare.png"
+  },
+  {
+   "id": "blobfox-lurk2owo",
+   "name": "Lurk 2 Owo",
+   "category": "smileys",
+   "keywords": [
+    "2",
+    "blobfox",
+    "fox",
+    "lurk",
+    "lurk2owo",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurk2owo.png"
+  },
+  {
+   "id": "blobfox-lurk2owonotice",
+   "name": "Lurk 2 Owo Notice",
+   "category": "smileys",
+   "keywords": [
+    "2",
+    "blobfox",
+    "fox",
+    "lurk",
+    "lurk2owonotice",
+    "notice",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurk2owonotice.png"
+  },
+  {
+   "id": "blobfox-lurkaww",
+   "name": "Lurk Aww",
+   "category": "love",
+   "keywords": [
+    "aww",
+    "blobfox",
+    "fox",
+    "lurk",
+    "lurkaww"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurkaww.png"
+  },
+  {
+   "id": "blobfox-lurkglare",
+   "name": "Lurk Glare",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "glare",
+    "lurk",
+    "lurkglare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurkglare.png"
+  },
+  {
+   "id": "blobfox-lurkowo",
+   "name": "Lurk Owo",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "lurk",
+    "lurkowo",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurkowo.png"
+  },
+  {
+   "id": "blobfox-lurkowonotice",
+   "name": "Lurk Owo Notice",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "lurk",
+    "lurkowonotice",
+    "notice",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/lurkowonotice.png"
+  },
+  {
+   "id": "blobfox-melt",
+   "name": "Melt",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "melt"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/melt.png",
+   "emoji": "🫠"
+  },
+  {
+   "id": "blobfox-melt2",
+   "name": "Melt 2",
+   "category": "smileys",
+   "keywords": [
+    "2",
+    "blobfox",
+    "fox",
+    "melt",
+    "melt2"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/melt2.png"
+  },
+  {
+   "id": "blobfox-melt3",
+   "name": "Melt 3",
+   "category": "smileys",
+   "keywords": [
+    "3",
+    "blobfox",
+    "fox",
+    "melt",
+    "melt3"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/melt3.png"
+  },
+  {
+   "id": "blobfox-meltblush",
+   "name": "Melt Blush",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "blush",
+    "fox",
+    "melt",
+    "meltblush"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/meltblush.png"
+  },
+  {
+   "id": "blobfox-melthappy",
+   "name": "Melt Happy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "happy",
+    "melt",
+    "melthappy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/melthappy.png"
+  },
+  {
+   "id": "blobfox-meltmlem",
+   "name": "Melt Mlem",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "melt",
+    "meltmlem",
+    "mlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/meltmlem.png"
+  },
+  {
+   "id": "blobfox-meltreach",
+   "name": "Melt Reach",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "melt",
+    "meltreach",
+    "reach"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/meltreach.png"
+  },
+  {
+   "id": "blobfox-meltsoblove",
+   "name": "Melt Soblove",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "melt",
+    "meltsoblove",
+    "soblove"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/meltsoblove.png"
+  },
+  {
+   "id": "blobfox-mischievous",
+   "name": "Mischievous",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "mischievous"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/mischievous.png"
+  },
+  {
+   "id": "blobfox-mlem",
+   "name": "Mlem",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "mlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/mlem.png"
+  },
+  {
+   "id": "blobfox-nauseated",
+   "name": "Nauseated",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nauseated"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nauseated.png",
+   "emoji": "🤢"
+  },
+  {
+   "id": "blobfox-nomball",
+   "name": "Nom Ball",
+   "category": "food",
+   "keywords": [
+    "ball",
+    "blobfox",
+    "fox",
+    "nom",
+    "nomball"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomball.png"
+  },
+  {
+   "id": "blobfox-nombook",
+   "name": "Nom Book",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "book",
+    "fox",
+    "nom",
+    "nombook"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nombook.png"
+  },
+  {
+   "id": "blobfox-nombread",
+   "name": "Nom Bread",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "bread",
+    "fox",
+    "nom",
+    "nombread"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nombread.png"
+  },
+  {
+   "id": "blobfox-nomburger",
+   "name": "Nom Burger",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "burger",
+    "fox",
+    "nom",
+    "nomburger"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomburger.png"
+  },
+  {
+   "id": "blobfox-nomcake",
+   "name": "Nom Cake",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cake",
+    "fox",
+    "nom",
+    "nomcake"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomcake.png"
+  },
+  {
+   "id": "blobfox-nomcat",
+   "name": "Nom Cat",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cat",
+    "fox",
+    "nom",
+    "nomcat"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomcat.png"
+  },
+  {
+   "id": "blobfox-nomcookie",
+   "name": "Nom Cookie",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cookie",
+    "fox",
+    "nom",
+    "nomcookie"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomcookie.png"
+  },
+  {
+   "id": "blobfox-nomcorndog",
+   "name": "Nom Corndog",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "corndog",
+    "fox",
+    "nom",
+    "nomcorndog"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomcorndog.png"
+  },
+  {
+   "id": "blobfox-nomcroutons",
+   "name": "Nom Croutons",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "croutons",
+    "fox",
+    "nom",
+    "nomcroutons"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomcroutons.png"
+  },
+  {
+   "id": "blobfox-nomdonut",
+   "name": "Nom Donut",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "donut",
+    "fox",
+    "nom",
+    "nomdonut"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomdonut.png"
+  },
+  {
+   "id": "blobfox-nomdonutpolice",
+   "name": "Nom Donutpolice",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "donutpolice",
+    "fox",
+    "nom",
+    "nomdonutpolice"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomdonutpolice.png"
+  },
+  {
+   "id": "blobfox-nomdonutterrified",
+   "name": "Nom Donut Terrified",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "donut",
+    "fox",
+    "nom",
+    "nomdonutterrified",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomdonutterrified.png"
+  },
+  {
+   "id": "blobfox-nomegg",
+   "name": "Nom Egg",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "egg",
+    "fox",
+    "nom",
+    "nomegg"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomegg.png"
+  },
+  {
+   "id": "blobfox-nomfox",
+   "name": "Nom Fox",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nom",
+    "nomfox"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomfox.png"
+  },
+  {
+   "id": "blobfox-nomfoxburger",
+   "name": "Nom Foxburger",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "foxburger",
+    "nom",
+    "nomfoxburger"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomfoxburger.png"
+  },
+  {
+   "id": "blobfox-nomfoxcookie",
+   "name": "Nom Foxcookie",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "foxcookie",
+    "nom",
+    "nomfoxcookie"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomfoxcookie.png"
+  },
+  {
+   "id": "blobfox-nomfoxterrified",
+   "name": "Nom Fox Terrified",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nom",
+    "nomfoxterrified",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomfoxterrified.png"
+  },
+  {
+   "id": "blobfox-nomhotdog",
+   "name": "Nom Hotdog",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "hotdog",
+    "nom",
+    "nomhotdog"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomhotdog.png"
+  },
+  {
+   "id": "blobfox-nomicecream",
+   "name": "Nom Icecream",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "icecream",
+    "nom",
+    "nomicecream"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomicecream.png"
+  },
+  {
+   "id": "blobfox-nomlog",
+   "name": "Nom Log",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "log",
+    "nom",
+    "nomlog"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomlog.png"
+  },
+  {
+   "id": "blobfox-nommelon",
+   "name": "Nom Melon",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "melon",
+    "nom",
+    "nommelon"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nommelon.png"
+  },
+  {
+   "id": "blobfox-nommobile",
+   "name": "Nom Mobile",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "mobile",
+    "nom",
+    "nommobile"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nommobile.png"
+  },
+  {
+   "id": "blobfox-nompizza",
+   "name": "Nom Pizza",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nom",
+    "nompizza",
+    "pizza"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nompizza.png"
+  },
+  {
+   "id": "blobfox-nompizzaterrified",
+   "name": "Nom Pizza Terrified",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nom",
+    "nompizzaterrified",
+    "pizza",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nompizzaterrified.png"
+  },
+  {
+   "id": "blobfox-nomshoe",
+   "name": "Nom Shoe",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nom",
+    "nomshoe",
+    "shoe"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomshoe.png"
+  },
+  {
+   "id": "blobfox-nomstrawberry",
+   "name": "Nom Strawberry",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nom",
+    "nomstrawberry",
+    "strawberry"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomstrawberry.png"
+  },
+  {
+   "id": "blobfox-nomtomato",
+   "name": "Nom Tomato",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "nom",
+    "nomtomato",
+    "tomato"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/nomtomato.png"
+  },
+  {
+   "id": "blobfox-notamused",
+   "name": "Notamused",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "notamused"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/notamused.png"
+  },
+  {
+   "id": "blobfox-o_o",
+   "name": "o_o",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "o",
+    "o_o"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/o_o.png"
+  },
+  {
+   "id": "blobfox-outage",
+   "name": "Outage",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "outage"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/outage.png"
+  },
+  {
+   "id": "blobfox-owo",
+   "name": "Owo",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "owo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/owo.png"
+  },
+  {
+   "id": "blobfox-owomlem",
+   "name": "Owo Mlem",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "mlem",
+    "owo",
+    "owomlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/owomlem.png"
+  },
+  {
+   "id": "blobfox-owonotice",
+   "name": "Owo Notice",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "notice",
+    "owo",
+    "owonotice"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/owonotice.png"
+  },
+  {
+   "id": "blobfox-pat",
+   "name": "Pat",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "pat"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/pat.png"
+  },
+  {
+   "id": "blobfox-patdeny",
+   "name": "Pat Deny",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "deny",
+    "fox",
+    "pat",
+    "patdeny"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patdeny.png"
+  },
+  {
+   "id": "blobfox-patghost",
+   "name": "Pat Ghost",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "ghost",
+    "pat",
+    "patghost"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patghost.png"
+  },
+  {
+   "id": "blobfox-patgoogly",
+   "name": "Pat Googly",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "googly",
+    "pat",
+    "patgoogly"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patgoogly.png"
+  },
+  {
+   "id": "blobfox-patmelt",
+   "name": "Pat Melt",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "melt",
+    "pat",
+    "patmelt"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patmelt.png"
+  },
+  {
+   "id": "blobfox-patmelt2",
+   "name": "Pat Melt 2",
+   "category": "gestures",
+   "keywords": [
+    "2",
+    "blobfox",
+    "fox",
+    "melt",
+    "pat",
+    "patmelt2"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patmelt2.png"
+  },
+  {
+   "id": "blobfox-patmelt3",
+   "name": "Pat Melt 3",
+   "category": "gestures",
+   "keywords": [
+    "3",
+    "blobfox",
+    "fox",
+    "melt",
+    "pat",
+    "patmelt3"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patmelt3.png"
+  },
+  {
+   "id": "blobfox-patneutral",
+   "name": "Pat Neutral",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "neutral",
+    "pat",
+    "patneutral"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patneutral.png"
+  },
+  {
+   "id": "blobfox-patsad",
+   "name": "Pat Sad",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "pat",
+    "patsad",
+    "sad"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/patsad.png"
+  },
+  {
+   "id": "blobfox-peek",
+   "name": "Peek",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "peek"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/peek.png"
+  },
+  {
+   "id": "blobfox-peekcomfy",
+   "name": "Peek Comfy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "comfy",
+    "fox",
+    "peek",
+    "peekcomfy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/peekcomfy.png"
+  },
+  {
+   "id": "blobfox-peekowo",
+   "name": "Peek Owo",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "owo",
+    "peek",
+    "peekowo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/peekowo.png"
+  },
+  {
+   "id": "blobfox-peekpolice",
+   "name": "Peek Police",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "peek",
+    "peekpolice",
+    "police"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/peekpolice.png"
+  },
+  {
+   "id": "blobfox-pirate",
+   "name": "Pirate",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "pirate"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/pirate.png"
+  },
+  {
+   "id": "blobfox-prelurkcofe",
+   "name": "Pre Lurk Cofe",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cofe",
+    "fox",
+    "lurk",
+    "pre",
+    "prelurkcofe"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/prelurkcofe.png"
+  },
+  {
+   "id": "blobfox-prelurkcroutons",
+   "name": "Pre Lurk Croutons",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "croutons",
+    "fox",
+    "lurk",
+    "pre",
+    "prelurkcroutons"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/prelurkcroutons.png"
+  },
+  {
+   "id": "blobfox-prelurkdonut",
+   "name": "Pre Lurk Donut",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "donut",
+    "fox",
+    "lurk",
+    "pre",
+    "prelurkdonut"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/prelurkdonut.png"
+  },
+  {
+   "id": "blobfox-reach",
+   "name": "Reach",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "reach"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/reach.png"
+  },
+  {
+   "id": "blobfox-reachaww",
+   "name": "Reachaww",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "reachaww"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/reachaww.png"
+  },
+  {
+   "id": "blobfox-read",
+   "name": "Read",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "read"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/read.png"
+  },
+  {
+   "id": "blobfox-reinderp",
+   "name": "Reinderp",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "reinderp"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/reinderp.png"
+  },
+  {
+   "id": "blobfox-sad",
+   "name": "Sad",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sad"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sad.png",
+   "emoji": "😞"
+  },
+  {
+   "id": "blobfox-santa",
+   "name": "Santa",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "santa"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/santa.png"
+  },
+  {
+   "id": "blobfox-science",
+   "name": "Science",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "science"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/science.png"
+  },
+  {
+   "id": "blobfox-shy",
+   "name": "Shy",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "shy"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/shy.png"
+  },
+  {
+   "id": "blobfox-signforbidden",
+   "name": "Sign Forbidden",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "forbidden",
+    "fox",
+    "sign",
+    "signforbidden"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signforbidden.png"
+  },
+  {
+   "id": "blobfox-signgenau",
+   "name": "Sign Genau",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "genau",
+    "sign",
+    "signgenau"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signgenau.png"
+  },
+  {
+   "id": "blobfox-signnoublush",
+   "name": "Sign Noublush",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "noublush",
+    "sign",
+    "signnoublush"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signnoublush.png"
+  },
+  {
+   "id": "blobfox-signsrcpls",
+   "name": "Sign Srcpls",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sign",
+    "signsrcpls",
+    "srcpls"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signsrcpls.png"
+  },
+  {
+   "id": "blobfox-signyip",
+   "name": "Sign Yip",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sign",
+    "signyip",
+    "yip"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/signyip.png"
+  },
+  {
+   "id": "blobfox-sip",
+   "name": "Sip",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sip"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sip.png"
+  },
+  {
+   "id": "blobfox-sipglare",
+   "name": "Sip Glare",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "glare",
+    "sip",
+    "sipglare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sipglare.png"
+  },
+  {
+   "id": "blobfox-sipowo",
+   "name": "Sip Owo",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "owo",
+    "sip",
+    "sipowo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sipowo.png"
+  },
+  {
+   "id": "blobfox-sipsmug",
+   "name": "Sip Smug",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sip",
+    "sipsmug",
+    "smug"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sipsmug.png"
+  },
+  {
+   "id": "blobfox-sipterrified",
+   "name": "Sip Terrified",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sip",
+    "sipterrified",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sipterrified.png"
+  },
+  {
+   "id": "blobfox-sleep",
+   "name": "Sleep",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sleep"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sleep.png",
+   "emoji": "😴"
+  },
+  {
+   "id": "blobfox-sleepdab",
+   "name": "Sleepdab",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sleepdab"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sleepdab.png"
+  },
+  {
+   "id": "blobfox-smirk",
+   "name": "Smirk",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "smirk"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/smirk.png"
+  },
+  {
+   "id": "blobfox-snug",
+   "name": "Snug",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "snug"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/snug.png"
+  },
+  {
+   "id": "blobfox-snugglare",
+   "name": "Snug Glare",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "glare",
+    "snug",
+    "snugglare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/snugglare.png"
+  },
+  {
+   "id": "blobfox-snugowo",
+   "name": "Snug Owo",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "owo",
+    "snug",
+    "snugowo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/snugowo.png"
+  },
+  {
+   "id": "blobfox-snugterrified",
+   "name": "Snug Terrified",
+   "category": "love",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "snug",
+    "snugterrified",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/snugterrified.png"
+  },
+  {
+   "id": "blobfox-stabbed",
+   "name": "Stabbed",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "stabbed"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/stabbed.png"
+  },
+  {
+   "id": "blobfox-surprised",
+   "name": "Surprised",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "surprised"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/surprised.png",
+   "emoji": "😮"
+  },
+  {
+   "id": "blobfox-sweating",
+   "name": "Sweating",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "sweating"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/sweating.png",
+   "emoji": "😅"
+  },
+  {
+   "id": "blobfox-tea",
+   "name": "Tea",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "tea"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/tea.png"
+  },
+  {
+   "id": "blobfox-tea_w_",
+   "name": "Tea W",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "tea",
+    "tea_w_",
+    "w"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/tea_w_.png"
+  },
+  {
+   "id": "blobfox-teacute",
+   "name": "Tea Cute",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "cute",
+    "fox",
+    "tea",
+    "teacute"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/teacute.png"
+  },
+  {
+   "id": "blobfox-teaglare",
+   "name": "Tea Glare",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "glare",
+    "tea",
+    "teaglare"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/teaglare.png"
+  },
+  {
+   "id": "blobfox-teamlem",
+   "name": "Tea Mlem",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "mlem",
+    "tea",
+    "teamlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/teamlem.png"
+  },
+  {
+   "id": "blobfox-teaowo",
+   "name": "Tea Owo",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "owo",
+    "tea",
+    "teaowo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/teaowo.png"
+  },
+  {
+   "id": "blobfox-teaterrified",
+   "name": "Tea Terrified",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "tea",
+    "teaterrified",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/teaterrified.png"
+  },
+  {
+   "id": "blobfox-terrified",
+   "name": "Terrified",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "terrified"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/terrified.png"
+  },
+  {
+   "id": "blobfox-think",
+   "name": "Think",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "think"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/think.png",
+   "emoji": "🤔"
+  },
+  {
+   "id": "blobfox-thinkgoogly",
+   "name": "Think Googly",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "googly",
+    "think",
+    "thinkgoogly"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thinkgoogly.png"
+  },
+  {
+   "id": "blobfox-thinking",
+   "name": "Thinking",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "thinking"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thinking.png",
+   "emoji": "🤔"
+  },
+  {
+   "id": "blobfox-thinkowo",
+   "name": "Think Owo",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "owo",
+    "think",
+    "thinkowo"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thinkowo.png"
+  },
+  {
+   "id": "blobfox-thinksmart",
+   "name": "Thinksmart",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "thinksmart"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thinksmart.png"
+  },
+  {
+   "id": "blobfox-thinksmirk",
+   "name": "Thinksmirk",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "thinksmirk"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thinksmirk.png"
+  },
+  {
+   "id": "blobfox-thonking",
+   "name": "Thonking",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "thonking"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thonking.png"
+  },
+  {
+   "id": "blobfox-thumbsdown",
+   "name": "Thumbsdown",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "thumbsdown"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/thumbsdown.png",
+   "emoji": "👎"
+  },
+  {
+   "id": "blobfox-tsundere",
+   "name": "Tsundere",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "tsundere"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/tsundere.png"
+  },
+  {
+   "id": "blobfox-upset",
+   "name": "Upset",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "upset"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/upset.png"
+  },
+  {
+   "id": "blobfox-upsidedown",
+   "name": "Upsidedown",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "upsidedown"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/upsidedown.png",
+   "emoji": "🙃"
+  },
+  {
+   "id": "blobfox-uwu",
+   "name": "Uwu",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "uwu"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/uwu.png"
+  },
+  {
+   "id": "blobfox-water",
+   "name": "Water",
+   "category": "food",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "water"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/water.png"
+  },
+  {
+   "id": "blobfox-wave",
+   "name": "Wave",
+   "category": "gestures",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "wave"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/wave.png",
+   "emoji": "👋"
+  },
+  {
+   "id": "blobfox-wet",
+   "name": "Wet",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "wet"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/wet.png"
+  },
+  {
+   "id": "blobfox-whoaa",
+   "name": "Whoaa",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "whoaa"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/whoaa.png"
+  },
+  {
+   "id": "blobfox-wink",
+   "name": "Wink",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "wink"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/wink.png",
+   "emoji": "😉"
+  },
+  {
+   "id": "blobfox-winkmlem",
+   "name": "Wink Mlem",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "mlem",
+    "wink",
+    "winkmlem"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/winkmlem.png"
+  },
+  {
+   "id": "blobfox-worried",
+   "name": "Worried",
+   "category": "smileys",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "worried"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/worried.png"
+  },
+  {
+   "id": "blobfox-yandere",
+   "name": "Yandere",
+   "category": "meme",
+   "keywords": [
+    "blobfox",
+    "fox",
+    "yandere"
+   ],
+   "format": "png",
+   "url": "https://pingochat.pages.dev/stickers/blobfox/yandere.png"
+  }
+ ]
+}

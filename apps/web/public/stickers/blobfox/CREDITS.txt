@@ -1,0 +1,8 @@
+Blobfox by Volpeon — https://volpeon.ink/emojis/blobfox/
+Licence: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+
+Files are the 128px PNG/APNG exports from the official download, renamed
+without the "blobfox" / "ablobfox" prefix. Left out: the stickers drawn on
+other people's characters (Kirby, Yoshi, Megumin, Retsuko, One Punch Man,
+Drake, "this is fine", UNO), the multi-tile parts that only work side by
+side, and one not suited to a general audience.

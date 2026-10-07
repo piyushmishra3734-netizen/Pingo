@@ -35,11 +35,10 @@ import {
 
 const SOURCES: StickerPackSource[] = [
   {
-    id: 'fluent-3d',
-    name: 'Fluent 3D',
-    coverUrl:
-      'https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/Grinning%20face/3D/grinning_face_3d.png',
-    manifestUrl: '/stickers/fluent-3d.json',
+    id: 'blobfox',
+    name: 'Blobfox',
+    coverUrl: 'https://pingochat.pages.dev/stickers/blobfox/bongo.png',
+    manifestUrl: '/stickers/blobfox.json',
     builtIn: true,
   },
 ];
