@@ -1,6 +1,6 @@
 import { cn } from '@pingo/ui';
-import { ArrowUpLeft, Clock, Heart, Play, Plus, Radio, Search, Shuffle, UserCheck, UserPlus, X } from 'lucide-react';
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { ArrowUpLeft, ChevronLeft, Clock, Heart, Play, Plus, Radio, Search, Shuffle, UserCheck, UserPlus, X } from 'lucide-react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import * as api from '../saavn/api.js';
 import * as library from '../saavn/library.js';
@@ -176,6 +176,8 @@ export function SearchView({ q, onPick }: { q: string; onPick: (q: string) => vo
   const top = useLoad(term ? undefined : 'top-searches', () => api.topSearches());
   const res = useLoad(term ? `search:${term.toLowerCase()}` : undefined, () => api.searchAll(term));
   const remember = () => library.rememberSearch(term);
+  /** The search whose songs are open in full ("See all songs"). */
+  const [allFor, setAllFor] = useState<string>();
   const openRemember: Open = useMemo(
     () => ({
       album: (a) => (remember(), open.album(a)),
@@ -230,6 +232,18 @@ export function SearchView({ q, onPick }: { q: string; onPick: (q: string) => vo
   const empty = !r.songs.length && !r.artists.length && !r.albums.length && !r.playlists.length;
   if (empty) return <p className="px-8 py-12 text-center text-[13.5px] leading-relaxed text-text-secondary">Nothing found for "{term}".<br />Try spelling it the way it sounds.</p>;
   const best = r.top[0];
+  if (allFor === term) {
+    return (
+      <div className="pb-32">
+        <button type="button" onClick={() => setAllFor(undefined)} className="mx-[18px] mt-3 flex items-center gap-1 text-[13px] font-medium text-text-secondary">
+          <ChevronLeft size={16} />
+          All results
+        </button>
+        <Heading first>Songs for "{term}"</Heading>
+        <AllSongs key={`all-${term}`} term={term} first={r.songs} onPlay={remember} all />
+      </div>
+    );
+  }
   return (
     <div className="pb-32">
       {r.corrected && (
@@ -248,9 +262,7 @@ export function SearchView({ q, onPick }: { q: string; onPick: (q: string) => vo
       {!!r.songs.length && (
         <>
           <Heading first={!best || best.type === 'song'}>Songs</Heading>
-          <div className="px-2">
-            <SearchSongs songs={r.songs} onPlay={remember} />
-          </div>
+          <AllSongs key={term} term={term} first={r.songs} onPlay={remember} onAll={() => setAllFor(term)} />
         </>
       )}
       {!!r.artists.length && (
@@ -275,11 +287,58 @@ export function SearchView({ q, onPick }: { q: string; onPick: (q: string) => vo
   );
 }
 
-function SearchSongs({ songs, onPlay }: { songs: Song[]; onPlay: () => void }) {
+/**
+ * The songs for a search. "Search everything" gives only the best few, so the
+ * full list is asked for page by page: five at first, then all of them on
+ * "See all songs", the next page arriving as the end comes into view.
+ */
+function AllSongs({ term, first, onPlay, all, onAll }: { term: string; first: Song[]; onPlay: () => void; all?: boolean; onAll?: () => void }) {
   const { more, nowId, paused } = useCtx();
+  const [songs, setSongs] = useState<Song[]>(first);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const end = useRef<HTMLDivElement>(null);
+
+  const loadMore = useRef<() => void>(() => {});
+  loadMore.current = () => {
+    if (busy || !hasMore) return;
+    setBusy(true);
+    api.searchSongs(term, page + 1).then(
+      (r) => {
+        setSongs((cur) => {
+          const seen = new Set(cur.map((s) => s.id));
+          return [...cur, ...r.items.filter((s) => !seen.has(s.id))];
+        });
+        setPage(r.page);
+        setHasMore(r.more && r.items.length > 0);
+        setBusy(false);
+      },
+      () => {
+        setHasMore(false);
+        setBusy(false);
+      },
+    );
+  };
+
+  // The first page straight away, so "See all songs" has something to open onto.
+  useEffect(() => {
+    loadMore.current();
+  }, []);
+
+  // Watched afresh after every page, so a short page that leaves the end in view still asks for the next.
+  useEffect(() => {
+    if (!all || busy || !hasMore || !end.current) return undefined;
+    const io = new IntersectionObserver((e) => e[0]?.isIntersecting && loadMore.current(), { rootMargin: '600px' });
+    io.observe(end.current);
+    return () => io.disconnect();
+  }, [all, busy, hasMore, songs.length]);
+
+  const shown = all ? songs : songs.slice(0, 5);
+  const source = { kind: 'search' as const, label: `"${term}"` };
   return (
-    <>
-      {songs.map((s, i) => (
+    <div className="px-2">
+      {shown.map((s, i) => (
         <SongRow
           key={s.id}
           song={s}
@@ -289,13 +348,23 @@ function SearchSongs({ songs, onPlay }: { songs: Song[]; onPlay: () => void }) {
           onPlay={() => {
             onPlay();
             if (s.id === nowId) playback.toggleCurrent();
-            // One song, then JioSaavn's radio from it: search results are not a playlist.
-            else playback.playSong(s, 'Search');
+            // The songs after this one, then JioSaavn's radio once they run out.
+            else playback.playList(shown.slice(i), 0, source);
           }}
           onMore={() => more(s)}
         />
       ))}
-    </>
+      {!all && (songs.length > 5 || hasMore) && (
+        <button type="button" onClick={onAll} className="mx-2.5 mt-1 h-10 rounded-full border border-line px-4 text-[13.5px] font-medium active:bg-sunken">
+          See all songs
+        </button>
+      )}
+      {all && (
+        <div ref={end} className="grid h-14 place-items-center text-[12.5px] text-text-tertiary">
+          {busy ? <span className="size-5 animate-spin rounded-full border-2 border-line border-t-ink" aria-label="Loading more" /> : hasMore ? '' : `${songs.length} songs`}
+        </div>
+      )}
+    </div>
   );
 }
 
