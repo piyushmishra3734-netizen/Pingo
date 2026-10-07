@@ -33,7 +33,7 @@ cd workers/saavn && npx wrangler deploy
 curl https://pingo-saavn.dubesminecraft.workers.dev/search?q=kesriya   # must find Kesariya
 
 # 3. the library tables (liked songs, plays, follows, playlists)
-npx supabase db push     # applies 20261023000000_music_library.sql
+# already applied on 2026-10-07 (Supabase MCP, version 20261007100655); nothing to run
 ```
 
 If the Worker comes up at a different address, set `VITE_SAAVN_URL` to it in

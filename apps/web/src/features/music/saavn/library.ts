@@ -12,7 +12,7 @@ import type { Artist, Song } from './types.js';
  * ## Local first
  *
  * Every change lands on the phone at once (localStorage) and the screen
- * updates in the same frame; Supabase (`20261023000000_music_library.sql`) is
+ * updates in the same frame; Supabase (`20261007100655_music_library.sql`) is
  * told afterwards, in the background. A like never waits on the network, and
  * the library opens with no spinner. When the person is signed in, `sync()`
  * pulls the server copy once and merges it, so a new phone has their library.

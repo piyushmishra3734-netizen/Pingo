@@ -77,8 +77,9 @@ If the Worker comes up at a different address, set `VITE_SONGS_URL` to it in the
 
 The new catalogue Worker, the language cookie in `saavn-proxy`, and the library
 tables. Steps are in `workers/saavn/README.md`: deploy `saavn-proxy`, then
-`cd workers/saavn && npx wrangler deploy`, then `supabase db push` (applies
-`20261023000000_music_library.sql`). Check:
+`cd workers/saavn && npx wrangler deploy`. The library tables
+(`20261007100655_music_library.sql`) are already applied to the live
+database (through the Supabase MCP, 2026-10-07); do not run them again. Check:
 `curl https://pingo-saavn.dubesminecraft.workers.dev/search?q=kesriya` finds Kesariya.
 
 ### 4. Android APK
