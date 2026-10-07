@@ -253,6 +253,20 @@ const CHEEKS = [
   { x: 136, y: 97 },
   { x: 200, y: 98 },
 ];
+/*
+ * Grooming: the front paw nearest you comes up and rubs the cheek. Where the
+ * paw sits on the sheet (cut out of the body while it is up), the shoulder it
+ * swings from, and the cheek it rubs - all in sheet pixels.
+ */
+const PAW = { x: 161, y: 163, w: 42, h: 24 };
+const SHOULDER = { x: 178, y: 150 };
+const PAW_REST = { x: 182, y: 175 };
+const PAW_CHEEK = { x: 211, y: 93 };
+/** When in the loop it grooms, and for how long. */
+const GROOM_AT = 9000;
+const GROOM_MS = 3400;
+/** One whole loop of the face. */
+const FACE_LOOP_MS = 14000;
 /** The fur round the eyes, for the lids. */
 const FUR = 'rgb(30, 24, 37)';
 
@@ -736,19 +750,37 @@ export function VoxelQr({
       const here = px(cx, cz);
 
       /*
-       * It stays put and only its face moves - a ten-second loop of small,
+       * It stays put and only its face moves - a fourteen-second loop of small,
        * cartoon things: it breathes all the time, blinks every few seconds
        * (twice in a row now and then), tilts its head one way as if curious
-       * and later a little the other way, and once a loop squeezes its eyes
-       * shut in a smile, blushes, and a heart pops out.
+       * and later a little the other way, once a loop squeezes its eyes shut
+       * in a smile, blushes, and a heart pops out, and once a loop lifts a
+       * paw and rubs its cheek, eyes shut and pleased with itself.
        */
-      const loop = now % 10000;
+      const loop = now % FACE_LOOP_MS;
       const breath = Math.sin(now / 520);
       const tilt = 0.085 * pulse(loop, 1800, 2600) - 0.06 * pulse(loop, 8000, 1800);
       const smile = Math.min(1, pulse(loop, 5600, 2200) * 1.6);
       const blinkAt = now % 3700;
-      const blink = Math.max(pulse(blinkAt, 0, 170), loop > 9000 ? pulse(blinkAt, 260, 170) : 0);
-      const lid = Math.max(blink, smile);
+      const blink = Math.max(pulse(blinkAt, 0, 170), loop > 12800 ? pulse(blinkAt, 260, 170) : 0);
+
+      /*
+       * Grooming. The paw comes up to the cheek, rubs it in small circles,
+       * and goes back down; the head leans into it and the eyes squeeze shut
+       * in a happy arch the whole time, with a blush and a few sparkles.
+       */
+      const groom = (loop - GROOM_AT) / GROOM_MS;
+      const grooming = groom > 0 && groom < 1;
+      const between = (a: number, b: number, x: number) => {
+        const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+        return t * t * (3 - 2 * t);
+      };
+      const raised = grooming ? between(0, 0.14, groom) * (1 - between(0.86, 1, groom)) : 0;
+      const rubAngle = grooming ? (groom * GROOM_MS / 1000) * Math.PI * 2 * 1.8 : 0;
+      const groomFace = grooming ? between(0.08, 0.2, groom) * (1 - between(0.82, 0.95, groom)) : 0;
+      const lean = 0.07 * raised + 0.02 * raised * Math.sin(rubAngle);
+      const joy = Math.max(smile, groomFace);
+      const lid = Math.max(blink, joy);
 
       const paintCat = () => {
         const sheet = catImage();
@@ -778,13 +810,17 @@ export function VoxelQr({
         ctx.beginPath();
         ctx.rect(0, 0, f.w, f.h);
         ctx.rect(HEAD.x, HEAD.y, f.w - HEAD.x, HEAD.clipBelow);
+        // While the paw is up, its place on the ground is empty.
+        if (raised > 0.02) ctx.rect(PAW.x, PAW.y, PAW.w, PAW.h);
         ctx.clip('evenodd');
         ctx.drawImage(sheet, 0, 0, f.w, f.h, 0, 0, f.w, f.h);
         ctx.restore();
 
         // The head, tilting about the neck, and everything on the face with it.
+        const headTilt = tilt + lean;
+        ctx.save();
         ctx.translate(HEAD.pivotX, HEAD.pivotY);
-        ctx.rotate(tilt);
+        ctx.rotate(headTilt);
         ctx.translate(-HEAD.pivotX, -HEAD.pivotY);
         ctx.drawImage(sheet, HEAD.x, HEAD.y, HEAD.w, HEAD.h, HEAD.x, HEAD.y, HEAD.w, HEAD.h);
 
@@ -807,7 +843,7 @@ export function VoxelQr({
             ctx.lineCap = 'round';
             for (const eye of EYES) {
               ctx.beginPath();
-              if (smile > 0.5) ctx.arc(eye.x, eye.y + eye.ry * 0.35, eye.rx * 0.95, Math.PI * 1.12, Math.PI * 1.88);
+              if (joy > 0.5) ctx.arc(eye.x, eye.y + eye.ry * 0.35, eye.rx * 0.95, Math.PI * 1.12, Math.PI * 1.88);
               else ctx.arc(eye.x, eye.y - eye.ry * 0.3, eye.rx * 0.95, Math.PI * 0.12, Math.PI * 0.88);
               ctx.stroke();
             }
@@ -815,12 +851,62 @@ export function VoxelQr({
         }
 
         // A blush that comes up with the smile.
-        if (smile > 0.01) {
-          ctx.fillStyle = `rgba(255, 110, 150, ${0.55 * smile})`;
+        if (joy > 0.01) {
+          ctx.fillStyle = `rgba(255, 110, 150, ${0.55 * joy})`;
           for (const cheek of CHEEKS) {
             ctx.beginPath();
             ctx.ellipse(cheek.x, cheek.y, 9, 5.5, 0, 0, Math.PI * 2);
             ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        if (raised > 0.02) {
+          // The cheek, wherever the tilted head has carried it.
+          const dx = PAW_CHEEK.x - HEAD.pivotX;
+          const dy = PAW_CHEEK.y - HEAD.pivotY;
+          const cheekX = HEAD.pivotX + dx * Math.cos(headTilt) - dy * Math.sin(headTilt);
+          const cheekY = HEAD.pivotY + dx * Math.sin(headTilt) + dy * Math.cos(headTilt);
+          const rub = between(0.12, 0.2, groom) * (1 - between(0.8, 0.88, groom));
+          const pawX = PAW_REST.x + (cheekX + Math.cos(rubAngle) * 5 * rub - PAW_REST.x) * raised;
+          const pawY = PAW_REST.y + (cheekY + Math.sin(rubAngle) * 4 * rub - PAW_REST.y) * raised;
+
+          // The foreleg: one soft, dark stroke from the shoulder to the paw.
+          ctx.strokeStyle = 'rgb(35, 27, 44)';
+          ctx.lineCap = 'round';
+          ctx.lineWidth = 17;
+          ctx.beginPath();
+          ctx.moveTo(SHOULDER.x, SHOULDER.y);
+          ctx.quadraticCurveTo(SHOULDER.x + 22 * raised, (SHOULDER.y + pawY) / 2 + 6, pawX, pawY);
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+          ctx.lineWidth = 4;
+          ctx.stroke();
+
+          // The paw itself, cut from the sheet, turned so its pads face the cheek.
+          ctx.save();
+          ctx.translate(pawX, pawY);
+          ctx.rotate(-0.95 * raised);
+          ctx.drawImage(sheet, PAW.x, PAW.y, PAW.w, PAW.h, -PAW.w / 2, -PAW.h / 2, PAW.w, PAW.h);
+          ctx.restore();
+
+          // A few sparkles off the rubbed cheek.
+          if (rub > 0.05) {
+            ctx.fillStyle = 'rgb(255, 214, 231)';
+            for (let i = 0; i < 3; i += 1) {
+              const twinkle = Math.max(0, Math.sin(rubAngle * 0.7 + i * 2.1));
+              if (twinkle < 0.05) continue;
+              const sx = cheekX + 16 + i * 9;
+              const sy = cheekY - 22 - i * 11;
+              const r = 6 * twinkle * rub;
+              ctx.beginPath();
+              ctx.moveTo(sx, sy - r);
+              ctx.quadraticCurveTo(sx, sy, sx + r, sy);
+              ctx.quadraticCurveTo(sx, sy, sx, sy + r);
+              ctx.quadraticCurveTo(sx, sy, sx - r, sy);
+              ctx.quadraticCurveTo(sx, sy, sx, sy - r);
+              ctx.fill();
+            }
           }
         }
         ctx.restore();
