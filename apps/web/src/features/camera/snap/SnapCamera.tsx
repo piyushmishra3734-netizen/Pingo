@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { ClipSheet, MusicSheet, Panel, type Song } from '../../music/sheets.js';
 import { CAMERA_KIT_GROUP, CAMERA_KIT_TOKEN } from './camera-kit.js';
+import { claimAudio } from '../../../lib/audio-focus.js';
 
 /**
  * The camera.
@@ -345,7 +346,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       void actx.current.ctx.resume();
       out.addTrack(actx.current.dest.stream.getAudioTracks()[0]!);
       if (!a.src.endsWith(song.url)) a.src = song.url;
-      a.currentTime = song.start; void a.play().catch(() => undefined);
+      a.currentTime = song.start; claimAudio(a); void a.play().catch(() => undefined);
     } else {
       try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); out.addTrack(mic.getAudioTracks()[0]!); } catch { /* a silent clip */ }
     }
@@ -446,7 +447,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
   const playSong = (s: Song) => {
     const a = (player.current ??= new Audio()); a.crossOrigin = 'anonymous';
     if (!a.src.endsWith(s.url)) a.src = s.url;
-    a.currentTime = s.start; void a.play().catch(() => undefined);
+    a.currentTime = s.start; claimAudio(a); void a.play().catch(() => undefined);
     a.ontimeupdate = () => { if (a.currentTime > s.start + 15) a.currentTime = s.start; };
   };
 

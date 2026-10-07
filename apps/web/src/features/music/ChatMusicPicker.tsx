@@ -1,6 +1,7 @@
 import { SearchField, cn } from '@pingo/ui';
 import { Check, Pause, Play, Send, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { claimAudio } from '../../lib/audio-focus.js';
 
 import { MUSIC_SHELVES, More, PlaylistRow, UPLOADS, useCatalogue } from './catalogue.js';
 import type { Song } from './sheets.js';
@@ -21,7 +22,13 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
   useEffect(() => () => { audio.current?.pause(); }, []);
 
   const preview = (song: Song) => {
-    const a = (audio.current ??= new Audio());
+    let a = audio.current;
+    if (!a) {
+      a = new Audio();
+      // Paused from elsewhere - another song took the speaker - shows as paused here too.
+      a.addEventListener('pause', () => setPreviewing(undefined));
+      audio.current = a;
+    }
     if (previewing === song.url) { a.pause(); setPreviewing(undefined); return; }
     a.src = song.url;
     /*
@@ -30,6 +37,7 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
      * which is why the preview here used to begin halfway through a verse.
      */
     a.currentTime = 0;
+    claimAudio(a);
     void a.play().catch(() => setPreviewing(undefined));
     setPreviewing(song.url);
   };

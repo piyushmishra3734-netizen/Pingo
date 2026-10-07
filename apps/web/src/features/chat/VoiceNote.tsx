@@ -3,6 +3,7 @@ import { PauseIcon, PlayIcon, cn } from '@pingo/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { putMedia, storedMedia } from './video-vault.js';
+import { claimAudio } from '../../lib/audio-focus.js';
 
 /**
  * Voice note player — receiver must hear audio, always.
@@ -394,6 +395,7 @@ export function VoiceNote({
         audio.muted = false;
         audio.playbackRate = rate;
         try {
+          claimAudio(audio);
           await audio.play();
           setPlaying(true);
           return;
@@ -415,6 +417,7 @@ export function VoiceNote({
                 audioRef.current.src = src2;
                 audioRef.current.volume = 1;
                 audioRef.current.muted = false;
+                claimAudio(audioRef.current);
                 await audioRef.current.play();
                 setPlaying(true);
                 return;

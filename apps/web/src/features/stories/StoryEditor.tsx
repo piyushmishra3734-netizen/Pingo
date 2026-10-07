@@ -19,6 +19,7 @@ import { BOOMS, BoomerangMode, useBoomerang } from './Boomerang.js';
 import type { StoryFrom } from './StoryUpload.js';
 import { SCALE_MAX, SCALE_MIN, coverScale, framedRect, initialFrame, paletteOf, washOf, type Box } from './media-frame.js';
 import { Blue, ClipSheet, Field, MusicSheet, Panel, type Song } from '../music/sheets.js';
+import { claimAudio } from '../../lib/audio-focus.js';
 
 /**
  * Making one story, Instagram's way: the picture fills the frame, the tools sit
@@ -346,7 +347,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const playSong = (s: Song) => {
     const a = (player.current ??= new Audio()); a.crossOrigin = 'anonymous'; a.loop = false;
     if (!a.src.endsWith(s.url)) a.src = s.url;
-    a.currentTime = s.start; void a.play().catch(() => undefined);
+    a.currentTime = s.start; claimAudio(a); void a.play().catch(() => undefined);
     a.ontimeupdate = () => { if (a.currentTime > s.start + 15) a.currentTime = s.start; };
   };
   const chooseSong = (s: Song) => {

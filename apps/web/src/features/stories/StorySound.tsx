@@ -1,5 +1,6 @@
 import type { StoryAudioTrack } from '@pingo/core';
 import { useEffect, useRef } from 'react';
+import { claimAudio } from '../../lib/audio-focus.js';
 
 /**
  * Playing the sound somebody laid on a story.
@@ -108,6 +109,7 @@ export function StorySound({
           // Starting late - a story resumed, or a piece that begins at 0:04 -
           // means starting at the right place inside it, not at its beginning.
           if (Math.abs(audio.currentTime - into) > 0.25) audio.currentTime = into;
+          claimAudio(audio);
           void audio.play().catch(() => undefined);
         }
       });

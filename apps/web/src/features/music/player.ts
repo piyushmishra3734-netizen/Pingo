@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { claimAudio } from '../../lib/audio-focus.js';
 
 import type { SharedSong } from './song-share.js';
 
@@ -88,6 +89,7 @@ export const musicPlayer = {
     set({ loading: true, failed: false });
     a.playbackRate = state.speed;
     try {
+      claimAudio(a);
       await a.play();
     } catch {
       set({ loading: false, failed: true });

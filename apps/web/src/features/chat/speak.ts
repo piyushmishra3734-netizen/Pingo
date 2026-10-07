@@ -1,3 +1,5 @@
+import { claimAudio } from '../../lib/audio-focus.js';
+
 /**
  * Reading a reply aloud, starting before the whole thing is ready.
  *
@@ -299,6 +301,7 @@ export function speakStreaming(text: string, fetchAudio: Fetcher): Speech {
         // A file that will not play is not worth stalling the rest of the
         // reply for; move on to the next sentence.
         element.onerror = release;
+        claimAudio(element);
         void element.play().catch(release);
       });
     }
@@ -410,7 +413,8 @@ export function openSpeech(fetchAudio: Fetcher): SpeechQueue {
       };
       element.onended = release;
       element.onerror = release;
-      void element.play().catch(release);
+      claimAudio(element);
+        void element.play().catch(release);
     });
 
   /*
