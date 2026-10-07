@@ -13,11 +13,12 @@ import { nextSpeed } from './SongCard.js';
  *
  * ## Three shapes, one object
  *
- * Pressing play drops it down from the top edge already open: the cover, the
- * name, the time and the controls. After a few quiet seconds it draws itself up
- * into a small pill - the cover and a few dancing bars - so it stops taking the
- * screen. Tap the pill and it opens again; tap anywhere else and it closes back
- * up. The cross stops the song and the island lifts away.
+ * Pressing play drops a small pill down from the top edge: the cover and a few
+ * dancing bars, narrow enough to leave the screen alone. Tap it and it opens
+ * into the full player - the cover, the name, the time and the controls - the
+ * way the iPhone's island does. Tap anywhere else, or leave it a few seconds,
+ * and it draws back up into the pill. The cross stops the song and the island
+ * lifts away.
  *
  * It is one element that changes size, not two that swap, and it changes on a
  * spring that overshoots a touch - which is the whole difference between a
@@ -33,8 +34,8 @@ import { nextSpeed } from './SongCard.js';
 
 type Shape = 'gone' | 'drop' | 'open' | 'pill' | 'leave';
 
-/** How long it stays open on its own before drawing up into the pill. */
-const SETTLE_MS = 4500;
+/** How long it stays open, untouched, before drawing back up into the pill. */
+const SETTLE_MS = 6000;
 /** How long the lift-away takes before it is removed. */
 const LEAVE_MS = 340;
 
@@ -62,20 +63,25 @@ export function MusicIsland() {
     settle.current = window.setTimeout(() => setShape((s) => (s === 'open' ? 'pill' : s)), SETTLE_MS);
   }, []);
 
+  /** Opens the full player from the pill. */
   const open = useCallback(() => {
-    setShape((s) => {
-      if (s === 'gone' || s === 'leave') {
-        // One frame as a small pill above the screen, then down and open.
-        requestAnimationFrame(() => requestAnimationFrame(() => setShape('open')));
-        return 'drop';
-      }
-      return 'open';
-    });
+    setShape('open');
     keepOpen();
   }, [keepOpen]);
 
+  /** Drops the pill down from above the screen, if it is not already there. */
+  const arrive = useCallback(() => {
+    setShape((s) => {
+      if (s === 'gone' || s === 'leave') {
+        requestAnimationFrame(() => requestAnimationFrame(() => setShape('pill')));
+        return 'drop';
+      }
+      return s;
+    });
+  }, []);
+
   /*
-   * Play pressed, or a new song: drop down open. The song going away (the
+   * Play pressed, or a new song: the pill drops down. The song going away (the
    * cross, or the player closing it) lifts the island off.
    */
   useEffect(() => {
@@ -95,9 +101,9 @@ export function MusicIsland() {
       return undefined;
     }
     setShown(song);
-    if (song.url !== before.url || (player.playing && !before.playing)) open();
+    if (song.url !== before.url || (player.playing && !before.playing)) arrive();
     return undefined;
-  }, [player.song, player.playing, open]);
+  }, [player.song, player.playing, arrive]);
 
   // Tapping anywhere outside an open island closes it back up into the pill.
   useEffect(() => {
@@ -127,14 +133,19 @@ export function MusicIsland() {
     shape === 'open'
       ? { width: 'min(360px, calc(100vw - 24px))', height: 104, borderRadius: 30, transform: 'translate(-50%, 0) scale(1)', opacity: 1 }
       : shape === 'pill'
-        ? { width: 152, height: 36, borderRadius: 20, transform: 'translate(-50%, 0) scale(1)', opacity: 1 }
-        : { width: 120, height: 32, borderRadius: 18, transform: 'translate(-50%, -64px) scale(0.82)', opacity: 0 };
-  const spring = 'cubic-bezier(0.32, 1.3, 0.42, 1)';
+        ? { width: 112, height: 34, borderRadius: 19, transform: 'translate(-50%, 0) scale(1)', opacity: 1 }
+        : { width: 84, height: 28, borderRadius: 16, transform: 'translate(-50%, -56px) scale(0.85)', opacity: 0 };
+  /*
+   * A spring with a small overshoot, the island's own feel: quick to start,
+   * a touch past the mark, settled by the end. Height lags width by a hair,
+   * so it reads as one shape swelling rather than a box being resized.
+   */
+  const spring = 'cubic-bezier(0.28, 1.22, 0.36, 1)';
   const transition = still
     ? 'opacity 200ms ease'
     : shape === 'leave'
       ? `width ${LEAVE_MS}ms ease-in, height ${LEAVE_MS}ms ease-in, border-radius ${LEAVE_MS}ms ease-in, transform ${LEAVE_MS}ms cubic-bezier(0.5, 0, 0.75, 0), opacity ${LEAVE_MS}ms ease-in`
-      : `width 560ms ${spring}, height 560ms ${spring}, border-radius 480ms ${spring}, transform 600ms ${spring}, opacity 220ms ease`;
+      : `width 520ms ${spring}, height 560ms ${spring} 30ms, border-radius 520ms ${spring}, transform 620ms ${spring}, opacity 220ms ease, box-shadow 400ms ease`;
 
   /** Seeking by dragging along the track, as you would on the phone's own player. */
   const seekFrom = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -189,12 +200,12 @@ export function MusicIsland() {
         aria-label={`${shown.name}, open the player`}
         tabIndex={isOpen ? -1 : 0}
         className={cn(
-          'focus-ring absolute inset-0 flex items-center justify-between px-[7px] transition-[opacity,filter] duration-200',
-          isOpen ? 'pointer-events-none opacity-0 blur-[6px]' : 'opacity-100 blur-0 delay-100',
+          'focus-ring absolute inset-0 flex items-center justify-between px-[6px] transition-[opacity,filter,transform] duration-200 active:scale-95',
+          isOpen ? 'pointer-events-none scale-90 opacity-0 blur-[6px]' : 'scale-100 opacity-100 blur-0 delay-75',
         )}
       >
         {cover('small')}
-        <span aria-hidden className={cn('island-bars mr-1.5', !playing && 'island-bars-rest')}>
+        <span aria-hidden className={cn('island-bars mr-2', !playing && 'island-bars-rest')}>
           <i />
           <i />
           <i />
@@ -206,8 +217,8 @@ export function MusicIsland() {
       <div
         aria-hidden={!isOpen}
         className={cn(
-          'absolute inset-x-0 top-0 grid gap-2.5 px-3.5 pt-3 transition-[opacity,filter] duration-300',
-          isOpen ? 'opacity-100 blur-0 delay-100' : 'pointer-events-none opacity-0 blur-[8px]',
+          'absolute inset-x-0 top-0 grid origin-top gap-2.5 px-3.5 pt-3 transition-[opacity,filter,transform] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+          isOpen ? 'translate-y-0 scale-100 opacity-100 blur-0 delay-[120ms]' : 'pointer-events-none -translate-y-1 scale-[0.9] opacity-0 blur-[8px] duration-150',
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
