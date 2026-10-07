@@ -24,7 +24,12 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
     const a = (audio.current ??= new Audio());
     if (previewing === song.url) { a.pause(); setPreviewing(undefined); return; }
     a.src = song.url;
-    a.currentTime = song.start;
+    /*
+     * From the top. `start` is where a story's 15-second clip begins (30s in
+     * by default) and has nothing to do with listening to a song in a chat,
+     * which is why the preview here used to begin halfway through a verse.
+     */
+    a.currentTime = 0;
     void a.play().catch(() => setPreviewing(undefined));
     setPreviewing(song.url);
   };
