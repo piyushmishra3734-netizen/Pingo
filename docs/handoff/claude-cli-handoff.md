@@ -73,7 +73,16 @@ curl https://pingo-songs.dubesminecraft.workers.dev/mine   # must answer 401 "Si
 ```
 If the Worker comes up at a different address, set `VITE_SONGS_URL` to it in the Cloudflare Pages build env and redeploy.
 
-### 3. Android APK
+### 3. PINGO Music backend (`workers/saavn`)
+
+The new catalogue Worker, the language cookie in `saavn-proxy`, and the library
+tables. Steps are in `workers/saavn/README.md`: deploy `saavn-proxy`, then
+`cd workers/saavn && npx wrangler deploy`. The library tables
+(`20261007100655_music_library.sql`) are already applied to the live
+database (through the Supabase MCP, 2026-10-07); do not run them again. Check:
+`curl https://pingo-saavn.dubesminecraft.workers.dev/search?q=kesriya` finds Kesariya.
+
+### 4. Android APK
 
 The current release is **v2.26.40.1** (versionCode `2604001`). The next one is **v2.26.40.2** (`2604002`). Version scheme: `major.YY.week.build`, and versionCode is `YYWWBB`. Bump the week if a new week has started.
 

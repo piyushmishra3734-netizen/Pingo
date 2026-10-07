@@ -1,0 +1,12 @@
+# PINGO Music's catalogue: everything JioSaavn has (home, charts, trending,
+# new releases, moods, radio, lyrics, search, songs, albums, playlists,
+# artists), normalised into one small API. See src/index.ts for the routes.
+#
+# No bindings and no secrets. JioSaavn is reached through the saavn-proxy
+# Edge Function in Mumbai (workers/music/README.md says why).
+name = "pingo-saavn"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+[observability]
+enabled = true
