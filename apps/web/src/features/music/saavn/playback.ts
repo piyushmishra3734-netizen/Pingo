@@ -235,6 +235,19 @@ export function jumpTo(orderIndex: number) {
   void playCurrent();
 }
 export const toggleShuffle = () => setQueue(Q.toggleShuffle(queue));
+export const isShuffling = () => queue.shuffle;
+
+/** Pauses the queue's song, or carries on with it. */
+export function toggleCurrent() {
+  const p = playerState();
+  if (p.song && p.song.url === playingUrl) {
+    if (p.playing) musicPlayer.pause();
+    else void musicPlayer.resume();
+    return;
+  }
+  // The player moved on to something else (a chat card): pick the queue's song back up.
+  void playCurrent();
+}
 export const cycleRepeat = () => setQueue(Q.cycleRepeat(queue));
 export const next = () => controls.next(false);
 export const prev = () => controls.prev();

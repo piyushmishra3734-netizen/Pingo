@@ -6,6 +6,7 @@ import { useLocation } from 'react-router-dom';
 import { musicPlayer, useMusicPlayer } from './player.js';
 import type { SharedSong } from './song-share.js';
 import { nextSpeed } from './SongCard.js';
+import { useMusicOpen } from './app/sheet-store.js';
 
 /**
  * The song that is playing, as an island at the top of the screen - the way an
@@ -162,6 +163,8 @@ function useRubberPull(target: { readonly current: HTMLElement | null }, enabled
 export function MusicIsland() {
   const player = useMusicPlayer();
   const { pathname } = useLocation();
+  // PINGO Music has its own player on screen; two would be one too many.
+  const musicOpen = useMusicOpen();
   const [shape, setShape] = useState<Shape>('gone');
   /** The song on show - kept through the lift-away, after the player has let go of it. */
   const [shown, setShown] = useState<SharedSong>();
@@ -234,7 +237,7 @@ export function MusicIsland() {
 
   const pull = useRubberPull(box, shape === 'pill' && !still);
 
-  if (!shown || shape === 'gone' || pathname.startsWith('/camera')) return null;
+  if (!shown || shape === 'gone' || musicOpen || pathname.startsWith('/camera')) return null;
 
   const isOpen = shape === 'open';
   const total = player.length || shown.secs || 0;

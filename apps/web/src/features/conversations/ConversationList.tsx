@@ -1,4 +1,4 @@
-import { Gamepad2 } from 'lucide-react';
+import { Gamepad2, Music2 } from 'lucide-react';
 import {
   conversationFilterLabels,
   conversationFilters,
@@ -34,6 +34,7 @@ import { JourneyStrip } from '../journey/JourneyStrip.js';
 import { useJourneyProgress } from '../journey/useJourneyProgress.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { useBackStep } from '../navigation/useBackStep.js';
+import { openMusic, preloadMusic } from '../music/app/sheet-store.js';
 import { LiveCreateSheet } from '../live/LiveCreateSheet.js';
 import { LiveBanner } from '../live/LiveBanner.js';
 import { useLive } from '../live/LiveContext.js';
@@ -570,6 +571,15 @@ export function ConversationList({
                     </span>
                   </IconButton>
                 )}
+                <IconButton
+                  label="PINGO Music"
+                  variant="ghost"
+                  onPointerDown={preloadMusic}
+                  onClick={openMusic}
+                  className="text-brand"
+                >
+                  <Music2 size={22} strokeWidth={1.9} aria-hidden />
+                </IconButton>
                 <IconButton
                   label="PINGO Arcade"
                   variant="ghost"

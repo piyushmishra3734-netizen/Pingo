@@ -1020,3 +1020,41 @@ video {
   .island-bars i { animation: none; height: 55%; }
   .island-cover, .island-cover-rest { transition: none; }
 }
+
+/* ---------- PINGO Music ---------- */
+
+/* The now-playing mark on a song row: three bars in the cover's colour. */
+.pm-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 14px;
+  height: 14px;
+  margin-inline: 6px;
+}
+.pm-bars i {
+  flex: 1;
+  height: 30%;
+  border-radius: 2px;
+  background: rgb(var(--pm-tone, 112, 104, 136));
+  animation: island-eq 0.9s ease-in-out infinite;
+}
+.pm-bars i:nth-child(2) { animation-delay: -0.3s; }
+.pm-bars i:nth-child(3) { animation-delay: -0.55s; }
+.pm-bars-paused i { animation-play-state: paused; }
+@keyframes pm-push {
+  from { transform: translateX(100%); box-shadow: -20px 0 40px -30px rgba(0, 0, 0, 0); }
+  to { transform: none; box-shadow: -20px 0 40px -30px rgba(0, 0, 0, 0.4); }
+}
+@keyframes pm-pop {
+  from { transform: none; }
+  to { transform: translateX(100%); }
+}
+@keyframes pm-toast {
+  0% { opacity: 0; transform: translateY(8px) scale(0.96); }
+  12%, 85% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-bars i { animation: none; height: 60%; }
+}

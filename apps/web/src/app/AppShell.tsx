@@ -9,6 +9,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
 import { MusicIsland } from '../features/music/MusicIsland.js';
+import { MusicSheetHost } from '../features/music/app/MusicSheetHost.js';
 import { StoryMentionRelay } from '../features/stories/StoryMentionRelay.js';
 import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
@@ -232,6 +233,8 @@ export function AppShell() {
 
       {/* A song keeps playing across screens; its island floats above all of them. */}
       <MusicIsland />
+      {/* PINGO Music: loaded the first time somebody opens it. */}
+      <MusicSheetHost />
       <main
         className={cn(
           'min-h-0 flex-1',
