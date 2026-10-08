@@ -36,6 +36,13 @@ import {
 const SOURCES: StickerPackSource[] = [
   // PINGO's own, made for it: first, because they are the ones made for chatting here.
   {
+    id: 'mood',
+    name: 'PINGO Mood',
+    coverUrl: 'https://pingochat.pages.dev/stickers/mood/i-wuv-u.webp',
+    manifestUrl: '/stickers/mood.json',
+    builtIn: true,
+  },
+  {
     id: 'vibes',
     name: 'PINGO Vibes',
     coverUrl: 'https://pingochat.pages.dev/stickers/vibes/vibes-only.webp',
