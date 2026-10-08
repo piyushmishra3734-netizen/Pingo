@@ -74,6 +74,14 @@ export function SendTo({ views, locked, onClose, onSend, post = true, preview, b
     .slice(0, 80), [allowed, tab, q, sends]);
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const names = [...(story ? [story === 'close' ? 'Close friends' : 'My story'] : []), ...conversations.filter((c) => picked.has(c.id)).map((c) => c.title)];
+  /** Faces for the send bar: the story first, as its ring, then each chat. */
+  const faces = [
+    ...(story ? [{ img: story === 'friends' ? profile?.avatarUrl : undefined, letter: '', star: story === 'close' }] : []),
+    ...conversations.filter((c) => picked.has(c.id)).map((c) => ({ img: c.avatarUrl, letter: c.title[0] ?? '', star: false })),
+  ];
+  // One name in full; more than one by first names, so the line fits.
+  const first = (n: string) => (n === 'My story' || n === 'Close friends' ? n : n.split(' ')[0] ?? n);
+  const summary = names.length <= 1 ? (names[0] ?? '') : names.length === 2 ? `${first(names[0]!)} and ${first(names[1]!)}` : `${first(names[0]!)} and ${names.length - 1} others`;
   const Tick = ({ on }: { on: boolean }) => (on ? <CircleCheck size={26} className="shrink-0 text-brand" /> : <Circle size={26} className="shrink-0 text-text-tertiary" />);
   return (
     <div className="animate-panel-in fixed inset-0 z-600 flex flex-col bg-page text-ink">
@@ -117,11 +125,53 @@ export function SendTo({ views, locked, onClose, onSend, post = true, preview, b
           {list.length === 0 && <p className="py-6 text-center text-text-tertiary">Nobody by that name</p>}
         </div>
       </div>
-      {error && <p role="alert" className="fixed inset-x-0 bottom-[88px] px-5 text-center text-[13.5px] text-danger">{error}</p>}
-      <div className={cn('fixed inset-x-0 bottom-0 flex items-center gap-2.5 bg-brand-gradient px-3.5 text-white pt-3 pb-[max(1.4rem,env(safe-area-inset-bottom))] transition-transform', names.length ? 'translate-y-0' : 'translate-y-full')}>
-        <div className="scrollbar-none flex min-w-0 flex-1 gap-1.5 overflow-x-auto text-[15px] font-bold">{names.map((n, i) => <span key={i} className="shrink-0 rounded-full bg-white/22 px-3 py-1.5">{n}</span>)}</div>
-        {views !== undefined && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-black/18 px-2.5 py-1.5 text-[12.5px] font-extrabold"><Timer size={13} />{views ?? '∞'}</span>}
-        <button type="button" aria-label="Send" disabled={busy} onClick={() => onSend([...picked], story)} className="grid size-[50px] shrink-0 place-items-center rounded-full bg-white text-black active:scale-90 disabled:opacity-60">{busy ? <span className="size-5 animate-spin rounded-full border-2 border-black/20 border-t-black" /> : <Send size={22} />}</button>
+      {/*
+        Who it is going to, and the one button. A card floating over the list
+        rather than a coloured band across the foot: faces first, because those
+        are what somebody checks before a send, then a plain sentence.
+      */}
+      <div
+        className={cn(
+          'fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] transition-[transform,opacity] duration-300 ease-[var(--ease-standard)]',
+          names.length ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-[130%] opacity-0',
+        )}
+      >
+        {error && <p role="alert" className="mb-2 px-2 text-center text-[13.5px] text-danger">{error}</p>}
+        <div className="flex items-center gap-2.5 rounded-[22px] border border-line bg-surface py-2.5 pr-2.5 pl-3 shadow-[0_18px_40px_-18px_rgba(16,17,20,0.45)]">
+          <div className="flex shrink-0 -space-x-2">
+            {faces.slice(0, 3).map((f, i) =>
+              f.img ? (
+                <img key={i} src={f.img} alt="" className="size-8 rounded-full object-cover ring-2 ring-surface" />
+              ) : (
+                <span key={i} className={cn('grid size-8 place-items-center rounded-full text-[13px] font-bold ring-2 ring-surface', f.star ? 'bg-close-friends text-white' : 'bg-sunken text-ink')}>
+                  {f.star ? <Star size={14} fill="#fff" /> : f.letter}
+                </span>
+              ),
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[14.5px] font-semibold text-ink">{summary}</p>
+            <p className="flex items-center gap-1 text-[12.5px] text-text-secondary">
+              {views !== undefined ? (
+                <>
+                  <Timer size={12} />
+                  {views === null ? 'Replay any time' : views === 1 ? 'View once' : 'Can be viewed twice'}
+                </>
+              ) : (
+                `${names.length} ${names.length === 1 ? 'chat' : 'chats'} selected`
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSend([...picked], story)}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 text-[15px] font-semibold text-white active:scale-95 disabled:opacity-60"
+          >
+            {busy ? <span className="size-4.5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Send size={18} />}
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );
