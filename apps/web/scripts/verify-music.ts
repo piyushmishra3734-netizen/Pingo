@@ -8,11 +8,14 @@
  * - The queue: next/prev, repeat, shuffle keeping the current song, "play
  *   next" moving a queued song up, refill only for radio, history trimmed.
  * - Taste: finished plays and likes count, skips count against, old plays fade.
+ * - Radio sound: a phonk seed is read as phonk and anchored with well-played
+ *   phonk in a real language, never an "instrumental" or "unknown" one.
  *
  * Run with `pnpm verify:music`.
  */
 import { decryptMediaUrl } from '../../../workers/saavn/src/des.js';
 import { album, image, modules, song, text } from '../../../workers/saavn/src/normalize.js';
+import { anchorQuery, pickAnchors, soundOf, type SongLike } from '../../../workers/saavn/src/sound.js';
 import * as Q from '../src/features/music/saavn/queue.js';
 import { homeLanguages, songScore, taste } from '../src/features/music/saavn/taste.js';
 import type { Song } from '../src/features/music/saavn/types.js';
@@ -148,6 +151,31 @@ console.log('— taste —');
   check(t.seeds.includes('s4') && !t.seeds.includes('s5'), 'a liked song seeds; a skipped one does not');
   check(homeLanguages(t).join() === 'hindi,punjabi', 'home asks in the languages actually played');
   check(homeLanguages(taste([], new Set(), now)).join() === 'hindi', 'somebody new starts in Hindi');
+}
+
+console.log('— radio keeps the sound —');
+{
+  const s = (id: string, name: string, language: string, plays: number, artist = id, albumName = name): SongLike => ({ id, name, album: { name: albumName }, artists: [{ name: artist }], language, plays });
+  const gym = s('a5WvfB24', 'Gym Phonk', 'unknown', 19066, 'Gym Phonk 2024', 'Aggressive Gym Phonk Motivation Music');
+  check(soundOf([gym])?.tag === 'phonk', 'gym phonk is phonk before it is a workout');
+  check(soundOf([s('x', 'Sanatani phonk', 'hindi', 1)])?.tag === 'phonk', 'a Hindi phonk is still phonk');
+  check(soundOf([s('k', 'Kesariya', 'hindi', 1, 'Arijit Singh', 'Brahmastra')]) === undefined, 'a film song says no sound, and gets JioSaavn radio unchanged');
+  check(soundOf([s('l', 'Pehle Bhi Main Lofi Mix', 'hindi', 1)])?.tag === 'lofi', 'lofi is read');
+  const phonk = soundOf([gym])!;
+  check(anchorQuery(phonk, [gym]) === 'phonk', 'phonk anchors are searched in any language');
+  const lofi = soundOf([s('l', 'Lofi', 'hindi', 1)])!;
+  check(anchorQuery(lofi, [s('l', 'Lofi', 'hindi', 1)]) === 'lofi hindi', 'lofi anchors are searched in the seed language');
+  const found = [
+    s('apme5aAa', 'Mexican Phonk Eki', 'english', 2523340, 'NUEKI'),
+    s('hsRt7IJD', 'Mexican Phonk Eki (Slowed + Reverb)', 'english', 194765, 'NUEKI'),
+    s('rpnUq3S8', 'GigaChad Theme (Phonk House Version)', 'instrumental', 1374702, 'g3ox_em'),
+    s('0a5axeOE', 'GigaChad Theme (Phonk House Version) (Slowed)', 'english', 1373226, 'g3ox_em'),
+    s('qVSrqS2k', 'Airtel Phonk', 'unknown', 19128000),
+    s('o', 'O Maahi', 'hindi', 90000000, 'Arijit Singh'),
+    gym,
+  ];
+  const anchors = pickAnchors(phonk, found, [gym]).map((a) => a.id);
+  check(anchors.join() === 'apme5aAa,0a5axeOE', `anchors: best played, filed under a language, two singers, not the seed (${anchors.join()})`);
 }
 
 if (failures) {

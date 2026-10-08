@@ -31,7 +31,7 @@
  *
  *   /songs/:id[,id...]            full details, with stream addresses
  *   /songs/:id/lyrics
- *   /songs/:id/radio?n=10         a station seeded with this song (the "for you" queue)
+ *   /songs/:id/radio?n=10         a station seeded with this song, kept to its sound (the "for you" queue)
  *   /albums/:id
  *   /playlists/:id?page=&n=
  *   /artists/:id                  the artist page
@@ -46,6 +46,7 @@
  */
 
 import { album, artist, channel, items, modules, playlist, raw, song, text, type Song } from './normalize.js';
+import { anchorQuery, pickAnchors, soundOf } from './sound.js';
 
 interface Env {
   /** The Mumbai proxy; overridable for testing. */
@@ -167,12 +168,44 @@ async function lyrics(env: Env, id: string) {
   return { lines: body.split(/<br\s*\/?>/i).map((l) => l.trim()), copyright: text(d.lyrics_copyright), snippet: text(d.snippet) };
 }
 
-/** A radio seeded with one or more songs: JioSaavn's own "more like this". */
+/**
+ * A radio seeded with one or more songs: JioSaavn's own "more like this",
+ * kept to the seeds' sound (`sound.ts` says why and how).
+ */
 async function radio(env: Env, ids: string[], n: number) {
-  const st = raw.obj(await saavn(env, 'webradio.createEntityStation', { entity_id: JSON.stringify(ids), entity_type: 'queue' }, { ctx: 'android' }));
-  const stationId = text(st.stationid);
-  if (!stationId) throw new Upstream('No station for this song');
-  return { stationId, songs: await stationNext(env, stationId, n) };
+  const seeds = await songsById(env, ids).catch(() => [] as Song[]);
+  const sound = soundOf(seeds);
+  let anchors: Song[] = [];
+  if (sound) {
+    const found = await saavn(env, 'search.getResults', { q: anchorQuery(sound, seeds), p: 1, n: 30 }).catch(() => ({}));
+    anchors = pickAnchors(sound, raw.arr(raw.obj(found).results).map(song), seeds) as Song[];
+  }
+
+  const start = async (entity: string[]) => {
+    const st = raw.obj(await saavn(env, 'webradio.createEntityStation', { entity_id: JSON.stringify(entity), entity_type: 'queue' }, { ctx: 'android' }));
+    const stationId = text(st.stationid);
+    if (!stationId) throw new Upstream('No station for this song');
+    return { stationId, songs: await stationNext(env, stationId, n) };
+  };
+  let st = await start([...ids, ...anchors.map((a) => a.id)]);
+
+  // Nothing came: a song from a small label with no station behind it. Its singer's station, then.
+  const lead = seeds[0]?.artists[0]?.name;
+  if (!st.songs.length && lead) {
+    const lang = seeds[0]?.language && seeds[0].language !== 'unknown' ? seeds[0].language : 'hindi';
+    const a = raw.obj(await saavn(env, 'webradio.createArtistStation', { name: lead, language: lang }, { ctx: 'android' }).catch(() => ({})));
+    const id = text(a.stationid);
+    if (id) st = { stationId: id, songs: await stationNext(env, id, n).catch(() => [] as Song[]) };
+  }
+
+  // The anchors are this sound's surest songs: they play early too, so the queue is in the sound from the second song.
+  const seen = new Set(ids);
+  const songs = [...st.songs.slice(0, 1), ...anchors.slice(0, 1), ...st.songs.slice(1, 3), ...anchors.slice(1), ...st.songs.slice(3)].filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+  return { stationId: st.stationId, songs, ...(sound ? { sound: sound.tag } : {}) };
 }
 
 async function stationNext(env: Env, stationId: string, n: number): Promise<Song[]> {
@@ -313,10 +346,25 @@ async function route(env: Env, url: URL): Promise<unknown> {
       const call = seg[1] === 'featured' ? 'webradio.createFeaturedStation' : 'webradio.createArtistStation';
       const params: Record<string, string> = { name, language: (lang ?? 'hindi').split(',')[0]! };
       if (seg[1] === 'artist') params.query = name;
-      const st = raw.obj(await saavn(env, call, params));
+      const n = size(q.get('n'), 5, 20);
+      const st = raw.obj(await saavn(env, call, params).catch((e: unknown) => (seg[1] === 'artist' ? {} : Promise.reject(e))));
       const stationId = text(st.stationid);
+      const songs = stationId ? await stationNext(env, stationId, n) : [];
+      if (songs.length) return { stationId, songs };
+      // A singer JioSaavn keeps no station for (a small label's phonk channel): a radio from their own songs, kept to their sound.
+      if (seg[1] === 'artist') {
+        const own = raw.arr(raw.obj(await saavn(env, 'search.getResults', { q: name, p: 1, n: 20 })).results)
+          .map(song)
+          .filter((x) => x.artists.some((a) => a.name.toLowerCase() === name.toLowerCase()))
+          .sort((a, b) => b.plays - a.plays);
+        if (own.length) {
+          const r = await radio(env, own.slice(0, 3).map((x) => x.id), Math.max(n, 10));
+          // Their own best song first: it is their radio.
+          return { stationId: r.stationId, songs: [own[0]!, ...r.songs.filter((x) => x.id !== own[0]!.id)] };
+        }
+      }
       if (!stationId) throw new Upstream('No such station');
-      return { stationId, songs: await stationNext(env, stationId, size(q.get('n'), 5, 20)) };
+      return { stationId, songs };
     }
     if (seg[1] && seg[2] === 'next') return stationNext(env, decodeURIComponent(seg[1]), size(q.get('n'), 5, 20));
   }

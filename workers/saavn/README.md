@@ -31,6 +31,17 @@ Languages: JioSaavn reads them from a cookie, so the Worker sends
 that change is deployed, `/home`, `/new` and `/featured` answer in the default
 language mix; `/trending?lang=` works either way.
 
+## Radio that keeps the sound
+
+JioSaavn's radio follows language and label more than sound: a small label's
+gym phonk got no station, or a Hindi-tagged one got the day's Bollywood hits.
+`/songs/:id/radio` now reads the seeds' sound from their names (`src/sound.ts`:
+phonk, lofi, slowed, bhajan...) and seeds the station with one or two
+well-played songs of that sound as well, which keeps JioSaavn's own station in
+it, refills included. A singer with no JioSaavn station gets that radio built
+from their own songs (`/stations/artist`). Film songs and anything else with no
+sound in its name get JioSaavn's radio unchanged.
+
 ## Deploy (from the PC)
 
 ```sh
