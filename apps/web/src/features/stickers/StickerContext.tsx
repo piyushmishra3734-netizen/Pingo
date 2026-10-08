@@ -34,6 +34,21 @@ import {
  */
 
 const SOURCES: StickerPackSource[] = [
+  // PINGO's own, made for it: first, because they are the ones made for chatting here.
+  {
+    id: 'pals',
+    name: 'PINGO Pals',
+    coverUrl: 'https://pingochat.pages.dev/stickers/pals/vibing-frog.webp',
+    manifestUrl: '/stickers/pals.json',
+    builtIn: true,
+  },
+  {
+    id: 'mochi',
+    name: 'Mochi',
+    coverUrl: 'https://pingochat.pages.dev/stickers/mochi/mochi-shocked.webp',
+    manifestUrl: '/stickers/mochi.json',
+    builtIn: true,
+  },
   {
     id: 'blobfox',
     name: 'Blobfox',

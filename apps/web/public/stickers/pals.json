@@ -1,0 +1,1186 @@
+{
+ "id": "pals",
+ "name": "PINGO Pals",
+ "coverUrl": "https://pingochat.pages.dev/stickers/pals/vibing-frog.webp",
+ "attribution": {
+  "source": "PINGO",
+  "url": "https://pingochat.pages.dev",
+  "licence": "CC0-1.0",
+  "credit": "PINGO Pals, made for PINGO"
+ },
+ "stickers": [
+  {
+   "id": "pals-texting-in-bed",
+   "name": "Texting in Bed",
+   "category": "reactions",
+   "keywords": [
+    "awake",
+    "bed",
+    "in",
+    "insomnia",
+    "late",
+    "message",
+    "nahi",
+    "neend",
+    "night",
+    "pals",
+    "phone",
+    "raat",
+    "texting",
+    "typing"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/texting-in-bed.webp",
+   "emoji": "📱"
+  },
+  {
+   "id": "pals-noodle-frog",
+   "name": "Noodle Frog",
+   "category": "food",
+   "keywords": [
+    "bhookh",
+    "eating",
+    "frog",
+    "hungry",
+    "khana",
+    "maggi",
+    "noodle",
+    "noodles",
+    "pals",
+    "ramen",
+    "slurp"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/noodle-frog.webp",
+   "emoji": "🍜"
+  },
+  {
+   "id": "pals-boss-cat",
+   "name": "Boss Cat",
+   "category": "meme",
+   "keywords": [
+    "attitude",
+    "boss",
+    "cat",
+    "chain",
+    "cool",
+    "gold",
+    "pals",
+    "rich",
+    "sunglasses",
+    "swag"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/boss-cat.webp",
+   "emoji": "😎"
+  },
+  {
+   "id": "pals-off-i-go",
+   "name": "Off I Go",
+   "category": "reactions",
+   "keywords": [
+    "backpack",
+    "bye",
+    "chalo",
+    "college",
+    "go",
+    "going",
+    "i",
+    "leaving",
+    "off",
+    "pals",
+    "penguin",
+    "school"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/off-i-go.webp",
+   "emoji": "🎒"
+  },
+  {
+   "id": "pals-shark-scream",
+   "name": "Shark Scream",
+   "category": "reactions",
+   "keywords": [
+    "chillana",
+    "omg",
+    "pals",
+    "panic",
+    "scream",
+    "shark",
+    "shocked",
+    "what"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/shark-scream.webp",
+   "emoji": "😱"
+  },
+  {
+   "id": "pals-angry-bunny",
+   "name": "Angry Bunny",
+   "category": "reactions",
+   "keywords": [
+    "angry",
+    "bunny",
+    "gussa",
+    "mad",
+    "naraz",
+    "pals",
+    "rabbit",
+    "rage"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/angry-bunny.webp",
+   "emoji": "😠"
+  },
+  {
+   "id": "pals-low-battery",
+   "name": "Low Battery",
+   "category": "reactions",
+   "keywords": [
+    "battery",
+    "dog",
+    "exhausted",
+    "gaya",
+    "lazy",
+    "low",
+    "pals",
+    "shiba",
+    "thak",
+    "tired"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/low-battery.webp",
+   "emoji": "🪫"
+  },
+  {
+   "id": "pals-coding-alien",
+   "name": "Coding Alien",
+   "category": "gaming",
+   "keywords": [
+    "alien",
+    "coding",
+    "focus",
+    "headphones",
+    "laptop",
+    "padhai",
+    "pals",
+    "study",
+    "work"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/coding-alien.webp",
+   "emoji": "👽"
+  },
+  {
+   "id": "pals-teary-love",
+   "name": "Teary Love",
+   "category": "love",
+   "keywords": [
+    "cat",
+    "crying",
+    "emotional",
+    "heart",
+    "love",
+    "miss",
+    "pals",
+    "pyaar",
+    "teary",
+    "you"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/teary-love.webp",
+   "emoji": "🥹"
+  },
+  {
+   "id": "pals-on-my-way",
+   "name": "On My Way",
+   "category": "reactions",
+   "keywords": [
+    "aa",
+    "coming",
+    "duck",
+    "fast",
+    "flying",
+    "hu",
+    "my",
+    "on",
+    "pals",
+    "plane",
+    "raha",
+    "way"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/on-my-way.webp",
+   "emoji": "✈️"
+  },
+  {
+   "id": "pals-snack-raccoon",
+   "name": "Snack Raccoon",
+   "category": "food",
+   "keywords": [
+    "bhookh",
+    "chips",
+    "eating",
+    "hungry",
+    "pals",
+    "raccoon",
+    "snack"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/snack-raccoon.webp",
+   "emoji": "🍟"
+  },
+  {
+   "id": "pals-melting",
+   "name": "Melting",
+   "category": "reactions",
+   "keywords": [
+    "embarrassed",
+    "melting",
+    "pals",
+    "puddle",
+    "seal",
+    "sharam",
+    "shy"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/melting.webp",
+   "emoji": "🫠"
+  },
+  {
+   "id": "pals-sleepy-yawn",
+   "name": "Sleepy Yawn",
+   "category": "smileys",
+   "keywords": [
+    "blanket",
+    "girl",
+    "good",
+    "neend",
+    "night",
+    "pals",
+    "sleepy",
+    "tired",
+    "yawn"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/sleepy-yawn.webp",
+   "emoji": "🥱"
+  },
+  {
+   "id": "pals-deal-with-it",
+   "name": "Deal With It",
+   "category": "meme",
+   "keywords": [
+    "cat",
+    "cool",
+    "deal",
+    "it",
+    "pals",
+    "pixel",
+    "sunglasses",
+    "swag",
+    "with"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/deal-with-it.webp",
+   "emoji": "😎"
+  },
+  {
+   "id": "pals-sleepy-panda",
+   "name": "Sleepy Panda",
+   "category": "animals",
+   "keywords": [
+    "gaya",
+    "good",
+    "neend",
+    "night",
+    "pals",
+    "panda",
+    "sleeping",
+    "sleepy",
+    "so",
+    "zzz"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/sleepy-panda.webp",
+   "emoji": "😴"
+  },
+  {
+   "id": "pals-love-letter",
+   "name": "Love Letter",
+   "category": "love",
+   "keywords": [
+    "chitthi",
+    "ghost",
+    "letter",
+    "love",
+    "message",
+    "pals",
+    "pyaar",
+    "running"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/love-letter.webp",
+   "emoji": "💌"
+  },
+  {
+   "id": "pals-squish",
+   "name": "Squish",
+   "category": "love",
+   "keywords": [
+    "cheeks",
+    "cute",
+    "dog",
+    "golden",
+    "happy",
+    "pals",
+    "pyaar",
+    "squish"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/squish.webp",
+   "emoji": "🥰"
+  },
+  {
+   "id": "pals-mine",
+   "name": "Mine",
+   "category": "meme",
+   "keywords": [
+    "black",
+    "box",
+    "cat",
+    "mera",
+    "mine",
+    "pals",
+    "possessive"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/mine.webp",
+   "emoji": "📦"
+  },
+  {
+   "id": "pals-blanket-burrito",
+   "name": "Blanket Burrito",
+   "category": "smileys",
+   "keywords": [
+    "annoyed",
+    "blanket",
+    "burrito",
+    "cat",
+    "cold",
+    "grumpy",
+    "lazy",
+    "pals",
+    "thand"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/blanket-burrito.webp",
+   "emoji": "😒"
+  },
+  {
+   "id": "pals-classy-cat",
+   "name": "Classy Cat",
+   "category": "meme",
+   "keywords": [
+    "cat",
+    "chill",
+    "classy",
+    "pals",
+    "relax",
+    "rich",
+    "sunglasses",
+    "wine"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/classy-cat.webp",
+   "emoji": "🍷"
+  },
+  {
+   "id": "pals-3am-scrolling",
+   "name": "3am Scrolling",
+   "category": "reactions",
+   "keywords": [
+    "3am",
+    "bed",
+    "cat",
+    "crying",
+    "late",
+    "night",
+    "pals",
+    "phone",
+    "raat",
+    "sad",
+    "scrolling"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/3am-scrolling.webp",
+   "emoji": "😢"
+  },
+  {
+   "id": "pals-happy-dog",
+   "name": "Happy Dog",
+   "category": "reactions",
+   "keywords": [
+    "dog",
+    "excited",
+    "golden",
+    "happy",
+    "khush",
+    "pals",
+    "yay"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/happy-dog.webp",
+   "emoji": "😄"
+  },
+  {
+   "id": "pals-vibing-frog",
+   "name": "Vibing Frog",
+   "category": "reactions",
+   "keywords": [
+    "chill",
+    "frog",
+    "gaana",
+    "headphones",
+    "music",
+    "pals",
+    "song",
+    "vibe",
+    "vibing"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/vibing-frog.webp",
+   "emoji": "🎧"
+  },
+  {
+   "id": "pals-rage-bunny",
+   "name": "Rage Bunny",
+   "category": "reactions",
+   "keywords": [
+    "aag",
+    "angry",
+    "bunny",
+    "fire",
+    "furious",
+    "gussa",
+    "pals",
+    "rabbit",
+    "rage"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/rage-bunny.webp",
+   "emoji": "🔥"
+  },
+  {
+   "id": "pals-chill-mode",
+   "name": "Chill Mode",
+   "category": "meme",
+   "keywords": [
+    "chill",
+    "computer",
+    "mode",
+    "pals",
+    "relax",
+    "unbothered",
+    "whatever"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/chill-mode.webp",
+   "emoji": "😌"
+  },
+  {
+   "id": "pals-dino-with-a-knife",
+   "name": "Dino With a Knife",
+   "category": "meme",
+   "keywords": [
+    "a",
+    "costume",
+    "dino",
+    "knife",
+    "mood",
+    "pals",
+    "penguin",
+    "threat",
+    "with"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/dino-with-a-knife.webp",
+   "emoji": "🔪"
+  },
+  {
+   "id": "pals-screaming-cat",
+   "name": "Screaming Cat",
+   "category": "meme",
+   "keywords": [
+    "cat",
+    "chillana",
+    "omg",
+    "pals",
+    "scream",
+    "screaming",
+    "shocked",
+    "what"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/screaming-cat.webp",
+   "emoji": "🙀"
+  },
+  {
+   "id": "pals-done-for-today",
+   "name": "Done for Today",
+   "category": "smileys",
+   "keywords": [
+    "bored",
+    "done",
+    "for",
+    "gayi",
+    "girl",
+    "pals",
+    "sad",
+    "thak",
+    "tired",
+    "today"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/done-for-today.webp",
+   "emoji": "😩"
+  },
+  {
+   "id": "pals-trash-panda",
+   "name": "Trash Panda",
+   "category": "meme",
+   "keywords": [
+    "bin",
+    "can",
+    "garbage",
+    "hiding",
+    "pals",
+    "panda",
+    "raccoon",
+    "trash"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/trash-panda.webp",
+   "emoji": "🗑️"
+  },
+  {
+   "id": "pals-yay",
+   "name": "Yay",
+   "category": "reactions",
+   "keywords": [
+    "celebrate",
+    "excited",
+    "fennec",
+    "fox",
+    "happy",
+    "khush",
+    "pals",
+    "scream",
+    "yay"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/yay.webp",
+   "emoji": "🥳"
+  },
+  {
+   "id": "pals-alien-love",
+   "name": "Alien Love",
+   "category": "love",
+   "keywords": [
+    "alien",
+    "cute",
+    "heart",
+    "love",
+    "pals",
+    "pyaar"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/alien-love.webp",
+   "emoji": "💚"
+  },
+  {
+   "id": "pals-content-cat",
+   "name": "Content Cat",
+   "category": "smileys",
+   "keywords": [
+    "cat",
+    "content",
+    "happy",
+    "pals",
+    "peaceful",
+    "smile",
+    "sukoon"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/content-cat.webp",
+   "emoji": "😊"
+  },
+  {
+   "id": "pals-cool-duck",
+   "name": "Cool Duck",
+   "category": "meme",
+   "keywords": [
+    "cool",
+    "duck",
+    "pals",
+    "skateboard",
+    "sunglasses",
+    "swag"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/cool-duck.webp",
+   "emoji": "🛹"
+  },
+  {
+   "id": "pals-flat-cat",
+   "name": "Flat Cat",
+   "category": "smileys",
+   "keywords": [
+    "cat",
+    "confused",
+    "dizzy",
+    "flat",
+    "lazy",
+    "pals",
+    "thak",
+    "tired"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/flat-cat.webp",
+   "emoji": "😵"
+  },
+  {
+   "id": "pals-panda-ramen",
+   "name": "Panda Ramen",
+   "category": "food",
+   "keywords": [
+    "bhookh",
+    "eating",
+    "khana",
+    "noodles",
+    "pals",
+    "panda",
+    "ramen"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/panda-ramen.webp",
+   "emoji": "🍜"
+  },
+  {
+   "id": "pals-shark-panic",
+   "name": "Shark Panic",
+   "category": "gaming",
+   "keywords": [
+    "crying",
+    "deadline",
+    "exam",
+    "laptop",
+    "pals",
+    "panic",
+    "shark",
+    "work"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/shark-panic.webp",
+   "emoji": "😭"
+  },
+  {
+   "id": "pals-ugly-cry",
+   "name": "Ugly Cry",
+   "category": "reactions",
+   "keywords": [
+    "boy",
+    "cry",
+    "crying",
+    "dukhi",
+    "pals",
+    "rona",
+    "sad",
+    "tears",
+    "ugly"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/ugly-cry.webp",
+   "emoji": "😭"
+  },
+  {
+   "id": "pals-hmm",
+   "name": "Hmm",
+   "category": "reactions",
+   "keywords": [
+    "cat",
+    "doubt",
+    "hmm",
+    "pals",
+    "question",
+    "soch",
+    "suspicious",
+    "thinking"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/hmm.webp",
+   "emoji": "🤔"
+  },
+  {
+   "id": "pals-pointing-and-screaming",
+   "name": "Pointing and Screaming",
+   "category": "meme",
+   "keywords": [
+    "and",
+    "cat",
+    "laughing",
+    "lol",
+    "pals",
+    "pointing",
+    "scream",
+    "screaming",
+    "you"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/pointing-and-screaming.webp",
+   "emoji": "👉"
+  },
+  {
+   "id": "pals-dead-inside",
+   "name": "Dead Inside",
+   "category": "smileys",
+   "keywords": [
+    "dead",
+    "done",
+    "flat",
+    "frog",
+    "inside",
+    "lazy",
+    "pals",
+    "thak",
+    "tired"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/dead-inside.webp",
+   "emoji": "💀"
+  },
+  {
+   "id": "pals-thumbs-up",
+   "name": "Thumbs Up",
+   "category": "gestures",
+   "keywords": [
+    "alien",
+    "good",
+    "hai",
+    "nice",
+    "ok",
+    "okay",
+    "pals",
+    "theek",
+    "thumbs",
+    "up"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/thumbs-up.webp",
+   "emoji": "👍"
+  },
+  {
+   "id": "pals-run-away-crying",
+   "name": "Run Away Crying",
+   "category": "reactions",
+   "keywords": [
+    "away",
+    "bhago",
+    "crying",
+    "pals",
+    "penguin",
+    "run",
+    "running",
+    "scared"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/run-away-crying.webp",
+   "emoji": "🏃"
+  },
+  {
+   "id": "pals-peeking",
+   "name": "Peeking",
+   "category": "reactions",
+   "keywords": [
+    "dog",
+    "hiding",
+    "pals",
+    "peeking",
+    "shy",
+    "wall",
+    "watching"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/peeking.webp",
+   "emoji": "👀"
+  },
+  {
+   "id": "pals-angry-typing",
+   "name": "Angry Typing",
+   "category": "gaming",
+   "keywords": [
+    "angry",
+    "argument",
+    "cat",
+    "gussa",
+    "laptop",
+    "pals",
+    "typing"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/angry-typing.webp",
+   "emoji": "⌨️"
+  },
+  {
+   "id": "pals-cheer",
+   "name": "Cheer",
+   "category": "reactions",
+   "keywords": [
+    "bunny",
+    "celebrate",
+    "cheer",
+    "pals",
+    "pom",
+    "poms",
+    "support",
+    "yay"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/cheer.webp",
+   "emoji": "🎉"
+  },
+  {
+   "id": "pals-cool-shark",
+   "name": "Cool Shark",
+   "category": "meme",
+   "keywords": [
+    "arms",
+    "cool",
+    "crossed",
+    "pals",
+    "shark",
+    "sunglasses",
+    "unbothered"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/cool-shark.webp",
+   "emoji": "😎"
+  },
+  {
+   "id": "pals-crying-seal",
+   "name": "Crying Seal",
+   "category": "reactions",
+   "keywords": [
+    "crying",
+    "dukhi",
+    "pals",
+    "rona",
+    "sad",
+    "seal",
+    "tears"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/crying-seal.webp",
+   "emoji": "😢"
+  },
+  {
+   "id": "pals-panic-duck",
+   "name": "Panic Duck",
+   "category": "reactions",
+   "keywords": [
+    "darr",
+    "duck",
+    "omg",
+    "pals",
+    "panic",
+    "scream",
+    "shocked"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/panic-duck.webp",
+   "emoji": "😨"
+  },
+  {
+   "id": "pals-what-did-i-just-read",
+   "name": "What Did I Just Read",
+   "category": "reactions",
+   "keywords": [
+    "boy",
+    "did",
+    "i",
+    "just",
+    "omg",
+    "pals",
+    "phone",
+    "read",
+    "shocked",
+    "what",
+    "wtf"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/what-did-i-just-read.webp",
+   "emoji": "😳"
+  },
+  {
+   "id": "pals-sneaky-raccoon",
+   "name": "Sneaky Raccoon",
+   "category": "meme",
+   "keywords": [
+    "chor",
+    "pals",
+    "raccoon",
+    "running",
+    "sneaky",
+    "stealing"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/sneaky-raccoon.webp",
+   "emoji": "🦝"
+  },
+  {
+   "id": "pals-head-pats",
+   "name": "Head Pats",
+   "category": "love",
+   "keywords": [
+    "boy",
+    "dog",
+    "golden",
+    "good",
+    "head",
+    "love",
+    "pals",
+    "pat",
+    "pats",
+    "pyaar"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/head-pats.webp",
+   "emoji": "🤗"
+  },
+  {
+   "id": "pals-drip-cat",
+   "name": "Drip Cat",
+   "category": "meme",
+   "keywords": [
+    "boba",
+    "cat",
+    "cool",
+    "drip",
+    "hoodie",
+    "pals",
+    "sunglasses",
+    "swag"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/drip-cat.webp",
+   "emoji": "🧋"
+  },
+  {
+   "id": "pals-music-penguin",
+   "name": "Music Penguin",
+   "category": "reactions",
+   "keywords": [
+    "gaana",
+    "headphones",
+    "music",
+    "pals",
+    "penguin",
+    "song",
+    "vibe"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/music-penguin.webp",
+   "emoji": "🎵"
+  },
+  {
+   "id": "pals-cozy-frog",
+   "name": "Cozy Frog",
+   "category": "smileys",
+   "keywords": [
+    "blanket",
+    "cozy",
+    "frog",
+    "neend",
+    "pals",
+    "sleeping",
+    "zzz"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/cozy-frog.webp",
+   "emoji": "😴"
+  },
+  {
+   "id": "pals-big-heart",
+   "name": "Big Heart",
+   "category": "love",
+   "keywords": [
+    "big",
+    "heart",
+    "hug",
+    "love",
+    "pals",
+    "pyaar",
+    "seal"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/big-heart.webp",
+   "emoji": "❤️"
+  },
+  {
+   "id": "pals-tantrum",
+   "name": "Tantrum",
+   "category": "reactions",
+   "keywords": [
+    "angry",
+    "girl",
+    "gussa",
+    "pals",
+    "scream",
+    "tantrum"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/tantrum.webp",
+   "emoji": "😤"
+  },
+  {
+   "id": "pals-no-energy",
+   "name": "No Energy",
+   "category": "smileys",
+   "keywords": [
+    "battery",
+    "energy",
+    "lazy",
+    "low",
+    "no",
+    "pals",
+    "panda",
+    "thak",
+    "tired"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/no-energy.webp",
+   "emoji": "🪫"
+  },
+  {
+   "id": "pals-box-cat",
+   "name": "Box Cat",
+   "category": "animals",
+   "keywords": [
+    "box",
+    "cat",
+    "curious",
+    "excited",
+    "pals",
+    "peeking"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/box-cat.webp",
+   "emoji": "📦"
+  },
+  {
+   "id": "pals-peace",
+   "name": "Peace",
+   "category": "gestures",
+   "keywords": [
+    "alien",
+    "bye",
+    "pals",
+    "peace",
+    "sign",
+    "victory"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/peace.webp",
+   "emoji": "✌️"
+  },
+  {
+   "id": "pals-running-late",
+   "name": "Running Late",
+   "category": "reactions",
+   "keywords": [
+    "der",
+    "duck",
+    "hurry",
+    "late",
+    "pals",
+    "running",
+    "toast"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/running-late.webp",
+   "emoji": "🏃"
+  },
+  {
+   "id": "pals-lol",
+   "name": "LOL",
+   "category": "reactions",
+   "keywords": [
+    "bunny",
+    "haha",
+    "hasi",
+    "laughing",
+    "lol",
+    "pals",
+    "rolling"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/lol.webp",
+   "emoji": "😂"
+  },
+  {
+   "id": "pals-wiggle",
+   "name": "Wiggle",
+   "category": "animals",
+   "keywords": [
+    "black",
+    "cat",
+    "pals",
+    "play",
+    "pounce",
+    "ready",
+    "wiggle"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/wiggle.webp",
+   "emoji": "🐈‍⬛"
+  },
+  {
+   "id": "pals-grind-mode",
+   "name": "Grind Mode",
+   "category": "gaming",
+   "keywords": [
+    "coffee",
+    "goggles",
+    "grind",
+    "hamster",
+    "laptop",
+    "mode",
+    "padhai",
+    "pals",
+    "study",
+    "work"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/grind-mode.webp",
+   "emoji": "💻"
+  },
+  {
+   "id": "pals-monday-mood",
+   "name": "Monday Mood",
+   "category": "reactions",
+   "keywords": [
+    "backpack",
+    "monday",
+    "mood",
+    "office",
+    "pals",
+    "sad",
+    "school",
+    "walking"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/monday-mood.webp",
+   "emoji": "🎒"
+  }
+ ]
+}

@@ -1,0 +1,163 @@
+{
+ "id": "mochi",
+ "name": "Mochi",
+ "coverUrl": "https://pingochat.pages.dev/stickers/mochi/mochi-shocked.webp",
+ "attribution": {
+  "source": "PINGO",
+  "url": "https://pingochat.pages.dev",
+  "licence": "CC0-1.0",
+  "credit": "Mochi, made for PINGO"
+ },
+ "stickers": [
+  {
+   "id": "mochi-mochi-shocked",
+   "name": "Mochi Shocked",
+   "category": "reactions",
+   "keywords": [
+    "cat",
+    "mochi",
+    "omg",
+    "scream",
+    "shocked",
+    "what"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-shocked.webp",
+   "emoji": "😱"
+  },
+  {
+   "id": "mochi-mochi-tired",
+   "name": "Mochi Tired",
+   "category": "smileys",
+   "keywords": [
+    "bags",
+    "cat",
+    "eye",
+    "mochi",
+    "sleepy",
+    "thak",
+    "tired"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-tired.webp",
+   "emoji": "😩"
+  },
+  {
+   "id": "mochi-mochi-side-eye",
+   "name": "Mochi Side-Eye",
+   "category": "meme",
+   "keywords": [
+    "cat",
+    "eye",
+    "judging",
+    "juice",
+    "mochi",
+    "side",
+    "suspicious"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-side-eye.webp",
+   "emoji": "🧃"
+  },
+  {
+   "id": "mochi-mochi-cries",
+   "name": "Mochi Cries",
+   "category": "reactions",
+   "keywords": [
+    "cat",
+    "cries",
+    "crying",
+    "mochi",
+    "rona",
+    "sad",
+    "tears"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-cries.webp",
+   "emoji": "😭"
+  },
+  {
+   "id": "mochi-mochi-knife",
+   "name": "Mochi Knife",
+   "category": "meme",
+   "keywords": [
+    "angry",
+    "cat",
+    "gussa",
+    "knife",
+    "mochi",
+    "threat"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-knife.webp",
+   "emoji": "🔪"
+  },
+  {
+   "id": "mochi-mochi-peek",
+   "name": "Mochi Peek",
+   "category": "reactions",
+   "keywords": [
+    "cat",
+    "hiding",
+    "mochi",
+    "peek",
+    "peeking",
+    "watching"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-peek.webp",
+   "emoji": "👀"
+  },
+  {
+   "id": "mochi-mochi-points",
+   "name": "Mochi Points",
+   "category": "meme",
+   "keywords": [
+    "cat",
+    "close",
+    "mochi",
+    "pointing",
+    "points",
+    "up",
+    "you"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-points.webp",
+   "emoji": "👉"
+  },
+  {
+   "id": "mochi-mochi-dance",
+   "name": "Mochi Dance",
+   "category": "reactions",
+   "keywords": [
+    "cat",
+    "celebrate",
+    "dance",
+    "dancing",
+    "happy",
+    "mochi",
+    "naach",
+    "party"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-dance.webp",
+   "emoji": "💃"
+  },
+  {
+   "id": "mochi-mochi-tantrum",
+   "name": "Mochi Tantrum",
+   "category": "reactions",
+   "keywords": [
+    "angry",
+    "cat",
+    "crying",
+    "mochi",
+    "rolling",
+    "tantrum"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mochi/mochi-tantrum.webp",
+   "emoji": "😤"
+  }
+ ]
+}
