@@ -35,7 +35,7 @@ function setQueue(next: Q.QueueState) {
   listeners.forEach((l) => l());
 }
 
-const toShared = (s: Song, url: string): SharedSong => ({ name: s.name, artist: api.artistNames(s), img: s.image, url, secs: s.secs });
+const toShared = (s: Song, url: string): SharedSong => ({ name: s.name, artist: api.artistNames(s), img: s.image, url, secs: s.secs, ...(s.album?.name ? { album: s.album.name } : {}) });
 
 /* ---------- listening record ---------- */
 

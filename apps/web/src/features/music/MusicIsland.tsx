@@ -251,7 +251,7 @@ export function MusicIsland() {
    */
   const geometry =
     shape === 'open'
-      ? { width: 'min(360px, calc(100vw - 24px))', height: 104, borderRadius: 30, transform: 'translate(-50%, 0) scale(1)', opacity: 1 }
+      ? { width: 'min(300px, calc(100vw - 72px))', height: 96, borderRadius: 28, transform: 'translate(-50%, 0) scale(1)', opacity: 1 }
       : shape === 'pill'
         ? { width: 112, height: 34, borderRadius: 19, transform: 'translate(-50%, 0) scale(1)', opacity: 1 }
         : { width: 84, height: 28, borderRadius: 16, transform: 'translate(-50%, -56px) scale(0.85)', opacity: 0 };
@@ -282,7 +282,7 @@ export function MusicIsland() {
         draggable={false}
         className={cn(
           'island-cover shrink-0 object-cover',
-          size === 'large' ? 'size-[52px] rounded-[13px]' : 'size-[22px] rounded-[7px]',
+          size === 'large' ? 'size-[46px] rounded-[12px]' : 'size-[22px] rounded-[7px]',
           !playing && size === 'large' && 'island-cover-rest',
         )}
       />
@@ -290,7 +290,7 @@ export function MusicIsland() {
       <span
         className={cn(
           'island-cover grid shrink-0 place-items-center bg-brand-soft text-brand',
-          size === 'large' ? 'size-[52px] rounded-[13px]' : 'size-[22px] rounded-[7px]',
+          size === 'large' ? 'size-[46px] rounded-[12px]' : 'size-[22px] rounded-[7px]',
           !playing && size === 'large' && 'island-cover-rest',
         )}
       >
@@ -340,16 +340,16 @@ export function MusicIsland() {
       <div
         aria-hidden={!isOpen}
         className={cn(
-          'absolute inset-x-0 top-0 grid origin-top gap-2.5 px-3.5 pt-3 transition-[opacity,filter,transform] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+          'absolute inset-x-0 top-0 grid origin-top gap-2 px-3 pt-2.5 transition-[opacity,filter,transform] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
           isOpen ? 'translate-y-0 scale-100 opacity-100 blur-0 delay-[120ms]' : 'pointer-events-none -translate-y-1 scale-[0.9] opacity-0 blur-[8px] duration-150',
         )}
       >
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
           {cover('large')}
           <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate text-[15px] font-extrabold">{shown.name}</span>
-            <span className="mt-0.5 block truncate text-[12.5px] text-text-secondary">
-              {player.failed ? 'Could not play. Tap play to try again.' : shown.artist || 'PINGO Music'}
+            <span className="block truncate text-[14.5px] font-extrabold">{shown.name}</span>
+            <span className="mt-0.5 block truncate text-[12px] text-text-secondary">
+              {player.failed ? 'Could not play. Tap play to try again.' : [shown.artist || 'PINGO Music', shown.album].filter(Boolean).join(' \u00b7 ')}
             </span>
           </span>
           <button
@@ -357,7 +357,7 @@ export function MusicIsland() {
             tabIndex={isOpen ? 0 : -1}
             onClick={() => musicPlayer.toggle(shown)}
             aria-label={playing ? 'Pause' : 'Play'}
-            className="focus-ring relative grid size-10 shrink-0 place-items-center rounded-full transition-transform duration-150 active:scale-90"
+            className="focus-ring relative grid size-9 shrink-0 place-items-center rounded-full transition-transform duration-150 active:scale-90"
           >
             {player.loading ? (
               <span aria-hidden className="size-5 animate-spin rounded-full border-2 border-ink/20 border-t-ink" />
@@ -381,13 +381,13 @@ export function MusicIsland() {
             tabIndex={isOpen ? 0 : -1}
             onClick={() => musicPlayer.close()}
             aria-label="Stop and close"
-            className="focus-ring grid size-8 shrink-0 place-items-center rounded-full text-text-secondary transition-transform duration-150 active:scale-90"
+            className="focus-ring -mr-1 grid size-7 shrink-0 place-items-center rounded-full text-text-secondary transition-transform duration-150 active:scale-90"
           >
-            <X size={20} />
+            <X size={19} />
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             tabIndex={isOpen ? 0 : -1}
@@ -395,9 +395,9 @@ export function MusicIsland() {
             aria-label="Back 10 seconds"
             className="focus-ring grid size-7 shrink-0 place-items-center rounded-full transition-transform duration-150 active:-rotate-45 active:scale-90"
           >
-            <RotateCcw size={18} />
+            <RotateCcw size={17} />
           </button>
-          <span className="w-8 shrink-0 text-right text-[11.5px] font-medium text-text-secondary tabular-nums">{fmt(at)}</span>
+          <span className="w-7 shrink-0 text-right text-[11px] font-medium text-text-secondary tabular-nums">{fmt(at)}</span>
           <div
             role="slider"
             tabIndex={isOpen ? 0 : -1}
@@ -439,7 +439,7 @@ export function MusicIsland() {
               style={{ left: `${pct}%`, transition: scrub === undefined ? 'left 250ms linear, transform 150ms' : 'transform 150ms' }}
             />
           </div>
-          <span className="w-8 shrink-0 text-[11.5px] font-medium text-text-secondary tabular-nums">{fmt(total)}</span>
+          <span className="w-7 shrink-0 text-[11px] font-medium text-text-secondary tabular-nums">{fmt(total)}</span>
           <button
             type="button"
             tabIndex={isOpen ? 0 : -1}
@@ -447,14 +447,14 @@ export function MusicIsland() {
             aria-label="Forward 10 seconds"
             className="focus-ring grid size-7 shrink-0 place-items-center rounded-full transition-transform duration-150 active:rotate-45 active:scale-90"
           >
-            <RotateCw size={18} />
+            <RotateCw size={17} />
           </button>
           <button
             type="button"
             tabIndex={isOpen ? 0 : -1}
             onClick={() => musicPlayer.setSpeed(nextSpeed(player.speed))}
             aria-label={`Speed ${player.speed}x`}
-            className="focus-ring shrink-0 rounded-full bg-ink/[0.07] px-2.5 py-1 text-[12px] font-bold tabular-nums transition-transform duration-150 active:scale-90"
+            className="focus-ring shrink-0 rounded-full bg-ink/[0.07] px-2 py-0.5 text-[11.5px] font-bold tabular-nums transition-transform duration-150 active:scale-90"
           >
             {player.speed}x
           </button>

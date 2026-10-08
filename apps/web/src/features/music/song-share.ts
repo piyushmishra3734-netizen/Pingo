@@ -17,6 +17,8 @@ export interface SharedSong {
   img: string;
   url: string;
   secs: number;
+  /** The album or film, when PINGO Music played it; a shared card carries none. */
+  album?: string;
 }
 
 export function songBody(song: Song): string {
