@@ -1058,3 +1058,22 @@ video {
 @media (prefers-reduced-motion: reduce) {
   .pm-bars i { animation: none; height: 60%; }
 }
+
+/* PINGO AI writing: the caret at the end of a reply still arriving. */
+.ai-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.55;
+  animation: ai-caret 0.9s steps(2, start) infinite;
+}
+@keyframes ai-caret {
+  to { visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-caret { animation: none; }
+}

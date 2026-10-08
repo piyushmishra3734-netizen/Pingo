@@ -64,6 +64,11 @@ import { VoiceNote } from './VoiceNote.js';
 
 export interface MessageBubbleProps {
   message: Message;
+  /**
+   * PINGO AI's reply while it is still being written: no time, no actions,
+   * and a caret where the next words will land.
+   */
+  streaming?: boolean;
   mine: boolean;
   /** Position within its author cluster, which decides corner shaping. */
   position: 'single' | 'first' | 'middle' | 'last';
@@ -190,6 +195,7 @@ export function MessageBubble({
   onJumpToReply,
   onReply,
   onRegenerate,
+  streaming = false,
 }: MessageBubbleProps) {
   /*
    * Only the sender of this bubble. Every bubble on screen asks in the same
@@ -738,7 +744,7 @@ export function MessageBubble({
                   Edited {formatEventTime(message.editedAt)}
                 </span>
               )}
-              {stamp}
+              {streaming ? <span aria-hidden className="ai-caret" /> : stamp}
             </p>
           )}
           {!hasBody && <span className="flex justify-end">{stamp}</span>}
@@ -753,7 +759,7 @@ export function MessageBubble({
           friend's line aloud is not what anybody wants, and a row of controls
           under every bubble in a busy group would be most of the screen.
         */}
-        {isAiReply && (
+        {isAiReply && !streaming && (
           <AiMessageActions
             text={message.body}
             onReply={() => onReply?.()}

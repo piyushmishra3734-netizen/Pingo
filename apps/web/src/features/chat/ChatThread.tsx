@@ -42,6 +42,7 @@ import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
+import { useAiDraft } from '../ai/ai-draft.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
@@ -630,6 +631,14 @@ export function ChatThread({
   const followingRef = useRef(true);
   /** React state mirror of followingRef so the jump button can re-render. */
   const [awayFromBottom, setAwayFromBottom] = useState(false);
+  /** PINGO AI's reply as it is being written, shown as a bubble that grows. */
+  const aiDraft = useAiDraft(conversation.id);
+  // A reply being written grows at the bottom; keep it in view unless they scrolled up to read.
+  useEffect(() => {
+    if (!aiDraft || awayFromBottom) return;
+    bottomRef.current?.scrollIntoView({ block: 'end' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiDraft]);
 
   /**
    * New-messages session: one pin, one count, while the reader is away.
@@ -1802,6 +1811,32 @@ export function ChatThread({
               </div>
             ))}
 
+            {/*
+              The assistant's reply while it is being written: the same bubble
+              the message will be, growing as the words arrive, replaced by the
+              real one the moment it lands.
+            */}
+            {aiDraft && (
+              <div className="mt-1" aria-live="polite">
+                <MessageBubble
+                  message={{
+                    id: 'ai-draft' as Message['id'],
+                    conversationId: conversation.id,
+                    authorId: PINGO_AI_USER_ID,
+                    body: aiDraft,
+                    createdAt: Date.now(),
+                    status: 'sent',
+                    attachments: [],
+                    reactions: [],
+                  }}
+                  mine={false}
+                  position="single"
+                  showMeta={false}
+                  streaming
+                />
+              </div>
+            )}
+
             {/* Its room is kept whenever the last word is mine, so 'Seen' arriving does not move anything. */}
             {(seen || messages[messages.length - 1]?.authorId === currentUser?.id) && (
               <p
@@ -1839,7 +1874,7 @@ export function ChatThread({
         it, the thread grew and shrank each time somebody started or stopped, and
         everything on screen moved with it. The thread keeps room for it always.
       */}
-      {isTyping && (
+      {isTyping && !aiDraft && (
         <div className="animate-fade-in pointer-events-none absolute left-3 z-[96] flex items-end gap-2" style={{ bottom: chrome.bottom + 6 }} aria-live="polite">
           {(() => {
             const typer = users.find((u) => u.id === conversation.typingUserIds[0]);

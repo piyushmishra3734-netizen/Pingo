@@ -109,6 +109,7 @@ import { PresenceHub, type ChatActivity } from './presence.js';
  * it can live in a function directory and still be read from here, exactly as
  * `verify:image-intent` reads it.
  */
+import { appendAiDraft, clearAiDraft } from '../../features/ai/ai-draft.js';
 import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-intent.js';
 
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
@@ -5275,6 +5276,8 @@ export class SupabaseChatService implements ChatService {
        * net for realtime lagging, and a net that catches things it already had
        * is how the app ends up announcing an assistant reply from an hour ago.
        */
+      // The real message takes the place of the one being written.
+      clearAiDraft(conversationId);
       for (const msg of await this.listMessages(conversationId, { limit: 8 })) {
         if (msg.authorId !== PINGO_AI_USER_ID) continue;
         if (msg.createdAt < startedAt) continue;
@@ -5313,6 +5316,7 @@ export class SupabaseChatService implements ChatService {
         /* ignore double-failure */
       }
     } finally {
+      clearAiDraft(conversationId);
       this.#setAiTyping(conversationId, false);
     }
   }
@@ -5392,6 +5396,8 @@ export class SupabaseChatService implements ChatService {
         let event: {
           stage?: string;
           sentence?: string;
+          /** A piece of the reply as it is written (Luna). */
+          delta?: string;
           done?: boolean;
           payload?: { error?: string; messageId?: string };
         };
@@ -5409,6 +5415,7 @@ export class SupabaseChatService implements ChatService {
          * instead of running end to end.
          */
         if (event.sentence) onSentence?.(event.sentence);
+        if (event.delta) appendAiDraft(conversationId, event.delta);
         if (event.done) {
           finished = true;
           const failed = event.payload?.error && !event.payload.messageId;

@@ -2,8 +2,18 @@
  * PINGO AI reply generation.
  *
  * Browser never holds the model key. JWT proves the caller owns an `ai`
- * conversation; this function loads profile + memories + recent plaintext,
- * calls NVIDIA, posts the reply, and (when allowed) updates memory.
+ * conversation (or a group PINGO AI is in).
+ *
+ * With `OPENAI_API_KEY` set, the turn is `luna.ts`: OpenAI's Luna, streamed,
+ * with a window of the thread and memory read only on demand. Secrets:
+ *   OPENAI_API_KEY                required, switches to Luna
+ *   OPENAI_MODEL                  default gpt-6-luna
+ *   OPENAI_REASONING_EFFORT       default low (none | minimal | low | medium)
+ *   OPENAI_VOICE_REASONING_EFFORT optional, for calls
+ *   OPENAI_BASE_URL               default https://api.openai.com/v1
+ *
+ * Without it, the older NVIDIA path below runs: it loads profile + memories +
+ * recent plaintext, calls NVIDIA, posts the reply, and updates memory.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
@@ -24,6 +34,7 @@ import { imagePrompt } from './image-intent.ts';
 import { reasoningDemand, type Demand } from './demand.ts';
 import { generateImage } from './generate-image.ts';
 import { windowIndices } from './history-window.ts';
+import { lunaTurn } from './luna.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
@@ -96,6 +107,8 @@ async function runTurn(
   request: Request,
   emit: Emit,
   emitSentence: EmitSentence = () => {},
+  /** Pieces of the reply as they are written, for the thread to show live. */
+  emitDelta: (text: string) => void = () => {},
 ): Promise<Response> {
   /*
    * Three numbers, so 'it is slow' can be answered instead of argued about:
@@ -187,6 +200,51 @@ async function runTurn(
       if (!meMember) {
         return json(request, { error: 'Not a group member.' }, 403);
       }
+    }
+
+    /*
+     * OpenAI (Luna), when its key is set: the whole turn is `luna.ts`.
+     *
+     * It loads only what the turn needs (a window of the thread, the person's
+     * settings), never the memories unless the model asks for them, and
+     * streams the reply as it is written. Without the key the NVIDIA path
+     * below runs as before, so setting the secret is the switch.
+     */
+    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+    if (openaiKey) {
+      const said = typeof body.userMessage === 'string' ? body.userMessage.trim() : '';
+      const picture = imagePrompt(said);
+      if (picture) return await replyWithImage(request, userClient, supabaseUrl, conversationId, picture, emit);
+      const out = await lunaTurn(
+        {
+          db: userClient,
+          userId: user.id,
+          conversationId,
+          isGroup,
+          live: said.slice(0, 4000),
+          spoken,
+          apiKey: openaiKey,
+          base: (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
+          model: Deno.env.get('OPENAI_MODEL') || 'gpt-6-luna',
+          reasoningEffort: (spoken ? Deno.env.get('OPENAI_VOICE_REASONING_EFFORT') : undefined) ?? Deno.env.get('OPENAI_REASONING_EFFORT') ?? 'low',
+          emit,
+          emitSentence,
+          emitDelta,
+        },
+        {
+          personalityBlock: (p) => personalityBlock(p as AiProfile | null),
+          lengthBlock,
+          languageLabel,
+          parseExplicitMemory,
+          upsertMemoryRow,
+          capMemories,
+          stripMarkers,
+          collapseHistory,
+          skipBodies: SKIP_BODIES,
+          botId: BOT_ID,
+        },
+      );
+      return json(request, out.body, out.status);
     }
 
     /*
@@ -966,6 +1024,7 @@ Deno.serve(async (request) => {
           request,
           (stage) => send({ stage }),
           (sentence) => send({ sentence }),
+          (delta) => send({ delta }),
         );
         const body = await response.json().catch(() => ({}));
         send({ done: true, status: response.status, payload: body });
