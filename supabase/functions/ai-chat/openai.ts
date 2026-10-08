@@ -51,7 +51,7 @@ export interface StreamOptions {
  * once without them all: a newer or older model should still answer, just
  * without the extra.
  */
-const OPTIONAL = ['reasoning_effort', 'prompt_cache_key', 'stream_options'];
+const OPTIONAL = ['reasoning_effort', 'prompt_cache_key', 'stream_options', 'parallel_tool_calls', 'tool_choice'];
 
 export async function streamChat(o: StreamOptions): Promise<StreamResult> {
   const body: Record<string, unknown> = {
