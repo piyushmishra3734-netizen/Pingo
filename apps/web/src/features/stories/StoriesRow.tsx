@@ -180,7 +180,7 @@ function Ring({ state, mine, children }: { state: RingState; mine?: boolean; chi
 /** The PINGO sweep, as a ring (`--sweep-ring` in the tokens). */
 const RING = 'var(--sweep-ring)';
 
-/** A friend playing PINGO Music: the pet on the circle's corner, as on their chat row. */
+/** A friend playing PINGO Music: the headphones on the circle's corner, as on their chat row. */
 function RingListening({ id }: { id: string }) {
   const music = useListening(id);
   return music ? <ListeningBadge music={music} size={26} className="right-0 bottom-0" /> : null;
