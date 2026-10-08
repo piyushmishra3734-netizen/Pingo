@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import '../auth/paper.css';
 
-import { askBackground, isStrictMaker, openBackgroundSettings, useBackgroundStatus } from './background.js';
+import { askBackground, isStrictMaker, openBackgroundSettings, useBackgroundStatus, type SettingsTarget } from './background.js';
 
 /**
  * Asks, on Android, to let PINGO keep running in the background.
@@ -51,6 +51,8 @@ export function BackgroundPrompt() {
   const [step, setStep] = useState<'hidden' | 'ask' | 'waiting' | 'autostart'>('hidden');
   /** The status when the system dialog was opened: the answer is the next one read after it. */
   const askedWith = useRef<typeof status>(undefined);
+  /** Which of the phone's own pages were opened from the second step, ticked off by hand. */
+  const [visited, setVisited] = useState<Set<SettingsTarget>>(new Set());
 
   // First the wait, so it never shows over the splash or the update card.
   useEffect(() => {
@@ -76,6 +78,10 @@ export function BackgroundPrompt() {
   };
 
   const name = maker(status.manufacturer);
+  const visit = (target: SettingsTarget) => {
+    setVisited((v) => new Set(v).add(target));
+    void openBackgroundSettings(target);
+  };
 
   return (
     <div className="fixed inset-0 z-[890] flex items-end justify-center bg-black/45 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="bg-title">
@@ -108,10 +114,14 @@ export function BackgroundPrompt() {
               <h2 id="bg-title" className="mt-1.5 text-[25px] leading-tight font-bold tracking-[-0.01em] text-ink">
                 On {name}, turn on <span className="paper-marker">Autostart</span>
               </h2>
-              <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">{name} phones stop apps on their own, even after Android says yes. In PINGO's settings:</p>
-              <ol className="mt-3.5 flex flex-col gap-2">
-                <Line n="1">turn on Autostart</Line>
-                <Line n="2">set Battery to No restrictions</Line>
+              <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">{name} phones stop apps on their own, even after Android says yes. Tap each one, switch it on, and come back:</p>
+              <ol className="mt-3 flex flex-col">
+                <Go n="1" done={visited.has('autostart')} onClick={() => visit('autostart')}>
+                  Autostart: on
+                </Go>
+                <Go n="2" done={visited.has('battery')} onClick={() => visit('battery')}>
+                  Battery: No restrictions
+                </Go>
               </ol>
             </>
           )}
@@ -127,17 +137,18 @@ export function BackgroundPrompt() {
               if (PREVIEW) setPreview({ unrestricted: true, manufacturer: 'xiaomi' });
               else void askBackground();
             } else {
-              void openBackgroundSettings();
               close();
             }
           }}
           className="focus-ring mt-7 h-12 w-full rounded-xl bg-ink text-[16px] font-semibold text-page shadow-[0_10px_20px_-12px_rgba(20,18,23,0.7)] active:scale-[0.98]"
         >
-          {step === 'ask' ? 'Allow' : 'Open settings'}
+          {step === 'ask' ? 'Allow' : 'Done'}
         </button>
-        <button type="button" onClick={close} className="focus-ring mt-1.5 h-11 w-full rounded-xl text-[15px] font-medium text-text-secondary">
-          {step === 'ask' ? 'Not now' : 'Done'}
-        </button>
+        {step === 'ask' && (
+          <button type="button" onClick={close} className="focus-ring mt-1.5 h-11 w-full rounded-xl text-[15px] font-medium text-text-secondary">
+            Not now
+          </button>
+        )}
       </div>
     </div>
   );
@@ -151,6 +162,23 @@ function Line({ n, children }: { n: string; children: ReactNode }) {
         {n}
       </span>
       {children}
+    </li>
+  );
+}
+
+/** A line that opens the phone's exact settings page for it, and is ticked once it has been. */
+function Go({ n, done, onClick, children }: { n: string; done: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <li className="border-b border-dashed border-[var(--paper-doodle)] last:border-0">
+      <button type="button" onClick={onClick} className="flex w-full items-center gap-3 py-3 text-left text-[15px] text-ink">
+        <span aria-hidden className="paper-hand w-4 shrink-0 text-center text-[20px] leading-none">
+          {done ? '\u2713' : n}
+        </span>
+        <span className={done ? 'flex-1 text-text-secondary line-through decoration-[#e0559b]/60' : 'flex-1 font-medium'}>{children}</span>
+        <span className="shrink-0 text-[13px] font-semibold text-ink underline decoration-[var(--paper-marker)] decoration-[3px] underline-offset-4">
+          {done ? 'Open again' : 'Open'}
+        </span>
+      </button>
     </li>
   );
 }

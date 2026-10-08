@@ -419,7 +419,8 @@ const en = {
   'notif.backgroundOff': 'Allow',
   'notif.backgroundNote':
     'Lets messages arrive on time and music keep playing with the screen off. Some phones also need Autostart turned on in the app settings.',
-  'notif.backgroundSettings': 'Battery and autostart settings',
+  'notif.backgroundAutostart': 'Autostart',
+  'notif.backgroundBattery': 'Battery: no restrictions',
   'notif.groupMute': 'Mute',
   'notif.muteAll': 'Mute all',
   'notif.muteAllHint': 'Silences everything below.',

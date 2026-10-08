@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChoiceRow, Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useT } from '../../features/i18n/useT.js';
-import { askBackground, canAskBackground, openBackgroundSettings, useBackgroundStatus } from '../../features/native/background.js';
+import { askBackground, canAskBackground, isStrictMaker, openBackgroundSettings, useBackgroundStatus } from '../../features/native/background.js';
 
 
 /**
@@ -65,7 +65,10 @@ export function NotificationsScreen() {
             value={background.unrestricted ? t('notif.backgroundOn') : t('notif.backgroundOff')}
             {...(background.unrestricted ? {} : { onClick: () => void askBackground() })}
           />
-          <InfoRow label={t('notif.backgroundSettings')} onClick={() => void openBackgroundSettings()} />
+          {isStrictMaker(background.manufacturer) && (
+            <InfoRow label={t('notif.backgroundAutostart')} onClick={() => void openBackgroundSettings('autostart')} />
+          )}
+          <InfoRow label={t('notif.backgroundBattery')} onClick={() => void openBackgroundSettings('battery')} />
         </Group>
       )}
 

@@ -2,6 +2,7 @@ package chat.pingo.app;
 
 import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -66,11 +67,106 @@ public class BackgroundPlugin extends Plugin {
         call.resolve();
     }
 
-    /** The app's own settings page, where "Battery" and, on some phones, "Autostart" live. */
+    /**
+     * The exact page for one switch, where the phone has one: {@code target}
+     * is "autostart" or "battery".
+     *
+     * Each maker hides these in its own security app, under names that move
+     * between versions, so there is a list of candidates per maker, tried in
+     * order. Many of them are not exported on a given version and refuse to
+     * open; the next one is tried. Whatever is left falls back to the app's
+     * own settings page, which every phone has and where both switches can be
+     * reached by hand.
+     */
     @PluginMethod
     public void openSettings(PluginCall call) {
+        String target = call.getString("target", "battery");
+        String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
+        String pkg = getContext().getPackageName();
+
+        if ("autostart".equals(target)) {
+            for (String[] c : autostartPages(maker)) {
+                if (start(component(c[0], c[1]))) {
+                    call.resolve();
+                    return;
+                }
+            }
+        } else {
+            if (has(maker, "xiaomi", "redmi", "poco")) {
+                // MIUI and HyperOS: the app's own "Battery saver" choice, where "No restrictions" is.
+                Intent miui = component("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity");
+                miui.putExtra("package_name", pkg);
+                miui.putExtra("package_label", "PINGO");
+                if (start(miui)) {
+                    call.resolve();
+                    return;
+                }
+            }
+            // Android 12 and up (Pixel, Samsung, Motorola and most others): the app's battery page, with Unrestricted on it.
+            Intent usage = new Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL");
+            usage.setData(Uri.parse("package:" + pkg));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && start(usage)) {
+                call.resolve();
+                return;
+            }
+        }
         start(appSettings());
         call.resolve();
+    }
+
+    /** Where each maker keeps its autostart list, newest first. */
+    private static String[][] autostartPages(String maker) {
+        if (has(maker, "xiaomi", "redmi", "poco")) {
+            return new String[][] {
+                { "com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity" },
+            };
+        }
+        if (has(maker, "oppo", "realme")) {
+            return new String[][] {
+                { "com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity" },
+                { "com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity" },
+                { "com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity" },
+                { "com.coloros.oppoguardelf", "com.coloros.powermanager.fuelgaue.PowerUsageModelActivity" },
+            };
+        }
+        if (has(maker, "oneplus")) {
+            return new String[][] {
+                { "com.oneplus.security", "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity" },
+                { "com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity" },
+            };
+        }
+        if (has(maker, "vivo", "iqoo")) {
+            return new String[][] {
+                { "com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity" },
+                { "com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager" },
+                { "com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity" },
+            };
+        }
+        if (has(maker, "huawei", "honor")) {
+            return new String[][] {
+                { "com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity" },
+                { "com.huawei.systemmanager", "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity" },
+                { "com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity" },
+            };
+        }
+        if (has(maker, "asus")) {
+            return new String[][] { { "com.asus.mobilemanager", "com.asus.mobilemanager.autostart.AutoStartActivity" } };
+        }
+        if (has(maker, "infinix", "tecno", "itel")) {
+            return new String[][] { { "com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity" } };
+        }
+        return new String[0][];
+    }
+
+    private static boolean has(String maker, String... names) {
+        for (String n : names) {
+            if (maker.contains(n)) return true;
+        }
+        return false;
+    }
+
+    private static Intent component(String pkg, String cls) {
+        return new Intent().setComponent(new ComponentName(pkg, cls));
     }
 
     private Intent appSettings() {

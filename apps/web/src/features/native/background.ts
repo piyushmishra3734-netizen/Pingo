@@ -13,8 +13,11 @@ import { useEffect, useState } from 'react';
 interface BackgroundPlugin {
   status(): Promise<{ unrestricted: boolean; manufacturer: string }>;
   request(): Promise<void>;
-  openSettings(): Promise<void>;
+  openSettings(options: { target: SettingsTarget }): Promise<void>;
 }
+
+/** Which switch: the phone's autostart list, or this app's battery choice. */
+export type SettingsTarget = 'autostart' | 'battery';
 
 const plugin = registerPlugin<BackgroundPlugin>('Background');
 
@@ -41,10 +44,14 @@ export async function askBackground(): Promise<void> {
   await plugin.request().catch(() => undefined);
 }
 
-/** The app's settings page, where battery and (on some phones) autostart live. */
-export async function openBackgroundSettings(): Promise<void> {
+/**
+ * The exact page for that switch on this phone (Xiaomi's autostart list,
+ * Oppo's startup manager, Android's per-app battery page...), or the app's
+ * own settings page where there is no such page.
+ */
+export async function openBackgroundSettings(target: SettingsTarget): Promise<void> {
   if (!canAskBackground()) return;
-  await plugin.openSettings().catch(() => undefined);
+  await plugin.openSettings({ target }).catch(() => undefined);
 }
 
 /**
