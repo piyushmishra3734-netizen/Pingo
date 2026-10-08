@@ -146,6 +146,13 @@ export function cardLine(body: string, mine: boolean): string | undefined {
     const name = new URLSearchParams(song[1]).get('n')?.trim();
     return name ? `Song: ${name}` : 'Song';
   }
+  const music = /https?:\/\/\S+\/music\?(\S+)/.exec(body);
+  if (music) {
+    const q = new URLSearchParams(music[1]);
+    const kind = q.get('k') === 'album' ? 'Album' : q.get('k') === 'artist' ? 'Artist' : 'Playlist';
+    const name = q.get('n')?.trim();
+    return name ? `${kind}: ${name}` : kind;
+  }
   const story = /https?:\/\/\S+\/story\?(\S+)/.exec(body);
   if (story) {
     const shared = new URLSearchParams(story[1]).get('k') === 'share';

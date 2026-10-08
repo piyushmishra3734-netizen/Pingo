@@ -24,6 +24,7 @@ import { AppLoader } from './features/loading/AppLoader.js';
 import { releaseSplash, useSplashHold } from './features/loading/splash.js';
 import { demoOn, demoServices } from './screens/dev/demo-services.js';
 import { LiveProvider } from './features/live/LiveContext.js';
+import { MusicLinkRoute } from './features/music/MusicLinkRoute.js';
 import { UpdateNotice } from './features/updates/UpdateNotice.js';
 import { SettingsProvider } from './features/settings/SettingsContext.js';
 import { StickerProvider } from './features/stickers/StickerContext.js';
@@ -548,6 +549,8 @@ export function App() {
                 <Route path="/live/:liveId" element={<LiveViewerScreen />} />
                 <Route element={<AppShell />}>
                   <Route path="/chats" element={<ChatsScreen />} />
+                  {/* A shared playlist, album or artist: PINGO Music, open on it. */}
+                  <Route path="/music" element={<MusicLinkRoute />} />
                   {/*
                     Before the dynamic segment. React Router ranks static paths
                     higher anyway, but relying on that leaves "new" one careless

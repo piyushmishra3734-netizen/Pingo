@@ -7,6 +7,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
 import { peekShare, takeShare, watchShare, type SharePayload } from '../features/share/share-store.js';
 import { parseSongShare } from '../features/music/song-share.js';
+import { KIND_LABEL, parseCollectionShare } from '../features/music/music-share.js';
 
 /**
  * Send something to somebody, from anywhere.
@@ -46,7 +47,10 @@ export function ShareScreen() {
 
   const first = payload?.files?.[0];
   /** A song from PINGO Music: shown as its cover and name, not as the link that carries it. */
-  const song = !first && payload?.text ? parseSongShare(payload.text) : undefined;
+  const shared = !first && payload?.text ? parseSongShare(payload.text) : undefined;
+  const collection = !first && !shared && payload?.text ? parseCollectionShare(payload.text) : undefined;
+  // Either one draws the same row: a cover, a name, a line under it.
+  const song = shared ?? (collection ? { name: collection.name, artist: collection.sub || KIND_LABEL[collection.kind], img: collection.img } : undefined);
 
   /*
    * A thumbnail only where there is something to see.

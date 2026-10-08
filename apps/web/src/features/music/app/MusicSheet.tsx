@@ -7,6 +7,7 @@ import { useBackStep } from '../../navigation/useBackStep.js';
 import { putShare } from '../../share/share-store.js';
 import { fromSaavn } from '../catalogue.js';
 import { songBody } from '../song-share.js';
+import { collectionBody, KIND_LABEL, type SharedCollection } from '../music-share.js';
 import * as api from '../saavn/api.js';
 import * as downloads from '../saavn/downloads.js';
 import { useMusicPlayer } from '../player.js';
@@ -16,8 +17,8 @@ import type { Song } from '../saavn/types.js';
 import { MiniPlayer } from './MiniPlayer.js';
 import { NowPlaying } from './NowPlaying.js';
 import { Cover, clean, names, useCoverTone } from './parts.js';
-import { closeMusic, useMusicOpen } from './sheet-store.js';
-import { AlbumView, ArtistView, ChannelView, Ctx, DownloadsView, HomeView, KeptView, LibraryView, PlaylistView, SearchView, SettingsView, type MusicCtx } from './views.js';
+import { closeMusic, takeMusicTarget, useMusicOpen, useMusicTargetSignal } from './sheet-store.js';
+import { AlbumView, ArtistView, ChannelView, Ctx, DownloadsView, HomeView, KeptView, LibraryView, PlaylistView, SearchView, SettingsView, SharedMixView, type MusicCtx } from './views.js';
 
 /**
  * PINGO Music: a sheet that comes up over the app.
@@ -28,7 +29,10 @@ import { AlbumView, ArtistView, ChannelView, Ctx, DownloadsView, HomeView, KeptV
  * is tapped, and then it is the whole screen.
  */
 
-type Route = { kind: 'album' | 'playlist' | 'artist' | 'channel' | 'kept' | 'downloads' | 'settings'; id: string; key: number };
+type Route = { kind: 'album' | 'playlist' | 'artist' | 'channel' | 'kept' | 'downloads' | 'settings' | 'shared'; id: string; key: number };
+
+/** Playlists sent in a chat and opened here, by route id: their songs travel in the message, not in a route. */
+const sharedMixes = new Map<string, SharedCollection>();
 
 /** How far down the sheet has to be pulled before letting go closes it. */
 const CLOSE_PULL = 120;
@@ -150,6 +154,36 @@ export default function MusicSheet() {
     [navigate, toast],
   );
 
+  /** Sends a playlist, album or artist to a chat, through the same screen as a song. */
+  const shareCollection = useCallback(
+    (c: SharedCollection) => {
+      putShare({ text: collectionBody(c), label: `Send ${KIND_LABEL[c.kind].toLowerCase()}` });
+      setNp(false);
+      closeMusic();
+      navigate('/share');
+    },
+    [navigate],
+  );
+
+  /* A playlist, album or artist tapped in a chat: open on its page. */
+  const targetSignal = useMusicTargetSignal();
+  useEffect(() => {
+    const t = takeMusicTarget();
+    if (!t) return;
+    // A fresh start on the page asked for: no search, no pages left open underneath.
+    setActions(undefined);
+    setNp(false);
+    setSearching(false);
+    setQuery('');
+    setTerm('');
+    setStack([]);
+    if (t.kind === 'mix') {
+      const key = `mix-${sharedMixes.size + 1}`;
+      sharedMixes.set(key, t);
+      push('shared', key);
+    } else push(t.kind, t.id);
+  }, [targetSignal, push, setActions]);
+
   const ctx: MusicCtx = useMemo(() => {
     const o: MusicCtx['open'] = {
       album: (a) => push('album', a.id),
@@ -167,8 +201,8 @@ export default function MusicSheet() {
       downloads: () => (setSearching(false), push('downloads', '')),
       settings: () => push('settings', ''),
     };
-    return { open: o, more: setActions, nowId: now?.id, paused: !player.playing, toast };
-  }, [push, toast, now?.id, player.playing, setActions]);
+    return { open: o, more: setActions, share: shareCollection, nowId: now?.id, paused: !player.playing, toast };
+  }, [push, toast, now?.id, player.playing, setActions, shareCollection]);
 
   /* Pull the top of the sheet down to close it. */
   const onPullDown = (e: ReactPointerEvent) => {
@@ -363,6 +397,10 @@ function Page({ route, onGone }: { route: Route; onGone: () => void }) {
       return <DownloadsView />;
     case 'settings':
       return <SettingsView />;
+    case 'shared': {
+      const mix = sharedMixes.get(route.id);
+      return mix ? <SharedMixView mix={mix} /> : null;
+    }
   }
 }
 

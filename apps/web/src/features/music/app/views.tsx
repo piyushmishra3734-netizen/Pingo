@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { ArrowDownToLine, ArrowUpLeft, Check, ChevronLeft, CircleCheck, Clock, Ellipsis, Heart, Loader2, Pencil, Play, Plus, Radio, RotateCw, Search, Settings2, Shuffle, Trash2, UserCheck, UserPlus, WifiOff, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpLeft, Check, ChevronLeft, CircleCheck, Clock, Ellipsis, Heart, Loader2, Pencil, Play, Plus, Radio, RotateCw, Search, Send, Settings2, Shuffle, Trash2, UserCheck, UserPlus, WifiOff, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import * as api from '../saavn/api.js';
@@ -9,6 +9,7 @@ import * as downloads from '../saavn/downloads.js';
 import { LANGUAGES, currentHomeLanguages, setMusicSettings, useMusicSettings, type DownloadQuality, type StreamQuality } from '../saavn/settings.js';
 import type { Item, Module, Song } from '../saavn/types.js';
 import type { Kept } from '../saavn/library.js';
+import type { SharedCollection } from '../music-share.js';
 import { Cover, Heading, ItemTile, Note, RoundTile, SongRow, Strip, Tile, clean, compact, names, plural, useLoad, useOffline, type Open } from './parts.js';
 
 /** What every view needs from the sheet around it. */
@@ -16,6 +17,8 @@ export interface MusicCtx {
   open: Open & { liked: () => void; mine: (id: string) => void; downloads: () => void; settings: () => void };
   /** A song's menu; from one of your playlists, it can also take the song out of it. */
   more: (song: Song, from?: { playlist: string }) => void;
+  /** Sends a playlist, album or artist to a chat. */
+  share: (c: SharedCollection) => void;
   nowId: string | undefined;
   paused: boolean;
   toast: (text: string) => void;
@@ -596,7 +599,17 @@ function Ring({ value }: { value: number }) {
   );
 }
 
-function CollectionHero({ img, name, sub, count, onPlay, onShuffle, art, songs, title, menu }: { img?: string; name: string; sub: string; count: number; onPlay: () => void; onShuffle: () => void; art?: ReactNode; songs?: (Song | Kept)[]; /** In place of the name: an editor, say. */ title?: ReactNode; menu?: ReactNode }) {
+/** Send this page to a chat. */
+function ShareButton({ what, className }: { what: SharedCollection; className?: string }) {
+  const { share } = useCtx();
+  return (
+    <button type="button" aria-label="Send to chat" onClick={() => share(what)} className={cn('grid size-11 place-items-center rounded-full bg-sunken', className)}>
+      <Send size={19} />
+    </button>
+  );
+}
+
+function CollectionHero({ img, name, sub, count, onPlay, onShuffle, art, songs, title, menu, share }: { img?: string; name: string; sub: string; count: number; onPlay: () => void; onShuffle: () => void; art?: ReactNode; songs?: (Song | Kept)[]; /** In place of the name: an editor, say. */ title?: ReactNode; menu?: ReactNode; share?: SharedCollection }) {
   return (
     <>
       <div className="grid justify-items-center px-6 pt-1 text-center">
@@ -616,6 +629,7 @@ function CollectionHero({ img, name, sub, count, onPlay, onShuffle, art, songs, 
           <Play size={18} className="fill-current" />
           Play
         </button>
+        {share && <ShareButton what={share} />}
         {menu}
       </div>
     </>
@@ -637,7 +651,9 @@ export function AlbumView({ id }: { id: string }) {
   const source = { kind: 'album' as const, label: al.name, id: al.id };
   return (
     <div className="pb-32">
-      <CollectionHero img={al.image} name={al.name} sub={[names(al), al.year || ''].filter(Boolean).join(' · ')} count={songs.length} songs={songs} onPlay={() => playback.playList(songs, 0, source)} onShuffle={() => shufflePlay(songs, source)} />
+      <CollectionHero
+        share={{ kind: 'album', id: al.id, name: al.name, sub: [names(al), al.year || ''].filter(Boolean).join(' · '), img: al.image, ids: [] }}
+        img={al.image} name={al.name} sub={[names(al), al.year || ''].filter(Boolean).join(' · ')} count={songs.length} songs={songs} onPlay={() => playback.playList(songs, 0, source)} onShuffle={() => shufflePlay(songs, source)} />
       <SongList songs={songs} label={al.name} kind="album" numbered />
     </div>
   );
@@ -652,7 +668,9 @@ export function PlaylistView({ id }: { id: string }) {
   const source = { kind: 'playlist' as const, label: pl.name, id: pl.id };
   return (
     <div className="pb-32">
-      <CollectionHero img={pl.image} name={pl.name} sub={pl.followers ? `${compact(pl.followers)} followers` : pl.subtitle} count={songs.length} songs={songs} onPlay={() => playback.playList(songs, 0, source)} onShuffle={() => shufflePlay(songs, source)} />
+      <CollectionHero
+        share={{ kind: 'playlist', id: pl.id, name: pl.name, sub: plural(pl.songCount || songs.length, 'song', 'songs'), img: pl.image, ids: [] }}
+        img={pl.image} name={pl.name} sub={pl.followers ? `${compact(pl.followers)} followers` : pl.subtitle} count={songs.length} songs={songs} onPlay={() => playback.playList(songs, 0, source)} onShuffle={() => shufflePlay(songs, source)} />
       <SongList songs={songs} label={pl.name} kind="playlist" />
     </div>
   );
@@ -677,6 +695,7 @@ export function KeptView({ which, onGone }: { which: 'liked' | string; /** The p
         sub={which === 'liked' ? 'Yours' : 'Your playlist'}
         count={kept.length}
         songs={kept}
+        {...(kept.length ? { share: { kind: 'mix' as const, id: '', name, sub: plural(kept.length, 'song', 'songs'), img: kept[0]?.image ?? '', ids: kept.map((k) => k.id) } } : {})}
         onPlay={() => playAt(0)}
         onShuffle={() => {
           if (!kept.length) return;
@@ -751,6 +770,54 @@ export function KeptView({ which, onGone }: { which: 'liked' | string; /** The p
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ---------- A playlist somebody sent ---------- */
+
+/** Somebody's own playlist, sent in a chat: its songs, and a copy to keep. */
+export function SharedMixView({ mix }: { mix: SharedCollection }) {
+  const { toast } = useCtx();
+  const [saved, setSaved] = useState(false);
+  const r = useLoad(`mix:${mix.ids.join()}`, async () => {
+    // Fifty to a call is what the Worker takes.
+    const parts: Song[][] = [];
+    for (let i = 0; i < mix.ids.length; i += 50) parts.push(await api.songs(mix.ids.slice(i, i + 50)));
+    const byId = new Map(parts.flat().map((x) => [x.id, x]));
+    return mix.ids.map((id) => byId.get(id)).filter((x): x is Song => !!x);
+  });
+  if (r.loading) return <Loading />;
+  if (r.error || !r.data) return <Failed {...(r.error ? { text: r.error } : {})} />;
+  const songs = r.data;
+  const source = { kind: 'list' as const, label: mix.name };
+  return (
+    <div className="pb-32">
+      <CollectionHero
+        img={songs[0]?.image ?? mix.img}
+        name={mix.name}
+        sub="Sent to you"
+        count={songs.length}
+        songs={songs}
+        onPlay={() => playback.playList(songs, 0, source)}
+        onShuffle={() => shufflePlay(songs, source)}
+      />
+      <div className="flex justify-center">
+        <button
+          type="button"
+          disabled={saved || !songs.length}
+          onClick={() => {
+            library.createPlaylist(mix.name, songs);
+            setSaved(true);
+            toast('Saved to your playlists');
+          }}
+          className="mt-2 flex h-10 items-center gap-2 rounded-full border border-line px-4 text-[13.5px] font-medium disabled:opacity-60"
+        >
+          {saved ? <Check size={17} /> : <Plus size={17} />}
+          {saved ? 'Saved to your playlists' : 'Save to your playlists'}
+        </button>
+      </div>
+      <SongList songs={songs} label={mix.name} kind="list" />
     </div>
   );
 }
@@ -960,11 +1027,12 @@ export function ArtistView({ id }: { id: string }) {
             Radio
           </button>
         )}
+        <ShareButton what={{ kind: 'artist', id: ar.id, name: ar.name, sub: 'Artist', img: ar.image, ids: [] }} className="ml-auto size-10 shrink-0" />
         <button
           type="button"
           disabled={!ar.topSongs.length}
           onClick={() => playback.playList(ar.topSongs, 0, { kind: 'artist', label: ar.name, id: ar.id })}
-          className="ml-auto flex h-10 items-center gap-2 rounded-full bg-ink px-[18px] text-[14.5px] font-semibold text-page disabled:opacity-40"
+          className="flex h-10 items-center gap-2 rounded-full bg-ink px-[18px] text-[14.5px] font-semibold text-page disabled:opacity-40"
         >
           <Play size={17} className="fill-current" />
           Play

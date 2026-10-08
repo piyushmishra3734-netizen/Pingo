@@ -40,6 +40,8 @@ import { LinkPreviewCard } from './LinkPreviewCard.js';
 import { VideoLinkCard } from './VideoLinkCard.js';
 import { SongCard } from '../music/SongCard.js';
 import { parseSongShare } from '../music/song-share.js';
+import { parseCollectionShare } from '../music/music-share.js';
+import { CollectionCard } from '../music/CollectionCard.js';
 import { StoryMentionCard } from '../stories/StoryMentionCard.js';
 import { parseStoryMention } from '../stories/story-mentions.js';
 import { parseNickname } from './nicknames.js';
@@ -247,6 +249,10 @@ export function MessageBubble({
     () => (message.deleted ? undefined : parseSongShare(message.body)),
     [message.body, message.deleted],
   );
+  const collection = useMemo(
+    () => (message.deleted || song ? undefined : parseCollectionShare(message.body)),
+    [message.body, message.deleted, song],
+  );
   /*
    * What is written, less the video link: the video is shown, so the URL under
    * it would be the same thing twice. Copying the message still copies it.
@@ -427,6 +433,20 @@ export function MessageBubble({
         <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
           {nameLabel}
           <SongCard song={song} mine={mine} />
+          <span className="mt-0.5 text-caption text-text-tertiary">{formatTime(message.createdAt)}</span>
+          <div className="clear-both">{reactions}</div>
+        </div>
+      </div>
+    );
+  }
+
+  /* A playlist, album or artist from PINGO Music: a card that opens it there. */
+  if (collection) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
+          {nameLabel}
+          <CollectionCard item={collection} mine={mine} />
           <span className="mt-0.5 text-caption text-text-tertiary">{formatTime(message.createdAt)}</span>
           <div className="clear-both">{reactions}</div>
         </div>

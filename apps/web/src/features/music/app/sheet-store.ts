@@ -19,6 +19,32 @@ export function openMusic() {
   emit();
 }
 
+/**
+ * A page to open on: a playlist, album or artist sent in a chat. The sheet
+ * picks it up as it opens (or at once, if it is open) and pushes the page.
+ */
+export type MusicTarget = import('../music-share.js').SharedCollection;
+let target: { value: MusicTarget; n: number } | undefined;
+let targets = 0;
+
+export function openMusicAt(value: MusicTarget) {
+  target = { value, n: ++targets };
+  everOpened = true;
+  open = true;
+  emit();
+}
+
+/** The page asked for, once: taking it clears it. */
+export function takeMusicTarget(): MusicTarget | undefined {
+  const t = target?.value;
+  target = undefined;
+  return t;
+}
+
+export function useMusicTargetSignal(): number {
+  return useSyncExternalStore(subscribe, () => target?.n ?? 0, () => 0);
+}
+
 export function closeMusic() {
   if (!open) return;
   open = false;
