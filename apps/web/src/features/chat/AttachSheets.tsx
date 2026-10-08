@@ -3,6 +3,7 @@ import { Avatar, cn } from '@pingo/ui';
 import { useEffect, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
+import { useStories } from '../stories/StoryContext.js';
 import { useReturnFocus } from '../conversations/focus-restore.js';
 import { useT } from '../i18n/useT.js';
 
@@ -173,11 +174,27 @@ export function ContactSheet({
   const t = useT();
   const { users, currentUser } = useChat();
   const [query, setQuery] = useState('');
+  // Suggestions are friends only; anybody else has to be searched for by name.
+  const { service: stories } = useStories();
+  const [friendIds, setFriendIds] = useState<Set<string>>();
+  useEffect(() => {
+    let active = true;
+    stories.listFriends().then(
+      (ids) => active && setFriendIds(new Set(ids)),
+      () => active && setFriendIds(new Set()),
+    );
+    return () => {
+      active = false;
+    };
+  }, [stories]);
 
+  const term = query.trim().toLowerCase();
   const people = users
     .filter((person) => person.id !== currentUser?.id)
     .filter((person) =>
-      `${person.name} ${person.handle}`.toLowerCase().includes(query.trim().toLowerCase()),
+      term
+        ? `${person.name} ${person.handle}`.toLowerCase().includes(term)
+        : friendIds?.has(person.id),
     );
 
   return (
@@ -195,7 +212,7 @@ export function ContactSheet({
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {people.length === 0 ? (
           <p className="px-2 py-6 text-center text-caption text-text-tertiary">
-            Nobody to share.
+            {term ? 'Nobody by that name.' : 'Search for someone to share.'}
           </p>
         ) : (
           people.map((person) => (
