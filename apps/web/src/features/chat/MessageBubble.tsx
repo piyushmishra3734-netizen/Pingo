@@ -720,7 +720,7 @@ export function MessageBubble({
           {hasBody && (
             // `break-words` so a pasted URL cannot widen the bubble past its max.
             <p className="text-body break-words whitespace-pre-wrap">
-              <MessageText body={shownBody} mine={mine} />
+              <MessageText body={shownBody} mine={mine} markdown={message.authorId === PINGO_AI_USER_ID} />
               {message.editedAt && (
                 /*
                  * Inside the bubble, on the edited message itself - not with

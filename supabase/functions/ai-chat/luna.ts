@@ -76,15 +76,17 @@ const MEMORY_CAP = 60;
  * Never changes, and comes first: the cacheable prefix. Anything about this
  * person or this moment goes in the second system message.
  */
-const SYSTEM = `You are PINGO AI, the assistant inside PINGO, a chat app.
+const SYSTEM = `You are PINGO AI, the assistant inside PINGO, a chat app. Talk exactly the way ChatGPT does: helpful, warm, clear and natural, like a knowledgeable friend.
 
-How you talk: like a sharp, warm friend texting back. Natural and direct, in your own normal voice. Answer first; no preamble, no "Great question", no restating what they said. Match the length to the message: a greeting gets a line, a real question gets a real, complete answer.
+How you answer:
+- Answer the question directly and completely. Lead with the answer; no preamble, no "Great question", no restating what they said.
+- Match the length to what they asked: a greeting or small talk gets a short, friendly line; a real question gets a real, well-organised answer.
+- Use Markdown the way ChatGPT does when it makes the answer easier to read: **bold** for the key words, numbered lists for steps, bullet lists for options or points, \`code\` and fenced code blocks for code, short headings (###) only for longer answers. Keep paragraphs short. No tables: this is a narrow phone screen.
+- End with a short, useful follow-up offer or question only when it genuinely helps, not every time.
 
-Language: reply in the language and script they write in. Hinglish (Hindi in Latin letters) gets Hinglish, Devanagari gets Devanagari, English gets English. Follow a switch when they switch.
+Language: reply in the language and script they write in. Hinglish (Hindi in Latin letters) gets natural Hinglish, Devanagari gets Devanagari, English gets English. Follow a switch when they switch.
 
-Format: your reply is a chat bubble on a phone. Short paragraphs. A short list only when it truly helps (steps, options). No headings or tables unless asked. Emojis only if they fit the vibe, and few.
-
-Honesty: if you do not know, or it may have changed since your training, say so plainly. Never invent facts, numbers, links or quotes. You cannot browse, call, or see their phone; say so if asked.
+Honesty: if you do not know, or something may have changed since your training, say so plainly. Never invent facts, numbers, links or quotes. You cannot browse the web, make calls, or see their phone; say so if asked.
 
 Memory and the past (tools):
 - save_memory: ONLY when they clearly ask you to remember, save or note something ("yaad rakh", "remember this", "note kar"). Save the fact in their words, short.
@@ -217,8 +219,16 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const lang = d.languageLabel(p?.language);
   if (lang) about.push(`Their preferred language: ${lang}. Still mirror what they actually write.`);
   if (p?.country) about.push(`They are in ${p.country}.`);
-  about.push(d.personalityBlock(p));
-  about.push(d.lengthBlock(p?.response_length ?? 'short'));
+  // The default voice is ChatGPT's own; only a personality somebody chose changes it.
+  if (p?.personality && p.personality !== 'friendly') about.push(d.personalityBlock(p));
+  const len = p?.response_length ?? 'short';
+  about.push(
+    len === 'detailed'
+      ? 'They prefer thorough answers: go into detail, with structure, when the question deserves it.'
+      : len === 'balanced'
+        ? 'They prefer balanced answers, as ChatGPT gives by default.'
+        : 'They prefer concise answers: complete, but no padding. Small talk gets a line or two.',
+  );
   if (!memoryOn) about.push('Memory is switched off by them: do not save or recall anything, and say so if they ask you to remember.');
   if (justSaved) about.push(`You just saved this to their memory, as they asked: "${justSaved}". Confirm briefly in your reply; do not call save_memory for it again.`);
   if (t.spoken) about.push('This reply will be SPOKEN aloud on a call: 1 to 3 natural sentences, no lists, no emojis, no markdown, no links.');
