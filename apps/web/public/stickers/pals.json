@@ -1181,6 +1181,65 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/pals/monday-mood.webp",
    "emoji": "🎒"
+  },
+  {
+   "id": "pals-gamer-cat",
+   "name": "Gamer Cat",
+   "category": "gaming",
+   "keywords": [
+    "cat",
+    "computer",
+    "drink",
+    "energy",
+    "gamer",
+    "gaming",
+    "grumpy",
+    "hoodie",
+    "monster",
+    "night",
+    "pals"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/gamer-cat.webp",
+   "emoji": "🎮"
+  },
+  {
+   "id": "pals-sleepy-kirby",
+   "name": "Sleepy Kirby",
+   "category": "smileys",
+   "keywords": [
+    "drool",
+    "kirby",
+    "neend",
+    "nightcap",
+    "pals",
+    "pink",
+    "sleeping",
+    "sleepy",
+    "zzz"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/sleepy-kirby.webp",
+   "emoji": "😴"
+  },
+  {
+   "id": "pals-kirby-burger",
+   "name": "Kirby Burger",
+   "category": "food",
+   "keywords": [
+    "bhookh",
+    "burger",
+    "eating",
+    "hearts",
+    "hungry",
+    "khana",
+    "kirby",
+    "pals",
+    "pink"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/pals/kirby-burger.webp",
+   "emoji": "🍔"
   }
  ]
 }

@@ -52,6 +52,24 @@
    "emoji": "💀"
   },
   {
+   "id": "mood-pepe-points-at-you",
+   "name": "Pepe Points at You",
+   "category": "gestures",
+   "keywords": [
+    "at",
+    "frog",
+    "pepe",
+    "pepe points at you",
+    "pointing",
+    "points",
+    "smug",
+    "you"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/pepe-points-at-you.webp",
+   "emoji": "👉"
+  },
+  {
    "id": "mood-shook-dog",
    "name": "Shook Dog",
    "category": "reactions",
@@ -129,6 +147,23 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/dog-stare.webp",
    "emoji": "🐶"
+  },
+  {
+   "id": "mood-kirby-scrolling",
+   "name": "Kirby Scrolling",
+   "category": "reactions",
+   "keywords": [
+    "blanket",
+    "cozy",
+    "kirby",
+    "kirby scrolling",
+    "phone",
+    "pink",
+    "scrolling"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/kirby-scrolling.webp",
+   "emoji": "📱"
   },
   {
    "id": "mood-peeking-raccoon",
@@ -278,6 +313,59 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/lying-flat.webp",
    "emoji": "🫠"
+  },
+  {
+   "id": "mood-green-face-stare",
+   "name": "Green Face Stare",
+   "category": "meme",
+   "keywords": [
+    "awkward",
+    "face",
+    "green",
+    "green face stare",
+    "man",
+    "meme",
+    "stare"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/green-face-stare.webp",
+   "emoji": "🗿"
+  },
+  {
+   "id": "mood-double-middle-finger",
+   "name": "Double Middle Finger",
+   "category": "meme",
+   "keywords": [
+    "angry",
+    "cat",
+    "double",
+    "double middle finger",
+    "finger",
+    "middle",
+    "rude",
+    "unimpressed",
+    "white"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/double-middle-finger.webp",
+   "emoji": "🖕"
+  },
+  {
+   "id": "mood-scary-patrick",
+   "name": "Scary Patrick",
+   "category": "meme",
+   "keywords": [
+    "creepy",
+    "patrick",
+    "scary",
+    "scary patrick",
+    "shocked",
+    "spongebob",
+    "star"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/scary-patrick.webp",
+   "emoji": "😨"
   },
   {
    "id": "mood-cool-ghost",
@@ -689,6 +777,29 @@
    "emoji": "👍"
   },
   {
+   "id": "mood-study-hard-or-cry-later",
+   "name": "Study Hard or Cry Later",
+   "category": "reactions",
+   "keywords": [
+    "books",
+    "cry",
+    "desk",
+    "exam",
+    "hard",
+    "lamp",
+    "later",
+    "melody",
+    "my",
+    "or",
+    "padhai",
+    "study",
+    "study hard or cry later"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/study-hard-or-cry-later.webp",
+   "emoji": "📚"
+  },
+  {
    "id": "mood-alien-and-kitty",
    "name": "Alien and Kitty",
    "category": "love",
@@ -968,6 +1079,26 @@
    "emoji": "😾"
   },
   {
+   "id": "mood-social-battery-destroyed",
+   "name": "Social Battery Destroyed",
+   "category": "smileys",
+   "keywords": [
+    "battery",
+    "blanket",
+    "destroyed",
+    "frog",
+    "introvert",
+    "low",
+    "pepe",
+    "phone",
+    "social",
+    "social battery destroyed"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/social-battery-destroyed.webp",
+   "emoji": "🪫"
+  },
+  {
    "id": "mood-head-empty",
    "name": "Head Empty",
    "category": "meme",
@@ -1153,6 +1284,27 @@
    "emoji": "🤷"
   },
   {
+   "id": "mood-i-have-3-moods",
+   "name": "I Have 3 Moods",
+   "category": "meme",
+   "keywords": [
+    "3",
+    "broke",
+    "have",
+    "hungry",
+    "i",
+    "i have 3 moods",
+    "money",
+    "moods",
+    "patrick",
+    "sleepy",
+    "star"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/i-have-3-moods.webp",
+   "emoji": "💸"
+  },
+  {
    "id": "mood-caught-in-4k-raccoon",
    "name": "Caught in 4K Raccoon",
    "category": "meme",
@@ -1172,6 +1324,29 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/caught-in-4k-raccoon.webp",
    "emoji": "📸"
+  },
+  {
+   "id": "mood-staring-at-nothing",
+   "name": "Staring at Nothing",
+   "category": "meme",
+   "keywords": [
+    "at",
+    "because",
+    "everything",
+    "is",
+    "me",
+    "mike",
+    "monster",
+    "much",
+    "nothing",
+    "staring",
+    "staring at nothing",
+    "too",
+    "wazowski"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/staring-at-nothing.webp",
+   "emoji": "👁️"
   },
   {
    "id": "mood-pls-let-me-sleep",
@@ -1252,6 +1427,28 @@
    "emoji": "🦈"
   },
   {
+   "id": "mood-me-after-2-mins-of-studying",
+   "name": "Me After 2 Mins of Studying",
+   "category": "reactions",
+   "keywords": [
+    "2",
+    "after",
+    "baby",
+    "crying",
+    "exam",
+    "me",
+    "me after 2 mins of studying",
+    "mins",
+    "of",
+    "padhai",
+    "rona",
+    "studying"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/me-after-2-mins-of-studying.webp",
+   "emoji": "😭"
+  },
+  {
    "id": "mood-you-played-yourself",
    "name": "You Played Yourself",
    "category": "reactions",
@@ -1268,6 +1465,25 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/you-played-yourself.webp",
    "emoji": "😏"
+  },
+  {
+   "id": "mood-earth-is-trash",
+   "name": "Earth Is Trash",
+   "category": "meme",
+   "keywords": [
+    "alien",
+    "angry",
+    "earth",
+    "earth is trash",
+    "finger",
+    "green",
+    "is",
+    "middle",
+    "trash"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/earth-is-trash.webp",
+   "emoji": "🖕"
   },
   {
    "id": "mood-howdy-losers",
@@ -1364,6 +1580,24 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/heinn.webp",
    "emoji": "🤨"
+  },
+  {
+   "id": "mood-kermit-blanket",
+   "name": "Kermit Blanket",
+   "category": "reactions",
+   "keywords": [
+    "awkward",
+    "blanket",
+    "dots",
+    "frog",
+    "kermit",
+    "kermit blanket",
+    "silence",
+    "speechless"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/kermit-blanket.webp",
+   "emoji": "🐸"
   },
   {
    "id": "mood-mind-your-own-business",
@@ -1713,6 +1947,24 @@
    "emoji": "😱"
   },
   {
+   "id": "mood-hmm-pepe",
+   "name": "Hmm Pepe",
+   "category": "reactions",
+   "keywords": [
+    "doubt",
+    "frog",
+    "hmm",
+    "hmm pepe",
+    "pepe",
+    "soch",
+    "suspicious",
+    "thinking"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/hmm-pepe.webp",
+   "emoji": "🤔"
+  },
+  {
    "id": "mood-huh-bunny",
    "name": "Huh? Bunny",
    "category": "reactions",
@@ -1728,6 +1980,22 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/huh-bunny.webp",
    "emoji": "❓"
+  },
+  {
+   "id": "mood-ugh-spongebob",
+   "name": "Ugh SpongeBob",
+   "category": "reactions",
+   "keywords": [
+    "annoyed",
+    "bored",
+    "spongebob",
+    "tired",
+    "ugh",
+    "ugh spongebob"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/ugh-spongebob.webp",
+   "emoji": "😒"
   },
   {
    "id": "mood-rage-typing",
@@ -1746,6 +2014,41 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/rage-typing.webp",
    "emoji": "🤬"
+  },
+  {
+   "id": "mood-kirby-burger-feast",
+   "name": "Kirby Burger Feast",
+   "category": "food",
+   "keywords": [
+    "bhookh",
+    "burger",
+    "eating",
+    "feast",
+    "fries",
+    "hungry",
+    "kirby",
+    "kirby burger feast",
+    "pink"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/kirby-burger-feast.webp",
+   "emoji": "🍔"
+  },
+  {
+   "id": "mood-cowboy-pepe",
+   "name": "Cowboy Pepe",
+   "category": "meme",
+   "keywords": [
+    "cowboy",
+    "cowboy pepe",
+    "frog",
+    "hat",
+    "pepe",
+    "pink"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/cowboy-pepe.webp",
+   "emoji": "🤠"
   },
   {
    "id": "mood-unimpressed-cat",
@@ -1891,6 +2194,25 @@
    "emoji": "😴"
   },
   {
+   "id": "mood-confused-kid",
+   "name": "Confused Kid",
+   "category": "reactions",
+   "keywords": [
+    "child",
+    "confused",
+    "confused kid",
+    "girl",
+    "huh",
+    "kid",
+    "marks",
+    "question",
+    "what"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/confused-kid.webp",
+   "emoji": "❓"
+  },
+  {
    "id": "mood-hehe-over-w",
    "name": "Hehe >w<",
    "category": "love",
@@ -1908,6 +2230,46 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/hehe-over-w.webp",
    "emoji": "🥰"
+  },
+  {
+   "id": "mood-bubble-tea-and-pain",
+   "name": "Bubble Tea and Pain",
+   "category": "reactions",
+   "keywords": [
+    "and",
+    "boba",
+    "bubble",
+    "bubble tea and pain",
+    "frog",
+    "hoodie",
+    "is",
+    "life",
+    "my",
+    "pain",
+    "pepe",
+    "sad",
+    "tea"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/bubble-tea-and-pain.webp",
+   "emoji": "🧋"
+  },
+  {
+   "id": "mood-cinnamoroll",
+   "name": "Cinnamoroll",
+   "category": "smileys",
+   "keywords": [
+    "cinnamoroll",
+    "cute",
+    "puppy",
+    "sanrio",
+    "star",
+    "wand",
+    "white"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/cinnamoroll.webp",
+   "emoji": "✨"
   },
   {
    "id": "mood-no-talkie-me-angy",
@@ -2039,6 +2401,23 @@
    "emoji": "😢"
   },
   {
+   "id": "mood-i-may-be-stupid",
+   "name": "I May Be Stupid",
+   "category": "meme",
+   "keywords": [
+    "be",
+    "dumb",
+    "i",
+    "i may be stupid",
+    "may",
+    "spongebob",
+    "stupid"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/i-may-be-stupid.webp",
+   "emoji": "🧽"
+  },
+  {
    "id": "mood-trash-but-cute",
    "name": "Trash but Cute",
    "category": "meme",
@@ -2072,6 +2451,23 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/existence-is-pain.webp",
    "emoji": "🫠"
+  },
+  {
+   "id": "mood-nom-nom-kirby",
+   "name": "Nom Nom Kirby",
+   "category": "food",
+   "keywords": [
+    "eating",
+    "hungry",
+    "kirby",
+    "nom",
+    "nom nom kirby",
+    "pink",
+    "vacuum"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/nom-nom-kirby.webp",
+   "emoji": "😋"
   },
   {
    "id": "mood-fabulous-penguin",
@@ -2338,6 +2734,26 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/mood/it-be-like-that-sometimes.webp",
    "emoji": "😢"
+  },
+  {
+   "id": "mood-watching-drama",
+   "name": "Watching Drama",
+   "category": "reactions",
+   "keywords": [
+    "and",
+    "drama",
+    "kdrama",
+    "life",
+    "melody",
+    "my",
+    "phone",
+    "ruining",
+    "watching",
+    "watching drama"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/mood/watching-drama.webp",
+   "emoji": "📺"
   },
   {
    "id": "mood-got-any-games",

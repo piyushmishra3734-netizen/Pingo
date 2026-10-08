@@ -10,6 +10,26 @@
  },
  "stickers": [
   {
+   "id": "vibes-pepe-chill-karo-bro",
+   "name": "Pepe Chill Karo Bro",
+   "category": "meme",
+   "keywords": [
+    "boba",
+    "bro",
+    "chill",
+    "frog",
+    "hoodie",
+    "karo",
+    "pepe",
+    "pepe chill karo bro",
+    "relax",
+    "sunglasses"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/pepe-chill-karo-bro.webp",
+   "emoji": "🐸"
+  },
+  {
    "id": "vibes-nooooo",
    "name": "Nooooo",
    "category": "reactions",
@@ -74,6 +94,25 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/vibes/give-up-seal.webp",
    "emoji": "🫠"
+  },
+  {
+   "id": "vibes-monster-shark",
+   "name": "Monster Shark",
+   "category": "meme",
+   "keywords": [
+    "bro",
+    "chill",
+    "drink",
+    "energy",
+    "karo",
+    "monster",
+    "monster shark",
+    "shark",
+    "sunglasses"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/monster-shark.webp",
+   "emoji": "🦈"
   },
   {
    "id": "vibes-pizza-fixes-everything",
@@ -287,6 +326,25 @@
    "emoji": "👑"
   },
   {
+   "id": "vibes-god-please",
+   "name": "God Please",
+   "category": "reactions",
+   "keywords": [
+    "blanket",
+    "frog",
+    "god",
+    "god please",
+    "hope",
+    "pepe",
+    "please",
+    "praying",
+    "sunglasses"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/god-please.webp",
+   "emoji": "🙏"
+  },
+  {
    "id": "vibes-on-my-way-to-do-nothing",
    "name": "On My Way to Do Nothing",
    "category": "meme",
@@ -309,6 +367,24 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/vibes/on-my-way-to-do-nothing.webp",
    "emoji": "🛹"
+  },
+  {
+   "id": "vibes-pepe-overthinking",
+   "name": "Pepe Overthinking",
+   "category": "reactions",
+   "keywords": [
+    "anxiety",
+    "blanket",
+    "frog",
+    "overthinking",
+    "pepe",
+    "pepe overthinking",
+    "phone",
+    "soch"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/pepe-overthinking.webp",
+   "emoji": "🐸"
   },
   {
    "id": "vibes-embarrassed",
@@ -675,6 +751,27 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/vibes/hmm.webp",
    "emoji": "🤨"
+  },
+  {
+   "id": "vibes-another-day-another-bullshit",
+   "name": "Another Day Another Bullshit",
+   "category": "meme",
+   "keywords": [
+    "another",
+    "another day another bullshit",
+    "bullshit",
+    "coffee",
+    "day",
+    "frog",
+    "hoodie",
+    "laptop",
+    "office",
+    "pepe",
+    "tired"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/another-day-another-bullshit.webp",
+   "emoji": "🐸"
   },
   {
    "id": "vibes-what-is-this-bro",
@@ -1305,6 +1402,28 @@
    "emoji": "🥺"
   },
   {
+   "id": "vibes-pepe-doom-scrolling",
+   "name": "Pepe Doom Scrolling",
+   "category": "reactions",
+   "keywords": [
+    "battery",
+    "blanket",
+    "doom",
+    "frog",
+    "late",
+    "low",
+    "night",
+    "pepe",
+    "pepe doom scrolling",
+    "phone",
+    "reels",
+    "scrolling"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/pepe-doom-scrolling.webp",
+   "emoji": "🐸"
+  },
+  {
    "id": "vibes-same-shit-different-day",
    "name": "Same Shit Different Day",
    "category": "meme",
@@ -1392,6 +1511,26 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/vibes/doom-scrolling.webp",
    "emoji": "📱"
+  },
+  {
+   "id": "vibes-pepe-same-shit",
+   "name": "Pepe Same Shit",
+   "category": "meme",
+   "keywords": [
+    "bored",
+    "day",
+    "different",
+    "frog",
+    "headphones",
+    "pepe",
+    "pepe same shit",
+    "routine",
+    "same",
+    "shit"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/pepe-same-shit.webp",
+   "emoji": "🐸"
   },
   {
    "id": "vibes-music-over-people",
@@ -1692,6 +1831,27 @@
    "emoji": "🏋️"
   },
   {
+   "id": "vibes-no-social-battery-today",
+   "name": "No Social Battery Today",
+   "category": "smileys",
+   "keywords": [
+    "battery",
+    "boba",
+    "frog",
+    "hoodie",
+    "introvert",
+    "low",
+    "no",
+    "no social battery today",
+    "pepe",
+    "social",
+    "today"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/no-social-battery-today.webp",
+   "emoji": "🐸"
+  },
+  {
    "id": "vibes-positive-delulu-mode-on",
    "name": "Positive Delulu Mode On",
    "category": "meme",
@@ -1957,6 +2117,25 @@
    "emoji": "🪫"
   },
   {
+   "id": "vibes-pepe-chill-bro",
+   "name": "Pepe Chill Bro",
+   "category": "reactions",
+   "keywords": [
+    "bro",
+    "chill",
+    "frog",
+    "gaana",
+    "headphones",
+    "music",
+    "pepe",
+    "pepe chill bro",
+    "relax"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/pepe-chill-bro.webp",
+   "emoji": "🎧"
+  },
+  {
    "id": "vibes-aaaa",
    "name": "AAAA",
    "category": "meme",
@@ -1972,6 +2151,26 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/vibes/aaaa.webp",
    "emoji": "😱"
+  },
+  {
+   "id": "vibes-peace-was-never-an-option-gun",
+   "name": "Peace Was Never an Option (Gun)",
+   "category": "meme",
+   "keywords": [
+    "an",
+    "duck",
+    "gun",
+    "never",
+    "option",
+    "peace",
+    "peace was never an option gun",
+    "sunglasses",
+    "threat",
+    "was"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/peace-was-never-an-option-gun.webp",
+   "emoji": "🔫"
   },
   {
    "id": "vibes-typing",
@@ -1991,6 +2190,27 @@
    "format": "webp",
    "url": "https://pingochat.pages.dev/stickers/vibes/typing.webp",
    "emoji": "⌨️"
+  },
+  {
+   "id": "vibes-brain-exe-not-found",
+   "name": "Brain.exe Not Found",
+   "category": "meme",
+   "keywords": [
+    "brain",
+    "brainexe not found",
+    "dimaag",
+    "dumb",
+    "exe",
+    "found",
+    "frog",
+    "loading",
+    "not",
+    "pepe",
+    "pixel"
+   ],
+   "format": "webp",
+   "url": "https://pingochat.pages.dev/stickers/vibes/brain-exe-not-found.webp",
+   "emoji": "🐸"
   },
   {
    "id": "vibes-life-is-so-peak",
