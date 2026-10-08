@@ -67,6 +67,14 @@ export interface LunaTurn {
 
 /** Turns of conversation looked at, at most, and the characters they may take. */
 const WINDOW_MESSAGES = 30;
+/*
+ * OpenAI caches the prompt's unchanged opening. A window that slid one message
+ * per turn changed its first line every turn, so the history was never cached.
+ * It now grows from WINDOW_MIN and drops WINDOW_STEP at once: the opening holds
+ * for WINDOW_STEP messages, and those turns read the history at a tenth of the price.
+ */
+const WINDOW_MIN = 20;
+const WINDOW_STEP = 10;
 const WINDOW_CHARS = 16_000;
 const MESSAGE_CHARS = 1_500;
 const MAX_TOOL_ROUNDS = 3;
@@ -140,7 +148,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const t0 = Date.now();
   t.emit('reading');
 
-  const [{ data: profile }, { data: rows }] = await Promise.all([
+  const [{ data: profile }, { data: rows }, { count: total }] = await Promise.all([
     t.db
       .from('ai_profiles')
       .select('personality, custom_personality, response_length, preferred_name, display_name, language, country, memory_enabled')
@@ -153,6 +161,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       .is('encryption', null)
       .order('created_at', { ascending: false })
       .limit(WINDOW_MESSAGES + 6),
+    t.db
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', t.conversationId)
+      .is('encryption', null),
   ]);
   const p = (profile ?? null) as LunaProfile | null;
   const memoryOn = p?.memory_enabled !== false;
@@ -174,7 +187,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   }
 
   /* The window: newest back, until the budget is spent. */
-  const recent = ((rows ?? []) as { sender_id: string; body: string | null; created_at: string }[]).filter(
+  const keep = typeof total === 'number' ? WINDOW_MIN + (total % WINDOW_STEP) : WINDOW_MESSAGES + 6;
+  const recent = ((rows ?? []).slice(0, keep) as { sender_id: string; body: string | null; created_at: string }[]).filter(
     (r) => typeof r.body === 'string' && r.body.trim() && !d.skipBodies.includes(r.body.trim()) && !/<<<\s*(REPLY|ASK)\s*>>>/i.test(r.body),
   );
   const oldestInView = recent.length ? recent[recent.length - 1]!.created_at : new Date().toISOString();
@@ -230,7 +244,9 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
         : 'They prefer concise answers: complete, but no padding. Small talk gets a line or two.',
   );
   if (!memoryOn) about.push('Memory is switched off by them: do not save or recall anything, and say so if they ask you to remember.');
-  if (justSaved) about.push(`You just saved this to their memory, as they asked: "${justSaved}". Confirm briefly in your reply; do not call save_memory for it again.`);
+  /* What changes from turn to turn goes after the history, so it never breaks the cached opening. */
+  const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];
+  if (justSaved) now.push(`You just saved this to their memory, as they asked: "${justSaved}". Confirm briefly in your reply; do not call save_memory for it again.`);
   if (t.spoken) about.push('This reply will be SPOKEN aloud on a call: 1 to 3 natural sentences, no lists, no emojis, no markdown, no links.');
   if (t.isGroup) {
     about.push(
@@ -241,12 +257,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       ].join('\n'),
     );
   }
-  about.push(`Today is ${new Date().toISOString().slice(0, 10)}.`);
-
   const messages: ChatMessage[] = [
     { role: 'system', content: SYSTEM },
     { role: 'system', content: about.join('\n\n') },
     ...history.map((m) => ({ role: m.role, content: m.content }) as ChatMessage),
+    { role: 'system', content: now.join('\n') },
   ];
 
   /* Streaming out: pieces to the screen in small batches, sentences to the voice. */

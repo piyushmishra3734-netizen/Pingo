@@ -70,9 +70,13 @@ export async function streamChat(o: StreamOptions): Promise<StreamResult> {
     const detail = await res.text();
     if (OPTIONAL.some((p) => detail.includes(p))) {
       for (const p of OPTIONAL) delete body[p];
+      // Some models (gpt-6-luna on chat completions) refuse tools with any effort but 'none', and leaving it out is not 'none'.
+      if (body.tools && /reasoning_effort/.test(detail) && /'none'/.test(detail)) body.reasoning_effort = 'none';
       res = await post(o, body);
     } else {
-      throw new Error(`OpenAI 400: ${detail.slice(0, 300)}`);
+      // A bad OPENAI_MODEL secret: name what was sent and what this key can use, so the fix is one secret.
+      const hint = /model/i.test(detail) ? ` | sent ${JSON.stringify(o.model)}; this key can use: ${await modelIds(o)}` : '';
+      throw new Error(`OpenAI 400: ${detail.slice(0, 300)}${hint}`);
     }
   }
   if (!res.ok || !res.body) {
@@ -125,6 +129,17 @@ export async function streamChat(o: StreamOptions): Promise<StreamResult> {
   }
 
   return { text, toolCalls: [...calls.values()].filter((c) => c.function.name), finish, ...(usage ? { usage } : {}) };
+}
+
+async function modelIds(o: StreamOptions): Promise<string> {
+  try {
+    const res = await fetch(`${o.base}/models`, { headers: { Authorization: `Bearer ${o.apiKey}` } });
+    const ids = ((await res.json()) as { data?: { id: string }[] }).data?.map((m) => m.id) ?? [];
+    const near = ids.filter((id) => /luna|gpt-6/i.test(id));
+    return (near.length ? near : ids.filter((id) => id.startsWith('gpt-')).slice(0, 25)).join(', ') || `(none, ${res.status})`;
+  } catch {
+    return '(could not list)';
+  }
 }
 
 function post(o: StreamOptions, body: Record<string, unknown>): Promise<Response> {
