@@ -1,4 +1,4 @@
-import { cn } from '@pingo/ui';
+import { Toggle, cn } from '@pingo/ui';
 import { ArrowDownToLine, ArrowUpLeft, Check, ChevronLeft, CircleCheck, Clock, Ellipsis, Heart, Loader2, Pencil, Play, Plus, Radio, RotateCw, Search, Send, Settings2, Shuffle, Trash2, UserCheck, UserPlus, WifiOff, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -10,6 +10,7 @@ import { LANGUAGES, currentHomeLanguages, setMusicSettings, useMusicSettings, ty
 import type { Item, Module, Song } from '../saavn/types.js';
 import type { Kept } from '../saavn/library.js';
 import type { SharedCollection } from '../music-share.js';
+import { setShareListening, useShareListening } from '../listening.js';
 import { Cover, Heading, ItemTile, Note, RoundTile, SongRow, Strip, Tile, clean, compact, names, plural, useLoad, useOffline, type Open } from './parts.js';
 
 /** What every view needs from the sheet around it. */
@@ -933,6 +934,7 @@ export function SettingsView() {
   const { open } = useCtx();
   const settings = useMusicSettings();
   const dl = downloads.useDownloads();
+  const shareListening = useShareListening();
   const chosen = new Set(settings.languages);
   const toggle = (l: string) => {
     const next = chosen.has(l) ? settings.languages.filter((x) => x !== l) : [...settings.languages, l];
@@ -971,6 +973,15 @@ export function SettingsView() {
             {l}
           </button>
         ))}
+      </div>
+
+      <Heading>Friends</Heading>
+      <div className="mx-[18px] flex items-center gap-3 rounded-2xl bg-sunken px-4 py-3">
+        <span className="min-w-0 flex-1">
+          <b id="music-share-listening" className="block text-[15px] font-medium">Show what I'm listening to</b>
+          <small className="block text-[12.5px] text-text-secondary">Friends see the song on your photo while it plays. Off when your activity status is off.</small>
+        </span>
+        <Toggle checked={shareListening} onChange={setShareListening} labelledBy="music-share-listening" size="sm" />
       </div>
 
       <Heading>Storage</Heading>

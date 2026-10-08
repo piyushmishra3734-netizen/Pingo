@@ -1,5 +1,6 @@
 import type { PresenceState, UserId } from '@pingo/core';
 
+import { myListening, parseListening, watchMyListening, type Listening } from '../../features/music/listening.js';
 import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import type { PingoSupabaseClient } from './client.js';
 
@@ -52,6 +53,8 @@ const TYPING_THROTTLE_MS = 2_000;
 
 export interface PresenceHandlers {
   onPresence: (userId: UserId, state: PresenceState) => void;
+  /** What someone is playing on PINGO Music; undefined once they stop or go. */
+  onListening: (userId: UserId, music: Listening | undefined) => void;
   onTyping: (conversationId: string, userIds: UserId[], kind: ChatActivity) => void;
 }
 
@@ -95,7 +98,16 @@ export class PresenceHub {
       const state = channel.presenceState();
       const online = new Set(Object.keys(state));
 
-      for (const id of online) this.#handlers.onPresence(id, 'online');
+      for (const id of online) {
+        this.#handlers.onPresence(id, 'online');
+        /*
+         * One person on two devices is two entries under one key. Whichever is
+         * playing is the answer; the newest if, somehow, both are.
+         */
+        const metas = (state[id] ?? []) as { at?: number; music?: unknown }[];
+        const playing = metas.filter((m) => m.music).sort((x, y) => (y.at ?? 0) - (x.at ?? 0))[0];
+        this.#handlers.onListening(id, parseListening(playing?.music));
+      }
 
       /*
        * Who was here and is not any more.
@@ -111,7 +123,10 @@ export class PresenceHub {
        * which is the whole reason it is preferred to the deltas.
        */
       for (const id of this.#lastOnline) {
-        if (!online.has(id)) this.#handlers.onPresence(id, 'offline');
+        if (!online.has(id)) {
+          this.#handlers.onPresence(id, 'offline');
+          this.#handlers.onListening(id, undefined);
+        }
       }
 
       this.#lastOnline = online;
@@ -119,6 +134,7 @@ export class PresenceHub {
 
     channel.on('presence', { event: 'leave' }, ({ key }) => {
       this.#handlers.onPresence(key as UserId, 'offline');
+      this.#handlers.onListening(key as UserId, undefined);
     });
 
     void channel.subscribe((status) => {
@@ -138,7 +154,11 @@ export class PresenceHub {
      * turning it back on starts it again without reconnecting the channel.
      */
     window.addEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
+    // A new song, a pause, the Music settings switch: said again, with or without it.
+    this.#stopListening = watchMyListening(() => this.#publishPresence());
   }
+
+  #stopListening: (() => void) | undefined;
 
   #onPrivacyChanged = (): void => {
     this.#publishPresence();
@@ -157,8 +177,13 @@ export class PresenceHub {
     const channel = this.#presence;
     if (!channel) return;
 
-    if (activityStatusOn()) void channel.track({ at: Date.now() });
-    else void channel.untrack();
+    if (!activityStatusOn()) {
+      void channel.untrack();
+      return;
+    }
+    // A custom last seen hides being here at all, so it hides what is playing too.
+    const music = customLastSeen() ? undefined : myListening();
+    void channel.track({ at: Date.now(), ...(music ? { music } : {}) });
   }
 
   #lastOnline = new Set<UserId>();
@@ -297,6 +322,9 @@ export class PresenceHub {
   }
 
   stop(): void {
+    this.#stopListening?.();
+    this.#stopListening = undefined;
+    window.removeEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
     if (this.#presence) void this.#client.removeChannel(this.#presence);
     this.#presence = undefined;
 

@@ -88,6 +88,8 @@ import { ThreadSearchBar } from './ThreadSearchBar.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
+import { useListening } from '../music/listening.js';
+import { Headphones } from 'lucide-react';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -1196,12 +1198,15 @@ export function ChatThread({
   const onlineOthers = members.filter(
     (m) => m.id !== currentUser?.id && m.presence.state === 'online',
   ).length;
-  const headerLive = isAi || partner?.presence.state === 'online';
+  const partnerListening = useListening(!isGroup && !isAi ? partner?.id : undefined);
+  const headerLive = isAi || partner?.presence.state === 'online' || Boolean(partnerListening);
   const headerStatus = isGroup
     ? `${members.length} members${onlineOthers ? `, ${onlineOthers} online` : ''}`
-    : headerLive && !isAi
-      ? 'online'
-      : presenceLine;
+    : partnerListening
+      ? `listening to ${partnerListening.n}`
+      : headerLive && !isAi
+        ? 'online'
+        : presenceLine;
   /** Unread elsewhere, on the back button - Telegram's way of saying what is waiting. */
   const otherUnread = conversations.reduce(
     (sum, c) => (c.id === conversation.id || c.muted ? sum : sum + c.unreadCount),
@@ -1488,8 +1493,9 @@ export function ChatThread({
               )}
             </span>
           ) : (
-            <span className={cn('max-w-full truncate text-[12.5px]', headerLive ? 'text-brand' : 'text-text-secondary')}>
-              {headerStatus}
+            <span className={cn('flex max-w-full items-center gap-1 text-[12.5px]', headerLive ? 'text-brand' : 'text-text-secondary')}>
+              {partnerListening && <Headphones size={12} strokeWidth={2.4} className="shrink-0" aria-hidden />}
+              <span className="truncate">{headerStatus}</span>
             </span>
           )}
         </button>

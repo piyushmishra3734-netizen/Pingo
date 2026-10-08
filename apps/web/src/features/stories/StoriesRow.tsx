@@ -4,6 +4,8 @@ import { Plus } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 
 import type { LiveStream } from '../live/types.js';
+import { useListening } from '../music/listening.js';
+import { ListeningBadge } from '../music/ListeningBadge.js';
 
 /**
  * The story tray at the top of the chat list, the stories sample's
@@ -132,6 +134,7 @@ export function StoriesRow({
             >
               <Ring state={loading === group.authorId ? 'loading' : group.allSeen ? 'seen' : group.closeFriends ? 'cf' : 'unseen'}>
                 <RingFace name={group.authorName} id={group.authorId} src={group.authorAvatarUrl} />
+                <RingListening id={group.authorId} />
               </Ring>
               <span className="w-full truncate text-center">{group.authorUsername || group.authorName}</span>
             </button>
@@ -176,6 +179,12 @@ function Ring({ state, mine, children }: { state: RingState; mine?: boolean; chi
 }
 /** The PINGO sweep, as a ring (`--sweep-ring` in the tokens). */
 const RING = 'var(--sweep-ring)';
+
+/** A friend playing PINGO Music: the pet on the circle's corner, as on their chat row. */
+function RingListening({ id }: { id: string }) {
+  const music = useListening(id);
+  return music ? <ListeningBadge music={music} size={26} className="right-0 bottom-0" /> : null;
+}
 
 function RingFace({ name, id, src }: { name: string; id: string | undefined; src?: string | undefined }) {
   return (

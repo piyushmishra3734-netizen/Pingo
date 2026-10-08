@@ -29,6 +29,8 @@ import { useStories } from '../stories/StoryContext.js';
 import { presenceMark } from '../presence/status.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useNickname } from '../chat/nicknames.js';
+import { useListening } from '../music/listening.js';
+import { ListeningBadge } from '../music/ListeningBadge.js';
 
 /**
  * One row in the conversation list.
@@ -126,6 +128,8 @@ export function ConversationRow({
    * everywhere in the app rather than two slightly different things.
    */
   const longPress = useLongPress(() => onEnterSelection?.());
+  // A direct chat only: in a group there is no one face for it to sit on.
+  const listening = useListening(conversation.kind === 'direct' ? partner?.id : undefined);
 
   const body = (
     <>
@@ -144,7 +148,7 @@ export function ConversationRow({
       <span
         data-shared-avatar=""
         className={cn(
-          'inline-flex shrink-0 rounded-full',
+          'relative inline-flex shrink-0 rounded-full',
           // A story up: the ring, as in the rail. Unseen in colour, seen quiet.
           story && 'p-[2.5px] [&>*]:ring-2 [&>*]:ring-page',
           story &&
@@ -168,11 +172,12 @@ export function ConversationRow({
         presence={
           conversation.kind === 'ai'
             ? 'online'
-            : conversation.kind === 'direct'
+            : conversation.kind === 'direct' && !listening
               ? presenceMark(partner?.presence.state)
               : undefined
         }
       />
+      {listening && <ListeningBadge music={listening} />}
       </span>
 
       {/* The hairline sits under the text, not under the face - Telegram's row. */}
