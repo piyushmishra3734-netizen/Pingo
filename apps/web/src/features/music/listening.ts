@@ -31,7 +31,26 @@ export interface Listening {
   a: string;
   /** A small cover, https only. */
   i?: string;
+  /*
+   * What a friend needs to listen along (`listen-along.ts`): the song itself,
+   * and where in it this person was, when.
+   */
+  /** The stream: JioSaavn's CDN or PINGO's own uploads, nothing else. */
+  u?: string;
+  /** JioSaavn's id: how a downloaded song, which plays from the phone, is found again. */
+  d?: string;
+  /** Seconds in, at `t`. */
+  p?: number;
+  /** When `p` was true, in epoch milliseconds. */
+  t?: number;
+  /** Length in seconds. */
+  s?: number;
+  /** Whom this person is listening along with, if anyone: two people cannot follow each other round in a circle. */
+  w?: string;
 }
+
+/** Addresses a friend's phone may be asked to play. */
+export const PLAYABLE = /^https:\/\/(([a-z0-9-]+\.)*saavncdn\.com|pingo-songs\.[a-z0-9-]+\.workers\.dev)\//i;
 
 const SHARE_KEY = 'pingo:music-share-listening:v1';
 
@@ -76,12 +95,31 @@ function smallCover(url: string | undefined): string | undefined {
   return url.replace(/-(150x150|500x500)\./, '-50x50.');
 }
 
+let syncingWith: string | undefined;
+/** Set by `listen-along.ts`, and said at once: it changes what this person's friends may do. */
+export function setSyncingWith(userId: string | undefined) {
+  if (syncingWith === userId) return;
+  syncingWith = userId;
+  if (watching) sayNow();
+}
+
 /** What this person is playing, to publish; nothing while paused, stopped or switched off. */
 export function myListening(): Listening | undefined {
   const s = playerState();
   if (!s.song || !(s.playing || s.loading) || !shareListeningOn()) return undefined;
   const i = smallCover(s.song.img);
-  return { n: s.song.name.slice(0, 80), a: s.song.artist.slice(0, 80), ...(i ? { i } : {}) };
+  const len = Math.round(s.length || s.song.secs || 0);
+  return {
+    n: s.song.name.slice(0, 80),
+    a: s.song.artist.slice(0, 80),
+    ...(i ? { i } : {}),
+    ...(PLAYABLE.test(s.song.url) ? { u: s.song.url } : {}),
+    ...(s.song.id ? { d: s.song.id } : {}),
+    p: Math.round(s.at * 10) / 10,
+    t: Date.now(),
+    ...(len ? { s: len } : {}),
+    ...(syncingWith ? { w: syncingWith } : {}),
+  };
 }
 
 const mineListeners = new Set<() => void>();
@@ -90,8 +128,18 @@ let lastKey = '';
 let pendingKey = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
 let watching: (() => void) | undefined;
+/** Where the song was when last said, to tell a seek from ordinary playing. */
+let said: { p: number; t: number } | undefined;
 
-const keyOf = (l: Listening | undefined) => (l ? `${l.n}|${l.a}` : '');
+const keyOf = (l: Listening | undefined) => (l ? `${l.n}|${l.a}|${l.d ?? l.u ?? ''}` : '');
+
+/** Whether the song is no longer where the last word said it would be: somebody seeked. */
+function jumped(): boolean {
+  const s = playerState();
+  if (!said || !s.playing) return false;
+  const expected = said.p + ((Date.now() - said.t) / 1000) * (s.speed || 1);
+  return Math.abs(s.at - expected) > 3;
+}
 
 /*
  * The player reports every few hundred milliseconds while it plays, so only a
@@ -99,7 +147,11 @@ const keyOf = (l: Listening | undefined) => (l ? `${l.n}|${l.a}` : '');
  */
 function settle() {
   const key = keyOf(myListening());
-  if (key === pendingKey) return;
+  if (key === pendingKey) {
+    // Same song, moved within it: said once the dragging stops, so a friend listening along follows.
+    if (!timer && key && key === lastKey && jumped()) timer = setTimeout(sayNow, 800);
+    return;
+  }
   pendingKey = key;
   if (timer) clearTimeout(timer);
   timer = undefined;
@@ -108,8 +160,14 @@ function settle() {
     timer = undefined;
     if (pendingKey === lastKey) return;
     lastKey = pendingKey;
+    remember();
     mineListeners.forEach((l) => l());
   }, 1500);
+}
+
+function remember() {
+  const s = playerState();
+  said = { p: s.at, t: Date.now() };
 }
 
 /** Says it now: the switch was thrown, and a switch should answer at once. */
@@ -117,6 +175,7 @@ function sayNow() {
   if (timer) clearTimeout(timer);
   timer = undefined;
   lastKey = pendingKey = keyOf(myListening());
+  remember();
   mineListeners.forEach((l) => l());
 }
 
@@ -129,6 +188,7 @@ export function watchMyListening(fn: () => void): () => void {
   mineListeners.add(fn);
   if (!watching) {
     lastKey = pendingKey = keyOf(myListening());
+    remember();
     watching = watchPlayer(settle);
   }
   return () => {
@@ -149,6 +209,8 @@ const friendListeners = new Set<() => void>();
 
 const clip = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+const num = (v: unknown, max: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max ? v : undefined);
+
 /** Reads somebody else's payload: drawn straight from another client, so nothing is trusted. */
 export function parseListening(raw: unknown): Listening | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -156,16 +218,37 @@ export function parseListening(raw: unknown): Listening | undefined {
   const n = clip(r.n, 80);
   if (!n) return undefined;
   const i = clip(r.i, 300);
-  return { n, a: clip(r.a, 80), ...(/^https:\/\//.test(i) ? { i } : {}) };
+  const u = clip(r.u, 400);
+  const d = clip(r.d, 40);
+  const w = clip(r.w, 64);
+  const p = num(r.p, 6 * 3600);
+  const t = num(r.t, 8.64e15);
+  const s = num(r.s, 6 * 3600);
+  return {
+    n,
+    a: clip(r.a, 80),
+    ...(/^https:\/\//.test(i) ? { i } : {}),
+    ...(PLAYABLE.test(u) ? { u } : {}),
+    ...(/^[A-Za-z0-9_-]{1,40}$/.test(d) ? { d } : {}),
+    ...(p !== undefined && t !== undefined ? { p, t } : {}),
+    ...(s ? { s } : {}),
+    ...(w ? { w } : {}),
+  };
 }
 
 export function setFriendListening(userId: string, l: Listening | undefined) {
   const cur = friends.get(userId);
-  if (keyOf(cur) === keyOf(l) && cur?.i === l?.i) return;
+  if (JSON.stringify(cur) === JSON.stringify(l)) return;
   if (l) friends.set(userId, l);
   else friends.delete(userId);
   friendListeners.forEach((fn) => fn());
 }
+
+/** What this person is playing right now, outside React. */
+export const friendListening = (userId: string) => friends.get(userId);
+
+/** For code outside React (listening along) that follows friends. */
+export const watchFriends = (fn: () => void) => subscribeFriends(fn);
 
 export function clearFriendsListening() {
   if (!friends.size) return;

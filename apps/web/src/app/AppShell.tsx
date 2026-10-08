@@ -9,6 +9,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
 import { MusicIsland } from '../features/music/MusicIsland.js';
+import { restoreListenAlong } from '../features/music/listen-along.js';
 import { MusicSheetHost } from '../features/music/app/MusicSheetHost.js';
 import { BackgroundPrompt } from '../features/native/BackgroundPrompt.js';
 import { StoryMentionRelay } from '../features/stories/StoryMentionRelay.js';
@@ -62,6 +63,8 @@ export function AppShell() {
    * React knows which elements have it.
    */
   useEffect(() => startLensing(), []);
+  // Listening along with a friend outlives a restart: only "Stop" ends it.
+  useEffect(() => restoreListenAlong(), []);
   // One delegated listener, for every `.glass-lit` surface in the app.
   useEffect(() => startPressLight(), []);
 
