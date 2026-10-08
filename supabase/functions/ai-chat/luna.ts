@@ -261,9 +261,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     pending = '';
     lastFlush = Date.now();
   };
+  let firstText = 0;
   const onText = (piece: string) => {
     if (!wrote) {
       wrote = true;
+      firstText = Date.now();
       t.emit('writing');
     }
     pending += piece;
@@ -327,16 +329,27 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const { data: messageId, error } = await t.db.rpc('post_ai_reply', { target_conversation: t.conversationId, reply_body: body.slice(0, 8000) });
   if (error) return { status: 500, body: { error: error.message } };
 
+  /*
+   * One line per turn in the function's logs (Supabase > Edge Functions >
+   * ai-chat > Logs): which model answered, what it cost in tokens, how much of
+   * the prompt was served from OpenAI's cache, and how long each part took.
+   */
+  const u = (usage ?? {}) as { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+  console.log(
+    `[luna] provider=openai model=${t.model} effort=${t.reasoningEffort || 'default'} in=${u.prompt_tokens ?? '?'} cached=${u.prompt_tokens_details?.cached_tokens ?? 0} out=${u.completion_tokens ?? '?'} tools=${rounds} first_ms=${firstText ? firstText - tModel : '?'} model_ms=${tModelDone - tModel} total_ms=${Date.now() - t0}`,
+  );
+
   return {
     status: 200,
     body: {
+      provider: 'openai',
       messageId,
       reply: body,
       memorySaved: !!justSaved,
       model: t.model,
       toolRounds: rounds,
       ...(usage ? { usage } : {}),
-      ms: { before: tModel - t0, model: tModelDone - tModel, total: Date.now() - t0 },
+      ms: { before: tModel - t0, firstWords: firstText ? firstText - tModel : null, model: tModelDone - tModel, total: Date.now() - t0 },
     },
   };
 }
