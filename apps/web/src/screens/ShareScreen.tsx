@@ -3,8 +3,7 @@ import { cn } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { ScreenHeader } from '../components/ScreenHeader.js';
-import { PingRecipients, PingSendButton } from '../features/camera/PingRecipients.js';
+import { SendTo } from '../features/camera/snap/send-to.js';
 import { peekShare, takeShare, watchShare, type SharePayload } from '../features/share/share-store.js';
 import { parseSongShare } from '../features/music/song-share.js';
 import { KIND_LABEL, parseCollectionShare } from '../features/music/music-share.js';
@@ -37,8 +36,7 @@ export function ShareScreen() {
   const { service } = useChat();
 
   const [payload, setPayload] = useState<SharePayload | undefined>(() => peekShare());
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [busy, setBusy] = useState(false);
+    const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
   // A second delivery for the same share (Android sends image and caption
@@ -61,27 +59,18 @@ export function ShareScreen() {
    * shared video to draw a square the size of a thumbnail, on a phone, before
    * anybody has even chosen who to send it to.
    */
-  const preview = useMemo(
+  const preview_ = useMemo(
     () => (first?.type.startsWith('image/') ? URL.createObjectURL(first) : undefined),
     [first],
   );
 
   useEffect(() => {
-    if (!preview) return;
-    return () => URL.revokeObjectURL(preview);
-  }, [preview]);
+    if (!preview_) return;
+    return () => URL.revokeObjectURL(preview_);
+  }, [preview_]);
 
-  const toggle = (conversationId: string) => {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(conversationId)) next.delete(conversationId);
-      else next.add(conversationId);
-      return next;
-    });
-  };
-
-  const send = async () => {
-    if (selected.size === 0 || busy || !payload) return;
+  const send = async (selected: string[]) => {
+    if (selected.length === 0 || busy || !payload) return;
     setBusy(true);
     setError(undefined);
 
@@ -119,7 +108,7 @@ export function ShareScreen() {
 
       // Straight into the conversation when it went to one person; the chat
       // list when it went to several, because there is no single thread to open.
-      const only = selected.size === 1 ? [...selected][0] : undefined;
+      const only = selected.length === 1 ? selected[0] : undefined;
       navigate(only ? `/chats/${only}` : '/chats', { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "That didn't send. Try again.");
@@ -168,99 +157,72 @@ export function ShareScreen() {
 
   const title = payload.label ?? `Send ${kind}`;
 
-  return (
-    <div className="flex h-full min-h-0 flex-col bg-page">
-      <ScreenHeader title={title} showBack />
-
-      {/*
-        What is being sent, above the people it is going to.
-
-        A share screen that shows only a list of names asks somebody to trust
-        that the right thing is attached. Showing it costs one row and removes
-        the doubt entirely.
-      */}
-      <div className="shrink-0 px-4 pb-3">
-        {/*
-          Held to a column, on every screen.
-
-          Stretched to a desktop width the rows became a spreadsheet - a name on
-          the left and a checkbox a foot away on the right, with nothing between
-          them. A share sheet is a small object you reach into, and it should
-          keep that shape wherever it is opened.
-        */}
-        <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl bg-surface p-3 shadow-sm">
-          {song ? (
-            song.img ? (
-              <img src={song.img} alt="" className="size-14 shrink-0 rounded-lg object-cover" />
-            ) : (
-              <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-sunken text-h2">🎵</span>
-            )
-          ) : preview ? (
-            <img
-              src={preview}
-              alt=""
-              className="size-14 shrink-0 rounded-lg object-cover"
-            />
+  /*
+   * What is being sent, above the people it is going to: one row, so nobody
+   * has to trust that the right thing is attached.
+   */
+  const preview = (
+    <div>
+      <h4 className="mx-0.5 mb-2.5 text-[17px] font-bold">{title}</h4>
+      <div className="flex items-center gap-3 rounded-[18px] bg-surface p-3 shadow-[0_1px_2px_rgba(16,17,20,0.06)]">
+        {song ? (
+          song.img ? (
+            <img src={song.img} alt="" className={cn('size-14 shrink-0 object-cover', collection?.kind === 'artist' ? 'rounded-full' : 'rounded-xl')} />
           ) : (
-            <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-sunken text-h2">
-              {/* Stands in for the thumbnail there is no point drawing. */}
-              {!first ? '🔗' : first.type.startsWith('video/') ? '🎬' : '📄'}
-            </span>
+            <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-sunken text-h2">🎵</span>
+          )
+        ) : preview_ ? (
+          <img src={preview_} alt="" className="size-14 shrink-0 rounded-xl object-cover" />
+        ) : (
+          <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-sunken text-h2">
+            {/* Stands in for the thumbnail there is no point drawing. */}
+            {!first ? '🔗' : first.type.startsWith('video/') ? '🎬' : '📄'}
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          {song ? (
+            <>
+              <p className="truncate text-[16px] font-semibold text-ink">{song.name}</p>
+              {song.artist ? <p className="truncate text-[13.5px] text-text-secondary">{song.artist}</p> : null}
+            </>
+          ) : (
+            <>
+              {count > 1 ? (
+                <p className="text-[16px] font-semibold text-ink">
+                  {count} {kind}
+                </p>
+              ) : first && !first.type.startsWith('image/') ? (
+                // The filename: "the PDF" is indistinguishable from every other PDF.
+                <p className="truncate text-[16px] font-semibold text-ink" title={first.name}>
+                  {first.name}
+                </p>
+              ) : null}
+              {payload.text ? (
+                <p className="line-clamp-2 break-words text-[13.5px] text-text-secondary">{payload.text}</p>
+              ) : count === 1 ? (
+                <p className="text-[13.5px] text-text-secondary">{first && first.size > 0 ? formatFileSize(first.size) : 'Ready to send'}</p>
+              ) : null}
+            </>
           )}
-
-          <div className="min-w-0 flex-1">
-            {count > 1 ? (
-              <p className="text-body font-medium text-ink">
-                {count} {kind}
-              </p>
-            ) : first && !first.type.startsWith('image/') ? (
-              /*
-                The filename, for anything that has one worth reading.
-
-                A picture is its own label and a document is not: "the PDF" is
-                indistinguishable from every other PDF, and this is the last
-                moment before it is sent to somebody.
-              */
-              <p className="truncate text-body font-medium text-ink" title={first.name}>
-                {first.name}
-              </p>
-            ) : null}
-            {song ? (
-              <>
-                <p className="truncate text-body font-medium text-ink">{song.name}</p>
-                {song.artist ? <p className="truncate text-caption text-text-secondary">{song.artist}</p> : null}
-              </>
-            ) : payload.text ? (
-              <p className="line-clamp-2 break-words text-caption text-text-secondary">
-                {payload.text}
-              </p>
-            ) : count === 1 ? (
-              <p className="text-caption text-text-secondary">
-                {first && first.size > 0 ? formatFileSize(first.size) : 'Ready to send'}
-              </p>
-            ) : null}
-          </div>
         </div>
       </div>
-
-      {error ? (
-        <p role="alert" className="shrink-0 px-5 pb-2 text-caption text-danger">
-          {error}
-        </p>
-      ) : null}
-
-      <div className="mx-auto min-h-0 w-full max-w-md flex-1 overflow-y-auto px-2">
-        <PingRecipients selected={selected} onToggle={toggle} anyConversation />
-      </div>
-
-      <div
-        className={cn(
-          'mx-auto w-full max-w-md shrink-0 px-4 pt-2',
-          'pb-[max(1rem,env(safe-area-inset-bottom))]',
-        )}
-      >
-        <PingSendButton count={selected.size} busy={busy} onSend={() => void send()} />
-      </div>
     </div>
+  );
+
+  /*
+   * The same Send to as the camera and the story editor, so sending anything
+   * anywhere in PINGO is one screen. Without My story: a song, a playlist, a
+   * link or a file is not a story.
+   */
+  return (
+    <SendTo
+      views={undefined}
+      post={false}
+      preview={preview}
+      busy={busy}
+      {...(error ? { error } : {})}
+      onClose={() => navigate(-1)}
+      onSend={(ids) => void send(ids)}
+    />
   );
 }

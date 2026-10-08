@@ -1,7 +1,7 @@
 import { useChat, useProfile, type StorySticker } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { ChevronDown, CircleCheck, Circle, Search, Send, Star, Timer, UsersRound } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useStories } from '../../stories/StoryContext.js';
 
@@ -10,9 +10,13 @@ import type { TextData } from '../../stories/stickers/StickerView.js';
 const W = 1080, H = 1920;
 
 /**
- * Snapchat's Send to, for anything leaving the camera or the story editor:
+ * Snapchat's Send to, for anything leaving the camera, the story editor or
+ * the share screen (a song, a playlist, a link, a file):
  * My story or Close friends at the top, the chats below - the ones sent to
  * most first - and a bar along the foot naming who it is going to.
+ *
+ * In the app's own theme: light unless somebody chose dark. It used to be
+ * black everywhere, which suited the camera and nothing else.
  *
  * And the flattening a chat needs: a picture cannot carry a live poll, so what
  * goes to a chat has its stickers drawn into it.
@@ -27,9 +31,15 @@ export function noteSends(ids: string[]) {
   try { localStorage.setItem(SEND_KEY, JSON.stringify(u)); } catch { /* order resets */ }
 }
 
-export function SendTo({ views, locked, onClose, onSend }: {
+export function SendTo({ views, locked, onClose, onSend, post = true, preview, busy, error }: {
   views: 1 | 2 | null | undefined; locked?: string; onClose: () => void;
   onSend: (ids: string[], story: false | 'friends' | 'close') => void;
+  /** Offer My story and Close friends. Off for what cannot be a story: a song, a link, a file. */
+  post?: boolean;
+  /** What is being sent, shown above the people it is going to. */
+  preview?: ReactNode;
+  busy?: boolean;
+  error?: string;
 }) {
   const { conversations } = useChat();
   const { profile } = useProfile();
@@ -64,30 +74,31 @@ export function SendTo({ views, locked, onClose, onSend }: {
     .slice(0, 80), [allowed, tab, q, sends]);
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const names = [...(story ? [story === 'close' ? 'Close friends' : 'My story'] : []), ...conversations.filter((c) => picked.has(c.id)).map((c) => c.title)];
-  const Tick = ({ on }: { on: boolean }) => (on ? <CircleCheck size={26} className="shrink-0 text-media-accent" /> : <Circle size={26} className="shrink-0 text-white/40" />);
+  const Tick = ({ on }: { on: boolean }) => (on ? <CircleCheck size={26} className="shrink-0 text-brand" /> : <Circle size={26} className="shrink-0 text-text-tertiary" />);
   return (
-    <div className="animate-panel-in fixed inset-0 z-600 flex flex-col bg-[#0d0d10] text-white">
+    <div className="animate-panel-in fixed inset-0 z-600 flex flex-col bg-page text-ink">
       <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
         <button type="button" aria-label="Back" onClick={onClose} className="grid size-10 shrink-0 place-items-center"><ChevronDown size={26} /></button>
-        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-white/8 px-3.5 text-white/55"><Search size={18} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Send to…" className="min-w-0 flex-1 bg-transparent text-[16px] text-white outline-none" />
-          <UsersRound size={19} className="text-white" />
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-sunken px-3.5 text-text-tertiary"><Search size={18} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Send to…" className="min-w-0 flex-1 bg-transparent text-[16px] text-ink outline-none placeholder:text-text-tertiary" />
+          <UsersRound size={19} className="text-ink" />
         </label>
       </div>
       <div className="flex gap-1.5 px-3.5 pb-3">
-        {(['all', 'groups'] as const).map((t) => <button key={t} type="button" onClick={() => setTab(t)} className={cn('rounded-full px-4 py-2 text-[14.5px] font-bold capitalize', tab === t ? 'bg-white text-black' : 'text-white/70')}>{t}</button>)}
+        {(['all', 'groups'] as const).map((t) => <button key={t} type="button" onClick={() => setTab(t)} className={cn('rounded-full px-4 py-2 text-[14.5px] font-bold capitalize', tab === t ? 'bg-ink text-page' : 'text-text-secondary')}>{t}</button>)}
       </div>
       <div className="flex-1 overflow-y-auto px-3.5 pb-28">
-        {!q && tab === 'all' && (
+        {preview && !q && <div className="mb-4">{preview}</div>}
+        {post && !q && tab === 'all' && (
           <>
             <h4 className="mx-0.5 mt-1.5 mb-2.5 text-[17px] font-bold">Post to…</h4>
-            <div className="mb-4 overflow-hidden rounded-[18px] bg-white/6">
+            <div className="mb-4 overflow-hidden rounded-[18px] bg-surface shadow-[0_1px_2px_rgba(16,17,20,0.06)]">
               {([['friends', 'My story · Friends', 'Your friends on PINGO'], ['close', 'Close friends', 'Only your list']] as const).map(([k, label, sub]) => (
-                <button key={k} type="button" onClick={() => setStory((s) => (s === k ? false : k))} className="flex w-full items-center gap-3 border-t border-white/6 px-3.5 py-2.5 text-left first:border-t-0">
-                  <span className={cn('grid size-[46px] shrink-0 place-items-center rounded-full ring-2 ring-offset-2 ring-offset-[#0d0d10]', k === 'close' ? 'bg-close-friends ring-close-friends' : 'ring-media-accent')}>
+                <button key={k} type="button" onClick={() => setStory((s) => (s === k ? false : k))} className="flex w-full items-center gap-3 border-t border-line px-3.5 py-2.5 text-left first:border-t-0">
+                  <span className={cn('grid size-[46px] shrink-0 place-items-center rounded-full ring-2 ring-offset-2 ring-offset-page', k === 'close' ? 'bg-close-friends ring-close-friends' : 'ring-brand')}>
                     {k === 'close' ? <Star size={18} fill="#fff" /> : profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" className="size-full rounded-full object-cover" /> : null}
                   </span>
-                  <span className="min-w-0 flex-1"><b className={cn('block text-[16px]', story === k && 'text-media-accent')}>{label}</b><span className="text-[13.5px] text-white/55">{sub}</span></span>
+                  <span className="min-w-0 flex-1"><b className={cn('block text-[16px]', story === k && 'text-brand')}>{label}</b><span className="text-[13.5px] text-text-secondary">{sub}</span></span>
                   <Tick on={story === k} />
                 </button>
               ))}
@@ -95,21 +106,22 @@ export function SendTo({ views, locked, onClose, onSend }: {
           </>
         )}
         <h4 className="mx-0.5 mb-2.5 text-[17px] font-bold">{q ? 'Results' : 'Recents & suggested'}</h4>
-        <div className="overflow-hidden rounded-[18px] bg-white/6">
+        <div className="overflow-hidden rounded-[18px] bg-surface shadow-[0_1px_2px_rgba(16,17,20,0.06)]">
           {list.map((c) => (
-            <button key={c.id} type="button" onClick={() => toggle(c.id)} className="flex w-full items-center gap-3 border-t border-white/6 px-3.5 py-2.5 text-left first:border-t-0">
-              {c.avatarUrl ? <img src={c.avatarUrl} alt="" className="size-[46px] shrink-0 rounded-full object-cover" /> : <span className="grid size-[46px] shrink-0 place-items-center rounded-full bg-white/10 font-bold">{c.title[0]}</span>}
-              <span className="min-w-0 flex-1"><b className={cn('block truncate text-[16px]', picked.has(c.id) && 'text-media-accent')}>{c.title}</b>{c.kind === 'group' && <span className="text-[13.5px] text-white/55">Group</span>}</span>
+            <button key={c.id} type="button" onClick={() => toggle(c.id)} className="flex w-full items-center gap-3 border-t border-line px-3.5 py-2.5 text-left first:border-t-0">
+              {c.avatarUrl ? <img src={c.avatarUrl} alt="" className="size-[46px] shrink-0 rounded-full object-cover" /> : <span className="grid size-[46px] shrink-0 place-items-center rounded-full bg-sunken font-bold">{c.title[0]}</span>}
+              <span className="min-w-0 flex-1"><b className={cn('block truncate text-[16px]', picked.has(c.id) && 'text-brand')}>{c.title}</b>{c.kind === 'group' && <span className="text-[13.5px] text-text-secondary">Group</span>}</span>
               <Tick on={picked.has(c.id)} />
             </button>
           ))}
-          {list.length === 0 && <p className="py-6 text-center text-white/50">Nobody by that name</p>}
+          {list.length === 0 && <p className="py-6 text-center text-text-tertiary">Nobody by that name</p>}
         </div>
       </div>
-      <div className={cn('fixed inset-x-0 bottom-0 flex items-center gap-2.5 bg-brand-gradient px-3.5 pt-3 pb-[max(1.4rem,env(safe-area-inset-bottom))] transition-transform', names.length ? 'translate-y-0' : 'translate-y-full')}>
+      {error && <p role="alert" className="fixed inset-x-0 bottom-[88px] px-5 text-center text-[13.5px] text-danger">{error}</p>}
+      <div className={cn('fixed inset-x-0 bottom-0 flex items-center gap-2.5 bg-brand-gradient px-3.5 text-white pt-3 pb-[max(1.4rem,env(safe-area-inset-bottom))] transition-transform', names.length ? 'translate-y-0' : 'translate-y-full')}>
         <div className="scrollbar-none flex min-w-0 flex-1 gap-1.5 overflow-x-auto text-[15px] font-bold">{names.map((n, i) => <span key={i} className="shrink-0 rounded-full bg-white/22 px-3 py-1.5">{n}</span>)}</div>
         {views !== undefined && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-black/18 px-2.5 py-1.5 text-[12.5px] font-extrabold"><Timer size={13} />{views ?? '∞'}</span>}
-        <button type="button" aria-label="Send" onClick={() => onSend([...picked], story)} className="grid size-[50px] shrink-0 place-items-center rounded-full bg-white text-black active:scale-90"><Send size={22} /></button>
+        <button type="button" aria-label="Send" disabled={busy} onClick={() => onSend([...picked], story)} className="grid size-[50px] shrink-0 place-items-center rounded-full bg-white text-black active:scale-90 disabled:opacity-60">{busy ? <span className="size-5 animate-spin rounded-full border-2 border-black/20 border-t-black" /> : <Send size={22} />}</button>
       </div>
     </div>
   );

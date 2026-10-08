@@ -160,6 +160,8 @@ async function fetchOne(id: string) {
   await tx('readwrite', (s) => s.put({ audio, ...(cover ? { cover } : {}) } satisfies Files, id));
   const { [id]: _, ...active } = state.active;
   set({ done: { ...state.done, [id]: { song, bytes: audio.size + (cover?.size ?? 0), kbps, at: Date.now() } }, active });
+  // The page that plays these offline, fetched now while there is a network, so it is kept for then.
+  void import('../app/OfflineMusic.js').catch(() => undefined);
 }
 
 function pump() {

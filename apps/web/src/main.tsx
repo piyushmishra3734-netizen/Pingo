@@ -35,6 +35,16 @@ function hasMusicDownloads(): boolean {
     return false;
   }
 }
+if (navigator.onLine !== false && hasMusicDownloads()) {
+  /*
+   * Online, with songs kept: load the offline page's code once, quietly, so
+   * the service worker keeps it. The web precaches only the shell; every other
+   * chunk is kept the first time it runs, and this one would otherwise first
+   * run on the day there is no network to fetch it from.
+   */
+  const warm = () => void import('./features/music/app/OfflineMusic.js').catch(() => undefined);
+  setTimeout(warm, 5000);
+}
 if (navigator.onLine === false && hasMusicDownloads()) {
   void import('./features/music/app/OfflineMusic.js').then(({ default: OfflineMusic }) => {
     const host = document.createElement('div');
