@@ -542,7 +542,8 @@ export function MessageBubble({
             // `body` is the emoji fallback, which makes a real alt text.
             alt={message.body}
             draggable={false}
-            className="size-32 select-none object-contain"
+            // 160px: the packs carry words now ("vibes only", "caught in 4K"), and they have to be read.
+            className="size-40 select-none object-contain"
             onError={(event) => {
               // Pack gone, or offline. The emoji is a better fallback than a
               // broken-image icon, and it is already in `body`.

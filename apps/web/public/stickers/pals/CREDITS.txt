@@ -1,4 +1,4 @@
 PINGO Pals: made for PINGO (image generation, cut and named by hand).
 Owned by PINGO and released for use in the app; the manifest records it as CC0-1.0.
-Each sticker is a 320px WebP on a transparent ground. Names, categories,
+Each sticker is a 384px WebP on a transparent ground. Names, categories,
 keywords (English and Hinglish) and emoji are in ../pals.json.
