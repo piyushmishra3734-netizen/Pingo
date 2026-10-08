@@ -3,8 +3,10 @@ import { useSyncExternalStore } from 'react';
 import { musicPlayer, playerState, setQueueControls, watchPlayer } from '../player.js';
 import type { SharedSong } from '../song-share.js';
 import * as api from './api.js';
+import * as downloads from './downloads.js';
 import { currentTaste, recordPlay, type Kept } from './library.js';
 import * as Q from './queue.js';
+import { musicSettings, setMusicSettings, type StreamQuality } from './settings.js';
 import type { Song } from './types.js';
 
 /**
@@ -21,8 +23,8 @@ import type { Song } from './types.js';
  */
 
 let queue: Q.QueueState = Q.empty();
-/** The quality setting, for `streamUrl`. */
-let quality: 'auto' | 'high' | 'normal' | 'saver' = 'auto';
+/** The streaming quality chosen in PINGO Music's settings. */
+const quality = () => musicSettings().stream;
 const listeners = new Set<() => void>();
 let refilling = false;
 /** The song the player was last given by the queue, to tell its songs from a chat card's. */
@@ -51,7 +53,7 @@ function recordOutgoing(ended: boolean) {
 /* ---------- playing the current song ---------- */
 
 async function withStream(s: Song): Promise<Song> {
-  if (api.streamUrl(s, quality)) return s;
+  if (api.streamUrl(s, quality())) return s;
   // A song kept in the library or found by autocomplete carries no address: look it up.
   return (await api.song(s.id)) ?? s;
 }
@@ -59,8 +61,20 @@ async function withStream(s: Song): Promise<Song> {
 async function playCurrent() {
   const cur = Q.current(queue);
   if (!cur) return;
+  // Downloaded: from the phone, with no network and no data spent.
+  const local = await downloads.localAudio(cur.id);
+  if (Q.current(queue) !== cur) return;
+  if (local) {
+    playingUrl = local;
+    setQueueControls(controls);
+    const cover = await downloads.localCover(cur.id);
+    void musicPlayer.play({ ...toShared(cur, local), ...(cover ? { img: cover } : {}) });
+    void refill();
+    prefetchNext();
+    return;
+  }
   const full = await withStream(cur);
-  const url = api.streamUrl(full, quality);
+  const url = api.streamUrl(full, quality());
   if (!url) {
     // Not streamable (rights): skip it rather than stop the music.
     if (!Q.atEnd(queue)) {
@@ -80,7 +94,7 @@ async function playCurrent() {
 /** The next song's address, looked up ahead so it starts the moment this one ends. */
 function prefetchNext() {
   const next = Q.upcoming(queue, 1)[0];
-  if (next && !api.streamUrl(next, quality)) api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
+  if (next && !downloads.isDownloaded(next.id) && !api.streamUrl(next, quality())) api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
 }
 
 /** Tops a radio queue up from its JioSaavn station before it runs out. */
@@ -107,6 +121,13 @@ async function refill() {
 const controls = {
   next(auto: boolean) {
     recordOutgoing(auto);
+    // The sleep timer set to the end of this song: it ended, so that is all.
+    if (auto && sleep.endOfSong) {
+      setSleep(undefined);
+      musicPlayer.pause();
+      musicPlayer.seek(0);
+      return;
+    }
     if (Q.atEnd(queue)) {
       if (auto) musicPlayer.pause();
       return;
@@ -252,8 +273,46 @@ export const cycleRepeat = () => setQueue(Q.cycleRepeat(queue));
 export const next = () => controls.next(false);
 export const prev = () => controls.prev();
 
-export function setQuality(q: typeof quality) {
-  quality = q;
+export function setQuality(q: StreamQuality) {
+  setMusicSettings({ stream: q });
+}
+
+/* ---------- sleep timer ---------- */
+
+/** When the music stops by itself: at a time, or when the song playing ends. */
+let sleep: { until?: number; endOfSong?: boolean } = {};
+let sleepTimer: number | undefined;
+const sleepListeners = new Set<() => void>();
+
+/** Minutes from now, `'end'` for the end of this song, nothing to switch it off. */
+export function setSleep(after: number | 'end' | undefined) {
+  window.clearTimeout(sleepTimer);
+  sleep = after === undefined ? {} : after === 'end' ? { endOfSong: true } : { until: Date.now() + after * 60_000 };
+  if (sleep.until) sleepTimer = window.setTimeout(checkSleep, sleep.until - Date.now());
+  sleepListeners.forEach((l) => l());
+}
+
+function checkSleep() {
+  if (!sleep.until || Date.now() < sleep.until) return;
+  setSleep(undefined);
+  musicPlayer.pause();
+}
+
+/*
+ * Also checked as the song plays: a phone in a pocket can hold a timeout back
+ * for minutes, but the player keeps reporting its time while the music is on.
+ */
+if (typeof window !== 'undefined') watchPlayer(checkSleep);
+
+const subscribeSleep = (fn: () => void) => {
+  sleepListeners.add(fn);
+  return () => {
+    sleepListeners.delete(fn);
+  };
+};
+const sleepSnap = () => sleep;
+export function useSleep(): { until?: number; endOfSong?: boolean } {
+  return useSyncExternalStore(subscribeSleep, sleepSnap, sleepSnap);
 }
 
 /* ---------- reading ---------- */

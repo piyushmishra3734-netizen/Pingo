@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { ChevronDown, ChevronLeft, Heart, ListEnd, ListPlus, ListStart, Loader2, Pause, Play, Plus, Radio, Search, Send, UserRound, X } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, ChevronLeft, CircleMinus, Heart, ListEnd, ListPlus, ListStart, Loader2, Plus, Radio, Search, Send, UserRound, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,14 +8,16 @@ import { putShare } from '../../share/share-store.js';
 import { fromSaavn } from '../catalogue.js';
 import { songBody } from '../song-share.js';
 import * as api from '../saavn/api.js';
+import * as downloads from '../saavn/downloads.js';
 import { useMusicPlayer } from '../player.js';
 import * as library from '../saavn/library.js';
 import * as playback from '../saavn/playback.js';
 import type { Song } from '../saavn/types.js';
+import { MiniPlayer } from './MiniPlayer.js';
 import { NowPlaying } from './NowPlaying.js';
 import { Cover, clean, names, useCoverTone } from './parts.js';
 import { closeMusic, useMusicOpen } from './sheet-store.js';
-import { AlbumView, ArtistView, ChannelView, Ctx, HomeView, KeptView, LibraryView, PlaylistView, SearchView, type MusicCtx } from './views.js';
+import { AlbumView, ArtistView, ChannelView, Ctx, DownloadsView, HomeView, KeptView, LibraryView, PlaylistView, SearchView, SettingsView, type MusicCtx } from './views.js';
 
 /**
  * PINGO Music: a sheet that comes up over the app.
@@ -26,7 +28,7 @@ import { AlbumView, ArtistView, ChannelView, Ctx, HomeView, KeptView, LibraryVie
  * is tapped, and then it is the whole screen.
  */
 
-type Route = { kind: 'album' | 'playlist' | 'artist' | 'channel' | 'kept'; id: string; key: number };
+type Route = { kind: 'album' | 'playlist' | 'artist' | 'channel' | 'kept' | 'downloads' | 'settings'; id: string; key: number };
 
 /** How far down the sheet has to be pulled before letting go closes it. */
 const CLOSE_PULL = 120;
@@ -41,7 +43,7 @@ export default function MusicSheet() {
   const current = playback.Q.current(queue);
   // The queue's song is what is on, unless a song card in a chat took the player over.
   const now = current && player.song ? current : undefined;
-  const tone = useCoverTone(now?.image) ?? '112,104,136';
+  const tone = useCoverTone(downloads.useCover(now?.id, now?.image)) ?? '112,104,136';
 
   const [tab, setTab] = useState<'home' | 'library'>('home');
   const [stack, setStack] = useState<Route[]>([]);
@@ -50,7 +52,8 @@ export default function MusicSheet() {
   const [term, setTerm] = useState('');
   const [searching, setSearching] = useState(false);
   const [np, setNp] = useState(false);
-  const [actions, setActions] = useState<Song>();
+  const [actions, setActionsRaw] = useState<{ song: Song; playlist?: string }>();
+  const setActions = useCallback((song?: Song, from?: { playlist: string }) => setActionsRaw(song ? { song, ...(from ? { playlist: from.playlist } : {}) } : undefined), []);
   const [toastText, setToastText] = useState<{ text: string; n: number }>();
   const [pull, setPull] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -161,9 +164,11 @@ export default function MusicSheet() {
       },
       liked: () => push('kept', 'liked'),
       mine: (id) => push('kept', id),
+      downloads: () => (setSearching(false), push('downloads', '')),
+      settings: () => push('settings', ''),
     };
     return { open: o, more: setActions, nowId: now?.id, paused: !player.playing, toast };
-  }, [push, toast, now?.id, player.playing]);
+  }, [push, toast, now?.id, player.playing, setActions]);
 
   /* Pull the top of the sheet down to close it. */
   const onPullDown = (e: ReactPointerEvent) => {
@@ -184,7 +189,7 @@ export default function MusicSheet() {
 
   const base = searching ? <SearchView q={term} onPick={(q) => { setQuery(q); setTerm(q); }} /> : tab === 'home' ? <HomeView /> : <LibraryView />;
   const sheetStyle = { '--pm-tone': tone, transform: open ? `translateY(${pull}px)` : 'translateY(100%)', transition: pull ? 'none' : undefined } as CSSProperties;
-  const liked = actions ? lib.likes.some((l) => l.song.id === actions.id) : false;
+  const liked = actions ? lib.likes.some((l) => l.song.id === actions.song.id) : false;
 
   return (
     <Ctx.Provider value={ctx}>
@@ -278,7 +283,7 @@ export default function MusicSheet() {
                   <ChevronLeft size={24} />
                 </button>
               </div>
-              <Page route={r} />
+              <Page route={r} onGone={pop} />
             </div>
           ))}
         </div>
@@ -316,14 +321,15 @@ export default function MusicSheet() {
             <>
               <span aria-hidden className="mx-auto mb-2 block h-1 w-9 rounded-full bg-ink/15" />
               <div className="flex items-center gap-3 px-5 pb-3">
-                <Cover src={actions.image} className="size-12" />
+                <Cover src={actions.song.image} className="size-12" />
                 <span className="min-w-0">
-                  <b className="block truncate text-[15px] font-semibold">{clean(actions.name)}</b>
-                  <small className="block truncate text-[13px] text-text-secondary">{names(actions)}</small>
+                  <b className="block truncate text-[15px] font-semibold">{clean(actions.song.name)}</b>
+                  <small className="block truncate text-[13px] text-text-secondary">{names(actions.song)}</small>
                 </span>
               </div>
               <ActionList
-                song={actions}
+                song={actions.song}
+                {...(actions.playlist ? { inPlaylist: actions.playlist } : {})}
                 liked={liked}
                 playlists={lib.playlists.map((p) => ({ id: p.id, name: p.name }))}
                 done={(text) => {
@@ -331,7 +337,7 @@ export default function MusicSheet() {
                   if (text) toast(text);
                 }}
                 goArtist={goArtist}
-                send={() => void sendToChat(actions)}
+                send={() => void sendToChat(actions.song)}
               />
             </>
           )}
@@ -341,7 +347,7 @@ export default function MusicSheet() {
   );
 }
 
-function Page({ route }: { route: Route }) {
+function Page({ route, onGone }: { route: Route; onGone: () => void }) {
   switch (route.kind) {
     case 'album':
       return <AlbumView id={route.id} />;
@@ -352,40 +358,12 @@ function Page({ route }: { route: Route }) {
     case 'channel':
       return <ChannelView id={route.id} />;
     case 'kept':
-      return <KeptView which={route.id} />;
+      return <KeptView which={route.id} onGone={onGone} />;
+    case 'downloads':
+      return <DownloadsView />;
+    case 'settings':
+      return <SettingsView />;
   }
-}
-
-/** The line at the bottom: what is playing, and the one button that matters. */
-function MiniPlayer({ song, onOpen, toast }: { song: Song; onOpen: () => void; toast: (t: string) => void }) {
-  const player = useMusicPlayer();
-  const lib = library.useLibrary();
-  const liked = lib.likes.some((l) => l.song.id === song.id);
-  const length = player.length || song.secs || 0;
-  const pct = length ? Math.min(100, (player.at / length) * 100) : 0;
-  const busy = player.loading && !player.failed;
-  return (
-    <div className="absolute inset-x-2.5 bottom-[max(10px,env(safe-area-inset-bottom))] z-20">
-      <div className="relative flex h-[62px] items-center gap-3 overflow-hidden rounded-[18px] bg-[color-mix(in_srgb,rgb(var(--pm-tone))_14%,var(--color-surface))] pl-2 pr-1.5 shadow-[0_14px_34px_-18px_rgba(0,0,0,0.55)] ring-1 ring-ink/5 backdrop-blur-xl">
-        <button type="button" onClick={onOpen} aria-label="Open now playing" className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <Cover src={song.image} className="size-[46px] rounded-[11px]" />
-          <span className="min-w-0 flex-1">
-            <b className="block truncate text-[14.5px] font-semibold">{clean(song.name)}</b>
-            <small className="block truncate text-[12.5px] text-text-secondary">{names(song)}</small>
-          </span>
-        </button>
-        <button type="button" aria-label={liked ? 'Remove from Liked songs' : 'Like'} onClick={() => toast(library.toggleLike(song) ? 'Added to Liked songs' : 'Removed from Liked songs')} className="grid size-10 place-items-center rounded-full">
-          <Heart size={21} className={cn(liked && 'fill-[#e0559b] text-[#e0559b]')} />
-        </button>
-        <button type="button" aria-label={player.playing ? 'Pause' : 'Play'} onClick={playback.toggleCurrent} className="grid size-11 place-items-center rounded-full">
-          {busy ? <Loader2 size={22} className="animate-spin" /> : player.playing ? <Pause size={24} className="fill-current" /> : <Play size={24} className="ml-0.5 fill-current" />}
-        </button>
-        <span aria-hidden className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-ink/8">
-          <span className="block h-full rounded-full bg-[rgb(var(--pm-tone))]" style={{ width: `${pct}%` }} />
-        </span>
-      </div>
-    </div>
-  );
 }
 
 function ActionList({
@@ -395,8 +373,11 @@ function ActionList({
   done,
   goArtist,
   send,
+  inPlaylist,
 }: {
   song: Song;
+  /** Opened from one of your playlists: it can take the song out. */
+  inPlaylist?: string;
   liked: boolean;
   playlists: { id: string; name: string }[];
   done: (toast?: string) => void;
@@ -405,11 +386,27 @@ function ActionList({
 }) {
   const artist = song.artists[0];
   const row = 'flex w-full items-center gap-4 px-5 py-3 text-left text-[15px] active:bg-sunken';
+  const dl = downloads.useDownloads();
+  const kept = !!dl.done[song.id];
+  const coming = dl.active[song.id];
   return (
     <div>
       <button type="button" className={row} onClick={send}>
         <Send size={21} className="text-text-secondary" /> Send to chat
       </button>
+      {kept ? (
+        <button type="button" className={row} onClick={() => (void downloads.remove(song.id), done('Removed from downloads'))}>
+          <CircleMinus size={21} className="text-text-secondary" /> Remove download
+        </button>
+      ) : coming && !coming.failed ? (
+        <button type="button" className={row} onClick={() => (downloads.cancel(song.id), done('Download cancelled'))}>
+          <Loader2 size={21} className="animate-spin text-text-secondary" /> Downloading {Math.round(coming.progress * 100)}%, tap to cancel
+        </button>
+      ) : (
+        <button type="button" className={row} onClick={() => (coming?.failed ? downloads.retry(song.id) : downloads.download([song]), done('Downloading'))}>
+          <ArrowDownToLine size={21} className="text-text-secondary" /> Download
+        </button>
+      )}
       <button type="button" className={row} onClick={() => (playback.playNext([song]), done('Playing next'))}>
         <ListStart size={21} className="text-text-secondary" /> Play next
       </button>
@@ -419,7 +416,12 @@ function ActionList({
       <button type="button" className={row} onClick={() => done(library.toggleLike(song) ? 'Added to Liked songs' : 'Removed from Liked songs')}>
         <Heart size={21} className={cn(liked ? 'fill-[#e0559b] text-[#e0559b]' : 'text-text-secondary')} /> {liked ? 'Remove from Liked songs' : 'Like'}
       </button>
-      {playlists.map((p) => (
+      {inPlaylist && (
+        <button type="button" className={row} onClick={() => (library.removeFromPlaylist(inPlaylist, song.id), done('Removed from this playlist'))}>
+          <CircleMinus size={21} className="text-text-secondary" /> Remove from this playlist
+        </button>
+      )}
+      {playlists.filter((p) => p.id !== inPlaylist).map((p) => (
         <button key={p.id} type="button" className={row} onClick={() => (library.addToPlaylist(p.id, song), done(`Added to ${p.name}`))}>
           <ListPlus size={21} className="text-text-secondary" /> Add to "{p.name}"
         </button>

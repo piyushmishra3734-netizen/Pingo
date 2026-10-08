@@ -10,6 +10,15 @@ old `pingo-music` Worker (`workers/music`) is no longer called by the app;
 songs already shared in chats still play, since their links point straight at
 JioSaavn's own audio.
 
+## Downloads (offline)
+
+Downloads do not go through this Worker. The app fetches the audio straight
+from JioSaavn's CDN (`aac.saavncdn.com` allows any origin) and keeps it in its
+own IndexedDB database, `pingo-music` (`apps/web/src/features/music/saavn/downloads.ts`).
+Nothing is stored on Cloudflare or Supabase, so downloads cost nothing here.
+Opened with no internet and songs on the phone, the app shows the downloads
+page first (`OfflineMusic.tsx`).
+
 ## How it reaches JioSaavn
 
 Straight to JioSaavn's own `api.php`, through the `saavn-proxy` Edge Function

@@ -46,7 +46,7 @@ export function useMusicEverOpened(): boolean {
  */
 export function preloadMusic() {
   void import('./MusicSheet.js');
-  void Promise.all([import('../saavn/api.js'), import('../saavn/library.js'), import('../saavn/taste.js')]).then(([api, library, taste]) => {
-    void api.home(taste.homeLanguages(library.currentTaste())).catch(() => undefined);
+  void Promise.all([import('../saavn/api.js'), import('../saavn/settings.js')]).then(([api, settings]) => {
+    void api.home(settings.currentHomeLanguages()).catch(() => undefined);
   });
 }

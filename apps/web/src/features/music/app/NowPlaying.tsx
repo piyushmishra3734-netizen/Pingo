@@ -1,32 +1,36 @@
 import { cn } from '@pingo/ui';
-import { ChevronDown, Ellipsis, Heart, ListMusic, Loader2, MicVocal, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, X } from 'lucide-react';
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { Check, ChevronDown, Ellipsis, GripVertical, Heart, ListMusic, Loader2, MicVocal, Moon, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, X } from 'lucide-react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
 import { useBackStep } from '../../navigation/useBackStep.js';
 import { musicPlayer, useMusicPlayer } from '../player.js';
 import * as api from '../saavn/api.js';
+import { useCover } from '../saavn/downloads.js';
 import * as library from '../saavn/library.js';
 import * as playback from '../saavn/playback.js';
 import type { Lyrics, Song } from '../saavn/types.js';
-import { SongRow, clean, fmt, names, useLoad } from './parts.js';
+import { SongRow, clean, fmt, names, useLoad, useOffline } from './parts.js';
 
-type Panel = 'lyrics' | 'queue' | undefined;
+type Panel = 'lyrics' | 'queue' | 'sleep' | undefined;
 
 /**
  * The song playing, full screen: the cover large, the time, the controls, and
  * two panels that slide up over it, its lyrics and what plays next.
  */
-export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: boolean; onClose: () => void; onMore: (s: Song) => void; onArtist: (s: Song) => void; toast: (t: string) => void }) {
+export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: boolean; onClose: () => void; onMore?: (s: Song) => void; onArtist?: (s: Song) => void; toast: (t: string) => void }) {
   const queue = playback.useQueue();
   const player = useMusicPlayer();
   const lib = library.useLibrary();
   const [panel, setPanel] = useState<Panel>();
   const song = playback.Q.current(queue);
+  const cover = useCover(song?.id, song?.image);
+  const offline = useOffline();
+  const sleep = playback.useSleep();
   /*
    * Asked for as soon as the player is up, so the button already says whether
    * there are any. A song found by search does not always say, so every song is asked.
    */
-  const lyrics = useLoad(open && song ? `lyrics:${song.id}` : undefined, () => api.lyrics(song!.id));
+  const lyrics = useLoad(open && song && !offline ? `lyrics:${song.id}` : undefined, () => api.lyrics(song!.id));
   const noLyrics = !!lyrics.error || (!!lyrics.data && !lyrics.data.lines.some((l) => l.trim()));
 
   useBackStep(open && !panel, onClose);
@@ -48,25 +52,38 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
       )}
     >
       {/* The cover's colour, washed across the screen. */}
-      <img src={song.image} alt="" aria-hidden className="pointer-events-none absolute inset-0 size-full scale-125 object-cover opacity-30 blur-[60px] saturate-150" />
+      <img src={cover} alt="" aria-hidden className="pointer-events-none absolute inset-0 size-full scale-125 object-cover opacity-30 blur-[60px] saturate-150" />
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-surface/30 via-surface/60 to-surface" />
 
       <div className="relative flex items-center gap-2 px-3 pt-3">
         <button type="button" onClick={onClose} aria-label="Close player" className="grid size-10 place-items-center rounded-full active:bg-sunken">
           <ChevronDown size={24} />
         </button>
+        <span className="size-10" />
         <p className="min-w-0 flex-1 text-center">
           <small className="block text-[11.5px] uppercase tracking-[0.08em] text-text-secondary">Playing from</small>
           <b className="block truncate text-[13.5px] font-semibold">{queue.source.label || 'PINGO Music'}</b>
         </p>
-        <button type="button" onClick={() => onMore(song)} aria-label="More" className="grid size-10 place-items-center rounded-full active:bg-sunken">
-          <Ellipsis size={22} />
+        <button
+          type="button"
+          onClick={() => setPanel('sleep')}
+          aria-label={sleep.until || sleep.endOfSong ? 'Sleep timer on' : 'Sleep timer'}
+          className={cn('grid size-10 place-items-center rounded-full active:bg-sunken', (sleep.until || sleep.endOfSong) && 'text-[rgb(var(--pm-tone))]')}
+        >
+          <Moon size={20} className={cn((sleep.until || sleep.endOfSong) && 'fill-current')} />
         </button>
+        {onMore ? (
+          <button type="button" onClick={() => onMore(song)} aria-label="More" className="grid size-10 place-items-center rounded-full active:bg-sunken">
+            <Ellipsis size={22} />
+          </button>
+        ) : (
+          <span className="size-10" />
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-8 py-6">
         <img
-          src={song.image}
+          src={cover}
           alt=""
           draggable={false}
           className={cn(
@@ -80,7 +97,7 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-[22px] font-semibold tracking-[-0.01em]">{clean(song.name)}</h2>
-            <button type="button" onClick={() => onArtist(song)} className="block max-w-full truncate text-left text-[15px] text-text-secondary">
+            <button type="button" onClick={() => onArtist?.(song)} className="block max-w-full truncate text-left text-[15px] text-text-secondary">
               {names(song)}
             </button>
           </div>
@@ -133,7 +150,7 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
       </div>
 
       <div className="relative mb-[max(14px,env(safe-area-inset-bottom))] mt-4 flex justify-center gap-2 px-7">
-        <button
+        {!offline && <button
           type="button"
           disabled={noLyrics}
           onClick={() => setPanel('lyrics')}
@@ -141,7 +158,7 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
         >
           <MicVocal size={18} />
           {noLyrics ? 'Lyrics unsupported' : 'Lyrics'}
-        </button>
+        </button>}
         <button type="button" onClick={() => setPanel('queue')} className="flex h-10 items-center gap-2 rounded-full px-4 text-[13.5px] font-medium text-text-secondary active:bg-sunken">
           <ListMusic size={18} />
           Up next
@@ -152,7 +169,18 @@ export function NowPlaying({ open, onClose, onMore, onArtist, toast }: { open: b
         {panel === 'lyrics' && <LyricsBody lyrics={lyrics} />}
       </Sheet>
       <Sheet open={panel === 'queue'} title="Up next" onClose={() => setPanel(undefined)}>
-        {panel === 'queue' && <QueueBody onMore={onMore} />}
+        {panel === 'queue' && <QueueBody {...(onMore ? { onMore } : {})} />}
+      </Sheet>
+      <Sheet open={panel === 'sleep'} title="Sleep timer" onClose={() => setPanel(undefined)}>
+        {panel === 'sleep' && (
+          <SleepBody
+            onPick={(t) => {
+              playback.setSleep(t);
+              setPanel(undefined);
+              toast(t === undefined ? 'Sleep timer off' : t === 'end' ? 'Stopping when this song ends' : `Stopping in ${t} minutes`);
+            }}
+          />
+        )}
       </Sheet>
     </div>
   );
@@ -246,11 +274,20 @@ function LyricsBody({ lyrics: l }: { lyrics: { data?: Lyrics; error?: string; lo
   );
 }
 
-function QueueBody({ onMore }: { onMore: (s: Song) => void }) {
+function QueueBody({ onMore }: { onMore?: (s: Song) => void }) {
   const queue = playback.useQueue();
   const player = useMusicPlayer();
   const now = playback.Q.current(queue);
   const next = queue.order.slice(queue.at + 1).map((i, k) => ({ song: queue.items[i]!, orderIndex: queue.at + 1 + k }));
+  /** A row being dragged by its handle: where it started, how far it has moved, how tall a row is. */
+  const [drag, setDrag] = useState<{ from: number; y0: number; dy: number; h: number }>();
+  const to = drag ? Math.max(0, Math.min(next.length - 1, drag.from + Math.round(drag.dy / drag.h))) : -1;
+  const shift = (k: number) => {
+    if (!drag || k === drag.from) return 0;
+    if (drag.from < to && k > drag.from && k <= to) return -drag.h;
+    if (drag.from > to && k < drag.from && k >= to) return drag.h;
+    return 0;
+  };
   return (
     <div className="px-2">
       {now && (
@@ -262,16 +299,80 @@ function QueueBody({ onMore }: { onMore: (s: Song) => void }) {
       <p className="mx-3 mb-1 mt-4 text-[12.5px] font-medium text-text-secondary">
         {next.length ? `Next from ${queue.source.label || 'your queue'}` : playback.Q.isRadio(queue) ? 'Finding more like this…' : 'Nothing after this one'}
       </p>
-      {next.map(({ song, orderIndex }) => (
-        <div key={`${song.id}-${orderIndex}`} className="flex items-center">
+      {next.map(({ song, orderIndex }, k) => (
+        <div
+          key={`${song.id}-${orderIndex}`}
+          className={cn('relative flex items-center bg-surface', drag?.from === k ? 'z-10 rounded-xl shadow-[0_12px_30px_-14px_rgba(0,0,0,0.45)]' : 'transition-transform duration-200 ease-[var(--ease-standard)]')}
+          style={{ transform: `translateY(${drag?.from === k ? drag.dy : shift(k)}px)` }}
+        >
+          <span
+            aria-label={`Drag to move ${clean(song.name)}`}
+            role="button"
+            tabIndex={-1}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              const row = e.currentTarget.parentElement!;
+              setDrag({ from: k, y0: e.clientY, dy: 0, h: row.offsetHeight });
+            }}
+            onPointerMove={(e) => drag && setDrag({ ...drag, dy: e.clientY - drag.y0 })}
+            onPointerUp={() => {
+              if (drag && to !== drag.from) playback.moveInQueue(queue.at + 1 + drag.from, queue.at + 1 + to);
+              setDrag(undefined);
+            }}
+            onPointerCancel={() => setDrag(undefined)}
+            className="grid h-12 w-7 shrink-0 cursor-grab touch-none place-items-center text-text-tertiary"
+          >
+            <GripVertical size={18} />
+          </span>
           <div className="min-w-0 flex-1">
-            <SongRow song={song} onPlay={() => playback.jumpTo(orderIndex)} onMore={() => onMore(song)} />
+            <SongRow song={song} onPlay={() => playback.jumpTo(orderIndex)} {...(onMore ? { onMore: () => onMore(song) } : {})} />
           </div>
           <button type="button" aria-label={`Remove ${clean(song.name)} from the queue`} onClick={() => playback.removeFromQueue(orderIndex)} className="grid size-9 shrink-0 place-items-center rounded-full text-text-tertiary active:bg-sunken">
             <X size={16} />
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+const SLEEP: { t: number | 'end'; label: string }[] = [
+  { t: 15, label: '15 minutes' },
+  { t: 30, label: '30 minutes' },
+  { t: 45, label: '45 minutes' },
+  { t: 60, label: '1 hour' },
+  { t: 'end', label: 'End of this song' },
+];
+
+function SleepBody({ onPick }: { onPick: (t: number | 'end' | undefined) => void }) {
+  const sleep = playback.useSleep();
+  // A clock for the minutes left, while this is open.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!sleep.until) return undefined;
+    const t = window.setInterval(() => tick((n) => n + 1), 15_000);
+    return () => window.clearInterval(t);
+  }, [sleep.until]);
+  const left = sleep.until ? Math.max(1, Math.ceil((sleep.until - Date.now()) / 60_000)) : 0;
+  const on = !!sleep.until || !!sleep.endOfSong;
+  return (
+    <div className="px-2 pt-1">
+      {on && (
+        <p className="mx-3 mb-2 text-[13px] text-text-secondary">
+          {sleep.endOfSong ? 'Music stops when this song ends.' : `Music stops in ${left} ${left === 1 ? 'minute' : 'minutes'}.`}
+        </p>
+      )}
+      {SLEEP.map((o) => (
+        <button key={o.t} type="button" onClick={() => onPick(o.t)} className="flex w-full items-center rounded-xl px-3 py-3 text-left text-[15px] active:bg-sunken">
+          <span className="flex-1">{o.label}</span>
+          {o.t === 'end' && sleep.endOfSong && <Check size={18} className="text-[rgb(var(--pm-tone))]" />}
+        </button>
+      ))}
+      {on && (
+        <button type="button" onClick={() => onPick(undefined)} className="flex w-full items-center rounded-xl px-3 py-3 text-left text-[15px] text-danger active:bg-sunken">
+          Turn off
+        </button>
+      )}
     </div>
   );
 }

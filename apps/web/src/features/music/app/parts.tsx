@@ -1,8 +1,9 @@
 import { cn } from '@pingo/ui';
-import { Ellipsis, Music2 } from 'lucide-react';
+import { CircleArrowDown, Ellipsis, Loader2, Music2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { Album, Artist, Channel, Item, Playlist, Song, Station } from '../saavn/types.js';
+import { useCover, useDownloads } from '../saavn/downloads.js';
 import type { Kept } from '../saavn/library.js';
 
 /* ---------- small helpers ---------- */
@@ -134,7 +135,10 @@ export function SongRow({
   onPlay: () => void;
   onMore?: () => void;
 }) {
-  const img = 'stream' in song ? song.image : song.image;
+  const img = useCover(song.id, song.image);
+  const dl = useDownloads();
+  const kept = !!dl.done[song.id];
+  const coming = !!dl.active[song.id] && !dl.active[song.id]!.failed;
   return (
     <div className="flex items-center rounded-xl pr-1 transition-colors duration-quick active:bg-sunken">
       <button type="button" onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 px-2.5 py-1.5 text-left">
@@ -142,7 +146,11 @@ export function SongRow({
         <Cover src={img} className={big ? 'size-[58px]' : 'size-[46px]'} />
         <span className="min-w-0 flex-1">
           <b className={cn('block truncate font-medium', big ? 'text-[16px]' : 'text-[14.5px]', now && 'text-[rgb(var(--pm-tone))]')}>{clean(song.name)}</b>
-          <small className="block truncate text-[12.5px] text-text-secondary">{sub ?? names(song)}</small>
+          <small className="flex min-w-0 items-center gap-1 text-[12.5px] text-text-secondary">
+            {kept && <CircleArrowDown size={13} aria-label="Downloaded" className="shrink-0 fill-[rgb(var(--pm-tone))] text-surface" />}
+            {coming && <Loader2 size={12} aria-label="Downloading" className="shrink-0 animate-spin" />}
+            <span className="truncate">{sub ?? names(song)}</span>
+          </small>
         </span>
         {now ? <Bars paused={paused} /> : song.secs ? <span className="text-[12px] tabular-nums text-text-tertiary">{fmt(song.secs)}</span> : null}
       </button>
@@ -223,4 +231,20 @@ export function ItemTile({ item, open, small, fill, list }: { item: Item; open: 
     case 'channel':
       return <Tile {...f} img={item.image} title={item.name} sub="Mood" {...(small ? { small } : {})} onClick={() => open.channel(item)} />;
   }
+}
+
+/** Whether the phone has no connection right now. */
+export function useOffline(): boolean {
+  const [off, setOff] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false);
+  useEffect(() => {
+    const on = () => setOff(false);
+    const offline = () => setOff(true);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', offline);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', offline);
+    };
+  }, []);
+  return off;
 }

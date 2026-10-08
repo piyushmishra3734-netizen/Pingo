@@ -21,6 +21,39 @@ createRoot(container).render(
 );
 
 /*
+ * Opened with no internet, and songs on the phone: PINGO Music's downloads
+ * come up first, over the app, the way YouTube opens offline. The app itself
+ * still starts underneath, so "Open PINGO" is instant.
+ *
+ * The check is a localStorage read and the page is its own chunk, so a phone
+ * that is online, or has nothing downloaded, pays nothing for it.
+ */
+function hasMusicDownloads(): boolean {
+  try {
+    return Object.keys(JSON.parse(localStorage.getItem('pingo:music-downloads:v1') ?? '{}') as object).length > 0;
+  } catch {
+    return false;
+  }
+}
+if (navigator.onLine === false && hasMusicDownloads()) {
+  void import('./features/music/app/OfflineMusic.js').then(({ default: OfflineMusic }) => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(
+      <StrictMode>
+        <OfflineMusic
+          onClose={() => {
+            root.unmount();
+            host.remove();
+          }}
+        />
+      </StrictMode>,
+    );
+  });
+}
+
+/*
  * The OS behaviours, once the app is mounted.
  *
  * After render rather than before, because the splash is hidden in here and
