@@ -203,6 +203,19 @@ async function runTurn(
     }
 
     /*
+     * In a group, only a message that tags PINGO AI is ever answered.
+     *
+     * The app decides this before calling, and an older build once got it
+     * wrong: after one @pingoai it went on asking for a reply to everything
+     * that person said in the group. Checked here as well, on the message
+     * itself, so no client - old, buggy or otherwise - can make the assistant
+     * talk in a group nobody asked it into. Quietly: no reply, no error bubble.
+     */
+    if (isGroup && !/@pingo_?ai\b/i.test(String(body.userMessage ?? ''))) {
+      return json(request, { skipped: 'not_mentioned' });
+    }
+
+    /*
      * OpenAI (Luna), when its key is set: the whole turn is `luna.ts`.
      *
      * It loads only what the turn needs (a window of the thread, the person's

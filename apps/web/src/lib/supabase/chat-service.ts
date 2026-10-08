@@ -5229,6 +5229,14 @@ export class SupabaseChatService implements ChatService {
      * request does, and an empty pause is the one thing this is here to
      * remove.
      */
+    /*
+     * Outside its own thread, the assistant answers only a message that tags
+     * it. `sendMessage` already decides this; asked again here because this is
+     * the one door every reply goes through (sending, "try again", a call),
+     * and a group where it answered untagged messages is the bug this closes.
+     */
+    if (!mentionsPingoAi(userMessage) && !(await this.#isAiConversation(conversationId))) return;
+
     this.#setAiTyping(conversationId, true, imagePrompt(userMessage) ? 'drawing' : 'thinking');
     // Anything older than this is a message the UI already has.
     const startedAt = Date.now();

@@ -41,7 +41,7 @@ import { useSharedElement } from '../../hooks/useSharedElement.js';
 import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
-import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
+import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { useAiDraft } from '../ai/ai-draft.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
 import { useCall } from '../calls/CallProvider.js';
@@ -373,12 +373,14 @@ export function ChatThread({
       for (let i = index - 1; i >= 0; i -= 1) {
         const candidate = messages[i]!;
         if (candidate.authorId === PINGO_AI_USER_ID) continue;
+        // In a group, the question is the last message that tagged it, not whatever was said last.
+        if (conversation.kind !== 'ai' && conversation.kind !== 'direct' && !mentionsPingoAi(candidate.body)) continue;
         const body = candidate.body.trim();
         if (body) void service.regenerateAiReply?.(conversation.id, body).catch(() => undefined);
         return;
       }
     },
-    [messages, service, conversation.id],
+    [messages, service, conversation.id, conversation.kind],
   );
 
   /**
