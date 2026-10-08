@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 
 /**
  * Removes from the Android bundle what the app should not carry.
@@ -21,4 +21,19 @@ for (const path of ['PINGO.apk']) {
   await rm(new URL(path, assets), { recursive: true, force: true });
 }
 
-console.log('trimmed vision/ and PINGO.apk from the Android bundle');
+/*
+ * The previous builds' chunks `keep-old-assets.mjs` carries, so an open web tab
+ * keeps loading after a deploy. An APK only ever runs its own build: they were
+ * ~100MB of the APK for nothing.
+ */
+let carried = [];
+try {
+  carried = JSON.parse(await readFile(new URL('assets-kept.json', assets), 'utf8')).carried ?? [];
+} catch {
+  // No ledger: nothing was carried.
+}
+for (const { file } of carried) {
+  await rm(new URL(`assets/${file}`, assets), { force: true });
+}
+
+console.log(`trimmed PINGO.apk and ${carried.length} carried old chunks from the Android bundle`);
