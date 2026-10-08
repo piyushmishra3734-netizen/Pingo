@@ -40,6 +40,9 @@ let stopPlayer: (() => void) | undefined;
 /** Each follow is numbered: a slow lookup for an old song must not land after a newer one. */
 let turn = 0;
 
+/** How long their song may be missing before this one stops too. */
+const PAUSE_GRACE_MS = 4000;
+
 const keyOf = (l: Listening) => `${l.n}|${l.a}|${l.d ?? l.u ?? ''}`;
 
 /** JioSaavn's 50px cover, sent to keep presence small, asked for at 500px for the player. */
@@ -73,6 +76,15 @@ function steer(run: () => void) {
   }
 }
 
+/** Their word before this one, to tell a seek of theirs from the song simply playing on. */
+let previous: Listening | undefined;
+
+/** Whether `next` is where `last` would have got to by playing on: the same song, no seek. */
+function continues(last: Listening, next: Listening): boolean {
+  if (keyOf(last) !== keyOf(next) || last.p === undefined || last.t === undefined || next.p === undefined || next.t === undefined) return false;
+  return Math.abs(next.p - (last.p + (next.t - last.t) / 1000)) < 2.5;
+}
+
 /** Their last word that was acted on: any friend's news wakes this, and only theirs matters. */
 let seen: Listening | undefined | null = null;
 
@@ -85,18 +97,35 @@ async function follow(again = false) {
 
   // They paused, or went quiet: so does this, and waits for them.
   if (!l) {
-    // Only their song: something the person put on meanwhile is theirs to stop.
-    const s = playerState();
-    if (s.playing && playing && s.song?.url === playing.url) steer(() => musicPlayer.pause());
+    /*
+     * After a moment, not at once. Their word goes missing for a second or two
+     * when their connection blinks or reconnects, and a song stopping here
+     * every time that happens is worse than one that stops a little late when
+     * they really pause.
+     */
+    setTimeout(() => {
+      if (mine !== turn || !sync || friendListening(sync.userId)) return;
+      // Only their song: something the person put on meanwhile is theirs to stop.
+      const s = playerState();
+      if (s.playing && playing && s.song?.url === playing.url) steer(() => musicPlayer.pause());
+    }, PAUSE_GRACE_MS);
     return;
   }
 
   const key = keyOf(l);
+  const before = previous;
+  previous = l;
   if (playing?.key === key && playerState().song?.url === playing.url) {
     const s = playerState();
-    const want = positionOf(l);
+    const off = Math.abs(s.at - positionOf(l));
+    /*
+     * Moved only when they moved, or when this is far adrift. Two phones'
+     * clocks can disagree by a few seconds, and correcting by that on every
+     * word from them made the song stall to rebuffer each time.
+     */
+    const theyMoved = again || !before || !continues(before, l);
     steer(() => {
-      if (Math.abs(s.at - want) > 2.5) musicPlayer.seek(want);
+      if ((theyMoved && off > 2.5) || off > 10) musicPlayer.seek(positionOf(l));
       if (!s.playing && !s.loading) void musicPlayer.resume();
     });
     return;
@@ -149,6 +178,7 @@ export function listenAlong(userId: string, name: string) {
   stopListeningAlong();
   sync = { userId, name };
   seen = null;
+  previous = undefined;
   keep(sync);
   setSyncingWith(userId);
   stopFriends = watchFriends(() => void follow());

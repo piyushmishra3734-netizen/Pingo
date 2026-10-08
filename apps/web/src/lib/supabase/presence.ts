@@ -132,7 +132,15 @@ export class PresenceHub {
       this.#lastOnline = online;
     });
 
-    channel.on('presence', { event: 'leave' }, ({ key }) => {
+    channel.on('presence', { event: 'leave' }, ({ key, currentPresences }) => {
+      /*
+       * Saying "here" again is a leave and a join: Realtime retires the old
+       * entry for the new one. Every song change, seek and resume does it, and
+       * reading that leave as "gone" took a friend's song away for a moment,
+       * which paused anyone listening along, and blinked the green dot. Gone
+       * is when nothing of theirs is left; `sync` says the rest.
+       */
+      if (currentPresences.length) return;
       this.#handlers.onPresence(key as UserId, 'offline');
       this.#handlers.onListening(key as UserId, undefined);
     });
