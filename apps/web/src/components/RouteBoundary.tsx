@@ -60,6 +60,8 @@ const HEALTHY_MS = 30_000;
  */
 export { looksLikeMissingChunk };
 
+const isCodeCache = (name: string) => name.startsWith('workbox-precache') || name === 'pingo-chunks' || name === 'pingo-shell';
+
 async function dropCachesAndReload(error?: unknown): Promise<void> {
   try {
     /*
@@ -78,9 +80,16 @@ async function dropCachesAndReload(error?: unknown): Promise<void> {
       const workers = await navigator.serviceWorker.getRegistrations();
       await Promise.all(workers.map((worker) => worker.unregister()));
     }
+    /*
+     * Only the caches that hold the app's own code: the precache, the chunks
+     * and the HTML shell. Those are what a stale build is made of. Photos,
+     * videos and fonts already seen (`pingo-media`, `pingo-fonts`) have
+     * nothing to do with a missing chunk, and they stay until the person
+     * clears them in Settings.
+     */
     if ('caches' in window) {
       const names = await caches.keys();
-      await Promise.all(names.map((name) => caches.delete(name)));
+      await Promise.all(names.filter(isCodeCache).map((name) => caches.delete(name)));
     }
   } catch {
     // Reload anyway. A refusal to clear one cache is not a reason to leave

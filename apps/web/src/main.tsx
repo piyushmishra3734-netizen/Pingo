@@ -107,12 +107,20 @@ void requestPersistentStorage();
  * script tag injected at build time into the same index.html both platforms
  * load. Tearing it down here also cleans up after any build installed before
  * this ran.
+ *
+ * Its caches go with it, and only when there was a worker to remove: they are
+ * the worker's copy of the app. Nothing is cleared on an ordinary launch, and
+ * nothing that is not the app's own code is cleared at all. What somebody
+ * downloaded or has already seen stays until they clear it themselves, in
+ * Settings > Storage.
  */
 if (Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
-  void navigator.serviceWorker.getRegistrations().then((all) => {
-    for (const registration of all) void registration.unregister();
-  });
-  void caches?.keys().then((keys) => {
-    for (const key of keys) void caches.delete(key);
+  void navigator.serviceWorker.getRegistrations().then(async (all) => {
+    if (!all.length) return;
+    await Promise.all(all.map((registration) => registration.unregister()));
+    const keys = (await caches?.keys().catch(() => [] as string[])) ?? [];
+    for (const key of keys) {
+      if (key.startsWith('workbox-precache') || key === 'pingo-chunks' || key === 'pingo-shell') void caches.delete(key);
+    }
   });
 }
