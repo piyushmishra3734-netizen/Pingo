@@ -113,3 +113,22 @@
   color: var(--paper-doodle);
   pointer-events: none;
 }
+
+/*
+ * The paper's colours without its ground: for a single note laid over another
+ * screen (the listen-along card in a chat), where painting the whole wash and
+ * grain behind it would be a second page.
+ */
+.paper-vars {
+  --paper-note: #fffdf8;
+  --paper-marker: #ffd84d;
+  --paper-tape: rgba(139, 93, 255, 0.22);
+  --paper-shadow: 0 10px 22px -12px rgba(60, 40, 20, 0.4);
+}
+
+:root[data-theme='dark'] .paper-vars {
+  --paper-note: #1f1c25;
+  --paper-marker: #8b5dff;
+  --paper-tape: rgba(224, 85, 155, 0.45);
+  --paper-shadow: 0 12px 26px -12px rgba(0, 0, 0, 0.75);
+}

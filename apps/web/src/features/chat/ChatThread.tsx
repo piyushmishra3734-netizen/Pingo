@@ -89,7 +89,8 @@ import { DisappearingSheet } from './DisappearingSheet.js';
 import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
-import { ListenAlongButton, ListenAlongLine, listenAlongClick, useListenAlongLine } from '../music/ListenAlongLine.js';
+import { ListenAlongBar } from '../music/ListenAlongBar.js';
+import { Headphones } from 'lucide-react';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -1199,7 +1200,6 @@ export function ChatThread({
     (m) => m.id !== currentUser?.id && m.presence.state === 'online',
   ).length;
   const partnerListening = useListening(!isGroup && !isAi ? partner?.id : undefined);
-  const listenLine = useListenAlongLine(!isGroup && !isAi ? partner?.id : undefined, partner?.name ?? '', currentUser?.id);
   const headerLive = isAi || partner?.presence.state === 'online' || Boolean(partnerListening);
   const headerStatus = isGroup
     ? `${members.length} members${onlineOthers ? `, ${onlineOthers} online` : ''}`
@@ -1466,10 +1466,7 @@ export function ChatThread({
         )}
         <button
           type="button"
-          onClick={(event) => {
-            if (partner && listenAlongClick(event, partner.id, partner.name)) return;
-            openInfo();
-          }}
+          onClick={openInfo}
           aria-label={`${conversation.title}, info`}
           className={cn(
             'lq-glass-water mx-auto flex min-w-0 max-w-full flex-col items-center justify-center rounded-full px-5 py-1.5',
@@ -1497,16 +1494,12 @@ export function ChatThread({
               )}
             </span>
           ) : (
-            listenLine ? (
-              <ListenAlongLine state={listenLine} />
-            ) : (
-              <span className={cn('max-w-full truncate text-[12.5px]', headerLive ? 'text-brand' : 'text-text-secondary')}>
-                {headerStatus}
-              </span>
-            )
+            <span className={cn('flex max-w-full items-center gap-1 text-[12.5px]', headerLive ? 'text-brand' : 'text-text-secondary')}>
+              {partnerListening && <Headphones size={12} strokeWidth={2.4} className="shrink-0" aria-hidden />}
+              <span className="truncate">{headerStatus}</span>
+            </span>
           )}
         </button>
-        {partner && listenLine && <ListenAlongButton state={listenLine} userId={partner.id} name={partner.name} />}
         {/* The capsule opens the info page; the face opens the person's profile. */}
         <button
           type="button"
@@ -1534,6 +1527,10 @@ export function ChatThread({
         </>
       )}
       </header>
+
+      {partner && !isGroup && !isAi && !callNotice && (
+        <ListenAlongBar userId={partner.id} name={partner.name} myId={currentUser?.id} top={chrome.top} />
+      )}
 
       {callNotice && (
         <p
