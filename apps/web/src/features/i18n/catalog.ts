@@ -413,6 +413,13 @@ const en = {
   'notif.permTurnOn': 'Turn on',
   'notif.permDeniedNote':
     'Your browser is blocking notifications for this site. Turn them back on in its site settings, nothing here can override that.',
+  'notif.groupBackground': 'Background',
+  'notif.background': 'Run in background',
+  'notif.backgroundOn': 'Allowed',
+  'notif.backgroundOff': 'Allow',
+  'notif.backgroundNote':
+    'Lets messages arrive on time and music keep playing with the screen off. Some phones also need Autostart turned on in the app settings.',
+  'notif.backgroundSettings': 'Battery and autostart settings',
   'notif.groupMute': 'Mute',
   'notif.muteAll': 'Mute all',
   'notif.muteAllHint': 'Silences everything below.',

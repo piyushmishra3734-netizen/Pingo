@@ -185,6 +185,15 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
+        Asking to be left out of battery optimisation, with the system's own
+        one-tap dialog. Without it many phones stop PINGO soon after it leaves
+        the screen: late messages, music that stops with the screen. See
+        BackgroundPlugin.java. PINGO is not on the Play Store, whose policy
+        limits this permission; it is installed from its own site.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!--
         Declared optional so the app stays installable on a device without one.
         The default for a CAMERA permission is required=true, which would hide
         PINGO from tablets that have no rear camera.

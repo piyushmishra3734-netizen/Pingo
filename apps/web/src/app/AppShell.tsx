@@ -10,6 +10,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Dock } from './Dock.js';
 import { MusicIsland } from '../features/music/MusicIsland.js';
 import { MusicSheetHost } from '../features/music/app/MusicSheetHost.js';
+import { BackgroundPrompt } from '../features/native/BackgroundPrompt.js';
 import { StoryMentionRelay } from '../features/stories/StoryMentionRelay.js';
 import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
@@ -235,6 +236,8 @@ export function AppShell() {
       <MusicIsland />
       {/* PINGO Music: loaded the first time somebody opens it. */}
       <MusicSheetHost />
+      {/* Android only: asks once to keep running in the background. */}
+      <BackgroundPrompt />
       <main
         className={cn(
           'min-h-0 flex-1',

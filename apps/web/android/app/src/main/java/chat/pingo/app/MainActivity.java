@@ -166,6 +166,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VideoTranscodePlugin.class);
         registerPlugin(CallAudioPlugin.class);
         registerPlugin(SecureScreenPlugin.class);
+        registerPlugin(BackgroundPlugin.class);
 
         super.onCreate(savedInstanceState);
 

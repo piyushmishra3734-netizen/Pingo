@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChoiceRow, Group, InfoRow, SettingsPage, ToggleRow } from '../../features/settings/controls.js';
 import { usePreferences } from '../../features/settings/SettingsContext.js';
 import { useT } from '../../features/i18n/useT.js';
+import { askBackground, canAskBackground, openBackgroundSettings, useBackgroundStatus } from '../../features/native/background.js';
 
 
 /**
@@ -32,6 +33,8 @@ export function NotificationsScreen() {
     if ('Notification' in window) setPermission(Notification.permission);
   }, []);
 
+  const background = useBackgroundStatus();
+
   const ask = async () => {
     if (!('Notification' in window)) return;
     setPermission(await Notification.requestPermission());
@@ -52,6 +55,17 @@ export function NotificationsScreen() {
             value={permission === 'default' ? t('notif.permTurnOn') : undefined}
             {...(permission === 'default' ? { onClick: () => void ask() } : {})}
           />
+        </Group>
+      )}
+
+      {canAskBackground() && background && (
+        <Group title={t('notif.groupBackground')} note={t('notif.backgroundNote')}>
+          <InfoRow
+            label={t('notif.background')}
+            value={background.unrestricted ? t('notif.backgroundOn') : t('notif.backgroundOff')}
+            {...(background.unrestricted ? {} : { onClick: () => void askBackground() })}
+          />
+          <InfoRow label={t('notif.backgroundSettings')} onClick={() => void openBackgroundSettings()} />
         </Group>
       )}
 
