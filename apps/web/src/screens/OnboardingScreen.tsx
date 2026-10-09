@@ -46,9 +46,9 @@ export function OnboardingScreen() {
   useEffect(
     () =>
       applyPageSeo({
-        title: 'Welcome to PINGO. Private messaging',
+        title: 'PINGO: chats, calls and stories with your friends',
         description:
-          'Welcome to PINGO. Private, fast, beautiful messaging. Get started free.',
+          'PINGO is a messaging app for you and your friends: chats, calls, stories and music. No ads.',
         path: '/welcome',
       }),
     [],
@@ -76,14 +76,10 @@ export function OnboardingScreen() {
         </div>
 
         <h1
-          className="funnel-enter mt-9 text-[44px] font-bold leading-[0.98] tracking-[-0.04em] text-ink"
+          className="funnel-enter mt-9 text-[42px] font-medium leading-[1.02] tracking-[-0.03em] text-balance text-ink"
           style={{ animationDelay: '30ms' }}
         >
-          your people.
-          <br />
-          your <span className="paper-marker">lore.</span>
-          <br />
-          your space.
+          Your friends, all in <span className="paper-marker">one place.</span>
         </h1>
 
         <p
@@ -100,7 +96,7 @@ export function OnboardingScreen() {
           <span className="paper-tape left-[84px] -top-[11px] w-[76px] rotate-3" aria-hidden />
           <p className="flex items-center gap-2.5 text-[14.5px] font-semibold text-ink">
             <ShieldCheck size={18} aria-hidden />
-            no ads. no spam. no selling you.
+            No ads, no spam, nothing sold.
           </p>
           <p className="paper-hand mt-1 text-[21px] leading-tight">just your people</p>
         </div>
