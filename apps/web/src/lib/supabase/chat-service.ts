@@ -1101,6 +1101,19 @@ export class SupabaseChatService implements ChatService {
 
   #emit(event: ChatEvent): void {
     /*
+     * PINGO AI's real reply has landed: the bubble being written and the
+     * "typing" line go at once. They used to wait for the turn's clean-up
+     * (two reads after the stream), and in that gap the writing animation
+     * kept looping under a reply that was already on screen.
+     */
+    if (event.type === 'message:new' && event.message.authorId === PINGO_AI_USER_ID) {
+      clearAiDraft(event.message.conversationId);
+      if (this.#liveTyping.get(event.message.conversationId)?.userIds.includes(PINGO_AI_USER_ID)) {
+        this.#liveTyping.delete(event.message.conversationId);
+        this.#listeners.forEach((l) => l({ type: 'typing:changed', conversationId: event.message.conversationId, userIds: [], activity: 'typing' }));
+      }
+    }
+    /*
      * Anything that changes a thread retires its shared newest page first, so
      * no caller is handed an answer from before the change - see
      * `#newestPages`. Before the listeners, because the thread's reconnect
@@ -5268,7 +5281,7 @@ export class SupabaseChatService implements ChatService {
       const streamed = await this.#streamAiChat(
         conversationId,
         userMessage.slice(0, 4000),
-        (stage) => this.#setAiTyping(conversationId, true, stage),
+        (stage) => ((stage as string) === 'done' ? this.#setAiTyping(conversationId, false) : this.#setAiTyping(conversationId, true, stage)),
         spoken,
         onSentence,
       ).catch((cause) => {
@@ -5436,6 +5449,8 @@ export class SupabaseChatService implements ChatService {
           finished = true;
           const failed = event.payload?.error && !event.payload.messageId;
           if (failed) throw new Error(String(event.payload?.error));
+          // Written: no more "thinking" or "typing", whatever the reads after this take.
+          onStage('done' as ChatActivity);
         }
       }
     }

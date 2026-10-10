@@ -43,6 +43,7 @@ import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { useAiDraft } from '../ai/ai-draft.js';
+import { AiStatus } from '../ai/AiStatus.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
 import { useCall } from '../calls/CallProvider.js';
 import { useMutuals } from '../profile/useMutuals.js';
@@ -1937,11 +1938,14 @@ export function ChatThread({
             const typer = users.find((u) => u.id === conversation.typingUserIds[0]);
             return isAi ? null : <Avatar name={typer?.name ?? conversation.title} id={typer?.id ?? conversation.id} src={typer?.avatarUrl ?? conversation.avatarUrl} size="xs" />;
           })()}
-          <div className="lq-glass-water lq-read flex h-9 items-center rounded-[18px] px-3.5 text-caption">
-            {aiStage ? <AiActivity label={`${AI_STAGES[aiStage]}…`} />
-              : isRecording ? <RecordingPulse size={18} />
+          {aiStage ? (
+            <AiStatus stage={aiStage} />
+          ) : (
+            <div className="lq-glass-water lq-read flex h-9 items-center rounded-[18px] px-3.5 text-caption">
+              {isRecording ? <RecordingPulse size={18} />
                 : <span className="ig-typing" aria-label={typingLabel || 'typing'}><i /><i /><i /></span>}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
