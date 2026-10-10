@@ -44,7 +44,7 @@ interface UseMessagesResult {
  * is decided by comparing the page's length against it - a caller that does not
  * know the size cannot tell a short page from a full one.
  */
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 40;
 
 /**
  * Folds a fetched page into what the thread already holds, by id.

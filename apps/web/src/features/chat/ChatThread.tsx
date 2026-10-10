@@ -231,6 +231,9 @@ function RecordingPulse({ size = 12 }: { size?: number }) {
   );
 }
 
+/** Messages drawn at once, and how many more each reach of the top adds. */
+const WINDOW = 40;
+
 export function ChatThread({
   conversation,
   showBack = false,
@@ -326,6 +329,32 @@ export function ChatThread({
     send,
     sendSticker,
   } = useMessages(conversation.id);
+  /*
+   * Only the newest messages are drawn: 40, and 40 more each time the reader
+   * reaches the top. A long thread used to put every bubble it had loaded on
+   * the page, and every send redrew all of them (twice: once optimistic, once
+   * confirmed), which is what made the composer lag after a lot of chatting.
+   * The rest stay in memory and come back from there, not from the server.
+   */
+  const [shown, setShown] = useState(WINDOW);
+  useEffect(() => setShown(WINDOW), [conversation.id]);
+  const visibleGroups = useMemo(() => {
+    let count = 0;
+    let start = groups.length;
+    while (start > 0 && count < shown) {
+      start -= 1;
+      count += groups[start]!.length;
+    }
+    if (start === 0 && count <= shown) return groups;
+    // One person's long run is one group: cut inside it, keeping its newest messages.
+    const first = groups[start]!;
+    const over = count - shown;
+    return over > 0 ? [first.slice(over), ...groups.slice(start + 1)] : groups.slice(start);
+  }, [groups, shown]);
+  const hiddenGroups = groups.reduce((n, g) => n + g.length, 0) - visibleGroups.reduce((n, g) => n + g.length, 0);
+  const hiddenRef = useRef(0);
+  hiddenRef.current = hiddenGroups;
+  const [growing, setGrowing] = useState(false);
   // Nicknames are messages; whatever this thread has loaded is learned (see nicknames.ts).
   useEffect(() => learnNicknames(conversation.id, messages), [conversation.id, messages]);
   const { startCall, startGroupCall, joinGroupCall, call: activeCall } = useCall();
@@ -613,7 +642,14 @@ export function ChatThread({
   const jumpTo = useCallback(
     (messageId: string) => {
       const target = document.getElementById(`message-${messageId}`);
-      if (!target) return;
+      if (!target) {
+        // Further back than what is drawn: draw everything held, then look again.
+        if (hiddenRef.current > 0) {
+          setShown(Number.MAX_SAFE_INTEGER);
+          requestAnimationFrame(() => requestAnimationFrame(() => jumpTo(messageId)));
+        }
+        return;
+      }
       target.scrollIntoView({
         behavior: prefersReducedMotion() ? 'auto' : 'smooth',
         block: 'center',
@@ -985,7 +1021,9 @@ export function ChatThread({
           clientHeight: el.clientHeight,
         })
       ) {
-        void loadOlder();
+        // What is already held comes first; the server only once it runs out.
+        if (hiddenRef.current > 0) setGrowing(true);
+        else void loadOlder();
       }
     };
 
@@ -1004,17 +1042,23 @@ export function ChatThread({
    * anchor is the distance from the *bottom*, which prepending does not change.
    */
   const anchorRef = useRef<number | undefined>(undefined);
-  if (loadingOlder && anchorRef.current === undefined && scrollRef.current) {
+  if ((loadingOlder || growing) && anchorRef.current === undefined && scrollRef.current) {
     anchorRef.current = scrollRef.current.scrollHeight - scrollRef.current.scrollTop;
   }
+  // The anchor is taken above, in this render; the window grows after it.
+  useEffect(() => {
+    if (!growing) return;
+    setShown((n) => n + WINDOW);
+    setGrowing(false);
+  }, [growing]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     const anchor = anchorRef.current;
-    if (!el || anchor === undefined || loadingOlder) return;
+    if (!el || anchor === undefined || loadingOlder || growing) return;
     el.scrollTop = el.scrollHeight - anchor;
     anchorRef.current = undefined;
-  }, [loadingOlder, messages.length]);
+  }, [loadingOlder, growing, messages.length, visibleGroups.length]);
 
   /*
    * Reading a thread is what clears its unread count, and what tells the other
@@ -1179,14 +1223,14 @@ export function ChatThread({
    */
   const clustersWithDividers = useMemo(() => {
     let lastDay: string | undefined;
-    return groups.map((cluster) => {
+    return visibleGroups.map((cluster) => {
       const first = cluster[0]!;
       const day = formatDayDivider(first.createdAt);
       const divider = day === lastDay ? undefined : day;
       lastDay = day;
       return { cluster, divider };
     });
-  }, [groups]);
+  }, [visibleGroups]);
 
   const presenceLine = isAi
     ? 'Always here'
@@ -1570,7 +1614,7 @@ export function ChatThread({
               fetched, or the actual beginning of the conversation. Without it,
               a thread that stops scrolling looks identical to one that ran out.
             */}
-            {hasOlder ? (
+            {hasOlder || hiddenGroups > 0 ? (
               <div className="flex justify-center py-3">
                 {loadingOlder && <PingoDot state="loading" size={5} label="Loading earlier messages" />}
               </div>
