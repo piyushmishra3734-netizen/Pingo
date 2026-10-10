@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { Check, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -23,24 +23,19 @@ export const AI_STAGES = {
 
 export type AiStage = keyof typeof AI_STAGES;
 
-/** The short words for a step already done, in the trail. */
-const DONE: Record<AiStage, string> = {
-  remembering: 'Saved',
-  reading: 'Read',
-  thinking: 'Thought',
-  reconsidering: 'Rechecked',
-  reading_reply: 'Checked',
-  polishing: 'Tidied',
-  drawing: 'Drew',
-  uploading: 'Sent',
-  writing: 'Wrote',
-};
-
 export function AiStatus({ stage }: { stage: AiStage }) {
-  // The steps of this one turn, in order. A new turn starts from nothing, because the card unmounts between turns.
-  const [trail, setTrail] = useState<AiStage[]>([stage]);
+  /*
+   * One bubble, Gemini's way: when the step changes, the old words roll up
+   * and out and the new ones roll up into their place.
+   */
+  const [prev, setPrev] = useState<AiStage>();
+  const last = useRef(stage);
   useEffect(() => {
-    setTrail((t) => (t[t.length - 1] === stage ? t : [...t.filter((s) => s !== stage), stage]));
+    if (last.current === stage) return undefined;
+    setPrev(last.current);
+    last.current = stage;
+    const t = window.setTimeout(() => setPrev(undefined), 450);
+    return () => window.clearTimeout(t);
   }, [stage]);
 
   const started = useRef(Date.now());
@@ -50,7 +45,6 @@ export function AiStatus({ stage }: { stage: AiStage }) {
     return () => window.clearInterval(id);
   }, []);
 
-  const done = trail.slice(0, -1);
 
   /*
    * Drawn where the reply will be, as the reply's own bubble: the same shape
@@ -59,12 +53,6 @@ export function AiStatus({ stage }: { stage: AiStage }) {
    */
   return (
     <div role="status" className="ai-status flex max-w-[78%] flex-col gap-1">
-      {done.length > 0 && (
-        <span className="ai-status-done flex items-center gap-1 whitespace-nowrap pl-1 text-[11.5px] text-text-tertiary">
-          <Check size={11} strokeWidth={3} className="text-brand" aria-hidden />
-          {done.map((s) => DONE[s]).join(' · ')}
-        </span>
-      )}
       {/*
         Gemini's way: a light in the person's own accent running round the
         bubble's edge, with a soft glow under it, and the spark inside turning.
@@ -74,17 +62,25 @@ export function AiStatus({ stage }: { stage: AiStage }) {
         <span className="relative grid size-[18px] shrink-0 place-items-center">
           <Sparkles size={17} strokeWidth={2} className="ai-spark absolute text-brand" aria-hidden />
         </span>
-        <span
-          key={`l-${stage}`}
-          className={cn(
-            'ai-status-label whitespace-nowrap text-[14.5px]',
-            'bg-clip-text text-transparent',
-            'bg-[linear-gradient(100deg,var(--color-text-secondary)_30%,var(--color-ink)_50%,var(--color-text-secondary)_70%)]',
-            'bg-[length:220%_100%]',
-            'motion-reduce:bg-none motion-reduce:text-text-secondary',
+        <span className="ai-roll relative grid overflow-hidden">
+          {prev && (
+            <span key={`o-${prev}`} aria-hidden className="ai-roll-out col-start-1 row-start-1 whitespace-nowrap text-[14.5px] text-text-secondary">
+              {AI_STAGES[prev]}
+            </span>
           )}
-        >
-          {AI_STAGES[stage]}
+          <span
+            key={`l-${stage}`}
+            className={cn(
+              'col-start-1 row-start-1 whitespace-nowrap text-[14.5px]',
+              prev ? 'ai-roll-in' : 'ai-status-label',
+              'bg-clip-text text-transparent',
+              'bg-[linear-gradient(100deg,var(--color-text-secondary)_30%,var(--color-ink)_50%,var(--color-text-secondary)_70%)]',
+              'bg-[length:220%_100%]',
+              'motion-reduce:bg-none motion-reduce:text-text-secondary',
+            )}
+          >
+            {AI_STAGES[stage]}
+          </span>
         </span>
         {secs >= 2 && <span className="text-[12px] tabular-nums text-text-tertiary">{secs}s</span>}
       </span>
@@ -105,8 +101,12 @@ export function AiStatus({ stage }: { stage: AiStage }) {
 .ai-status-icon, .ai-status-label { animation: ai-status-swap .28s var(--ease-standard, ease-out) both; }
 .ai-status-label { animation: ai-status-swap .28s var(--ease-standard, ease-out) both, ai-sweep 2.2s linear infinite; }
 @keyframes ai-status-swap { from { opacity: 0; transform: translateY(4px); } }
-.ai-status-done { animation: ai-status-swap .3s var(--ease-standard, ease-out) both; }
-@media (prefers-reduced-motion: reduce) { .ai-status, .ai-status-ring, .ai-glow, .ai-glow::before, .ai-spark, .ai-status-icon, .ai-status-label, .ai-status-done { animation: none !important; } }
+.ai-roll { transition: width .3s var(--ease-standard, ease-out); }
+.ai-roll-out { animation: ai-roll-out .42s var(--ease-standard, ease-out) both; }
+.ai-roll-in { animation: ai-roll-in .42s var(--ease-standard, ease-out) both, ai-sweep 2.2s linear .42s infinite; }
+@keyframes ai-roll-out { to { transform: translateY(-110%); opacity: 0; filter: blur(2px); } }
+@keyframes ai-roll-in { from { transform: translateY(110%); opacity: 0; filter: blur(2px); } }
+@media (prefers-reduced-motion: reduce) { .ai-status, .ai-status-ring, .ai-glow, .ai-glow::before, .ai-spark, .ai-status-icon, .ai-status-label, .ai-roll-out, .ai-roll-in { animation: none !important; } }
 `}</style>
     </div>
   );
