@@ -63,47 +63,36 @@ export function AiStatus({ stage }: { stage: AiStage }) {
   }, []);
 
   const Icon = ICONS[stage];
-  const done = trail.slice(0, -1).slice(-2);
+  const done = trail.slice(0, -1);
 
+  /*
+   * Drawn where the reply will be, as the reply's own bubble: the same shape
+   * and place, so when the words start they take over this bubble instead of
+   * a card leaving and a bubble arriving.
+   */
   return (
-    <div
-      role="status"
-      className="ai-status lq-glass-water lq-read flex items-center gap-2.5 rounded-[20px] py-1.5 pr-3.5 pl-1.5"
-    >
-      <span className="relative grid size-8 shrink-0 place-items-center">
-        <span aria-hidden className="ai-status-ring absolute inset-0 rounded-full" />
-        <img src="/pingo-avatar.png" alt="" className="relative size-7 rounded-full object-cover" draggable={false} />
-        <span className="absolute -right-1 -bottom-1 grid size-[18px] place-items-center rounded-full bg-brand text-on-brand shadow-[0_0_0_2px_var(--color-surface)]">
-          <Icon key={stage} size={11} strokeWidth={2.6} className="ai-status-icon" aria-hidden />
+    <div role="status" className="ai-status flex max-w-[78%] flex-col gap-1">
+      {done.length > 0 && (
+        <span className="ai-status-done flex items-center gap-1 whitespace-nowrap pl-1 text-[11.5px] text-text-tertiary">
+          <Check size={11} strokeWidth={3} className="text-brand" aria-hidden />
+          {done.map((s) => DONE[s]).join(' · ')}
         </span>
-      </span>
-
-      <span className="flex min-w-0 flex-col leading-tight">
-        <span className="flex items-center gap-1.5">
-          <span
-            key={stage}
-            className={cn(
-              'ai-status-label truncate text-[13.5px] font-medium',
-              'bg-clip-text text-transparent',
-              'bg-[linear-gradient(100deg,var(--color-ink)_30%,var(--color-brand)_50%,var(--color-ink)_70%)]',
-              'bg-[length:220%_100%] animate-ai-sweep',
-              'motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-ink',
-            )}
-          >
-            {AI_STAGES[stage]}
-          </span>
-          {secs >= 2 && <span className="text-[11.5px] tabular-nums text-text-tertiary">{secs}s</span>}
+      )}
+      <span className="flex w-fit items-center gap-2 rounded-[20px] rounded-bl-[6px] border border-line bg-surface px-3.5 py-2.5">
+        <Icon key={`i-${stage}`} size={15} strokeWidth={2.2} className="ai-status-icon shrink-0 text-brand" aria-hidden />
+        <span
+          key={`l-${stage}`}
+          className={cn(
+            'ai-status-label whitespace-nowrap text-[14.5px]',
+            'bg-clip-text text-transparent',
+            'bg-[linear-gradient(100deg,var(--color-text-secondary)_30%,var(--color-ink)_50%,var(--color-text-secondary)_70%)]',
+            'bg-[length:220%_100%]',
+            'motion-reduce:bg-none motion-reduce:text-text-secondary',
+          )}
+        >
+          {AI_STAGES[stage]}
         </span>
-        {done.length > 0 && (
-          <span className="mt-0.5 flex items-center gap-2 text-[11px] text-text-tertiary">
-            {done.map((s) => (
-              <span key={s} className="ai-status-done inline-flex items-center gap-0.5">
-                <Check size={10} strokeWidth={3} className="text-brand" aria-hidden />
-                {DONE[s]}
-              </span>
-            ))}
-          </span>
-        )}
+        {secs >= 2 && <span className="text-[12px] tabular-nums text-text-tertiary">{secs}s</span>}
       </span>
       <span className="sr-only">PINGO AI: {AI_STAGES[stage]}.</span>
 

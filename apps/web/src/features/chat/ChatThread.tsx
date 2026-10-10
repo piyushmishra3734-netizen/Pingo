@@ -1874,6 +1874,13 @@ export function ChatThread({
               the message will be, growing as the words arrive, replaced by the
               real one the moment it lands.
             */}
+            {/* PINGO AI at work: a bubble in the reply's own place, which the reply then fills. */}
+            {aiStage && !aiDraft && (
+              <div className="mt-1">
+                <AiStatus stage={aiStage} />
+              </div>
+            )}
+
             {aiDraft && (
               <div className="mt-1" aria-live="polite">
                 <MessageBubble
@@ -1932,20 +1939,16 @@ export function ChatThread({
         it, the thread grew and shrank each time somebody started or stopped, and
         everything on screen moved with it. The thread keeps room for it always.
       */}
-      {isTyping && !aiDraft && (
+      {isTyping && !aiDraft && !aiStage && (
         <div className="animate-fade-in pointer-events-none absolute left-3 z-[96] flex items-end gap-2" style={{ bottom: chrome.bottom + 6 }} aria-live="polite">
           {(() => {
             const typer = users.find((u) => u.id === conversation.typingUserIds[0]);
             return isAi ? null : <Avatar name={typer?.name ?? conversation.title} id={typer?.id ?? conversation.id} src={typer?.avatarUrl ?? conversation.avatarUrl} size="xs" />;
           })()}
-          {aiStage ? (
-            <AiStatus stage={aiStage} />
-          ) : (
-            <div className="lq-glass-water lq-read flex h-9 items-center rounded-[18px] px-3.5 text-caption">
-              {isRecording ? <RecordingPulse size={18} />
-                : <span className="ig-typing" aria-label={typingLabel || 'typing'}><i /><i /><i /></span>}
-            </div>
-          )}
+          <div className="lq-glass-water lq-read flex h-9 items-center rounded-[18px] px-3.5 text-caption">
+            {isRecording ? <RecordingPulse size={18} />
+              : <span className="ig-typing" aria-label={typingLabel || 'typing'}><i /><i /><i /></span>}
+          </div>
         </div>
       )}
 
