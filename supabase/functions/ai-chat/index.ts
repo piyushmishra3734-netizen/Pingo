@@ -355,7 +355,10 @@ async function runTurn(
           !SKIP_BODIES.includes(row.body.trim()) &&
           // Never feed format markers back into the model.
           !/<<<\s*(REPLY|ASK)\s*>>>/i.test(row.body),
-      );
+      )
+      // In a group, only what was said to PINGO AI and its replies, the last few (see luna.ts).
+      .filter((row) => !isGroup || row.sender_id === BOT_ID || /@pingo_?ai\b/i.test(String(row.body)))
+      .slice(isGroup ? -6 : 0);
 
     /*
      * Who said each line, which a group cannot do without.

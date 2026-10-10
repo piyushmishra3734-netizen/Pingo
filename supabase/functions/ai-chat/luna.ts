@@ -76,6 +76,8 @@ const WINDOW_MESSAGES = 30;
 const WINDOW_MIN = 20;
 const WINDOW_STEP = 10;
 const WINDOW_CHARS = 16_000;
+/** In a group: tagged messages and PINGO AI's replies only, this many at most. */
+const GROUP_WINDOW = 6;
 const MESSAGE_CHARS = 1_500;
 const MAX_TOOL_ROUNDS = 3;
 const MEMORY_CAP = 60;
@@ -188,9 +190,17 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
 
   /* The window: newest back, until the budget is spent. */
   const keep = typeof total === 'number' ? WINDOW_MIN + (total % WINDOW_STEP) : WINDOW_MESSAGES + 6;
-  const recent = ((rows ?? []).slice(0, keep) as { sender_id: string; body: string | null; created_at: string }[]).filter(
-    (r) => typeof r.body === 'string' && r.body.trim() && !d.skipBodies.includes(r.body.trim()) && !/<<<\s*(REPLY|ASK)\s*>>>/i.test(r.body),
-  );
+  const recent = ((rows ?? []).slice(0, keep) as { sender_id: string; body: string | null; created_at: string }[])
+    .filter(
+      (r) => typeof r.body === 'string' && r.body.trim() && !d.skipBodies.includes(r.body.trim()) && !/<<<\s*(REPLY|ASK)\s*>>>/i.test(r.body),
+    )
+    /*
+     * In a group, only what was said to PINGO AI: the messages that tag it and
+     * its own replies, and only the last few of those. Everybody else's chat is
+     * theirs, not context; sending it on every mention was most of the cost.
+     */
+    .filter((r) => !t.isGroup || r.sender_id === d.botId || /@pingo_?ai\b/i.test(r.body!))
+    .slice(0, t.isGroup ? GROUP_WINDOW : undefined);
   const oldestInView = recent.length ? recent[recent.length - 1]!.created_at : new Date().toISOString();
 
   const names = new Map<string, string>();
