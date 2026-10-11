@@ -62,16 +62,16 @@ export function AiStatus({ stage }: { stage: AiStage }) {
         <span className="relative grid size-[18px] shrink-0 place-items-center">
           <Sparkles size={17} strokeWidth={2} className="ai-spark absolute text-brand" aria-hidden />
         </span>
-        <span className="ai-roll relative grid overflow-hidden">
+        <span className="ai-roll relative grid w-[12.75rem] overflow-hidden">
           {prev && (
-            <span key={`o-${prev}`} aria-hidden className="ai-roll-out col-start-1 row-start-1 whitespace-nowrap text-[14.5px] text-text-secondary">
+            <span key={`o-${prev}`} aria-hidden className="ai-roll-out col-start-1 row-start-1 truncate whitespace-nowrap text-[14.5px] text-text-secondary">
               {AI_STAGES[prev]}
             </span>
           )}
           <span
             key={`l-${stage}`}
             className={cn(
-              'col-start-1 row-start-1 whitespace-nowrap text-[14.5px]',
+              'col-start-1 row-start-1 truncate whitespace-nowrap text-[14.5px]',
               prev ? 'ai-roll-in' : 'ai-status-label',
               'bg-clip-text text-transparent',
               'bg-[linear-gradient(100deg,var(--color-text-secondary)_30%,var(--color-ink)_50%,var(--color-text-secondary)_70%)]',
@@ -82,7 +82,7 @@ export function AiStatus({ stage }: { stage: AiStage }) {
             {AI_STAGES[stage]}
           </span>
         </span>
-        {secs >= 2 && <span className="text-[12px] tabular-nums text-text-tertiary">{secs}s</span>}
+        <span className="w-7 shrink-0 text-right text-[12px] tabular-nums text-text-tertiary">{secs >= 2 ? `${secs}s` : ''}</span>
       </span>
       </span>
       <span className="sr-only">PINGO AI: {AI_STAGES[stage]}.</span>
@@ -101,7 +101,6 @@ export function AiStatus({ stage }: { stage: AiStage }) {
 .ai-status-icon, .ai-status-label { animation: ai-status-swap .28s var(--ease-standard, ease-out) both; }
 .ai-status-label { animation: ai-status-swap .28s var(--ease-standard, ease-out) both, ai-sweep 2.2s linear infinite; }
 @keyframes ai-status-swap { from { opacity: 0; transform: translateY(4px); } }
-.ai-roll { transition: width .3s var(--ease-standard, ease-out); }
 .ai-roll-out { animation: ai-roll-out .42s var(--ease-standard, ease-out) both; }
 .ai-roll-in { animation: ai-roll-in .42s var(--ease-standard, ease-out) both, ai-sweep 2.2s linear .42s infinite; }
 @keyframes ai-roll-out { to { transform: translateY(-110%); opacity: 0; filter: blur(2px); } }
