@@ -22,6 +22,8 @@ export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
     private readonly client: PingoSupabaseClient,
     private readonly toDigits: (phone: string) => string,
     private readonly toSession: (session: Session | null) => AuthSession | null,
+    /** False for recovery: only an account already on the number signs in. */
+    private readonly create = true,
   ) {}
 
   async start(phone: string): Promise<void> {
@@ -64,7 +66,7 @@ export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
 
     const { data, error } = await this.client.functions.invoke<{ access_token?: string; refresh_token?: string }>(
       'firebase-phone-login',
-      { body: { idToken } },
+      { body: { idToken, create: this.create } },
     );
     if (error || !data?.access_token || !data.refresh_token) {
       throw new AuthError('invalid_credentials', 'That code did not work.');

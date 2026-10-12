@@ -32,7 +32,7 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
   if (request.method !== 'POST') return json({ error: 'method' }, 405);
 
-  const { idToken } = (await request.json().catch(() => ({}))) as { idToken?: string };
+  const { idToken, create = true } = (await request.json().catch(() => ({}))) as { idToken?: string; create?: boolean };
   if (typeof idToken !== 'string' || idToken.length > 4096) return json({ error: 'bad_token' }, 400);
 
   let phone: string;
@@ -60,6 +60,7 @@ Deno.serve(async (request) => {
     user = data.users.find((u) => u.phone === phone);
     if (data.users.length < 1000) break;
   }
+  if (!user && !create) return json({ error: 'no_account' }, 404);
   if (!user) {
     const { data, error } = await admin.auth.admin.createUser({ phone, phone_confirm: true });
     if (error || !data.user) return json({ error: 'create' }, 500);
