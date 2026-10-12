@@ -34,7 +34,7 @@
  * project id: they are the same string for a default project and different the
  * moment a custom auth domain exists, and deriving it would break silently.
  */
-const CONFIG = {
+export const CONFIG = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
   authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ??
     `${import.meta.env.VITE_FIREBASE_PROJECT_ID as string}.firebaseapp.com`) as string,
