@@ -1,6 +1,6 @@
 import { AuthError, type AuthSession, type PhoneOtpAuth } from '@pingo/core';
 import type { Session } from '@supabase/supabase-js';
-import type { ConfirmationResult } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import { CONFIG } from './web-push.js';
 
@@ -14,9 +14,13 @@ import { CONFIG } from './web-push.js';
  * every account, row and policy stays keyed to the Supabase user it always was.
  *
  * SMS only - Firebase has no voice codes - so "call me instead" sends a text too.
+ *
+ * In the Android app the native SDK sends it, so the SMS names the app rather
+ * than the website, and Android's own check replaces the web reCAPTCHA.
  */
 export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
-  #pending?: { phone: string; confirmation: ConfirmationResult };
+  /** The number a code went to, and how a code for it becomes a Firebase ID token. */
+  #pending?: { phone: string; confirm(code: string): Promise<string> };
   #verifier?: { clear(): void };
 
   constructor(
@@ -29,6 +33,7 @@ export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
 
   async start(phone: string): Promise<void> {
     const digits = this.toDigits(phone);
+    if (Capacitor.isNativePlatform()) return this.#startNative(digits);
     const [{ initializeApp, getApps }, { getAuth, RecaptchaVerifier, signInWithPhoneNumber }] = await Promise.all([
       import('firebase/app'),
       import('firebase/auth'),
@@ -49,7 +54,39 @@ export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
     this.#verifier = verifier;
     try {
       const confirmation = await signInWithPhoneNumber(auth, `+${digits}`, verifier);
-      this.#pending = { phone: digits, confirmation };
+      this.#pending = {
+        phone: digits,
+        confirm: async (code) => (await confirmation.confirm(code)).user.getIdToken(),
+      };
+    } catch (cause) {
+      throw firebaseError(cause);
+    }
+  }
+
+  async #startNative(digits: string): Promise<void> {
+    const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+    await FirebaseAuthentication.removeAllListeners();
+    // Android can read the SMS itself and finish without the code being typed.
+    let autoToken: string | undefined;
+    const sent = new Promise<string | undefined>((resolve, reject) => {
+      void FirebaseAuthentication.addListener('phoneCodeSent', (e) => resolve(e.verificationId));
+      void FirebaseAuthentication.addListener('phoneVerificationCompleted', async () => {
+        autoToken = (await FirebaseAuthentication.getIdToken()).token;
+        resolve(undefined);
+      });
+      void FirebaseAuthentication.addListener('phoneVerificationFailed', (e) => reject({ code: e.message }));
+    });
+    try {
+      await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: `+${digits}` });
+      const verificationId = await sent;
+      this.#pending = {
+        phone: digits,
+        confirm: async (code) => {
+          if (autoToken) return autoToken;
+          await FirebaseAuthentication.confirmVerificationCode({ verificationId: verificationId!, verificationCode: code });
+          return (await FirebaseAuthentication.getIdToken()).token;
+        },
+      };
     } catch (cause) {
       throw firebaseError(cause);
     }
@@ -62,7 +99,7 @@ export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
     }
     let idToken: string;
     try {
-      idToken = await (await pending.confirmation.confirm(code.trim())).user.getIdToken();
+      idToken = await pending.confirm(code.trim());
     } catch (cause) {
       throw firebaseError(cause);
     }
@@ -82,7 +119,11 @@ export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
     if (!session) throw new AuthError('invalid_credentials', 'That code did not work.');
     this.#pending = undefined;
     // Firebase was only the proof; the Supabase session is the sign-in.
-    void import('firebase/auth').then(({ getAuth, signOut }) => signOut(getAuth()).catch(() => {}));
+    if (Capacitor.isNativePlatform()) {
+      void import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => FirebaseAuthentication.signOut().catch(() => {}));
+    } else {
+      void import('firebase/auth').then(({ getAuth, signOut }) => signOut(getAuth()).catch(() => {}));
+    }
     return session;
   }
 

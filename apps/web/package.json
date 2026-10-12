@@ -11,6 +11,7 @@
     "check:providers": "node scripts/check-provider-order.mjs"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "8.5.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.4.2",
     "@capacitor/haptics": "^8.0.2",

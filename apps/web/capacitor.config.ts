@@ -108,6 +108,8 @@ const config: CapacitorConfig = {
   },
 
   plugins: {
+    // Login codes on Android: the native SDK, so the SMS names the app, not the website.
+    FirebaseAuthentication: { skipNativeAuth: false, providers: ['phone'] },
     /*
      * Google Sign-In, on Android.
      *
