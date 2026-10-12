@@ -17,6 +17,7 @@ import { CONFIG } from './web-push.js';
  */
 export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
   #pending?: { phone: string; confirmation: ConfirmationResult };
+  #verifier?: { clear(): void };
 
   constructor(
     private readonly client: PingoSupabaseClient,
@@ -34,20 +35,22 @@ export class FirebasePhoneOtpAuth implements PhoneOtpAuth {
     ]);
     const app = getApps()[0] ?? initializeApp(CONFIG as Record<string, string>);
     const auth = getAuth(app);
-    // Invisible: Firebase asks for a challenge only when it suspects a bot.
-    let holder = document.getElementById('pingo-recaptcha');
-    if (!holder) {
-      holder = document.createElement('div');
-      holder.id = 'pingo-recaptcha';
-      document.body.append(holder);
-    }
-    holder.replaceChildren();
+    /*
+     * Invisible: Firebase asks for a challenge only when it suspects a bot.
+     * reCAPTCHA renders once per element, so every send (a resend too) gets a
+     * fresh element and the previous widget is cleared away.
+     */
+    this.#verifier?.clear();
+    document.getElementById('pingo-recaptcha')?.remove();
+    const holder = document.createElement('div');
+    holder.id = 'pingo-recaptcha';
+    document.body.append(holder);
     const verifier = new RecaptchaVerifier(auth, holder, { size: 'invisible' });
+    this.#verifier = verifier;
     try {
       const confirmation = await signInWithPhoneNumber(auth, `+${digits}`, verifier);
       this.#pending = { phone: digits, confirmation };
     } catch (cause) {
-      verifier.clear();
       throw firebaseError(cause);
     }
   }
