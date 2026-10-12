@@ -1,11 +1,12 @@
 import { AuthError, useAuth } from '@pingo/core';
 import { Button } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { CodeBoxes } from '../../features/auth/CodeBoxes.js';
-import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
+import { CodeResend } from '../../features/auth/CodeResend.js';
+import { OtpLimitError, otpStatus, type OtpChannel, type OtpQuota } from '../../features/auth/otp-quota.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
 import { authErrorMessage } from '../../features/auth/messages.js';
 import { useT } from '../../features/i18n/useT.js';
@@ -36,7 +37,7 @@ import { SIGNUP_PROGRESS } from './progress.js';
 /** Long enough for the first message to arrive or not. */
 const RESEND_SECONDS = 30;
 
-/** What 2Factor sends. Anything else is a typo, not a code. */
+/** What Twilio sends. Anything else is a typo, not a code. */
 const CODE_LENGTH = 6;
 
 /**
@@ -59,6 +60,14 @@ export function SignUpPhoneCodeScreen() {
   const [expiresAt, setExpiresAt] = useState(() => Date.now() + CODE_LIFETIME_MS);
   const [now, setNow] = useState(() => Date.now());
   const inputRef = useRef<HTMLInputElement>(null);
+  // The first code went by SMS (the phone screen asked for it); what is left is read from the server.
+  const location = useLocation();
+  const [via, setVia] = useState<OtpChannel>(() => ((location.state as { via?: OtpChannel } | null)?.via === 'call' ? 'call' : 'sms'));
+  const [quota, setQuota] = useState<OtpQuota>();
+  const [busy, setBusy] = useState<OtpChannel>();
+  useEffect(() => {
+    if (identity?.kind === 'phone') void otpStatus(identity.value).then((q) => q && setQuota(q));
+  }, [identity]);
 
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now()), 500);
@@ -107,29 +116,38 @@ export function SignUpPhoneCodeScreen() {
     }
   };
 
-  const resend = async () => {
+  const resend = async (channel: OtpChannel) => {
     setError(undefined);
-    setWaitFor(RESEND_SECONDS);
-    setCode('');
-    setExpiresAt(Date.now() + CODE_LIFETIME_MS);
+    setBusy(channel);
     try {
-      await service.phoneOtp.start(identity.value);
+      await service.phoneOtp.start(identity.value, channel);
+      setVia(channel);
+      setCode('');
+      setExpiresAt(Date.now() + CODE_LIFETIME_MS);
+      setQuota((q) => (q ? { ...q, left: { ...q.left, [channel]: Math.max(0, q.left[channel] - 1) } } : q));
     } catch (cause) {
-      // The timer still runs: a failed send is not a reason to let somebody
-      // spend four more in the next ten seconds.
+      if (cause instanceof OtpLimitError) setQuota(cause.quota);
       setError(
-        cause instanceof AuthError
-          ? authErrorMessage(cause, 'signIn')
-          : 'That did not send. Try again in a moment.',
+        cause instanceof OtpLimitError
+          ? cause.channel === 'call'
+            ? 'No calls left for now. Try a text instead.'
+            : 'No texts left for now. Try a call instead.'
+          : cause instanceof AuthError
+            ? authErrorMessage(cause, 'signIn')
+            : 'That did not send. Try again in a moment.',
       );
+    } finally {
+      // The timer runs either way: a failed send is not a reason to spend four more in ten seconds.
+      setWaitFor(RESEND_SECONDS);
+      setBusy(undefined);
     }
   };
 
   return (
     <AuthScreen
       progress={SIGNUP_PROGRESS.code}
-      title={t('auth.codeTitle')}
-      subtitle={t('auth.codeSubtitle', { number: identity.value })}
+      title={via === 'call' ? "Pick up, we're calling" : t('auth.codeTitle')}
+      subtitle={via === 'call' ? `Pick up: a voice will read your code to ${identity.value}.` : t('auth.codeSubtitle', { number: identity.value })}
       onBack={() => navigate('/signup/phone')}
       message={error && <AuthMessage>{error}</AuthMessage>}
       footer={
@@ -161,15 +179,7 @@ export function SignUpPhoneCodeScreen() {
 
       <CodeClock left={left} />
 
-      <div className="mt-5 text-center">
-        {waitFor > 0 && !expired ? (
-          <span className="text-caption text-text-tertiary">
-            {t('auth.codeResendIn', { seconds: String(waitFor) })}
-          </span>
-        ) : (
-          <FunnelTextLink onClick={() => void resend()}>{t('auth.codeResend')}</FunnelTextLink>
-        )}
-      </div>
+      <CodeResend via={via} quota={quota} waitFor={expired ? 0 : waitFor} busy={busy} onSend={(c) => void resend(c)} />
     </AuthScreen>
   );
 }

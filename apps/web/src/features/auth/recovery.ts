@@ -3,6 +3,7 @@ import { AuthError } from '@pingo/core';
 import { toPhoneDigits } from '../../lib/supabase/auth-service.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { authErrorMessage } from './messages.js';
+import { chooseOtp, OtpLimitError, type OtpChannel, type OtpQuota } from './otp-quota.js';
 
 /**
  * A code instead of a password: getting back in, and the number that makes it
@@ -33,8 +34,8 @@ export interface RecoveryIdentity {
   value: string;
 }
 
-export type RecoveryStart = { status: 'sent'; ending: string } | { status: 'no_phone' };
-export type AddPhoneStart = { status: 'sent'; ending: string } | { status: 'taken' };
+export type RecoveryStart = { status: 'sent'; ending: string; quota?: OtpQuota | undefined } | { status: 'no_phone' };
+export type AddPhoneStart = { status: 'sent'; ending: string; quota?: OtpQuota | undefined } | { status: 'taken' };
 
 const CODE_REFUSED = 'That code did not work.';
 
@@ -85,18 +86,24 @@ async function invoke(body: Record<string, string>): Promise<Record<string, unkn
 }
 
 /** Sends a code to the number on this account. */
-export async function startRecovery(identity: RecoveryIdentity): Promise<RecoveryStart> {
+export async function startRecovery(identity: RecoveryIdentity, channel: OtpChannel = 'sms'): Promise<RecoveryStart> {
   if (identity.kind === 'username') {
-    const reply = await invoke({ action: 'start', username: handle(identity.value) });
+    const reply = await invoke({ action: 'start', username: handle(identity.value), channel });
     if (reply.code === 'no_phone') return { status: 'no_phone' };
+    if (reply.code === 'limit') {
+      const q = reply as unknown as OtpQuota;
+      throw new OtpLimitError(channel, { left: q.left, freesAt: q.freesAt });
+    }
     if (reply.code === 'rate_limited') throw new AuthError('rate_limited', 'Too many attempts.');
     if (reply.ok === true && typeof reply.ending === 'string') {
-      return { status: 'sent', ending: reply.ending };
+      const left = reply.left as OtpQuota['left'] | undefined;
+      return { status: 'sent', ending: reply.ending, quota: left ? { left, freesAt: { sms: null, call: null } } : undefined };
     }
     throw new AuthError('unknown', 'Something went wrong. Try again.');
   }
 
   const phone = toPhoneDigits(identity.value);
+  const quota = await chooseOtp(phone, channel);
   const { error } = await getSupabaseClient().auth.signInWithOtp({
     phone,
     // Recovery never creates an account.
@@ -109,7 +116,7 @@ export async function startRecovery(identity: RecoveryIdentity): Promise<Recover
    * Only a rate limit, which says nothing about the account, is named.
    */
   if (error && (error.status === 429 || offline())) throw fromSupabase(error, false);
-  return { status: 'sent', ending: phone.slice(-2) };
+  return { status: 'sent', ending: phone.slice(-2), quota };
 }
 
 /** Checks the code; a right one leaves this tab signed in to the account. */
@@ -157,14 +164,15 @@ export async function setNewPassword(password: string): Promise<void> {
  * number, and Supabase refuses it either way; a silent failure would leave
  * them waiting for a call that never comes.
  */
-export async function addPhoneStart(e164: string): Promise<AddPhoneStart> {
+export async function addPhoneStart(e164: string, channel: OtpChannel = 'sms'): Promise<AddPhoneStart> {
   const phone = toPhoneDigits(e164);
+  const quota = await chooseOtp(phone, channel);
   const { error } = await getSupabaseClient().auth.updateUser({ phone });
   if (error) {
     if (error.code === 'phone_exists' || /already/i.test(error.message)) return { status: 'taken' };
     throw fromSupabase(error, false);
   }
-  return { status: 'sent', ending: phone.slice(-2) };
+  return { status: 'sent', ending: phone.slice(-2), quota };
 }
 
 /** Finishes attaching the number: the code proves the phone is theirs. */

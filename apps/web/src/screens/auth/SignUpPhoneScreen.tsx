@@ -1,4 +1,5 @@
 import { isStructurallyValidPhone, useAuth } from '@pingo/core';
+import { OtpLimitError, untilLabel } from '../../features/auth/otp-quota.js';
 import { Button } from '@pingo/ui';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -75,11 +76,24 @@ export function SignUpPhoneScreen() {
         return;
       }
 
-      await service.phoneOtp.start(e164);
+      let via: 'sms' | 'call' = 'sms';
+      try {
+        await service.phoneOtp.start(e164, 'sms');
+      } catch (cause) {
+        // Texts used up but a call left: call instead, rather than stopping them here.
+        if (!(cause instanceof OtpLimitError) || cause.quota.left.call <= 0) throw cause;
+        await service.phoneOtp.start(e164, 'call');
+        via = 'call';
+      }
       setIdentity({ kind: 'phone', value: e164 });
-      navigate('/signup/code');
+      navigate('/signup/code', { state: { via } });
     } catch (cause) {
-      setError(authErrorMessage(cause, 'signUp'));
+      const soonest = cause instanceof OtpLimitError ? Math.min(cause.quota.freesAt.sms ?? Infinity, cause.quota.freesAt.call ?? Infinity) : undefined;
+      setError(
+        cause instanceof OtpLimitError
+          ? `This number has had all its codes for now. Try again in ${soonest && Number.isFinite(soonest) ? untilLabel(soonest) : 'a few hours'}.`
+          : authErrorMessage(cause, 'signUp'),
+      );
     } finally {
       setSending(false);
     }

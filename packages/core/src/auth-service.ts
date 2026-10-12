@@ -163,7 +163,7 @@ export interface PhoneOtpAuth {
    * exists" here would let anybody test which numbers are registered, one
    * request at a time.
    */
-  start(phone: string): Promise<void>;
+  start(phone: string, channel?: 'sms' | 'call'): Promise<void>;
 
   /**
    * Exchanges the code for a session.

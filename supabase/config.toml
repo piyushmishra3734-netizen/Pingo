@@ -78,6 +78,11 @@ verify_jwt = false
 [functions.password-recovery]
 verify_jwt = false
 
+# Asked before every one-time code, by somebody who is signing in and has no
+# session: how many SMS and calls the number has left, and which one is next.
+[functions.otp-quota]
+verify_jwt = false
+
 # Called by Postgres, which has no user session to verify. The check is the
 # service-role key in the Authorization header, compared in constant time -
 # see the header of `functions/push-send/index.ts`.

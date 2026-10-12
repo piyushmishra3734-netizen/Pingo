@@ -36,6 +36,7 @@
  * day before anyone checks the dashboard.
  */
 
+import { chooseOtp } from '../../features/auth/otp-quota.js';
 import {
   AuthError,
   type AuthMethodKind,
@@ -468,7 +469,9 @@ class SupabasePhoneOtpAuth implements PhoneOtpAuth {
    * says nothing useful to the person who mistyped their own number.
    */
 
-  async start(phone: string): Promise<void> {
+  async start(phone: string, channel: 'sms' | 'call' = 'sms'): Promise<void> {
+    // SMS unless they asked for a call; refuses here when that way is used up (3 texts, 2 calls per 12 hours).
+    await chooseOtp(toPhoneDigits(phone), channel);
     const { error } = await this.client.auth.signInWithOtp({
       phone: toPhoneDigits(phone),
     });

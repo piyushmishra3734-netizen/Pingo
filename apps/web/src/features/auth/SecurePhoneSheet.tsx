@@ -1,4 +1,6 @@
 import { Button, CheckIcon, ChevronRightIcon, LockIcon, PhoneIcon, ShieldIcon, cn } from '@pingo/ui';
+import { CodeResend } from './CodeResend.js';
+import { OtpLimitError, type OtpChannel, type OtpQuota } from './otp-quota.js';
 import { useEffect, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
@@ -39,7 +41,7 @@ import {
  */
 
 export interface SecurePhoneApi {
-  start: (e164: string) => Promise<AddPhoneStart>;
+  start: (e164: string, channel?: OtpChannel) => Promise<AddPhoneStart>;
   verify: (e164: string, code: string) => Promise<void>;
   setPassword: (password: string) => Promise<void>;
 }
@@ -53,7 +55,7 @@ const REAL_API: SecurePhoneApi = {
 export type SecureStep = 'phone' | 'code' | 'password' | 'done';
 
 const CODE_LENGTH = 6;
-const RESEND_SECONDS = 60;
+const RESEND_SECONDS = 30;
 const MIN_PASSWORD = 8;
 
 const FLOW: SecureStep[] = ['phone', 'code', 'password'];
@@ -84,6 +86,9 @@ export function SecurePhoneSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [waitFor, setWaitFor] = useState(0);
+  const [via, setVia] = useState<OtpChannel>('sms');
+  const [quota, setQuota] = useState<OtpQuota>();
+  const [sending, setSending] = useState<OtpChannel>();
   const [added, setAdded] = useState(initialStep === 'password' || initialStep === 'done');
 
   useEffect(() => {
@@ -99,24 +104,32 @@ export function SecurePhoneSheet({
 
   const e164 = toE164(country, digits);
 
-  const sendCode = async () => {
+  const sendCode = async (channel: OtpChannel = 'sms') => {
     if (busy || digits.length < 6) return;
     setBusy(true);
+    setSending(channel);
     setError(undefined);
     try {
-      const result = await api.start(e164);
+      const result = await api.start(e164, channel);
       if (result.status === 'taken') {
         setError('This number is already on another PINGO account.');
         return;
       }
+      setVia(channel);
       setEnding(result.ending);
+      if (result.quota) setQuota(result.quota);
       setCode('');
       setWaitFor(RESEND_SECONDS);
       go('code');
     } catch (cause) {
-      setError(recoveryErrorMessage(cause));
+      if (cause instanceof OtpLimitError) {
+        setQuota(cause.quota);
+        setWaitFor(0);
+        setError(cause.channel === 'call' ? 'No calls left for now. Try a text instead.' : 'No texts left for now. Try a call instead.');
+      } else setError(recoveryErrorMessage(cause));
     } finally {
       setBusy(false);
+      setSending(undefined);
     }
   };
 
@@ -175,8 +188,8 @@ export function SecurePhoneSheet({
         {step === 'phone' && (
           <>
             <p className="mt-2 max-w-xs text-balance text-body text-text-secondary">
-              So you can always get back in, even without Google. We&apos;ll call once
-              with a 6-digit code to check it&apos;s yours.
+              So you can always get back in, even without Google. We&apos;ll text a
+              6-digit code to check it&apos;s yours.
             </p>
             <div className="mt-5 w-full text-left">
               <PhoneField
@@ -189,7 +202,7 @@ export function SecurePhoneSheet({
                 }}
                 autoFocus
                 disabled={busy}
-                onSubmit={() => void sendCode()}
+                onSubmit={() => void sendCode('sms')}
               />
             </div>
             <Problem message={error} />
@@ -200,9 +213,9 @@ export function SecurePhoneSheet({
                 block
                 disabled={digits.length < 6}
                 loading={busy}
-                onClick={() => void sendCode()}
+                onClick={() => void sendCode('sms')}
               >
-                Call me with a code
+                Text me a code
               </Button>
               <Button variant="text" block onClick={close}>
                 Not now
@@ -214,8 +227,9 @@ export function SecurePhoneSheet({
         {step === 'code' && (
           <>
             <p className="mt-2 max-w-xs text-balance text-body text-text-secondary">
-              {ending ? `Calling the number ending in ${ending}.` : 'Calling your number.'} Pick up
-              and type the code you hear.
+              {via === 'call'
+                ? `${ending ? `Calling the number ending in ${ending}.` : 'Calling your number.'} Pick up and type the code you hear.`
+                : `We texted a 6-digit code to ${ending ? `the number ending in ${ending}` : 'your number'}.`}
             </p>
             <div className="mt-5 w-full">
               <CodeBoxes
@@ -231,18 +245,8 @@ export function SecurePhoneSheet({
               />
             </div>
             <Problem message={error} />
-            <div className="mt-3 text-caption">
-              {waitFor > 0 ? (
-                <span className="text-text-tertiary">Call again in {waitFor}s</span>
-              ) : (
-                <button
-                  type="button"
-                  className="focus-ring rounded font-medium text-brand"
-                  onClick={() => void sendCode()}
-                >
-                  Call me again
-                </button>
-              )}
+            <div className="w-full">
+              <CodeResend via={via} quota={quota} waitFor={waitFor} busy={sending} onSend={(c) => void sendCode(c)} />
             </div>
             <Actions>
               <Button
@@ -309,7 +313,7 @@ export function SecurePhoneSheet({
           <>
             <p className="mt-2 max-w-xs text-balance text-body text-text-secondary">
               Sign in with Google or with your number - it&apos;s the same account.
-              Forgot your password? We&apos;ll call you with a code.
+              Forgot your password? We&apos;ll text you a code.
             </p>
             <Actions>
               <Button variant="primary" size="lg" block onClick={close}>

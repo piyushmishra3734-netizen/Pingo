@@ -39,10 +39,12 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
+import { otpQuota, recordOtpIntent, type OtpChannel } from '../_shared/otp.ts';
+
 /** Same shape the profiles table enforces: 3-20 of `[a-z0-9_]`. */
 const USERNAME = /^[a-z0-9_]{3,20}$/;
 
-/** What 2Factor reads out. Anything else is a typo, not a code. */
+/** What Twilio delivers. Anything else is a typo, not a code. */
 const CODE = /^\d{6}$/;
 
 function corsHeaders(request: Request): HeadersInit {
@@ -94,6 +96,7 @@ Deno.serve(async (request) => {
       action?: unknown;
       username?: unknown;
       code?: unknown;
+      channel?: unknown;
     };
 
     const action = String(body.action ?? '');
@@ -123,6 +126,12 @@ Deno.serve(async (request) => {
       // Unknown handle, deleted account, no number on it: one answer.
       if (!phone) return json(request, { code: 'no_phone' });
 
+      // SMS unless they asked for a call; 3 texts and 2 calls per 12 hours (`_shared/otp.ts`).
+      const channel: OtpChannel = body.channel === 'call' ? 'call' : 'sms';
+      const quota = await otpQuota(admin, phone);
+      if (quota.left[channel] <= 0) return json(request, { code: 'limit', ...quota }, 429);
+      await recordOtpIntent(admin, phone, channel);
+
       const { error } = await anon.auth.signInWithOtp({
         phone,
         // Recovery never creates an account, whatever the number turns out to be.
@@ -136,7 +145,7 @@ Deno.serve(async (request) => {
         return json(request, { code: 'unknown' }, 502);
       }
 
-      return json(request, { ok: true, ending: phone.slice(-2) });
+      return json(request, { ok: true, ending: phone.slice(-2), channel, left: { ...quota.left, [channel]: quota.left[channel] - 1 } });
     }
 
     if (action === 'verify') {

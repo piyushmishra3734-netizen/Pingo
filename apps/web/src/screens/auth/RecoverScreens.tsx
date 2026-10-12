@@ -1,4 +1,6 @@
 import { Button } from '@pingo/ui';
+import { CodeResend } from '../../features/auth/CodeResend.js';
+import { OtpLimitError, type OtpChannel, type OtpQuota } from '../../features/auth/otp-quota.js';
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
@@ -15,7 +17,7 @@ import {
 } from '../../features/auth/recovery.js';
 
 /**
- * Forgot password: a call with a code, then a new password.
+ * Forgot password: a code by SMS (or a call), then a new password.
  *
  * ## Outside the guest guard, on purpose
  *
@@ -32,11 +34,11 @@ import {
  * minute is both a rate limit and a call nobody asked for.
  */
 
-/** What 2Factor reads out. Anything else is a typo, not a code. */
+/** What Twilio sends. Anything else is a typo, not a code. */
 const CODE_LENGTH = 6;
 
-/** Every send is a paid call, so resending waits a minute. */
-const RESEND_SECONDS = 60;
+/** Every send is paid for, so resending waits a little. */
+const RESEND_SECONDS = 30;
 
 /** The shortest password this screen will send. Supabase enforces its own on top. */
 const MIN_PASSWORD = 8;
@@ -54,23 +56,34 @@ export function RecoverCodeScreen() {
   const [waitFor, setWaitFor] = useState(RESEND_SECONDS);
   const inputRef = useRef<HTMLInputElement>(null);
   const started = useRef(false);
+  const [via, setVia] = useState<OtpChannel>('sms');
+  const [quota, setQuota] = useState<OtpQuota>();
+  const [busy, setBusy] = useState<OtpChannel>();
 
-  const send = async () => {
+  const send = async (channel: OtpChannel = 'sms') => {
     if (!identity) return;
     setError(undefined);
-    setWaitFor(RESEND_SECONDS);
+    setBusy(channel);
     try {
-      const result = await startRecovery(identity);
+      const result = await startRecovery(identity, channel);
       if (result.status === 'no_phone') {
         setPhase('no_phone');
         return;
       }
+      setVia(channel);
       setEnding(result.ending);
+      if (result.quota) setQuota(result.quota);
       setPhase('sent');
     } catch (cause) {
-      // Still the code screen, so resending is there once the minute is up.
+      // Still the code screen, so the other way is there once the wait is up.
       setPhase('sent');
-      setError(recoveryErrorMessage(cause));
+      if (cause instanceof OtpLimitError) {
+        setQuota(cause.quota);
+        setError(cause.channel === 'call' ? 'No calls left for now. Try a text instead.' : 'No texts left for now. Try a call instead.');
+      } else setError(recoveryErrorMessage(cause));
+    } finally {
+      setWaitFor(RESEND_SECONDS);
+      setBusy(undefined);
     }
   };
 
@@ -94,7 +107,7 @@ export function RecoverCodeScreen() {
     return (
       <AuthScreen
         title="No number on this account"
-        subtitle="There is no phone number on this account to call with a code. If you made it with Google, sign in with Google - PINGO will offer to add your number once you are in."
+        subtitle="There is no phone number on this account to send a code to. If you made it with Google, sign in with Google - PINGO will offer to add your number once you are in."
         onBack={() => navigate('/login', { replace: true })}
         footer={
           <Button variant="primary" size="lg" block onClick={() => navigate('/login', { replace: true })}>
@@ -130,8 +143,10 @@ export function RecoverCodeScreen() {
       title="Reset your password"
       subtitle={
         phase === 'sending'
-          ? 'Getting a call ready with your code…'
-          : `We're calling the number ending in ${ending} with a 6-digit code. Pick up and type it here.`
+          ? 'Sending your code…'
+          : via === 'call'
+            ? `We're calling the number ending in ${ending} with a 6-digit code. Pick up and type it here.`
+            : `We texted a 6-digit code to the number ending in ${ending}.`
       }
       onBack={() => navigate('/login', { replace: true })}
       message={error && <AuthMessage>{error}</AuthMessage>}
@@ -162,13 +177,7 @@ export function RecoverCodeScreen() {
         invalid={Boolean(error)}
       />
 
-      <div className="mt-4 text-center">
-        {waitFor > 0 ? (
-          <span className="text-caption text-text-tertiary">Call again in {waitFor}s</span>
-        ) : (
-          <FunnelTextLink onClick={() => void send()}>Call me again</FunnelTextLink>
-        )}
-      </div>
+      {phase === 'sent' && <CodeResend via={via} quota={quota} waitFor={waitFor} busy={busy} onSend={(c) => void send(c)} />}
 
       {/*
         Shown every time, whether or not a call is on its way - which is the only
@@ -179,7 +188,7 @@ export function RecoverCodeScreen() {
       */}
       {identity.kind === 'phone' && phase === 'sent' && (
         <p className="mt-6 text-center text-caption text-text-tertiary">
-          No call after a minute? This number may not be on a PINGO account. If you
+          Nothing after a minute? This number may not be on a PINGO account. If you
           signed up with Google, go back and continue with Google.
         </p>
       )}
