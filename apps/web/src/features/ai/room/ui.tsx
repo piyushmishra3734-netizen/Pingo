@@ -14,11 +14,14 @@ import { useBackStep } from '../../navigation/useBackStep.js';
 
 export function AiPanel({
   side = 'full',
+  size = 'narrow',
   onClose,
   label,
   children,
 }: {
   side?: 'left' | 'full';
+  /** On a wide screen a full page becomes a window: narrow for a list of settings, wide for a two-pane page. */
+  size?: 'narrow' | 'wide';
   onClose: () => void;
   label: string;
   children: ReactNode;
@@ -36,18 +39,37 @@ export function AiPanel({
   }, [onClose]);
 
   return createPortal(
-    <div className="ai-room-ui fixed inset-0 z-[400]" role="dialog" aria-modal="true" aria-label={label}>
+    <div
+      className={cn('ai-room-ui fixed inset-0 z-[400]', side === 'full' && 'lg:flex lg:items-center lg:justify-center lg:p-8')}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+    >
       <button
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className={cn('absolute inset-0 bg-black/40 transition-opacity duration-300', shown ? 'opacity-100' : 'opacity-0')}
+        className={cn(
+          'absolute inset-0 bg-black/40 transition-opacity duration-300',
+          side === 'full' && 'lg:bg-black/45 lg:backdrop-blur-[3px]',
+          shown ? 'opacity-100' : 'opacity-0',
+        )}
       />
       <div
         className={cn(
-          'absolute flex flex-col overflow-hidden bg-page shadow-2xl transition-transform duration-300 ease-out',
+          'absolute flex flex-col overflow-hidden bg-page shadow-2xl transition-[transform,opacity] duration-300 ease-out',
           side === 'left' ? 'inset-y-0 left-0 w-[min(88vw,24rem)] rounded-r-[28px]' : 'inset-0',
-          shown ? 'translate-x-0' : side === 'left' ? '-translate-x-full' : 'translate-x-full',
+          // A window on a wide screen: centred, a reading width, rounded, rising into place.
+          side === 'full' &&
+            cn(
+              'lg:relative lg:inset-auto lg:h-[min(52rem,100%)] lg:w-full lg:rounded-[28px] lg:shadow-[0_30px_80px_-20px_rgb(0_0_0/0.45)] lg:ring-1 lg:ring-black/5',
+              size === 'wide' ? 'lg:max-w-[70rem]' : 'lg:max-w-[44rem]',
+            ),
+          shown
+            ? 'translate-x-0 opacity-100 lg:scale-100'
+            : side === 'left'
+              ? '-translate-x-full'
+              : 'translate-x-full lg:translate-x-0 lg:translate-y-3 lg:scale-[0.98] lg:opacity-0',
         )}
       >
         {children}
@@ -59,7 +81,7 @@ export function AiPanel({
 
 export function PageHeader({ title, onBack, onClose, action }: { title: string; onBack?: () => void; onClose?: () => void; action?: ReactNode }) {
   return (
-    <header className="flex items-center gap-2 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <header className="flex items-center gap-2 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] lg:px-6 lg:pb-3 lg:pt-5">
       {onBack ? (
         <button type="button" aria-label="Back" onClick={onBack} className="grid size-11 place-items-center rounded-full bg-surface text-ink shadow-sm active:scale-95">
           <ChevronLeft size={22} />
@@ -114,7 +136,7 @@ export function Row({
       {end ?? (onClick || href ? <ChevronRight size={19} className="shrink-0 text-text-tertiary" aria-hidden /> : null)}
     </>
   );
-  const cls = cn('flex min-h-[60px] w-full items-center gap-3.5 px-4 py-2.5 text-left', divider && '[&+*]:border-t [&+*]:border-line', (onClick || href) && 'active:bg-hover');
+  const cls = cn('flex min-h-[60px] w-full items-center gap-3.5 px-4 py-2.5 text-left', divider && '[&+*]:border-t [&+*]:border-line', (onClick || href) && 'active:bg-hover lg:hover:bg-hover');
   if (href) {
     return (
       <a href={href} className={cls}>
@@ -151,7 +173,7 @@ export function Choices<T extends string>({
           role="radio"
           aria-checked={o.id === value}
           onClick={() => onPick(o.id)}
-          className={cn('flex min-h-[56px] w-full items-center gap-3 px-4 py-2.5 text-left active:bg-hover', i > 0 && 'border-t border-line')}
+          className={cn('flex min-h-[56px] w-full items-center gap-3 px-4 py-2.5 text-left active:bg-hover lg:hover:bg-hover', i > 0 && 'border-t border-line')}
         >
           <span className="min-w-0 flex-1">
             <span className="block text-[16px] font-medium text-ink">{o.label}</span>

@@ -1,6 +1,6 @@
 import { cn } from '@pingo/ui';
 import { ChevronLeft, ChevronRight, Loader2, Sparkles } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
 
 import { PINGO_MASCOT } from '../flow/PingoFlow.js';
 import { presetFor } from './ai-profile-model.js';
@@ -10,6 +10,26 @@ import { presetFor } from './ai-profile-model.js';
  * pill action), white cards on lavender, rows with an icon and a chevron, and
  * the mascot on its clouds.
  */
+
+/* ---------- wide screens ---------- */
+
+const WIDE = '(min-width: 1024px)';
+
+/** A laptop or desktop window: the profile lays out as two panes. */
+export function useIsWide(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      const m = window.matchMedia(WIDE);
+      m.addEventListener('change', l);
+      return () => m.removeEventListener('change', l);
+    },
+    () => window.matchMedia(WIDE).matches,
+    () => false,
+  );
+}
+
+/** Inside the right pane of the two-pane layout: the pane has no Back, the sidebar is the way around. */
+export const SplitPane = createContext(false);
 
 export function TopBar({
   title,
@@ -22,24 +42,27 @@ export function TopBar({
   action?: { label: string; onClick: () => void; disabled?: boolean; busy?: boolean } | undefined;
   end?: ReactNode;
 }) {
+  const split = useContext(SplitPane);
   return (
-    <header className="relative z-[2] flex items-center gap-3 px-4 pb-2 pt-[max(0.85rem,env(safe-area-inset-top))]">
-      <button
-        type="button"
-        aria-label="Back"
-        onClick={onBack}
-        className="pp-card grid size-11 shrink-0 place-items-center rounded-full text-[var(--pp-ink)] active:scale-95"
-      >
-        <ChevronLeft size={22} />
-      </button>
-      <h1 className="min-w-0 flex-1 truncate text-[21px] font-bold tracking-[-0.01em]">{title}</h1>
+    <header className="pp-pad relative z-[2] flex items-center gap-3 px-4 pb-2 pt-[max(0.85rem,env(safe-area-inset-top))] lg:pb-4 lg:pt-7">
+      {!split && (
+        <button
+          type="button"
+          aria-label="Back"
+          onClick={onBack}
+          className="pp-card grid size-11 shrink-0 place-items-center rounded-full text-[var(--pp-ink)] active:scale-95 lg:hover:bg-[var(--pp-field)]"
+        >
+          <ChevronLeft size={22} />
+        </button>
+      )}
+      <h1 className="min-w-0 flex-1 truncate text-[21px] font-bold tracking-[-0.01em] lg:text-[26px] lg:tracking-[-0.02em]">{title}</h1>
       {action && (
         <button
           type="button"
           onClick={action.onClick}
           disabled={action.disabled || action.busy}
           className={cn(
-            'flex h-11 min-w-[5.25rem] items-center justify-center gap-1.5 rounded-full px-5 text-[16px] font-semibold transition-opacity active:scale-[0.97]',
+            'flex h-11 min-w-[5.25rem] items-center justify-center gap-1.5 rounded-full px-5 text-[16px] font-semibold transition-[opacity,filter] active:scale-[0.97] enabled:hover:brightness-110',
             'bg-[var(--pp-accent)] text-[var(--pp-accent-ink)] disabled:opacity-45',
           )}
         >
@@ -83,7 +106,7 @@ export function NavRow({
   );
   const cls = cn('flex w-full items-center gap-3 px-4 py-3.5 text-left', className);
   return onClick ? (
-    <button type="button" onClick={onClick} className={cn(cls, 'active:bg-[var(--pp-field)]')}>
+    <button type="button" onClick={onClick} className={cn(cls, 'transition-colors active:bg-[var(--pp-field)] lg:hover:bg-[var(--pp-field)]')}>
       {inner}
     </button>
   ) : (

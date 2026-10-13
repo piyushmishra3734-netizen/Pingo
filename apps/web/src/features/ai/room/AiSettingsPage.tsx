@@ -210,7 +210,7 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
     <>
       <AiPanel label="PINGO AI settings" onClose={onClose}>
         <PageHeader title={titles[page]} onBack={page === 'home' ? onClose : () => setPage('home')} />
-        <div className="flex-1 overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">{body}</div>
+        <div className="flex-1 overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2 lg:px-8">{body}</div>
       </AiPanel>
       {profileOpen && (
         <AiProfileSheet

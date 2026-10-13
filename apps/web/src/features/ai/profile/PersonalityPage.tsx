@@ -66,7 +66,7 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
   return (
     <>
       <TopBar title="Personality" onBack={onBack} action={{ label: 'Save', onClick: () => void save(), disabled: !dirty || tooLong || customEmpty, busy: saving }} />
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="pp-pad flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
         <div className="relative -mx-4 h-44">
           <Sky sparkles={false} />
           <AiFace src={prefs.avatar_url} className={prefs.avatar_url && prefs.avatar_url !== '/ai/avatars/classic.webp' ? 'absolute bottom-3 left-[18%] size-32 ring-4 ring-[var(--pp-card)]' : 'absolute bottom-0 left-[14%] h-40 w-44'} />

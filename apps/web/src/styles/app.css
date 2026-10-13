@@ -1302,3 +1302,5 @@ video {
 @keyframes pp-twinkle { 0%, 100% { opacity: 0.55; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
 .pp-twinkle { animation: pp-twinkle 2.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .pp-twinkle { animation: none; } }
+/* The right pane of the profile on a wide screen: a reading column, centred, the scroll at the pane's edge. */
+.pp-split .pp-pad { padding-inline: max(2.5rem, calc((100% - 40rem) / 2)); }

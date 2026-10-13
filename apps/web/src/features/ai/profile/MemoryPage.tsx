@@ -52,7 +52,7 @@ export function MemoryPage({ onBack }: { onBack: () => void }) {
   return (
     <>
       <TopBar title="Memory" onBack={onBack} />
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="pp-pad flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
         <Card>
           <div className="flex items-center gap-3 px-4 py-3.5">
             <Brain size={25} className="shrink-0" aria-hidden />

@@ -28,7 +28,7 @@ export function AvatarPage({ premium, onBack, onPro, onSaved }: { premium: boole
   return (
     <>
       <TopBar title="Choose Avatar" onBack={onBack} action={{ label: 'Done', onClick: () => void done(), disabled: !picked, busy: saving }} />
-      <div role="tablist" aria-label="Avatar categories" className="flex gap-1 overflow-x-auto px-4 pb-3 pt-1 [scrollbar-width:none]">
+      <div role="tablist" aria-label="Avatar categories" className="pp-pad flex gap-1 overflow-x-auto px-4 pb-3 pt-1 [scrollbar-width:none]">
         {AVATAR_TABS.map((t) => (
           <button
             key={t.id}
@@ -47,7 +47,7 @@ export function AvatarPage({ premium, onBack, onPro, onSaved }: { premium: boole
       </div>
 
       {/* The one picked, large, before it is saved. */}
-      <div className="flex items-center gap-4 px-4 pb-3">
+      <div className="pp-pad flex items-center gap-4 px-4 pb-3">
         <AiFace src={picked?.src ?? prefs.avatar_url} framed className="size-16 shrink-0 ring-2 ring-[var(--pp-accent)]" />
         <div className="min-w-0">
           <p className="text-[16px] font-semibold">{picked?.label ?? 'Your photo'}</p>
@@ -55,7 +55,7 @@ export function AvatarPage({ premium, onBack, onPro, onSaved }: { premium: boole
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="pp-pad flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div role="radiogroup" aria-label="Avatars" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {avatarsIn(tab).map((a) => {
             const locked = !canUseAvatar(a, premium);

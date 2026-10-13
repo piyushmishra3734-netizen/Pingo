@@ -116,7 +116,7 @@ export function EditProfilePage({
   return (
     <>
       <TopBar title="Edit Profile" onBack={onBack} action={{ label: 'Save', onClick: () => void save(), disabled: !dirty || Object.keys(problems).length > 0, busy: saving }} />
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="pp-pad flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
         <input
           ref={fileRef}
           type="file"

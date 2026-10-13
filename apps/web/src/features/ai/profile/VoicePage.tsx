@@ -52,7 +52,7 @@ export function VoicePage({ onBack }: { onBack: () => void }) {
   return (
     <>
       <TopBar title="Voice" onBack={onBack} />
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="pp-pad flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
         <SectionLabel>Call voice</SectionLabel>
         <Card>
           <div role="radiogroup" aria-label="Call voice" className="divide-y divide-[var(--pp-line)]">

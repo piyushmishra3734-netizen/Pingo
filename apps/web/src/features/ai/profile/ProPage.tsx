@@ -17,7 +17,7 @@ export function ProPage({ premium, onBack }: { premium: boolean; onBack: () => v
   return (
     <>
       <TopBar title="Pingo Pro" onBack={onBack} />
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="pp-pad flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">
         <div className="pp-card mt-2 flex flex-col items-center px-5 py-6 text-center" style={{ background: 'var(--pp-pro)' }}>
           <Crown size={44} className="fill-[var(--pp-gold)] text-[var(--pp-gold)]" aria-hidden />
           <h2 className="mt-2 text-[24px] font-extrabold">{premium ? 'Pro is on' : 'Pingo Pro'}</h2>
