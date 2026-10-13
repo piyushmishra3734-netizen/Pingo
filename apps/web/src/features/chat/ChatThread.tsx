@@ -1014,6 +1014,13 @@ export function ChatThread({
     : flow;
   const [composerPrefill, setComposerPrefill] = useState<{ text: string }>();
   const [aiMenu, setAiMenu] = useState<'menu' | 'settings'>();
+  // A short line over the composer after /goal adds one.
+  const [goalNote, setGoalNote] = useState<string>();
+  useEffect(() => {
+    if (!goalNote) return;
+    const timer = window.setTimeout(() => setGoalNote(undefined), 3500);
+    return () => window.clearTimeout(timer);
+  }, [goalNote]);
 
   /*
    * The "Seen" line, the way Instagram does it.
@@ -2216,6 +2223,11 @@ export function ChatThread({
             </div>
           )}
 
+          {isAi && goalNote && (
+            <p role="status" className="mx-auto mb-2 w-fit rounded-full bg-[var(--room-raised)] px-4 py-2 text-[14px] font-medium text-[var(--room-ink)]">
+              {goalNote}
+            </p>
+          )}
           {partnerBlocked && partner ? (
             <div className="flex items-center justify-between gap-3 rounded-[16px] bg-surface px-4 py-3 shadow-sm ring-1 ring-line">
               <span className="min-w-0 text-caption text-text-secondary">You blocked {partner.name}. They can't message or call you.</span>
@@ -2265,6 +2277,25 @@ export function ChatThread({
               const parsed = isAi ? parseAiCommand(body) : undefined;
               if (parsed?.kind === 'face') {
                 reactWith(parsed.face);
+                return;
+              }
+              if (parsed?.kind === 'app') {
+                if (parsed.action === 'call') {
+                  if (!onCall) call.start(conversation.id, callVoice);
+                } else if (parsed.action === 'settings') {
+                  setAiMenu('settings');
+                } else if (parsed.action === 'new') {
+                  const id = await service.createAiChat?.();
+                  if (id) navigate(`/chats/${id}`);
+                } else if (parsed.action === 'goal') {
+                  if (!parsed.body) {
+                    setComposerPrefill({ text: '/goal ' });
+                    return;
+                  }
+                  await service.addAiGoal?.(parsed.body);
+                  reactWith('excited');
+                  setGoalNote(`Added to your goals: ${parsed.body}`);
+                }
                 return;
               }
               if (parsed?.kind === 'ask') {

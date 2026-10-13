@@ -142,3 +142,55 @@ export function useFlowColour(): string {
     readColour,
   );
 }
+
+/* ---------- motion, per device ---------- */
+
+/** Pingo Flow's motion, split the way people ask for it: the body (float, breathe, wobble) and the face (blinks, gaze). */
+export interface FlowMotion {
+  body: boolean;
+  face: boolean;
+}
+
+const MOTION_KEY = 'pingo.flow.motion';
+const motionListeners = new Set<() => void>();
+let motionCache: { raw: string | null; value: FlowMotion } | undefined;
+
+function readMotion(): FlowMotion {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(MOTION_KEY);
+  } catch {
+    /* private mode: both on */
+  }
+  if (motionCache && motionCache.raw === raw) return motionCache.value;
+  let value: FlowMotion = { body: true, face: true };
+  try {
+    const parsed = raw ? (JSON.parse(raw) as Partial<FlowMotion>) : {};
+    value = { body: parsed.body !== false, face: parsed.face !== false };
+  } catch {
+    /* a bad value: both on */
+  }
+  motionCache = { raw, value };
+  return value;
+}
+
+export function setFlowMotion(patch: Partial<FlowMotion>): void {
+  const next = { ...readMotion(), ...patch };
+  try {
+    localStorage.setItem(MOTION_KEY, JSON.stringify(next));
+  } catch {
+    /* this session only */
+    motionCache = { raw: JSON.stringify(next), value: next };
+  }
+  motionListeners.forEach((l) => l());
+}
+
+export function useFlowMotion(): FlowMotion {
+  return useSyncExternalStore(
+    (l) => {
+      motionListeners.add(l);
+      return () => motionListeners.delete(l);
+    },
+    readMotion,
+  );
+}

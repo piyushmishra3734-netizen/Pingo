@@ -3,6 +3,7 @@ import { Toggle } from '@pingo/ui';
 import {
   Bell,
   Brain,
+  Eye,
   CircleHelp,
   Globe,
   Languages,
@@ -15,6 +16,7 @@ import {
   Trash2,
   Type,
   UserRound,
+  Waves,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -23,7 +25,7 @@ import { useConfirm } from '../../../components/ConfirmProvider.js';
 import { AiMemoriesSheet } from '../AiMemoriesSheet.js';
 import { AiProfileSheet } from '../AiProfileSheet.js';
 import { PingoFlow } from '../flow/PingoFlow.js';
-import { FLOW_COLOURS, setFlowColour, useFlowColour } from '../flow/flow-face.js';
+import { FLOW_COLOURS, setFlowColour, setFlowMotion, useFlowColour, useFlowMotion } from '../flow/flow-face.js';
 import { orderedLanguages, PERSONALITIES, RESPONSE_LENGTHS, type PersonalityId } from '../personalities.js';
 import { AI_VOICES, setAiVoice, useAiPrefs, useAiVoice } from './ai-prefs.js';
 import { AiPanel, Choices, Group, PageHeader, Row } from './ui.js';
@@ -43,6 +45,7 @@ export function AiSettingsPage({ conversationId, onClose }: { conversationId?: s
   const { prefs, save, memoryCount, refreshMemoryCount, resetMemory } = useAiPrefs();
   const flowColour = useFlowColour();
   const voice = useAiVoice();
+  const motion = useFlowMotion();
   const [page, setPage] = useState<Page>('home');
   const [profileOpen, setProfileOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false);
@@ -145,6 +148,21 @@ export function AiSettingsPage({ conversationId, onClose }: { conversationId?: s
               ))}
             </div>
           </div>
+        </Group>
+
+        <Group title="Animation" footer="Off keeps Pingo Flow still. Its expressions still change.">
+          <Row
+            icon={<Waves size={21} />}
+            title="Body motion"
+            sub="Floating, breathing and the soft wobble"
+            end={<Toggle checked={motion.body} onChange={(body) => setFlowMotion({ body })} label="Body motion" />}
+          />
+          <Row
+            icon={<Eye size={21} />}
+            title="Face motion"
+            sub="Blinking and looking around"
+            end={<Toggle checked={motion.face} onChange={(face) => setFlowMotion({ face })} label="Face motion" />}
+          />
         </Group>
 
         <Group title="AI & Personalization">

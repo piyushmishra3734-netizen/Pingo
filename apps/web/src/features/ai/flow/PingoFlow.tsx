@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { cn } from '@pingo/ui';
 
 import type { FlowController, FlowFace, FlowMode } from './engine.js';
+import { useFlowMotion } from './flow-face.js';
 
 export type { FlowFace, FlowMode } from './engine.js';
 
@@ -38,8 +39,9 @@ export function PingoFlow({
   const hostRef = useRef<HTMLSpanElement>(null);
   const flow = useRef<FlowController | null>(null);
   const [ready, setReady] = useState(false);
-  const latest = useRef({ face, mode, colour });
-  latest.current = { face, mode, colour };
+  const motion = useFlowMotion();
+  const latest = useRef({ face, mode, colour, bodyMotion: motion.body, faceMotion: motion.face });
+  latest.current = { face, mode, colour, bodyMotion: motion.body, faceMotion: motion.face };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -70,6 +72,7 @@ export function PingoFlow({
   }, [shadow]);
 
   useEffect(() => flow.current?.setFace(face), [face, ready]);
+  useEffect(() => flow.current?.setMotion(motion.body, motion.face), [motion.body, motion.face, ready]);
   useEffect(() => {
     if (!ready || !levelRef) return;
     let raf = 0;

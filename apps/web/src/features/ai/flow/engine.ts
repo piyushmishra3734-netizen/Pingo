@@ -24,6 +24,8 @@ export interface FlowController {
   lookAt(x: number | null, y?: number): void;
   /** 0..1, from a voice; the pulse when listening or talking. Without it a stand-in moves. */
   setVoice(level: number | null): void;
+  /** Turn the body's motion (float, breathe, wobble) and the face's (blinks, gaze) on or off. */
+  setMotion(body: boolean, face: boolean): void;
   dispose(): void;
 }
 
@@ -228,6 +230,10 @@ export interface FlowOptions {
   shadow?: boolean;
   /** Draws once and stops: for still avatars. */
   still?: boolean;
+  /** Body motion on (default): float, breathe, wobble. */
+  bodyMotion?: boolean;
+  /** Face motion on (default): blinks and gaze. */
+  faceMotion?: boolean;
 }
 
 /**
@@ -494,6 +500,10 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
 
   /* ---------- state ---------- */
   let face: FlowFace = opts.face ?? 'default';
+  let bodyOn = opts.bodyMotion !== false;
+  let faceOn = opts.faceMotion !== false;
+  /** Nothing moves: draw on change only, no loop. */
+  const paused = () => Boolean(opts.still) || (!bodyOn && !faceOn);
   let prevFace: FlowFace = face;
   let faceAt = -1;
   let mode: FlowMode = opts.mode ?? 'idle';
@@ -536,7 +546,7 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
   }
   const ro = new ResizeObserver(() => {
     resize();
-    if (opts.still) frame();
+    if (paused()) frame();
   });
   ro.observe(canvas);
   resize();
@@ -552,7 +562,7 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
   const onVis = () => schedule();
   document.addEventListener('visibilitychange', onVis);
   function schedule() {
-    if (opts.still || raf || !visible || document.hidden) return;
+    if (paused() || raf || !visible || document.hidden) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
       frame();
@@ -562,8 +572,11 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
 
   function frame() {
     const t = clock.getElapsedTime();
-    const still = Boolean(opts.still);
-    const motion = still ? 0 : reduced ? 0.25 : 1;
+    const still = paused();
+    const base = reduced ? 0.25 : 1;
+    // The body's own motion, and the face's: either can be switched off in settings.
+    const motion = still || !bodyOn ? 0 : base;
+    const gaze = still || !faceOn ? 0 : base;
 
     const voice =
       mode === 'idle' || still
@@ -577,7 +590,7 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
 
     // Float, breathe, a squash when tapped.
     const sinceBoop = t - boopAt;
-    const bounce = sinceBoop < 0.6 && !still ? Math.sin((sinceBoop / 0.6) * Math.PI) * Math.exp(-sinceBoop * 3) : 0;
+    const bounce = sinceBoop < 0.6 && bodyOn && !still ? Math.sin((sinceBoop / 0.6) * Math.PI) * Math.exp(-sinceBoop * 3) : 0;
     const breathe = 1 + 0.012 * Math.sin(t * 1.6) * motion + voice * 0.03;
     body.scale.set(breathe * (1 + bounce * 0.12), breathe * (1 - bounce * 0.12), breathe);
     rig.position.y = 0.1 + Math.sin(t * 1.1) * 0.07 * motion + bounce * 0.18;
@@ -585,15 +598,15 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
     shadowMat.opacity = 0.9 - (rig.position.y - 0.1) * 1.5;
 
     // Follow a given gaze, else drift.
-    const lx = look.tx ?? Math.sin(t * 0.37) * 0.35 * motion;
-    const ly = look.tx === null ? Math.sin(t * 0.53) * 0.2 * motion : look.ty;
+    const lx = gaze ? (look.tx ?? Math.sin(t * 0.37) * 0.35) : 0;
+    const ly = gaze ? (look.tx === null ? Math.sin(t * 0.53) * 0.2 : look.ty) : 0;
     look.x += (lx - look.x) * 0.06;
     look.y += (ly - look.y) * 0.06;
-    if (still) {
+    if (still || !gaze) {
       look.x = 0;
       look.y = 0;
     }
-    rig.rotation.y = still ? 0.18 : look.x * 0.42;
+    rig.rotation.y = still ? 0.18 : look.x * 0.42 * (bodyOn ? 1 : 0.5);
     visorU.uEdgeOn.value = 0;
     rig.rotation.x = look.y * 0.22 + Math.sin(t * 0.8) * 0.02 * motion;
     rig.rotation.z = -look.x * 0.06 + (face === 'confused' ? 0.14 : 0);
@@ -612,12 +625,12 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
     // Blink every few seconds.
     if (t > blinkAt + blinkDur) blinkAt = t + 2.2 + Math.random() * 3.2;
     const bp = (t - blinkAt) / blinkDur;
-    const blink = !still && bp > 0 && bp < 1 ? Math.max(0.08, Math.abs(Math.cos(bp * Math.PI))) : 1;
+    const blink = gaze && bp > 0 && bp < 1 ? Math.max(0.08, Math.abs(Math.cos(bp * Math.PI))) : 1;
 
     // Faces cross over with a small squash. The canvas is an emissive map, so its ground must be opaque black.
     ex.fillStyle = '#000';
     ex.fillRect(0, 0, EW, EH);
-    const k = faceAt < 0 || still ? 1 : Math.min(1, (t - faceAt) / 0.26);
+    const k = faceAt < 0 || still || !faceOn ? 1 : Math.min(1, (t - faceAt) / 0.26);
     const dx = look.x * 22;
     const dy = look.y * 14;
     if (k < 1) drawFace(prevFace, 1 - k, 1 - k * 0.6, blink, dx, dy);
@@ -627,7 +640,7 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
     renderer.render(scene, camera);
   }
 
-  if (opts.still) frame();
+  if (paused()) frame();
   else schedule();
 
   return {
@@ -636,7 +649,7 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
       prevFace = face;
       face = next;
       faceAt = clock.getElapsedTime();
-      if (opts.still) frame();
+      if (paused()) frame();
     },
     setMode(next) {
       mode = next;
@@ -644,7 +657,7 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
     setColour(hex) {
       colour = hex.toLowerCase();
       paint(colourTarget, colour);
-      if (opts.still) frame();
+      if (paused()) frame();
     },
     boop() {
       boopAt = clock.getElapsedTime();
@@ -655,6 +668,15 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
     },
     setVoice(level) {
       voiceIn = level;
+    },
+    setMotion(body, faceMotion) {
+      bodyOn = body;
+      faceOn = faceMotion;
+      if (paused()) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        frame();
+      } else schedule();
     },
     dispose() {
       cancelAnimationFrame(raf);
