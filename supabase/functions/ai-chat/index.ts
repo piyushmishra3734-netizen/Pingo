@@ -127,6 +127,8 @@ async function runTurn(
   emitDelta: (text: string) => void = () => {},
   /** Anything else the stream carries: `{ sources }` as they are cited, `{ image }` once posted. */
   emitExtra: (payload: Record<string, unknown>) => void = () => {},
+  /** Aborted when the app closes the stream (Stop): the model call ends there. */
+  signal?: AbortSignal,
 ): Promise<Response> {
   /*
    * Three numbers, so 'it is slow' can be answered instead of argued about:
@@ -286,6 +288,7 @@ async function runTurn(
           emitDelta,
           emitSources: (sources) => emitExtra({ sources }),
           emitImage: (image) => emitExtra({ image }),
+          ...(signal ? { signal } : {}),
         },
         {
           personalityBlock: (p) => personalityBlock(p as AiProfile | null),
@@ -1081,7 +1084,12 @@ Deno.serve(async (request) => {
   }
 
   const encoder = new TextEncoder();
+  // The app pressing Stop closes this stream; that cancel stops the model too.
+  const stop = new AbortController();
   const stream = new ReadableStream({
+    cancel() {
+      stop.abort();
+    },
     async start(controller) {
       const send = (payload: unknown) => {
         try {
@@ -1101,6 +1109,7 @@ Deno.serve(async (request) => {
           (sentence) => send({ sentence }),
           (delta) => send({ delta }),
           (extra) => send(extra),
+          stop.signal,
         );
         const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
         /*

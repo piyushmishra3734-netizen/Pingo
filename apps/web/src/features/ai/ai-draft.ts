@@ -78,3 +78,31 @@ export function useAiMood(conversationId: string): AiMood | undefined {
     () => undefined,
   );
 }
+
+/* ---------- Stop: the reply being written, cut off where it is ---------- */
+
+const stoppers = new Map<string, () => void>();
+
+/** The live reply's off switch, while it streams. Returns the cleanup. */
+export function registerAiStop(conversationId: string, stop: () => void): () => void {
+  stoppers.set(conversationId, stop);
+  emit();
+  return () => {
+    if (stoppers.get(conversationId) !== stop) return;
+    stoppers.delete(conversationId);
+    emit();
+  };
+}
+
+/** Stops the reply PINGO AI is writing; the server keeps what was already shown. */
+export function stopAi(conversationId: string) {
+  stoppers.get(conversationId)?.();
+}
+
+export function useAiStoppable(conversationId: string): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => stoppers.has(conversationId),
+    () => false,
+  );
+}

@@ -137,6 +137,8 @@ export interface LunaTurn {
   emitImage?: (image: { messageId: string; path: string }) => void;
   /** A slash command the client stripped from the text: search, image, remember, summarize, translate, explain. */
   command?: string;
+  /** Aborted when they press Stop (the app closes the stream): the model call is cut off there. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -528,7 +530,10 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     const piece = moods.push(raw);
     if (piece) onText(piece);
   };
+  /** Everything already on their screen, which is what a Stop keeps. */
+  let onScreen = '';
   const onText = (piece: string) => {
+    onScreen += piece;
     if (!firstText) firstText = Date.now();
     stage('writing');
     pending += piece;
@@ -577,6 +582,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
         maxTokens,
         cacheKey: `pingo-ai-${t.userId}`,
         onText: onRaw,
+        ...(t.signal ? { signal: t.signal } : {}),
         // A command forces its tool on the first round only; after that the model is answering.
         ...(rounds === 0 && t.command === 'search' ? { force: 'web_search' as const } : {}),
         ...(rounds === 0 && t.command === 'image' ? { force: 'image_generation' as const } : {}),
@@ -623,6 +629,13 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       }
     }
   } catch (err) {
+    if (t.signal?.aborted) {
+      // Stopped: keep what they already saw, as it was; nothing at all if nothing came.
+      flush(true);
+      const kept = stripCitations(onScreen, sources).trim();
+      if (!kept) return { status: 200, body: { stopped: true } };
+      return say(t, kept, 'happy', undefined, { stopped: true }, sources);
+    }
     console.error('[luna] model', err);
     const tail = moods.end();
     if (tail) onText(tail);
