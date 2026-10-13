@@ -123,7 +123,7 @@ export function AiDrawer({
 
       <div className="flex-1 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <button type="button" onClick={onSettings} className="flex w-full items-center gap-3.5 px-5 py-3 text-left active:bg-hover">
-          <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[#f2efea]">
+          <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--room-plate)]">
             <PingoFlow colour={colour} face="happy" className="size-[72px]" label="Pingo Flow" />
           </span>
           <span className="min-w-0">

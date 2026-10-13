@@ -1133,7 +1133,8 @@ video {
   --room-raised-2: #2a2a2c;
   --room-capsule: #2a2a2b;
   --room-capsule-line: rgb(255 255 255 / 0.1);
-  --room-plate: #f2efea;
+  /* Pingo Flow's round plate goes as dark as the room. */
+  --room-plate: #000000;
   --room-panel: #ffffff;
   --room-mine: var(--color-brand);
   --room-on-mine: var(--color-on-brand);
@@ -1219,4 +1220,6 @@ video {
 }
 
 /* PINGO AI's menu and settings share the room's face. */
+.ai-room-ui { --room-plate: #f2efea; }
+:root[data-theme='dark'] .ai-room-ui { --room-plate: #000000; }
 .ai-room-ui { font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
