@@ -48,7 +48,14 @@ export function PingoFlow({
     if (!host) return;
     let cancelled = false;
     let made: FlowController | null = null;
-    void import('./engine.js')
+    // Building it compiles shaders, a long beat on a phone: wait until the screen has settled
+    // (the chat's slide-in, the first paint) so opening it never stutters. The still covers the wait.
+    const settled = new Promise<void>((done) => {
+      const idle = (window as { requestIdleCallback?: (cb: () => void, o: { timeout: number }) => number }).requestIdleCallback;
+      window.setTimeout(() => (idle ? idle(() => done(), { timeout: 700 }) : done()), 320);
+    });
+    void settled
+      .then(() => (cancelled ? Promise.reject(new Error('unmounted')) : import('./engine.js')))
       .then(({ createPingoFlow }) => createPingoFlow(host, { ...latest.current, shadow }))
       .then((c) => {
         made = c;
@@ -61,6 +68,7 @@ export function PingoFlow({
         setReady(true);
       })
       .catch((cause: unknown) => {
+        if (cancelled) return;
         // No WebGL, or the shape could not load: the still picture stays.
         console.warn('[pingo-flow]', cause);
       });

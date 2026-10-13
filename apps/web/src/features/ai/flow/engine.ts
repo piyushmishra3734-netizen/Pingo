@@ -519,23 +519,39 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
   const finish = { hi: (FINISH[colour] ?? [0, 0.03])[0], lift: (FINISH[colour] ?? [0, 0.03])[1] };
   const clock = new THREE.Clock();
 
-  function drawFace(name: FlowFace, alpha: number, squash: number, blink: number, dx: number, dy: number) {
-    ex.save();
-    ex.fillStyle = WHITE;
-    ex.strokeStyle = WHITE;
-    ex.translate(MX + dx, EY + dy);
-    ex.scale(1, squash * (BLINKS.has(name) ? blink : 1));
-    ex.translate(-MX, -EY);
-    ex.globalAlpha = alpha * 0.35;
-    ex.shadowColor = 'rgba(255,253,248,0.9)';
-    ex.shadowBlur = 12;
-    DRAW[name]();
-    ex.globalAlpha = alpha;
-    ex.shadowColor = 'rgba(255,253,248,0.35)';
-    ex.shadowBlur = 2;
-    DRAW[name]();
-    ex.restore();
+  // Each face is painted once, glow and all, into a sprite of its own; a frame only places it.
+  // Shadow blur is far too slow to repeat sixty times a second, and the texture uploads only when the picture moved.
+  const sprites = new Map<FlowFace, HTMLCanvasElement>();
+  function sprite(name: FlowFace): HTMLCanvasElement {
+    let c = sprites.get(name);
+    if (c) return c;
+    c = document.createElement('canvas');
+    c.width = EW;
+    c.height = EH;
+    const g = c.getContext('2d')!;
+    const draw = faceDrawer(g)[name];
+    g.fillStyle = WHITE;
+    g.strokeStyle = WHITE;
+    g.globalAlpha = 0.35;
+    g.shadowColor = 'rgba(255,253,248,0.9)';
+    g.shadowBlur = 12;
+    draw();
+    g.globalAlpha = 1;
+    g.shadowColor = 'rgba(255,253,248,0.35)';
+    g.shadowBlur = 2;
+    draw();
+    sprites.set(name, c);
+    return c;
   }
+  function drawFace(name: FlowFace, alpha: number, squash: number, blink: number, dx: number, dy: number) {
+    const sy = squash * (BLINKS.has(name) ? blink : 1);
+    ex.globalAlpha = alpha;
+    ex.setTransform(1, 0, 0, sy, dx, EY + dy - EY * sy);
+    ex.drawImage(sprite(name), 0, 0);
+    ex.setTransform(1, 0, 0, 1, 0, 0);
+    ex.globalAlpha = 1;
+  }
+  let painted = '';
 
   function resize() {
     const w = canvas.clientWidth || 1;
@@ -628,14 +644,19 @@ export async function createPingoFlow(host: HTMLElement, opts: FlowOptions = {})
     const blink = gaze && bp > 0 && bp < 1 ? Math.max(0.08, Math.abs(Math.cos(bp * Math.PI))) : 1;
 
     // Faces cross over with a small squash. The canvas is an emissive map, so its ground must be opaque black.
-    ex.fillStyle = '#000';
-    ex.fillRect(0, 0, EW, EH);
     const k = faceAt < 0 || still || !faceOn ? 1 : Math.min(1, (t - faceAt) / 0.26);
-    const dx = look.x * 22;
-    const dy = look.y * 14;
-    if (k < 1) drawFace(prevFace, 1 - k, 1 - k * 0.6, blink, dx, dy);
-    drawFace(face, k, 0.4 + 0.6 * k + (mode === 'talking' ? voice * 0.08 : 0), blink, dx, dy);
-    eyeTex.needsUpdate = true;
+    const dx = Math.round(look.x * 22 * 4) / 4;
+    const dy = Math.round(look.y * 14 * 4) / 4;
+    const squash = Math.round((0.4 + 0.6 * k + (mode === 'talking' ? voice * 0.08 : 0)) * 200) / 200;
+    const faceKey = `${face}|${prevFace}|${k}|${squash}|${blink}|${dx}|${dy}`;
+    if (faceKey !== painted) {
+      painted = faceKey;
+      ex.fillStyle = '#000';
+      ex.fillRect(0, 0, EW, EH);
+      if (k < 1) drawFace(prevFace, 1 - k, 1 - k * 0.6, blink, dx, dy);
+      drawFace(face, k, squash, blink, dx, dy);
+      eyeTex.needsUpdate = true;
+    }
 
     renderer.render(scene, camera);
   }
