@@ -771,6 +771,7 @@ export function MessageBubble({
         {isAiReply && !streaming && !room && (
           <AiMessageActions
             text={message.body}
+            messageId={message.id}
             onReply={() => onReply?.()}
             {...(onRegenerate ? { onRegenerate } : {})}
           />

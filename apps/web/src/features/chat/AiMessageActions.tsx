@@ -1,5 +1,6 @@
 import { CheckIcon, ChatIcon, MuteIcon, SpeakerIcon, SwapIcon, cn } from '@pingo/ui';
 
+import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
@@ -74,6 +75,8 @@ async function fetchSentence(text: string): Promise<Blob | undefined> {
 export interface AiMessageActionsProps {
   /** What Copy puts on the clipboard and Speak reads out. */
   text: string;
+  /** The reply's id, for thumbs up / down. */
+  messageId?: string;
   /** Quote this message in the composer. */
   onReply: () => void;
   /** Ask again. Omitted where asking again makes no sense. */
@@ -83,12 +86,27 @@ export interface AiMessageActionsProps {
 
 export function AiMessageActions({
   text,
+  messageId,
   onReply,
   onRegenerate,
   className,
 }: AiMessageActionsProps) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // ponytail: the rating is not read back on reload (a query per reply would cost egress); it is stored server-side.
+  const [rating, setRating] = useState<-1 | 0 | 1>(0);
+  const rate = async (value: -1 | 1) => {
+    if (!messageId) return;
+    const before = rating;
+    const next = rating === value ? 0 : value;
+    setRating(next);
+    navigator.vibrate?.(4);
+    const db = getSupabaseClient();
+    const { error } = next
+      ? await db.from('ai_feedback').upsert({ message_id: messageId, rating: next }, { onConflict: 'message_id,user_id' })
+      : await db.from('ai_feedback').delete().eq('message_id', messageId);
+    if (error) setRating(before);
+  };
   /*
    * Pressed, but no sound yet.
    *
@@ -213,6 +231,17 @@ export function AiMessageActions({
         <ActionButton label="Try again" onClick={onRegenerate}>
           <SwapIcon size={14} />
         </ActionButton>
+      )}
+
+      {messageId && (
+        <>
+          <ActionButton label={rating === 1 ? 'Good response (undo)' : 'Good response'} active={rating === 1} onClick={() => void rate(1)}>
+            <ThumbsUp size={14} fill={rating === 1 ? 'currentColor' : 'none'} />
+          </ActionButton>
+          <ActionButton label={rating === -1 ? 'Bad response (undo)' : 'Bad response'} active={rating === -1} onClick={() => void rate(-1)}>
+            <ThumbsDown size={14} fill={rating === -1 ? 'currentColor' : 'none'} />
+          </ActionButton>
+        </>
       )}
     </div>
   );

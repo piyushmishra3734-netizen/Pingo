@@ -424,6 +424,12 @@ export type Database = {
         Update: { title?: string; done?: boolean };
         Relationships: [];
       };
+      ai_feedback: {
+        Row: { message_id: string; user_id: string; rating: -1 | 1; created_at: string };
+        Insert: { message_id: string; rating: -1 | 1; user_id?: string };
+        Update: { rating?: -1 | 1 };
+        Relationships: [];
+      };
       conversations: {
         Row: ConversationRow;
         Insert: {
