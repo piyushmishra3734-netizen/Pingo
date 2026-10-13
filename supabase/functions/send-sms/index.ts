@@ -157,8 +157,11 @@ Deno.serve(async (request) => {
 
   if (!response.ok) {
     // Twilio's error code says why (21211 bad number, 21608 unverified on a trial account...) and holds no secret.
-    const code = ((await response.json().catch(() => null)) as { code?: number } | null)?.code;
-    console.error(`[send-sms] Twilio ${intent.channel} refused with ${response.status}${code ? ` (${code})` : ''}`);
+    const body = (await response.json().catch(() => null)) as { code?: number; message?: string } | null;
+    const code = body?.code;
+    // The message names the cause in words (and at most the number it was sent to); digits are masked.
+    const why = (body?.message ?? '').replace(/\d{4,}/g, '****').slice(0, 200);
+    console.error(`[send-sms] Twilio ${intent.channel} refused with ${response.status}${code ? ` (${code})` : ''}${why ? `: ${why}` : ''}`);
     return failure(502, 'SMS provider did not accept the message.');
   }
 

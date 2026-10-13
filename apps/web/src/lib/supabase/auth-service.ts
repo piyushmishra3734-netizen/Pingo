@@ -61,6 +61,8 @@ import { forgetPublication } from '../crypto/session.js';
 import { forget, remember, savedAccount, savedAccounts, type SavedAccount } from './accounts.js';
 import { localClear } from '../local/db.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
+import { FirebasePhoneOtpAuth } from '../firebase/phone-auth.js';
+import { CONFIG } from '../firebase/web-push.js';
 
 /**
  * The reserved domain that carries a phone identity.
@@ -628,7 +630,10 @@ export class SupabaseAuthService implements AuthService {
     this.client = client;
     this.email = new SupabasePasswordAuth(client, 'email');
     this.phone = new SupabasePasswordAuth(client, 'phone');
-    this.phoneOtp = new SupabasePhoneOtpAuth(client);
+    // Firebase sends the codes when it is configured (no DLT sender needed in India).
+    this.phoneOtp = CONFIG.apiKey && CONFIG.appId
+      ? new FirebasePhoneOtpAuth(client, toPhoneDigits, toSession)
+      : new SupabasePhoneOtpAuth(client);
     this.username = new SupabaseUsernameAuth(client);
     /*
      * One door, two ways through it.

@@ -39,6 +39,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@capacitor-firebase/authentication':
+        specifier: 8.5.2
+        version: 8.5.2(@capacitor/core@8.4.2)(firebase@12.17.1)
       '@capacitor/app':
         specifier: ^8.1.1
         version: 8.1.1(@capacitor/core@8.4.2)
@@ -751,6 +754,15 @@ packages:
 
   '@bufbuild/protobuf@2.15.0':
     resolution: {integrity: sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==}
+
+  '@capacitor-firebase/authentication@8.5.2':
+    resolution: {integrity: sha512-URpL6nxrCS9E/3OfpJDUJx5Kxbhi1KqnzY5bvpt1B3va48o7aaksz7RTggjNGW5J4EsG+Q5U2vSZ/ycJkcODQw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+      firebase: ^12.6.0
+    peerDependenciesMeta:
+      firebase:
+        optional: true
 
   '@capacitor/android@8.4.2':
     resolution: {integrity: sha512-bzf8XZ9C+ePgOQ+e+T0fnhHGH4aCNY494vvSQIF5w4AY07RwEmkFqZs1678DDSMH0hLSQpxEwXGFNUVcXO6bBA==}
@@ -4231,6 +4243,12 @@ snapshots:
   '@bufbuild/protobuf@1.10.1': {}
 
   '@bufbuild/protobuf@2.15.0': {}
+
+  '@capacitor-firebase/authentication@8.5.2(@capacitor/core@8.4.2)(firebase@12.17.1)':
+    dependencies:
+      '@capacitor/core': 8.4.2
+    optionalDependencies:
+      firebase: 12.17.1
 
   '@capacitor/android@8.4.2(@capacitor/core@8.4.2)':
     dependencies:

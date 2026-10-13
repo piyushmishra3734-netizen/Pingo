@@ -1,4 +1,5 @@
-import { AuthError } from '@pingo/core';
+import { AuthError, type AuthSession } from '@pingo/core';
+import { FirebasePhoneOtpAuth } from '../../lib/firebase/phone-auth.js';
 
 import { toPhoneDigits } from '../../lib/supabase/auth-service.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
@@ -103,20 +104,13 @@ export async function startRecovery(identity: RecoveryIdentity, channel: OtpChan
   }
 
   const phone = toPhoneDigits(identity.value);
-  const quota = await chooseOtp(phone, channel);
-  const { error } = await getSupabaseClient().auth.signInWithOtp({
-    phone,
-    // Recovery never creates an account.
-    options: { shouldCreateUser: false },
-  });
   /*
-   * A number with no account is refused here, and saying so would tell anybody
-   * which numbers have PINGO. So it reads exactly as a send: no call comes, and
-   * the screen - which only repeats the digits they typed - learns nothing.
-   * Only a rate limit, which says nothing about the account, is named.
+   * Firebase sends it (no DLT sender needed). It texts any number, so a number
+   * with no account reads exactly as a send; only the verify step refuses it,
+   * the same way it refuses a wrong code.
    */
-  if (error && (error.status === 429 || offline())) throw fromSupabase(error, false);
-  return { status: 'sent', ending: phone.slice(-2), quota };
+  await firebaseRecovery().start(identity.value);
+  return { status: 'sent', ending: phone.slice(-2) };
 }
 
 /** Checks the code; a right one leaves this tab signed in to the account. */
@@ -137,12 +131,19 @@ export async function verifyRecovery(identity: RecoveryIdentity, code: string): 
     return;
   }
 
-  const { data, error } = await getSupabaseClient().auth.verifyOtp({
-    phone: toPhoneDigits(identity.value),
-    token,
-    type: 'sms',
-  });
-  if (error || !data.session) throw fromSupabase(error ?? {}, true);
+  await firebaseRecovery().verify(identity.value, token);
+}
+
+let recoveryDoor: FirebasePhoneOtpAuth | undefined;
+/** One instance, so the code `startRecovery` sent is the one `verifyRecovery` confirms. Never makes an account. */
+function firebaseRecovery(): FirebasePhoneOtpAuth {
+  recoveryDoor ??= new FirebasePhoneOtpAuth(
+    getSupabaseClient(),
+    toPhoneDigits,
+    (session) => (session ? ({ user: { id: session.user.id } } as AuthSession) : null),
+    false,
+  );
+  return recoveryDoor;
 }
 
 /** The password this account signs in with from now on. */
