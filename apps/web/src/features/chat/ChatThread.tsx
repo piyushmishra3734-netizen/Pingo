@@ -1985,6 +1985,9 @@ export function ChatThread({
                         mine={mine}
                         onReply={setReplyTo}
                         onForward={() => undefined}
+                        {...(message.authorId === PINGO_AI_USER_ID
+                          ? { ai: { regenerate: () => regenerate(message) } }
+                          : {})}
                         children={<MessageBubble {...bubbleProps} />}
                         render={({ hidden, ...trigger }) => (
                           <MessageBubble

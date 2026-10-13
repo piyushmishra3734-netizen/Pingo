@@ -2,6 +2,10 @@ import { cn } from '@pingo/ui';
 import {
   Check,
   ChevronRight,
+  Download,
+  Ellipsis,
+  Pencil,
+  Search,
   FileText,
   Folder,
   Globe,
@@ -20,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AiIdeas } from '../AiIdeas.js';
 import { useAiChats, useAiGoals, useAiLibrary } from '../ai-data.js';
+import { exportAiChat } from '../export-chat.js';
 import { PingoFlow } from '../flow/PingoFlow.js';
 import { useAiPrefs } from './ai-prefs.js';
 import { AiPanel, Group, PageHeader, Row } from './ui.js';
@@ -75,8 +80,10 @@ export function AiDrawer({
     }
   };
 
-  const recents = chats.chats.filter((c) => !c.main);
-  const shown = allRecents ? recents : recents.slice(0, 8);
+  const [query, setQuery] = useState('');
+  const term = query.trim().toLowerCase();
+  const recents = chats.chats.filter((c) => !c.main && (!term || `${c.title} ${c.snippet}`.toLowerCase().includes(term)));
+  const shown = allRecents || term ? recents : recents.slice(0, 8);
   const main = chats.chats.find((c) => c.main);
 
   if (view !== 'menu') {
@@ -153,18 +160,31 @@ export function AiDrawer({
           )}
         </div>
 
+        {chats.chats.some((c) => !c.main) && (
+          <label className="mx-4 mb-1.5 flex items-center gap-2 rounded-[12px] bg-surface px-3 py-2 ring-1 ring-line">
+            <Search size={16} className="text-text-tertiary" aria-hidden />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search chats"
+              aria-label="Search chats"
+              className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-text-tertiary"
+            />
+          </label>
+        )}
         <ul className="flex flex-col px-2">
-          {shown.length === 0 && !chats.loading && (
+          {term && shown.length === 0 && <li className="px-3 py-4 text-[14.5px] text-text-secondary">No chat matches “{query.trim()}”.</li>}
+          {!term && shown.length === 0 && !chats.loading && (
             <li className="px-3 py-4 text-[14.5px] leading-snug text-text-secondary">
               Start a new chat with the pencil above. Each one keeps its own thread, and PINGO AI still remembers you across all of them.
             </li>
           )}
           {shown.map((chat) => (
-            <li key={chat.id}>
+            <li key={chat.id} className="relative">
               <button
                 type="button"
                 onClick={() => open(chat.id)}
-                className={cn('flex w-full items-center gap-3 rounded-[16px] px-3 py-2.5 text-left active:bg-hover', chat.id === currentId && 'bg-brand/10')}
+                className={cn('flex w-full items-center gap-3 rounded-[16px] py-2.5 pr-12 pl-3 text-left active:bg-hover', chat.id === currentId && 'bg-brand/10')}
               >
                 <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-surface text-text-secondary ring-1 ring-line">
                   <MessageCircle size={20} />
@@ -182,6 +202,15 @@ export function AiDrawer({
                   </span>
                 </span>
               </button>
+              <ChatRowMenu
+                title={chat.title}
+                onRename={(t) => chats.rename(chat.id, t)}
+                onExport={() => exportAiChat(chat.id, chat.title)}
+                onDelete={async () => {
+                  await chats.remove(chat.id);
+                  if (chat.id === currentId && main) open(main.id);
+                }}
+              />
             </li>
           ))}
         </ul>
@@ -340,4 +369,73 @@ function AppsView() {
 
 function Live() {
   return <span className="rounded-full bg-[#22c55e]/15 px-2.5 py-1 text-[12.5px] font-semibold text-[#15803d]">On</span>;
+}
+
+/** A Recents row's own actions: rename in place, export as Markdown, delete (tap twice). */
+function ChatRowMenu({
+  title,
+  onRename,
+  onExport,
+  onDelete,
+}: {
+  title: string;
+  onRename: (title: string) => Promise<void>;
+  onExport: () => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(title);
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState('');
+  const act = (fn: () => Promise<void>) => async () => {
+    setError('');
+    try {
+      await fn();
+      setOpen(false);
+      setRenaming(false);
+      setConfirm(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That did not work. Try again.');
+    }
+  };
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`Options for ${title}`}
+        aria-expanded={open}
+        onClick={() => { setOpen((v) => !v); setRenaming(false); setConfirm(false); setName(title); }}
+        className="absolute top-2.5 right-2 z-10 grid size-9 place-items-center rounded-full text-text-tertiary active:bg-hover"
+      >
+        <Ellipsis size={18} />
+      </button>
+      {open && (
+        <div role="menu" aria-label={`${title} options`} className="mx-3 mt-0.5 mb-2 rounded-[14px] bg-surface p-1 shadow-sm ring-1 ring-line">
+          {renaming ? (
+            <form className="flex items-center gap-2 p-1" onSubmit={(e) => { e.preventDefault(); void act(() => onRename(name))(); }}>
+              <input autoFocus value={name} maxLength={80} onChange={(e) => setName(e.target.value)} aria-label="Chat name" className="min-w-0 flex-1 rounded-[10px] bg-sunken px-2.5 py-1.5 text-[15px] text-ink outline-none" />
+              <button type="submit" disabled={!name.trim()} className="rounded-[10px] bg-brand px-3 py-1.5 text-[14px] font-semibold text-on-brand disabled:opacity-40">Save</button>
+            </form>
+          ) : (
+            <>
+              <MenuRow icon={<Pencil size={17} />} label="Rename" onClick={() => setRenaming(true)} />
+              <MenuRow icon={<Download size={17} />} label="Export as Markdown" onClick={() => void act(onExport)()} />
+              <MenuRow icon={<Trash2 size={17} />} label={confirm ? 'Tap again to delete' : 'Delete'} danger onClick={() => (confirm ? void act(onDelete)() : setConfirm(true))} />
+            </>
+          )}
+          {error && <p role="alert" className="px-2.5 py-1 text-[13px] text-[#d92d20]">{error}</p>}
+        </div>
+      )}
+    </>
+  );
+}
+
+function MenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: string; danger?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" role="menuitem" onClick={onClick} className={cn('flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[15px] active:bg-hover', danger ? 'text-[#d92d20]' : 'text-ink')}>
+      {icon}
+      {label}
+    </button>
+  );
 }

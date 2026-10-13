@@ -1,6 +1,7 @@
 import type { Message } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { Copy, Ellipsis, Forward, Pencil, Reply, Trash2 } from 'lucide-react';
+import { Copy, Ellipsis, Forward, Pencil, RefreshCw, Reply, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
+import { rateAiReply } from '../ai-feedback.js';
 import { useRef, useState } from 'react';
 
 /**
@@ -23,6 +24,8 @@ export interface MessageActionsProps {
   onMore: () => void;
   onDone: () => void;
   mine: boolean;
+  /** A PINGO AI reply: ask again (when the thread knows what produced it), and rate it. */
+  ai?: { regenerate?: () => void };
   /** The same actions the More sheet runs; the common ones are listed here directly. */
   quick: {
     pin: () => void;
@@ -43,6 +46,7 @@ export function MessageActions({
   onMore,
   onDone,
   mine,
+  ai,
   quick,
 }: MessageActionsProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -100,6 +104,9 @@ export function MessageActions({
       <Action label="Reply" icon={<Reply size={19} />} onClick={() => { onReply(message); onDone(); }} />
       {text && <Action label={copied ? 'Copied' : 'Copy'} icon={<Copy size={19} />} onClick={() => void copy()} />}
       {mine && text && <Action label="Edit" icon={<Pencil size={19} />} onClick={run(quick.edit)} />}
+      {ai?.regenerate && <Action label="Try again" icon={<RefreshCw size={19} />} onClick={run(ai.regenerate)} />}
+      {ai && <Action label="Good response" icon={<ThumbsUp size={19} />} onClick={run(() => void rateAiReply(message.id, 1))} />}
+      {ai && <Action label="Bad response" icon={<ThumbsDown size={19} />} onClick={run(() => void rateAiReply(message.id, -1))} />}
       <Action label="Forward" icon={<Forward size={19} />} onClick={() => { onForward(message); onDone(); }} />
       <Action label="More…" icon={<Ellipsis size={19} />} onClick={onMore} />
       <div aria-hidden className="h-[7px] bg-text-tertiary/15" />

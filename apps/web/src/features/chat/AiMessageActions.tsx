@@ -4,6 +4,7 @@ import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { rateAiReply } from './ai-feedback.js';
 import { speakStreaming, type Speech } from './speak.js';
 
 /**
@@ -101,11 +102,7 @@ export function AiMessageActions({
     const next = rating === value ? 0 : value;
     setRating(next);
     navigator.vibrate?.(4);
-    const db = getSupabaseClient();
-    const { error } = next
-      ? await db.from('ai_feedback').upsert({ message_id: messageId, rating: next }, { onConflict: 'message_id,user_id' })
-      : await db.from('ai_feedback').delete().eq('message_id', messageId);
-    if (error) setRating(before);
+    if (!(await rateAiReply(messageId, next))) setRating(before);
   };
   /*
    * Pressed, but no sound yet.

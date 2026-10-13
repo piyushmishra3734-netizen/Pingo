@@ -31,6 +31,8 @@ export interface MessageMenuProps {
   mine: boolean;
   onReply: (message: Message) => void;
   onForward: (message: Message) => void;
+  /** PINGO AI's replies: Try again and the rating rows. */
+  ai?: { regenerate?: () => void };
   /** The bubble, rendered again inside the menu so it can be lifted. */
   children: React.ReactNode;
   /** The same bubble in the thread - hidden while the menu holds a copy. */
@@ -44,6 +46,7 @@ export function MessageMenu({
   mine,
   onReply,
   onForward,
+  ai,
   children,
   render,
 }: MessageMenuProps) {
@@ -167,6 +170,7 @@ export function MessageMenu({
                 onMore={() => setLevel('more')}
                 onDone={close}
                 mine={mine}
+                {...(ai ? { ai } : {})}
                 quick={level2}
               />
             ) : (
