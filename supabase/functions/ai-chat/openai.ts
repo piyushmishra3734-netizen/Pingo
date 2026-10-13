@@ -1,134 +1,147 @@
 /**
- * OpenAI Chat Completions, streamed, with tools.
+ * OpenAI Responses API (POST /v1/responses), streamed, with tools.
  *
  * One request, read as it is written: each piece of text is handed on the
  * moment it arrives (the thread shows it as it is written, the voice starts on
- * the first sentence), and tool calls are collected whole and returned for the
- * caller to run. No SDK: a fetch and a line reader are the whole of it, and
- * nothing extra loads on a cold start.
+ * the first sentence), web searches and drawings are reported as they start,
+ * and function calls are collected whole and returned for the caller to run.
+ * No SDK: a fetch and an event reader (`responses-events.ts`) are the whole of
+ * it, and nothing extra loads on a cold start.
+ *
+ * Responses rather than Chat Completions because the native tools live there:
+ * `web_search` answers with live sources, `image_generation` draws and edits,
+ * and images and PDFs go in as input next to the text.
  */
 
-export type ChatMessage =
-  | { role: 'system' | 'user'; content: string }
-  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
-  | { role: 'tool'; tool_call_id: string; content: string };
+import { relaxRequest, ResponsesStream, SseSplitter, type StreamHooks } from './responses-events.ts';
 
-export interface ToolCall {
-  id: string;
+export type { DrawnImage, FunctionCall, Source } from './responses-events.ts';
+
+export type InputPart =
+  | { type: 'input_text'; text: string }
+  | { type: 'input_image'; image_url: string; detail: 'auto' | 'low' | 'high' }
+  | { type: 'input_file'; filename: string; file_data: string };
+
+/** A message, a function's answer, or an output item of an earlier round sent back as it came. */
+export type InputItem =
+  | { role: 'system' | 'developer' | 'user' | 'assistant'; content: string | InputPart[] }
+  | { type: 'function_call_output'; call_id: string; output: string }
+  | { type: string; [key: string]: unknown };
+
+export interface FunctionTool {
   type: 'function';
-  function: { name: string; arguments: string };
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  strict?: boolean;
 }
 
-export interface ToolSpec {
-  type: 'function';
-  function: { name: string; description: string; parameters: Record<string, unknown> };
+/** OpenAI's own tools: `web_search`, `image_generation`, configured by the caller. */
+export interface BuiltinTool {
+  type: 'web_search' | 'image_generation';
+  [key: string]: unknown;
 }
 
-export interface StreamResult {
-  text: string;
-  toolCalls: ToolCall[];
-  finish: string;
-  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
-}
+export type Tool = FunctionTool | BuiltinTool;
 
-export interface StreamOptions {
+export interface StreamOptions extends StreamHooks {
   apiKey: string;
   base: string;
   model: string;
-  messages: ChatMessage[];
-  tools?: ToolSpec[];
+  input: InputItem[];
+  tools?: Tool[];
   /** "none" | "minimal" | "low" | "medium" | "high", as the model allows. Empty: not sent. */
   reasoningEffort?: string;
   maxTokens: number;
   /** Groups one person's requests, so the cached prefix is found again. */
   cacheKey?: string;
-  onText?: (delta: string) => void;
+  /** A built-in tool this request must call (a /search or /image command). Default: the model decides. */
+  force?: BuiltinTool['type'];
   signal?: AbortSignal;
 }
 
-/**
- * Optional parameters a model may refuse. A 400 naming one of them is retried
- * once without them all: a newer or older model should still answer, just
- * without the extra.
- */
-const OPTIONAL = ['reasoning_effort', 'prompt_cache_key', 'stream_options', 'parallel_tool_calls', 'tool_choice'];
+export interface StreamResult {
+  stream: ResponsesStream;
+  /** What a refusal made this request give up: a tool type, 'media', 'reasoning', ... */
+  dropped: string[];
+  /**
+   * Reasoning items came back sealed and can be sent again next round. False
+   * when `include` was refused, and then they must not be: with `store: false`
+   * a bare reasoning id points at nothing.
+   */
+  sealedReasoning: boolean;
+  /** The tools as finally sent, so the next round does not ask for a refused one again. */
+  tools: Tool[];
+}
 
-export async function streamChat(o: StreamOptions): Promise<StreamResult> {
+/** Each refusal gets one retry with less; past this many the error stands. */
+const MAX_RELAX = 5;
+
+export async function streamResponse(o: StreamOptions): Promise<StreamResult> {
   const body: Record<string, unknown> = {
     model: o.model,
-    messages: o.messages,
+    input: o.input,
     stream: true,
-    stream_options: { include_usage: true },
-    max_completion_tokens: o.maxTokens,
-    ...(o.tools?.length ? { tools: o.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
-    ...(o.reasoningEffort ? { reasoning_effort: o.reasoningEffort } : {}),
+    /*
+     * Not kept on OpenAI's side: every turn sends its own window, so a stored
+     * copy would be a second history of somebody's chat for nothing. Reasoning
+     * comes back sealed instead, so a tool round can still hand it on.
+     */
+    store: false,
+    include: ['reasoning.encrypted_content'],
+    max_output_tokens: o.maxTokens,
+    // Copied: a refusal edits the tools, and the caller's list is shared by every turn.
+    ...(o.tools?.length ? { tools: o.tools.map((t) => ({ ...t })), tool_choice: toolChoice(o), parallel_tool_calls: false } : {}),
+    ...(o.reasoningEffort ? { reasoning: { effort: o.reasoningEffort } } : {}),
     ...(o.cacheKey ? { prompt_cache_key: o.cacheKey } : {}),
   };
 
+  const dropped: string[] = [];
   let res = await post(o, body);
-  if (res.status === 400) {
+  while (res.status === 400) {
     const detail = await res.text();
-    if (OPTIONAL.some((p) => detail.includes(p))) {
-      for (const p of OPTIONAL) delete body[p];
-      // Some models (gpt-6-luna on chat completions) refuse tools with any effort but 'none', and leaving it out is not 'none'.
-      if (body.tools && /reasoning_effort/.test(detail) && /'none'/.test(detail)) body.reasoning_effort = 'none';
-      res = await post(o, body);
-    } else {
+    const gave = dropped.length < MAX_RELAX ? relaxRequest(body, detail) : null;
+    if (!gave) {
       // A bad OPENAI_MODEL secret: name what was sent and what this key can use, so the fix is one secret.
-      const hint = /model/i.test(detail) ? ` | sent ${JSON.stringify(o.model)}; this key can use: ${await modelIds(o)}` : '';
+      const hint = /model/i.test(detail) && !/gpt-image/i.test(detail) ? ` | sent ${JSON.stringify(o.model)}; this key can use: ${await modelIds(o)}` : '';
       throw new Error(`OpenAI 400: ${detail.slice(0, 300)}${hint}`);
     }
+    console.warn(`[openai] retrying without ${gave}: ${detail.slice(0, 200)}`);
+    dropped.push(gave);
+    res = await post(o, body);
   }
   if (!res.ok || !res.body) {
     const detail = await res.text().catch(() => '');
     throw new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
   }
 
-  let text = '';
-  let finish = '';
-  let usage: StreamResult['usage'];
-  const calls = new Map<number, ToolCall>();
-
+  const stream = new ResponsesStream(o);
+  const sse = new SseSplitter();
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = '';
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += value;
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      const data = line.startsWith('data:') ? line.slice(5).trim() : '';
-      if (!data || data === '[DONE]') continue;
-      let chunk: {
-        choices?: { delta?: { content?: string | null; tool_calls?: { index: number; id?: string; function?: { name?: string; arguments?: string } }[] }; finish_reason?: string | null }[];
-        usage?: StreamResult['usage'];
-      };
-      try {
-        chunk = JSON.parse(data);
-      } catch {
-        continue;
-      }
-      if (chunk.usage) usage = chunk.usage;
-      const choice = chunk.choices?.[0];
-      if (!choice) continue;
-      const piece = choice.delta?.content;
-      if (piece) {
-        text += piece;
-        o.onText?.(piece);
-      }
-      for (const t of choice.delta?.tool_calls ?? []) {
-        const cur = calls.get(t.index) ?? { id: '', type: 'function' as const, function: { name: '', arguments: '' } };
-        if (t.id) cur.id = t.id;
-        if (t.function?.name) cur.function.name += t.function.name;
-        if (t.function?.arguments) cur.function.arguments += t.function.arguments;
-        calls.set(t.index, cur);
-      }
-      if (choice.finish_reason) finish = choice.finish_reason;
-    }
+    for (const event of sse.push(value)) stream.feed(event);
   }
+  for (const event of sse.end()) stream.feed(event);
 
-  return { text, toolCalls: [...calls.values()].filter((c) => c.function.name), finish, ...(usage ? { usage } : {}) };
+  return {
+    stream,
+    dropped,
+    sealedReasoning: Array.isArray(body.include),
+    tools: (body.tools as Tool[] | undefined) ?? [],
+  };
+}
+
+/*
+ * `allowed_tools` with mode `required`, not `{ type: 'web_search' }`: the plain
+ * form lists only some built-in tools (web_search_preview, image_generation),
+ * and this one names any tool. The tool list itself is unchanged, so the
+ * cached prefix is too.
+ */
+function toolChoice(o: StreamOptions): unknown {
+  if (!o.force || !o.tools?.some((t) => t.type === o.force)) return 'auto';
+  return { type: 'allowed_tools', mode: 'required', tools: [{ type: o.force }] };
 }
 
 async function modelIds(o: StreamOptions): Promise<string> {
@@ -143,7 +156,7 @@ async function modelIds(o: StreamOptions): Promise<string> {
 }
 
 function post(o: StreamOptions, body: Record<string, unknown>): Promise<Response> {
-  return fetch(`${o.base}/chat/completions`, {
+  return fetch(`${o.base}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${o.apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

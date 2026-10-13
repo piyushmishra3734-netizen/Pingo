@@ -11,6 +11,15 @@
  *   OPENAI_REASONING_EFFORT       default low (none | minimal | low | medium)
  *   OPENAI_VOICE_REASONING_EFFORT optional, for calls
  *   OPENAI_BASE_URL               default https://api.openai.com/v1
+ *   OPENAI_IMAGE_MODEL            optional, the image tool's model (default gpt-image-2;
+ *                                 a refused model falls back to OpenAI's default)
+ *   OPENAI_WEB_SEARCH             "off" to switch web search off
+ *   OPENAI_IMAGE_GENERATION       "off" to draw with Cloudflare only
+ *
+ * Luna runs on the Responses API with OpenAI's own tools: web search with
+ * sources, image generation and editing, and photos and PDFs as input. The
+ * Cloudflare drawing path (CF_ACCOUNT_ID, CF_AI_TOKEN) is the fallback when
+ * OpenAI cannot draw.
  *
  * Without it, the older NVIDIA path below runs: it loads profile + memories +
  * recent plaintext, calls NVIDIA, posts the reply, and updates memory.
@@ -34,7 +43,7 @@ import { imagePrompt } from './image-intent.ts';
 import { reasoningDemand, type Demand } from './demand.ts';
 import { generateImage } from './generate-image.ts';
 import { windowIndices } from './history-window.ts';
-import { lunaTurn } from './luna.ts';
+import { lunaTurn, openaiCanDraw, type AiMeta } from './luna.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
@@ -81,7 +90,11 @@ export type Stage =
   | 'polishing'
   | 'drawing'
   | 'uploading'
-  | 'writing';
+  | 'writing'
+  /* Luna on the Responses API: OpenAI's own tools, reported as they run. */
+  | 'searching'
+  | 'looking'
+  | 'reading_file';
 
 /** Told each time the turn moves on. A no-op when nobody is listening. */
 type Emit = (stage: Stage) => void;
@@ -109,6 +122,8 @@ async function runTurn(
   emitSentence: EmitSentence = () => {},
   /** Pieces of the reply as they are written, for the thread to show live. */
   emitDelta: (text: string) => void = () => {},
+  /** Anything else the stream carries: `{ sources }` as they are cited, `{ image }` once posted. */
+  emitExtra: (payload: Record<string, unknown>) => void = () => {},
 ): Promise<Response> {
   /*
    * Three numbers, so 'it is slow' can be answered instead of argued about:
@@ -158,6 +173,12 @@ async function runTurn(
        * to open. Set by the call screen and by nothing else.
        */
       voice?: boolean;
+      /**
+       * A slash command, its prefix already taken off `userMessage` by the
+       * client: search, image, remember, summarize, translate, explain.
+       * Anything else is an ordinary turn.
+       */
+      command?: string;
     };
     const spoken = body.voice === true;
     const conversationId = body.conversationId;
@@ -226,8 +247,18 @@ async function runTurn(
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
     if (openaiKey) {
       const said = typeof body.userMessage === 'string' ? body.userMessage.trim() : '';
-      const picture = imagePrompt(said);
-      if (picture) return await replyWithImage(request, userClient, supabaseUrl, conversationId, picture, emit);
+      /*
+       * The model decides when to draw. The regex only routes around it when
+       * OpenAI cannot draw here: switched off, or refused by this model.
+       */
+      const imagesOn = Deno.env.get('OPENAI_IMAGE_GENERATION') !== 'off';
+      const command = ['search', 'image', 'remember', 'summarize', 'translate', 'explain'].includes(String(body.command))
+        ? String(body.command)
+        : undefined;
+      const picture = command === 'image' ? said || undefined : imagePrompt(said);
+      if (picture && (!imagesOn || !openaiCanDraw())) {
+        return await replyWithImage(request, userClient, supabaseUrl, conversationId, picture, emit);
+      }
       const out = await lunaTurn(
         {
           db: userClient,
@@ -240,9 +271,15 @@ async function runTurn(
           base: (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
           model: Deno.env.get('OPENAI_MODEL') || 'gpt-6-luna',
           reasoningEffort: (spoken ? Deno.env.get('OPENAI_VOICE_REASONING_EFFORT') : undefined) ?? Deno.env.get('OPENAI_REASONING_EFFORT') ?? 'low',
+          webSearch: Deno.env.get('OPENAI_WEB_SEARCH') !== 'off',
+          images: imagesOn,
+          imageModel: Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-2',
+          ...(command ? { command } : {}),
           emit,
           emitSentence,
           emitDelta,
+          emitSources: (sources) => emitExtra({ sources }),
+          emitImage: (image) => emitExtra({ image }),
         },
         {
           personalityBlock: (p) => personalityBlock(p as AiProfile | null),
@@ -255,9 +292,20 @@ async function runTurn(
           collapseHistory,
           skipBodies: SKIP_BODIES,
           botId: BOT_ID,
+          imagePrompt,
+          postImage: (image, caption, meta) => postAiImage(userClient, supabaseUrl, conversationId, image, caption, meta),
+          drawFallback: async (prompt) => {
+            const res = await replyWithImage(request, userClient, supabaseUrl, conversationId, prompt, emit);
+            return { status: res.status, body: (await res.json().catch(() => ({}))) as Record<string, unknown> };
+          },
         },
       );
       return json(request, out.body, out.status);
+    }
+
+    // A photo or file with no words: only Luna can see it, and this path would answer the line before.
+    if (!String(body.userMessage ?? '').trim()) {
+      return json(request, { skipped: 'nothing_to_read' });
     }
 
     /*
@@ -1041,8 +1089,14 @@ Deno.serve(async (request) => {
           (stage) => send({ stage }),
           (sentence) => send({ sentence }),
           (delta) => send({ delta }),
+          (extra) => send(extra),
         );
-        const body = await response.json().catch(() => ({}));
+        const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        /*
+         * Every final reply has a face for the 3D character: Luna's own choice
+         * when it made one, otherwise happy, and sad for anything that failed.
+         */
+        if (!body.mood && !body.skipped) body.mood = body.error || response.status >= 400 ? 'sad' : 'happy';
         send({ done: true, status: response.status, payload: body });
       } catch (cause) {
         console.error('[ai-chat] stream failed', cause);
@@ -2867,13 +2921,14 @@ async function capMemories(
  *
  * ## No special retention
  *
- * The picture is an ordinary photo message. The insert trigger stamps it, the
- * sweeper collects it 24 hours later, and the copy on the recipient's device is
- * the one that lasts. A generated image is not more precious than a sent one.
+ * The picture is an ordinary photo message, kept like any other photo (see
+ * `20260948000000_media_stays`). A generated image is not more precious than a
+ * sent one, and not less.
  */
 async function replyWithImage(
   request: Request,
-  userClient: ReturnType<typeof createClient>,
+  // deno-lint-ignore no-explicit-any
+  userClient: any,
   supabaseUrl: string,
   conversationId: string,
   prompt: string,
@@ -2881,11 +2936,11 @@ async function replyWithImage(
 ): Promise<Response> {
   /** Said in the thread, so it is written to be read rather than logged. */
   const say = async (body: string, status = 200, extra: Record<string, unknown> = {}) => {
-    const { data: id } = await userClient.rpc('post_ai_reply', {
-      target_conversation: conversationId,
-      reply_body: body,
-    });
-    return json(request, { messageId: id, ...extra }, status);
+    const args = { target_conversation: conversationId, reply_body: body };
+    // Every line said here is a failure, so the face is sad; without the meta migration, said anyway.
+    let { data: id, error } = await userClient.rpc('post_ai_reply', { ...args, reply_meta: { mood: 'sad' } });
+    if (error) ({ data: id } = await userClient.rpc('post_ai_reply', args));
+    return json(request, { messageId: id, mood: 'sad', ...extra }, status);
   };
 
   let image;
@@ -2930,6 +2985,31 @@ async function replyWithImage(
     });
   }
 
+  emit('uploading');
+  const posted = await postAiImage(userClient, supabaseUrl, conversationId, image, prompt, { mood: 'happy' });
+  if ('error' in posted) {
+    return say("I drew it but couldn't send it. Try again?", 200, { error: posted.error });
+  }
+  return json(request, { messageId: posted.messageId, image: posted, prompt, mood: 'happy' });
+}
+
+/**
+ * Put a drawn picture in the bucket and in the thread, as the bot's photo
+ * message. Shared by both drawing paths, OpenAI's and Cloudflare's.
+ *
+ * `meta` is what the bot knows about it (the prompt the model drew from, any
+ * sources), stored as `messages.meta.ai`. A database without the migration that
+ * takes it still gets the picture, without the meta.
+ */
+async function postAiImage(
+  // deno-lint-ignore no-explicit-any
+  userClient: any,
+  supabaseUrl: string,
+  conversationId: string,
+  image: { bytes: Uint8Array; contentType: string; extension: string },
+  caption: string,
+  meta: AiMeta | null,
+): Promise<{ messageId: string; path: string } | { error: string }> {
   /*
    * Service role, and only for this.
    *
@@ -2943,7 +3023,6 @@ async function replyWithImage(
     auth: { persistSession: false },
   });
 
-  emit('uploading');
   const path = `${BOT_ID}/${crypto.randomUUID()}.${image.extension}`;
   const { error: uploadError } = await admin.storage
     .from('photos')
@@ -2951,23 +3030,26 @@ async function replyWithImage(
 
   if (uploadError) {
     console.error('[ai-chat] image upload failed', uploadError.message);
-    return say("I drew it but couldn't send it. Try again?", 200, { error: 'image_upload_failed' });
+    return { error: 'image_upload_failed' };
   }
 
-  const { data: messageId, error: postError } = await userClient.rpc('post_ai_photo', {
-    target_conversation: conversationId,
-    photo_path: path,
-    caption: prompt,
-  });
+  const args = { target_conversation: conversationId, photo_path: path, caption };
+  let { data: messageId, error: postError } = await userClient.rpc(
+    'post_ai_photo',
+    meta && Object.keys(meta).length ? { ...args, reply_meta: meta } : args,
+  );
+  if (postError && meta && /reply_meta|function|PGRST202/i.test(`${postError.code ?? ''} ${postError.message}`)) {
+    ({ data: messageId, error: postError } = await userClient.rpc('post_ai_photo', args));
+  }
 
-  if (postError) {
-    console.error('[ai-chat] image post failed', postError.message);
+  if (postError || !messageId) {
+    console.error('[ai-chat] image post failed', postError?.message);
     // The row is what makes the object reachable, so without one the bytes are
     // unreferenced from the moment they land. Removed now rather than left for
     // a sweeper that has no rule that would ever match them.
     await admin.storage.from('photos').remove([path]);
-    return say("I drew it but couldn't send it. Try again?", 200, { error: 'image_post_failed' });
+    return { error: 'image_post_failed' };
   }
 
-  return json(request, { messageId, image: true, prompt });
+  return { messageId: String(messageId), path };
 }

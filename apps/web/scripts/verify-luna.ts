@@ -1,35 +1,81 @@
 // @ts-nocheck - a test with hand-made fakes for fetch and the database.
 /**
  * PINGO AI on OpenAI (Luna): `supabase/functions/ai-chat/luna.ts` and
- * `openai.ts`, run for real against a fake OpenAI stream and a fake database.
+ * `openai.ts`, run for real against a fake OpenAI Responses stream and a fake
+ * database.
  *
  * What it holds to: an ordinary message is ONE request and sends no memories;
  * a question about something remembered spends one tool round and gets the
  * memory; "yaad rakh ..." is saved with no extra request; the streamed pieces
- * add up to the posted reply; and a model that refuses an optional parameter
- * is asked again without it.
+ * add up to the posted reply; a web search posts its sources with the reply; a
+ * drawn picture is posted as a photo; a photo just sent goes in as an image;
+ * and a model that refuses an optional parameter or a tool is asked again
+ * without it.
  */
 import { lunaTurn } from '../../../supabase/functions/ai-chat/luna.ts';
-import { streamChat } from '../../../supabase/functions/ai-chat/openai.ts';
+import { streamResponse } from '../../../supabase/functions/ai-chat/openai.ts';
 import assert from 'node:assert/strict';
 
-// ---- fake OpenAI: first call asks for recall_memory, second streams the answer
+const enc = new TextEncoder();
+const sse = (events) =>
+  new Response(
+    new ReadableStream({
+      start(c) {
+        for (const e of events) c.enqueue(enc.encode(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`));
+        c.close();
+      },
+    }),
+    { status: 200 },
+  );
+const textEvents = (text, extra = []) => [
+  ...extra,
+  ...text.split(/(?<= )/).map((delta) => ({ type: 'response.output_text.delta', item_id: 'msg_1', output_index: 0, content_index: 0, delta })),
+  { type: 'response.output_item.done', output_index: 0, item: { type: 'message', id: 'msg_1', role: 'assistant', content: [{ type: 'output_text', text, annotations: [] }] } },
+  { type: 'response.completed', response: { status: 'completed', usage: { input_tokens: 900, input_tokens_details: { cached_tokens: 0 }, output_tokens: 20 } } },
+];
+const lastUserText = (body) => {
+  const m = body.input.filter((x) => x.role === 'user').pop();
+  return typeof m.content === 'string' ? m.content : m.content.filter((p) => p.type === 'input_text').map((p) => p.text).join(' ');
+};
+
+// ---- fake OpenAI
 const calls = [];
 globalThis.fetch = async (url, init) => {
+  assert.ok(String(url).endsWith('/responses'), 'Responses API');
   const body = JSON.parse(init.body);
   calls.push(body);
-  const sse = (chunks) => new Response(new ReadableStream({ start(c) { for (const ch of chunks) c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(ch)}\n\n`)); c.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); c.close(); } }), { status: 200 });
-  const lastUser = body.messages.filter((m) => m.role === 'user').pop().content;
-  const hasTool = body.messages.some((m) => m.role === 'tool');
-  if (lastUser.includes('birthday') && !hasTool) {
+  const said = lastUserText(body);
+  const answered = body.input.some((m) => m.type === 'function_call_output');
+  if (said.includes('birthday') && !answered) {
     return sse([
-      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'recall_memory', arguments: '' } }] } }] },
-      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"query":"birth' } }] } }] },
-      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'day"}' } }] }, finish_reason: 'tool_calls' }] },
+      { type: 'response.output_item.done', output_index: 0, item: { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'sealed' } },
+      { type: 'response.output_item.added', output_index: 1, item: { type: 'function_call', id: 'fc_1', call_id: 'c1', name: 'recall_memory', arguments: '' } },
+      { type: 'response.function_call_arguments.delta', output_index: 1, item_id: 'fc_1', delta: '{"query":"birth' },
+      { type: 'response.function_call_arguments.delta', output_index: 1, item_id: 'fc_1', delta: 'day"}' },
+      { type: 'response.output_item.done', output_index: 1, item: { type: 'function_call', id: 'fc_1', call_id: 'c1', name: 'recall_memory', arguments: '{"query":"birthday"}' } },
+      { type: 'response.completed', response: { status: 'completed' } },
     ]);
   }
-  const words = (hasTool ? 'Tera birthday 5 June hai. Party kab hai?' : 'Haan bhai, bilkul! Bata kya scene hai.').split(/(?<= )/);
-  return sse([...words.map((w) => ({ choices: [{ delta: { content: w } }] })), { choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 900, completion_tokens: 20 } }]);
+  if (said.includes('score')) {
+    const text = 'India won by 6 wickets ([espn.com](https://www.espn.com/m/1?utm_source=openai)).';
+    return sse([
+      { type: 'response.web_search_call.searching', output_index: 0, item_id: 'ws_1' },
+      { type: 'response.output_item.done', output_index: 0, item: { type: 'web_search_call', id: 'ws_1', status: 'completed' } },
+      { type: 'response.output_text.delta', item_id: 'msg_2', output_index: 1, content_index: 0, delta: text },
+      { type: 'response.output_text.annotation.added', item_id: 'msg_2', output_index: 1, content_index: 0, annotation_index: 0, annotation: { type: 'url_citation', title: 'IND v AUS', url: 'https://www.espn.com/m/1?utm_source=openai', start_index: 23, end_index: 80 } },
+      { type: 'response.completed', response: { status: 'completed' } },
+    ]);
+  }
+  if (said.includes('cat ki photo')) {
+    return sse([
+      { type: 'response.image_generation_call.generating', output_index: 0, item_id: 'ig_1' },
+      { type: 'response.output_item.done', output_index: 0, item: { type: 'image_generation_call', id: 'ig_1', status: 'completed', result: btoa('WEBPBYTES'), output_format: 'webp', revised_prompt: 'A cat' } },
+      { type: 'response.output_text.delta', item_id: 'msg_3', output_index: 1, content_index: 0, delta: 'Ye lo!' },
+      { type: 'response.completed', response: { status: 'completed' } },
+    ]);
+  }
+  if (said.includes('mood test')) return sse(textEvents('Wah, kya baat hai! [[mood:excited]]'));
+  return sse(textEvents(answered ? 'Tera birthday 5 June hai. Party kab hai?' : 'Haan bhai, bilkul! Bata kya scene hai.'));
 };
 
 // ---- fake db
@@ -47,22 +93,30 @@ function makeDb(state) {
     };
     return api;
   };
-  return { from: q, rpc: async (fn, args) => { state.posted.push(args.reply_body); return { data: 'msg-1', error: null }; } };
+  return {
+    from: q,
+    rpc: async (fn, args) => { state.posted.push(args.reply_body); state.rpcs.push({ fn, args }); return { data: 'msg-1', error: null }; },
+    storage: { from: (bucket) => ({ createSignedUrl: async (path) => ({ data: { signedUrl: `https://store/${bucket}/${path}?token=t` }, error: null }) }) },
+  };
 }
 const deps = {
   personalityBlock: () => 'VOICE: friendly', lengthBlock: () => 'LENGTH: short', languageLabel: () => null,
   parseExplicitMemory: (m) => (/yaad rakh (.+)/i.exec(m) ? { key: 'note_x', value: /yaad rakh (.+)/i.exec(m)[1] } : null),
   upsertMemoryRow: async (db, uid, k, v) => { db.__state.saved.push(v); }, capMemories: async () => {},
   stripMarkers: (t) => t, collapseHistory: (h) => h, skipBodies: [], botId: 'BOT',
+  imagePrompt: (t) => (/photo banao|draw/i.test(t) ? t : undefined),
+  postImage: async (image, caption, meta) => { deps.__images.push({ image, caption, meta }); return { messageId: 'img-1', path: 'BOT/x.webp' }; },
+  __images: [],
 };
-async function run(live, extra = {}) {
+const nowIso = () => new Date().toISOString();
+async function run(live, extra = {}, rows) {
   const state = { ai_profiles: [{ memory_enabled: true, preferred_name: 'Piyush', response_length: 'short' }], ai_memories: [{ value: 'birthday 5 June', created_at: '2026-10-01T00:00:00Z' }],
-    messages: [{ sender_id: 'me', body: live, created_at: '2026-10-08T10:00:01Z' }, { sender_id: 'BOT', body: 'Yo!', created_at: '2026-10-08T10:00:00Z' }, { sender_id: 'me', body: 'hi', created_at: '2026-10-08T09:59:59Z' }],
-    inserted: [], posted: [], saved: [] };
+    messages: rows ?? [{ id: 'm3', sender_id: 'me', body: live, created_at: nowIso() }, { id: 'm2', sender_id: 'BOT', body: 'Yo!', created_at: '2026-10-08T10:00:00Z' }, { id: 'm1', sender_id: 'me', body: 'hi', created_at: '2026-10-08T09:59:59Z' }],
+    inserted: [], posted: [], saved: [], rpcs: [] };
   const db = makeDb(state); db.__state = state;
-  const deltas = [], stages = [];
-  const out = await lunaTurn({ db, userId: 'me', conversationId: 'c', isGroup: false, live, spoken: false, apiKey: 'k', base: 'https://x', model: 'gpt-6-luna', reasoningEffort: 'low', emit: (s) => stages.push(s), emitSentence: () => {}, emitDelta: (d) => deltas.push(d), ...extra }, deps);
-  return { out, state, deltas, stages };
+  const deltas = [], stages = [], sources = [];
+  const out = await lunaTurn({ db, userId: 'me', conversationId: 'c', isGroup: false, live, spoken: false, apiKey: 'k', base: 'https://x', model: 'gpt-6-luna', reasoningEffort: 'low', imageModel: 'gpt-image-2', emit: (s) => stages.push(s), emitSentence: () => {}, emitDelta: (d) => deltas.push(d), emitSources: (s) => sources.push(s), ...extra }, deps);
+  return { out, state, deltas, stages, sources };
 }
 
 calls.length = 0;
@@ -71,16 +125,27 @@ assert.equal(r.out.status, 200);
 assert.equal(calls.length, 1, 'plain turn = one request');
 assert.equal(r.state.posted[0], 'Haan bhai, bilkul! Bata kya scene hai.');
 assert.ok(r.deltas.length >= 1 && r.deltas.join('') === r.state.posted[0], 'deltas add up to the reply');
-assert.ok(!JSON.stringify(calls[0].messages).includes('birthday 5 June'), 'memories not sent unless asked');
-const userMsgs = calls[0].messages.filter((m) => m.role === 'user');
-assert.equal(userMsgs.filter((m) => m.content === 'kal movie chalein?').length, 1, 'live message not duplicated');
-assert.equal(calls[0].messages[0].role, 'system'); assert.equal(calls[0].reasoning_effort, 'low'); assert.equal(calls[0].stream, true);
+assert.ok(!JSON.stringify(calls[0].input).includes('birthday 5 June'), 'memories not sent unless asked');
+assert.equal(calls[0].input.filter((m) => m.role === 'user' && m.content === 'kal movie chalein?').length, 1, 'live message not duplicated');
+assert.equal(calls[0].input[0].role, 'system');
+assert.deepEqual(calls[0].reasoning, { effort: 'low' });
+assert.equal(calls[0].stream, true);
+assert.equal(calls[0].store, false);
+assert.equal(calls[0].prompt_cache_key, 'pingo-ai-me');
+assert.deepEqual(calls[0].tools.map((t) => t.type), ['function', 'function', 'function', 'web_search', 'image_generation']);
+assert.equal(calls[0].tools[0].name, 'save_memory', 'function tools in the Responses (flat) shape');
+assert.equal(calls[0].tools[4].model, 'gpt-image-2');
+assert.deepEqual(r.state.rpcs[0].args.reply_meta, { mood: 'happy' }, 'no tag: happy, stored with the reply');
+assert.equal(r.out.body.mood, 'happy');
 console.log('plain turn ok, stages', r.stages.join('>'));
 
 calls.length = 0;
 r = await run('mera birthday kab hai?');
 assert.equal(calls.length, 2, 'memory question = tool round + answer');
-assert.ok(JSON.stringify(calls[1].messages).includes('birthday 5 June'), 'recalled memory given to model');
+const round2 = calls[1].input;
+assert.ok(round2.some((m) => m.type === 'reasoning' && m.encrypted_content === 'sealed'), 'sealed reasoning handed on');
+assert.ok(round2.some((m) => m.type === 'function_call' && m.call_id === 'c1'), 'the call handed back');
+assert.ok(round2.some((m) => m.type === 'function_call_output' && m.call_id === 'c1' && m.output.includes('birthday 5 June')), 'recalled memory given to model');
 assert.equal(r.state.posted[0], 'Tera birthday 5 June hai. Party kab hai?');
 console.log('recall turn ok, toolRounds', r.out.body.toolRounds);
 
@@ -88,18 +153,104 @@ calls.length = 0;
 r = await run('yaad rakh mera fav colour blue hai');
 assert.deepEqual(r.state.saved, ['mera fav colour blue hai']);
 assert.equal(calls.length, 1);
-assert.ok(JSON.stringify(calls[0].messages).includes('You just saved this'), 'model told it was saved');
+assert.ok(JSON.stringify(calls[0].input).includes('You just saved this'), 'model told it was saved');
 console.log('save fast-path ok');
+
+calls.length = 0;
+r = await run('aaj ka match score kya hai?');
+assert.ok(r.stages.includes('searching'), 'searching stage');
+assert.equal(r.state.posted[0], 'India won by 6 wickets.', 'inline citation taken out of the text');
+assert.deepEqual(r.state.rpcs[0].args.reply_meta.sources, [{ title: 'IND v AUS', url: 'https://www.espn.com/m/1' }], 'sources stored with the reply');
+assert.deepEqual(r.out.body.sources, [{ title: 'IND v AUS', url: 'https://www.espn.com/m/1' }]);
+assert.equal(r.sources.length, 1, 'sources streamed');
+console.log('web search ok');
+
+calls.length = 0;
+deps.__images.length = 0;
+const images = [];
+r = await run('ek cat ki photo banao', { emitImage: (i) => images.push(i) });
+assert.ok(r.stages.includes('drawing') && r.stages.includes('uploading'), 'drawing, then uploading');
+assert.equal(deps.__images.length, 1);
+assert.equal(new TextDecoder().decode(deps.__images[0].image.bytes), 'WEBPBYTES');
+assert.equal(deps.__images[0].image.contentType, 'image/webp');
+assert.equal(deps.__images[0].caption, 'Ye lo!');
+assert.equal(deps.__images[0].meta.image.revisedPrompt, 'A cat');
+assert.deepEqual(images, [{ messageId: 'img-1', path: 'BOT/x.webp' }]);
+assert.equal(r.state.posted.length, 0, 'no separate text message');
+assert.equal(r.out.body.messageId, 'img-1');
+console.log('image generation ok');
+
+calls.length = 0;
+r = await run('', {}, [
+  { id: 'p1', sender_id: 'me', body: 'ye kya hai?', kind: 'photo', photo_path: 'me/a.jpg', created_at: nowIso() },
+  { id: 'm2', sender_id: 'BOT', body: 'Yo!', created_at: '2026-10-08T10:00:00Z' },
+]);
+const lastUser = calls[0].input.filter((m) => m.role === 'user').pop();
+assert.ok(Array.isArray(lastUser.content), 'photo turn sends parts');
+assert.deepEqual(lastUser.content[1], { type: 'input_image', image_url: 'https://store/photos/me/a.jpg?token=t', detail: 'auto' });
+assert.ok(lastUser.content[0].text.includes('ye kya hai?'));
+assert.ok(r.stages.includes('looking'), 'looking stage');
+console.log('vision ok');
+
+calls.length = 0;
+r = await run('kya haal?', { spoken: true });
+assert.ok(!calls[0].tools.some((t) => t.type === 'image_generation'), 'no drawing on a call');
+console.log('spoken ok');
 
 {
   const seen = [];
+  const real = globalThis.fetch;
   globalThis.fetch = async (u, init) => {
     const b = JSON.parse(init.body); seen.push(b);
-    if (b.reasoning_effort) return new Response('{"error":{"message":"Unsupported parameter: reasoning_effort"}}', { status: 400 });
-    return new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n')); c.close(); } }));
+    if (b.prompt_cache_key) return new Response('{"error":{"message":"Unsupported parameter: prompt_cache_key","param":"prompt_cache_key"}}', { status: 400 });
+    if (b.tools?.some((t) => t.type === 'web_search')) return new Response(`{"error":{"message":"Tool 'web_search' is not supported with this model.","param":"tools[0]"}}`, { status: 400 });
+    return sse(textEvents('ok'));
   };
-  const out = await streamChat({ apiKey: 'k', base: 'https://x', model: 'm', messages: [{ role: 'user', content: 'hi' }], reasoningEffort: 'none', maxTokens: 50 });
-  assert.equal(out.text, 'ok'); assert.equal(seen.length, 2); assert.equal(seen[1].reasoning_effort, undefined);
-  console.log('optional-parameter fallback ok');
+  const out = await streamResponse({ apiKey: 'k', base: 'https://x', model: 'm', input: [{ role: 'user', content: 'hi' }], tools: [{ type: 'web_search' }], reasoningEffort: 'none', maxTokens: 50, cacheKey: 'c' });
+  assert.equal(out.stream.text, 'ok');
+  assert.equal(seen.length, 3);
+  assert.equal(seen[1].prompt_cache_key, undefined);
+  assert.equal(seen[2].tools, undefined);
+  assert.deepEqual(out.dropped, ['optional', 'web_search']);
+  assert.equal(out.sealedReasoning, false, 'include was given up');
+  console.log('optional-parameter and tool fallback ok');
+  globalThis.fetch = real;
 }
+calls.length = 0;
+r = await run('mood test');
+assert.equal(r.state.posted[0], 'Wah, kya baat hai!');
+assert.equal(r.out.body.mood, 'excited');
+assert.equal(r.state.rpcs[0].args.reply_meta.mood, 'excited');
+assert.ok(!r.deltas.join('').includes('[['), 'tag never streamed');
+console.log('mood ok');
+
+{
+  const sentences = [];
+  calls.length = 0;
+  r = await run('mood test', { spoken: true, emitSentence: (x) => sentences.push(x) });
+  assert.ok(sentences.length && sentences.every((x) => !x.includes('[[') && !x.includes('mood')), 'tag never spoken');
+}
+
+calls.length = 0;
+r = await run('aaj ka match score kya hai?', { command: 'search' });
+assert.deepEqual(calls[0].tool_choice, { type: 'allowed_tools', mode: 'required', tools: [{ type: 'web_search' }] }, '/search forces web search');
+assert.ok(JSON.stringify(calls[0].input.at(-1)).includes('/search'), 'command note after the history, not in the cached opening');
+assert.equal(calls[0].input[0].content.includes('/search'), false);
+
+calls.length = 0;
+r = await run('ek cat ki photo banao', { command: 'image' });
+assert.deepEqual(calls[0].tool_choice.tools, [{ type: 'image_generation' }], '/image forces drawing');
+
+calls.length = 0;
+r = await run('kal movie chalein?', { command: 'translate' });
+assert.equal(calls[0].tool_choice, 'auto');
+assert.ok(JSON.stringify(calls[0].input.at(-1)).includes('/translate'));
+
+calls.length = 0;
+r = await run('mera fav colour blue hai', { command: 'remember' });
+assert.equal(calls.length, 0, '/remember spends no model call');
+assert.deepEqual(r.state.saved, ['mera fav colour blue hai']);
+assert.equal(r.out.body.mood, 'happy');
+assert.equal(r.out.body.memorySaved, true);
+console.log('commands ok');
 console.log('ALL OK');

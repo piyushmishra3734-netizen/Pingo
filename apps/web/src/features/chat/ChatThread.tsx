@@ -42,7 +42,11 @@ import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
-import { useAiDraft } from '../ai/ai-draft.js';
+import { useAiDraft, useAiMood } from '../ai/ai-draft.js';
+import { AI_COMMANDS, parseAiCommand } from '../ai/ai-commands.js';
+import { AiIdeas } from '../ai/AiIdeas.js';
+import { PingoFlow } from '../ai/flow/PingoFlow.js';
+import { reactWith, useFlowColour, useFlowFace } from '../ai/flow/flow-face.js';
 import { AiStatus } from '../ai/AiStatus.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
 import { useCall } from '../calls/CallProvider.js';
@@ -91,7 +95,7 @@ import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
-import { Headphones } from 'lucide-react';
+import { Ellipsis, Headphones } from 'lucide-react';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -183,6 +187,9 @@ const AI_STAGES = {
   drawing: 'drawing your picture',
   uploading: 'sending it over',
   writing: 'writing',
+  searching: 'searching the web',
+  looking: 'looking at your photo',
+  reading_file: 'reading your file',
 } as const;
 
 function AiActivity({ label = 'drawing your picture' }: { label?: string }) {
@@ -941,6 +948,18 @@ export function ChatThread({
     ? 'typing…'
     : formatTypingLabel(conversation.typingUserIds, users, conversation.typingActivity);
 
+  /* Pingo Flow, at the top of PINGO AI's chat: its face follows what PINGO AI is doing. */
+  const lastAiReply = isAi ? [...messages].reverse().find((m) => m.authorId === PINGO_AI_USER_ID) : undefined;
+  const liveMood = useAiMood(conversation.id);
+  const flow = useFlowFace({
+    stage: isAi ? aiStage : undefined,
+    writing: isAi && Boolean(aiDraft),
+    lastReplyId: lastAiReply?.id,
+    lastReplyMood: liveMood ?? lastAiReply?.aiMeta?.mood,
+  });
+  const flowColour = useFlowColour();
+  const [composerPrefill, setComposerPrefill] = useState<{ text: string }>();
+
   /*
    * The "Seen" line, the way Instagram does it.
    *
@@ -1269,16 +1288,8 @@ export function ChatThread({
    * AI is listed when it is a member of the room so @pingoai is discoverable.
    */
   const mentionOptions = useMemo((): MentionOption[] | undefined => {
-    if (isAi) {
-      return [
-        {
-          id: PINGO_AI_ID,
-          handle: 'pingoai',
-          name: 'PINGO AI',
-          kind: 'ai',
-        },
-      ];
-    }
+    // In PINGO AI's own chat everything is for it already; `/` brings up its commands instead.
+    if (isAi) return undefined;
     if (!isGroup) return undefined;
 
     const options: MentionOption[] = [];
@@ -1420,7 +1431,7 @@ export function ChatThread({
           selection || searching
             ? 'glass-water mx-2 mt-2 rounded-xl px-3 py-2.5'
             : // Telegram's header, in glass: back, the name in a capsule, the face. Three objects, not a bar.
-              'mx-2 mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2',
+              cn('mx-2 mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2', isAi && 'items-start'),
           'mt-[max(0.5rem,env(safe-area-inset-top))]',
         )}
       >
@@ -1488,6 +1499,66 @@ export function ChatThread({
           loadingOlder={loadingOlder}
           onLoadOlder={() => void loadOlder()}
         />
+      ) : isAi ? (
+        /*
+          PINGO AI's chat, the way Muse does it: Pingo Flow sits over the
+          middle with its name and what it is doing in a capsule underneath.
+          Back on the left, its settings on the right.
+        */
+        <>
+          {showBack ? (
+            <Link
+              to="/chats"
+              aria-label="Back to conversations"
+              className="lq-glass-water relative grid size-[46px] shrink-0 place-items-center rounded-full focus-ring text-ink"
+            >
+              <ChevronLeftIcon size={22} />
+              {otherUnread > 0 && (
+                <span className="absolute -top-1 -right-2 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold tabular-nums text-on-brand shadow-sm">
+                  {otherUnread > 99 ? '99+' : otherUnread}
+                </span>
+              )}
+            </Link>
+          ) : (
+            <span className="size-[46px]" aria-hidden />
+          )}
+          <div className="flex min-w-0 flex-col items-center">
+            <PingoFlow
+              face={flow.face}
+              mode={flow.mode}
+              colour={flowColour}
+              label="Pingo Flow"
+              className="-mb-1.5 size-[72px]"
+            />
+            <button
+              type="button"
+              onClick={openInfo}
+              aria-label={`${conversation.title}, settings`}
+              className="lq-glass-water flex min-w-0 max-w-full flex-col items-center rounded-[18px] px-4 pb-1.5 pt-1 focus-ring"
+            >
+              <span className="truncate text-[15px] font-bold leading-tight tracking-[-0.01em] text-ink">{headerTitle}</span>
+              <span className="flex max-w-full items-center gap-1.5 text-[12.5px] font-medium text-text-secondary" role="status">
+                {netTitle ? (
+                  netTitle.toLowerCase()
+                ) : aiStage ? (
+                  <AiActivity label={`${AI_STAGES[aiStage]}…`} />
+                ) : aiDraft ? (
+                  'Writing…'
+                ) : (
+                  <span className="truncate">Your AI friend</span>
+                )}
+              </span>
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={openInfo}
+            aria-label="PINGO AI settings"
+            className="lq-glass-water grid size-[46px] shrink-0 place-items-center rounded-full focus-ring text-ink"
+          >
+            <Ellipsis size={22} aria-hidden />
+          </button>
+        </>
       ) : (
         <>
         {showBack ? (
@@ -1625,6 +1696,10 @@ export function ChatThread({
                   This is the beginning of your conversation
                 </p>
               )
+            )}
+
+            {isAi && messages.length === 0 && !aiDraft && !aiStage && !hasOlder && (
+              <AiIdeas name={currentUser?.name?.split(' ')[0]} onPick={(text) => setComposerPrefill({ text })} />
             )}
 
             {clustersWithDividers.map(({ cluster, divider }, group) => (
@@ -2028,11 +2103,37 @@ export function ChatThread({
           ) : (
           <Composer
             mentions={mentionOptions}
+            {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message, or / for commands' } : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
               // turn this into a plain message.
               const target = replyTo?.id;
               setReplyTo(undefined);
+
+              /*
+               * PINGO AI's slash commands. A face (/happy) is Pingo Flow's alone
+               * and is never sent; the rest go with the text as `aiCommand`.
+               */
+              const parsed = isAi ? parseAiCommand(body) : undefined;
+              if (parsed?.kind === 'face') {
+                reactWith(parsed.face);
+                return;
+              }
+              if (parsed?.kind === 'ask') {
+                // A command with nothing after it: put it back and wait for the rest (summarize can stand alone).
+                if (!parsed.body && parsed.command !== 'summarize') {
+                  setComposerPrefill({ text: `/${parsed.command} ` });
+                  return;
+                }
+                reactWith(parsed.face, 1600);
+                await service.sendMessage({
+                  conversationId: conversation.id,
+                  body: parsed.body || 'Summarize this',
+                  aiCommand: parsed.command,
+                  ...(target ? { replyToId: target } : {}),
+                });
+                return;
+              }
 
               /*
                * Sending makes no sound, on purpose.

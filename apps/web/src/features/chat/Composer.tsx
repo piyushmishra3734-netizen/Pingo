@@ -1,6 +1,6 @@
 import type { Sticker } from '@pingo/core';
 import { Avatar, IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
 import { receiveSharedText } from '../native/shared-content.js';
@@ -92,9 +92,22 @@ export interface ComposerProps {
    * plus AI when the bot is in the room.
    */
   mentions?: MentionOption[];
+  /**
+   * Slash commands offered when the message starts with `/` (PINGO AI's chat).
+   * Picking one fills in `/name ` and leaves the rest to type.
+   */
+  commands?: ComposerCommand[];
+  /** Text to put in the field (a suggestion was tapped); a new object each time. */
+  prefill?: { text: string } | undefined;
   /** Announced to screen readers, e.g. "Message Anaya Sharma". */
   ariaLabel?: string;
   className?: string;
+}
+
+export interface ComposerCommand {
+  name: string;
+  hint: string;
+  icon: ReactNode;
 }
 
 /** Active `@query` at the caret, if any. */
@@ -132,6 +145,8 @@ export function Composer({
   onPasteFiles,
   draftKey,
   mentions,
+  commands,
+  prefill,
   placeholder = 'Type a message...',
   ariaLabel = 'Message',
   className,
@@ -238,6 +253,34 @@ export function Composer({
   useEffect(() => {
     setMentionIndex(0);
   }, [mention?.query, mentionList.length]);
+
+  useEffect(() => {
+    if (!prefill) return;
+    setValue(prefill.text);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(prefill.text.length, prefill.text.length);
+    });
+  }, [prefill]);
+
+  /** `/…` commands, while the first word is still being typed. */
+  const commandQuery = commands?.length ? /^\/([a-z]*)$/i.exec(value)?.[1]?.toLowerCase() : undefined;
+  const commandList = useMemo(
+    () => (commandQuery === undefined ? [] : (commands ?? []).filter((c) => c.name.startsWith(commandQuery))),
+    [commands, commandQuery],
+  );
+  const applyCommand = (command: ComposerCommand) => {
+    const next = `/${command.name} `;
+    setValue(next);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(next.length, next.length);
+    });
+  };
 
   const applyMention = (option: MentionOption) => {
     if (!mention) return;
@@ -586,6 +629,35 @@ export function Composer({
       >
 
       <div className="relative flex min-w-0 flex-1 items-end gap-1 px-1">
+        {commandList.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 z-30 mb-2 origin-bottom animate-panel-in">
+            <ul
+              aria-label="Commands"
+              className="max-h-72 overflow-y-auto rounded-[22px] bg-surface py-1.5 shadow-[0_8px_28px_rgba(16,17,20,0.12),0_1px_3px_rgba(16,17,20,0.06)] ring-1 ring-line scrollbar-none"
+            >
+              {commandList.map((command) => (
+                <li key={command.name}>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      applyCommand(command);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left active:bg-hover"
+                  >
+                    <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-page text-ink" aria-hidden>
+                      {command.icon}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[15px] font-semibold text-ink">/{command.name}</span>
+                      <span className="block text-[13px] leading-snug text-text-secondary">{command.hint}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {mention && mentionList.length > 0 && (
           <div
             className={cn(

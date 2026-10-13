@@ -27,6 +27,9 @@
  */
 
 import type {
+  AiCommand,
+  AiMood,
+  AiSource,
   AppNotification,
   Attachment,
   CallOutcome,
@@ -110,7 +113,7 @@ import { clearFriendsListening, setFriendListening } from '../../features/music/
  * it can live in a function directory and still be read from here, exactly as
  * `verify:image-intent` reads it.
  */
-import { appendAiDraft, clearAiDraft } from '../../features/ai/ai-draft.js';
+import { appendAiDraft, clearAiDraft, setAiDraftSources, setAiMood } from '../../features/ai/ai-draft.js';
 import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-intent.js';
 
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
@@ -604,7 +607,52 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
     ...((row.meta as { videoEdit?: Message['videoEdit'] } | null)?.videoEdit
       ? { videoEdit: (row.meta as { videoEdit: Message['videoEdit'] }).videoEdit }
       : {}),
+    // The assistant's own note on its reply (sources, a drawn picture's prompt), from `meta.ai`.
+    ...((ai) => (ai ? { aiMeta: ai } : {}))(row.sender_id === PINGO_AI_USER_ID ? aiMetaOf(row.meta) : undefined),
   };
+}
+
+/**
+ * `meta.ai`, checked. Written by the server, but read as untrusted: only
+ * http(s) links become sources, so a bad row can never put a `javascript:` URL
+ * under a reply.
+ */
+export function aiMetaOf(meta: unknown): Message['aiMeta'] {
+  const ai = (meta as { ai?: unknown } | null)?.ai as
+    | { sources?: unknown; image?: { revisedPrompt?: unknown; model?: unknown } }
+    | undefined;
+  if (!ai || typeof ai !== 'object') return undefined;
+  const sources = Array.isArray(ai.sources)
+    ? ai.sources
+        .filter(
+          (s): s is { title?: unknown; url: string } =>
+            !!s && typeof (s as { url?: unknown }).url === 'string' && /^https?:\/\//i.test((s as { url: string }).url),
+        )
+        .slice(0, 12)
+        .map((s) => ({ title: typeof s.title === 'string' && s.title.trim() ? s.title.trim() : hostOf(s.url), url: s.url }))
+    : [];
+  const image =
+    ai.image && typeof ai.image === 'object'
+      ? {
+          ...(typeof ai.image.revisedPrompt === 'string' ? { revisedPrompt: ai.image.revisedPrompt } : {}),
+          ...(typeof ai.image.model === 'string' ? { model: ai.image.model } : {}),
+        }
+      : undefined;
+  const mood = typeof (ai as { mood?: unknown }).mood === 'string' && AI_MOODS.has((ai as { mood: string }).mood)
+    ? ((ai as { mood: string }).mood as AiMood)
+    : undefined;
+  if (!sources.length && !image && !mood) return undefined;
+  return { ...(sources.length ? { sources } : {}), ...(image ? { image } : {}), ...(mood ? { mood } : {}) };
+}
+
+const AI_MOODS = new Set<string>(['default', 'happy', 'excited', 'thinking', 'surprised', 'sleepy', 'confused', 'sad', 'angry', 'listening', 'talking']);
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -5017,13 +5065,18 @@ export class SupabaseChatService implements ChatService {
         .catch(() => undefined);
     }
 
-    // Person-shaped AI: 1:1 thread always replies; groups only on @pingoai.
-    if ((isAi || callAiInGroup) && draft.body.trim()) {
+    /*
+     * Person-shaped AI: 1:1 thread always replies; groups only on @pingoai.
+     * In its own thread a photo or a file with no caption is a turn too: it
+     * can see and read them now, so "what is this" can go without saying.
+     */
+    if ((isAi && (draft.body.trim() || photoPath || filePath || draft.aiCommand)) || (callAiInGroup && draft.body.trim())) {
       void this.#requestAiReply(
         draft.conversationId,
         draft.body,
         draft.spokenAloud === true,
         draft.onSentence,
+        draft.aiCommand,
       ).catch((cause) => {
         console.error('[pingo-ai]', cause);
       });
@@ -5206,8 +5259,8 @@ export class SupabaseChatService implements ChatService {
    * included, so a second attempt is not a different feature with its own
    * behaviour to keep in step.
    */
-  async regenerateAiReply(conversationId: ConversationId, userMessage: string): Promise<void> {
-    await this.#requestAiReply(conversationId, userMessage);
+  async regenerateAiReply(conversationId: ConversationId, userMessage: string, command?: AiCommand): Promise<void> {
+    await this.#requestAiReply(conversationId, userMessage, false, undefined, command);
   }
 
 
@@ -5216,6 +5269,8 @@ export class SupabaseChatService implements ChatService {
     userMessage: string,
     spoken = false,
     onSentence?: (sentence: string) => void,
+    /** A slash command, sent beside the text (see `OutgoingMessage.aiCommand`). */
+    command?: AiCommand,
   ): Promise<void> {
     /*
      * This used to add the conversation to `#aiConversationIds`, and that one
@@ -5284,13 +5339,14 @@ export class SupabaseChatService implements ChatService {
         (stage) => ((stage as string) === 'done' ? this.#setAiTyping(conversationId, false) : this.#setAiTyping(conversationId, true, stage)),
         spoken,
         onSentence,
+        command,
       ).catch((cause) => {
         // A thrown turn is a real failure and must not be retried by the
         // fallback - that would post two replies.
         throw cause;
       });
 
-      if (!streamed) await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000), spoken);
+      if (!streamed) await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000), spoken, command);
 
       // Ensure the new assistant row is in the list even if realtime lags.
       const conversation = await this.getConversation(conversationId);
@@ -5375,6 +5431,7 @@ export class SupabaseChatService implements ChatService {
     onStage: (stage: ChatActivity) => void,
     spoken = false,
     onSentence?: (sentence: string) => void,
+    command?: AiCommand,
   ): Promise<boolean> {
     const {
       data: { session },
@@ -5391,7 +5448,7 @@ export class SupabaseChatService implements ChatService {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
       },
-      body: JSON.stringify({ conversationId, userMessage, stream: true, voice: spoken }),
+      body: JSON.stringify({ conversationId, userMessage, stream: true, voice: spoken, ...(command ? { command } : {}) }),
     });
 
     /*
@@ -5427,8 +5484,19 @@ export class SupabaseChatService implements ChatService {
           sentence?: string;
           /** A piece of the reply as it is written (Luna). */
           delta?: string;
+          /** Every source cited so far, sent again whole each time one is added. */
+          sources?: AiSource[];
+          /** The picture it drew, once it is a message in the thread. */
+          image?: { messageId: string; path: string };
           done?: boolean;
-          payload?: { error?: string; messageId?: string };
+          payload?: {
+            error?: string;
+            messageId?: string;
+            sources?: AiSource[];
+            image?: { messageId: string; path: string };
+            /** The face for the 3D character: the model's choice, or sad when the turn failed. */
+            mood?: AiMood;
+          };
         };
         try {
           event = JSON.parse(line.slice(6));
@@ -5445,8 +5513,14 @@ export class SupabaseChatService implements ChatService {
          */
         if (event.sentence) onSentence?.(event.sentence);
         if (event.delta) appendAiDraft(conversationId, event.delta);
+        /*
+         * Sources ride beside the draft until the real message replaces it,
+         * and that message carries them itself (`message.aiMeta.sources`).
+         */
+        if (Array.isArray(event.sources)) setAiDraftSources(conversationId, event.sources);
         if (event.done) {
           finished = true;
+          if (event.payload?.mood) setAiMood(conversationId, event.payload.mood);
           const failed = event.payload?.error && !event.payload.messageId;
           if (failed) throw new Error(String(event.payload?.error));
           // Written: no more "thinking" or "typing", whatever the reads after this take.
@@ -5468,6 +5542,7 @@ export class SupabaseChatService implements ChatService {
     conversationId: ConversationId,
     userMessage: string,
     spoken = false,
+    command?: AiCommand,
   ): Promise<void> {
     const {
       data: { session },
@@ -5478,7 +5553,7 @@ export class SupabaseChatService implements ChatService {
 
     // Prefer invoke; on failure fall through to a direct fetch with the same JWT.
     const { data, error } = await this.#client.functions.invoke('ai-chat', {
-      body: { conversationId, userMessage, voice: spoken },
+      body: { conversationId, userMessage, voice: spoken, ...(command ? { command } : {}) },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
@@ -5502,7 +5577,7 @@ export class SupabaseChatService implements ChatService {
         apikey: anon,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ conversationId, userMessage, voice: spoken }),
+      body: JSON.stringify({ conversationId, userMessage, voice: spoken, ...(command ? { command } : {}) }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {

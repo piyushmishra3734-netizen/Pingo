@@ -19,6 +19,9 @@ export const AI_STAGES = {
   drawing: 'Drawing your picture',
   uploading: 'Sending it over',
   writing: 'Writing',
+  searching: 'Searching the web',
+  looking: 'Looking at your photo',
+  reading_file: 'Reading your file',
 } as const;
 
 export type AiStage = keyof typeof AI_STAGES;

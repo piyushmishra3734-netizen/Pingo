@@ -29,6 +29,7 @@ import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { AchievementMark } from '../achievements/AchievementArt.js';
 import { useAchievements } from '../achievements/useAchievements.js';
 import { AiMessageActions } from './AiMessageActions.js';
+import { AiSources } from '../ai/AiSources.js';
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
 import { PhotoBubble } from './PhotoBubble.js';
@@ -760,6 +761,9 @@ export function MessageBubble({
           friend's line aloud is not what anybody wants, and a row of controls
           under every bubble in a busy group would be most of the screen.
         */}
+        {/* Where the reply came from, when it searched the web. Plain for now: styled by the chat redesign. */}
+        {message.aiMeta?.sources?.length ? <AiSources sources={message.aiMeta.sources} /> : null}
+
         {isAiReply && !streaming && (
           <AiMessageActions
             text={message.body}

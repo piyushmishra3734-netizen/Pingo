@@ -243,6 +243,39 @@ export interface Message {
    * it is a note attached to one that happens to carry a video.
    */
   videoEdit?: VideoEdit;
+  /**
+   * What PINGO AI knows about its own reply: the web pages it cited, and for a
+   * picture it drew, the prompt it drew from. Only on the assistant's messages,
+   * read off `meta.ai`, which the server writes when it posts the reply.
+   */
+  aiMeta?: AiMeta;
+}
+
+/** A web page PINGO AI cited. Shown under the reply as a source. */
+export interface AiSource {
+  title: string;
+  url: string;
+}
+
+/** The faces the 3D PINGO AI character can make. */
+export type AiMood =
+  | 'default'
+  | 'happy'
+  | 'excited'
+  | 'thinking'
+  | 'surprised'
+  | 'sleepy'
+  | 'confused'
+  | 'sad'
+  | 'angry'
+  | 'listening'
+  | 'talking';
+
+export interface AiMeta {
+  sources?: AiSource[];
+  /** The face the assistant chose for this reply. */
+  mood?: AiMood;
+  image?: { revisedPrompt?: string; model?: string };
 }
 
 /*

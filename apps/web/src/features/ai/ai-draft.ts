@@ -1,3 +1,4 @@
+import type { AiMood, AiSource } from '@pingo/core';
 import { useSyncExternalStore } from 'react';
 
 /**
@@ -10,6 +11,9 @@ import { useSyncExternalStore } from 'react';
  */
 
 const drafts = new Map<string, string>();
+/** The sources cited so far, for a reply that searched the web. */
+const draftSources = new Map<string, AiSource[]>();
+const NO_SOURCES: AiSource[] = [];
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
@@ -18,9 +22,16 @@ export function appendAiDraft(conversationId: string, piece: string) {
   emit();
 }
 
+/** Replaced whole: the stream sends the full list each time a source is added. */
+export function setAiDraftSources(conversationId: string, sources: AiSource[]) {
+  draftSources.set(conversationId, sources);
+  emit();
+}
+
 export function clearAiDraft(conversationId: string) {
-  if (!drafts.has(conversationId)) return;
+  if (!drafts.has(conversationId) && !draftSources.has(conversationId)) return;
   drafts.delete(conversationId);
+  draftSources.delete(conversationId);
   emit();
 }
 
@@ -36,5 +47,34 @@ export function useAiDraft(conversationId: string): string {
     subscribe,
     () => drafts.get(conversationId) ?? '',
     () => '',
+  );
+}
+
+/** The growing reply's sources, for the UI to show under the draft before the message lands. */
+export function useAiDraftSources(conversationId: string): AiSource[] {
+  return useSyncExternalStore(
+    subscribe,
+    () => draftSources.get(conversationId) ?? NO_SOURCES,
+    () => NO_SOURCES,
+  );
+}
+
+/*
+ * The face PINGO AI chose for its latest reply, per conversation. Kept after
+ * the draft is cleared: the character keeps that face until the next turn.
+ * After a reload the same mood is on the message itself (`aiMeta.mood`).
+ */
+const moods = new Map<string, AiMood>();
+
+export function setAiMood(conversationId: string, mood: AiMood) {
+  moods.set(conversationId, mood);
+  emit();
+}
+
+export function useAiMood(conversationId: string): AiMood | undefined {
+  return useSyncExternalStore(
+    subscribe,
+    () => moods.get(conversationId),
+    () => undefined,
   );
 }

@@ -111,6 +111,9 @@ export interface VideoOverlayItem {
   rotation: number;
 }
 
+/** Slash commands PINGO AI understands. */
+export type AiCommand = 'search' | 'image' | 'remember' | 'summarize' | 'translate' | 'explain';
+
 export interface OutgoingMessage {
   /**
    * This message was spoken and the answer will be read out loud.
@@ -123,6 +126,12 @@ export interface OutgoingMessage {
    * latency for polish, which on a call is silence down the line.
    */
   spokenAloud?: boolean;
+
+  /**
+   * A PINGO AI slash command, its "/word" already taken off `body`. Sent to
+   * the assistant beside the text; the stored message is the text alone.
+   */
+  aiCommand?: AiCommand;
 
   /**
    * Each finished sentence of the reply, as the model writes it.
@@ -288,7 +297,11 @@ export type ChatActivity =
   | 'polishing'
   | 'drawing'
   | 'uploading'
-  | 'writing';
+  | 'writing'
+  // OpenAI's own tools on the Responses API: a web search, a photo, a document.
+  | 'searching'
+  | 'looking'
+  | 'reading_file';
 
 export type ChatEvent =
   | { type: 'message:new'; message: Message }
@@ -486,7 +499,7 @@ export interface ChatService {
    * posted to the thread on the way: re-sending the user's message would put a
    * second copy of it in the conversation, which is not what "try again" means.
    */
-  regenerateAiReply?(conversationId: ConversationId, userMessage: string): Promise<void>;
+  regenerateAiReply?(conversationId: ConversationId, userMessage: string, command?: AiCommand): Promise<void>;
 
   markConversationRead(conversationId: ConversationId): Promise<void>;
 
