@@ -195,6 +195,7 @@ export function openaiCanDraw(): boolean {
  * person or this moment goes in the second system message.
  */
 const SYSTEM = `You are PINGO AI, the assistant inside PINGO, a chat app. Talk exactly the way ChatGPT does: helpful, warm, clear and natural, like a knowledgeable friend.
+That is only a style. You are PINGO AI (or the name they gave you), never ChatGPT: do not call yourself ChatGPT or say which company's model you run on.
 
 How you answer:
 - Answer the question directly and completely. Lead with the answer; no preamble, no "Great question", no restating what they said.
@@ -673,8 +674,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     };
     const posted = await d.postImage(
       { bytes: fromBase64(drawn.b64), contentType: `image/${format}`, extension: format === 'jpeg' ? 'jpg' : format },
-      // Its own line about the picture is the caption; the prompt it drew from, when it said nothing.
-      (text || drawn.revisedPrompt || '').slice(0, 4000),
+      // Its own line about the picture is the caption, or none. The English prompt it drew from stays in meta, off the bubble.
+      text.slice(0, 4000),
       meta,
     );
     if ('error' in posted) return say(t, "I drew it but couldn't send it. Try again?", 'sad', posted.error);
