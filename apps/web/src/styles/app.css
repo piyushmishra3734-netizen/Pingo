@@ -44,6 +44,21 @@
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/*
+ * Figtree: PINGO AI's room. Muse's chat is set in Meta's own Optimistic, which
+ * is not free; Figtree is the nearest open face (round, open, quiet). Same
+ * self-hosting as the rest. OFL - see /fonts/OFL.txt.
+ */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('/fonts/figtree-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @layer components {
   /*
    * Liquid glass for the chat - the approved sample's material, as it was built.
@@ -1076,4 +1091,128 @@ video {
 }
 @media (prefers-reduced-motion: reduce) {
   .ai-caret { animation: none; }
+}
+
+/*
+ * PINGO AI's room: Muse's chat, with Pingo Flow where Muse sits.
+ *
+ * Flat, solid surfaces and nothing else: grey bubbles for PINGO AI, a clean
+ * blue for you, cards with a white panel inside and a pill button under it,
+ * one long pill to write in. No glass, no gradients on the bubbles, no
+ * timestamps. Figtree throughout. Dark is the reference; light is the same
+ * room with the lights on.
+ */
+.ai-room {
+  --room-bg: #ffffff;
+  --room-bg-2: #f3f3f5;
+  --room-raised: #efeff2;
+  --room-raised-2: #e2e2e7;
+  --room-capsule: #ffffff;
+  --room-capsule-line: rgb(0 0 0 / 0.07);
+  --room-plate: #f6f3ee;
+  --room-panel: #ffffff;
+  --room-mine: #d3e5ff;
+  --room-on-mine: #0b1f3a;
+  --room-ink: #111113;
+  --room-sub: #6d6f78;
+  --room-hair: rgb(0 0 0 / 0.07);
+  --room-accent: #0a7cff;
+  --room-tile: #dbe8ff;
+  --room-tile-ink: #0a66e0;
+  --room-bar: #ffffff;
+  --room-bar-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px -10px rgb(0 0 0 / 0.18);
+  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--room-ink);
+  background: linear-gradient(180deg, var(--room-bg) 0%, var(--room-bg-2) 100%);
+}
+:root[data-theme='dark'] .ai-room {
+  --room-bg: #0c0c0d;
+  --room-bg-2: #242426;
+  --room-raised: #3a3a3c;
+  --room-raised-2: #2a2a2c;
+  --room-capsule: #2a2a2b;
+  --room-capsule-line: rgb(255 255 255 / 0.1);
+  --room-plate: #f2efea;
+  --room-panel: #ffffff;
+  --room-mine: #0a7cff;
+  --room-on-mine: #ffffff;
+  --room-ink: #f5f5f7;
+  --room-sub: #a0a0a6;
+  --room-hair: rgb(255 255 255 / 0.08);
+  --room-accent: #0a7cff;
+  --room-tile: #0b3a8a;
+  --room-tile-ink: #3d8bff;
+  --room-bar: #3a3a3c;
+  --room-bar-shadow: none;
+}
+/* The room's own ground: no wallpaper, no glass. */
+.ai-room .chat-wallpaper-photo { display: none; }
+.ai-room .text-ink { color: var(--room-ink); }
+
+/* Bubbles: solid, round, roomy. */
+.ai-room .lq-bubble,
+.ai-room .lq-bubble-mine {
+  border-radius: 28px !important;
+  padding: 13px 19px !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-size: 18px;
+  line-height: 1.36;
+  letter-spacing: -0.005em;
+}
+.ai-room .lq-bubble { background: var(--room-raised) !important; color: var(--room-ink) !important; }
+.ai-room .lq-bubble-mine { background: var(--room-mine) !important; color: var(--room-on-mine) !important; }
+.ai-room .lq-bubble p,
+.ai-room .lq-bubble-mine p { font-size: 18px; line-height: 1.36; }
+
+/* The composer: one long pill. */
+.ai-room .room-composer {
+  align-items: center;
+  gap: 0;
+  min-height: 58px;
+  padding: 6px 6px 6px 4px;
+  border-radius: 999px;
+  background: var(--room-bar);
+  box-shadow: var(--room-bar-shadow);
+}
+.ai-room .room-composer textarea { font-size: 18px; color: var(--room-ink); }
+.ai-room .room-composer textarea::placeholder { color: var(--room-sub); }
+.ai-room .room-icon { color: var(--room-ink); background: transparent; }
+.ai-room .room-sub { color: var(--room-sub); }
+.ai-room .room-send { background: var(--room-accent); color: #fff; }
+
+/* Cards: a raised tile, a white panel inside, a pill under it. */
+.room-card {
+  background: var(--room-raised, var(--color-surface));
+  border-radius: 28px;
+  padding: 16px;
+}
+.room-card-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  border-radius: 999px;
+  background: var(--room-raised-2, var(--color-page));
+  color: var(--room-ink, var(--color-ink));
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* PINGO AI is writing: three dots in a grey bubble. */
+.room-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--room-sub);
+  animation: room-dot 1.2s ease-in-out infinite;
+}
+.room-dots span:nth-child(2) { animation-delay: 0.15s; }
+.room-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes room-dot {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .room-dots span { animation: none; opacity: 0.6; }
 }

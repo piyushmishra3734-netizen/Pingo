@@ -95,7 +95,7 @@ import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
-import { Ellipsis, Headphones } from 'lucide-react';
+import { Headphones } from 'lucide-react';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -191,6 +191,22 @@ const AI_STAGES = {
   looking: 'looking at your photo',
   reading_file: 'reading your file',
 } as const;
+
+/** What PINGO AI is doing, as Muse says it under its name: a small picture and a few words. */
+const ROOM_STATUS: Record<string, [string, string]> = {
+  remembering: ['🧠', 'Remembering…'],
+  reading: ['💭', 'Reading the chat…'],
+  thinking: ['💭', 'Thinking…'],
+  reconsidering: ['🤔', 'Thinking again…'],
+  reading_reply: ['💭', 'Checking…'],
+  polishing: ['✨', 'Polishing…'],
+  searching: ['🔎', 'Searching the web…'],
+  looking: ['👀', 'Looking at your photo…'],
+  reading_file: ['📄', 'Reading your file…'],
+  drawing: ['🎨', 'Creating an image…'],
+  uploading: ['🎨', 'Finishing the image…'],
+  writing: ['✍️', 'Writing…'],
+};
 
 function AiActivity({ label = 'drawing your picture' }: { label?: string }) {
   return (
@@ -1340,7 +1356,7 @@ export function ChatThread({
 
   return (
     <div
-      className={cn('chat-wallpaper relative flex h-full min-h-0 flex-col', className)}
+      className={cn('chat-wallpaper relative flex h-full min-h-0 flex-col', isAi && 'ai-room', className)}
       onPointerMove={(event) => {
         const glass = (event.target as HTMLElement).closest<HTMLElement>('.lq-glass-water');
         if (!glass) return;
@@ -1501,63 +1517,53 @@ export function ChatThread({
         />
       ) : isAi ? (
         /*
-          PINGO AI's chat, the way Muse does it: Pingo Flow sits over the
-          middle with its name and what it is doing in a capsule underneath.
-          Back on the left, its settings on the right.
+          PINGO AI's room, the way Muse does it: Pingo Flow on a round plate,
+          sitting on the top edge of a capsule with its name and, while it
+          works, what it is doing. The capsule opens its settings.
         */
         <>
           {showBack ? (
             <Link
               to="/chats"
               aria-label="Back to conversations"
-              className="lq-glass-water relative grid size-[46px] shrink-0 place-items-center rounded-full focus-ring text-ink"
+              className="relative grid size-11 shrink-0 place-items-center rounded-full bg-[var(--room-bar)] text-[var(--room-ink)] shadow-[var(--room-bar-shadow)] focus-ring active:scale-95"
             >
               <ChevronLeftIcon size={22} />
               {otherUnread > 0 && (
-                <span className="absolute -top-1 -right-2 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold tabular-nums text-on-brand shadow-sm">
+                <span className="absolute -top-1 -right-2 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--room-accent)] px-1.5 text-[11px] font-bold tabular-nums text-white">
                   {otherUnread > 99 ? '99+' : otherUnread}
                 </span>
               )}
             </Link>
           ) : (
-            <span className="size-[46px]" aria-hidden />
+            <span className="size-11" aria-hidden />
           )}
           <div className="flex min-w-0 flex-col items-center">
-            <PingoFlow
-              face={flow.face}
-              mode={flow.mode}
-              colour={flowColour}
-              label="Pingo Flow"
-              className="-mb-1.5 size-[72px]"
-            />
+            <span className="relative z-[1] -mb-4 grid size-[62px] place-items-center overflow-hidden rounded-full bg-[var(--room-plate)] shadow-[0_2px_10px_rgb(0_0_0/0.18)]">
+              <PingoFlow face={flow.face} mode={flow.mode} colour={flowColour} label="Pingo Flow" className="size-[68px]" />
+            </span>
             <button
               type="button"
               onClick={openInfo}
               aria-label={`${conversation.title}, settings`}
-              className="lq-glass-water flex min-w-0 max-w-full flex-col items-center rounded-[18px] px-4 pb-1.5 pt-1 focus-ring"
+              className="flex min-w-[11rem] max-w-full flex-col items-center rounded-[26px] border border-[var(--room-capsule-line)] bg-[var(--room-capsule)] px-7 pb-3 pt-5 shadow-[0_6px_20px_-8px_rgb(0_0_0/0.25)] focus-ring active:scale-[0.98]"
             >
-              <span className="truncate text-[15px] font-bold leading-tight tracking-[-0.01em] text-ink">{headerTitle}</span>
-              <span className="flex max-w-full items-center gap-1.5 text-[12.5px] font-medium text-text-secondary" role="status">
-                {netTitle ? (
-                  netTitle.toLowerCase()
-                ) : aiStage ? (
-                  <AiActivity label={`${AI_STAGES[aiStage]}…`} />
-                ) : aiDraft ? (
-                  'Writing…'
-                ) : (
-                  <span className="truncate">Your AI friend</span>
-                )}
-              </span>
+              <span className="max-w-full truncate text-[21px] font-bold leading-tight tracking-[-0.01em] text-[var(--room-ink)]">{headerTitle}</span>
+              {(netTitle || aiStage || aiDraft) && (
+                <span className="mt-0.5 flex max-w-full items-center gap-1.5 text-[16.5px] leading-tight text-[var(--room-sub)]" role="status">
+                  {!aiStage && !aiDraft ? (
+                    netTitle
+                  ) : (
+                    <>
+                      <span aria-hidden>{aiDraft ? '✍️' : ROOM_STATUS[aiStage ?? '']?.[0] ?? '💭'}</span>
+                      <span className="truncate">{aiDraft ? 'Writing…' : ROOM_STATUS[aiStage ?? '']?.[1] ?? 'Thinking…'}</span>
+                    </>
+                  )}
+                </span>
+              )}
             </button>
           </div>
-          <button
-            type="button"
-            onClick={openInfo}
-            aria-label="PINGO AI settings"
-            className="lq-glass-water grid size-[46px] shrink-0 place-items-center rounded-full focus-ring text-ink"
-          >
-            <Ellipsis size={22} aria-hidden />
-          </button>
+          <span className="size-11" aria-hidden />
         </>
       ) : (
         <>
@@ -1691,7 +1697,7 @@ export function ChatThread({
                 {loadingOlder && <PingoDot state="loading" size={5} label="Loading earlier messages" />}
               </div>
             ) : (
-              messages.length > 0 && (
+              messages.length > 0 && !isAi && (
                 <p className="py-3 text-center text-caption text-text-tertiary">
                   This is the beginning of your conversation
                 </p>
@@ -1732,7 +1738,7 @@ export function ChatThread({
                   } as CSSProperties
                 }
               >
-                {divider && (
+                {divider && !isAi && (
                   <div className="py-3 text-center">
                     {/*
                       A pill of the same glass, not bare text.
@@ -1784,6 +1790,7 @@ export function ChatThread({
                   const bubbleProps = {
                     message,
                     mine,
+                    room: isAi,
                     position,
                     /*
                      * The assistant's action row. Reply lands in the same place
@@ -1845,7 +1852,7 @@ export function ChatThread({
 
                   return (
                     <div key={message.id}>
-                      {showNewDivider && <NewMessagesDivider />}
+                      {showNewDivider && !isAi && <NewMessagesDivider />}
                       {selection ? (
                         /*
                           While selecting, the whole row is one control and
@@ -1952,7 +1959,15 @@ export function ChatThread({
             {/* PINGO AI at work: a bubble in the reply's own place, which the reply then fills. */}
             {aiStage && !aiDraft && (
               <div className="mt-1">
-                <AiStatus stage={aiStage} />
+                {isAi ? (
+                  <div className="room-dots flex h-[46px] w-[68px] items-center justify-center gap-1.5 rounded-full bg-[var(--room-raised)]" role="status" aria-label="PINGO AI is working">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                ) : (
+                  <AiStatus stage={aiStage} />
+                )}
               </div>
             )}
 
@@ -1972,6 +1987,7 @@ export function ChatThread({
                   mine={false}
                   position="single"
                   showMeta={false}
+                  room={isAi}
                   streaming
                 />
               </div>
@@ -2103,7 +2119,7 @@ export function ChatThread({
           ) : (
           <Composer
             mentions={mentionOptions}
-            {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message, or / for commands' } : {})}
+            {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message', room: true, onLive: () => setVoiceCall(true) } : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
               // turn this into a plain message.

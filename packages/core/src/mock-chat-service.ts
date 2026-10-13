@@ -209,28 +209,47 @@ export class MockChatService implements ChatService {
   }
 
   /** Person-shaped AI reply in the mock - short, chatty, not a product banner. */
-  #simulateAiReply(conversationId: ConversationId, body: string): void {
+  #simulateAiReply(conversationId: ConversationId, body: string, command?: string): void {
     const conversation = this.#conversation(conversationId);
     if (!conversation || conversation.kind !== 'ai') return;
     if (!body.trim()) return;
 
     const botId = 'a1000000-0000-4000-8000-0000000000a1';
+    // A web search, so the demo shows the stage and a reply with its sources.
+    const searching = command === 'search';
     this.#after(350, () => {
-      this.#updateConversation(conversationId, { typingUserIds: [botId] });
-      this.#emit({ type: 'typing:changed', conversationId, userIds: [botId] });
+      this.#updateConversation(conversationId, {
+        typingUserIds: [botId],
+        ...(searching ? { typingActivity: 'searching' as Conversation['typingActivity'] } : {}),
+      });
+      this.#emit({ type: 'typing:changed', conversationId, userIds: [botId], ...(searching ? { activity: 'searching' } : {}) } as ChatEvent);
     });
-    this.#after(1200, () => {
+    this.#after(searching ? 2400 : 1200, () => {
       this.#updateConversation(conversationId, { typingUserIds: [] });
       this.#emit({ type: 'typing:changed', conversationId, userIds: [] });
       const reply: Message = {
         id: nextMessageId(),
         conversationId,
         authorId: botId,
-        body: "Hey - I'm here. What's on your mind?",
+        body: searching
+          ? 'Light rain is likely after 3 PM, around a 70% chance. Carry an umbrella if you head out in the evening.'
+          : "Hey - I'm here. What's on your mind?",
         createdAt: Date.now(),
         status: 'sent',
         attachments: [],
         reactions: [],
+        ...(searching
+          ? {
+              aiMeta: {
+                mood: 'happy' as const,
+                sources: [
+                  { title: 'City forecast', url: 'https://mausam.imd.gov.in/' },
+                  { title: 'Hourly weather', url: 'https://www.accuweather.com/' },
+                  { title: 'Rain radar', url: 'https://www.windy.com/' },
+                ],
+              },
+            }
+          : {}),
       };
       (this.#messages[conversationId] ??= []).push(reply);
       this.#emit({ type: 'message:new', message: clone(reply) });
@@ -338,7 +357,7 @@ export class MockChatService implements ChatService {
 
     this.#simulateDelivery(message);
     this.#simulateTypingResponse(draft.conversationId);
-    this.#simulateAiReply(draft.conversationId, draft.body);
+    this.#simulateAiReply(draft.conversationId, draft.body, draft.aiCommand);
 
     return clone(message);
   }

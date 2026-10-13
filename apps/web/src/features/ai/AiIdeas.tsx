@@ -1,38 +1,32 @@
-import { FileText, Globe, ImageIcon, Lightbulb } from 'lucide-react';
-import type { ReactNode } from 'react';
-
 /**
- * What PINGO AI can do, shown in an empty chat the way Muse shows its ideas.
- * Each one starts the matching command in the composer.
+ * What PINGO AI can do, in an empty chat, as Muse shows its Ideas: one white
+ * card, a picture and two lines per idea, hairlines between them. Each one
+ * starts the matching command in the composer.
  */
-const IDEAS: { command: string; title: string; body: string; icon: ReactNode; tint: string }[] = [
+const IDEAS: { command: string; emoji: string; title: string; body: string }[] = [
   {
     command: '/search ',
-    title: 'Search the web',
-    body: 'News, scores, prices or the weather, checked live with sources.',
-    icon: <Globe size={18} aria-hidden />,
-    tint: 'bg-[color-mix(in_srgb,#3b6cf6_15%,transparent)] text-[#3b6cf6]',
+    emoji: '🔎',
+    title: 'I can look things up for you',
+    body: "News, match scores, prices or tomorrow's weather, checked live, with the sites I used.",
   },
   {
     command: '/image ',
-    title: 'Create an image',
-    body: "Posters, stickers, wallpapers. Or send a photo and I'll edit it.",
-    icon: <ImageIcon size={18} aria-hidden />,
-    tint: 'bg-[color-mix(in_srgb,#d6336c_15%,transparent)] text-[#d6336c]',
+    emoji: '🎨',
+    title: 'I can make pictures',
+    body: "Posters, stickers and wallpapers from a line of text. Send me a photo and I'll edit it too.",
   },
   {
     command: '/summarize ',
-    title: 'Read photos and PDFs',
-    body: 'A bill, a form, notes or a screenshot. Ask me anything about it.',
-    icon: <FileText size={18} aria-hidden />,
-    tint: 'bg-[color-mix(in_srgb,#c27803_15%,transparent)] text-[#c27803]',
+    emoji: '📄',
+    title: 'I can read your files',
+    body: 'Send a bill, a form, notes or a screenshot and ask me anything about it.',
   },
   {
     command: '/remember ',
-    title: 'Remember what matters',
-    body: "Tell me once, like your exam date, and I'll keep it in mind.",
-    icon: <Lightbulb size={18} aria-hidden />,
-    tint: 'bg-[color-mix(in_srgb,#17845f_15%,transparent)] text-[#17845f]',
+    emoji: '🧠',
+    title: 'I can remember what matters',
+    body: "Tell me once, like your exam date or a friend's birthday, and I'll keep it in mind.",
   },
 ];
 
@@ -40,24 +34,25 @@ export function AiIdeas({ name, onPick }: { name?: string | undefined; onPick: (
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5 pb-2">
       <div className="text-center">
-        <h2 className="text-[26px] font-bold tracking-[-0.02em] text-ink">{name ? `Hey ${name}` : 'Hey there'}</h2>
-        <p className="mt-1 text-[15px] font-medium text-text-secondary">What should we do today?</p>
+        <h2 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--room-ink)]">{name ? `Hey ${name}` : 'Hey there'}</h2>
+        <p className="mt-1 text-[16px] text-[var(--room-sub)]">What should we do today?</p>
       </div>
-      <div className="rounded-[26px] bg-surface py-1.5 shadow-sm ring-1 ring-line">
-        <p className="px-[18px] pb-0.5 pt-2.5 text-[13px] font-bold uppercase tracking-[0.04em] text-text-secondary">Ideas</p>
+      <div className="rounded-[30px] bg-[var(--room-panel)] px-5 pb-2 pt-5 text-[#15171c] shadow-[0_10px_30px_-12px_rgb(0_0_0/0.25)]">
+        <h3 className="mb-1 text-[22px] font-medium tracking-[-0.01em]">Ideas</h3>
         <ul>
           {IDEAS.map((idea, i) => (
-            <li key={idea.command}>
-              {i > 0 && <div aria-hidden className="ml-[65px] h-px bg-line" />}
+            <li key={idea.command} className={i > 0 ? 'ml-[46px] border-t border-black/[0.08]' : 'ml-[46px]'}>
               <button
                 type="button"
                 onClick={() => onPick(idea.command)}
-                className="flex w-full items-start gap-[13px] px-[18px] py-3 text-left active:bg-hover"
+                className="-ml-[46px] flex w-[calc(100%+46px)] items-start gap-4 py-4 text-left active:opacity-70"
               >
-                <span className={`grid size-[34px] shrink-0 place-items-center rounded-[11px] ${idea.tint}`}>{idea.icon}</span>
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-[15px] font-bold text-ink">{idea.title}</span>
-                  <span className="text-[13.5px] leading-snug text-text-secondary">{idea.body}</span>
+                <span aria-hidden className="w-[30px] shrink-0 pt-0.5 text-center text-[26px] leading-none">
+                  {idea.emoji}
+                </span>
+                <span className="flex min-w-0 flex-col gap-1">
+                  <span className="text-[16.5px] font-semibold leading-snug">{idea.title}</span>
+                  <span className="text-[14.5px] leading-snug text-[#7a7d86]">{idea.body}</span>
                 </span>
               </button>
             </li>

@@ -70,6 +70,8 @@ export interface MessageBubbleProps {
    * and a caret where the next words will land.
    */
   streaming?: boolean;
+  /** In PINGO AI's room: no time stamps and no action row; the long-press menu still works. */
+  room?: boolean;
   mine: boolean;
   /** Position within its author cluster, which decides corner shaping. */
   position: 'single' | 'first' | 'middle' | 'last';
@@ -197,6 +199,7 @@ export function MessageBubble({
   onReply,
   onRegenerate,
   streaming = false,
+  room = false,
 }: MessageBubbleProps) {
   /*
    * Only the sender of this bubble. Every bubble on screen asks in the same
@@ -590,7 +593,8 @@ export function MessageBubble({
         // Every way of opening the menu lands here: press, right-click, keyboard.
         {...trigger}
         className={cn(
-          'group relative max-w-[76%] min-w-0',
+          'group relative min-w-0',
+          room ? 'max-w-[86%]' : 'max-w-[76%]',
           // Holding a bubble opens its menu; it must not also select text and summon the browser's search sheet.
           'select-none [-webkit-touch-callout:none]',
           arrive,
@@ -746,10 +750,10 @@ export function MessageBubble({
                   Edited {formatEventTime(message.editedAt)}
                 </span>
               )}
-              {streaming ? <span aria-hidden className="ai-caret" /> : stamp}
+              {streaming ? <span aria-hidden className="ai-caret" /> : room ? null : stamp}
             </p>
           )}
-          {!hasBody && <span className="flex justify-end">{stamp}</span>}
+          {!hasBody && !room && <span className="flex justify-end">{stamp}</span>}
           {/* Reactions inside the bubble, at its foot - once, as in the approved design. */}
           <div className="clear-both">{reactions}</div>
         </div>
@@ -764,7 +768,7 @@ export function MessageBubble({
         {/* Where the reply came from, when it searched the web. Plain for now: styled by the chat redesign. */}
         {message.aiMeta?.sources?.length ? <AiSources sources={message.aiMeta.sources} /> : null}
 
-        {isAiReply && !streaming && (
+        {isAiReply && !streaming && !room && (
           <AiMessageActions
             text={message.body}
             onReply={() => onReply?.()}

@@ -1,5 +1,6 @@
 import type { Sticker } from '@pingo/core';
 import { Avatar, IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
+import { AudioLines } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
@@ -99,6 +100,13 @@ export interface ComposerProps {
   commands?: ComposerCommand[];
   /** Text to put in the field (a suggestion was tapped); a new object each time. */
   prefill?: { text: string } | undefined;
+  /**
+   * PINGO AI's room: one long pill with everything inside it (attach, the
+   * field, the mic and a live-voice button), Muse's composer. No emoji button.
+   */
+  room?: boolean;
+  /** In the room, the waveform button at the end: talk to PINGO AI live. */
+  onLive?: () => void;
   /** Announced to screen readers, e.g. "Message Anaya Sharma". */
   ariaLabel?: string;
   className?: string;
@@ -147,6 +155,8 @@ export function Composer({
   mentions,
   commands,
   prefill,
+  room = false,
+  onLive,
   placeholder = 'Type a message...',
   ariaLabel = 'Message',
   className,
@@ -589,10 +599,10 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className={cn('flex items-end gap-2', room && 'room-composer')}>
       {/* Attach is its own piece of glass, left of the field - the sample's three objects. */}
       {attach && !recorder.recording && (
-        <span className="lq-glass-water grid size-[46px] shrink-0 place-items-center rounded-full text-ink">
+        <span className={cn('grid size-[46px] shrink-0 place-items-center rounded-full', room ? 'room-icon' : 'lq-glass-water text-ink')}>
           <AttachMenu
             onGallery={attach.gallery}
             onCamera={attach.camera}
@@ -624,7 +634,8 @@ export function Composer({
        */
       <div
         className={cn(
-          'lq-glass-water flex min-h-[46px] min-w-0 flex-1 items-end gap-1 rounded-[23px] px-2 py-[3px]',
+          'flex min-h-[46px] min-w-0 flex-1 items-end gap-1 rounded-[23px] px-2 py-[3px]',
+          !room && 'lq-glass-water',
         )}
       >
 
@@ -871,15 +882,17 @@ export function Composer({
           two ways of putting something into the message. They were 36 and 40,
           which is close enough to look like a mistake rather than a decision.
         */}
-        <IconButton
-          label="Emoji and stickers"
-          size="md"
-          variant="ghost"
-          className={cn(pickerOpen && 'text-brand')}
-          onClick={() => setPickerOpen((was) => !was)}
-        >
-          <SmileIcon size={22} />
-        </IconButton>
+        {!room && (
+          <IconButton
+            label="Emoji and stickers"
+            size="md"
+            variant="ghost"
+            className={cn(pickerOpen && 'text-brand')}
+            onClick={() => setPickerOpen((was) => !was)}
+          >
+            <SmileIcon size={22} />
+          </IconButton>
+        )}
 
       </div>
 
@@ -899,7 +912,7 @@ export function Composer({
       {hasText ? (
         <IconButton
           label="Send message"
-          variant="gradient"
+          variant={room ? 'ghost' : 'gradient'}
           size="lg"
           onClick={submit}
           /*
@@ -922,7 +935,7 @@ export function Composer({
             the finger is down, which is a different thing from a performance
             after the fact.
           */
-          className="glass-lit glass-press size-[46px]"
+          className={room ? 'room-send size-[46px] rounded-full' : 'glass-lit glass-press size-[46px]'}
         >
           {/* Nudged to sit optically centred inside the circle. */}
           <SendIcon size={21} className="-translate-x-px translate-y-px" />
@@ -941,7 +954,7 @@ export function Composer({
           label="Record voice message"
           variant="ghost"
           size="lg"
-          className="lq-glass-water size-[46px] rounded-full text-ink"
+          className={cn('size-[46px] rounded-full', room ? 'room-icon room-sub' : 'lq-glass-water text-ink')}
           
           onPointerDown={(event) => {
             // Secondary buttons and the context menu are not this gesture.
@@ -993,6 +1006,11 @@ export function Composer({
           onClick={() => setNotice("Voice messages aren't available here.")}
         >
           <MicIcon size={20} />
+        </IconButton>
+      )}
+      {room && onLive && !hasText && (
+        <IconButton label="Talk to PINGO AI" variant="ghost" size="lg" className="room-icon size-[46px] rounded-full" onClick={onLive}>
+          <AudioLines size={22} aria-hidden />
         </IconButton>
       )}
       </>)}
